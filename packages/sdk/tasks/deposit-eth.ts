@@ -1,14 +1,13 @@
 import { task, types } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import { predeploys } from '@eth-optimism/contracts-bedrock'
+import {
+  predeploys,
+  getContractDefinition,
+} from '@eth-optimism/contracts-bedrock'
 import { providers, utils } from 'ethers'
 
-import {
-  CrossChainMessenger,
-  StandardBridgeAdapter,
-  MessageStatus,
-} from '../src'
+import { CrossChainMessenger, MessageStatus, CONTRACT_ADDRESSES } from '../src'
 
 task('deposit-eth', 'Deposits WETH9 onto L2.')
   .addParam(
@@ -56,10 +55,6 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
 
     const l2Provider = new providers.StaticJsonRpcProvider(args.l2ProviderUrl)
 
-    const Deployment__L2OutputOracleProxy = await hre.deployments.get(
-      'L2OutputOracleProxy'
-    )
-
     // send to self if not specified
     const to = args.to ? args.to : address
     const amount = args.amount
@@ -74,57 +69,48 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       l2Provider
     )
 
-    const Artifact__L2ToL1MessagePasser = await hre.deployments.getArtifact(
+    const l2ChainId = await l2Signer.getChainId()
+    const contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
+
+    const Artifact__L2ToL1MessagePasser = await getContractDefinition(
       'L2ToL1MessagePasser'
     )
 
-    const Artifact__L2CrossDomainMessenger = await hre.deployments.getArtifact(
+    const Artifact__L2CrossDomainMessenger = await getContractDefinition(
       'L2CrossDomainMessenger'
     )
 
-    const Artifact__L2StandardBridge = await hre.deployments.getArtifact(
+    const Artifact__L2StandardBridge = await getContractDefinition(
       'L2StandardBridge'
     )
 
-    const Deployment__OptimismPortal = await hre.deployments.get(
+    const Artifact__OptimismPortal = await getContractDefinition(
       'OptimismPortal'
     )
 
-    const Deployment__OptimismPortalProxy = await hre.deployments.get(
-      'OptimismPortalProxy'
-    )
-
-    const Deployment__L1StandardBridgeProxy = await hre.deployments.get(
-      'L1StandardBridgeProxy'
-    )
-
-    const Deployment__L1CrossDomainMessenger = await hre.deployments.get(
+    const Artifact__L1CrossDomainMessenger = await getContractDefinition(
       'L1CrossDomainMessenger'
     )
 
-    const Deployment__L1CrossDomainMessengerProxy = await hre.deployments.get(
-      'L1CrossDomainMessengerProxy'
-    )
-
-    const Deployment__L1StandardBridge = await hre.deployments.get(
+    const Artifact__L1StandardBridge = await getContractDefinition(
       'L1StandardBridge'
     )
 
     const OptimismPortal = new hre.ethers.Contract(
-      Deployment__OptimismPortalProxy.address,
-      Deployment__OptimismPortal.abi,
+      contractAddrs.l1.OptimismPortal,
+      Artifact__OptimismPortal.abi,
       signer
     )
 
     const L1CrossDomainMessenger = new hre.ethers.Contract(
-      Deployment__L1CrossDomainMessengerProxy.address,
-      Deployment__L1CrossDomainMessenger.abi,
+      contractAddrs.l1.L1CrossDomainMessenger,
+      Artifact__L1CrossDomainMessenger.abi,
       signer
     )
 
     const L1StandardBridge = new hre.ethers.Contract(
-      Deployment__L1StandardBridgeProxy.address,
-      Deployment__L1StandardBridge.abi,
+      contractAddrs.l1.L1StandardBridge,
+      Artifact__L1StandardBridge.abi,
       signer
     )
 
@@ -147,23 +133,7 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       l1SignerOrProvider: signer,
       l2SignerOrProvider: l2Signer,
       l1ChainId: await signer.getChainId(),
-      l2ChainId: await l2Signer.getChainId(),
-      bridges: {
-        Standard: {
-          Adapter: StandardBridgeAdapter,
-          l1Bridge: Deployment__L1StandardBridgeProxy.address,
-          l2Bridge: predeploys.L2StandardBridge,
-        },
-      },
-      contracts: {
-        l1: {
-          L1StandardBridge: Deployment__L1StandardBridgeProxy.address,
-          L1CrossDomainMessenger:
-            Deployment__L1CrossDomainMessengerProxy.address,
-          L2OutputOracle: Deployment__L2OutputOracleProxy.address,
-          OptimismPortal: Deployment__OptimismPortalProxy.address,
-        },
-      },
+      l2ChainId,
       bedrock: true,
     })
 
@@ -238,15 +208,19 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     )
 
     console.log('Waiting to be able to withdraw')
-    setInterval(async () => {
+    const interval = setInterval(async () => {
       const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
       console.log(`Message status: ${MessageStatus[currentStatus]}`)
     }, 3000)
 
-    await messenger.waitForMessageStatus(
-      ethWithdrawReceipt,
-      MessageStatus.READY_FOR_RELAY
-    )
+    try {
+      await messenger.waitForMessageStatus(
+        ethWithdrawReceipt,
+        MessageStatus.READY_FOR_RELAY
+      )
+    } finally {
+      clearInterval(interval)
+    }
 
     const ethFinalize = await messenger.finalizeMessage(ethWithdrawReceipt)
     const ethFinalizeReceipt = await ethFinalize.wait()

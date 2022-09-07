@@ -55,7 +55,7 @@ type StorageLayoutEntry struct {
 	Label    string `json:"label"`
 	Offset   uint   `json:"offset"`
 	Slot     uint   `json:"slot,string"`
-	Type     string `json"type"`
+	Type     string `json:"type"`
 }
 
 type StorageLayoutType struct {
@@ -73,7 +73,7 @@ type CompilerOutputEvm struct {
 	MethodIdentifiers map[string]string            `json:"methodIdentifiers"`
 }
 
-// Object must be a string because its not guranteed to be
+// Object must be a string because its not guaranteed to be
 // a hex string
 type CompilerOutputBytecode struct {
 	Object         string         `json:"object"`
