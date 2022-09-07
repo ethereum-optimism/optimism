@@ -130,7 +130,7 @@ func (upq *PayloadsQueue) Pop() *eth.ExecutionPayload {
 	if len(upq.pq) == 0 {
 		return nil
 	}
-	ps := heap.Pop(&upq.pq).(payloadAndSize)
+	ps := heap.Pop(&upq.pq).(payloadAndSize) // nosemgrep
 	upq.currentSize -= ps.size
 	return ps.payload
 }
