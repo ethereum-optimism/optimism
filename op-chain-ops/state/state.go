@@ -21,7 +21,7 @@ type EncodedStorage struct {
 	Value common.Hash
 }
 
-// EncodedStorage will encode a storage layout
+// EncodeStorage will encode a storage layout
 func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.StorageLayoutType) ([]*EncodedStorage, error) {
 	if storageType.NumberOfBytes > 32 {
 		return nil, fmt.Errorf("%s is larger than 32 bytes", storageType.Encoding)
