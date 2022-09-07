@@ -6,7 +6,7 @@ require (
 	github.com/ethereum-optimism/optimism/op-node v0.5.0
 	github.com/ethereum-optimism/optimism/op-proposer v0.5.0
 	github.com/ethereum-optimism/optimism/op-service v0.5.0
-	github.com/ethereum/go-ethereum v1.10.21
+	github.com/ethereum/go-ethereum v1.10.23
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/urfave/cli v1.22.9
 )
@@ -70,4 +70,4 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/op-geth v0.0.0-20220819161933-acfde114de61
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220907143004-2aacc679d638

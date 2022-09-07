@@ -2,14 +2,13 @@ import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import { predeploys } from '@eth-optimism/contracts-bedrock'
+import {
+  predeploys,
+  getContractDefinition,
+} from '@eth-optimism/contracts-bedrock'
 import { Event, Contract, Wallet, providers, utils } from 'ethers'
 
-import {
-  CrossChainMessenger,
-  StandardBridgeAdapter,
-  MessageStatus,
-} from '../src'
+import { CrossChainMessenger, MessageStatus, CONTRACT_ADDRESSES } from '../src'
 
 const deployWETH9 = async (
   hre: HardhatRuntimeEnvironment,
@@ -18,7 +17,7 @@ const deployWETH9 = async (
   const signers = await hre.ethers.getSigners()
   const signer = signers[0]
 
-  const Artifact__WETH9 = await hre.deployments.getArtifact('WETH9')
+  const Artifact__WETH9 = await getContractDefinition('WETH9')
   const Factory__WETH9 = new hre.ethers.ContractFactory(
     Artifact__WETH9.abi,
     Artifact__WETH9.bytecode,
@@ -44,15 +43,16 @@ const createOptimismMintableERC20 = async (
   L1ERC20: Contract,
   l2Signer: Wallet
 ): Promise<Contract> => {
-  const Deployment__OptimismMintableERC20TokenFactory =
-    await hre.deployments.get('OptimismMintableERC20Factory')
+  const Artifact__OptimismMintableERC20Token = await getContractDefinition(
+    'OptimismMintableERC20'
+  )
 
-  const Artifact__OptimismMintableERC20Token =
-    await hre.deployments.getArtifact('OptimismMintableERC20')
+  const Artifact__OptimismMintableERC20TokenFactory =
+    await getContractDefinition('OptimismMintableERC20Factory')
 
-  const OptimismMintableERC20TokenFactory = await hre.ethers.getContractAt(
-    Deployment__OptimismMintableERC20TokenFactory.abi,
+  const OptimismMintableERC20TokenFactory = new Contract(
     predeploys.OptimismMintableERC20Factory,
+    Artifact__OptimismMintableERC20TokenFactory.abi,
     l2Signer
   )
 
@@ -80,13 +80,11 @@ const createOptimismMintableERC20 = async (
   const l2WethAddress = event.args.remoteToken
   console.log(`Deployed to ${l2WethAddress}`)
 
-  const contract = new Contract(
+  return new Contract(
     l2WethAddress,
     Artifact__OptimismMintableERC20Token.abi,
     l2Signer
   )
-
-  return contract
 }
 
 // TODO(tynes): this task could be modularized in the future
@@ -130,61 +128,48 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       l2Provider
     )
 
-    const Deployment__L2OutputOracleProxy = await hre.deployments.get(
-      'L2OutputOracleProxy'
-    )
+    const l2ChainId = await l2Signer.getChainId()
+    const contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
 
-    const Artifact__L2ToL1MessagePasser = await hre.deployments.getArtifact(
+    const Artifact__L2ToL1MessagePasser = await getContractDefinition(
       'L2ToL1MessagePasser'
     )
 
-    const Artifact__L2CrossDomainMessenger = await hre.deployments.getArtifact(
+    const Artifact__L2CrossDomainMessenger = await getContractDefinition(
       'L2CrossDomainMessenger'
     )
 
-    const Artifact__L2StandardBridge = await hre.deployments.getArtifact(
+    const Artifact__L2StandardBridge = await getContractDefinition(
       'L2StandardBridge'
     )
 
-    const Deployment__OptimismPortal = await hre.deployments.get(
+    const Artifact__OptimismPortal = await getContractDefinition(
       'OptimismPortal'
     )
 
-    const Deployment__OptimismPortalProxy = await hre.deployments.get(
-      'OptimismPortalProxy'
-    )
-
-    const Deployment__L1StandardBridgeProxy = await hre.deployments.get(
-      'L1StandardBridgeProxy'
-    )
-
-    const Deployment__L1CrossDomainMessenger = await hre.deployments.get(
+    const Artifact__L1CrossDomainMessenger = await getContractDefinition(
       'L1CrossDomainMessenger'
     )
 
-    const Deployment__L1CrossDomainMessengerProxy = await hre.deployments.get(
-      'L1CrossDomainMessengerProxy'
-    )
-
-    const Deployment__L1StandardBridge = await hre.deployments.get(
+    const Artifact__L1StandardBridge = await getContractDefinition(
       'L1StandardBridge'
     )
 
     const OptimismPortal = new hre.ethers.Contract(
-      Deployment__OptimismPortalProxy.address,
-      Deployment__OptimismPortal.abi,
+      contractAddrs.l1.OptimismPortal,
+      Artifact__OptimismPortal.abi,
       signer
     )
 
     const L1CrossDomainMessenger = new hre.ethers.Contract(
-      Deployment__L1CrossDomainMessengerProxy.address,
-      Deployment__L1CrossDomainMessenger.abi,
+      contractAddrs.l1.L1CrossDomainMessenger,
+      Artifact__L1CrossDomainMessenger.abi,
       signer
     )
 
     const L1StandardBridge = new hre.ethers.Contract(
-      Deployment__L1StandardBridgeProxy.address,
-      Deployment__L1StandardBridge.abi,
+      contractAddrs.l1.L1StandardBridge,
+      Artifact__L1StandardBridge.abi,
       signer
     )
 
@@ -207,23 +192,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       l1SignerOrProvider: signer,
       l2SignerOrProvider: l2Signer,
       l1ChainId: await signer.getChainId(),
-      l2ChainId: await l2Signer.getChainId(),
-      bridges: {
-        Standard: {
-          Adapter: StandardBridgeAdapter,
-          l1Bridge: Deployment__L1StandardBridgeProxy.address,
-          l2Bridge: predeploys.L2StandardBridge,
-        },
-      },
-      contracts: {
-        l1: {
-          L1StandardBridge: Deployment__L1StandardBridgeProxy.address,
-          L1CrossDomainMessenger:
-            Deployment__L1CrossDomainMessengerProxy.address,
-          L2OutputOracle: Deployment__L2OutputOracleProxy.address,
-          OptimismPortal: Deployment__OptimismPortalProxy.address,
-        },
-      },
+      l2ChainId,
       bedrock: true,
     })
 

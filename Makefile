@@ -44,7 +44,7 @@ mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
 	# releasing new versions. This bypasses the Go modules proxy, which
 	# can take a while to index new versions.
-	# 
+	#
 	# See https://proxy.golang.org/ for more info.
 	export GOPRIVATE="github.com/ethereum-optimism" && \
 	cd ./op-service && go mod tidy && cd .. && \
@@ -52,6 +52,7 @@ mod-tidy:
 	cd ./op-proposer && go mod tidy && cd ..  && \
 	cd ./op-batcher && go mod tidy && cd ..  && \
 	cd ./op-bindings && go mod tidy && cd ..  && \
+	cd ./op-chain-ops && go mod tidy && cd ..  && \
 	cd ./op-e2e && go mod tidy && cd ..
 .PHONY: mod-tidy
 
@@ -125,10 +126,12 @@ tag-bedrock-go-modules:
 	git tag "op-bindings/$(VERSION)"
 	git tag "op-batcher/$(VERSION)"
 	git tag "op-service/$(VERSION)"
+	git tag "op-chain-ops/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-proposer/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-node/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-e2e/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-bindings/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-batcher/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-service/$(VERSION)"
+	git push $(BEDROCK_TAGS_REMOTE) "op-chain-ops/$(VERSION)"
 

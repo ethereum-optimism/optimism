@@ -20,22 +20,30 @@ func FundDevAccounts(db vm.StateDB) {
 	}
 }
 
-// SetProxies will set each of the proxies in the state. It requires
+// SetL2Proxies will set each of the proxies in the state. It requires
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
 // can be set in state and the ProxyAdmin can be set as the admin of the
 // Proxy.
-func SetProxies(hh *hardhat.Hardhat, db vm.StateDB) error {
+func SetL2Proxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Address) error {
+	return setProxies(hh, db, proxyAdminAddr, bigL2PredeployNamespace, 2048)
+}
+
+// SetL1Proxies will set each of the proxies in the state. It requires
+// a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
+// can be set in state and the ProxyAdmin can be set as the admin of the
+// Proxy.
+func SetL1Proxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Address) error {
+	return setProxies(hh, db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
+}
+
+func setProxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
 	proxy, err := hh.GetArtifact("Proxy")
 	if err != nil {
 		return err
 	}
-	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
-	if err != nil {
-		return err
-	}
 
-	for i := uint64(0); i <= 2048; i++ {
-		bigAddr := new(big.Int).Or(bigPredeployNamespace, new(big.Int).SetUint64(i))
+	for i := uint64(0); i <= count; i++ {
+		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
 		// There is no proxy at the governance token address
@@ -45,7 +53,7 @@ func SetProxies(hh *hardhat.Hardhat, db vm.StateDB) error {
 
 		db.CreateAccount(addr)
 		db.SetCode(addr, proxy.DeployedBytecode)
-		db.SetState(addr, AdminSlot, proxyAdmin.Address.Hash())
+		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
 	}
 	return nil
 }
@@ -78,7 +86,7 @@ func SetImplementations(hh *hardhat.Hardhat, db vm.StateDB, storage StorageConfi
 			if err != nil {
 				return err
 			}
-			// Set the implmentation slot in the predeploy proxy
+			// Set the implementation slot in the predeploy proxy
 			db.SetState(*address, ImplementationSlot, addr.Hash())
 		}
 
@@ -138,14 +146,13 @@ func MigrateDepositHashes(hh *hardhat.Hardhat, db vm.StateDB) error {
 		ignore[encoded] = true
 	}
 
-	db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
+	return db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
 		if _, ok := ignore[key]; ok {
 			return true
 		}
 		// TODO(tynes): Do the value migration here
 		return true
 	})
-	return nil
 }
 
 // SetPrecompileBalances will set a single wei at each precompile address.

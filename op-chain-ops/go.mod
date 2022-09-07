@@ -4,8 +4,8 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220820030939-de38b6f6f77e
-	github.com/ethereum-optimism/optimism/op-bindings v0.4.0
-	github.com/ethereum/go-ethereum v1.10.21
+	github.com/ethereum-optimism/optimism/op-bindings v0.5.0
+	github.com/ethereum/go-ethereum v1.10.23
 	github.com/mattn/go-isatty v0.0.14
 	github.com/stretchr/testify v1.7.2
 	github.com/urfave/cli/v2 v2.10.2
@@ -52,3 +52,5 @@ require (
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/op-geth v0.0.0-20220904174542-4311f9d2cead

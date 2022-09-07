@@ -26,7 +26,7 @@ type Hardhat struct {
 
 	artifacts   []*Artifact
 	deployments []*Deployment
-	buildInfos  []*BuildInfo
+	buildInfos  []*BuildInfo //nolint:unused
 }
 
 // New creates a new `Hardhat` struct and reads all of the files from
@@ -202,7 +202,7 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 
 	for _, artifactPath := range h.ArtifactPaths {
 		fileSystem := os.DirFS(artifactPath)
-		fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
+		err := fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
 				return err
 			}
@@ -249,6 +249,9 @@ func (h *Hardhat) GetBuildInfo(name string) (*BuildInfo, error) {
 
 			return nil
 		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// TODO(tynes): handle multiple contracts with same name when required

@@ -2,147 +2,120 @@ package genesis
 
 import (
 	"encoding/json"
-	"fmt"
+	"math/big"
 	"os"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
-	"github.com/ethereum/go-ethereum/log"
-
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var Subcommands = cli.Commands{
 	{
-		Name:  "devnet-l2",
-		Usage: "Initialized a new L2 devnet genesis file",
+		Name:  "devnet",
+		Usage: "Initialize new L1 and L2 genesis files and rollup config suitable for a local devnet",
 		Flags: []cli.Flag{
 			cli.StringFlag{
 				Name:  "artifacts",
-				Usage: "Comma delimeted list of hardhat artifact directories",
-			},
-			cli.StringFlag{
-				Name:  "network",
-				Usage: "Name of hardhat deploy network",
-			},
-			cli.StringFlag{
-				Name:  "deployments",
-				Usage: "Comma delimated list of hardhat deploy artifact directories",
+				Usage: "Comma delimited list of hardhat artifact directories",
 			},
 			cli.StringFlag{
 				Name:  "deploy-config",
-				Usage: "Path to hardhat deploy config directory",
+				Usage: "Path to hardhat deploy config file",
 			},
 			cli.StringFlag{
-				Name:  "rpc-url",
-				Usage: "L1 RPC URL",
+				Name:  "outfile.l1",
+				Usage: "Path to L1 genesis output file",
 			},
 			cli.StringFlag{
-				Name:  "outfile",
-				Usage: "Path to file to write output to",
+				Name:  "outfile.l2",
+				Usage: "Path to L2 genesis output file",
+			},
+			cli.StringFlag{
+				Name:  "outfile.rollup",
+				Usage: "Path to rollup output file",
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			// Turn off logging for this command unless it is a critical
-			// error so that the output can be piped to jq
-			log.Root().SetHandler(
-				log.LvlFilterHandler(
-					log.LvlCrit,
-					log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
-				),
-			)
-
 			artifact := ctx.String("artifacts")
 			artifacts := strings.Split(artifact, ",")
-			deployment := ctx.String("deployments")
-			deployments := strings.Split(deployment, ",")
-			network := ctx.String("network")
-			hh, err := hardhat.New(network, artifacts, deployments)
+			hh, err := hardhat.New("", artifacts, nil)
 			if err != nil {
 				return err
 			}
 
 			deployConfig := ctx.String("deploy-config")
-			config, err := genesis.NewDeployConfigWithNetwork(network, deployConfig)
+			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
-			rpcUrl := ctx.String("rpc-url")
-			client, err := ethclient.Dial(rpcUrl)
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(hh, config)
 			if err != nil {
 				return err
 			}
 
-			gen, err := genesis.BuildOptimismDeveloperGenesis(hh, config, client)
+			l1StartBlock := l1Genesis.ToBlock()
+			l2Addrs := &genesis.L2Addresses{
+				ProxyAdmin:                  predeploys.DevProxyAdminAddr,
+				L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
+				L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
+			}
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(hh, config, l1StartBlock, l2Addrs)
 			if err != nil {
 				return err
 			}
 
-			file, err := json.MarshalIndent(gen, "", " ")
-			if err != nil {
-				return err
+			rollupConfig := &rollup.Config{
+				Genesis: rollup.Genesis{
+					L1: eth.BlockID{
+						Hash:   l1StartBlock.Hash(),
+						Number: 0,
+					},
+					L2: eth.BlockID{
+						Hash:   l2Genesis.ToBlock().Hash(),
+						Number: 0,
+					},
+					L2Time: uint64(config.L1GenesisBlockTimestamp),
+				},
+				BlockTime:              config.L2BlockTime,
+				MaxSequencerDrift:      config.MaxSequencerDrift,
+				SeqWindowSize:          config.SequencerWindowSize,
+				ChannelTimeout:         config.ChannelTimeout,
+				L1ChainID:              new(big.Int).SetUint64(config.L1ChainID),
+				L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
+				P2PSequencerAddress:    config.P2PSequencerAddress,
+				FeeRecipientAddress:    config.OptimismL2FeeRecipient,
+				BatchInboxAddress:      config.BatchInboxAddress,
+				BatchSenderAddress:     config.BatchSenderAddress,
+				DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			}
 
-			outfile := ctx.String("outfile")
-			if outfile == "" {
-				fmt.Println(string(file))
-			} else {
-				if err := os.WriteFile(outfile, file, 0644); err != nil {
-					return err
-				}
+			if err := writeGenesisFile(ctx.String("outfile.l1"), l1Genesis); err != nil {
+				return err
 			}
-			return nil
+			if err := writeGenesisFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
+				return err
+			}
+			return writeGenesisFile(ctx.String("outfile.rollup"), rollupConfig)
 		},
 	},
-	{
-		Name:  "devnet-l1",
-		Usage: "Initialized a new L1 devnet genesis file",
-		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:  "network",
-				Usage: "Name of hardhat deploy network",
-			},
-			cli.StringFlag{
-				Name:  "deploy-config",
-				Usage: "Path to hardhat deploy config directory",
-			},
-			cli.StringFlag{
-				Name:  "outfile",
-				Usage: "Path to file to write output to",
-			},
-		},
-		Action: func(ctx *cli.Context) error {
-			network := ctx.String("network")
-			deployConfig := ctx.String("deploy-config")
+}
 
-			config, err := genesis.NewDeployConfigWithNetwork(network, deployConfig)
-			if err != nil {
-				return err
-			}
+func writeGenesisFile(outfile string, input interface{}) error {
+	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
 
-			gen, err := genesis.BuildL1DeveloperGenesis(config)
-			if err != nil {
-				return err
-			}
-
-			file, err := json.MarshalIndent(gen, "", " ")
-			if err != nil {
-				return err
-			}
-
-			outfile := ctx.String("outfile")
-			if outfile == "" {
-				fmt.Println(string(file))
-			} else {
-				if err := os.WriteFile(outfile, file, 0644); err != nil {
-					return err
-				}
-			}
-			return nil
-		},
-	},
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(input)
 }
