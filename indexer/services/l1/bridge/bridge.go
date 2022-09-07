@@ -25,37 +25,39 @@ type Bridge interface {
 type implConfig struct {
 	name string
 	impl string
-	addr common.Address
+	addr string
 }
 
-var addrs map[string]common.Address
+var defaultBridgeCfgs = []*implConfig{
+	{"Standard", "StandardBridge", L1StandardBridgeAddr},
+	{"ETH", "ETHBridge", L1StandardBridgeAddr},
+}
 
 var customBridgeCfgs = map[uint64][]*implConfig{
 	// Mainnet
 	1: {
-		{"BitBTC", "StandardBridge", common.HexToAddress("0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128")},
-		{"DAI", "StandardBridge", common.HexToAddress("0x10E6593CDda8c58a1d0f14C5164B376352a55f2F")},
+		{"BitBTC", "StandardBridge", "0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128"},
+		{"DAI", "StandardBridge", "0x10E6593CDda8c58a1d0f14C5164B376352a55f2F"},
 	},
 	// Kovan
 	42: {
-		{"BitBTC", "StandardBridge", common.HexToAddress("0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746")},
-		{"USX", "StandardBridge", common.HexToAddress("0x40E862341b2416345F02c41Ac70df08525150dC7")},
-		{"DAI", "StandardBridge", common.HexToAddress("0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3")},
+		{"BitBTC", "StandardBridge", "0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746"},
+		{"USX", "StandardBridge", "0x40E862341b2416345F02c41Ac70df08525150dC7"},
+		{"DAI", "StandardBridge", "0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3"},
 	},
 }
 
 func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, ctx context.Context) (map[string]Bridge, error) {
-	allCfgs := []*implConfig{
-		{"Standard", "StandardBridge", addrs["L1StandardBridge"]},
-		{"ETH", "ETHBridge", addrs["L1StandardBridge"]},
-	}
+	allCfgs := make([]*implConfig, 0)
+	allCfgs = append(allCfgs, defaultBridgeCfgs...)
 	allCfgs = append(allCfgs, customBridgeCfgs[chainID.Uint64()]...)
 
 	bridges := make(map[string]Bridge)
 	for _, bridge := range allCfgs {
 		switch bridge.impl {
 		case "StandardBridge":
-			l1StandardBridgeFilter, err := bindings.NewL1StandardBridgeFilterer(bridge.addr, client)
+			l1StandardBridgeAddress := common.HexToAddress(bridge.addr)
+			l1StandardBridgeFilter, err := bindings.NewL1StandardBridgeFilterer(l1StandardBridgeAddress, client)
 			if err != nil {
 				return nil, err
 			}
@@ -63,13 +65,14 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, ctx context
 			standardBridge := &StandardBridge{
 				name:     bridge.name,
 				ctx:      ctx,
-				address:  bridge.addr,
+				address:  l1StandardBridgeAddress,
 				client:   client,
 				filterer: l1StandardBridgeFilter,
 			}
 			bridges[bridge.name] = standardBridge
 		case "ETHBridge":
-			l1EthBridgeFilter, err := bindings.NewL1StandardBridgeFilterer(bridge.addr, client)
+			l1StandardBridgeAddress := common.HexToAddress(bridge.addr)
+			l1EthBridgeFilter, err := bindings.NewL1StandardBridgeFilterer(l1StandardBridgeAddress, client)
 			if err != nil {
 				return nil, err
 			}
@@ -77,7 +80,7 @@ func BridgesByChainID(chainID *big.Int, client bind.ContractBackend, ctx context
 			ethBridge := &EthBridge{
 				name:     bridge.name,
 				ctx:      ctx,
-				address:  bridge.addr,
+				address:  l1StandardBridgeAddress,
 				client:   client,
 				filterer: l1EthBridgeFilter,
 			}
