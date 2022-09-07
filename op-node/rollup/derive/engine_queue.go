@@ -27,8 +27,8 @@ type Engine interface {
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 }
 
-// Max number of unsafe payloads that may be queued up for execution
-const maxUnsafePayloads = 50
+// Max memory used for buffering unsafe payloads
+const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 
 // finalityLookback defines the amount of L1<>L2 relations to track for finalization purposes, one per L1 block.
 //
@@ -67,7 +67,7 @@ type EngineQueue struct {
 	progress Progress
 
 	safeAttributes []*eth.PayloadAttributes
-	unsafePayloads []*eth.ExecutionPayload
+	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
@@ -87,6 +87,10 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 		engine:       engine,
 		metrics:      metrics,
 		finalityData: make([]FinalityData, 0, finalityLookback),
+		unsafePayloads: PayloadsQueue{
+			MaxSize: maxUnsafePayloadsMemory,
+			SizeFn:  payloadMemSize,
+		},
 	}
 }
 
@@ -100,12 +104,17 @@ func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
 }
 
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
-	if len(eq.unsafePayloads) > maxUnsafePayloads {
-		eq.log.Debug("Refusing to add unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber))
-		return // don't DoS ourselves by buffering too many unsafe payloads
+	if payload == nil {
+		eq.log.Warn("cannot add nil unsafe payload")
+		return
 	}
-	eq.log.Trace("Adding unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber), "timestamp", uint64(payload.Timestamp))
-	eq.unsafePayloads = append(eq.unsafePayloads, payload)
+	if err := eq.unsafePayloads.Push(payload); err != nil {
+		eq.log.Warn("Could not add unsafe payload", "id", payload.ID(), "timestamp", uint64(payload.Timestamp), "err", err)
+		return
+	}
+	p := eq.unsafePayloads.Peek()
+	eq.metrics.RecordUnsafePayloadsBuffer(uint64(eq.unsafePayloads.Len()), eq.unsafePayloads.MemSize(), p.ID())
+	eq.log.Trace("Next unsafe payload to process", "next", p.ID(), "timestamp", uint64(p.Timestamp))
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
@@ -144,7 +153,7 @@ func (eq *EngineQueue) Step(ctx context.Context, outer Progress) error {
 	if len(eq.safeAttributes) > 0 {
 		return eq.tryNextSafeAttributes(ctx)
 	}
-	if len(eq.unsafePayloads) > 0 {
+	if eq.unsafePayloads.Len() > 0 {
 		return eq.tryNextUnsafePayload(ctx)
 	}
 	return io.EOF
@@ -200,25 +209,27 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 }
 
 func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
-	first := eq.unsafePayloads[0]
+	first := eq.unsafePayloads.Peek()
 
 	if uint64(first.BlockNumber) <= eq.safeHead.Number {
 		eq.log.Info("skipping unsafe payload, since it is older than safe head", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
-		eq.unsafePayloads = eq.unsafePayloads[1:]
+		eq.unsafePayloads.Pop()
 		return nil
 	}
 
 	// TODO: once we support snap-sync we can remove this condition, and handle the "SYNCING" status of the execution engine.
 	if first.ParentHash != eq.unsafeHead.Hash {
-		eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
-		eq.unsafePayloads = eq.unsafePayloads[1:]
-		return nil
+		if uint64(first.BlockNumber) == eq.unsafeHead.Number+1 {
+			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
+			eq.unsafePayloads.Pop()
+		}
+		return io.EOF // time to go to next stage if we cannot process the first unsafe payload
 	}
 
 	ref, err := PayloadToBlockRef(first, &eq.cfg.Genesis)
 	if err != nil {
 		eq.log.Error("failed to decode L2 block ref from payload", "err", err)
-		eq.unsafePayloads = eq.unsafePayloads[1:]
+		eq.unsafePayloads.Pop()
 		return nil
 	}
 
@@ -246,7 +257,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		}
 	}
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
-		eq.unsafePayloads = eq.unsafePayloads[1:]
+		eq.unsafePayloads.Pop()
 		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %v",
 			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
@@ -255,12 +266,12 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %v", err))
 	}
 	if status.Status != eth.ExecutionValid {
-		eq.unsafePayloads = eq.unsafePayloads[1:]
+		eq.unsafePayloads.Pop()
 		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %v",
 			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
 	eq.unsafeHead = ref
-	eq.unsafePayloads = eq.unsafePayloads[1:]
+	eq.unsafePayloads.Pop()
 	eq.metrics.RecordL2Ref("l2_unsafe", ref)
 	eq.log.Trace("Executed unsafe payload", "hash", ref.Hash, "number", ref.Number, "timestamp", ref.Time, "l1Origin", ref.L1Origin)
 	eq.logSyncProgress("unsafe payload from sequencer")
@@ -399,6 +410,7 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	eq.safeHead = safe
 	eq.finalized = finalized
 	eq.finalityData = eq.finalityData[:0]
+	// note: we do not clear the unsafe payloadds queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.progress = Progress{
 		Origin: l1Origin,
 		Closed: false,
