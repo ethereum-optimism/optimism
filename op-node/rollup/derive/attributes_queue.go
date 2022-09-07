@@ -33,22 +33,18 @@ type AttributesQueue struct {
 	config   *rollup.Config
 	dl       L1ReceiptsFetcher
 	next     AttributesQueueOutput
+	prev     *BatchQueue
 	progress Progress
 	batches  []*BatchData
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, next AttributesQueueOutput) *AttributesQueue {
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, next AttributesQueueOutput, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
 		log:    log,
 		config: cfg,
 		dl:     l1Fetcher,
 		next:   next,
 	}
-}
-
-func (aq *AttributesQueue) AddBatch(batch *BatchData) {
-	aq.log.Debug("Received next batch", "batch_epoch", batch.EpochNum, "batch_timestamp", batch.Timestamp, "tx_count", len(batch.Transactions))
-	aq.batches = append(aq.batches, batch)
 }
 
 func (aq *AttributesQueue) Progress() Progress {
@@ -60,7 +56,12 @@ func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
 		return err
 	}
 	if len(aq.batches) == 0 {
-		return io.EOF
+		b, err := aq.prev.NextBatch(ctx, aq.progress, aq.next.SafeL2Head())
+		if err != nil {
+			return err
+		}
+		aq.batches = append(aq.batches, b)
+
 	}
 	batch := aq.batches[0]
 
