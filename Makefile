@@ -126,10 +126,12 @@ tag-bedrock-go-modules:
 	git tag "op-bindings/$(VERSION)"
 	git tag "op-batcher/$(VERSION)"
 	git tag "op-service/$(VERSION)"
+	git tag "op-chain-ops/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-proposer/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-node/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-e2e/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-bindings/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-batcher/$(VERSION)"
 	git push $(BEDROCK_TAGS_REMOTE) "op-service/$(VERSION)"
+	git push $(BEDROCK_TAGS_REMOTE) "op-chain-ops/$(VERSION)"
 

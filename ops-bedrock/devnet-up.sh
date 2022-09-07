@@ -62,14 +62,21 @@ mkdir -p ./.devnet
 
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
 # file is used to determine if we need to recreate the devnet's state folder.
-if [ ! -f $DEVNET/genesis-l1.json ]; then
-  echo "Regenerating L1 genesis."
+if [ ! -f "$DEVNET/done" ]; then
+  echo "Regenerating genesis files"
+
+  TIMESTAMP=$(date +%s | xargs printf '0x%x')
+  cat "$CONTRACTS_BEDROCK/deploy-config/devnetL1.json" | jq -r ".l1GenesisBlockTimestamp = \"$TIMESTAMP\"" > /tmp/bedrock-devnet-deploy-config.json
+
   (
     cd "$OP_NODE"
-    go run cmd/main.go genesis devnet-l1 \
-        --network $NETWORK \
-        --deploy-config $CONTRACTS_BEDROCK/deploy-config \
-        --outfile $DEVNET/genesis-l1.json
+    go run cmd/main.go genesis devnet \
+        --artifacts "$CONTRACTS_BEDROCK/artifacts,$CONTRACTS_GOVERNANCE/artifacts" \
+        --deploy-config /tmp/bedrock-devnet-deploy-config.json \
+        --outfile.l1 $DEVNET/genesis-l1.json \
+        --outfile.l2 $DEVNET/genesis-l2.json \
+        --outfile.rollup $DEVNET/rollup.json
+    touch "$DEVNET/done"
   )
 fi
 
@@ -82,34 +89,6 @@ fi
   wait_up $L1_URL
 )
 
-# Deploy contracts using Hardhat.
-if [ ! -d "$CONTRACTS_BEDROCK/deployments/$NETWORK" ]; then
-  (
-    echo "Deploying contracts."
-    cd "$CONTRACTS_BEDROCK"
-    yarn hardhat --network $NETWORK deploy
-  )
-else
-  echo "Contracts already deployed, skipping."
-fi
-
-if [ ! -f "$DEVNET/genesis-l2.json" ]; then
-    (
-      echo "Creating L2 genesis file."
-      cd "$OP_NODE"
-      go run cmd/main.go genesis devnet-l2 \
-          --artifacts "$CONTRACTS_BEDROCK/artifacts,$CONTRACTS_GOVERNANCE/artifacts" \
-          --network $NETWORK \
-          --deployments "$CONTRACTS_BEDROCK/deployments" \
-          --deploy-config "$CONTRACTS_BEDROCK/deploy-config" \
-          --rpc-url http://localhost:8545 \
-          --outfile "$DEVNET/genesis-l2.json"
-      echo "Created L2 genesis."
-    )
-else
-    echo "L2 genesis already exists."
-fi
-
 # Bring up L2.
 (
   cd ops-bedrock
@@ -118,19 +97,7 @@ fi
   wait_up $L2_URL
 )
 
-# Start putting together the rollup config.
-if [ ! -f "$DEVNET/rollup.json" ]; then
-    (
-      echo "Building rollup config..."
-      cd "$CONTRACTS_BEDROCK"
-      npx hardhat --network $NETWORK rollup-config
-      mv rollup.json "$DEVNET/rollup.json"
-    )
-else
-    echo "Rollup config already exists"
-fi
-
-L2OO_ADDRESS=$(jq -r .address < "$CONTRACTS_BEDROCK/deployments/$NETWORK/L2OutputOracleProxy.json")
+L2OO_ADDRESS="0x6900000000000000000000000000000000000000"
 SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < $DEVNET/rollup.json)"
 SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_address')"
 
