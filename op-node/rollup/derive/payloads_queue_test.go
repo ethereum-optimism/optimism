@@ -2,9 +2,10 @@ package derive
 
 import (
 	"container/heap"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestPayloadsByNumber(t *testing.T) {
@@ -82,39 +83,47 @@ func TestPayloadsQueue(t *testing.T) {
 	b := &eth.ExecutionPayload{BlockNumber: 4}
 	c := &eth.ExecutionPayload{BlockNumber: 5}
 	bAlt := &eth.ExecutionPayload{BlockNumber: 4}
-	pq.Push(b)
+	require.NoError(t, pq.Push(b))
 	require.Equal(t, pq.Len(), 1)
 	require.Equal(t, pq.Peek(), b)
 
-	pq.Push(c)
+	require.Error(t, pq.Push(nil), "cannot add nil payloads")
+
+	require.NoError(t, pq.Push(c))
 	require.Equal(t, pq.Len(), 2)
+	require.Equal(t, pq.MemSize(), 2*payloadMemFixedCost)
 	require.Equal(t, pq.Peek(), b, "expecting b to still be the lowest number payload")
 
-	pq.Push(a)
+	require.NoError(t, pq.Push(a))
 	require.Equal(t, pq.Len(), 3)
+	require.Equal(t, pq.MemSize(), 3*payloadMemFixedCost)
 	require.Equal(t, pq.Peek(), a, "expecting a to be new lowest number")
 
 	require.Equal(t, pq.Pop(), a)
 	require.Equal(t, pq.Len(), 2, "expecting to pop the lowest")
 
-	pq.Push(bAlt)
+	require.NoError(t, pq.Push(bAlt))
 	require.Equal(t, pq.Len(), 3)
 	require.Equal(t, pq.Peek(), b, "expecting b to be lowest, compared to bAlt and c")
 
 	require.Equal(t, pq.Pop(), b)
 	require.Equal(t, pq.Len(), 2)
+	require.Equal(t, pq.MemSize(), 2*payloadMemFixedCost)
 
 	require.Equal(t, pq.Pop(), bAlt)
 	require.Equal(t, pq.Len(), 1)
 	require.Equal(t, pq.Peek(), c, "expecting c to only remain")
 
-	pq.Push(b)
+	d := &eth.ExecutionPayload{BlockNumber: 5, Transactions: []eth.Data{make([]byte, payloadMemFixedCost*3+1)}}
+	require.Error(t, pq.Push(d), "cannot add payloads that are too large")
+
+	require.NoError(t, pq.Push(b))
 	require.Equal(t, pq.Len(), 2, "expecting b, c")
 	require.Equal(t, pq.Peek(), b)
-	pq.Push(a)
+	require.NoError(t, pq.Push(a))
 	require.Equal(t, pq.Len(), 3, "expecting a, b, c")
 	require.Equal(t, pq.Peek(), a)
-	pq.Push(bAlt)
+	require.NoError(t, pq.Push(bAlt))
 	require.Equal(t, pq.Len(), 3, "expecting b, bAlt, c")
 	require.NotContainsf(t, pq.pq[:], a, "a should be dropped after 3 items already exist under max size constraint")
 }

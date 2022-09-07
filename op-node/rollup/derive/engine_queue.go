@@ -104,8 +104,17 @@ func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
 }
 
 func (eq *EngineQueue) AddUnsafePayload(payload *eth.ExecutionPayload) {
-	eq.log.Trace("Adding unsafe payload", "hash", payload.BlockHash, "number", uint64(payload.BlockNumber), "timestamp", uint64(payload.Timestamp))
-	eq.unsafePayloads.Push(payload)
+	if payload == nil {
+		eq.log.Warn("cannot add nil unsafe payload")
+		return
+	}
+	if err := eq.unsafePayloads.Push(payload); err != nil {
+		eq.log.Warn("Could not add unsafe payload", "id", payload.ID(), "timestamp", uint64(payload.Timestamp), "err", err)
+		return
+	}
+	p := eq.unsafePayloads.Peek()
+	eq.metrics.RecordUnsafePayloadsBuffer(uint64(eq.unsafePayloads.Len()), eq.unsafePayloads.MemSize(), p.ID())
+	eq.log.Trace("Next unsafe payload to process", "next", p.ID(), "timestamp", uint64(p.Timestamp))
 }
 
 func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {

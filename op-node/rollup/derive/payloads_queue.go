@@ -2,6 +2,8 @@ package derive
 
 import (
 	"container/heap"
+	"errors"
+	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
@@ -82,6 +84,10 @@ func (upq *PayloadsQueue) Len() int {
 	return len(upq.pq)
 }
 
+func (upq *PayloadsQueue) MemSize() uint64 {
+	return upq.currentSize
+}
+
 // Push adds the payload to the queue, in O(log(N)).
 //
 // Don't DoS ourselves by buffering too many unsafe payloads.
@@ -89,11 +95,14 @@ func (upq *PayloadsQueue) Len() int {
 //
 // We prefer higher block numbers over lower block numbers, since lower block numbers are more likely to be conflicts and/or read from L1 sooner.
 // The higher payload block numbers can be preserved, and once L1 contents meets these, they can all be processed in order.
-func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) {
+func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) error {
 	if p == nil {
-		return
+		return errors.New("cannot add nil payload")
 	}
 	size := upq.SizeFn(p)
+	if size > upq.MaxSize {
+		return fmt.Errorf("cannot add payload %s, payload mem size %d is larger than max queue size %d", p.ID(), size, upq.MaxSize)
+	}
 	heap.Push(&upq.pq, payloadAndSize{
 		payload: p,
 		size:    size,
@@ -102,6 +111,7 @@ func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) {
 	for upq.currentSize > upq.MaxSize {
 		upq.Pop()
 	}
+	return nil
 }
 
 // Peek retrieves the payload with the lowest block number from the queue in O(1), or nil if the queue is empty.

@@ -52,6 +52,9 @@ type Metrics struct {
 	SequencingErrors *EventMetrics
 	PublishingErrors *EventMetrics
 
+	UnsafePayloadsBufferLen     prometheus.Gauge
+	UnsafePayloadsBufferMemSize prometheus.Gauge
+
 	RefsNumber  *prometheus.GaugeVec
 	RefsTime    *prometheus.GaugeVec
 	RefsHash    *prometheus.GaugeVec
@@ -149,6 +152,17 @@ func NewMetrics(procName string) *Metrics {
 		DerivationErrors: NewEventMetrics(registry, ns, "derivation_errors", "derivation errors"),
 		SequencingErrors: NewEventMetrics(registry, ns, "sequencing_errors", "sequencing errors"),
 		PublishingErrors: NewEventMetrics(registry, ns, "publishing_errors", "p2p publishing errors"),
+
+		UnsafePayloadsBufferLen: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "unsafe_payloads_buffer_len",
+			Help:      "Number of buffered L2 unsafe payloads",
+		}),
+		UnsafePayloadsBufferMemSize: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "unsafe_payloads_buffer_mem_size",
+			Help:      "Total estimated memory size of buffered L2 unsafe payloads",
+		}),
 
 		RefsNumber: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -319,6 +333,12 @@ func (m *Metrics) RecordL2Ref(name string, ref eth.L2BlockRef) {
 	m.recordRef("l2", name, ref.Number, ref.Time, ref.Hash)
 	m.recordRef("l1_origin", name, ref.L1Origin.Number, 0, ref.L1Origin.Hash)
 	m.RefsSeqNr.WithLabelValues(name).Set(float64(ref.SequenceNumber))
+}
+
+func (m *Metrics) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+	m.recordRef("l2", "l2_buffer_unsafe", next.Number, 0, next.Hash)
+	m.UnsafePayloadsBufferLen.Set(float64(length))
+	m.UnsafePayloadsBufferMemSize.Set(float64(memSize))
 }
 
 func (m *Metrics) CountSequencedTxs(count int) {
