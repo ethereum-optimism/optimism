@@ -45,12 +45,21 @@ func (pq *payloadsByNumber) Pop() any {
 	return item
 }
 
-func payloadMemSize(p *eth.ExecutionPayload) uint64 {
+const (
 	// ~580 bytes per payload, with some margin for overhead
-	out := uint64(600)
+	payloadMemFixedCost uint64 = 600
+	// 24 bytes per tx overhead (size of slice header in memory)
+	payloadTxMemOverhead uint64 = 24
+)
+
+func payloadMemSize(p *eth.ExecutionPayload) uint64 {
+	out := payloadMemFixedCost
+	if p == nil {
+		return out
+	}
 	// 24 byte overhead per tx
 	for _, tx := range p.Transactions {
-		out += uint64(len(tx)) + 24
+		out += uint64(len(tx)) + payloadTxMemOverhead
 	}
 	return out
 }
@@ -61,6 +70,7 @@ func payloadMemSize(p *eth.ExecutionPayload) uint64 {
 // without the need to use heap.Push/heap.Pop as caller.
 // PayloadsQueue maintains a MaxSize by counting and tracking sizes of added eth.ExecutionPayload entries.
 // When the size grows too large, the first (lowest block-number) payload is removed from the queue.
+// PayloadsQueue allows entries with same block number, or even full duplicates.
 type PayloadsQueue struct {
 	pq          payloadsByNumber
 	currentSize uint64
