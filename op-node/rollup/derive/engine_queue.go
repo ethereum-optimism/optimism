@@ -75,18 +75,19 @@ type EngineQueue struct {
 	engine Engine
 
 	metrics Metrics
+
+	prev *AttributesQueue
 }
 
-var _ AttributesQueueOutput = (*EngineQueue)(nil)
-
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics) *EngineQueue {
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev *AttributesQueue) *EngineQueue {
 	return &EngineQueue{
 		log:          log,
 		cfg:          cfg,
 		engine:       engine,
 		metrics:      metrics,
 		finalityData: make([]FinalityData, 0, finalityLookback),
+		prev:         prev,
 	}
 }
 
@@ -138,9 +139,14 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 }
 
 func (eq *EngineQueue) Step(ctx context.Context, outer Progress) error {
-	if changed, err := eq.progress.Update(outer); err != nil || changed {
-		return err
+	if len(eq.safeAttributes) == 0 {
+		attrs, err := eq.prev.NextAttributes(ctx, eq.safeHead)
+		if err != nil {
+			return err
+		}
+		eq.safeAttributes = append(eq.safeAttributes, attrs)
 	}
+
 	if len(eq.safeAttributes) > 0 {
 		return eq.tryNextSafeAttributes(ctx)
 	}

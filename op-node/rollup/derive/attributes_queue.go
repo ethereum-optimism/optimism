@@ -22,28 +22,23 @@ import (
 // This stage can be reset by clearing it's batch buffer.
 // This stage does not need to retain any references to L1 blocks.
 
-type AttributesQueueOutput interface {
-	AddSafeAttributes(attributes *eth.PayloadAttributes)
-	SafeL2Head() eth.L2BlockRef
-	StageProgress
-}
-
 type AttributesQueue struct {
 	log      log.Logger
 	config   *rollup.Config
 	dl       L1ReceiptsFetcher
-	next     AttributesQueueOutput
 	prev     *BatchQueue
 	progress Progress
 	batches  []*BatchData
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, next AttributesQueueOutput, prev *BatchQueue) *AttributesQueue {
+var _ PullStage = (*AttributesQueue)(nil)
+
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
 		log:    log,
 		config: cfg,
 		dl:     l1Fetcher,
-		next:   next,
+		prev:   prev,
 	}
 }
 
@@ -51,30 +46,26 @@ func (aq *AttributesQueue) Progress() Progress {
 	return aq.progress
 }
 
-func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
-	if changed, err := aq.progress.Update(outer); err != nil || changed {
-		return err
-	}
+func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2BlockRef) (*eth.PayloadAttributes, error) {
 	if len(aq.batches) == 0 {
-		b, err := aq.prev.NextBatch(ctx, aq.progress, aq.next.SafeL2Head())
+		b, err := aq.prev.NextBatch(ctx, aq.progress, l2SafeHead)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		aq.batches = append(aq.batches, b)
 
 	}
 	batch := aq.batches[0]
 
-	safeL2Head := aq.next.SafeL2Head()
 	// sanity check parent hash
-	if batch.ParentHash != safeL2Head.Hash {
-		return NewCriticalError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, safeL2Head.Hash))
+	if batch.ParentHash != l2SafeHead.Hash {
+		return nil, NewCriticalError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, l2SafeHead.Hash))
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, safeL2Head, batch.Timestamp, batch.Epoch())
+	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, l2SafeHead, batch.Timestamp, batch.Epoch())
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// we are verifying, not sequencing, we've got all transactions and do not pull from the tx-pool
@@ -87,16 +78,11 @@ func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
 	// Slice off the batch once we are guaranteed to succeed
 	aq.batches = aq.batches[1:]
 
-	aq.next.AddSafeAttributes(attrs)
-	return nil
+	return attrs, nil
 }
 
-func (aq *AttributesQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
+func (aq *AttributesQueue) Reset(ctx context.Context, inner Progress) error {
 	aq.batches = aq.batches[:0]
-	aq.progress = aq.next.Progress()
+	aq.progress = inner
 	return io.EOF
-}
-
-func (aq *AttributesQueue) SafeL2Head() eth.L2BlockRef {
-	return aq.next.SafeL2Head()
 }
