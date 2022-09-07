@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -22,11 +21,6 @@ import (
 // Specifically, the channel bank is not allowed to become too large between successive calls
 // to `IngestData`. This means that we can do an ingest and then do a read while becoming too large.
 
-type ChannelBankOutput interface {
-	StageProgress
-	WriteChannel(data []byte)
-}
-
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
 	log log.Logger
@@ -39,21 +33,19 @@ type ChannelBank struct {
 
 	progress Progress
 
-	next     ChannelBankOutput
 	prev     *L1Retrieval
 	prevDone bool
 }
 
-var _ Stage = (*ChannelBank)(nil)
+var _ PullStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput, prev *L1Retrieval) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev *L1Retrieval) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
-		next:         next,
 		prev:         prev,
 	}
 }
@@ -166,13 +158,13 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 // The issues is that ib.Closed == true while ib.prevDone == false
 //
 
-func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
+func (ib *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 	outer := ib.prev.Progress()
 	if changed, err := ib.progress.Update(outer); err != nil || changed {
 		if changed && !outer.Closed {
 			ib.prevDone = false
 		}
-		return err
+		return nil, err
 	}
 
 	// Try to ingest data from the previous stage
@@ -182,26 +174,20 @@ func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
 		} else if err == io.EOF {
 			ib.prevDone = true
 		} else {
-			return err
+			return nil, err
 		}
 	}
 
-	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
-	// Read if we can, and drop if it gives anything
-	if ib.next.Progress().Origin.Number > ib.progress.Origin.Number {
-		_, err := ib.Read()
-		return err
-	}
+	// TODO: Add a seperate API to track the internal progress
+	// // If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
+	// // Read if we can, and drop if it gives anything
+	// if ib.next.Progress().Origin.Number > ib.progress.Origin.Number {
+	// 	_, err := ib.Read()
+	// 	return err
+	// }
 
 	// otherwise, read the next channel data from the bank
-	data, err := ib.Read()
-	if err == io.EOF { // need new L1 data in the bank before we can read more channel data
-		return io.EOF
-	} else if err != nil {
-		return err
-	}
-	ib.next.WriteChannel(data)
-	return nil
+	return ib.Read()
 }
 
 // ResetStep walks back the L1 chain, starting at the origin of the next stage,
@@ -209,27 +195,27 @@ func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
 // to get consistent reads starting at origin.
 // Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
 // so it is not relevant to replay it into the bank.
-func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	if !ib.resetting {
-		ib.progress = ib.next.Progress()
-		ib.resetting = true
-		return nil
-	}
-	if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number <= ib.cfg.Genesis.L1.Number {
-		ib.log.Debug("found reset origin for channel bank", "origin", ib.progress.Origin)
-		ib.resetting = false
-		return io.EOF
-	}
+func (ib *ChannelBank) Reset(ctx context.Context, inner Progress) error {
+	// if !ib.resetting {
+	// 	ib.progress = ib.next.Progress()
+	// 	ib.resetting = true
+	// 	return nil
+	// }
+	// if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number <= ib.cfg.Genesis.L1.Number {
+	// 	ib.log.Debug("found reset origin for channel bank", "origin", ib.progress.Origin)
+	// 	ib.resetting = false
+	// 	return io.EOF
+	// }
 
-	ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.progress.Origin)
+	// ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.progress.Origin)
 
-	// go back in history if we are not distant enough from the next stage
-	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.progress.Origin.ParentHash)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
-	}
-	ib.progress.Origin = parent
-	ib.prevDone = false
+	// // go back in history if we are not distant enough from the next stage
+	// parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.progress.Origin.ParentHash)
+	// if err != nil {
+	// 	return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
+	// }
+	// ib.progress.Origin = parent
+	// ib.prevDone = false
 	return nil
 }
 

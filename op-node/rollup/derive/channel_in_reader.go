@@ -26,29 +26,16 @@ type ChannelInReader struct {
 	progress Progress
 
 	next BatchQueueStage
+	prev *ChannelBank
 }
 
-var _ ChannelBankOutput = (*ChannelInReader)(nil)
-
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
-func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
-	return &ChannelInReader{log: log, next: next}
+func NewChannelInReader(log log.Logger, prev *ChannelBank, next BatchQueueStage) *ChannelInReader {
+	return &ChannelInReader{log: log, prev: prev, next: next}
 }
 
 func (cr *ChannelInReader) Progress() Progress {
 	return cr.progress
-}
-
-// TODO: Take full channel for better logging
-func (cr *ChannelInReader) WriteChannel(data []byte) {
-	if cr.progress.Closed {
-		panic("write channel while closed")
-	}
-	if f, err := BatchReader(bytes.NewBuffer(data), cr.progress.Origin); err == nil {
-		cr.nextBatchFn = f
-	} else {
-		cr.log.Error("Error creating batch reader from channel data", "err", err)
-	}
 }
 
 // NextChannel forces the next read to continue with the next channel,
@@ -63,7 +50,15 @@ func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
 	}
 
 	if cr.nextBatchFn == nil {
-		return io.EOF
+		if data, err := cr.prev.prev.NextData(ctx); err == io.EOF {
+			return io.EOF
+		} else if err != nil {
+			if f, err := BatchReader(bytes.NewBuffer(data), cr.progress.Origin); err == nil {
+				cr.nextBatchFn = f
+			} else {
+				cr.log.Error("Error creating batch reader from channel data", "err", err)
+			}
+		}
 	}
 
 	// TODO: can batch be non nil while err == io.EOF
