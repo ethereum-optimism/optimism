@@ -54,10 +54,22 @@ jobs:
       - run:
           name: Build monorepo
           command: yarn build
+      - run:
+          name: Download and verify Codecov uploader
+          command: |
+            curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import # One-time step
+            curl -Os "https://uploader.codecov.io/latest/linux/codecov"
+            curl -Os "https://uploader.codecov.io/latest/linux/codecov.SHA256SUM"
+            curl -Os "https://uploader.codecov.io/latest/linux/codecov.SHA256SUM.sig"
+            gpgv codecov.SHA256SUM.sig codecov.SHA256SUM
+            shasum -a 256 -c codecov.SHA256SUM || sha256sum -c codecov.SHA256SUM
+            unset NODE_OPTIONS  # See https://github.com/codecov/uploader/issues/475
+            chmod +x codecov
       - save_cache:
           key: v2-cache-yarn-build-{{ .Revision }}
           paths:
             - "."
+
 
   docker-publish:
     environment:
@@ -142,12 +154,13 @@ jobs:
       - run:
           name: print forge version
           command: forge --version
+          working_directory: packages/contracts-bedrock
       - run:
           name: test
           command: yarn test
-          working_directory: packages/contracts-bedrock
           environment:
             FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |

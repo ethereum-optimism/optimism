@@ -41,7 +41,7 @@ COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
 COPY check-changed.sh /usr/local/bin/check-changed
 
 RUN apt-get update && \
-  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl && \
+  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
   curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
   curl -sL https://go.dev/dl/go1.19.linux-amd64.tar.gz -o go1.19.linux-amd64.tar.gz && \
   tar -C /usr/local/ -xzvf go1.19.linux-amd64.tar.gz && \
