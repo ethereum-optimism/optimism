@@ -45,6 +45,8 @@ func TestPayloadsByNumber(t *testing.T) {
 	require.Equal(t, p.Len(), 1)
 	require.Equal(t, p[0], c)
 
+	// pop c
+	heap.Pop(&p)
 	require.Equal(t, p.Len(), 0)
 
 	// duplicate entry
