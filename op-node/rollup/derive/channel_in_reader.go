@@ -3,6 +3,7 @@ package derive
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -13,71 +14,56 @@ import (
 // This is a pure function from the channel, but each channel (or channel fragment)
 // must be tagged with an L1 inclusion block to be passed to the the batch queue.
 
-type BatchQueueStage interface {
-	StageProgress
-	AddBatch(batch *BatchData)
-}
-
 type ChannelInReader struct {
 	log log.Logger
 
 	nextBatchFn func() (BatchWithL1InclusionBlock, error)
-
-	progress Progress
-
-	next BatchQueueStage
-	prev *ChannelBank
+	progress    Progress
+	prev        *ChannelBank
 }
 
+var _ PullStage = (*ChannelInReader)(nil)
+
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
-func NewChannelInReader(log log.Logger, prev *ChannelBank, next BatchQueueStage) *ChannelInReader {
-	return &ChannelInReader{log: log, prev: prev, next: next}
+func NewChannelInReader(log log.Logger, prev *ChannelBank) *ChannelInReader {
+	return &ChannelInReader{log: log, prev: prev}
 }
 
 func (cr *ChannelInReader) Progress() Progress {
 	return cr.progress
 }
 
-// NextChannel forces the next read to continue with the next channel,
-// resetting any decoding/decompression state to a fresh start.
-func (cr *ChannelInReader) NextChannel() {
-	cr.nextBatchFn = nil
-}
-
-func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
-	if changed, err := cr.progress.Update(outer); err != nil || changed {
-		return err
-	}
-
+func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
+	// Try to load up more data if needed
 	if cr.nextBatchFn == nil {
-		if data, err := cr.prev.prev.NextData(ctx); err == io.EOF {
-			return io.EOF
+		if data, err := cr.prev.NextData(ctx); err == io.EOF {
+			return nil, io.EOF
 		} else if err != nil {
-			if f, err := BatchReader(bytes.NewBuffer(data), cr.progress.Origin); err == nil {
-				cr.nextBatchFn = f
-			} else {
+			if f, err := BatchReader(bytes.NewBuffer(data), cr.progress.Origin); err != nil {
 				cr.log.Error("Error creating batch reader from channel data", "err", err)
+				return nil, NewTemporaryError(fmt.Errorf("failed to create batch reader: %w", err))
+			} else {
+				cr.nextBatchFn = f
 			}
+		} else {
+			return nil, fmt.Errorf("failed to read from channel bank: %w", err)
 		}
 	}
 
-	// TODO: can batch be non nil while err == io.EOF
-	// This depends on the behavior of rlp.Stream
-	batch, err := cr.nextBatchFn()
-
-	if err == io.EOF {
-		return io.EOF
+	// Return the cached data if we have it
+	if batch, err := cr.nextBatchFn(); err == io.EOF {
+		cr.nextBatchFn = nil
+		return nil, io.EOF
 	} else if err != nil {
 		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
-		cr.NextChannel()
-		return nil
+		return nil, err
+	} else {
+		return batch.Batch, nil
 	}
-	cr.next.AddBatch(batch.Batch)
-	return nil
 }
 
-func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
+func (cr *ChannelInReader) Reset(ctx context.Context, inner Progress) error {
 	cr.nextBatchFn = nil
-	cr.progress = cr.next.Progress()
+	cr.progress = inner
 	return io.EOF
 }
