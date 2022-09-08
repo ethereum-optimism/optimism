@@ -54,3 +54,5 @@ require (
 )
 
 replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/op-geth v0.0.0-20220904174542-4311f9d2cead
+
+replace github.com/ethereum-optimism/optimism/op-bindings v0.5.0 => ../op-bindings
