@@ -32,6 +32,7 @@ jobs:
       batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
       indexer: ${{ steps.packages.outputs.indexer }}
       teleportr: ${{ steps.packages.outputs.teleportr }}
+      turbo-dtl: ${{ steps.packages.outputs.turbo-dtl }}
 
     steps:
       - name: Check out source code
@@ -284,6 +285,33 @@ jobs:
           target: data-transport-layer
           push: true
           tags: ethereumoptimism/data-transport-layer:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  turbo-dtl:
+    name: Publish Turbo DTL Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.turbo-dtl != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: turbo-dtl
+          push: true
+          tags: ethereumoptimism/turbo-dtl:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   contracts:
     name: Publish Deployer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}

@@ -43,6 +43,7 @@ COPY packages/contracts-bedrock/package.json ./packages/contracts-bedrock/packag
 COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
 COPY packages/contracts-governance/package.json ./packages/contracts-governance/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
+COPY packages/turbo-dtl/package.json ./packages/turbo-dtl/package.json
 COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-config/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
@@ -83,6 +84,9 @@ WORKDIR /opt/optimism/packages/data-transport-layer
 COPY ./ops/scripts/dtl.sh .
 CMD ["node", "dist/src/services/run.js"]
 
+FROM base as turbo-dtl
+WORKDIR /opt/optimism/packages/turbo-dtl
+ENTRYPOINT ["npm", "run", "start"]
 
 FROM base as integration-tests
 WORKDIR /opt/optimism/integration-tests
