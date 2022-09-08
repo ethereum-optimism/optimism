@@ -22,26 +22,11 @@ bindings: l1block-bindings \
 	erc20-bindings \
 	weth9-bindings
 
-l1-block-deployed: l1block-bindings
-	./gen_deployed_bytecode.sh L1Block $(pkg)
-
 l1-cross-domain-messenger-bindings:
 	./gen_bindings.sh contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
 
 l1-standard-bridge-bindings:
 	./gen_bindings.sh contracts/L1/L1StandardBridge.sol:L1StandardBridge $(pkg)
-
-optimism-portal-deployed: optimism-portal-bindings
-	./gen_deployed_bytecode.sh OptimismPortal $(pkg)
-
-l2-to-l1-message-passer-deployed: l2-to-l1-message-passer-bindings
-	./gen_deployed_bytecode.sh L2ToL1MessagePasser $(pkg)
-
-gas-price-oracle-deployed: gas-price-oracle-bindings
-	./gen_deployed_bytecode.sh GasPriceOracle $(pkg)
-
-proxy-deployed: proxy-bindings
-	./gen_deployed_bytecode.sh Proxy $(pkg)
 
 optimism-portal-bindings:
 	./gen_bindings.sh contracts/L1/OptimismPortal.sol:OptimismPortal $(pkg)
