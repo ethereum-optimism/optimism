@@ -76,13 +76,14 @@ func main() {
 			Package:       f.Package,
 		}
 
+		fname := filepath.Join(f.OutDir, strings.ToLower(name)+"_more.go")
 		outfile, err := os.OpenFile(
-			filepath.Join(f.OutDir, strings.ToLower(name)+"_more.go"),
+			fname,
 			os.O_RDWR|os.O_CREATE|os.O_TRUNC,
-			0o755,
+			0o600,
 		)
 		if err != nil {
-			log.Fatalf("error opening %s: %v\n", outfile.Name(), err)
+			log.Fatalf("error opening %s: %v\n", fname, err)
 		}
 
 		if err := t.Execute(outfile, d); err != nil {
