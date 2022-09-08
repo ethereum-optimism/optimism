@@ -2,11 +2,12 @@ package genesis
 
 import (
 	"encoding/json"
+	"math/big"
+	"os"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"math/big"
-	"os"
 
 	"github.com/urfave/cli"
 
