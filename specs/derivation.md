@@ -947,7 +947,7 @@ In reality it's only strictly necessary to reset the oldest L1 block whose times
 `channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -
 CHANNEL_TIMEOUT`.
 
-We define `CHANNEL_TIMEOUT = 600`, i.e. 10 hours. (600s == 10 mins. Choose order 500 blocks as channel timeout?)
+We define `CHANNEL_TIMEOUT = 50`, i.e. 10mins
 
 > **TODO** does `CHANNEL_TIMEOUT` have a relationship with `SWS`?
 >
