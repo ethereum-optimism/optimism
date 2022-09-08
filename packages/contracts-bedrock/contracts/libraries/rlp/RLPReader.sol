@@ -36,12 +36,12 @@ library RLPReader {
     /**
      * @notice Initial size for the scratch buffer of any list items.
      */
-    uint256 constant INITIAL_LIST_SIZE = 32;
+    uint256 private constant INITIAL_LIST_SIZE = 32;
 
     /**
      * @notice Multiplier when the scratch buffer needs to be resized.
      */
-    uint256 constant LIST_RESIZE_MULTIPLIER = 2;
+    uint256 private constant LIST_RESIZE_MULTIPLIER = 2;
 
     /**
      * @notice Converts bytes to a reference to memory position and length.
@@ -231,17 +231,15 @@ library RLPReader {
                 "RLPReader: length of content must be greater than string length (short string)"
             );
 
-            if (strLen == 1) {
-                bytes1 firstByteOfContent;
-                assembly {
-                    firstByteOfContent := and(mload(add(ptr, 1)), shl(248, 0xff))
-                }
-
-                require(
-                    firstByteOfContent >= 0x80,
-                    "RLPReader: invalid prefix, single byte < 0x80 are not prefixed (short string)"
-                );
+            bytes1 firstByteOfContent;
+            assembly {
+                firstByteOfContent := and(mload(add(ptr, 1)), shl(248, 0xff))
             }
+
+            require(
+                strLen != 1 || firstByteOfContent >= 0x80,
+                "RLPReader: invalid prefix, single byte < 0x80 are not prefixed (short string)"
+            );
 
             return (1, strLen, RLPItemType.DATA_ITEM);
         } else if (prefix <= 0xbf) {
@@ -250,7 +248,7 @@ library RLPReader {
 
             require(
                 _in.length > lenOfStrLen,
-                "RLPReader: length of content must be greater than length of string length (long strong)"
+                "RLPReader: length of content must be > than length of string length (long string)"
             );
 
             bytes1 firstByteOfContent;
@@ -296,7 +294,7 @@ library RLPReader {
 
             require(
                 _in.length > lenOfListLen,
-                "RLPReader: length of content must be greater than length of list length (long list)"
+                "RLPReader: length of content must be > than length of list length (long list)"
             );
 
             bytes1 firstByteOfContent;

@@ -33,12 +33,12 @@ contract RLPReader_Test is CommonTest {
     }
 
     function test_readBytes_invalidStringLength() external {
-        vm.expectRevert("RLPReader: length of content must be greater than length of string length (long strong)");
+        vm.expectRevert("RLPReader: length of content must be > than length of string length (long string)");
         RLPReader.readBytes(hex"b9");
     }
 
     function test_readBytes_invalidListLength() external {
-        vm.expectRevert("RLPReader: length of content must be greater than length of list length (long list)");
+        vm.expectRevert("RLPReader: length of content must be > than length of list length (long list)");
         RLPReader.readBytes(hex"ff");
     }
 

@@ -1,4 +1,5 @@
 artifacts
+tmp-artifacts
 forge-artifacts
 cache
 typechain
