@@ -37,10 +37,9 @@ TEMP=$(mktemp -d)
 CWD=$(pwd)
 # Build contracts
 cd ${CONTRACTS_PATH}
-forge build
-forge inspect ${NAME} abi > ${TEMP}/${TYPE}.abi
-forge inspect ${NAME} bytecode > ${TEMP}/${TYPE}.bin
-forge inspect ${NAME} deployedBytecode > ${CWD}/bin/${TYPE_LOWER}_deployed.hex
+forge inspect -o ./tmp-artifacts ${NAME} abi > ${TEMP}/${TYPE}.abi
+forge inspect -o ./tmp-artifacts ${NAME} bytecode > ${TEMP}/${TYPE}.bin
+forge inspect -o ./tmp-artifacts ${NAME} deployedBytecode > ${CWD}/bin/${TYPE_LOWER}_deployed.hex
 
 # Run ABIGEN
 cd ${CWD}

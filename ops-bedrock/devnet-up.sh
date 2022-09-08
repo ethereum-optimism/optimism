@@ -71,7 +71,6 @@ if [ ! -f "$DEVNET/done" ]; then
   (
     cd "$OP_NODE"
     go run cmd/main.go genesis devnet \
-        --artifacts "$CONTRACTS_BEDROCK/artifacts,$CONTRACTS_GOVERNANCE/artifacts" \
         --deploy-config /tmp/bedrock-devnet-deploy-config.json \
         --outfile.l1 $DEVNET/genesis-l1.json \
         --outfile.l2 $DEVNET/genesis-l2.json \

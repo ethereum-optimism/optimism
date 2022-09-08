@@ -3,10 +3,8 @@ package genesis
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/stretchr/testify/require"
@@ -31,20 +28,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, dec.Decode(config))
 	config.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
 
-	tmpdir := filepath.Join(os.TempDir(), fmt.Sprintf("l2-test-%d", time.Now().Unix()))
-	require.NoError(t, Untar("testdata/artifacts.tar.gz", tmpdir))
-
-	hh, err := hardhat.New(
-		"goerli",
-		[]string{
-			filepath.Join(tmpdir, "contracts-bedrock"),
-			filepath.Join(tmpdir, "contracts-governance"),
-		},
-		[]string{"../../packages/contracts-bedrock/deployments"},
-	)
-	require.Nil(t, err)
-
-	genesis, err := BuildL1DeveloperGenesis(hh, config)
+	genesis, err := BuildL1DeveloperGenesis(config)
 	require.NoError(t, err)
 
 	sim := backends.NewSimulatedBackend(
