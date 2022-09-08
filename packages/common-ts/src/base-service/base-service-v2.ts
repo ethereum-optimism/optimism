@@ -151,18 +151,20 @@ export abstract class BaseServiceV2<
    * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
    * @param params.api Path for the app's API. Defaults to "/api".
    */
-  constructor(params: {
-    name: string
-    version: string
-    optionsSpec: OptionsSpec<TOptions>
-    metricsSpec: MetricsSpec<TMetrics>
-    options?: Partial<TOptions>
-    loop?: boolean
-    loopIntervalMs?: number
-    port?: number
-    hostname?: string
-    api?: string
-  }) {
+  constructor(
+    private readonly params: {
+      name: string
+      version: string
+      optionsSpec: OptionsSpec<TOptions>
+      metricsSpec: MetricsSpec<TMetrics>
+      options?: Partial<TOptions>
+      loop?: boolean
+      loopIntervalMs?: number
+      port?: number
+      hostname?: string
+      api?: string
+    }
+  ) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
