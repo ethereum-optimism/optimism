@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"math/big"
 	"os"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -13,7 +12,6 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 )
 
 var Subcommands = cli.Commands{
@@ -21,10 +19,6 @@ var Subcommands = cli.Commands{
 		Name:  "devnet",
 		Usage: "Initialize new L1 and L2 genesis files and rollup config suitable for a local devnet",
 		Flags: []cli.Flag{
-			cli.StringFlag{
-				Name:  "artifacts",
-				Usage: "Comma delimited list of hardhat artifact directories",
-			},
 			cli.StringFlag{
 				Name:  "deploy-config",
 				Usage: "Path to hardhat deploy config file",
@@ -43,20 +37,13 @@ var Subcommands = cli.Commands{
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			artifact := ctx.String("artifacts")
-			artifacts := strings.Split(artifact, ",")
-			hh, err := hardhat.New("", artifacts, nil)
-			if err != nil {
-				return err
-			}
-
 			deployConfig := ctx.String("deploy-config")
 			config, err := genesis.NewDeployConfig(deployConfig)
 			if err != nil {
 				return err
 			}
 
-			l1Genesis, err := genesis.BuildL1DeveloperGenesis(hh, config)
+			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config)
 			if err != nil {
 				return err
 			}
@@ -67,7 +54,7 @@ var Subcommands = cli.Commands{
 				L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 				L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
 			}
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(hh, config, l1StartBlock, l2Addrs)
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
 			if err != nil {
 				return err
 			}

@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
-	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
 	"testing"
-	"time"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -17,9 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,15 +31,9 @@ func init() {
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 func TestBuildL2DeveloperGenesis(t *testing.T) {
-	tmpdir := filepath.Join(os.TempDir(), fmt.Sprintf("l2-test-%d", time.Now().Unix()))
-	require.NoError(t, genesis.Untar("testdata/artifacts.tar.gz", tmpdir))
-
 	hh, err := hardhat.New(
 		"goerli",
-		[]string{
-			filepath.Join(tmpdir, "contracts-bedrock"),
-			filepath.Join(tmpdir, "contracts-governance"),
-		},
+		nil,
 		[]string{"../../packages/contracts-bedrock/deployments"},
 	)
 	require.Nil(t, err)
@@ -49,8 +42,6 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	require.Nil(t, err)
 
 	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
-	require.Nil(t, err)
-	proxy, err := hh.GetArtifact("Proxy")
 	require.Nil(t, err)
 
 	backend := backends.NewSimulatedBackend(
@@ -61,11 +52,14 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	)
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
-	gen, err := genesis.BuildL2DeveloperGenesis(hh, config, block, &genesis.L2Addresses{
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
 		ProxyAdmin: proxyAdmin.Address,
 	})
 	require.Nil(t, err)
 	require.NotNil(t, gen)
+
+	depB, err := bindings.GetDeployedBytecode("Proxy")
+	require.NoError(t, err)
 
 	for name, address := range predeploys.Predeploys {
 		addr := *address
@@ -81,7 +75,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
 		require.Equal(t, ok, true)
 		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
-		require.Equal(t, account.Code, []byte(proxy.DeployedBytecode))
+		require.Equal(t, account.Code, depB)
 	}
 
 	if writeFile {

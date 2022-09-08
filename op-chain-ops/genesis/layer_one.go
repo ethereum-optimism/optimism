@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -32,7 +31,7 @@ var portalMeteringSlot = common.Hash{31: 0x01}
 
 var zeroHash common.Hash
 
-func BuildL1DeveloperGenesis(hh *hardhat.Hardhat, config *DeployConfig) (*core.Genesis, error) {
+func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if config.L2OutputOracleStartingTimestamp != -1 {
 		return nil, errors.New("l2oo starting timestamp must be -1")
 	}
@@ -155,7 +154,7 @@ func BuildL1DeveloperGenesis(hh *hardhat.Hardhat, config *DeployConfig) (*core.G
 	backend.Commit()
 
 	memDB := state.NewMemoryStateDB(genesis)
-	if err := SetL1Proxies(hh, memDB, predeploys.DevProxyAdminAddr); err != nil {
+	if err := SetL1Proxies(memDB, predeploys.DevProxyAdminAddr); err != nil {
 		return nil, err
 	}
 	FundDevAccounts(memDB)
