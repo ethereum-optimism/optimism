@@ -9,7 +9,7 @@ WORKDIR /opt/foundry
 # Only diff from upstream docker image is this clone instead
 # of COPY. We select a specific commit to use.
 RUN git clone https://github.com/foundry-rs/foundry.git . \
-    && git checkout 64fe4acc97e6d76551cea7598c201f05ecd65639
+    && git checkout a4b04caf66643e42d3d2c10f9b9845b4bc0cb0d8
 
 RUN source $HOME/.profile && cargo build --release \
     && strip /opt/foundry/target/release/forge \
