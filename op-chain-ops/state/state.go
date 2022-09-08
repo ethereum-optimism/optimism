@@ -76,18 +76,21 @@ func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*E
 // of the produced storage slots have a matching key, if so use a
 // binary or to add the storage values together
 func MergeStorage(storage []*EncodedStorage) []*EncodedStorage {
-	encoded := make(map[common.Hash]common.Hash)
+	encodedKV := make(map[common.Hash]common.Hash)
+	var encodedKeys []common.Hash // for deterministic result order
 	for _, storage := range storage {
-		if prev, ok := encoded[storage.Key]; ok {
+		if prev, ok := encodedKV[storage.Key]; ok {
 			combined := new(big.Int).Or(prev.Big(), storage.Value.Big())
-			encoded[storage.Key] = common.BigToHash(combined)
+			encodedKV[storage.Key] = common.BigToHash(combined)
 		} else {
-			encoded[storage.Key] = storage.Value
+			encodedKV[storage.Key] = storage.Value
+			encodedKeys = append(encodedKeys, storage.Key)
 		}
 	}
 
 	results := make([]*EncodedStorage, 0)
-	for key, val := range encoded {
+	for _, key := range encodedKeys {
+		val := encodedKV[key]
 		results = append(results, &EncodedStorage{key, val})
 	}
 	return results
