@@ -12,8 +12,8 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 )
 
 var Subcommands = cli.Commands{
