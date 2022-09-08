@@ -10,6 +10,11 @@ pragma solidity ^0.8.0;
  */
 library RLPReader {
     /**
+     * Custom pointer type to avoid confusion between pointers and uint256s.
+     */
+    type MemoryPointer is uint256;
+
+    /**
      * @notice RLP item types.
      *
      * @custom:value DATA_ITEM Represents an RLP data item (NOT a list).
@@ -25,7 +30,7 @@ library RLPReader {
      */
     struct RLPItem {
         uint256 length;
-        uint256 ptr;
+        MemoryPointer ptr;
     }
 
     /**
@@ -41,7 +46,7 @@ library RLPReader {
      * @return Output memory reference.
      */
     function toRLPItem(bytes memory _in) internal pure returns (RLPItem memory) {
-        uint256 ptr;
+        MemoryPointer ptr;
         assembly {
             ptr := add(_in, 32)
         }
@@ -84,10 +89,16 @@ library RLPReader {
             );
 
             (uint256 itemOffset, uint256 itemLength, ) = _decodeLength(
-                RLPItem({ length: _in.length - offset, ptr: _in.ptr + offset })
+                RLPItem({
+                    length: _in.length - offset,
+                    ptr: MemoryPointer.wrap(MemoryPointer.unwrap(_in.ptr) + offset)
+                })
             );
 
-            out[itemCount] = RLPItem({ length: itemLength + itemOffset, ptr: _in.ptr + offset });
+            out[itemCount] = RLPItem({
+                length: itemLength + itemOffset,
+                ptr: MemoryPointer.wrap(MemoryPointer.unwrap(_in.ptr) + offset)
+            });
 
             itemCount += 1;
             offset += itemOffset + itemLength;
@@ -185,7 +196,7 @@ library RLPReader {
             "RLPReader: length of an RLP item must be greater than zero to be decodable"
         );
 
-        uint256 ptr = _in.ptr;
+        MemoryPointer ptr = _in.ptr;
         uint256 prefix;
         assembly {
             prefix := byte(0, mload(ptr))
@@ -312,7 +323,7 @@ library RLPReader {
      * @return Copied bytes.
      */
     function _copy(
-        uint256 _src,
+        MemoryPointer _src,
         uint256 _offset,
         uint256 _length
     ) private pure returns (bytes memory) {
@@ -321,17 +332,19 @@ library RLPReader {
             return out;
         }
 
-        uint256 src = _src + _offset;
+        uint256 src = MemoryPointer.unwrap(_src) + _offset;
         assembly {
             let dest := add(out, 32)
             let i := 0
-            for { } lt(i, _length) { i := add(i, 32) }
-            {
+            for {
+
+            } lt(i, _length) {
+                i := add(i, 32)
+            } {
                 mstore(add(dest, i), mload(add(src, i)))
             }
 
-            if gt(i, _length)
-            {
+            if gt(i, _length) {
                 mstore(add(dest, _length), 0)
             }
         }
