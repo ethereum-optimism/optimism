@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
@@ -24,20 +25,20 @@ func FundDevAccounts(db vm.StateDB) {
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
 // can be set in state and the ProxyAdmin can be set as the admin of the
 // Proxy.
-func SetL2Proxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Address) error {
-	return setProxies(hh, db, proxyAdminAddr, bigL2PredeployNamespace, 2048)
+func SetL2Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
+	return setProxies(db, proxyAdminAddr, bigL2PredeployNamespace, 2048)
 }
 
 // SetL1Proxies will set each of the proxies in the state. It requires
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
 // can be set in state and the ProxyAdmin can be set as the admin of the
 // Proxy.
-func SetL1Proxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Address) error {
-	return setProxies(hh, db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
+func SetL1Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
+	return setProxies(db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
 }
 
-func setProxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
-	proxy, err := hh.GetArtifact("Proxy")
+func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
+	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	if err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func setProxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Addres
 		}
 
 		db.CreateAccount(addr)
-		db.SetCode(addr, proxy.DeployedBytecode)
+		db.SetCode(addr, depBytecode)
 		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
 	}
 	return nil
@@ -61,19 +62,13 @@ func setProxies(hh *hardhat.Hardhat, db vm.StateDB, proxyAdminAddr common.Addres
 // SetImplementations will set the implmentations of the contracts in the state
 // and configure the proxies to point to the implementations. It also sets
 // the appropriate storage values for each contract at the proxy address.
-func SetImplementations(hh *hardhat.Hardhat, db vm.StateDB, storage StorageConfig) error {
+func SetImplementations(db vm.StateDB, storage StorageConfig) error {
 	deployResults, err := immutables.BuildOptimism()
 	if err != nil {
 		return err
 	}
 
 	for name, address := range predeploys.Predeploys {
-		// Get the hardhat artifact to access the deployed bytecode
-		artifact, err := hh.GetArtifact(name)
-		if err != nil {
-			return err
-		}
-
 		// Convert the address to the code address
 		var addr common.Address
 		switch *address {
@@ -98,12 +93,16 @@ func SetImplementations(hh *hardhat.Hardhat, db vm.StateDB, storage StorageConfi
 		if bytecode, ok := deployResults[name]; ok {
 			db.SetCode(addr, bytecode)
 		} else {
-			db.SetCode(addr, artifact.DeployedBytecode)
+			depBytecode, err := bindings.GetDeployedBytecode(name)
+			if err != nil {
+				return err
+			}
+			db.SetCode(addr, depBytecode)
 		}
 
 		// Set the storage values
 		if storageConfig, ok := storage[name]; ok {
-			layout, err := hh.GetStorageLayout(name)
+			layout, err := bindings.GetStorageLayout(name)
 			if err != nil {
 				return err
 			}
@@ -128,8 +127,8 @@ func SetImplementations(hh *hardhat.Hardhat, db vm.StateDB, storage StorageConfi
 // Get the storage layout of the L2ToL1MessagePasser
 // Iterate over the storage layout to know which storage slots to ignore
 // Iterate over each storage slot, compute the migration
-func MigrateDepositHashes(hh *hardhat.Hardhat, db vm.StateDB) error {
-	layout, err := hh.GetStorageLayout("L2ToL1MessagePasser")
+func MigrateDepositHashes(db vm.StateDB) error {
+	layout, err := bindings.GetStorageLayout("L2ToL1MessagePasser")
 	if err != nil {
 		return err
 	}

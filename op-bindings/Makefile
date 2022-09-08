@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 pkg := bindings
 
-all: mkdir bindings deployed
+all: mkdir bindings deployed more
 
 bindings: l1block-bindings \
 	l1-cross-domain-messenger-bindings \
@@ -25,7 +25,8 @@ bindings: l1block-bindings \
 deployed: l1-block-deployed \
 	optimism-portal-deployed \
 	l2-to-l1-message-passer-deployed \
-	gas-price-oracle-deployed
+	gas-price-oracle-deployed \
+	proxy-deployed
 
 l1-block-deployed: l1block-bindings
 	./gen_deployed_bytecode.sh L1Block $(pkg)
@@ -44,6 +45,9 @@ l2-to-l1-message-passer-deployed: l2-to-l1-message-passer-bindings
 
 gas-price-oracle-deployed: gas-price-oracle-bindings
 	./gen_deployed_bytecode.sh GasPriceOracle $(pkg)
+
+proxy-deployed: proxy-bindings
+	./gen_deployed_bytecode.sh Proxy $(pkg)
 
 optimism-portal-bindings:
 	./gen_bindings.sh contracts/L1/OptimismPortal.sol:OptimismPortal $(pkg)
@@ -90,8 +94,18 @@ erc20-bindings:
 weth9-bindings:
 	./gen_bindings.sh contracts/vendor/WETH9.sol:WETH9 $(pkg)
 
+more:
+	go run ./gen/main.go \
+		-artifacts ../packages/contracts-bedrock/artifacts,../packages/contracts-governance/artifacts \
+		-out ./bindings \
+		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken \
+		-package bindings
+
 mkdir:
 	mkdir -p bin $(pkg)
 
 clean:
 	rm -rf bin $(pkg)
+
+test:
+	go test ./...
