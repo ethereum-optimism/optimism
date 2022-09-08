@@ -34,9 +34,14 @@ library RLPReader {
     }
 
     /**
-     * @notice Max list length that this library will accept.
+     * @notice Initial size for the scratch buffer of any list items.
      */
-    uint256 internal constant MAX_LIST_LENGTH = 32;
+    uint256 constant INITIAL_LIST_SIZE = 32;
+
+    /**
+     * @notice Multiplier when the scratch buffer needs to be resized.
+     */
+    uint256 constant LIST_RESIZE_MULTIPLIER = 2;
 
     /**
      * @notice Converts bytes to a reference to memory position and length.
@@ -74,15 +79,27 @@ library RLPReader {
             "RLPReader: list item has an invalid data remainder"
         );
 
-        // Solidity in-memory arrays can't be increased in size, but *can* be decreased in size by
-        // writing to the length. Since we can't know the number of RLP items without looping over
-        // the entire input, we'd have to loop twice to accurately size this array. It's easier to
-        // simply set a reasonable maximum list length and decrease the size before we finish.
-        RLPItem[] memory out = new RLPItem[](MAX_LIST_LENGTH);
+        // Solidity in-memory arrays can't be increased in size, so we start by allocating a
+        // reasonably large array. If we ever run out of space, we'll have to increase the size of
+        // the array by making a copy of the original. We can't know the number of elements in
+        // advance, so there's not much we can do about this.
+        RLPItem[] memory out = new RLPItem[](INITIAL_LIST_SIZE);
 
         uint256 itemCount = 0;
         uint256 offset = listOffset;
         while (offset < _in.length) {
+            // If we're out of space, make a copy of the original with more space.
+            if (itemCount >= out.length) {
+                // We've exceeded the maximum list length, so we need to decrease the size of the
+                // array. We can't decrease the size of the array in-place, so we'll create a new
+                // array and copy the contents over.
+                RLPItem[] memory temp = new RLPItem[](out.length * LIST_RESIZE_MULTIPLIER);
+                for (uint256 i = 0; i < out.length; i++) {
+                    temp[i] = out[i];
+                }
+                out = temp;
+            }
+
             (uint256 itemOffset, uint256 itemLength, ) = _decodeLength(
                 RLPItem({
                     length: _in.length - offset,
