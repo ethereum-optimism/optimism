@@ -83,11 +83,6 @@ library RLPReader {
         uint256 itemCount = 0;
         uint256 offset = listOffset;
         while (offset < _in.length) {
-            require(
-                itemCount < MAX_LIST_LENGTH,
-                "RLPReader: provided RLP list exceeds max list length"
-            );
-
             (uint256 itemOffset, uint256 itemLength, ) = _decodeLength(
                 RLPItem({
                     length: _in.length - offset,

@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { RLPReader } from "../libraries/rlp/RLPReader.sol";
 import { CommonTest } from "./CommonTest.t.sol";
+import { stdError } from "forge-std/Test.sol";
 
 contract RLPReader_Test is CommonTest {
     function test_readBytes_bytestring00() external {
@@ -90,6 +91,11 @@ contract RLPReader_Test is CommonTest {
         assertEq(RLPReader.readRawBytes(list[1]), hex"cf84617364668471776572847a786376");
         assertEq(RLPReader.readRawBytes(list[2]), hex"cf84617364668471776572847a786376");
         assertEq(RLPReader.readRawBytes(list[3]), hex"cf84617364668471776572847a786376");
+    }
+
+    function test_readList_listLongerThan32Elements() external {
+        vm.expectRevert(stdError.indexOOBError);
+        RLPReader.readList(hex"e1454545454545454545454545454545454545454545454545454545454545454545");
     }
 
     function test_readList_longList2() external {
