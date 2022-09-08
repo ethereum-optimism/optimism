@@ -186,10 +186,6 @@ library RLPReader {
         return _copy(_in.ptr, 0, _in.length);
     }
 
-    /*********************
-     * Private Functions *
-     *********************/
-
     /**
      * @notice Decodes the length of an RLP item.
      *
@@ -224,7 +220,6 @@ library RLPReader {
 
         if (prefix <= 0x7f) {
             // Single byte.
-
             return (0, 1, RLPItemType.DATA_ITEM);
         } else if (prefix <= 0xb7) {
             // Short string.
