@@ -51,6 +51,12 @@ library RLPReader {
      * @return Output memory reference.
      */
     function toRLPItem(bytes memory _in) internal pure returns (RLPItem memory) {
+        // Empty arrays are not RLP items.
+        require(
+            _in.length > 0,
+            "RLPReader: length of an RLP item must be greater than zero to be decodable"
+        );
+
         MemoryPointer ptr;
         assembly {
             ptr := add(_in, 32)
@@ -202,7 +208,9 @@ library RLPReader {
             RLPItemType
         )
     {
-        // Short-circuit if there's nothing to decode.
+        // Short-circuit if there's nothing to decode, note that we perform this check when
+        // the user creates an RLP item via toRLPItem, but it's always possible for them to bypass
+        // that function and create an RLP item directly. So we need to check this anyway.
         require(
             _in.length > 0,
             "RLPReader: length of an RLP item must be greater than zero to be decodable"
