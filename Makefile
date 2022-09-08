@@ -109,29 +109,5 @@ clean-node-modules:
 
 
 tag-bedrock-go-modules:
-	@if [ -z "$(VERSION)" ]; then \
-		echo "You must specify a version."; \
-		exit 0; \
-	fi
-
-	@FIRST_CHAR=$(shell printf '%s' "$(VERSION)" | cut -c1); \
-	if [ "$$FIRST_CHAR" != "v" ]; then \
-		echo "Tag must start with v."; \
-		exit 0; \
-	fi
-
-	git tag "op-proposer/$(VERSION)"
-	git tag "op-node/$(VERSION)"
-	git tag "op-e2e/$(VERSION)"
-	git tag "op-bindings/$(VERSION)"
-	git tag "op-batcher/$(VERSION)"
-	git tag "op-service/$(VERSION)"
-	git tag "op-chain-ops/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-proposer/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-node/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-e2e/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-bindings/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-batcher/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-service/$(VERSION)"
-	git push $(BEDROCK_TAGS_REMOTE) "op-chain-ops/$(VERSION)"
-
+	./ops/scripts/tag-bedrock-go-modules.sh $(BEDROCK_TAGS_REMOTE) $(VERSION)
+.PHONY: tag-bedrock-go-modules
