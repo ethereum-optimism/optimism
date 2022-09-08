@@ -121,6 +121,26 @@ describe('L1CrossDomainMessenger', () => {
     })
   })
 
+  describe('unpause', () => {
+    describe('when called by the current owner', () => {
+      it('should unpause the contract', async () => {
+        await L1CrossDomainMessenger.pause()
+        await L1CrossDomainMessenger.pause()
+
+        expect(await L1CrossDomainMessenger.paused()).to.be.false
+      })
+    })
+
+    describe('when called by account other than the owner', () => {
+      it('should not unpause the contract', async () => {
+        await L1CrossDomainMessenger.pause()
+        await expect(
+          L1CrossDomainMessenger.connect(signer2).pause()
+        ).to.be.revertedWith('Ownable: caller is not the owner')
+      })
+    })
+  })
+
   describe('sendMessage', () => {
     const target = NON_ZERO_ADDRESS
     const message = NON_NULL_BYTES32

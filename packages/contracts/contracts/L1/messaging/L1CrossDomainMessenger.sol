@@ -101,6 +101,13 @@ contract L1CrossDomainMessenger is
     }
 
     /**
+     * Unpause relaying.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /**
      * Block a message.
      * @param _xDomainCalldataHash Hash of the message to block.
      */
