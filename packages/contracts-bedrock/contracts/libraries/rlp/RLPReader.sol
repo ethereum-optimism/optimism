@@ -154,7 +154,7 @@ library RLPReader {
      * @return Raw RLP bytes.
      */
     function readRawBytes(RLPItem memory _in) internal pure returns (bytes memory) {
-        return _copy(_in);
+        return _copy(_in.ptr, 0, _in.length);
     }
 
     /*********************
@@ -322,41 +322,20 @@ library RLPReader {
         }
 
         uint256 src = _src + _offset;
-        uint256 dest;
         assembly {
-            dest := add(out, 32)
-        }
-
-        // Copy over as many complete words as we can.
-        for (uint256 i = 0; i < _length / 32; i++) {
-            assembly {
-                mstore(dest, mload(src))
+            let dest := add(out, 32)
+            let i := 0
+            for { } lt(i, _length) { i := add(i, 32) }
+            {
+                mstore(add(dest, i), mload(add(src, i)))
             }
 
-            src += 32;
-            dest += 32;
+            if gt(i, _length)
+            {
+                mstore(add(dest, _length), 0)
+            }
         }
 
-        // Pick out the remaining bytes.
-        uint256 mask;
-        unchecked {
-            mask = 256**(32 - (_length % 32)) - 1;
-        }
-
-        assembly {
-            mstore(dest, or(and(mload(src), not(mask)), and(mload(dest), mask)))
-        }
         return out;
-    }
-
-    /**
-     * @notice Copies an RLP item into bytes.
-     *
-     * @param _in RLP item to copy.
-     *
-     * @return Copied bytes.
-     */
-    function _copy(RLPItem memory _in) private pure returns (bytes memory) {
-        return _copy(_in.ptr, 0, _in.length);
     }
 }
