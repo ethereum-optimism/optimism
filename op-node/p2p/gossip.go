@@ -31,6 +31,10 @@ func init() {
 }
 
 const maxGossipSize = 1 << 20
+
+// minGossipSize is used to make sure that there is at least some data
+// to validate the signature against.
+const minGossipSize = 66
 const maxOutboundQueue = 256
 const maxValidateQueue = 256
 const globalValidateThrottle = 512
@@ -203,6 +207,10 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 			log.Warn("possible snappy zip bomb, decoded length is too large", "decoded_length", outLen, "peer", id)
 			return pubsub.ValidationReject
 		}
+		if outLen < minGossipSize {
+			log.Warn("rejecting undersized gossip payload")
+			return pubsub.ValidationReject
+		}
 
 		res := msgBufPool.Get().(*[]byte)
 		defer msgBufPool.Put(res)
@@ -215,6 +223,22 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 
 		// message starts with compact-encoding secp256k1 encoded signature
 		signatureBytes, payloadBytes := data[:65], data[65:]
+
+		// [REJECT] if the signature by the sequencer is not valid
+		signingHash := BlockSigningHash(cfg, payloadBytes)
+
+		pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
+		if err != nil {
+			log.Warn("invalid block signature", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
+		addr := crypto.PubkeyToAddress(*pub)
+
+		// TODO: in the future we can support multiple valid p2p addresses.
+		if addr != cfg.P2PSequencerAddress {
+			log.Warn("unexpected block author", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
 
 		// [REJECT] if the block encoding is not valid
 		var payload eth.ExecutionPayload
@@ -258,22 +282,6 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 			// [IGNORE] if the block has already been seen
 			log.Warn("validated already seen message again")
 			return pubsub.ValidationIgnore
-		}
-
-		// [REJECT] if the signature by the sequencer is not valid
-		signingHash := BlockSigningHash(cfg, payloadBytes)
-
-		pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
-		if err != nil {
-			log.Warn("invalid block signature", "err", err, "peer", id)
-			return pubsub.ValidationReject
-		}
-		addr := crypto.PubkeyToAddress(*pub)
-
-		// TODO: in the future we can support multiple valid p2p addresses.
-		if addr != cfg.P2PSequencerAddress {
-			log.Warn("unexpected block author", "err", err, "peer", id)
-			return pubsub.ValidationReject
 		}
 
 		// mark it as seen. (note: with concurrent validation more than 5 blocks may be marked as seen still,
