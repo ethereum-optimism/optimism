@@ -65,26 +65,14 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyOtherBridge {
-        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
-        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
-        // that maps to the L1 NFT.
-        if (deposits[_localToken][_remoteToken][_tokenId] == true) {
-            // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
-            // Bridge.
-            deposits[_localToken][_remoteToken][_tokenId] = false;
-
-            // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
-            // withdrawer.
-            // slither-disable-next-line reentrancy-events
-            IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
-
+        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        } else {
-            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge, we initiate
-            // a cross-domain message to send the NFT back to its original owner on L2. This can
-            // happen if an L2 native NFT is bridged to L1, or if a user mistakenly entered an
-            // incorrect L1 ERC721 address.
+        } catch {
+            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge or if
+            // another error occurred during finalization, we initiate a cross-domain message to
+            // send the NFT back to its original owner on L2. This can happen if an L2 native NFT is
+            // bridged to L1, or if a user mistakenly entered an incorrect L1 ERC721 address.
             bytes memory message = abi.encodeWithSelector(
                 L2ERC721Bridge.finalizeBridgeERC721.selector,
                 _remoteToken,
@@ -106,6 +94,43 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
 
     /**
      * @inheritdoc ERC721Bridge
+     */
+    function completeOutboundTransfer(
+        address _localToken,
+        address _remoteToken,
+        address _to,
+        uint256 _tokenId
+    ) external onlySelf {
+        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
+        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
+        // that maps to the L1 NFT.
+        require(
+            deposits[_localToken][_remoteToken][_tokenId] == true,
+            "L1ERC721Bridge: token ID is not escrowed in l1 bridge for this l1/l2 nft pair"
+        );
+
+        // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
+        // Bridge.
+        deposits[_localToken][_remoteToken][_tokenId] = false;
+
+        // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
+        // withdrawer.
+        // slither-disable-next-line reentrancy-events
+        IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
+    }
+
+    /**
+     * @notice Internal function for initiating a token bridge to the other domain.
+     *
+     * @param _localToken  Address of the ERC721 on this domain.
+     * @param _remoteToken Address of the ERC721 on the remote domain.
+     * @param _from        Address of the sender on this domain.
+     * @param _to          Address to receive the token on the other domain.
+     * @param _tokenId     Token ID to bridge.
+     * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
+     * @param _extraData   Optional data to forward to L2. Data supplied here will not be used to
+     *                     execute any code on L2 and is only emitted as extra data for the
+     *                     convenience of off-chain tooling.
      */
     function _initiateBridgeERC721(
         address _localToken,

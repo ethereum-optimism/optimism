@@ -96,6 +96,14 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /**
+     * @notice Ensures that the caller is this contract.
+     */
+    modifier onlySelf() {
+        require(msg.sender == address(this), "ERC721Bridge: function can only be called by self");
+        _;
+    }
+
+    /**
      * @notice Initiates a bridge of an NFT to the caller's account on the remote chain. Note that
      *         the current owner of the token on this chain must approve this contract to operate
      *         the NFT before it can be bridged. Also note that this function can only be called by
