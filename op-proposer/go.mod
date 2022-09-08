@@ -3,9 +3,9 @@ module github.com/ethereum-optimism/optimism/op-proposer
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.5.0
-	github.com/ethereum-optimism/optimism/op-node v0.5.0
-	github.com/ethereum-optimism/optimism/op-service v0.5.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.8.3
+	github.com/ethereum-optimism/optimism/op-node v0.8.3
+	github.com/ethereum-optimism/optimism/op-service v0.8.3
 	github.com/ethereum/go-ethereum v1.10.23
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.8.0
@@ -24,7 +24,6 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
-	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
@@ -41,7 +40,6 @@ require (
 	github.com/holiman/uint256 v1.2.0 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-colorable v0.1.12 // indirect
 	github.com/mattn/go-isatty v0.0.14 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
