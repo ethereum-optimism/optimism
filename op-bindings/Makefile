@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 pkg := bindings
 
-all: mkdir bindings deployed more
+all: mkdir bindings more
 
 bindings: l1block-bindings \
 	l1-cross-domain-messenger-bindings \
@@ -21,12 +21,6 @@ bindings: l1block-bindings \
 	proxy-admin-bindings \
 	erc20-bindings \
 	weth9-bindings
-
-deployed: l1-block-deployed \
-	optimism-portal-deployed \
-	l2-to-l1-message-passer-deployed \
-	gas-price-oracle-deployed \
-	proxy-deployed
 
 l1-block-deployed: l1block-bindings
 	./gen_deployed_bytecode.sh L1Block $(pkg)
