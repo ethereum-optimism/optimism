@@ -57,11 +57,16 @@ library RLPReader {
      * @return Decoded RLP list items.
      */
     function readList(RLPItem memory _in) internal pure returns (RLPItem[] memory) {
-        (uint256 listOffset, , RLPItemType itemType) = _decodeLength(_in);
+        (uint256 listOffset, uint256 listLength, RLPItemType itemType) = _decodeLength(_in);
 
         require(
             itemType == RLPItemType.LIST_ITEM,
             "RLPReader: decoded item type for list is not a list item"
+        );
+
+        require(
+            listOffset + listLength == _in.length,
+            "RLPReader: list item has an invalid data remainder"
         );
 
         // Solidity in-memory arrays can't be increased in size, but *can* be decreased in size by
@@ -122,6 +127,11 @@ library RLPReader {
             "RLPReader: decoded item type for bytes is not a data item"
         );
 
+        require(
+            _in.length == itemOffset + itemLength,
+            "RLPReader: bytes value contains an invalid remainder"
+        );
+
         return _copy(_in.ptr, itemOffset, itemLength);
     }
 
@@ -134,164 +144,6 @@ library RLPReader {
      */
     function readBytes(bytes memory _in) internal pure returns (bytes memory) {
         return readBytes(toRLPItem(_in));
-    }
-
-    /**
-     * @notice Reads an RLP string value into a string.
-     *
-     * @param _in RLP string value.
-     *
-     * @return Decoded string.
-     */
-    function readString(RLPItem memory _in) internal pure returns (string memory) {
-        return string(readBytes(_in));
-    }
-
-    /**
-     * @notice Reads an RLP string value into a string.
-     *
-     * @param _in RLP string value.
-     *
-     * @return Decoded string.
-     */
-    function readString(bytes memory _in) internal pure returns (string memory) {
-        return readString(toRLPItem(_in));
-    }
-
-    /**
-     * @notice Reads an RLP bytes32 value into a bytes32.
-     *
-     * @param _in RLP bytes32 value.
-     *
-     * @return Decoded bytes32.
-     */
-    function readBytes32(RLPItem memory _in) internal pure returns (bytes32) {
-        require(
-            _in.length <= 33,
-            "RLPReader: length of an encoded bytes32 value must be 33 bytes or less"
-        );
-
-        (uint256 itemOffset, uint256 itemLength, RLPItemType itemType) = _decodeLength(_in);
-
-        require(
-            itemType == RLPItemType.DATA_ITEM,
-            "RLPReader: decoded item type for bytes32 is not a data item"
-        );
-
-        uint256 ptr = _in.ptr + itemOffset;
-        bytes32 out;
-        assembly {
-            out := mload(ptr)
-
-            // Shift the bytes over to match the item size.
-            if lt(itemLength, 32) {
-                out := div(out, exp(256, sub(32, itemLength)))
-            }
-        }
-
-        return out;
-    }
-
-    /**
-     * @notice Reads an RLP bytes32 value into a bytes32.
-     *
-     * @param _in RLP bytes32 value.
-     *
-     * @return Decoded bytes32.
-     */
-    function readBytes32(bytes memory _in) internal pure returns (bytes32) {
-        return readBytes32(toRLPItem(_in));
-    }
-
-    /**
-     * @notice Reads an RLP uint256 value into a uint256.
-     *
-     * @param _in RLP uint256 value.
-     *
-     * @return Decoded uint256.
-     */
-    function readUint256(RLPItem memory _in) internal pure returns (uint256) {
-        return uint256(readBytes32(_in));
-    }
-
-    /**
-     * @notice Reads an RLP uint256 value into a uint256.
-     *
-     * @param _in RLP uint256 value.
-     *
-     * @return Decoded uint256.
-     */
-    function readUint256(bytes memory _in) internal pure returns (uint256) {
-        return readUint256(toRLPItem(_in));
-    }
-
-    /**
-     * @notice Reads an RLP bool value into a bool.
-     *
-     * @param _in RLP bool value.
-     *
-     * @return Decoded bool.
-     */
-    function readBool(RLPItem memory _in) internal pure returns (bool) {
-        require(
-            _in.length == 1,
-            "RLPReader: length of an encoded boolean value must be exactly 1 byte"
-        );
-
-        uint256 ptr = _in.ptr;
-        uint256 out;
-        assembly {
-            out := byte(0, mload(ptr))
-        }
-
-        require(
-            out == 0 || out == 1,
-            "RLPReader: invalid RLP boolean value, must be exactly 0 or 1"
-        );
-
-        return out != 0;
-    }
-
-    /**
-     * @notice Reads an RLP bool value into a bool.
-     *
-     * @param _in RLP bool value.
-     *
-     * @return Decoded bool.
-     */
-    function readBool(bytes memory _in) internal pure returns (bool) {
-        return readBool(toRLPItem(_in));
-    }
-
-    /**
-     * @notice Reads an RLP address value into a address.
-     *
-     * @param _in RLP address value.
-     *
-     * @return Decoded address.
-     */
-    function readAddress(RLPItem memory _in) internal pure returns (address) {
-        if (_in.length == 1) {
-            return address(0);
-        }
-
-        require(
-            _in.length == 21,
-            "RLPReader: length of an encoded address value must be exactly 21 bytes"
-        );
-
-        return address(uint160(readUint256(_in)));
-    }
-
-    /**
-     * @notice Reads an RLP address value into a address.
-     *
-     * @param _in RLP address value.
-     *
-     * @return Decoded address.
-     */
-    function readAddress(bytes memory _in) internal pure returns (address) {
-        return readAddress(toRLPItem(_in));
     }
 
     /**
@@ -353,6 +205,18 @@ library RLPReader {
                 "RLPReader: length of content must be greater than string length (short string)"
             );
 
+            if (strLen == 1) {
+                bytes1 firstByteOfContent;
+                assembly {
+                    firstByteOfContent := and(mload(add(ptr, 1)), shl(248, 0xff))
+                }
+
+                require(
+                    firstByteOfContent >= 0x80,
+                    "RLPReader: invalid prefix, single byte < 0x80 are not prefixed (short string)"
+                );
+            }
+
             return (1, strLen, RLPItemType.DATA_ITEM);
         } else if (prefix <= 0xbf) {
             // Long string.
@@ -363,10 +227,25 @@ library RLPReader {
                 "RLPReader: length of content must be greater than length of string length (long strong)"
             );
 
+            bytes1 firstByteOfContent;
+            assembly {
+                firstByteOfContent := and(mload(add(ptr, 1)), shl(248, 0xff))
+            }
+
+            require(
+                firstByteOfContent != 0x00,
+                "RLPReader: length of content must not have any leading zeros (long string)"
+            );
+
             uint256 strLen;
             assembly {
                 strLen := div(mload(add(ptr, 1)), exp(256, sub(32, lenOfStrLen)))
             }
+
+            require(
+                strLen > 55,
+                "RLPReader: length of content must be greater than 55 bytes (long string)"
+            );
 
             require(
                 _in.length > lenOfStrLen + strLen,
@@ -394,10 +273,25 @@ library RLPReader {
                 "RLPReader: length of content must be greater than length of list length (long list)"
             );
 
+            bytes1 firstByteOfContent;
+            assembly {
+                firstByteOfContent := and(mload(add(ptr, 1)), shl(248, 0xff))
+            }
+
+            require(
+                firstByteOfContent != 0x00,
+                "RLPReader: length of content must not have any leading zeros (long list)"
+            );
+
             uint256 listLen;
             assembly {
                 listLen := div(mload(add(ptr, 1)), exp(256, sub(32, lenOfListLen)))
             }
+
+            require(
+                listLen > 55,
+                "RLPReader: length of content must be greater than 55 bytes (long list)"
+            );
 
             require(
                 _in.length > lenOfListLen + listLen,
