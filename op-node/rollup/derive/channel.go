@@ -19,7 +19,8 @@ import (
 // channel may mark itself as ready for reading once all intervening frames have been added
 type Channel struct {
 	// id of the channel
-	id ChannelID
+	id        ChannelID
+	openBlock eth.L1BlockRef
 
 	// estimated memory size, used to drop the channel if we have too much data
 	size uint64
@@ -42,10 +43,11 @@ type Channel struct {
 	highestL1InclusionBlock eth.L1BlockRef
 }
 
-func NewChannel(id ChannelID) *Channel {
+func NewChannel(id ChannelID, openBlock eth.L1BlockRef) *Channel {
 	return &Channel{
-		id:     id,
-		inputs: make(map[uint64][]byte),
+		id:        id,
+		inputs:    make(map[uint64][]byte),
+		openBlock: openBlock,
 	}
 }
 
@@ -78,6 +80,12 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 	// todo use `IsReady` + state to create final output reader
 
 	return nil
+}
+
+// OpenBlockNumber returns the block number of L1 block that contained
+// the first frame for this channel.
+func (ch *Channel) OpenBlockNumber() uint64 {
+	return ch.openBlock.Number
 }
 
 // Size returns the current size of the channel including frame overhead.
