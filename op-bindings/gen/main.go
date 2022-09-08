@@ -94,14 +94,14 @@ func main() {
 	}
 }
 
-var tmpl = `
-// Code generated - DO NOT EDIT.
+var tmpl = `// Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
 
 package {{.Package}}
 
 import (
 	"encoding/json"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
