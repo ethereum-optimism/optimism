@@ -47,5 +47,6 @@
   "gasPriceOracleDecimals": 6,
   "deploymentWaitConfirmations": 1,
   "eip1559Denominator": 8,
-  "eip1559Elasticity": 2
+  "eip1559Elasticity": 2,
+  "fundDevAccounts": true
 }
