@@ -40,6 +40,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -87,6 +89,36 @@ type FindHeadsResult struct {
 	Finalized eth.L2BlockRef
 }
 
+func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHeadsResult, error) {
+	finalized, err := l2.L2BlockRefByLabel(ctx, eth.Finalized)
+	// geth rpc bug: returning an error instead of nil result when finalized block cannot be found.
+	if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "block not found")) {
+		// default to genesis if we have not finalized anything before.
+		finalized, err = l2.L2BlockRefByHash(ctx, cfg.Genesis.L2.Hash)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to find the finalized L2 block: %w", err)
+	}
+
+	safe, err := l2.L2BlockRefByLabel(ctx, eth.Safe)
+	// geth rpc bug: returning an error instead of nil result when safe block cannot be found.
+	if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "block not found")) {
+		safe = finalized
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to find the safe L2 block: %w", err)
+	}
+
+	unsafe, err := l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find the L2 head block: %w", err)
+	}
+	return &FindHeadsResult{
+		Unsafe:    unsafe,
+		Safe:      safe,
+		Finalized: finalized,
+	}, nil
+}
+
 // FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds the unsafe and safe
 // L2 blocks.
 //
@@ -100,15 +132,16 @@ type FindHeadsResult struct {
 //	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
 //	and the same holds for all its ancestors.
 func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain) (result *FindHeadsResult, err error) {
-	// Loop 1. Walk the L2 chain backwards until we find an L2 block whose L1 origin is canonical.
-
-	prevUnsafe, err := l2.L2BlockRefByLabel(ctx, eth.Unsafe)
+	// Fetch current engine state
+	result, err = currentHeads(ctx, cfg, l2)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find the L2 head block: %w", err)
+		return nil, fmt.Errorf("failed to fetch current L2 heads: %w", err)
 	}
 
+	// Loop 1. Walk the L2 chain backwards until we find an L2 block whose L1 origin is canonical.
+
 	// Current L2 block.
-	n := prevUnsafe
+	n := result.Unsafe
 
 	// Number of blocks between n and start.
 	reorgDepth := 0
@@ -121,7 +154,6 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	// The highest L2 ancestor of `start` (or `start` itself) whose ancestors are not (yet) known
 	// to have a non-canonical L1 origin. Empty if no such candidate is known yet. Guaranteed to be
 	// set after exiting from Loop 1.
-	var highestPlausibleCanonicalOrigin eth.L2BlockRef
 
 	for {
 		// Check if l1Origin is canonical when we get to a new epoch.
@@ -133,11 +165,11 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			} else if !plausible {
 				// L1 origin nor ahead of L1 head nor canonical, discard previous candidate and
 				// keep looking.
-				highestPlausibleCanonicalOrigin = eth.L2BlockRef{}
+				result.Unsafe = eth.L2BlockRef{}
 			} else {
-				if highestPlausibleCanonicalOrigin == (eth.L2BlockRef{}) {
+				if result.Unsafe == (eth.L2BlockRef{}) {
 					// No highest plausible candidate, make L2 block new candidate.
-					highestPlausibleCanonicalOrigin = n
+					result.Unsafe = n
 				}
 				if canonical {
 					break
@@ -194,22 +226,15 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		// This is a little hacky, but kinda works. The issue is about where the
 		// batch queue should start building.
 		if depth == cfg.SeqWindowSize && n.SequenceNumber == 0 {
-			return &FindHeadsResult{
-				Unsafe:    highestPlausibleCanonicalOrigin,
-				Safe:      n,
-				Finalized: eth.L2BlockRef{}, // TODO
-			}, nil
+			result.Safe = n
+			return result, nil
 		}
 
 		// Genesis is always safe.
 		if n.Hash == cfg.Genesis.L2.Hash || n.Number == cfg.Genesis.L2.Number {
-			safe := eth.L2BlockRef{Hash: cfg.Genesis.L2.Hash, Number: cfg.Genesis.L2.Number,
+			result.Safe = eth.L2BlockRef{Hash: cfg.Genesis.L2.Hash, Number: cfg.Genesis.L2.Number,
 				Time: cfg.Genesis.L2Time, L1Origin: cfg.Genesis.L1, SequenceNumber: 0}
-			return &FindHeadsResult{
-				Unsafe:    highestPlausibleCanonicalOrigin,
-				Safe:      n,
-				Finalized: safe,
-			}, nil
+			return result, nil
 		}
 
 		// Pull L2 parent for next iteration.
