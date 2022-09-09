@@ -12,7 +12,7 @@
 - [L2CrossDomainMessenger](#l2crossdomainmessenger)
 - [L2StandardBridge](#l2standardbridge)
 - [SequencerFeeVault](#sequencerfeevault)
-- [OptimismMintableERC20Factory](#optimismmintableerc20factory)
+- [L2OptimismMintableERC20Factory](#l2optimismmintableerc20factory)
 - [L1BlockNumber](#l1blocknumber)
 - [OVM\_GasPriceOracle](#ovm%5C_gaspriceoracle)
 - [Reserved System Address 1](#reserved-system-address-1)
@@ -37,21 +37,21 @@ The following table includes each of the predeploys. The system version
 indicates when the predeploy was introduced. The possible values are `Legacy`
 or `Bedrock`. Deprecated contracts should not be used.
 
-| Name                         | Address                                    | Introduced | Deprecated |
-| ---------------------------- | ------------------------------------------ | ---------- | ---------- |
-| OVM\_L2ToL1MessagePasser     | 0x4200000000000000000000000000000000000000 | Legacy     | No         |
-| OVM\_DeployerWhitelist       | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
-| OVM\_ETH                     | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
-| WETH9                        | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
-| L2CrossDomainMessenger       | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
-| L2StandardBridge             | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
-| SequencerFeeVault            | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
-| OptimismMintableERC20Factory | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
-| L1BlockNumber                | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
-| OVM\_GasPriceOracle          | 0x420000000000000000000000000000000000000F | Legacy     | No         |
-| Reserved System Address 1    | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
-| Reserved System Address 2    | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
-| L1Block                      | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
+| Name                           | Address                                    | Introduced | Deprecated |
+| ------------------------------ | ------------------------------------------ | ---------- | ---------- |
+| OVM\_L2ToL1MessagePasser       | 0x4200000000000000000000000000000000000000 | Legacy     | No         |
+| OVM\_DeployerWhitelist         | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
+| OVM\_ETH                       | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
+| WETH9                          | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
+| L2CrossDomainMessenger         | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
+| L2StandardBridge               | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
+| SequencerFeeVault              | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
+| L2OptimismMintableERC20Factory | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
+| L1BlockNumber                  | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
+| OVM\_GasPriceOracle            | 0x420000000000000000000000000000000000000F | Legacy     | No         |
+| Reserved System Address 1      | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
+| Reserved System Address 2      | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
+| L1Block                        | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
 
 ## OVM\_L2ToL1MessagePasser
 
@@ -229,13 +229,12 @@ interface SequencerFeeVault {
 }
 ```
 
-## OptimismMintableERC20Factory
+## L2OptimismMintableERC20Factory
 
-The `OptimismMintableERC20Factory` can be used to create an ERC20 token contract
-on a remote domain that maps to an ERC20 token contract on the local domain
-where tokens can be deposited to the remote domain. It deploys an
-`OptimismMintableERC20` which has the interface that works with the
-`StandardBridge`.
+The `L2OptimismMintableERC20Factory` can be used to create an ERC20 token contract
+on L2 that an ERC20 token contract on L1 where tokens can be securely deposited to
+L2 via the `L1StandardBridge`. It deploys an `OptimismMintableERC20` contract on
+L2.
 
 ## L1BlockNumber
 
