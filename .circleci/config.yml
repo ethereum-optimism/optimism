@@ -2,7 +2,6 @@ version: 2.1
 
 orbs:
   go: circleci/go@1.5.0
-
 jobs:
   yarn-monorepo:
     docker:
@@ -33,6 +32,9 @@ jobs:
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
+      - run:
+          name: print forge version
+          command: forge --version
       - save_cache:
           key: v2-cache-yarn-install-{{ checksum "yarn.lock" }}
           paths:
@@ -137,6 +139,9 @@ jobs:
             slither --version
             yarn slither || exit 0
           working_directory: packages/contracts-bedrock
+      - run:
+          name: print forge version
+          command: forge --version
       - run:
           name: test
           command: yarn test
