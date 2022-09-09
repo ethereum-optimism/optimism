@@ -48,40 +48,40 @@ func (conf *Config) Host(log log.Logger) (host.Host, error) {
 	pub := conf.Priv.GetPublic()
 	pid, err := peer.IDFromPublicKey(pub)
 	if err != nil {
-		return nil, fmt.Errorf("failed to derive pubkey from network priv key: %v", err)
+		return nil, fmt.Errorf("failed to derive pubkey from network priv key: %w", err)
 	}
 
 	ps, err := pstoreds.NewPeerstore(context.Background(), conf.Store, pstoreds.DefaultOpts())
 	if err != nil {
-		return nil, fmt.Errorf("failed to open peerstore: %v", err)
+		return nil, fmt.Errorf("failed to open peerstore: %w", err)
 	}
 
 	if err := ps.AddPrivKey(pid, conf.Priv); err != nil {
-		return nil, fmt.Errorf("failed to set up peerstore with priv key: %v", err)
+		return nil, fmt.Errorf("failed to set up peerstore with priv key: %w", err)
 	}
 	if err := ps.AddPubKey(pid, pub); err != nil {
-		return nil, fmt.Errorf("failed to set up peerstore with pub key: %v", err)
+		return nil, fmt.Errorf("failed to set up peerstore with pub key: %w", err)
 	}
 
 	connGtr, err := conf.ConnGater(conf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open connection gater: %v", err)
+		return nil, fmt.Errorf("failed to open connection gater: %w", err)
 	}
 
 	connMngr, err := conf.ConnMngr(conf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open connection manager: %v", err)
+		return nil, fmt.Errorf("failed to open connection manager: %w", err)
 	}
 
 	listenAddr, err := addrFromIPAndPort(conf.ListenIP, conf.ListenTCPPort)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make listen addr: %v", err)
+		return nil, fmt.Errorf("failed to make listen addr: %w", err)
 	}
 	tcpTransport, err := lconf.TransportConstructor(
 		tcp.NewTCPTransport,
 		tcp.WithConnectionTimeout(time.Minute*60)) // break unused connections
 	if err != nil {
-		return nil, fmt.Errorf("failed to create TCP transport: %v", err)
+		return nil, fmt.Errorf("failed to create TCP transport: %w", err)
 	}
 	// TODO: technically we can also run the node on websocket and QUIC transports. Maybe in the future?
 
@@ -140,7 +140,7 @@ func (conf *Config) Host(log log.Logger) (host.Host, error) {
 	for _, peerAddr := range conf.StaticPeers {
 		addr, err := peer.AddrInfoFromP2pAddr(peerAddr)
 		if err != nil {
-			return nil, fmt.Errorf("bad peer address: %v", err)
+			return nil, fmt.Errorf("bad peer address: %w", err)
 		}
 		h.Peerstore().AddAddrs(addr.ID, addr.Addrs, time.Hour*24*7)
 		// We protect the peer, so the connection manager doesn't decide to prune it.
