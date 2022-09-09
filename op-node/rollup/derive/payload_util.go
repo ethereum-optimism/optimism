@@ -25,14 +25,14 @@ func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (
 		}
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %v", err)
+			return eth.L2BlockRef{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
 		}
 		if tx.Type() != types.DepositTxType {
 			return eth.L2BlockRef{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
 		info, err := L1InfoDepositTxData(tx.Data())
 		if err != nil {
-			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %v", err)
+			return eth.L2BlockRef{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
 		}
 		l1Origin = eth.BlockID{Hash: info.BlockHash, Number: info.Number}
 		sequenceNumber = info.SequenceNumber
