@@ -356,7 +356,7 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr string) error {
 	h := s.node.Host()
 	addrInfo, err := peer.AddrInfoFromString(addr)
 	if err != nil {
-		return fmt.Errorf("bad peer address: %v", err)
+		return fmt.Errorf("bad peer address: %w", err)
 	}
 	// Put a sanity limit on the connection time
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
