@@ -50,14 +50,14 @@ func (id *ChannelID) UnmarshalText(text []byte) error {
 		return fmt.Errorf("channel ID too short: %d", len(text))
 	}
 	if _, err := hex.Decode(id.Data[:], text[:ChannelIDDataSize]); err != nil {
-		return fmt.Errorf("failed to unmarshal hex data part of channel ID: %v", err)
+		return fmt.Errorf("failed to unmarshal hex data part of channel ID: %w", err)
 	}
 	if c := text[ChannelIDDataSize*2]; c != ':' {
 		return fmt.Errorf("expected : separator in channel ID, but got %d", c)
 	}
 	v, err := strconv.ParseUint(string(text[ChannelIDDataSize*2+1:]), 10, 64)
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal decimal time part of channel ID: %v", err)
+		return fmt.Errorf("failed to unmarshal decimal time part of channel ID: %w", err)
 	}
 	id.Time = v
 	return nil

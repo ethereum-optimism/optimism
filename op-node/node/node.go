@@ -116,7 +116,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
 		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
-		return fmt.Errorf("failed to create L1 source: %v", err)
+		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
