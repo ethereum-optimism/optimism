@@ -313,38 +313,26 @@ A [channel frame][g-channel-frame] is encoded as:
 ```text
 frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
 
-channel_id        = random ++ timestamp
-random            = bytes32
-timestamp         = uint64
+channel_id        = bytes16
 frame_number      = uint16
 frame_data_length = uint32
 frame_data        = bytes
 is_last           = bool
 ```
 
-Where `uint64`, `uint32` and `uint16` are all big-endian unsigned integers. Type names should be interpreted to and
+Where `uint32` and `uint16` are all big-endian unsigned integers. Type names should be interpreted to and
 encoded according to [the Solidity ABI][solidity-abi].
 
 [solidity-abi]: https://docs.soliditylang.org/en/v0.8.16/abi-spec.html
 
-All data in a frame is fixed-size, except the `frame_data`. The fixed overhead is `32 + 8 + 2 + 4 + 1 = 47 bytes`.
+All data in a frame is fixed-size, except the `frame_data`. The fixed overhead is `16 + 2 + 4 + 1 = 23 bytes`.
 Fixed-size frame metadata avoids a circular dependency with the target total data length,
 to simplify packing of frames with varying content length.
 
 where:
 
-- `channel_id` uniquely identifies a channel as the concatenation of a random value and a timestamp
-  - `random` is a random value such that two channels with different batches should have a different random value
-  - `timestamp` is the time at which the channel was created (UNIX time in seconds)
-  - The ID includes both the random value and the timestamp, in order to prevent a malicious sequencer from reusing the
-    random value after the channel has [timed out][g-channel-timeout] (refer to the [batcher
-    specification][batcher-spec] to learn more about channel timeouts). This will also allow us substitute `random` by a
-    hash commitment to the batches, should we want to do so in the future.
-  - Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears must be
-    ignored. Note that L1 nodes cannot easily manipulate the L1 block timestamp: L1 nodes have a soft constraint to
-    ignore blocks whose timestamps that are ahead of the wallclock time by a certain margin. (A soft constraint is not a
-    consensus rule — nodes will accept such blocks in the canonical chain but will not attempt to build directly on
-    them.) This issue goes away with Proof of Stake, where timestamps are determined by [L1 time slots][g-time-slot].
+- `channel_id` is an opaque identifier for the channel. It should not be reused and is suggested to be random; however,
+outside of timeout rules, it is not checked for validity
 - `frame_number` identifies the index of the frame within the channel
 - `frame_data_length` is the length of `frame_data` in bytes. It is capped to 1,000,000 bytes.
 - `frame_data` is a sequence of bytes belonging to the channel, logically after the bytes from the previous frames
@@ -505,7 +493,8 @@ However, our current implementation doesn't support streaming decompression, so 
 - We have received all frames in the channel: i.e. we received the last frame in the channel (`is_last == 1`) and every
   frame with a lower number.
 - The channel has timed out (in which we case we read all contiguous sequential frames from the start of the channel).
-  - A channel is considered to be *timed out* if `currentL1Block.timestamp > channeld_id.timestamp + CHANNEL_TIMEOUT`.
+  - A channel is considered to be *timed out* if
+`currentL1Block.number > channeld_id.starting_l1_number + CHANNEL_TIMEOUT`.
     - where `currentL1Block` is the L1 block maintained by this stage, which is the most recent L1 block whose frames
           have been added to the channel bank.
 - The channel is pruned out of the channel bank (see below), in which case it isn't passed to the further stages.
@@ -945,12 +934,12 @@ epoch sequencing window, assuming it is in the same epoch as `safeL2Head`).
 > could post a batch for the L2 block `safeL2Head + 1` on L1 block `safeL2Head.1Origin`.
 
 Keeping things worst case, `safeL2Head.l1Origin` would also be the last allowable block for the frame to land. The
-allowed time range for frames within a channel to land on L1 is `[channel_id.timestamp, channel_id.timestamp +
-CHANNEL_TIMEOUT]`. The allowed L1 block range for these frames are any L1 block whose timestamp falls inside this time
+allowed time range for frames within a channel to land on L1 is `[channel_id.number, channel_id.number +
+CHANNEL_TIMEOUT]`. The allowed L1 block range for these frames are any L1 block whose number falls inside this block
 range.
 
-Therefore, to be safe, we can reset the L1 head of Channel Buffering to the oldest L1 block whose timestamp is higher
-than `safeL2Head.l1Origin.timestamp - CHANNEL_TIMEOUT`.
+Therefore, to be safe, we can reset the L1 head of Channel Buffering to the L1 block whose number is
+`safeL2Head.l1Origin.number - CHANNEL_TIMEOUT`.
 
 > **Note** The above is what the implementation currently does.
 
@@ -958,7 +947,7 @@ In reality it's only strictly necessary to reset the oldest L1 block whose times
 `channel_id.timestamp` found in the batcher transaction that is not older than `safeL2Head.l1Origin.timestamp -
 CHANNEL_TIMEOUT`.
 
-We define `CHANNEL_TIMEOUT = 600`, i.e. 10 hours.
+We define `CHANNEL_TIMEOUT = 50`, i.e. 10mins
 
 > **TODO** does `CHANNEL_TIMEOUT` have a relationship with `SWS`?
 >

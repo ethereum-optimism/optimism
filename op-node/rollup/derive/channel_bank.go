@@ -35,8 +35,6 @@ type ChannelBank struct {
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
 
-	resetting bool
-
 	progress Progress
 
 	next ChannelBankOutput
@@ -94,23 +92,18 @@ func (ib *ChannelBank) IngestData(data []byte) {
 
 	// Process each frame
 	for _, f := range frames {
-		// check if the channel is not timed out
-		if f.ID.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time {
-			ib.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
-			continue
-		}
-		// check if the channel is not included too soon (otherwise timeouts wouldn't be effective)
-		if f.ID.Time > ib.progress.Origin.Time {
-			ib.log.Warn("channel claims to be from the future, ignore frame", "channel", f.ID, "id_time", f.ID.Time, "frame", f.FrameNumber)
-			continue
-		}
-
 		currentCh, ok := ib.channels[f.ID]
 		if !ok {
 			// create new channel if it doesn't exist yet
-			currentCh = NewChannel(f.ID)
+			currentCh = NewChannel(f.ID, ib.progress.Origin)
 			ib.channels[f.ID] = currentCh
 			ib.channelQueue = append(ib.channelQueue, f.ID)
+		}
+
+		// check if the channel is not timed out
+		if currentCh.OpenBlockNumber()+ib.cfg.ChannelTimeout < ib.progress.Origin.Number {
+			ib.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "frame", f.FrameNumber)
+			continue
 		}
 
 		ib.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
@@ -129,16 +122,17 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	}
 	first := ib.channelQueue[0]
 	ch := ib.channels[first]
-	timedOut := first.Time+ib.cfg.ChannelTimeout < ib.progress.Origin.Time
+	timedOut := ch.OpenBlockNumber()+ib.cfg.ChannelTimeout < ib.progress.Origin.Number
 	if timedOut {
 		ib.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
-	}
-	if ch.IsReady() {
-		ib.log.Debug("channel ready", "channel", first)
-	}
-	if !timedOut && !ch.IsReady() { // check if channel is readya (can then be read)
+		delete(ib.channels, first)
+		ib.channelQueue = ib.channelQueue[1:]
 		return nil, io.EOF
 	}
+	if !ch.IsReady() {
+		return nil, io.EOF
+	}
+
 	delete(ib.channels, first)
 	ib.channelQueue = ib.channelQueue[1:]
 	r := ch.Reader()
@@ -176,26 +170,19 @@ func (ib *ChannelBank) Step(ctx context.Context, outer Progress) error {
 // Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
 // so it is not relevant to replay it into the bank.
 func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	if !ib.resetting {
-		ib.progress = ib.next.Progress()
-		ib.resetting = true
-		return nil
-	}
-	if ib.progress.Origin.Time+ib.cfg.ChannelTimeout < ib.next.Progress().Origin.Time || ib.progress.Origin.Number <= ib.cfg.Genesis.L1.Number {
-		ib.log.Debug("found reset origin for channel bank", "origin", ib.progress.Origin)
-		ib.resetting = false
-		return io.EOF
-	}
-
+	ib.progress = ib.next.Progress()
 	ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.progress.Origin)
-
 	// go back in history if we are not distant enough from the next stage
-	parent, err := l1Fetcher.L1BlockRefByHash(ctx, ib.progress.Origin.ParentHash)
+	resetBlock := ib.progress.Origin.Number - ib.cfg.ChannelTimeout
+	if ib.progress.Origin.Number < ib.cfg.ChannelTimeout {
+		resetBlock = 0 // don't underflow
+	}
+	parent, err := l1Fetcher.L1BlockRefByNumber(ctx, resetBlock)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
 	}
 	ib.progress.Origin = parent
-	return nil
+	return io.EOF
 }
 
 type L1BlockRefByHashFetcher interface {
