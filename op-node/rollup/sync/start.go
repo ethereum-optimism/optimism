@@ -40,13 +40,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
 	"strings"
-
-	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
 )
 
 type L1Chain interface {
@@ -65,23 +64,6 @@ var WrongChainErr = errors.New("wrong chain")
 var TooDeepReorgErr = errors.New("reorg is too deep")
 
 const MaxReorgDepth = 500
-
-// isCanonical returns the following values:
-//   - `aheadOrCanonical: true if the supplied block is ahead of the known head of the L1 chain,
-//     or canonical in the L1 chain.
-//   - `canonical`: true if the block is canonical in the L1 chain.
-func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (aheadOrCanonical bool, canonical bool, err error) {
-	if l1Head, err := l1.L1BlockRefByLabel(ctx, eth.Unsafe); err != nil {
-		return false, false, err
-	} else if block.Number > l1Head.Number {
-		return true, false, nil
-	} else if canonical, err := l1.L1BlockRefByNumber(ctx, block.Number); err != nil {
-		return false, false, err
-	} else {
-		canonical := canonical.Hash == block.Hash
-		return canonical, canonical, nil
-	}
-}
 
 type FindHeadsResult struct {
 	Unsafe    eth.L2BlockRef
@@ -132,115 +114,116 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 //	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
 //	and the same holds for all its ancestors.
 func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain) (result *FindHeadsResult, err error) {
-	// Fetch current engine state
+	// Fetch current L2 forkchoice state
 	result, err = currentHeads(ctx, cfg, l2)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch current L2 heads: %w", err)
+		return nil, fmt.Errorf("failed to fetch current L2 forkchoice state: %w", err)
 	}
 
-	// Loop 1. Walk the L2 chain backwards until we find an L2 block whose L1 origin is canonical.
+	// Remember original unsafe block to determine reorg depth
+	prevUnsafe := result.Unsafe
 
 	// Current L2 block.
 	n := result.Unsafe
 
-	// Number of blocks between n and start.
-	reorgDepth := 0
-
-	// Blockhash of L1 origin hash for the L2 block during the previous iteration, 0 for first
-	// iteration. When this changes as we walk the L2 chain backwards, it means we're seeing a different
-	// (earlier) epoch.
-	var prevL1OriginHash common.Hash
-
-	// The highest L2 ancestor of `start` (or `start` itself) whose ancestors are not (yet) known
-	// to have a non-canonical L1 origin. Empty if no such candidate is known yet. Guaranteed to be
-	// set after exiting from Loop 1.
+	var highestL2WithCanonicalL1Origin eth.L2BlockRef
+	var l1Block eth.L1BlockRef
+	var ahead bool
 
 	for {
-		// Check if l1Origin is canonical when we get to a new epoch.
-		if prevL1OriginHash != n.L1Origin.Hash {
-			prevL1OriginHash = n.L1Origin.Hash
+		// Fetch L1 information if we never had it, of if we do not have it for the current origin
+		if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
+			b, err := l1.L1BlockRefByNumber(ctx, n.L1Origin.Number)
+			// if L2 is ahead of L1 view, then consider it a "plausible" head
+			notFound := errors.Is(err, ethereum.NotFound)
+			if err != nil && !notFound {
+				return nil, fmt.Errorf("failed to retrieve block %d from L1 for comparison against %s: %w", n.L1Origin.Number, n.L1Origin.Hash, err)
+			}
+			l1Block = b
+			ahead = notFound
+		}
 
-			if plausible, canonical, err := isAheadOrCanonical(ctx, l1, n.L1Origin); err != nil {
-				return nil, err
-			} else if !plausible {
-				// L1 origin nor ahead of L1 head nor canonical, discard previous candidate and
-				// keep looking.
-				result.Unsafe = eth.L2BlockRef{}
-			} else {
-				if result.Unsafe == (eth.L2BlockRef{}) {
-					// No highest plausible candidate, make L2 block new candidate.
-					result.Unsafe = n
-				}
-				if canonical {
-					break
-				}
+		if n.Number == cfg.Genesis.L2.Number {
+			// Check L2 traversal against L2 Genesis data, to make sure the engine is on the correct chain, instead of attempting sync with different L2 destination.
+			if n.Hash != cfg.Genesis.L2.Hash {
+				return nil, fmt.Errorf("%w L2: genesis: %s, got %s", WrongChainErr, cfg.Genesis.L2, n)
+			}
+			// Check L1 comparison against L1 Genesis data, to make sure the L1 data is from the correct chain, instead of attempting sync with different L1 source.
+			if !ahead && l1Block.Hash != cfg.Genesis.L1.Hash {
+				return nil, fmt.Errorf("%w L1: genesis: %s, got %s", WrongChainErr, cfg.Genesis.L1, l1Block)
 			}
 		}
-
-		// Don't walk past genesis. If we were at the L2 genesis, but could not find its L1 origin,
-		// the L2 chain is building on the wrong L1 branch.
-		if n.Hash == cfg.Genesis.L2.Hash || n.Number == cfg.Genesis.L2.Number {
-			return nil, WrongChainErr
+		// Check L2 traversal against finalized data
+		if (n.Number == result.Finalized.Number) && (n.Hash != result.Finalized.Hash) {
+			return nil, fmt.Errorf("%w: finalized %s, got: %s", ReorgFinalizedErr, result.Finalized, n)
 		}
-
-		// Pull L2 parent for next iteration
-		n, err = l2.L2BlockRefByHash(ctx, n.ParentHash)
-		if err != nil {
-			return nil, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.ParentHash, err)
-		}
-
-		reorgDepth++
-		if reorgDepth >= MaxReorgDepth {
+		// Check we are not reorging L2 incredibly deep
+		if n.Number+MaxReorgDepth < prevUnsafe.Number {
 			// If the reorg depth is too large, something is fishy.
 			// This can legitimately happen if L1 goes down for a while. But in that case,
 			// restarting the L2 node with a bigger configured MaxReorgDepth is an acceptable
 			// stopgap solution.
-			// Currently this can also happen if the L2 node is down for a while, but in the future
-			// state sync should prevent this issue.
-			return nil, TooDeepReorgErr
-		}
-	}
-
-	// Loop 2. Walk from the L1 origin of the `n` block (*) back to the L1 block that starts the
-	// sequencing window ending at that block. Instead of iterating on L1 blocks, we actually
-	// iterate on L2 blocks, because we want to find the safe L2 head, i.e. the highest L2 block
-	// whose L1 origin is the start of the sequencing window.
-
-	// (*) `n` being at this stage the highest L2 block whose L1 origin is canonical.
-
-	// Depth counter: we need to walk back `seqWindowSize` L1 blocks in order to find the start
-	// of the sequencing window.
-	depth := uint64(1)
-
-	// Before entering the loop: `prevL1OriginHash == n.L1Origin.Hash`
-	// The original definitions of `n` and `prevL1OriginHash` still hold.
-	for {
-		// Advance depth if we change to a different (earlier) epoch.
-		if n.L1Origin.Hash != prevL1OriginHash {
-			depth++
-			prevL1OriginHash = n.L1Origin.Hash
+			return nil, fmt.Errorf("%w: traversed back to L2 block %s, but too deep compared to previous unsafe block %s", TooDeepReorgErr, n, prevUnsafe)
 		}
 
-		// Found an L2 block whose L1 origin is the start of the sequencing window.
-		// Note: We also ensure that we are on the block number with the 0 seq number.
-		// This is a little hacky, but kinda works. The issue is about where the
-		// batch queue should start building.
-		if depth == cfg.SeqWindowSize && n.SequenceNumber == 0 {
+		// If we don't have a usable unsafe head, then set it
+		if result.Unsafe == (eth.L2BlockRef{}) {
+			result.Unsafe = n
+		}
+
+		if ahead {
+			// keep the unsafe head if we can't tell if its L1 origin is canonical or not yet.
+		} else if l1Block.Hash == n.L1Origin.Hash {
+			// if L2 matches canonical chain, even if unsafe,
+			// then we can start finding a span of L1 blocks to cover the sequence window,
+			// which may help avoid rewinding the existing safe head unnecessarily.
+			if highestL2WithCanonicalL1Origin == (eth.L2BlockRef{}) {
+				highestL2WithCanonicalL1Origin = n
+			}
+		} else {
+			// L1 origin nor ahead of L1 head nor canonical, discard previous candidate and keep looking.
+			result.Unsafe = eth.L2BlockRef{}
+		}
+
+		// If the L2 block is at least as old as the previous safe head, and we have seen at least a full sequence window worth of L1 blocks to confirm
+		// TODO discuss with Josh
+		if n.Number <= result.Safe.Number && n.Number+cfg.SeqWindowSize <= highestL2WithCanonicalL1Origin.Number && n.SequenceNumber == 0 {
 			result.Safe = n
 			return result, nil
 		}
 
-		// Genesis is always safe.
-		if n.Hash == cfg.Genesis.L2.Hash || n.Number == cfg.Genesis.L2.Number {
-			result.Safe = eth.L2BlockRef{Hash: cfg.Genesis.L2.Hash, Number: cfg.Genesis.L2.Number,
-				Time: cfg.Genesis.L2Time, L1Origin: cfg.Genesis.L1, SequenceNumber: 0}
+		// Don't traverse further than the finalized head to find a safe head
+		if n.Number == result.Finalized.Number {
+			result.Safe = n
 			return result, nil
 		}
 
-		// Pull L2 parent for next iteration.
-		n, err = l2.L2BlockRefByHash(ctx, n.ParentHash)
+		// Pull L2 parent for next iteration
+		parent, err := l2.L2BlockRefByHash(ctx, n.ParentHash)
 		if err != nil {
 			return nil, fmt.Errorf("failed to fetch L2 block by hash %v: %w", n.ParentHash, err)
 		}
+
+		// Check the L1 origin relation
+		if parent.L1Origin != n.L1Origin {
+			// sanity check that the L1 origin block number is coherent
+			if parent.L1Origin.Number+1 != n.L1Origin.Number {
+				return nil, fmt.Errorf("l2 parent %s of %s has L1 origin %s that is not before %s", parent, n, parent.L1Origin, n.L1Origin)
+			}
+			// sanity check that the later sequence number is 0, if it changed between the L2 blocks
+			if n.SequenceNumber != 0 {
+				return nil, fmt.Errorf("l2 block %s has parent %s with different L1 origin %s, but non-zero sequence number %d", n, parent, parent.L1Origin, n.SequenceNumber)
+			}
+			// if the L1 origin is known to be canonical, then the parent must be too
+			if l1Block.Hash == n.L1Origin.Hash && l1Block.ParentHash != parent.L1Origin.Hash {
+				return nil, fmt.Errorf("parent L2 block %s has origin %s but expected %s", parent, parent.L1Origin, l1Block.ParentHash)
+			}
+		} else {
+			if parent.SequenceNumber+1 != n.SequenceNumber {
+				return nil, fmt.Errorf("sequence number inconsistency %d <> %d between l2 blocks %s and %s", parent.SequenceNumber, n.SequenceNumber, parent, n)
+			}
+		}
+
+		n = parent
 	}
 }

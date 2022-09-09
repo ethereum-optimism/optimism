@@ -77,6 +77,7 @@ func (c *syncStartTestCase) Run(t *testing.T) {
 	result, err := FindL2Heads(context.Background(), cfg, chain, chain)
 	if c.ExpectedErr != nil {
 		require.ErrorIs(t, err, c.ExpectedErr, "expected error")
+		return
 	} else {
 		require.NoError(t, err, "expected no error")
 	}
@@ -132,7 +133,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'E',
 			SeqWindowSize:  2,
-			SafeL2Head:     'B',
+			SafeL2Head:     'C',
 			ExpectedErr:    nil,
 		},
 		{
@@ -177,7 +178,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'F',
 			SeqWindowSize:  3,
-			SafeL2Head:     'B',
+			SafeL2Head:     'C',
 			ExpectedErr:    nil,
 		},
 		{
@@ -248,7 +249,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'D',
 			UnsafeL2Head:   'I',
 			SeqWindowSize:  2,
-			SafeL2Head:     'F',
+			SafeL2Head:     'G',
 			ExpectedErr:    nil,
 		},
 		{
@@ -277,6 +278,8 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL1:      'd',
 			GenesisL2:      'D',
 			UnsafeL2Head:   0,
+			SeqWindowSize:  2,
+			SafeL2Head:     'D',
 			ExpectedErr:    WrongChainErr,
 		},
 	}
