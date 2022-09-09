@@ -30,7 +30,7 @@ library Predeploys {
     /**
      * @notice Address of the OptimismMintableERC20Factory predeploy.
      */
-    address internal constant OPTIMISM_MINTABLE_ERC20_FACTORY =
+    address internal constant L2_OPTIMISM_MINTABLE_ERC20_FACTORY =
         0x4200000000000000000000000000000000000012;
 
     /**

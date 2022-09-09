@@ -84,7 +84,7 @@ const deployFn: DeployFunction = async (hre) => {
       waitConfirmations: deployConfig.deploymentWaitConfirmations,
       nonce: ++nonce,
     }),
-    deploy('OptimismMintableERC20Factory', {
+    deploy('L1OptimismMintableERC20Factory', {
       from: deployer,
       args: [bridgeProxy.address],
       log: true,
@@ -139,8 +139,8 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  const factory = await get('OptimismMintableERC20Factory')
-  const factoryProxy = await get('OptimismMintableERC20FactoryProxy')
+  const factory = await get('L1OptimismMintableERC20Factory')
+  const factoryProxy = await get('L1OptimismMintableERC20FactoryProxy')
   const factoryProxyContract = await hre.ethers.getContractAt(
     'Proxy',
     factoryProxy.address
@@ -241,9 +241,9 @@ const validateBridge = async (hre) => {
 
 const validateTokenFactory = async (hre) => {
   const bridge = await hre.deployments.get('L1StandardBridgeProxy')
-  const proxy = await hre.deployments.get('OptimismMintableERC20FactoryProxy')
+  const proxy = await hre.deployments.get('L1OptimismMintableERC20FactoryProxy')
   const OptimismMintableERC20Factory = await hre.ethers.getContractAt(
-    'OptimismMintableERC20Factory',
+    'L1OptimismMintableERC20Factory',
     proxy.address
   )
   if (bridge.address !== (await OptimismMintableERC20Factory.bridge())) {

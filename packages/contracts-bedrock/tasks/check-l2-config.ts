@@ -76,7 +76,7 @@ task('check-l2-config', 'Validate L2 config')
     }
 
     const OptimismMintableERC20Factory = new Contract(
-      predeploys.OptimismMintableERC20Factory,
+      predeploys.L2OptimismMintableERC20Factory,
       Artifact__OptimismMintableERC20Factory.abi,
       l2Provider
     )
