@@ -1,4 +1,5 @@
-import { ethers } from 'ethers'
+import { BigNumber } from '@ethersproject/bignumber'
+import { getAddress } from '@ethersproject/address'
 
 import { remove0x, add0x } from './hex-strings'
 
@@ -8,15 +9,15 @@ import { remove0x, add0x } from './hex-strings'
  * @param bn BigNumber to convert to an address.
  * @return BigNumber converted to an address, represented as a hex string.
  */
-export const bnToAddress = (bn: ethers.BigNumber | number): string => {
+export const bnToAddress = (bn: BigNumber | number): string => {
   // Coerce numbers into a BigNumber.
-  bn = ethers.BigNumber.from(bn)
+  bn = BigNumber.from(bn)
 
   // Negative numbers are converted to addresses by adding MAX_ADDRESS + 1.
   // TODO: Explain this in more detail, it's basically just matching the behavior of doing
   // addr(uint256(addr) - some_number) in Solidity where some_number > uint256(addr).
   if (bn.isNegative()) {
-    bn = ethers.BigNumber.from('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
+    bn = BigNumber.from('0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF')
       .add(bn)
       .add(1)
   }
@@ -32,7 +33,7 @@ export const bnToAddress = (bn: ethers.BigNumber | number): string => {
   // Add 0x again
   addr = add0x(addr)
   // Convert into a checksummed address
-  addr = ethers.utils.getAddress(addr)
+  addr = getAddress(addr)
 
   return addr
 }
