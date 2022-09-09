@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -29,8 +30,8 @@ type implConfig struct {
 }
 
 var defaultBridgeCfgs = []*implConfig{
-	{"Standard", "StandardBridge", L1StandardBridgeAddr},
-	{"ETH", "ETHBridge", L1StandardBridgeAddr},
+	{"Standard", "StandardBridge", predeploys.DevL1StandardBridge},
+	{"ETH", "ETHBridge", predeploys.DevL1StandardBridge},
 }
 
 var customBridgeCfgs = map[uint64][]*implConfig{
