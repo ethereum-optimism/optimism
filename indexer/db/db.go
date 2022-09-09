@@ -658,7 +658,7 @@ WHERE address = $1
 func (d *Database) GetAirdrop(address common.Address) (*Airdrop, error) {
 	row := d.db.QueryRow(getAirdropQuery, strings.ToLower(address.String()))
 	if row.Err() != nil {
-		return nil, fmt.Errorf("error getting airdrop: %v", row.Err())
+		return nil, fmt.Errorf("error getting airdrop: %w", row.Err())
 	}
 
 	airdrop := new(Airdrop)
@@ -677,7 +677,7 @@ func (d *Database) GetAirdrop(address common.Address) (*Airdrop, error) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error scanning airdrop: %v", err)
+		return nil, fmt.Errorf("error scanning airdrop: %w", err)
 	}
 	return airdrop, nil
 }
