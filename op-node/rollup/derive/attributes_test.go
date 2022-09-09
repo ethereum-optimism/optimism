@@ -172,7 +172,7 @@ func encodeDeposits(deposits []*types.DepositTx) (out []eth.Data, err error) {
 	for i, tx := range deposits {
 		opaqueTx, err := types.NewTx(tx).MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("bad deposit %d: %v", i, err)
+			return nil, fmt.Errorf("bad deposit %d: %w", i, err)
 		}
 		out = append(out, opaqueTx)
 	}

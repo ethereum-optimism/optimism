@@ -88,7 +88,7 @@ func LoadSignerSetup(ctx *cli.Context) (SignerSetup, error) {
 		// TODO: load from encrypted keystore
 		priv, err := crypto.LoadECDSA(keyFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read batch submitter key: %v", err)
+			return nil, fmt.Errorf("failed to read batch submitter key: %w", err)
 		}
 
 		return &PreparedSigner{Signer: NewLocalSigner(priv)}, nil

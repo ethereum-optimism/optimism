@@ -116,7 +116,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
 		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
-		return fmt.Errorf("failed to create L1 source: %v", err)
+		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -238,6 +238,9 @@ func (n *OpNode) Start(ctx context.Context) error {
 func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	n.tracer.OnNewL1Head(ctx, sig)
 
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -247,6 +250,9 @@ func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 }
 
 func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -256,6 +262,9 @@ func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
 }
 
 func (n *OpNode) OnNewL1Finalized(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
