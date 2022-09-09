@@ -16,7 +16,7 @@ import (
 func Priv2PeerID(r io.Reader) (string, error) {
 	b, err := readHexData(r)
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	p, err := crypto.UnmarshalSecp256k1PrivateKey(b)
