@@ -17,9 +17,7 @@ const MaxFrameLen = 1_000_000
 //
 // frame = channel_id ++ frame_number ++ frame_data_length ++ frame_data ++ is_last
 //
-// channel_id        = random ++ timestamp
-// random            = bytes32
-// timestamp         = uint64
+// channel_id        = bytes16
 // frame_number      = uint16
 // frame_data_length = uint32
 // frame_data        = bytes
@@ -36,11 +34,8 @@ type Frame struct {
 // It returns any errors encountered while writing, but
 // generally expects the writer very rarely fail.
 func (f *Frame) MarshalBinary(w io.Writer) error {
-	_, err := w.Write(f.ID.Data[:])
+	_, err := w.Write(f.ID[:])
 	if err != nil {
-		return err
-	}
-	if err := binary.Write(w, binary.BigEndian, f.ID.Time); err != nil {
 		return err
 	}
 	if err := binary.Write(w, binary.BigEndian, f.FrameNumber); err != nil {
@@ -74,13 +69,9 @@ type ByteReader interface {
 // If `r` fails a read, it returns the error from the reader
 // The reader will be left in a partially read state.
 func (f *Frame) UnmarshalBinary(r ByteReader) error {
-	if _, err := io.ReadFull(r, f.ID.Data[:]); err != nil {
+	if _, err := io.ReadFull(r, f.ID[:]); err != nil {
 		return fmt.Errorf("error reading ID: %w", err)
 	}
-	if err := binary.Read(r, binary.BigEndian, &f.ID.Time); err != nil {
-		return fmt.Errorf("error reading ID time: %w", err)
-	}
-
 	if err := binary.Read(r, binary.BigEndian, &f.FrameNumber); err != nil {
 		return fmt.Errorf("error reading frame number: %w", err)
 	}
