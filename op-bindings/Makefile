@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 pkg := bindings
 
-all: mkdir bindings more
+all: mkdir bindings more cleanup-tmp
 
 bindings: l1block-bindings \
 	l1-cross-domain-messenger-bindings \
@@ -15,7 +15,8 @@ bindings: l1block-bindings \
 	l2-cross-domain-messenger-bindings \
 	l2-standard-bridge-bindings \
 	sequencer-fee-vault-bindings \
-	optimism-mintable-erc20-factory-bindings \
+	l1-optimism-mintable-erc20-factory-bindings \
+	l2-optimism-mintable-erc20-factory-bindings \
 	optimism-mintable-erc20-bindings \
 	proxy-bindings \
 	proxy-admin-bindings \
@@ -25,6 +26,9 @@ bindings: l1block-bindings \
 compile:
 	cd ../packages/contracts-bedrock/ && \
 		forge build -o ./tmp-artifacts
+
+cleanup-tmp:
+	cd ../packages/contracts-bedrock && rm -rf tmp-artifacts
 
 l1-cross-domain-messenger-bindings: compile
 	./gen_bindings.sh contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
@@ -59,8 +63,11 @@ l2-standard-bridge-bindings: compile
 sequencer-fee-vault-bindings: compile
 	./gen_bindings.sh contracts/L2/SequencerFeeVault.sol:SequencerFeeVault $(pkg)
 
-optimism-mintable-erc20-factory-bindings: compile
-	./gen_bindings.sh contracts/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory $(pkg)
+l1-optimism-mintable-erc20-factory-bindings: compile
+	./gen_bindings.sh contracts/L1/L1OptimismMintableERC20Factory.sol:L1OptimismMintableERC20Factory $(pkg)
+
+l2-optimism-mintable-erc20-factory-bindings: compile
+	./gen_bindings.sh contracts/L2/L2OptimismMintableERC20Factory.sol:L2OptimismMintableERC20Factory $(pkg)
 
 optimism-mintable-erc20-bindings: compile
 	./gen_bindings.sh contracts/universal/OptimismMintableERC20.sol:OptimismMintableERC20 $(pkg)
@@ -81,7 +88,7 @@ more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts,../packages/contracts-governance/artifacts \
 		-out ./bindings \
-		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken \
+		-contracts L2OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken \
 		-package bindings
 
 mkdir:
