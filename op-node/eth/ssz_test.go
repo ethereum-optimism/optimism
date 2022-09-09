@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/google/go-cmp/cmp"
 )
@@ -77,4 +79,48 @@ func FuzzExecutionPayloadMarshalUnmarshal(f *testing.F) {
 			t.Fatalf("The data did not round trip correctly:\n%s", diff)
 		}
 	})
+}
+
+func FuzzOBP01(f *testing.F) {
+	payload := &ExecutionPayload{
+		ExtraData: make([]byte, 32),
+	}
+	var buf bytes.Buffer
+	_, err := payload.MarshalSSZ(&buf)
+	require.NoError(f, err)
+	data := buf.Bytes()
+
+	f.Fuzz(func(t *testing.T, edOffset uint32, txOffset uint32) {
+		clone := make([]byte, len(data))
+		copy(clone, data)
+
+		binary.LittleEndian.PutUint32(clone[436:440], edOffset)
+		binary.LittleEndian.PutUint32(clone[504:508], txOffset)
+
+		var unmarshalled ExecutionPayload
+		err = unmarshalled.UnmarshalSSZ(uint32(len(clone)), bytes.NewReader(clone))
+		if err == nil {
+			t.Fatalf("expected a failure, but didn't get one")
+		}
+	})
+}
+
+// TestOPB01 verifies that the SSZ unmarshaling code
+// properly checks for the transactionOffset being larger
+// than the extraDataOffset.
+func TestOPB01(t *testing.T) {
+	payload := &ExecutionPayload{
+		ExtraData: make([]byte, 32),
+	}
+	var buf bytes.Buffer
+	_, err := payload.MarshalSSZ(&buf)
+	require.NoError(t, err)
+	data := buf.Bytes()
+
+	// transactions offset is set between indices 504 and 508
+	copy(data[504:508], make([]byte, 4))
+
+	var unmarshalled ExecutionPayload
+	err = unmarshalled.UnmarshalSSZ(uint32(len(data)), bytes.NewReader(data))
+	require.Equal(t, ErrBadTransactionOffset, err)
 }
