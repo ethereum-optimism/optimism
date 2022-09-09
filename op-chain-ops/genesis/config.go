@@ -72,6 +72,8 @@ type DeployConfig struct {
 
 	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
 	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+
+	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.
