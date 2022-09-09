@@ -39,6 +39,9 @@ func BuildOptimism() (DeploymentResults, error) {
 		{
 			Name: "SequencerFeeVault",
 		},
+		{
+			Name: "L2OptimismMintableERC20Factory",
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -85,6 +88,9 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "SequencerFeeVault":
 		// No arguments to SequencerFeeVault
 		addr, _, _, err = bindings.DeploySequencerFeeVault(opts, backend)
+	case "L2OptimismMintableERC20Factory":
+		// No arguments to L2OptimismMintableERC20Factory
+		addr, _, _, err = bindings.DeployL2OptimismMintableERC20Factory(opts, backend)
 	default:
 		return addr, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
