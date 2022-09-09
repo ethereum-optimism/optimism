@@ -24,7 +24,7 @@ var proxies = []string{
 	"L1CrossDomainMessengerProxy",
 	"L1StandardBridgeProxy",
 	"OptimismPortalProxy",
-	"OptimismMintableERC20FactoryProxy",
+	"L1OptimismMintableERC20FactoryProxy",
 }
 
 var portalMeteringSlot = common.Hash{31: 0x01}
@@ -144,8 +144,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err := upgradeProxy(
 		backend,
 		opts,
-		depsByName["OptimismMintableERC20FactoryProxy"].Address,
-		depsByName["OptimismMintableERC20Factory"].Address,
+		depsByName["L1OptimismMintableERC20FactoryProxy"].Address,
+		depsByName["L1OptimismMintableERC20Factory"].Address,
 		nil,
 	); err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: "L1StandardBridge",
 		},
 		{
-			Name: "OptimismMintableERC20Factory",
+			Name: "L1OptimismMintableERC20Factory",
 		},
 		{
 			Name: "AddressManager",
@@ -288,8 +288,8 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
 		)
-	case "OptimismMintableERC20Factory":
-		addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(
+	case "L1OptimismMintableERC20Factory":
+		addr, _, _, err = bindings.DeployL1OptimismMintableERC20Factory(
 			opts,
 			backend,
 			predeploys.DevL1StandardBridgeAddr,

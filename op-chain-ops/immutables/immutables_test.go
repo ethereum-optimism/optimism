@@ -13,13 +13,12 @@ func TestBuildOptimism(t *testing.T) {
 	require.NotNil(t, results)
 
 	contracts := map[string]bool{
-		"GasPriceOracle":               true,
-		"L1Block":                      true,
-		"L2CrossDomainMessenger":       true,
-		"L2StandardBridge":             true,
-		"L2ToL1MessagePasser":          true,
-		"SequencerFeeVault":            true,
-		"OptimismMintableERC20Factory": true,
+		"GasPriceOracle":         true,
+		"L1Block":                true,
+		"L2CrossDomainMessenger": true,
+		"L2StandardBridge":       true,
+		"L2ToL1MessagePasser":    true,
+		"SequencerFeeVault":      true,
 	}
 
 	// Only the exact contracts that we care about are being
