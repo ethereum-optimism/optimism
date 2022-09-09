@@ -31,6 +31,7 @@ contract CrossDomainMessengerLegacySpacer {
 }
 
 /**
+ * @custom:upgradeable
  * @title CrossDomainMessenger
  * @notice CrossDomainMessenger is a base contract that provides the core logic for the L1 and L2
  *         cross-chain messenger contracts. It's designed to be a universal interface that only

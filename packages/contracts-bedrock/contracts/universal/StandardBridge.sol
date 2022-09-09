@@ -11,6 +11,7 @@ import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
 /**
+ * @custom:upgradeable
  * @title StandardBridge
  * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
  */
