@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -168,7 +168,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
-	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(rollupRPCClient)
 
 	//  OutputOracle is already deployed
 	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
@@ -330,7 +330,7 @@ func TestSystemE2E(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
-	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(rollupRPCClient)
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.Nil(t, err)

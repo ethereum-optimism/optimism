@@ -16,31 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// SyncStatus is a snapshot of the driver.
-// Values may be zeroed if not yet initialized.
-type SyncStatus struct {
-	// CurrentL1 is the block that the derivation process is currently at,
-	// this may not be fully derived into L2 data yet.
-	// If the node is synced, this matches the HeadL1, minus the verifier confirmation distance.
-	CurrentL1 eth.L1BlockRef `json:"current_l1"`
-	// HeadL1 is the perceived head of the L1 chain, no confirmation distance.
-	// The head is not guaranteed to build on the other L1 sync status fields,
-	// as the node may be in progress of resetting to adapt to a L1 reorg.
-	HeadL1      eth.L1BlockRef `json:"head_l1"`
-	SafeL1      eth.L1BlockRef `json:"safe_l1"`
-	FinalizedL1 eth.L1BlockRef `json:"finalized_l1"`
-	// UnsafeL2 is the absolute tip of the L2 chain,
-	// pointing to block data that has not been submitted to L1 yet.
-	// The sequencer is building this, and verifiers may also be ahead of the
-	// SafeL2 block if they sync blocks via p2p or other offchain sources.
-	UnsafeL2 eth.L2BlockRef `json:"unsafe_l2"`
-	// SafeL2 points to the L2 block that was derived from the L1 chain.
-	// This point may still reorg if the L1 chain reorgs.
-	SafeL2 eth.L2BlockRef `json:"safe_l2"`
-	// FinalizedL2 points to the L2 block that was derived fully from
-	// finalized L1 information, thus irreversible.
-	FinalizedL2 eth.L2BlockRef `json:"finalized_l2"`
-}
+// Deprecated: use eth.SyncStatus instead.
+type SyncStatus = eth.SyncStatus
 
 type state struct {
 	// Latest recorded head, safe block and finalized block of the L1 Chain, independent of derivation work
@@ -56,7 +33,7 @@ type state struct {
 	idleDerivation bool
 
 	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
-	syncStatusReq chan chan SyncStatus
+	syncStatusReq chan chan eth.SyncStatus
 
 	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
 	// It tells the caller that the reset occurred by closing the passed in channel.
@@ -101,7 +78,7 @@ func NewState(driverCfg *Config, log log.Logger, snapshotLog log.Logger, config 
 	return &state{
 		derivation:       derivationPipeline,
 		idleDerivation:   false,
-		syncStatusReq:    make(chan chan SyncStatus, 10),
+		syncStatusReq:    make(chan chan eth.SyncStatus, 10),
 		forceReset:       make(chan chan struct{}, 10),
 		Config:           config,
 		DriverConfig:     driverCfg,
@@ -472,7 +449,7 @@ func (s *state) eventLoop() {
 				reqStep() // continue with the next step if we can
 			}
 		case respCh := <-s.syncStatusReq:
-			respCh <- SyncStatus{
+			respCh <- eth.SyncStatus{
 				CurrentL1:   s.derivation.Progress().Origin,
 				HeadL1:      s.l1Head,
 				SafeL1:      s.l1Safe,
@@ -510,8 +487,8 @@ func (s *state) ResetDerivationPipeline(ctx context.Context) error {
 	}
 }
 
-func (s *state) SyncStatus(ctx context.Context) (*SyncStatus, error) {
-	respCh := make(chan SyncStatus)
+func (s *state) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	respCh := make(chan eth.SyncStatus)
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
