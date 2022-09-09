@@ -5,7 +5,9 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -13,13 +15,13 @@ import (
 )
 
 // NewL2Genesis will create a new L2 genesis
-func NewL2Genesis(config *DeployConfig, chain ethereum.ChainReader) (*core.Genesis, error) {
-	if config.L2ChainID == nil {
+func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, error) {
+	if config.L2ChainID == 0 {
 		return nil, errors.New("must define L2 ChainID")
 	}
 
 	optimismChainConfig := params.ChainConfig{
-		ChainID:                       config.L2ChainID,
+		ChainID:                       new(big.Int).SetUint64(config.L2ChainID),
 		HomesteadBlock:                big.NewInt(0),
 		DAOForkBlock:                  nil,
 		DAOForkSupport:                false,
@@ -53,42 +55,37 @@ func NewL2Genesis(config *DeployConfig, chain ethereum.ChainReader) (*core.Genes
 	}
 	gasLimit := config.L2GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = uint64(15_000_000)
+		gasLimit = 15_000_000
 	}
 	baseFee := config.L2GenesisBlockBaseFeePerGas
 	if baseFee == nil {
-		baseFee = big.NewInt(params.InitialBaseFee)
+		baseFee = newHexBig(params.InitialBaseFee)
 	}
 	difficulty := config.L2GenesisBlockDifficulty
 	if difficulty == nil {
-		difficulty = big.NewInt(1)
-	}
-
-	block, err := getBlockFromTag(chain, config.L1StartingBlockTag)
-	if err != nil {
-		return nil, err
+		difficulty = newHexBig(1)
 	}
 
 	return &core.Genesis{
 		Config:     &optimismChainConfig,
-		Nonce:      config.L2GenesisBlockNonce,
+		Nonce:      uint64(config.L2GenesisBlockNonce),
 		Timestamp:  block.Time(),
 		ExtraData:  extraData,
-		GasLimit:   gasLimit,
-		Difficulty: difficulty,
+		GasLimit:   uint64(gasLimit),
+		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L2GenesisBlockMixHash,
 		Coinbase:   config.L2GenesisBlockCoinbase,
-		Number:     config.L2GenesisBlockNumber,
-		GasUsed:    config.L2GenesisBlockGasUsed,
+		Number:     uint64(config.L2GenesisBlockNumber),
+		GasUsed:    uint64(config.L2GenesisBlockGasUsed),
 		ParentHash: config.L2GenesisBlockParentHash,
-		BaseFee:    baseFee,
+		BaseFee:    baseFee.ToInt(),
 		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
 }
 
 // NewL1Genesis will create a new L1 genesis config
 func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
-	if config.L1ChainID == nil {
+	if config.L1ChainID == 0 {
 		return nil, errors.New("must define L1 ChainID")
 	}
 
@@ -97,40 +94,40 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		Period: config.L1BlockTime,
 		Epoch:  30000,
 	}
-	chainConfig.ChainID = config.L1ChainID
+	chainConfig.ChainID = uint642Big(config.L1ChainID)
 
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = uint64(15_000_000)
+		gasLimit = 15_000_000
 	}
 	baseFee := config.L1GenesisBlockBaseFeePerGas
 	if baseFee == nil {
-		baseFee = big.NewInt(params.InitialBaseFee)
+		baseFee = newHexBig(params.InitialBaseFee)
 	}
 	difficulty := config.L1GenesisBlockDifficulty
 	if difficulty == nil {
-		difficulty = big.NewInt(1)
+		difficulty = newHexBig(1)
 	}
 	timestamp := config.L1GenesisBlockTimestamp
 	if timestamp == 0 {
-		timestamp = uint64(time.Now().Unix())
+		timestamp = hexutil.Uint64(time.Now().Unix())
 	}
 
 	extraData := append(append(make([]byte, 32), config.CliqueSignerAddress[:]...), make([]byte, crypto.SignatureLength)...)
 
 	return &core.Genesis{
 		Config:     &chainConfig,
-		Nonce:      config.L1GenesisBlockNonce,
-		Timestamp:  timestamp,
+		Nonce:      uint64(config.L1GenesisBlockNonce),
+		Timestamp:  uint64(timestamp),
 		ExtraData:  extraData,
-		GasLimit:   gasLimit,
-		Difficulty: difficulty,
+		GasLimit:   uint64(gasLimit),
+		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L1GenesisBlockMixHash,
 		Coinbase:   config.L1GenesisBlockCoinbase,
-		Number:     config.L1GenesisBlockNumber,
-		GasUsed:    config.L1GenesisBlockGasUsed,
+		Number:     uint64(config.L1GenesisBlockNumber),
+		GasUsed:    uint64(config.L1GenesisBlockGasUsed),
 		ParentHash: config.L1GenesisBlockParentHash,
-		BaseFee:    baseFee,
+		BaseFee:    baseFee.ToInt(),
 		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
 }

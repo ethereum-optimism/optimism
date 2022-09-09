@@ -16,10 +16,14 @@ import (
 var (
 	// codeNamespace represents the namespace of implementations of predeploys
 	codeNamespace = common.HexToAddress("0xc0D3C0d3C0d3C0D3c0d3C0d3c0D3C0d3c0d30000")
-	// predeployNamespace represents the namespace of predeploys
-	predeployNamespace = common.HexToAddress("0x4200000000000000000000000000000000000000")
-	// bigPredeployNamespace represents the predeploy namespace as a big.Int
-	bigPredeployNamespace = new(big.Int).SetBytes(predeployNamespace.Bytes())
+	// l2PredeployNamespace represents the namespace of L2 predeploys
+	l2PredeployNamespace = common.HexToAddress("0x4200000000000000000000000000000000000000")
+	// l1PredeployNamespace represents the namespace of L1 predeploys
+	l1PredeployNamespace = common.HexToAddress("0x6900000000000000000000000000000000000000")
+	// bigL2PredeployNamespace represents the predeploy namespace as a big.Int
+	bigL2PredeployNamespace = new(big.Int).SetBytes(l2PredeployNamespace.Bytes())
+	// bigL1PredeployNamespace represents the predeploy namespace as a big.Int
+	bigL1PredeployNamespace = new(big.Int).SetBytes(l1PredeployNamespace.Bytes())
 	// bigCodeNamespace represents the predeploy namespace as a big.Int
 	bigCodeNameSpace = new(big.Int).SetBytes(codeNamespace.Bytes())
 	// implementationSlot represents the EIP 1967 implementation storage slot
@@ -59,19 +63,26 @@ var DevAccounts = []common.Address{
 var devBalance = hexutil.MustDecodeBig("0x200000000000000000000000000000000000000000000000000000000000000")
 
 // AddressToCodeNamespace takes a predeploy address and computes
-// the implmentation address that the implementation should be deployed at
+// the implementation address that the implementation should be deployed at
 func AddressToCodeNamespace(addr common.Address) (common.Address, error) {
-	bytesAddr := addr.Bytes()
-	if !bytes.Equal(bytesAddr[0:2], []byte{0x42, 0x00}) {
+	if !IsL1DevPredeploy(addr) && !IsL2DevPredeploy(addr) {
 		return common.Address{}, fmt.Errorf("cannot handle non predeploy: %s", addr)
 	}
-	bigAddress := new(big.Int).SetBytes(bytesAddr[18:])
+	bigAddress := new(big.Int).SetBytes(addr[18:])
 	num := new(big.Int).Or(bigCodeNameSpace, bigAddress)
 	return common.BigToAddress(num), nil
 }
 
-// getBlockFromTag will resolve a Block given an rpc block tag
-func getBlockFromTag(chain ethereum.ChainReader, tag rpc.BlockNumberOrHash) (*types.Block, error) {
+func IsL1DevPredeploy(addr common.Address) bool {
+	return bytes.Equal(addr[0:2], []byte{0x69, 0x00})
+}
+
+func IsL2DevPredeploy(addr common.Address) bool {
+	return bytes.Equal(addr[0:2], []byte{0x42, 0x00})
+}
+
+// GetBlockFromTag will resolve a Block given an rpc block tag
+func GetBlockFromTag(chain ethereum.ChainReader, tag *rpc.BlockNumberOrHash) (*types.Block, error) {
 	if hash, ok := tag.Hash(); ok {
 		block, err := chain.BlockByHash(context.Background(), hash)
 		if err != nil {
@@ -88,4 +99,15 @@ func getBlockFromTag(chain ethereum.ChainReader, tag rpc.BlockNumberOrHash) (*ty
 	} else {
 		return nil, fmt.Errorf("invalid block tag: %v", tag)
 	}
+}
+
+// uint642Big creates a new *big.Int from a uint64.
+func uint642Big(in uint64) *big.Int {
+	return new(big.Int).SetUint64(in)
+}
+
+func newHexBig(in uint64) *hexutil.Big {
+	b := new(big.Int).SetUint64(in)
+	hb := hexutil.Big(*b)
+	return &hb
 }

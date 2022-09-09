@@ -3,7 +3,7 @@ module github.com/ethereum-optimism/optimism/op-bindings
 go 1.18
 
 require (
-	github.com/ethereum/go-ethereum v1.10.21
+	github.com/ethereum/go-ethereum v1.10.23
 	github.com/stretchr/testify v1.7.2
 )
 
@@ -16,7 +16,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
-	github.com/golang-jwt/jwt/v4 v4.3.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
@@ -41,4 +40,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/op-geth v0.0.0-20220819161933-acfde114de61
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220907143004-2aacc679d638
+
+// github.com/ethereum-optimism/op-geth v0.0.0-20220907143004-2aacc679d638

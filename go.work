@@ -19,7 +19,7 @@ use (
 	./teleportr
 )
 
-replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/op-geth v0.0.0-20220819161933-acfde114de61
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220907143004-2aacc679d638
 
 // For local debugging:
-//replace github.com/ethereum/go-ethereum v1.10.21 => ../go-ethereum
+//replace github.com/ethereum/go-ethereum v1.10.23 => ../go-ethereum

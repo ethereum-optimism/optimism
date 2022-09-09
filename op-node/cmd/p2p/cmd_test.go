@@ -32,4 +32,8 @@ func TestPrivPub2PeerID(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, pubPidLib.String(), pubPidImpl)
 	})
+	t.Run("with bad hex", func(t *testing.T) {
+		_, err := Priv2PeerID(bytes.NewReader([]byte("I am not hex.")))
+		require.Error(t, err)
+	})
 }

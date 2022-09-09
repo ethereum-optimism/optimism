@@ -34,15 +34,13 @@ func (co *ChannelOut) ID() ChannelID {
 	return co.id
 }
 
-func NewChannelOut(channelTime uint64) (*ChannelOut, error) {
+func NewChannelOut() (*ChannelOut, error) {
 	c := &ChannelOut{
-		id: ChannelID{
-			Time: channelTime,
-		},
+		id:     ChannelID{}, // TODO: use GUID here instead of fully random data
 		frame:  0,
 		offset: 0,
 	}
-	_, err := rand.Read(c.id.Data[:])
+	_, err := rand.Read(c.id[:])
 	if err != nil {
 		return nil, err
 	}
@@ -57,15 +55,14 @@ func NewChannelOut(channelTime uint64) (*ChannelOut, error) {
 }
 
 // TODO: reuse ChannelOut for performance
-func (co *ChannelOut) Reset(channelTime uint64) error {
+func (co *ChannelOut) Reset() error {
 	co.frame = 0
 	co.offset = 0
 	co.buf.Reset()
 	co.scratch.Reset()
 	co.compress.Reset(&co.buf)
 	co.closed = false
-	co.id.Time = channelTime
-	_, err := rand.Read(co.id.Data[:])
+	_, err := rand.Read(co.id[:])
 	if err != nil {
 		return err
 	}

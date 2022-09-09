@@ -45,7 +45,7 @@ var _ = func() bool {
 var verboseGethNodes bool
 
 func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", false, "Enable logs on geth nodes")
+	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.Parse()
 }
 
@@ -137,7 +137,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
 			SeqWindowSize:     30,
-			ChannelTimeout:    20,
+			ChannelTimeout:    10,
 			L1ChainID:         big.NewInt(900),
 			L2ChainID:         big.NewInt(901),
 			// TODO pick defaults

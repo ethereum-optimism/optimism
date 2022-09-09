@@ -624,4 +624,3 @@ func (_Testdata *TestdataSession) SetStorage(key [32]byte, value [32]byte) (*typ
 func (_Testdata *TestdataTransactorSession) SetStorage(key [32]byte, value [32]byte) (*types.Transaction, error) {
 	return _Testdata.Contract.SetStorage(&_Testdata.TransactOpts, key, value)
 }
-
