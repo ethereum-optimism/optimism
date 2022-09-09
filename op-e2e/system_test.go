@@ -45,7 +45,7 @@ var _ = func() bool {
 var verboseGethNodes bool
 
 func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", false, "Enable logs on geth nodes")
+	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.Parse()
 }
 
@@ -110,6 +110,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerConfDepth: 0,
 					SequencerEnabled:   false,
 				},
+				L1EpochPollInterval: time.Second * 4,
 			},
 			"sequencer": {
 				Driver: driver.Config{
@@ -119,9 +120,11 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 				},
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 				RPC: node.RPCConfig{
-					ListenAddr: "127.0.0.1",
-					ListenPort: 9093,
+					ListenAddr:  "127.0.0.1",
+					ListenPort:  9093,
+					EnableAdmin: true,
 				},
+				L1EpochPollInterval: time.Second * 4,
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -134,7 +137,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
 			SeqWindowSize:     30,
-			ChannelTimeout:    20,
+			ChannelTimeout:    10,
 			L1ChainID:         big.NewInt(900),
 			L2ChainID:         big.NewInt(901),
 			// TODO pick defaults
@@ -962,7 +965,7 @@ func TestFees(t *testing.T) {
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
 
 	// Find gaspriceoracle contract
-	gpoContract, err := bindings.NewGasPriceOracle(common.HexToAddress(predeploys.OVM_GasPriceOracle), l2Seq)
+	gpoContract, err := bindings.NewGasPriceOracle(common.HexToAddress(predeploys.GasPriceOracle), l2Seq)
 	require.Nil(t, err)
 
 	// GPO signer

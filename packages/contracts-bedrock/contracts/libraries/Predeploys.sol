@@ -65,4 +65,10 @@ library Predeploys {
      *         instead, which exposes more information about the L1 state.
      */
     address internal constant L1_BLOCK_NUMBER = 0x4200000000000000000000000000000000000013;
+
+    /**
+     * @notice Address of the GasPriceOracle predeploy. Includes fee information
+     *         and helpers for computing the L1 portion of the transaction fee.
+     */
+    address internal constant GAS_PRICE_ORACLE = 0x420000000000000000000000000000000000000F;
 }

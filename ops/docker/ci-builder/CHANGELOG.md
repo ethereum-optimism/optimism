@@ -1,5 +1,23 @@
 # @eth-optimism/ci-builder
 
+## 0.2.3
+
+### Patch Changes
+
+- 9ac88806: Update golang, geth and golangci-lint
+
+## 0.2.2
+
+### Patch Changes
+
+- c666fedc: Upgrade to Debian 11
+
+## 0.2.1
+
+### Patch Changes
+
+- 9bb6a152: Trigger release to update foundry version
+
 ## 0.2.0
 
 ### Minor Changes

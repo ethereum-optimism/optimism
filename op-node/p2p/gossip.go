@@ -31,6 +31,10 @@ func init() {
 }
 
 const maxGossipSize = 1 << 20
+
+// minGossipSize is used to make sure that there is at least some data
+// to validate the signature against.
+const minGossipSize = 66
 const maxOutboundQueue = 256
 const maxValidateQueue = 256
 const globalValidateThrottle = 512
@@ -189,7 +193,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 	// uint64 -> *seenBlocks
 	blockHeightLRU, err := lru.New(100)
 	if err != nil {
-		panic(fmt.Errorf("failed to set up block height LRU cache: %v", err))
+		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}
 
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
@@ -201,6 +205,10 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 		}
 		if outLen > maxGossipSize {
 			log.Warn("possible snappy zip bomb, decoded length is too large", "decoded_length", outLen, "peer", id)
+			return pubsub.ValidationReject
+		}
+		if outLen < minGossipSize {
+			log.Warn("rejecting undersized gossip payload")
 			return pubsub.ValidationReject
 		}
 
@@ -215,6 +223,22 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 
 		// message starts with compact-encoding secp256k1 encoded signature
 		signatureBytes, payloadBytes := data[:65], data[65:]
+
+		// [REJECT] if the signature by the sequencer is not valid
+		signingHash := BlockSigningHash(cfg, payloadBytes)
+
+		pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
+		if err != nil {
+			log.Warn("invalid block signature", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
+		addr := crypto.PubkeyToAddress(*pub)
+
+		// TODO: in the future we can support multiple valid p2p addresses.
+		if addr != cfg.P2PSequencerAddress {
+			log.Warn("unexpected block author", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
 
 		// [REJECT] if the block encoding is not valid
 		var payload eth.ExecutionPayload
@@ -258,22 +282,6 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 			// [IGNORE] if the block has already been seen
 			log.Warn("validated already seen message again")
 			return pubsub.ValidationIgnore
-		}
-
-		// [REJECT] if the signature by the sequencer is not valid
-		signingHash := BlockSigningHash(cfg, payloadBytes)
-
-		pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
-		if err != nil {
-			log.Warn("invalid block signature", "err", err, "peer", id)
-			return pubsub.ValidationReject
-		}
-		addr := crypto.PubkeyToAddress(*pub)
-
-		// TODO: in the future we can support multiple valid p2p addresses.
-		if addr != cfg.P2PSequencerAddress {
-			log.Warn("unexpected block author", "err", err, "peer", id)
-			return pubsub.ValidationReject
 		}
 
 		// mark it as seen. (note: with concurrent validation more than 5 blocks may be marked as seen still,
@@ -322,13 +330,13 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.Execution
 
 	buf.Write(make([]byte, 65))
 	if _, err := payload.MarshalSSZ(buf); err != nil {
-		return fmt.Errorf("failed to encoded execution payload to publish: %v", err)
+		return fmt.Errorf("failed to encoded execution payload to publish: %w", err)
 	}
 	data := buf.Bytes()
 	payloadData := data[65:]
 	sig, err := signer.Sign(ctx, SigningDomainBlocksV1, p.cfg.L2ChainID, payloadData)
 	if err != nil {
-		return fmt.Errorf("failed to sign execution payload with signer: %v", err)
+		return fmt.Errorf("failed to sign execution payload with signer: %w", err)
 	}
 	copy(data[:65], sig[:])
 
@@ -351,15 +359,15 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 		pubsub.WithValidatorTimeout(3*time.Second),
 		pubsub.WithValidatorConcurrency(4))
 	if err != nil {
-		return nil, fmt.Errorf("failed to register blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to register blocks gossip topic: %w", err)
 	}
 	blocksTopic, err := ps.Join(blocksTopicName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to join blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to join blocks gossip topic: %w", err)
 	}
 	blocksTopicEvents, err := blocksTopic.EventHandler()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %v", err)
+		return nil, fmt.Errorf("failed to create blocks gossip topic handler: %w", err)
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
@@ -371,7 +379,7 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 
 	subscription, err := blocksTopic.Subscribe()
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %v", err)
+		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
 
 	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))

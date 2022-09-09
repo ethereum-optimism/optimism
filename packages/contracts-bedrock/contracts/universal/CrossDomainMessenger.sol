@@ -10,7 +10,7 @@ import {
 import {
     ReentrancyGuardUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
-import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
@@ -132,6 +132,15 @@ abstract contract CrossDomainMessenger is
     );
 
     /**
+     * @notice Additional event data to emit, required as of Bedrock. Cannot be merged with the
+     *         SentMessage event without breaking the ABI of this contract, this is good enough.
+     *
+     * @param sender Address of the sender of the message.
+     * @param value  ETH value sent along with the message to the recipient.
+     */
+    event SentMessageExtension1(address indexed sender, uint256 value);
+
+    /**
      * @notice Emitted whenever a message is successfully relayed on this chain.
      *
      * @param msgHash Hash of the message that was relayed.
@@ -193,6 +202,7 @@ abstract contract CrossDomainMessenger is
         );
 
         emit SentMessage(_target, msg.sender, _message, messageNonce(), _minGasLimit);
+        emit SentMessageExtension1(msg.sender, msg.value);
 
         unchecked {
             ++msgNonce;
@@ -259,13 +269,7 @@ abstract contract CrossDomainMessenger is
         );
 
         xDomainMsgSender = _sender;
-        (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
-            _target,
-            gasleft() - RELAY_GAS_BUFFER,
-            _value,
-            0,
-            _message
-        );
+        bool success = SafeCall.call(_target, gasleft() - RELAY_GAS_BUFFER, _value, _message);
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
 
         if (success == true) {

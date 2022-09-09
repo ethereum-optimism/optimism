@@ -1,5 +1,11 @@
 # @eth-optimism/foundry
 
+## 0.1.2
+
+### Patch Changes
+
+- e736a4d0: Update to 64fe4acc97e6d76551cea7598c201f05ecd65639
+
 ## 0.1.1
 
 ### Patch Changes

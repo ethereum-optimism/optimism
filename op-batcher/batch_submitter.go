@@ -3,14 +3,24 @@ package op_batcher
 import (
 	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"errors"
 	"fmt"
 	"io"
 	"math/big"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
+
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -24,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"github.com/urfave/cli"
 )
@@ -39,26 +48,14 @@ const (
 // closure that executes the service and blocks until the service exits. The use
 // of a closure allows the parameters bound to the top-level main package, e.g.
 // GitVersion, to be captured and used once the function is executed.
-func Main(version string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		cfg := NewConfig(ctx)
-
-		// Set up our logging to stdout.
-		var logHandler log.Handler
-		if cfg.LogTerminal {
-			logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
-		} else {
-			logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
+func Main(version string) func(cliCtx *cli.Context) error {
+	return func(cliCtx *cli.Context) error {
+		cfg := NewConfig(cliCtx)
+		if err := cfg.Check(); err != nil {
+			return fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		logLevel, err := log.LvlFromString(cfg.LogLevel)
-		if err != nil {
-			return err
-		}
-
-		l := log.New()
-		l.SetHandler(log.LvlFilterHandler(logLevel, logHandler))
-
+		l := oplog.NewLogger(cfg.LogConfig)
 		l.Info("Initializing Batch Submitter")
 
 		batchSubmitter, err := NewBatchSubmitter(cfg, l)
@@ -75,7 +72,40 @@ func Main(version string) func(ctx *cli.Context) error {
 		}
 		defer batchSubmitter.Stop()
 
+		ctx, cancel := context.WithCancel(context.Background())
+
 		l.Info("Batch Submitter started")
+		pprofConfig := cfg.PprofConfig
+		if pprofConfig.Enabled {
+			l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+			go func() {
+				if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
+					l.Error("error starting pprof", "err", err)
+				}
+			}()
+		}
+
+		registry := opmetrics.NewRegistry()
+		metricsCfg := cfg.MetricsConfig
+		if metricsCfg.Enabled {
+			l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+			go func() {
+				if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+					l.Error("error starting metrics server", err)
+				}
+			}()
+		}
+
+		rpcCfg := cfg.RPCConfig
+		server := oprpc.NewServer(
+			rpcCfg.ListenAddr,
+			rpcCfg.ListenPort,
+			version,
+		)
+		if err := server.Start(); err != nil {
+			cancel()
+			return fmt.Errorf("error starting RPC server: %w", err)
+		}
 
 		interruptChannel := make(chan os.Signal, 1)
 		signal.Notify(interruptChannel, []os.Signal{
@@ -85,7 +115,8 @@ func Main(version string) func(ctx *cli.Context) error {
 			syscall.SIGQUIT,
 		}...)
 		<-interruptChannel
-
+		cancel()
+		_ = server.Stop()
 		return nil
 	}
 }
@@ -112,26 +143,43 @@ type BatchSubmitter struct {
 func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
-	// Parse wallet private key that will be used to submit L2 txs to the batch
-	// inbox address.
-	wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-	if err != nil {
-		return nil, err
+	var err error
+	var sequencerPrivKey *ecdsa.PrivateKey
+	var addr common.Address
+
+	if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
+		return nil, errors.New("cannot specify both a private key and a mnemonic")
 	}
 
-	acc := accounts.Account{
-		URL: accounts.URL{
-			Path: cfg.SequencerHDPath,
-		},
-	}
-	addr, err := wallet.Address(acc)
-	if err != nil {
-		return nil, err
-	}
+	if cfg.PrivateKey == "" {
+		// Parse wallet private key that will be used to submit L2 txs to the batch
+		// inbox address.
+		wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
+		if err != nil {
+			return nil, err
+		}
 
-	sequencerPrivKey, err := wallet.PrivateKey(acc)
-	if err != nil {
-		return nil, err
+		acc := accounts.Account{
+			URL: accounts.URL{
+				Path: cfg.SequencerHDPath,
+			},
+		}
+		addr, err = wallet.Address(acc)
+		if err != nil {
+			return nil, err
+		}
+
+		sequencerPrivKey, err = wallet.PrivateKey(acc)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		sequencerPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
+		if err != nil {
+			return nil, err
+		}
+
+		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
 	}
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
@@ -236,7 +284,11 @@ mainLoop:
 				l.log.Warn("issue fetching L2 head", "err", err)
 				continue
 			}
-			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
+			if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
+				l.log.Info("Rollup node has no L1 head info yet")
+				continue
+			}
+			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock, "l1_head", syncStatus.HeadL1)
 			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
 				l.log.Trace("No unsubmitted blocks from sequencer")
 				continue
@@ -251,7 +303,7 @@ mainLoop:
 				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
 				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 			}
-			if ch, err := derive.NewChannelOut(uint64(time.Now().Unix())); err != nil {
+			if ch, err := derive.NewChannelOut(); err != nil {
 				l.log.Error("Error creating channel", "err", err)
 				continue
 			} else {

@@ -47,6 +47,7 @@
   - [Payload Attributes](#payload-attributes)
   - [L2 Genesis Block](#l2-genesis-block)
   - [L2 Chain Inception](#l2-chain-inception)
+  - [Safe L2 Block](#safe-l2-block)
   - [Safe L2 Head](#safe-l2-head)
   - [Unsafe L2 Block](#unsafe-l2-block)
   - [Unsafe L2 Head](#unsafe-l2-head)
@@ -531,7 +532,7 @@ L2 derivation inputs include:
 This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
 then passed to the [execution engine][execution-engine] to construct L2 blocks.
 
-The payload attributes object essentially essentially encodes a [a block without output properties][block].
+The payload attributes object essentially encodes [a block without output properties][block].
 
 Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
 the [Execution Engine Specification](exec-engine.md).
@@ -575,12 +576,18 @@ oracle][output-oracle] contract.
 
 In the current implementation, this is the L1 block number at which the output oracle contract was deployed or upgraded.
 
+## Safe L2 Block
+
+[safe-l2-block]: glossary.md#safe-l2-block
+
+A safe L2 block is an L2 block can be derived entirely from L1 by a [rollup node][rollup-node]. This can vary between
+different nodes, based on their view of the L1 chain.
+
 ## Safe L2 Head
 
 [safe-l2-head]: glossary.md#safe-l2-head
 
-The safe L2 head is most recent L2 block that was can be derived entirely from L1 by a [rollup node][rollup-node]. This
-can vary between different nodes, based on their view of the L1 chain.
+The safe L2 head is the highest [safe L2 block][safe-l2-block] that a [rollup node][rollup-node] knows about.
 
 ## Unsafe L2 Block
 

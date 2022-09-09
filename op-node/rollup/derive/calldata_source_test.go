@@ -71,7 +71,7 @@ func (ct *calldataTest) Run(t *testing.T, setup *calldataTestSetup) {
 		}
 	}
 
-	info := testutils.RandomL1Info(rng)
+	info := testutils.RandomBlockInfo(rng)
 	l1Src.ExpectInfoAndTxsByHash(info.Hash(), info, txs, ct.err)
 
 	defer l1Src.Mock.AssertExpectations(t)

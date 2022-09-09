@@ -6,13 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/sethvargo/go-limiter"
+	"github.com/sethvargo/go-limiter/memorystore"
+	"github.com/sethvargo/go-limiter/noopstore"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/gorilla/mux"
@@ -28,7 +31,7 @@ const (
 	MaxBatchRPCCalls            = 100
 	cacheStatusHdr              = "X-Proxyd-Cache-Status"
 	defaultServerTimeout        = time.Second * 10
-	maxLogLength                = 2000
+	maxRequestBodyLogLen        = 2000
 	defaultMaxUpstreamBatchSize = 10
 )
 
@@ -40,10 +43,16 @@ type Server struct {
 	wsMethodWhitelist    *StringSet
 	rpcMethodMappings    map[string]string
 	maxBodySize          int64
+	enableRequestLog     bool
+	maxRequestBodyLogLen int
 	authenticatedPaths   map[string]string
 	timeout              time.Duration
 	maxUpstreamBatchSize int
 	upgrader             *websocket.Upgrader
+	lim                  limiter.Store
+	limConfig            RateLimitConfig
+	limExemptOrigins     map[string]bool
+	limExemptUserAgents  map[string]bool
 	rpcServer            *http.Server
 	wsServer             *http.Server
 	cache                RPCCache
@@ -60,7 +69,10 @@ func NewServer(
 	timeout time.Duration,
 	maxUpstreamBatchSize int,
 	cache RPCCache,
-) *Server {
+	rateLimitConfig RateLimitConfig,
+	enableRequestLog bool,
+	maxRequestBodyLogLen int,
+) (*Server, error) {
 	if cache == nil {
 		cache = &NoopRPCCache{}
 	}
@@ -77,6 +89,29 @@ func NewServer(
 		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
 	}
 
+	var lim limiter.Store
+	limExemptOrigins := make(map[string]bool)
+	limExemptUserAgents := make(map[string]bool)
+	if rateLimitConfig.RatePerSecond > 0 {
+		var err error
+		lim, err = memorystore.New(&memorystore.Config{
+			Tokens:   uint64(rateLimitConfig.RatePerSecond),
+			Interval: time.Second,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		for _, origin := range rateLimitConfig.ExemptOrigins {
+			limExemptOrigins[strings.ToLower(origin)] = true
+		}
+		for _, agent := range rateLimitConfig.ExemptUserAgents {
+			limExemptUserAgents[strings.ToLower(agent)] = true
+		}
+	} else {
+		lim, _ = noopstore.New()
+	}
+
 	return &Server{
 		backendGroups:        backendGroups,
 		wsBackendGroup:       wsBackendGroup,
@@ -87,10 +122,16 @@ func NewServer(
 		timeout:              timeout,
 		maxUpstreamBatchSize: maxUpstreamBatchSize,
 		cache:                cache,
+		enableRequestLog:     enableRequestLog,
+		maxRequestBodyLogLen: maxRequestBodyLogLen,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
-	}
+		lim:                 lim,
+		limConfig:           rateLimitConfig,
+		limExemptOrigins:    limExemptOrigins,
+		limExemptUserAgents: limExemptUserAgents,
+	}, nil
 }
 
 func (s *Server) RPCListenAndServe(host string, port int) error {
@@ -154,14 +195,47 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel = context.WithTimeout(ctx, s.timeout)
 	defer cancel()
 
+	origin := r.Header.Get("Origin")
+	userAgent := r.Header.Get("User-Agent")
+	exemptOrigin := s.limExemptOrigins[strings.ToLower(origin)]
+	exemptUserAgent := s.limExemptUserAgents[strings.ToLower(userAgent)]
+	// Use XFF in context since it will automatically be replaced by the remote IP
+	xff := stripXFF(GetXForwardedFor(ctx))
+	var ok bool
+	if exemptOrigin || exemptUserAgent {
+		ok = true
+	} else {
+		if xff == "" {
+			log.Warn("rejecting request without XFF or remote IP")
+			ok = false
+		} else {
+			_, _, _, ok, _ = s.lim.Take(ctx, xff)
+		}
+	}
+	if !ok {
+		rpcErr := ErrOverRateLimit.Clone()
+		rpcErr.Message = s.limConfig.ErrorMessage
+		RecordRPCError(ctx, BackendProxyd, "unknown", rpcErr)
+		log.Warn(
+			"rate limited request",
+			"req_id", GetReqID(ctx),
+			"auth", GetAuthCtx(ctx),
+			"user_agent", userAgent,
+			"origin", origin,
+			"remote_ip", xff,
+		)
+		writeRPCError(ctx, w, nil, rpcErr)
+		return
+	}
+
 	log.Info(
 		"received RPC request",
 		"req_id", GetReqID(ctx),
 		"auth", GetAuthCtx(ctx),
-		"user_agent", r.Header.Get("user-agent"),
+		"user_agent", userAgent,
 	)
 
-	body, err := ioutil.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
+	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
 	if err != nil {
 		log.Error("error reading request body", "err", err)
 		writeRPCError(ctx, w, nil, ErrInternal)
@@ -169,11 +243,13 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 	RecordRequestPayloadSize(ctx, len(body))
 
-	log.Info("Raw RPC request",
-		"body", truncate(string(body)),
-		"req_id", GetReqID(ctx),
-		"auth", GetAuthCtx(ctx),
-	)
+	if s.enableRequestLog {
+		log.Info("Raw RPC request",
+			"body", truncate(string(body), s.maxRequestBodyLogLen),
+			"req_id", GetReqID(ctx),
+			"auth", GetAuthCtx(ctx),
+		)
+	}
 
 	if IsBatch(body) {
 		reqs, err := ParseBatchRPCReq(body)
@@ -382,6 +458,14 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context.Context {
 	vars := mux.Vars(r)
 	authorization := vars["authorization"]
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		ipPort := strings.Split(r.RemoteAddr, ":")
+		if len(ipPort) == 2 {
+			xff = ipPort[0]
+		}
+	}
+	ctx := context.WithValue(r.Context(), ContextKeyXForwardedFor, xff) // nolint:staticcheck
 
 	if s.authenticatedPaths == nil {
 		// handle the edge case where auth is disabled
@@ -392,30 +476,17 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 			w.WriteHeader(404)
 			return nil
 		}
-		return context.WithValue(
-			r.Context(),
-			ContextKeyReqID, // nolint:staticcheck
-			randStr(10),
-		)
-	}
-
-	if authorization == "" || s.authenticatedPaths[authorization] == "" {
-		log.Info("blocked unauthorized request", "authorization", authorization)
-		httpResponseCodesTotal.WithLabelValues("401").Inc()
-		w.WriteHeader(401)
-		return nil
-	}
-
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff == "" {
-		ipPort := strings.Split(r.RemoteAddr, ":")
-		if len(ipPort) == 2 {
-			xff = ipPort[0]
+	} else {
+		if authorization == "" || s.authenticatedPaths[authorization] == "" {
+			log.Info("blocked unauthorized request", "authorization", authorization)
+			httpResponseCodesTotal.WithLabelValues("401").Inc()
+			w.WriteHeader(401)
+			return nil
 		}
+
+		ctx = context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
 	}
 
-	ctx := context.WithValue(r.Context(), ContextKeyAuth, s.authenticatedPaths[authorization]) // nolint:staticcheck
-	ctx = context.WithValue(ctx, ContextKeyXForwardedFor, xff)                                 // nolint:staticcheck
 	return context.WithValue(
 		ctx,
 		ContextKeyReqID, // nolint:staticcheck
@@ -527,9 +598,13 @@ func (n *NoopRPCCache) PutRPC(context.Context, *RPCReq, *RPCRes) error {
 	return nil
 }
 
-func truncate(str string) string {
-	if len(str) > maxLogLength {
-		return str[:maxLogLength] + "..."
+func truncate(str string, maxLen int) string {
+	if maxLen == 0 {
+		maxLen = maxRequestBodyLogLen
+	}
+
+	if len(str) > maxLen {
+		return str[:maxLen] + "..."
 	} else {
 		return str
 	}

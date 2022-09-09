@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -28,13 +29,19 @@ type Config struct {
 
 	Metrics MetricsConfig
 
+	Pprof PprofConfig
+
+	// Used to poll the L1 for new finalized or safe blocks
+	L1EpochPollInterval time.Duration
+
 	// Optional
 	Tracer Tracer
 }
 
 type RPCConfig struct {
-	ListenAddr string
-	ListenPort int
+	ListenAddr  string
+	ListenPort  int
+	EnableAdmin bool
 }
 
 func (cfg *RPCConfig) HttpEndpoint() string {
@@ -59,6 +66,16 @@ func (m MetricsConfig) Check() error {
 	return nil
 }
 
+type PprofConfig struct {
+	Enabled    bool
+	ListenAddr string
+	ListenPort string
+}
+
+func (p PprofConfig) Check() error {
+	return nil
+}
+
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if err := cfg.L2.Check(); err != nil {
@@ -69,6 +86,9 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.Metrics.Check(); err != nil {
 		return fmt.Errorf("metrics config error: %w", err)
+	}
+	if err := cfg.Pprof.Check(); err != nil {
+		return fmt.Errorf("pprof config error: %w", err)
 	}
 	if cfg.P2P != nil {
 		if err := cfg.P2P.Check(); err != nil {

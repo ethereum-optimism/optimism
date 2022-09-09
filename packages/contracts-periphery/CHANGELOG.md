@@ -1,5 +1,19 @@
 # @eth-optimism/contracts-periphery
 
+## 0.2.2
+
+### Patch Changes
+
+- ea371af2: Support deploy via Ledger or private key
+
+## 0.2.1
+
+### Patch Changes
+
+- 93d3bd41: Update compiler version to 0.8.15
+- bcfd1edc: Add compiler 0.8.15
+- 0bf3b9b4: Update forge-std
+
 ## 0.2.0
 
 ### Minor Changes

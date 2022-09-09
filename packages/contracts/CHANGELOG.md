@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.5.33
+
+### Patch Changes
+
+- 0c2719f8: Add inspect hh task
+- a1a73e64: Updates the SDK to pull contract addresses from the deployments of the contracts package. Updates the Contracts package to export a function that makes it possible to pull deployed addresses.
+
+## 0.5.32
+
+### Patch Changes
+
+- Updated dependencies [0df744f6]
+- Updated dependencies [8ae39154]
+- Updated dependencies [dac4a9f0]
+  - @eth-optimism/core-utils@0.9.3
+
+## 0.5.31
+
+### Patch Changes
+
+- 1de4f48e: Deploy goerli SCC to fix sccFaultProofWindowSeconds
+- Updated dependencies [0bf3b9b4]
+- Updated dependencies [8d26459b]
+- Updated dependencies [4477fe9f]
+  - @eth-optimism/core-utils@0.9.2
+
 ## 0.5.30
 
 ### Patch Changes

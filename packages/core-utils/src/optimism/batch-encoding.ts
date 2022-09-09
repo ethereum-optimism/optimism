@@ -1,8 +1,8 @@
 import zlib from 'zlib'
 
-import { parse, serialize } from '@ethersproject/transactions'
-import { ethers } from 'ethers'
+import { parse, serialize, Transaction } from '@ethersproject/transactions'
 import { Struct, BufferWriter, BufferReader } from 'bufio'
+import { id } from '@ethersproject/hash'
 
 import { remove0x } from '../common'
 
@@ -28,7 +28,7 @@ export interface AppendSequencerBatchParams {
 
 const APPEND_SEQUENCER_BATCH_METHOD_ID = 'appendSequencerBatch()'
 const FOUR_BYTE_APPEND_SEQUENCER_BATCH = Buffer.from(
-  ethers.utils.id(APPEND_SEQUENCER_BATCH_METHOD_ID).slice(2, 10),
+  id(APPEND_SEQUENCER_BATCH_METHOD_ID).slice(2, 10),
   'hex'
 )
 
@@ -166,9 +166,9 @@ export class BatchedTx extends Struct {
   public txSize: number
   // rlp encoded transaction
   public raw: Buffer
-  public tx: ethers.Transaction
+  public tx: Transaction
 
-  constructor(tx?: ethers.Transaction) {
+  constructor(tx?: Transaction) {
     super()
     this.tx = tx
   }
@@ -210,7 +210,7 @@ export class BatchedTx extends Struct {
     return this
   }
 
-  toTransaction(): ethers.Transaction {
+  toTransaction(): Transaction {
     if (this.tx) {
       return this.tx
     }

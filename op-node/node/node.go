@@ -11,11 +11,10 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/l1"
-	"github.com/ethereum-optimism/optimism/op-node/l2"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
@@ -26,15 +25,18 @@ type OpNode struct {
 	log        log.Logger
 	appVersion string
 	metrics    *metrics.Metrics
-	l1HeadsSub ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
-	l1Source   *l1.Source            // Source to fetch data from (also implements the Downloader interface)
-	l2Engine   *driver.Driver        // L2 Engine to Sync
-	l2Node     client.RPC            // L2 Execution Engine RPC connections to close at shutdown
-	l2Client   client.Client         // L2 client wrapper around eth namespace
-	server     *rpcServer            // RPC server hosting the rollup-node API
-	p2pNode    *p2p.NodeP2P          // P2P node functionality
-	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
-	tracer     Tracer                // tracer to get events for testing/debugging
+
+	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
+	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+
+	l1Source  *sources.L1Client     // L1 Client to fetch data from
+	l2Driver  *driver.Driver        // L2 Engine to Sync
+	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
+	server    *rpcServer            // RPC server hosting the rollup-node API
+	p2pNode   *p2p.NodeP2P          // P2P node functionality
+	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
+	tracer    Tracer                // tracer to get events for testing/debugging
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -110,9 +112,11 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
-	n.l1Source, err = l1.NewSource(client.NewInstrumentedRPC(l1Node, n.metrics), n.log, l1.DefaultConfig(&cfg.Rollup, trustRPC))
+	n.l1Source, err = sources.NewL1Client(
+		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
+		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
-		return fmt.Errorf("failed to create L1 source: %v", err)
+		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -129,6 +133,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		}
 		n.log.Error("l1 heads subscription error", "err", err)
 	}()
+
+	// Poll for the safe L1 block and finalized block,
+	// which only change once per epoch at most and may be delayed.
+	n.l1SafeSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
+		cfg.L1EpochPollInterval, time.Second*10)
+	n.l1FinalizedSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
+		cfg.L1EpochPollInterval, time.Second*10)
 	return nil
 }
 
@@ -137,30 +148,31 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
-	n.l2Node = client.NewInstrumentedRPC(rpcClient, n.metrics)
-	n.l2Client = client.NewInstrumentedClient(rpcClient, n.metrics)
-	source, err := l2.NewSource(n.l2Node, n.l2Client, &cfg.Rollup.Genesis, n.log)
+
+	n.l2Source, err = sources.NewEngineClient(
+		client.NewInstrumentedRPC(rpcClient, n.metrics), n.log, n.metrics.L2SourceCache,
+		sources.EngineClientDefaultConfig(&cfg.Rollup),
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	n.l2Engine = driver.NewDriver(&cfg.Driver, &cfg.Rollup, source, n.l1Source, n, n.log, snapshotLog)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
 
 	return nil
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	// TODO: attach the p2p node ID to the snapshot logger
-	client, err := l2.NewReadOnlySource(n.l2Node, n.l2Client, &cfg.Rollup.Genesis, n.log)
-	if err != nil {
-		return err
-	}
-	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, client, n.l2Engine, n.log, n.appVersion, n.metrics)
+	var err error
+	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
 	if n.p2pNode != nil {
 		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
+	}
+	if cfg.RPC.EnableAdmin {
+		n.server.EnableAdminAPI(newAdminAPI(n.l2Driver, n.metrics))
 	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := n.server.Start(); err != nil {
@@ -213,7 +225,7 @@ func (n *OpNode) Start(ctx context.Context) error {
 	// Request initial head update, default to genesis otherwise
 	reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
 	// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-	err := n.l2Engine.Start(reqCtx)
+	err := n.l2Driver.Start(reqCtx)
 	reqCancel()
 	if err != nil {
 		n.log.Error("Could not start a rollup node", "err", err)
@@ -226,13 +238,39 @@ func (n *OpNode) Start(ctx context.Context) error {
 func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	n.tracer.OnNewL1Head(ctx, sig)
 
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
-	if err := n.l2Engine.OnL1Head(ctx, sig); err != nil {
+	if err := n.l2Driver.OnL1Head(ctx, sig); err != nil {
 		n.log.Warn("failed to notify engine driver of L1 head change", "err", err)
 	}
+}
 
+func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
+	// Pass on the event to the L2 Engine
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	if err := n.l2Driver.OnL1Safe(ctx, sig); err != nil {
+		n.log.Warn("failed to notify engine driver of L1 safe block change", "err", err)
+	}
+}
+
+func (n *OpNode) OnNewL1Finalized(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
+	// Pass on the event to the L2 Engine
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	if err := n.l2Driver.OnL1Finalized(ctx, sig); err != nil {
+		n.log.Warn("failed to notify engine driver of L1 finalized block change", "err", err)
+	}
 }
 
 func (n *OpNode) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
@@ -263,7 +301,7 @@ func (n *OpNode) OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *e
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)
 	defer cancel()
-	if err := n.l2Engine.OnUnsafeL2Payload(ctx, payload); err != nil {
+	if err := n.l2Driver.OnUnsafeL2Payload(ctx, payload); err != nil {
 		n.log.Warn("failed to notify engine driver of new L2 payload", "err", err, "id", payload.ID())
 	}
 
@@ -301,16 +339,16 @@ func (n *OpNode) Close() error {
 		n.l1HeadsSub.Unsubscribe()
 	}
 
-	// close L2 engine
-	if n.l2Engine != nil {
-		if err := n.l2Engine.Close(); err != nil {
+	// close L2 driver
+	if n.l2Driver != nil {
+		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
 		}
 	}
 
-	// close L2 node
-	if n.l2Node != nil {
-		n.l2Node.Close()
+	// close L2 engine RPC client
+	if n.l2Source != nil {
+		n.l2Source.Close()
 	}
 
 	// close L1 data source

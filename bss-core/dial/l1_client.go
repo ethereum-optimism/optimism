@@ -28,7 +28,7 @@ func L1EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) 
 				TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
 			}
 		}
-
+		//nolint:staticcheck // Geth v1.10.23 uses rpc.DialOptions and rpc.WithClient, but we need to update geth first. Lint is flagged because of global go workspace usage.
 		rpcClient, err := rpc.DialHTTPWithClient(url, httpClient)
 		if err != nil {
 			return nil, err

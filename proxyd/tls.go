@@ -4,11 +4,11 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"io/ioutil"
+	"os"
 )
 
 func CreateTLSClient(ca string) (*tls.Config, error) {
-	pem, err := ioutil.ReadFile(ca)
+	pem, err := os.ReadFile(ca)
 	if err != nil {
 		return nil, wrapErr(err, "error reading CA")
 	}
