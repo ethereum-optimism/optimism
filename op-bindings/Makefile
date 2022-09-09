@@ -28,6 +28,7 @@ version:
 
 compile:
 	cd ../packages/contracts-bedrock/ && \
+		yarn clean && \
 		npx hardhat compile
 
 l1-cross-domain-messenger-bindings: compile
