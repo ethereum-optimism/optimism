@@ -1,4 +1,4 @@
-// The sync package is responsible for reconciling L1 and L2.
+// Package sync is responsible for reconciling L1 and L2.
 //
 // The Ethereum chain is a DAG of blocks with the root block being the genesis block. At any given
 // time, the head (or tip) of the chain can change if an offshoot/branch of the chain has a higher
@@ -18,19 +18,6 @@
 //
 // During normal operation, both the L1 and L2 canonical chains can change, due to a re-organisation
 // or due to an extension (new L1 or L2 block).
-//
-// When one of these changes occurs, the rollup node needs to determine what the new L2 head blocks
-// should be. We track two L2 head blocks:
-//
-//   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
-//     extension of the canonical L1 chain (as known to the op-node).
-//   - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
-//     complete within the canonical L1 chain (as known to the op-node).
-//
-// (1) Plausible meaning that the blockhash of the L2 block's L1 origin (as reported in the L1
-//
-//	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
-//	and the same holds for all its ancestors.
 //
 // In particular, in the case of L1 extension, the L2 unsafe head will generally remain the same,
 // but in the case of an L1 re-org, we need to search for the new safe and unsafe L2 block.
@@ -101,18 +88,19 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	}, nil
 }
 
-// FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds the unsafe and safe
-// L2 blocks.
+// FindL2Heads walks back from `start` (the previous unsafe L2 block) and finds
+// the finalized, unsafe and safe L2 blocks.
 //
-//   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a plausible (1)
+//   - The *unsafe L2 block*: This is the highest L2 block whose L1 origin is a *plausible*
 //     extension of the canonical L1 chain (as known to the op-node).
 //   - The *safe L2 block*: This is the highest L2 block whose epoch's sequencing window is
 //     complete within the canonical L1 chain (as known to the op-node).
+//   - The *finalized L2 block*: This is the L2 block which is known to be fully derived from
+//     finalized L1 block data.
 //
-// (1) Plausible meaning that the blockhash of the L2 block's L1 origin (as reported in the L1
-//
-//	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
-//	and the same holds for all its ancestors.
+// Plausible: meaning that the blockhash of the L2 block's L1 origin
+// (as reported in the L1 Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
+// and the same holds for all its ancestors.
 func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain) (result *FindHeadsResult, err error) {
 	// Fetch current L2 forkchoice state
 	result, err = currentHeads(ctx, cfg, l2)
