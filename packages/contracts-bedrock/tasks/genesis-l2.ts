@@ -258,10 +258,6 @@ task('genesis-l2', 'create a genesis config')
         scalar: deployConfig.gasPriceOracleScalar,
         decimals: deployConfig.gasPriceOracleDecimals,
       },
-      L2StandardBridge: {
-        messenger: predeploys.L2CrossDomainMessenger,
-        otherBridge: ProxyL1StandardBridge.address,
-      },
       SequencerFeeVault: {
         l1FeeWallet: ethers.constants.AddressZero,
       },
@@ -435,7 +431,9 @@ task('genesis-l2', 'create a genesis config')
       L2StandardBridge: {
         MAJOR_VERSION: toBytes32(0),
         MINOR_VERSION: toBytes32(0),
-        PATCH_VERSION: toBytes32(1),
+        PATCH_VERSION: toBytes32(2),
+        messenger: predeploys.L2CrossDomainMessenger,
+        otherBridge: ProxyL1StandardBridge.address,
       },
       L2ToL1MessagePasser: {
         MAJOR_VERSION: toBytes32(0),
