@@ -62,8 +62,8 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 // SetImplementations will set the implmentations of the contracts in the state
 // and configure the proxies to point to the implementations. It also sets
 // the appropriate storage values for each contract at the proxy address.
-func SetImplementations(db vm.StateDB, storage StorageConfig) error {
-	deployResults, err := immutables.BuildOptimism()
+func SetImplementations(db vm.StateDB, storage StorageConfig, immutable immutables.ImmutableConfig) error {
+	deployResults, err := immutables.BuildOptimism(immutable)
 	if err != nil {
 		return err
 	}

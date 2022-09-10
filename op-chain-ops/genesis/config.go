@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -99,6 +100,18 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 	return NewDeployConfig(deployConfig)
 }
 
+// NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
+// Hardhat and a DeployConfig.
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (immutables.ImmutableConfig, error) {
+	immutable := make(immutables.ImmutableConfig)
+
+	immutable["L2StandardBridge"] = immutables.ImmutableValues{
+		"otherBridge": proxyL1StandardBridge,
+	}
+
+	return immutable, nil
+}
+
 // StorageConfig represents the storage configuration for the L2 predeploy
 // contracts.
 type StorageConfig map[string]state.StorageValues
@@ -131,12 +144,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 		"overhead": config.GasPriceOracleOverhead,
 		"scalar":   config.GasPriceOracleScalar,
 		"decimals": config.GasPriceOracleDecimals,
-	}
-	storage["L2StandardBridge"] = state.StorageValues{
-		"_initialized":  true,
-		"_initializing": false,
-		"messenger":     predeploys.L2CrossDomainMessenger,
-		"otherBridge":   proxyL1StandardBridge,
 	}
 	storage["SequencerFeeVault"] = state.StorageValues{
 		"l1FeeWallet": config.OptimismL1FeeRecipient,
