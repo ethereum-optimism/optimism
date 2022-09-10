@@ -73,7 +73,7 @@ proxy-admin-bindings: compile
 	./gen_bindings.sh contracts/universal/ProxyAdmin.sol:ProxyAdmin $(pkg)
 
 erc20-bindings: compile
-	./gen_bindings.sh ERC20 $(pkg)
+	./gen_bindings.sh node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20 $(pkg)
 
 weth9-bindings: compile
 	./gen_bindings.sh contracts/vendor/WETH9.sol:WETH9 $(pkg)
