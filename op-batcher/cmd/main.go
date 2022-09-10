@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"os"
 
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	batcher "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (

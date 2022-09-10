@@ -8,13 +8,13 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 type ErrorCode int
