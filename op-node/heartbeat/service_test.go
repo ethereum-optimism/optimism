@@ -2,13 +2,14 @@ package heartbeat
 
 import (
 	"context"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 )
 
 const expHeartbeat = `{
