@@ -9,9 +9,11 @@
 +------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
 | Name                   | Type                     | Slot | Offset | Bytes | Contract                                                       |
 +============================================================================================================================================+
-| _initialized           | uint8                    | 0    | 0      | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer0                | address                  | 0    | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| _initializing          | bool                     | 0    | 1      | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| _initialized           | uint8                    | 0    | 20     | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+|------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
+| _initializing          | bool                     | 0    | 21     | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | __gap                  | uint256[50]              | 1    | 0      | 1600  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
@@ -27,36 +29,36 @@
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | __gap                  | uint256[49]              | 152  | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| successfulMessages     | mapping(bytes32 => bool) | 201  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer1                | uint256                  | 201  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| xDomainMsgSender       | address                  | 202  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer2                | uint256                  | 202  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| msgNonce               | uint240                  | 203  | 0      | 30    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| successfulMessages     | mapping(bytes32 => bool) | 203  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| otherMessenger         | address                  | 204  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| xDomainMsgSender       | address                  | 204  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| receivedMessages       | mapping(bytes32 => bool) | 205  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| msgNonce               | uint240                  | 205  | 0      | 30    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| blockedSystemAddresses | mapping(address => bool) | 206  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| otherMessenger         | address                  | 206  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+|------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
+| receivedMessages       | mapping(bytes32 => bool) | 207  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+|------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
+| blockedSystemAddresses | mapping(address => bool) | 208  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 +------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
 
 =======================
 ➡ L1StandardBridge
 =======================
 
-+---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
-| Name          | Type                                            | Slot | Offset | Bytes | Contract                                           |
-+==============================================================================================================================================+
-| _initialized  | uint8                                           | 0    | 0      | 1     | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| _initializing | bool                                            | 0    | 1      | 1     | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| messenger     | contract CrossDomainMessenger                   | 0    | 2      | 20    | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| otherBridge   | contract StandardBridge                         | 1    | 0      | 20    | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
-+---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
++----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
+| Name     | Type                                            | Slot | Offset | Bytes | Contract                                           |
++=========================================================================================================================================+
+| spacer0  | uint256                                         | 0    | 0      | 32    | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
+|----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
+| spacer1  | uint256                                         | 1    | 0      | 32    | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
+|----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
+| deposits | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | contracts/L1/L1StandardBridge.sol:L1StandardBridge |
++----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
 
 =======================
 ➡ L2OutputOracle
@@ -170,9 +172,11 @@
 +------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
 | Name                   | Type                     | Slot | Offset | Bytes | Contract                                                       |
 +============================================================================================================================================+
-| _initialized           | uint8                    | 0    | 0      | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer0                | address                  | 0    | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| _initializing          | bool                     | 0    | 1      | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| _initialized           | uint8                    | 0    | 20     | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+|------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
+| _initializing          | bool                     | 0    | 21     | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | __gap                  | uint256[50]              | 1    | 0      | 1600  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
@@ -188,36 +192,36 @@
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | __gap                  | uint256[49]              | 152  | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| successfulMessages     | mapping(bytes32 => bool) | 201  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer1                | uint256                  | 201  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| xDomainMsgSender       | address                  | 202  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer2                | uint256                  | 202  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| msgNonce               | uint240                  | 203  | 0      | 30    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| successfulMessages     | mapping(bytes32 => bool) | 203  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| otherMessenger         | address                  | 204  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| xDomainMsgSender       | address                  | 204  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| receivedMessages       | mapping(bytes32 => bool) | 205  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| msgNonce               | uint240                  | 205  | 0      | 30    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| blockedSystemAddresses | mapping(address => bool) | 206  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| otherMessenger         | address                  | 206  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+|------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
+| receivedMessages       | mapping(bytes32 => bool) | 207  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+|------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
+| blockedSystemAddresses | mapping(address => bool) | 208  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 +------------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
 
 =======================
 ➡ L2StandardBridge
 =======================
 
-+---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
-| Name          | Type                                            | Slot | Offset | Bytes | Contract                                           |
-+==============================================================================================================================================+
-| _initialized  | uint8                                           | 0    | 0      | 1     | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| _initializing | bool                                            | 0    | 1      | 1     | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| messenger     | contract CrossDomainMessenger                   | 0    | 2      | 20    | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| otherBridge   | contract StandardBridge                         | 1    | 0      | 20    | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
-|---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
-| deposits      | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
-+---------------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
++----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
+| Name     | Type                                            | Slot | Offset | Bytes | Contract                                           |
++=========================================================================================================================================+
+| spacer0  | uint256                                         | 0    | 0      | 32    | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
+|----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
+| spacer1  | uint256                                         | 1    | 0      | 32    | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
+|----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------|
+| deposits | mapping(address => mapping(address => uint256)) | 2    | 0      | 32    | contracts/L2/L2StandardBridge.sol:L2StandardBridge |
++----------+-------------------------------------------------+------+--------+-------+----------------------------------------------------+
 
 =======================
 ➡ L2ToL1MessagePasser
