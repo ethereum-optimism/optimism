@@ -116,7 +116,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'G',
 			SeqWindowSize:  2,
-			SafeL2Head:     'D',
+			SafeL2Head:     'C',
 			ExpectedErr:    nil,
 		},
 		{
@@ -131,7 +131,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'E',
 			SeqWindowSize:  2,
-			SafeL2Head:     'B',
+			SafeL2Head:     'A',
 			ExpectedErr:    nil,
 		},
 		{
@@ -176,7 +176,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'F',
 			SeqWindowSize:  3,
-			SafeL2Head:     'B',
+			SafeL2Head:     'A',
 			ExpectedErr:    nil,
 		},
 		{
@@ -206,7 +206,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'A',
 			UnsafeL2Head:   'E',
 			SeqWindowSize:  2,
-			SafeL2Head:     'B',
+			SafeL2Head:     'A',
 			ExpectedErr:    nil,
 		},
 		{
@@ -247,7 +247,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL2:      'D',
 			UnsafeL2Head:   'I',
 			SeqWindowSize:  2,
-			SafeL2Head:     'F',
+			SafeL2Head:     'E',
 			ExpectedErr:    nil,
 		},
 		{

@@ -118,6 +118,8 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	var l1Block eth.L1BlockRef
 	var ahead bool
 
+	ready := false
+
 	for {
 		// Fetch L1 information if we never had it, or if we do not have it for the current origin
 		if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
@@ -176,8 +178,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 
 		// If the L2 block is at least as old as the previous safe head, and we have seen at least a full sequence window worth of L1 blocks to confirm
 		if n.Number <= result.Safe.Number && n.L1Origin.Number+cfg.SeqWindowSize < highestL2WithCanonicalL1Origin.L1Origin.Number && n.SequenceNumber == 0 {
-			result.Safe = n
-			return result, nil
+			ready = true
 		}
 
 		// Don't traverse further than the finalized head to find a safe head
@@ -213,5 +214,11 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		}
 
 		n = parent
+
+		// once we found the block at seq nr 0 that is more than a full seq window behind the common chain post-reorg, then use the parent block as safe head.
+		if ready {
+			result.Safe = n
+			return result, nil
+		}
 	}
 }
