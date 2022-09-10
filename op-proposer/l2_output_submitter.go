@@ -5,14 +5,15 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 	"time"
+
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
