@@ -90,7 +90,7 @@ func isAheadOrCanonical(ctx context.Context, l1 L1Chain, block eth.BlockID) (ahe
 //
 //	Attributes deposit within the L2 block) is not canonical at another height in the L1 chain,
 //	and the same holds for all its ancestors.
-func FindL2Heads(ctx context.Context, start eth.L2BlockRef, seqWindowSize uint64,
+func FindL2Heads(ctx context.Context, start, prevSafe eth.L2BlockRef, seqWindowSize uint64,
 	l1 L1Chain, l2 L2Chain, genesis *rollup.Genesis) (unsafe eth.L2BlockRef, safe eth.L2BlockRef, err error) {
 
 	// Loop 1. Walk the L2 chain backwards until we find an L2 block whose L1 origin is canonical.
@@ -179,11 +179,13 @@ func FindL2Heads(ctx context.Context, start eth.L2BlockRef, seqWindowSize uint64
 		}
 
 		// Found an L2 block whose L1 origin is the start of the sequencing window.
-		// Note: We also ensure that we are on the block number with the 0 seq number.
-		// This is a little hacky, but kinda works. The issue is about where the
-		// batch queue should start building.
-		if depth == seqWindowSize && n.SequenceNumber == 0 {
-			return highestPlausibleCanonicalOrigin, n, nil
+		// Note: We walk back the seq window size + 1 to avoid an off by on error.
+		if depth == seqWindowSize+1 {
+			retSafe := n
+			if prevSafe.Number < n.Number {
+				retSafe = prevSafe
+			}
+			return highestPlausibleCanonicalOrigin, retSafe, nil
 		}
 
 		// Genesis is always safe.
