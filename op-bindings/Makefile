@@ -25,7 +25,7 @@ bindings: l1block-bindings \
 
 compile:
 	cd ../packages/contracts-bedrock/ && \
-		forge build -o ./tmp-artifacts
+		npx hardhat compile
 
 l1-cross-domain-messenger-bindings: compile
 	./gen_bindings.sh contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
