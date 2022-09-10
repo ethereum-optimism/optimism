@@ -4,11 +4,16 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildOptimism(t *testing.T) {
-	results, err := immutables.BuildOptimism()
+	results, err := immutables.BuildOptimism(immutables.ImmutableConfig{
+		"L2StandardBridge": {
+			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+	})
 	require.Nil(t, err)
 	require.NotNil(t, results)
 

@@ -79,13 +79,14 @@ contract L2StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 0.0.2
      *
      * @param _otherBridge Address of the L1StandardBridge.
      */
-    constructor(address payable _otherBridge) Semver(0, 0, 1) {
-        initialize(_otherBridge);
-    }
+    constructor(address payable _otherBridge)
+        Semver(0, 0, 2)
+        StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
+    {}
 
     /**
      * @custom:legacy
@@ -154,15 +155,6 @@ contract L2StandardBridge is StandardBridge, Semver {
             finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
         }
         emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
-    }
-
-    /**
-     * @notice Initializer.
-     *
-     * @param _otherBridge Address of the L1StandardBridge.
-     */
-    function initialize(address payable _otherBridge) public initializer {
-        __StandardBridge_init(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge);
     }
 
     /**
