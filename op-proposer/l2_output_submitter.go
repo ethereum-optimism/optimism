@@ -5,6 +5,8 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -13,23 +15,18 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-
-	"github.com/ethereum/go-ethereum/crypto"
-
+	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
+	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-
-	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
 )
 
 const (
