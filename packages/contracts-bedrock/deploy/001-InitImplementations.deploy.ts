@@ -140,7 +140,11 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy',
     bridgeProxy.address
   )
-  upgradeTxs.push(bridgeProxyContract.upgradeTo(bridge.address))
+  upgradeTxs.push(
+    bridgeProxyContract.upgradeTo(bridge.address, {
+      nonce: ++nonce,
+    })
+  )
 
   const factory = await get('OptimismMintableERC20Factory')
   const factoryProxy = await get('OptimismMintableERC20FactoryProxy')
@@ -148,7 +152,11 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy',
     factoryProxy.address
   )
-  upgradeTxs.push(factoryProxyContract.upgradeTo(factory.address))
+  upgradeTxs.push(
+    factoryProxyContract.upgradeTo(factory.address, {
+      nonce: ++nonce,
+    })
+  )
   const rawTxs = await Promise.all(upgradeTxs)
   await Promise.all(rawTxs.map((tx) => tx.wait()))
 
