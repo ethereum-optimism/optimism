@@ -389,11 +389,12 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		return NewTemporaryError(fmt.Errorf("failed to find the finalized L2 block: %w", err))
 	}
 	// TODO: this should be resetting using the safe head instead. Out of scope for L2 client bindings PR.
+	// TODO: Why do we need to a do an RPC call here? We set the unsafe/safe head.
 	prevUnsafe, err := eq.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Head block: %w", err))
 	}
-	unsafe, safe, err := sync.FindL2Heads(ctx, prevUnsafe, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
+	unsafe, safe, err := sync.FindL2Heads(ctx, prevUnsafe, eq.safeHead, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
