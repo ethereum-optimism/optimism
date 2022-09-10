@@ -21,6 +21,7 @@ func (c *LRUCache) Get(key any) (value any, ok bool) {
 	}
 	return value, ok
 }
+
 func (c *LRUCache) Add(key, value any) (evicted bool) {
 	evicted = c.inner.Add(key, value)
 	if c.m != nil {
