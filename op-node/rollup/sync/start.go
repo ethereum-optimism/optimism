@@ -27,7 +27,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -60,8 +59,7 @@ type FindHeadsResult struct {
 
 func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHeadsResult, error) {
 	finalized, err := l2.L2BlockRefByLabel(ctx, eth.Finalized)
-	// geth rpc bug: returning an error instead of nil result when finalized block cannot be found.
-	if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "block not found")) {
+	if errors.Is(err, ethereum.NotFound) {
 		// default to genesis if we have not finalized anything before.
 		finalized, err = l2.L2BlockRefByHash(ctx, cfg.Genesis.L2.Hash)
 	}
@@ -70,8 +68,7 @@ func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHea
 	}
 
 	safe, err := l2.L2BlockRefByLabel(ctx, eth.Safe)
-	// geth rpc bug: returning an error instead of nil result when safe block cannot be found.
-	if errors.Is(err, ethereum.NotFound) || (err != nil && strings.Contains(err.Error(), "block not found")) {
+	if errors.Is(err, ethereum.NotFound) {
 		safe = finalized
 	} else if err != nil {
 		return nil, fmt.Errorf("failed to find the safe L2 block: %w", err)
