@@ -20,7 +20,8 @@ bindings: l1block-bindings \
 	proxy-bindings \
 	proxy-admin-bindings \
 	erc20-bindings \
-	weth9-bindings
+	weth9-bindings \
+	deployer-whitelist-bindings
 
 compile:
 	cd ../packages/contracts-bedrock/ && \
@@ -76,6 +77,12 @@ erc20-bindings: compile
 
 weth9-bindings: compile
 	./gen_bindings.sh contracts/vendor/WETH9.sol:WETH9 $(pkg)
+
+deployer-whitelist-bindings: compile
+	./gen_bindings.sh contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist $(pkg)
+
+l1-blocknumber-bindings: compile
+	./gen_bindings.sh contracts/legacy/L1BlockNumber.sol:L1BlockNumber $(pkg)
 
 more:
 	go run ./gen/main.go \
