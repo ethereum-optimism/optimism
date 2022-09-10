@@ -60,6 +60,7 @@ func Beat(
 
 	send()
 	tick := time.NewTicker(SendInterval)
+	defer tick.Stop()
 	for {
 		select {
 		case <-tick.C:
