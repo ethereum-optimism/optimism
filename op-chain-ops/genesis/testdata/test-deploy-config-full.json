@@ -45,5 +45,8 @@
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "gasPriceOracleDecimals": 6,
-  "deploymentWaitConfirmations": 1
+  "deploymentWaitConfirmations": 1,
+  "eip1559Denominator": 8,
+  "eip1559Elasticity": 2,
+  "fundDevAccounts": true
 }

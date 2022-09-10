@@ -20,11 +20,12 @@ bindings: l1block-bindings \
 	proxy-bindings \
 	proxy-admin-bindings \
 	erc20-bindings \
-	weth9-bindings
+	weth9-bindings \
+	deployer-whitelist-bindings
 
 compile:
 	cd ../packages/contracts-bedrock/ && \
-		forge build -o ./tmp-artifacts
+		npx hardhat compile
 
 l1-cross-domain-messenger-bindings: compile
 	./gen_bindings.sh contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
@@ -72,14 +73,20 @@ proxy-admin-bindings: compile
 	./gen_bindings.sh contracts/universal/ProxyAdmin.sol:ProxyAdmin $(pkg)
 
 erc20-bindings: compile
-	./gen_bindings.sh ERC20 $(pkg)
+	./gen_bindings.sh node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20 $(pkg)
 
 weth9-bindings: compile
 	./gen_bindings.sh contracts/vendor/WETH9.sol:WETH9 $(pkg)
 
+deployer-whitelist-bindings: compile
+	./gen_bindings.sh contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist $(pkg)
+
+l1-blocknumber-bindings: compile
+	./gen_bindings.sh contracts/legacy/L1BlockNumber.sol:L1BlockNumber $(pkg)
+
 more:
 	go run ./gen/main.go \
-		-artifacts ../packages/contracts-bedrock/artifacts,../packages/contracts-governance/artifacts \
+		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
 		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken \
 		-package bindings

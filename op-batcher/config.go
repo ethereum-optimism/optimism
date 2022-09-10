@@ -3,16 +3,13 @@ package op_batcher
 import (
 	"time"
 
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 type Config struct {

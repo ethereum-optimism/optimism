@@ -7,9 +7,10 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -27,7 +28,7 @@ type Config struct {
 	Name         string
 	L1Client     *ethclient.Client
 	L2Client     *ethclient.Client
-	RollupClient *rollupclient.RollupClient
+	RollupClient *sources.RollupClient
 	L2OOAddr     common.Address
 	ChainID      *big.Int
 	PrivKey      *ecdsa.PrivateKey

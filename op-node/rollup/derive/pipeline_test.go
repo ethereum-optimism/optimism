@@ -5,9 +5,10 @@ import (
 	"io"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/stretchr/testify/mock"
 )
 
 var _ Engine = (*testutils.MockEngine)(nil)

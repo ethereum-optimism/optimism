@@ -17,10 +17,6 @@ const upgradeABIs = {
   ],
   OptimismPortalProxy: async () => ['initialize', []],
   L1CrossDomainMessengerProxy: async () => ['initialize', []],
-  L1StandardBridgeProxy: async (deployConfig, hre) => {
-    const messenger = await hre.deployments.get('L1CrossDomainMessengerProxy')
-    return ['initialize(address)', [messenger.address]]
-  },
 }
 
 const deployFn: DeployFunction = async (hre) => {
@@ -111,9 +107,9 @@ const deployFn: DeployFunction = async (hre) => {
   // Reset the nonce for the next set of transactions
   nonce = await l1.getTransactionCount(deployer)
 
-  const upgradeTxs = []
+  const upgradeTxs: any[] = []
   for (const [proxy, upgrader] of Object.entries(upgradeABIs)) {
-    const upgraderOut = await upgrader(deployConfig, hre)
+    const upgraderOut = await upgrader(deployConfig)
     const implName = proxy.replace('Proxy', '')
     const implDeployment = await get(implName)
     const implContract = await hre.ethers.getContractAt(
@@ -139,13 +135,28 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
+  const bridge = await get('L1StandardBridge')
+  const bridgeProxyContract = await hre.ethers.getContractAt(
+    'Proxy',
+    bridgeProxy.address
+  )
+  upgradeTxs.push(
+    bridgeProxyContract.upgradeTo(bridge.address, {
+      nonce: ++nonce,
+    })
+  )
+
   const factory = await get('OptimismMintableERC20Factory')
   const factoryProxy = await get('OptimismMintableERC20FactoryProxy')
   const factoryProxyContract = await hre.ethers.getContractAt(
     'Proxy',
     factoryProxy.address
   )
-  upgradeTxs.push(factoryProxyContract.upgradeTo(factory.address))
+  upgradeTxs.push(
+    factoryProxyContract.upgradeTo(factory.address, {
+      nonce: ++nonce,
+    })
+  )
   const rawTxs = await Promise.all(upgradeTxs)
   await Promise.all(rawTxs.map((tx) => tx.wait()))
 

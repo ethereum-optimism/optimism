@@ -1,5 +1,6 @@
-import { BigNumberish, BigNumber, utils } from 'ethers'
-const { keccak256, defaultAbiCoder } = utils
+import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { keccak256 } from '@ethersproject/keccak256'
+import { defaultAbiCoder } from '@ethersproject/abi'
 
 import {
   decodeVersionedNonce,

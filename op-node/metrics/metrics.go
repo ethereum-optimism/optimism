@@ -10,16 +10,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
