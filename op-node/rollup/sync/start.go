@@ -114,12 +114,16 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	// Current L2 block.
 	n := result.Unsafe
 
-	var highestL2WithCanonicalL1Origin eth.L2BlockRef
-	var l1Block eth.L1BlockRef
-	var ahead bool
+	var highestL2WithCanonicalL1Origin eth.L2BlockRef // the highest L2 block with confirmed canonical L1 origin
+	var l1Block eth.L1BlockRef                        // the L1 block at the height of the L1 origin of the current L2 block n.
+	var ahead bool                                    // when "n", the L2 block, has a L1 origin that is not visible in our L1 chain source yet
 
-	ready := false
+	ready := false // when we found the block after the safe head, and we just need to return the parent block.
 
+	// Each loop iteration we traverse further from the unsafe head towards the finalized head.
+	// Once we pass the previous safe head and we have seen enough canonical L1 origins to fill a sequence window worth of data,
+	// then we return the last L2 block of the epoch before that as safe head.
+	// Each loop iteration we traverse a single L2 block, and we check if the L1 origins are consistent.
 	for {
 		// Fetch L1 information if we never had it, or if we do not have it for the current origin
 		if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
@@ -133,6 +137,8 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			ahead = notFound
 		}
 
+		// Don't walk past genesis. If we were at the L2 genesis, but could not find its L1 origin,
+		// the L2 chain is building on the wrong L1 branch.
 		if n.Number == cfg.Genesis.L2.Number {
 			// Check L2 traversal against L2 Genesis data, to make sure the engine is on the correct chain, instead of attempting sync with different L2 destination.
 			if n.Hash != cfg.Genesis.L2.Hash {
