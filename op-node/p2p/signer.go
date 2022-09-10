@@ -8,11 +8,12 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/urfave/cli"
+
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/urfave/cli"
 )
 
 var SigningDomainBlocksV1 = [32]byte{}
