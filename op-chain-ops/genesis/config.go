@@ -69,6 +69,11 @@ type DeployConfig struct {
 	GasPriceOracleDecimals      uint           `json:"gasPriceOracleDecimals"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
+
+	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
+	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+
+	FundDevAccounts bool `json:"fundDevAccounts"`
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.

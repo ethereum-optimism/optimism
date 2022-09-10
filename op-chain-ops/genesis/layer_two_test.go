@@ -77,9 +77,30 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
 		require.Equal(t, account.Code, depB)
 	}
+	require.Equal(t, 2337, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
 		_ = os.WriteFile("genesis.json", file, 0644)
 	}
+}
+
+func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
+	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
+	require.Nil(t, err)
+	config.FundDevAccounts = false
+
+	backend := backends.NewSimulatedBackend(
+		core.GenesisAlloc{
+			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
+		},
+		15000000,
+	)
+	block, err := backend.BlockByNumber(context.Background(), common.Big0)
+	require.NoError(t, err)
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
+		ProxyAdmin: common.Address{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2316, len(gen.Alloc))
 }
