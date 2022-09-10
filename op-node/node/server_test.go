@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/rpc"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -149,7 +148,7 @@ func TestSyncStatus(t *testing.T) {
 	l2Client := &testutils.MockL2Client{}
 	drClient := &mockDriverClient{}
 	rng := rand.New(rand.NewSource(1234))
-	status := driver.SyncStatus{
+	status := eth.SyncStatus{
 		CurrentL1:   testutils.RandomBlockRef(rng),
 		HeadL1:      testutils.RandomBlockRef(rng),
 		UnsafeL2:    testutils.RandomL2BlockRef(rng),
@@ -173,7 +172,7 @@ func TestSyncStatus(t *testing.T) {
 	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
 	assert.NoError(t, err)
 
-	var out *driver.SyncStatus
+	var out *eth.SyncStatus
 	err = client.CallContext(context.Background(), &out, "optimism_syncStatus")
 	assert.NoError(t, err)
 	assert.Equal(t, &status, out)
@@ -183,8 +182,8 @@ type mockDriverClient struct {
 	mock.Mock
 }
 
-func (c *mockDriverClient) SyncStatus(ctx context.Context) (*driver.SyncStatus, error) {
-	return c.Mock.MethodCalled("SyncStatus").Get(0).(*driver.SyncStatus), nil
+func (c *mockDriverClient) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	return c.Mock.MethodCalled("SyncStatus").Get(0).(*eth.SyncStatus), nil
 }
 
 func (c *mockDriverClient) ResetDerivationPipeline(ctx context.Context) error {

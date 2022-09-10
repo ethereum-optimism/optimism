@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+
 	"github.com/ethereum/go-ethereum/crypto"
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -20,7 +22,6 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -247,7 +248,7 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient.RollupClient, error) {
+func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.RollupClient, error) {
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
@@ -256,7 +257,7 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient
 		return nil, err
 	}
 
-	return rollupclient.NewRollupClient(client), nil
+	return sources.NewRollupClient(client), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if
