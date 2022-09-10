@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -384,23 +383,11 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
 // The unsafe head is set to the head of the L2 chain, unless the existing safe head is not canonical.
 func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	finalized, err := eq.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-	if errors.Is(err, ethereum.NotFound) {
-		// default to genesis if we have not finalized anything before.
-		finalized, err = eq.engine.L2BlockRefByHash(ctx, eq.cfg.Genesis.L2.Hash)
-	}
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the finalized L2 block: %w", err))
-	}
-	// TODO: this should be resetting using the safe head instead. Out of scope for L2 client bindings PR.
-	prevUnsafe, err := eq.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the L2 Head block: %w", err))
-	}
-	unsafe, safe, err := sync.FindL2Heads(ctx, prevUnsafe, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
+	result, err := sync.FindL2Heads(ctx, eq.cfg, l1Fetcher, eq.engine)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
+	finalized, safe, unsafe := result.Finalized, result.Safe, result.Unsafe
 	l1Origin, err := l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))
