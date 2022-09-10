@@ -5,9 +5,10 @@ import (
 	"net"
 	"time"
 
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
+
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 type PeerInfo struct {
