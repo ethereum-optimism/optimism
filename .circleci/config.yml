@@ -410,7 +410,7 @@ jobs:
             fi
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results

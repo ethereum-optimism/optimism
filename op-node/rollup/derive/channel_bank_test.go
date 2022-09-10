@@ -73,25 +73,20 @@ func (ct *channelBankTestCase) Run(t *testing.T) {
 	ct.fn(bt)
 }
 
-// format: <channelID-data>:<channelID-time>:<frame-number>:<content><optional-last-frame-marker "!">
-// example: "abc:123:0:helloworld!"
+// format: <channelID-data>:<frame-number>:<content><optional-last-frame-marker "!">
+// example: "abc:0:helloworld!"
 type testFrame string
 
 func (tf testFrame) ChannelID() ChannelID {
 	parts := strings.Split(string(tf), ":")
 	var chID ChannelID
-	copy(chID.Data[:], parts[0])
-	x, err := strconv.ParseUint(parts[1], 0, 64)
-	if err != nil {
-		panic(err)
-	}
-	chID.Time = x
+	copy(chID[:], parts[0])
 	return chID
 }
 
 func (tf testFrame) FrameNumber() uint64 {
 	parts := strings.Split(string(tf), ":")
-	frameNum, err := strconv.ParseUint(parts[2], 0, 64)
+	frameNum, err := strconv.ParseUint(parts[1], 0, 64)
 	if err != nil {
 		panic(err)
 	}
@@ -100,12 +95,12 @@ func (tf testFrame) FrameNumber() uint64 {
 
 func (tf testFrame) IsLast() bool {
 	parts := strings.Split(string(tf), ":")
-	return strings.HasSuffix(parts[3], "!")
+	return strings.HasSuffix(parts[2], "!")
 }
 
 func (tf testFrame) Content() []byte {
 	parts := strings.Split(string(tf), ":")
-	return []byte(strings.TrimSuffix(parts[3], "!"))
+	return []byte(strings.TrimSuffix(parts[2], "!"))
 }
 
 func (tf testFrame) ToFrame() Frame {
@@ -138,12 +133,7 @@ func (bt *bankTestSetup) repeatStep(max int, outer int, outerClosed bool, err er
 func (bt *bankTestSetup) repeatResetStep(max int, err error) {
 	require.Equal(bt.t, err, RepeatResetStep(bt.t, bt.cb.ResetStep, bt.l1, max))
 }
-func (bt *bankTestSetup) assertProgressOpen() {
-	require.False(bt.t, bt.cb.progress.Closed)
-}
-func (bt *bankTestSetup) assertProgressClosed() {
-	require.True(bt.t, bt.cb.progress.Closed)
-}
+
 func (bt *bankTestSetup) assertOrigin(i int) {
 	require.Equal(bt.t, bt.cb.progress.Origin, bt.origins[i])
 }
@@ -153,8 +143,8 @@ func (bt *bankTestSetup) assertOriginTime(x uint64) {
 func (bt *bankTestSetup) expectChannel(data string) {
 	bt.out.ExpectWriteChannel([]byte(data))
 }
-func (bt *bankTestSetup) expectL1RefByHash(i int) {
-	bt.l1.ExpectL1BlockRefByHash(bt.origins[i].Hash, bt.origins[i], nil)
+func (bt *bankTestSetup) expectL1BlockRefByNumber(i int) {
+	bt.l1.ExpectL1BlockRefByNumber(bt.origins[i].Number, bt.origins[i], nil)
 }
 func (bt *bankTestSetup) assertExpectations() {
 	bt.l1.AssertExpectations(bt.t)
@@ -162,120 +152,83 @@ func (bt *bankTestSetup) assertExpectations() {
 	bt.out.AssertExpectations(bt.t)
 	bt.out.ExpectedCalls = nil
 }
-func (bt *bankTestSetup) logf(format string, args ...any) {
-	bt.t.Logf(format, args...)
-}
 
 func TestL1ChannelBank(t *testing.T) {
 	testCases := []channelBankTestCase{
 		{
 			name:           "time outs and buffering",
-			originTimes:    []uint64{101, 102, 105, 107, 109},
-			nextStartsAt:   3, // start next stage at 107
-			channelTimeout: 3, // 107-3 = 104, reset to next lower origin, thus 102
+			originTimes:    []uint64{0, 1, 2, 3, 4, 5},
+			nextStartsAt:   3, // Start next stage at block #3
+			channelTimeout: 2, // Start at block #1
 			fn: func(bt *bankTestSetup) {
-				bt.logf("reset to an origin that is timed out")
-				bt.expectL1RefByHash(2)
-				bt.expectL1RefByHash(1)
-				bt.repeatResetStep(10, nil) // bank rewinds to origin pre-timeout
-				bt.assertExpectations()
-				bt.assertOrigin(1)
-				bt.assertOriginTime(102)
+				bt.expectL1BlockRefByNumber(1)
+				bt.repeatResetStep(10, nil)
+				bt.ingestFrames("a:0:first") // will time out b/c not closed
 
-				bt.logf("first step after reset should be EOF to start getting data")
-				bt.repeatStep(1, 1, false, nil)
-
-				bt.logf("read from there onwards, but drop content since we did not reach start origin yet")
-				bt.ingestFrames("a:98:0:too old") // timed out, can continue
-				bt.repeatStep(3, 1, false, nil)
-				bt.ingestFrames("b:99:0:just new enough!") // closed frame, can be read, but dropped
-				bt.repeatStep(3, 1, false, nil)
-
-				bt.logf("close origin 1")
-				bt.repeatStep(2, 1, true, nil)
-				bt.assertOrigin(1)
-				bt.assertProgressClosed()
-
-				bt.logf("open and close 2 without data")
-				bt.repeatStep(2, 2, false, nil)
+				bt.repeatStep(10, 1, true, nil)
+				bt.repeatStep(10, 2, false, nil)
 				bt.assertOrigin(2)
-				bt.assertProgressOpen()
-				bt.repeatStep(2, 2, true, nil)
-				bt.assertProgressClosed()
 
-				bt.logf("open 3, where we meet the next stage. Data isn't dropped anymore")
-				bt.repeatStep(2, 3, false, nil)
+				bt.repeatStep(10, 2, true, nil)
+				bt.repeatStep(10, 3, false, nil)
 				bt.assertOrigin(3)
-				bt.assertProgressOpen()
-				bt.assertOriginTime(107)
 
-				bt.ingestFrames("c:104:0:foobar")
-				bt.repeatStep(1, 3, false, nil)
-				bt.ingestFrames("d:104:0:other!")
-				bt.repeatStep(1, 3, false, nil)
-				bt.ingestFrames("e:105:0:time-out-later") // timed out when we get to 109
-				bt.repeatStep(1, 3, false, nil)
-				bt.ingestFrames("c:104:1:close!")
-				bt.expectChannel("foobarclose")
-				bt.expectChannel("other")
-				bt.repeatStep(3, 3, false, nil)
-				bt.assertExpectations()
+				bt.repeatStep(10, 3, true, nil)
+				bt.repeatStep(10, 4, false, nil)
+				bt.assertOrigin(4)
 
-				bt.logf("close 3")
-				bt.repeatStep(2, 3, true, nil)
-				bt.assertProgressClosed()
-
-				bt.logf("open 4")
-				bt.expectChannel("time-out-later") // not closed, but processed after timeout
-				bt.repeatStep(3, 4, false, nil)
-				bt.assertExpectations()
-				bt.assertProgressOpen()
-				bt.assertOriginTime(109)
-
-				bt.logf("data from 4")
-				bt.ingestFrames("f:108:0:hello!")
-				bt.expectChannel("hello")
-				bt.repeatStep(2, 4, false, nil)
+				// Properly closed channel
+				bt.expectChannel("foobarclosed")
+				bt.ingestFrames("b:0:foobar")
+				bt.ingestFrames("b:1:closed!")
+				bt.repeatStep(10, 4, true, nil)
 				bt.assertExpectations()
 			},
 		},
 		{
 			name:           "duplicate frames",
-			originTimes:    []uint64{101, 102},
-			nextStartsAt:   0,
-			channelTimeout: 3,
+			originTimes:    []uint64{0, 1, 2, 3, 4, 5},
+			nextStartsAt:   3, // Start next stage at block #3
+			channelTimeout: 2, // Start at block #1c
 			fn: func(bt *bankTestSetup) {
-				// don't do the whole setup process, just override where the stages are
-				bt.cb.progress = Progress{Origin: bt.origins[0], Closed: false}
-				bt.out.progress = Progress{Origin: bt.origins[0], Closed: false}
+				bt.expectL1BlockRefByNumber(1)
+				bt.repeatResetStep(10, nil)
+				bt.ingestFrames("a:0:first") // will time out b/c not closed
 
-				bt.assertOriginTime(101)
+				bt.repeatStep(10, 1, true, nil)
+				bt.repeatStep(10, 2, false, nil)
+				bt.assertOrigin(2)
 
-				bt.ingestFrames("x:102:0:foobar") // future frame is ignored when included too early
-				bt.repeatStep(2, 0, false, nil)
+				bt.repeatStep(10, 2, true, nil)
+				bt.repeatStep(10, 3, false, nil)
+				bt.assertOrigin(3)
 
-				bt.ingestFrames("a:101:0:first")
-				bt.repeatStep(1, 0, false, nil)
-				bt.ingestFrames("a:101:1:second")
-				bt.repeatStep(1, 0, false, nil)
-				bt.ingestFrames("a:101:0:altfirst") // ignored as duplicate
-				bt.repeatStep(1, 0, false, nil)
-				bt.ingestFrames("a:101:1:altsecond") // ignored as duplicate
-				bt.repeatStep(1, 0, false, nil)
-				bt.ingestFrames("a:100:0:new") // different time, considered to be different channel
-				bt.repeatStep(1, 0, false, nil)
+				bt.repeatStep(10, 3, true, nil)
+				bt.repeatStep(10, 4, false, nil)
+				bt.assertOrigin(4)
 
-				// close origin 0
-				bt.repeatStep(2, 0, true, nil)
+				bt.ingestFrames("a:0:first")
+				bt.repeatStep(1, 4, false, nil)
+				bt.ingestFrames("a:1:second")
+				bt.repeatStep(1, 4, false, nil)
+				bt.ingestFrames("a:0:altfirst") // ignored as duplicate
+				bt.repeatStep(1, 4, false, nil)
+				bt.ingestFrames("a:1:altsecond") // ignored as duplicate
+				bt.repeatStep(1, 4, false, nil)
+				bt.ingestFrames("b:0:new")
+				bt.repeatStep(1, 4, false, nil)
+
+				// close origin 4
+				bt.repeatStep(2, 4, true, nil)
 
 				// open origin 1
-				bt.repeatStep(2, 1, false, nil)
-				bt.ingestFrames("a:100:1:hi!") // close the other one first, but blocked
-				bt.repeatStep(1, 1, false, nil)
-				bt.ingestFrames("a:101:2:!") // empty closing frame
+				bt.repeatStep(2, 5, false, nil)
+				bt.ingestFrames("b:1:hi!") // close the other one first, but blocked
+				bt.repeatStep(1, 5, false, nil)
+				bt.ingestFrames("a:2:!") // empty closing frame
 				bt.expectChannel("firstsecond")
 				bt.expectChannel("newhi")
-				bt.repeatStep(3, 1, false, nil)
+				bt.repeatStep(5, 5, false, nil)
 				bt.assertExpectations()
 			},
 		},
@@ -293,7 +246,7 @@ func TestL1ChannelBank(t *testing.T) {
 
 				badTx := new(bytes.Buffer)
 				badTx.WriteByte(DerivationVersion0)
-				goodFrame := testFrame("a:101:0:helloworld!").ToFrame()
+				goodFrame := testFrame("a:0:helloworld!").ToFrame()
 				if err := goodFrame.MarshalBinary(badTx); err != nil {
 					panic(fmt.Errorf("error in marshalling frame: %w", err))
 				}
