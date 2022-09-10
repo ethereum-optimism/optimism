@@ -140,11 +140,26 @@ var (
 		Value:  6060,
 		EnvVar: prefixEnvVar("PPROF_PORT"),
 	}
-
 	SnapshotLog = cli.StringFlag{
 		Name:   "snapshotlog.file",
 		Usage:  "Path to the snapshot log file",
 		EnvVar: prefixEnvVar("SNAPSHOT_LOG"),
+	}
+	HeartbeatEnabledFlag = cli.BoolFlag{
+		Name:   "heartbeat.enabled",
+		Usage:  "Enables or disables heartbeating",
+		EnvVar: prefixEnvVar("HEARTBEAT_ENABLED"),
+	}
+	HeartbeatMonikerFlag = cli.StringFlag{
+		Name:   "heartbeat.moniker",
+		Usage:  "Sets a moniker for this node",
+		EnvVar: prefixEnvVar("HEARTBEAT_MONIKER"),
+	}
+	HeartbeatURLFlag = cli.StringFlag{
+		Name:   "heartbeat.url",
+		Usage:  "Sets the URL to heartbeat to",
+		EnvVar: prefixEnvVar("HEARTBEAT_URL"),
+		Value:  "https://heartbeat.bedrock-goerli.optimism.io",
 	}
 )
 
@@ -174,6 +189,9 @@ var optionalFlags = append([]cli.Flag{
 	PprofAddrFlag,
 	PprofPortFlag,
 	SnapshotLog,
+	HeartbeatEnabledFlag,
+	HeartbeatMonikerFlag,
+	HeartbeatURLFlag,
 }, p2pFlags...)
 
 // Flags contains the list of configuration options available to the binary.

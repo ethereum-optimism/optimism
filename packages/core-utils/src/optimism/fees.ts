@@ -2,7 +2,7 @@
  * Fee related serialization and deserialization
  */
 
-import { BigNumber } from 'ethers'
+import { BigNumber } from '@ethersproject/bignumber'
 
 import { remove0x } from '../common'
 

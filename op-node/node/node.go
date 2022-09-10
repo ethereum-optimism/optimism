@@ -198,7 +198,7 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if cfg.P2P != nil {
 		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n)
-		if err != nil {
+		if err != nil || p2pNode == nil {
 			return err
 		}
 		n.p2pNode = p2pNode

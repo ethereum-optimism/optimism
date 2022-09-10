@@ -86,13 +86,14 @@ contract L1StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 0.0.2
      *
      * @param _messenger Address of the L1CrossDomainMessenger.
      */
-    constructor(address payable _messenger) Semver(0, 0, 1) {
-        initialize(_messenger);
-    }
+    constructor(address payable _messenger)
+        Semver(0, 0, 2)
+        StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE))
+    {}
 
     /**
      * @custom:legacy
@@ -241,15 +242,6 @@ contract L1StandardBridge is StandardBridge, Semver {
      */
     function l2TokenBridge() external view returns (address) {
         return address(otherBridge);
-    }
-
-    /**
-     * @notice Initializer.
-     *
-     * @param _messenger Address of the L1CrossDomainMessenger.
-     */
-    function initialize(address payable _messenger) public initializer {
-        __StandardBridge_init(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE));
     }
 
     /**
