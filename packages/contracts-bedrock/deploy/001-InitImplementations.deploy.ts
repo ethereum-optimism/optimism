@@ -109,7 +109,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   const upgradeTxs: any[] = []
   for (const [proxy, upgrader] of Object.entries(upgradeABIs)) {
-    const upgraderOut = await upgrader(deployConfig, hre)
+    const upgraderOut = await upgrader(deployConfig)
     const implName = proxy.replace('Proxy', '')
     const implDeployment = await get(implName)
     const implContract = await hre.ethers.getContractAt(
