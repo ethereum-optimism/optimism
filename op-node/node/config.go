@@ -35,7 +35,8 @@ type Config struct {
 	L1EpochPollInterval time.Duration
 
 	// Optional
-	Tracer Tracer
+	Tracer    Tracer
+	Heartbeat HeartbeatConfig
 }
 
 type RPCConfig struct {
@@ -74,6 +75,12 @@ type PprofConfig struct {
 
 func (p PprofConfig) Check() error {
 	return nil
+}
+
+type HeartbeatConfig struct {
+	Enabled bool
+	Moniker string
+	URL     string
 }
 
 // Check verifies that the given configuration makes sense
