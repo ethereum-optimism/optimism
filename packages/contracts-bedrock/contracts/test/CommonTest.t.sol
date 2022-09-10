@@ -393,17 +393,15 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.stopPrank();
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
-        L1Bridge.initialize(payable(address(L1Messenger)));
 
         vm.label(address(proxy), "L1StandardBridge_Proxy");
         vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
-        L2StandardBridge l2B = new L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+        L2StandardBridge l2B = new L2StandardBridge(payable(proxy));
         vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(l2B).code);
         L2Bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
-        L2Bridge.initialize(payable(address(L1Bridge)));
 
         // Set up the L2 mintable token factory
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(

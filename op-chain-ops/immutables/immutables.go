@@ -12,13 +12,22 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+// ImmutableValues represents the values to be set in immutable code.
+// The key is the name of the variable and the value is the value to set in
+// immutable code.
+type ImmutableValues map[string]any
+
+// ImmutableConfig represents the immutable configuration for the L2 predeploy
+// contracts.
+type ImmutableConfig map[string]ImmutableValues
+
 // DeploymentResults represents the output of deploying each of the
 // contracts so that the immutables can be set properly in the bytecode.
 type DeploymentResults map[string]hexutil.Bytes
 
 // BuildOptimism will deploy the L2 predeploys so that their immutables are set
 // correctly.
-func BuildOptimism() (DeploymentResults, error) {
+func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 	deployments := []deployer.Constructor{
 		{
 			Name: "GasPriceOracle",
@@ -31,6 +40,9 @@ func BuildOptimism() (DeploymentResults, error) {
 		},
 		{
 			Name: "L2StandardBridge",
+			Args: []interface{}{
+				immutable["L2StandardBridge"]["otherBridge"],
+			},
 		},
 		{
 			Name: "L2ToL1MessagePasser",
@@ -84,8 +96,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		l1CrossDomainMessenger := common.Address{}
 		addr, _, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend, l1CrossDomainMessenger)
 	case "L2StandardBridge":
-		// The OtherBridge value is not immutable, no need to set
-		otherBridge := common.Address{}
+		otherBridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return common.Address{}, fmt.Errorf("invalid type for otherBridge")
+		}
 		addr, _, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser

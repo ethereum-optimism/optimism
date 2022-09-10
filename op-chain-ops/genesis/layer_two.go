@@ -52,7 +52,17 @@ func BuildL2Genesis(db *state.MemoryStateDB, config *DeployConfig, l1Block *type
 		return nil, err
 	}
 
-	if err := SetImplementations(db, storage); err != nil {
+	immutable, err := NewL2ImmutableConfig(
+		config,
+		l1Block,
+		l2Addrs.L1StandardBridgeProxy,
+		l2Addrs.L1CrossDomainMessengerProxy,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := SetImplementations(db, storage, immutable); err != nil {
 		return nil, err
 	}
 
