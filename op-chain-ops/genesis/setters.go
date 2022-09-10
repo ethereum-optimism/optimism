@@ -108,7 +108,7 @@ func SetImplementations(db vm.StateDB, storage StorageConfig, immutable immutabl
 			}
 			slots, err := state.ComputeStorageSlots(layout, storageConfig)
 			if err != nil {
-				return err
+				return fmt.Errorf("%s: %w", name, err)
 			}
 			// The storage values must go in the proxy address
 			for _, slot := range slots {
