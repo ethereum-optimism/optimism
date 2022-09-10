@@ -302,6 +302,10 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 
 	payload, err := eq.engine.PayloadByNumber(ctx, eq.safeHead.Number+1)
 	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			// engine may have restarted, or inconsistent safe head. We need to reset
+			return NewResetError(fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err))
+		}
 		return NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
 	}
 	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
