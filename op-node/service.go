@@ -81,6 +81,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		P2P:                 p2pConfig,
 		P2PSigner:           p2pSignerSetup,
 		L1EpochPollInterval: ctx.GlobalDuration(flags.L1EpochPollIntervalFlag.Name),
+		Heartbeat: node.HeartbeatConfig{
+			Enabled: ctx.GlobalBool(flags.HeartbeatEnabledFlag.Name),
+			Moniker: ctx.GlobalString(flags.HeartbeatMonikerFlag.Name),
+			URL:     ctx.GlobalString(flags.HeartbeatURLFlag.Name),
+		},
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err
