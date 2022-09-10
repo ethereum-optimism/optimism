@@ -25,14 +25,18 @@ type OpNode struct {
 	log        log.Logger
 	appVersion string
 	metrics    *metrics.Metrics
-	l1HeadsSub ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
-	l1Source   *sources.L1Client     // L1 Client to fetch data from
-	l2Driver   *driver.Driver        // L2 Engine to Sync
-	l2Source   *sources.EngineClient // L2 Execution Engine RPC bindings
-	server     *rpcServer            // RPC server hosting the rollup-node API
-	p2pNode    *p2p.NodeP2P          // P2P node functionality
-	p2pSigner  p2p.Signer            // p2p gogssip application messages will be signed with this signer
-	tracer     Tracer                // tracer to get events for testing/debugging
+
+	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
+	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+
+	l1Source  *sources.L1Client     // L1 Client to fetch data from
+	l2Driver  *driver.Driver        // L2 Engine to Sync
+	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
+	server    *rpcServer            // RPC server hosting the rollup-node API
+	p2pNode   *p2p.NodeP2P          // P2P node functionality
+	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
+	tracer    Tracer                // tracer to get events for testing/debugging
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -112,7 +116,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
 		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
-		return fmt.Errorf("failed to create L1 source: %v", err)
+		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -129,6 +133,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		}
 		n.log.Error("l1 heads subscription error", "err", err)
 	}()
+
+	// Poll for the safe L1 block and finalized block,
+	// which only change once per epoch at most and may be delayed.
+	n.l1SafeSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Safe, eth.Safe,
+		cfg.L1EpochPollInterval, time.Second*10)
+	n.l1FinalizedSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
+		cfg.L1EpochPollInterval, time.Second*10)
 	return nil
 }
 
@@ -227,13 +238,39 @@ func (n *OpNode) Start(ctx context.Context) error {
 func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	n.tracer.OnNewL1Head(ctx, sig)
 
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 	if err := n.l2Driver.OnL1Head(ctx, sig); err != nil {
 		n.log.Warn("failed to notify engine driver of L1 head change", "err", err)
 	}
+}
 
+func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
+	// Pass on the event to the L2 Engine
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	if err := n.l2Driver.OnL1Safe(ctx, sig); err != nil {
+		n.log.Warn("failed to notify engine driver of L1 safe block change", "err", err)
+	}
+}
+
+func (n *OpNode) OnNewL1Finalized(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
+	// Pass on the event to the L2 Engine
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+	if err := n.l2Driver.OnL1Finalized(ctx, sig); err != nil {
+		n.log.Warn("failed to notify engine driver of L1 finalized block change", "err", err)
+	}
 }
 
 func (n *OpNode) PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {

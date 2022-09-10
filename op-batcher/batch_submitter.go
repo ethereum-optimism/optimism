@@ -284,7 +284,11 @@ mainLoop:
 				l.log.Warn("issue fetching L2 head", "err", err)
 				continue
 			}
-			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
+			if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
+				l.log.Info("Rollup node has no L1 head info yet")
+				continue
+			}
+			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock, "l1_head", syncStatus.HeadL1)
 			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
 				l.log.Trace("No unsubmitted blocks from sequencer")
 				continue
@@ -299,7 +303,7 @@ mainLoop:
 				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
 				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 			}
-			if ch, err := derive.NewChannelOut(syncStatus.HeadL1.Time); err != nil {
+			if ch, err := derive.NewChannelOut(); err != nil {
 				l.log.Error("Error creating channel", "err", err)
 				continue
 			} else {

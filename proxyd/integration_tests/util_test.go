@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"testing"
@@ -67,7 +67,7 @@ func (p *ProxydHTTPClient) SendRequest(body []byte) ([]byte, int, error) {
 	}
 	defer res.Body.Close()
 	code := res.StatusCode
-	resBody, err := ioutil.ReadAll(res.Body)
+	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
 		panic(err)
 	}

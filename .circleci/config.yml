@@ -221,7 +221,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer)")
+            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -256,6 +256,11 @@ jobs:
             golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
           working_directory: op-service
       - run:
+          name: lint op-chain-ops
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: op-chain-ops
+      - run:
           name: prep results dir
           command: mkdir -p /test-results
       - run:
@@ -283,6 +288,11 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-service.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-service
+      - run:
+          name: test op-chain-ops
+          command: |
+            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-chain-ops
       - store_test_results:
           path: /test-results
       - run:
@@ -400,7 +410,7 @@ jobs:
             fi
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
@@ -497,19 +507,6 @@ jobs:
           name: Bring up the stack
           command: |
             make devnet-up
-      - run:
-          name: Check L2 Config
-          command: npx hardhat check-l2-config --network devnetL1
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: Do a deposit
-          command: |
-            timeout 5m npx hardhat deposit \
-                --to 0xB79f76EF2c5F0286176833E7B2eEe103b1CC3244  \
-                --amount-eth 1 \
-                --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-                --network devnetL1
-          working_directory: packages/contracts-bedrock
       - run:
           name: Deposit ERC20 through the bridge
           command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
@@ -631,7 +628,7 @@ jobs:
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
             -docker.pull=true \
-            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>>,op-contracts_<<parameters.version>> |& tee /tmp/hive.log
+            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
@@ -809,6 +806,17 @@ workflows:
             - gcr
           requires:
             - contracts-bedrock-tests
+      - docker-publish:
+          name: contract-artifacts-bedrock-publish-dev
+          docker_file: ops/docker/Dockerfile.packages
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/contract-artifacts-bedrock:<<pipeline.git.revision>>
+          target: contract-artifacts-bedrock
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          context:
+            - gcr
+          requires:
+            - contracts-bedrock-tests
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -836,126 +844,3 @@ workflows:
             - op-batcher-publish-dev
             - op-proposer-publish-dev
             - deployer-bedrock-publish-dev
-
-
-  nightly:
-    triggers:
-      - schedule:
-          cron: "0 10 * * *"
-          filters:
-            branches:
-              only:
-                - develop
-    jobs:
-      - yarn-monorepo
-      - docker-publish:
-          name: l2geth-release
-          docker_file: l2geth/Dockerfile
-          docker_tags: ethereumoptimism/l2geth:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: gas-oracle-release
-          docker_file: gas-oracle/Dockerfile
-          docker_tags: ethereumoptimism/gas-oracle:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: hardhat-node-release
-          docker_file: ops/docker/hardhat/Dockerfile
-          docker_tags: ethereumoptimism/hardhat-node:nightly
-          docker_context: ops/docker/hardhat
-          context:
-            - optimism
-      - docker-publish:
-          name: proxyd-release
-          docker_file: proxyd/Dockerfile
-          docker_tags: ethereumoptimism/proxyd:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: l2geth-exporter-release
-          docker_file: l2geth-exporter/Dockerfile
-          docker_tags: ethereumoptimism/l2geth-exporter:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: op-exporter-release
-          docker_file: op-exporter/Dockerfile
-          docker_tags: ethereumoptimism/op-exporter:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: fault-detector-release
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/fault-detector:nightly
-          docker_context: .
-          target: fault-detector
-          context:
-            - optimism
-      - docker-publish:
-          name: drippie-mon-release
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/drippie-mon:nightly
-          docker_context: .
-          target: drippie-mon
-          context:
-            - optimism
-      - docker-publish:
-          name: message-relayer-release
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/message-relayer:nightly
-          docker_context: .
-          target: message-relayer
-          context:
-            - optimism
-      - docker-publish:
-          name: data-transport-layer-release
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/data-transport-layer:nightly
-          docker_context: .
-          target: data-transport-layer
-          context:
-            - optimism
-      - docker-publish:
-          name: integration-tests-release
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/integration-tests:nightly
-          docker_context: .
-          target: integration-tests
-          context:
-            - optimism
-      - docker-publish:
-          name: replica-healthcheck-release
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: ethereumoptimism/replica-healthcheck:nightly
-          docker_context: .
-          target: replica-healthcheck
-          context:
-            - optimism
-      - docker-publish:
-          name: batch-submitter-service-release
-          docker_file: batch-submitter/Dockerfile
-          docker_tags: ethereumoptimism/batch-submitter-service:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: indexer-release
-          docker_file: indexer/Dockerfile
-          docker_tags: ethereumoptimism/indexer:nightly
-          docker_context: .
-          context:
-            - optimism
-      - docker-publish:
-          name: teleportr-release
-          docker_file: teleportr/Dockerfile
-          docker_tags: ethereumoptimism/teleportr:nightly
-          docker_context: .
-          context:
-            - optimism

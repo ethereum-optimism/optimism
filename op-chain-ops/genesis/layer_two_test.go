@@ -1,19 +1,24 @@
 package genesis_test
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
-	"io/ioutil"
 	"math/big"
+	"os"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/hardhat"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,18 +30,18 @@ func init() {
 
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
-func TestBuildOptimismGenesis(t *testing.T) {
+func TestBuildL2DeveloperGenesis(t *testing.T) {
 	hh, err := hardhat.New(
 		"goerli",
-		[]string{
-			"../../packages/contracts-bedrock/artifacts",
-			"../../packages/contracts-governance/artifacts",
-		},
+		nil,
 		[]string{"../../packages/contracts-bedrock/deployments"},
 	)
 	require.Nil(t, err)
 
-	config, err := genesis.NewDeployConfig("../../packages/contracts-bedrock/deploy-config/devnetL1.json")
+	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
+	require.Nil(t, err)
+
+	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
 	require.Nil(t, err)
 
 	backend := backends.NewSimulatedBackend(
@@ -45,15 +50,16 @@ func TestBuildOptimismGenesis(t *testing.T) {
 		},
 		15000000,
 	)
-
-	gen, err := genesis.BuildOptimismDeveloperGenesis(hh, config, backend)
+	block, err := backend.BlockByNumber(context.Background(), common.Big0)
+	require.NoError(t, err)
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
+		ProxyAdmin: proxyAdmin.Address,
+	})
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
-	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
-	require.Nil(t, err)
-	proxy, err := hh.GetArtifact("Proxy")
-	require.Nil(t, err)
+	depB, err := bindings.GetDeployedBytecode("Proxy")
+	require.NoError(t, err)
 
 	for name, address := range predeploys.Predeploys {
 		addr := *address
@@ -69,11 +75,32 @@ func TestBuildOptimismGenesis(t *testing.T) {
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
 		require.Equal(t, ok, true)
 		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
-		require.Equal(t, account.Code, []byte(proxy.DeployedBytecode))
+		require.Equal(t, account.Code, depB)
 	}
+	require.Equal(t, 2337, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
-		_ = ioutil.WriteFile("genesis.json", file, 0644)
+		_ = os.WriteFile("genesis.json", file, 0644)
 	}
+}
+
+func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
+	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
+	require.Nil(t, err)
+	config.FundDevAccounts = false
+
+	backend := backends.NewSimulatedBackend(
+		core.GenesisAlloc{
+			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
+		},
+		15000000,
+	)
+	block, err := backend.BlockByNumber(context.Background(), common.Big0)
+	require.NoError(t, err)
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
+		ProxyAdmin: common.Address{},
+	})
+	require.NoError(t, err)
+	require.Equal(t, 2316, len(gen.Alloc))
 }

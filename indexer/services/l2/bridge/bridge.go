@@ -12,10 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type DepositsMap map[common.Hash][]db.Deposit // Finalizations
 type WithdrawalsMap map[common.Hash][]db.Withdrawal
 
 type Bridge interface {
 	Address() common.Address
+	GetDepositsByBlockRange(uint64, uint64) (DepositsMap, error)
 	GetWithdrawalsByBlockRange(uint64, uint64) (WithdrawalsMap, error)
 	String() string
 }

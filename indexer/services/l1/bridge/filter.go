@@ -43,3 +43,35 @@ func FilterERC20DepositInitiatedWithRetry(ctx context.Context, filterer *binding
 		time.Sleep(clientRetryInterval)
 	}
 }
+
+// FilterETHWithdrawalFinalizedWithRetry retries the given func until it succeeds,
+// waiting for clientRetryInterval duration after every call.
+func FilterETHWithdrawalFinalizedWithRetry(ctx context.Context, filterer *bindings.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*bindings.L1StandardBridgeETHWithdrawalFinalizedIterator, error) {
+	for {
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
+		opts.Context = ctxt
+		res, err := filterer.FilterETHWithdrawalFinalized(opts, nil, nil)
+		cancel()
+		if err == nil {
+			return res, nil
+		}
+		logger.Error("Error fetching filter", "err", err)
+		time.Sleep(clientRetryInterval)
+	}
+}
+
+// FilterERC20WithdrawalFinalizedWithRetry retries the given func until it succeeds,
+// waiting for clientRetryInterval duration after every call.
+func FilterERC20WithdrawalFinalizedWithRetry(ctx context.Context, filterer *bindings.L1StandardBridgeFilterer, opts *bind.FilterOpts) (*bindings.L1StandardBridgeERC20WithdrawalFinalizedIterator, error) {
+	for {
+		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
+		opts.Context = ctxt
+		res, err := filterer.FilterERC20WithdrawalFinalized(opts, nil, nil, nil)
+		cancel()
+		if err == nil {
+			return res, nil
+		}
+		logger.Error("Error fetching filter", "err", err)
+		time.Sleep(clientRetryInterval)
+	}
+}

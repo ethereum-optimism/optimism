@@ -40,22 +40,22 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 	p2pSignerSetup, err := p2p.LoadSignerSetup(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load p2p signer: %v", err)
+		return nil, fmt.Errorf("failed to load p2p signer: %w", err)
 	}
 
 	p2pConfig, err := p2p.NewConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load p2p config: %v", err)
+		return nil, fmt.Errorf("failed to load p2p config: %w", err)
 	}
 
 	l1Endpoint, err := NewL1EndpointConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load l1 endpoint info: %v", err)
+		return nil, fmt.Errorf("failed to load l1 endpoint info: %w", err)
 	}
 
 	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load l2 endpoints info: %v", err)
+		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
 	}
 
 	cfg := &node.Config{
@@ -78,8 +78,9 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.GlobalString(flags.PprofAddrFlag.Name),
 			ListenPort: ctx.GlobalString(flags.PprofPortFlag.Name),
 		},
-		P2P:       p2pConfig,
-		P2PSigner: p2pSignerSetup,
+		P2P:                 p2pConfig,
+		P2PSigner:           p2pSignerSetup,
+		L1EpochPollInterval: ctx.GlobalDuration(flags.L1EpochPollIntervalFlag.Name),
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err
@@ -111,7 +112,7 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	} else {
 		log.Warn("Failed to read JWT secret from file, generating a new one now. Configure L2 geth with --authrpc.jwt-secret=" + fmt.Sprintf("%q", fileName))
 		if _, err := io.ReadFull(rand.Reader, secret[:]); err != nil {
-			return nil, fmt.Errorf("failed to generate jwt secret: %v", err)
+			return nil, fmt.Errorf("failed to generate jwt secret: %w", err)
 		}
 		if err := os.WriteFile(fileName, []byte(hexutil.Encode(secret[:])), 0600); err != nil {
 			return nil, err
@@ -136,13 +137,13 @@ func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
 	rollupConfigPath := ctx.GlobalString(flags.RollupConfig.Name)
 	file, err := os.Open(rollupConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read rollup config: %v", err)
+		return nil, fmt.Errorf("failed to read rollup config: %w", err)
 	}
 	defer file.Close()
 
 	var rollupConfig rollup.Config
 	if err := json.NewDecoder(file).Decode(&rollupConfig); err != nil {
-		return nil, fmt.Errorf("failed to decode rollup config: %v", err)
+		return nil, fmt.Errorf("failed to decode rollup config: %w", err)
 	}
 	return &rollupConfig, nil
 }
