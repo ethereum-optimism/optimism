@@ -126,6 +126,9 @@ var Subcommands = cli.Commands{
 			} else if config.L1StartingBlockTag.BlockNumber != nil {
 				l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
 			}
+			if err != nil {
+				return err
+			}
 
 			depPath, network := filepath.Split(ctx.String("deployment-dir"))
 			hh, err := hardhat.New(network, nil, []string{depPath})
