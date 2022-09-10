@@ -7,8 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/hashicorp/go-multierror"
+
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // IterativeBatchCall is an util to create a job to fetch many RPC requests in batches,

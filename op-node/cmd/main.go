@@ -9,22 +9,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
-
-	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
-
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/urfave/cli"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
-
-	"github.com/ethereum-optimism/optimism/op-node/version"
-
+	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
-
+	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
 )
 
 var (
