@@ -175,7 +175,7 @@ jobs:
             fi
       - run:
           name: check go bindings
-          command: make && git diff --exit-code
+          command: make && git diff --exit-code -- ':!*_more.go'
           working_directory: op-bindings
 
   js-lint-test:
