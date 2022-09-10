@@ -57,6 +57,9 @@ type FindHeadsResult struct {
 	Finalized eth.L2BlockRef
 }
 
+// currentHeads returns the current finalized, safe and unsafe heads of the execution engine.
+// If nothing has been marked finalized yet, the finalized head defaults to the genesis block.
+// If nothing has been marked safe yet, the safe head defaults to the finalized block.
 func currentHeads(ctx context.Context, cfg *rollup.Config, l2 L2Chain) (*FindHeadsResult, error) {
 	finalized, err := l2.L2BlockRefByLabel(ctx, eth.Finalized)
 	if errors.Is(err, ethereum.NotFound) {
@@ -116,7 +119,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	var ahead bool
 
 	for {
-		// Fetch L1 information if we never had it, of if we do not have it for the current origin
+		// Fetch L1 information if we never had it, or if we do not have it for the current origin
 		if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
 			b, err := l1.L1BlockRefByNumber(ctx, n.L1Origin.Number)
 			// if L2 is ahead of L1 view, then consider it a "plausible" head
