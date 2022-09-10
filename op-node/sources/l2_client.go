@@ -3,12 +3,14 @@ package sources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -77,6 +79,11 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	payload, err := s.PayloadByLabel(ctx, label)
 	if err != nil {
+		// Both geth and erigon like to serve non-standard errors for the safe and finalized heads, correct that.
+		// This happens when the chain just started and nothing is marked as safe/finalized yet.
+		if strings.Contains(err.Error(), "block not found") || strings.Contains(err.Error(), "Unknown block") {
+			err = ethereum.NotFound
+		}
 		// w%: wrap to preserve ethereum.NotFound case
 		return eth.L2BlockRef{}, fmt.Errorf("failed to determine L2BlockRef of %s, could not get payload: %w", label, err)
 	}
