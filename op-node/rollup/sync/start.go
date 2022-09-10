@@ -171,6 +171,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		} else {
 			// L1 origin nor ahead of L1 head nor canonical, discard previous candidate and keep looking.
 			result.Unsafe = eth.L2BlockRef{}
+			highestL2WithCanonicalL1Origin = eth.L2BlockRef{}
 		}
 
 		// If the L2 block is at least as old as the previous safe head, and we have seen at least a full sequence window worth of L1 blocks to confirm
