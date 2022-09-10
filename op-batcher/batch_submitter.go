@@ -21,7 +21,8 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum/go-ethereum/rpc"
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -34,8 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
