@@ -106,7 +106,7 @@ func (d *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	return d.s.ResetDerivationPipeline(ctx)
 }
 
-func (d *Driver) SyncStatus(ctx context.Context) (*SyncStatus, error) {
+func (d *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return d.s.SyncStatus(ctx)
 }
 

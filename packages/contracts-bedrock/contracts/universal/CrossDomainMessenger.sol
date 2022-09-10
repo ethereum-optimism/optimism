@@ -15,6 +15,22 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
 /**
+ * @custom:legacy
+ * @title CrossDomainMessengerLegacySpacer
+ * @notice Contract only exists to add a spacer to the CrossDomainMessenger where the
+ *         libAddressManager variable used to exist. Must be the first contract in the inheritance
+ *         tree of the CrossDomainMessenger
+ */
+contract CrossDomainMessengerLegacySpacer {
+    /**
+     * @custom:legacy
+     * @custom:spacer libAddressManager
+     * @notice Spacer for backwards compatibility.
+     */
+    address internal spacer0;
+}
+
+/**
  * @title CrossDomainMessenger
  * @notice CrossDomainMessenger is a base contract that provides the core logic for the L1 and L2
  *         cross-chain messenger contracts. It's designed to be a universal interface that only
@@ -23,6 +39,7 @@ import { Encoding } from "../libraries/Encoding.sol";
  *         chains and does not support one-to-many interactions.
  */
 abstract contract CrossDomainMessenger is
+    CrossDomainMessengerLegacySpacer,
     OwnableUpgradeable,
     PausableUpgradeable,
     ReentrancyGuardUpgradeable
@@ -68,6 +85,20 @@ abstract contract CrossDomainMessenger is
      *         zero value.
      */
     address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer blockedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    uint256 internal spacer1;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer relayedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    uint256 internal spacer2;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only

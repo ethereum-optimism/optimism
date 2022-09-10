@@ -74,7 +74,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 	}
 	difficulty := config.L2GenesisBlockDifficulty
 	if difficulty == nil {
-		difficulty = newHexBig(1)
+		difficulty = newHexBig(0)
 	}
 
 	return &core.Genesis{

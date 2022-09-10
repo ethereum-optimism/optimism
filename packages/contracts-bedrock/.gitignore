@@ -7,3 +7,4 @@ coverage.out
 broadcast
 genesis.json
 src/contract-artifacts.ts
+tmp-artifacts

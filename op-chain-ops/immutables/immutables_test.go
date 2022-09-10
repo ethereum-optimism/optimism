@@ -4,11 +4,16 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 )
 
 func TestBuildOptimism(t *testing.T) {
-	results, err := immutables.BuildOptimism()
+	results, err := immutables.BuildOptimism(immutables.ImmutableConfig{
+		"L2StandardBridge": {
+			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+	})
 	require.Nil(t, err)
 	require.NotNil(t, results)
 
@@ -20,6 +25,8 @@ func TestBuildOptimism(t *testing.T) {
 		"L2ToL1MessagePasser":          true,
 		"SequencerFeeVault":            true,
 		"OptimismMintableERC20Factory": true,
+		"DeployerWhitelist":            true,
+		"L1BlockNumber":                true,
 	}
 
 	// Only the exact contracts that we care about are being
