@@ -1,5 +1,13 @@
 # @eth-optimism/contracts-governance
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [dbfea116]
+  - @eth-optimism/core-utils@0.10.0
+  - @eth-optimism/sdk@1.6.1
+
 ## 0.1.4
 
 ### Patch Changes

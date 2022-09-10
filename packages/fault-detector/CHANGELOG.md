@@ -1,5 +1,16 @@
 # @eth-optimism/fault-detector
 
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [dbfea116]
+- Updated dependencies [299157e7]
+  - @eth-optimism/core-utils@0.10.0
+  - @eth-optimism/contracts@0.5.34
+  - @eth-optimism/common-ts@0.6.4
+  - @eth-optimism/sdk@1.6.1
+
 ## 0.2.5
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.2.4
+
+### Patch Changes
+
+- f7323e0b: Upgrade foundry to support consistent storage layouts
+
 ## 0.2.3
 
 ### Patch Changes

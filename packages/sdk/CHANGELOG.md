@@ -1,5 +1,15 @@
 # @eth-optimism/sdk
 
+## 1.6.1
+
+### Patch Changes
+
+- Updated dependencies [dbfea116]
+- Updated dependencies [299157e7]
+  - @eth-optimism/core-utils@0.10.0
+  - @eth-optimism/contracts@0.5.34
+  - @eth-optimism/contracts-bedrock@0.5.5
+
 ## 1.6.0
 
 ### Minor Changes
