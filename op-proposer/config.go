@@ -3,14 +3,13 @@ package op_proposer
 import (
 	"time"
 
+	"github.com/urfave/cli"
+
+	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-
-	"github.com/urfave/cli"
-
-	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 )
 
 type Config struct {

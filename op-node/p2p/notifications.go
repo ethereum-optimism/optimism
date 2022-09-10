@@ -1,9 +1,10 @@
 package p2p
 
 import (
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p-core/network"
 	ma "github.com/multiformats/go-multiaddr"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // TODO: add metrics here as well
