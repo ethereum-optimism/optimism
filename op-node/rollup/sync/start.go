@@ -175,8 +175,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		}
 
 		// If the L2 block is at least as old as the previous safe head, and we have seen at least a full sequence window worth of L1 blocks to confirm
-		// TODO discuss with Josh
-		if n.Number <= result.Safe.Number && n.Number+cfg.SeqWindowSize < highestL2WithCanonicalL1Origin.Number && n.SequenceNumber == 0 {
+		if n.Number <= result.Safe.Number && n.L1Origin.Number+cfg.SeqWindowSize < highestL2WithCanonicalL1Origin.L1Origin.Number && n.SequenceNumber == 0 {
 			result.Safe = n
 			return result, nil
 		}

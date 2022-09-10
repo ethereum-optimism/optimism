@@ -23,8 +23,10 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	//	A0: genesis
 	//	A1: finalized, incl in B
 	//  B0: safe, incl in C
-	//  B1: not yet included in L1
-	//  C0: head, not included in L1 yet
+	//  B1: not yet included in L1, becomes safe later
+	//  C0: not yet included in L1, becomes safe later
+	//  C1-E0: all unsafe intermediate blocks, but with canonical L1 origins
+	//  E1: head, not included in L1 yet
 	//
 	// L1:
 	//  A: genesis
@@ -52,6 +54,12 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		Number:     refC.Number + 1,
 		ParentHash: refC.Hash,
 		Time:       refC.Time + l1Time,
+	}
+	refE := eth.L1BlockRef{
+		Hash:       testutils.RandomHash(rng),
+		Number:     refD.Number + 1,
+		ParentHash: refD.Hash,
+		Time:       refD.Time + l1Time,
 	}
 
 	refA0 := eth.L2BlockRef{
@@ -127,6 +135,22 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		L1Origin:       refD.ID(),
 		SequenceNumber: 1,
 	}
+	refE0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refD1.Number + 1,
+		ParentHash:     refD1.Hash,
+		Time:           refD1.Time + cfg.BlockTime,
+		L1Origin:       refE.ID(),
+		SequenceNumber: 0,
+	}
+	refE1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refE0.Number + 1,
+		ParentHash:     refE0.Hash,
+		Time:           refE0.Time + cfg.BlockTime,
+		L1Origin:       refE.ID(),
+		SequenceNumber: 1,
+	}
 	t.Log("refA", refA.Hash)
 	t.Log("refB", refB.Hash)
 	t.Log("refC", refC.Hash)
@@ -138,6 +162,9 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	t.Log("refC0", refC0.Hash)
 	t.Log("refC1", refC1.Hash)
 	t.Log("refD0", refD0.Hash)
+	t.Log("refD1", refD1.Hash)
+	t.Log("refE0", refE0.Hash)
+	t.Log("refE1", refE1.Hash)
 
 	metrics := &TestMetrics{}
 	eng := &testutils.MockEngine{}
@@ -146,11 +173,14 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	eng.ExpectL2BlockRefByLabel(eth.Finalized, refA1, nil)
 	eng.ExpectL2BlockRefByLabel(eth.Safe, refB0, nil)
-	eng.ExpectL2BlockRefByLabel(eth.Unsafe, refD1, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Unsafe, refE1, nil)
 
-	l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)     // fetch L1 origin of head, it's canon
-	eng.ExpectL2BlockRefByHash(refD1.ParentHash, refD0, nil) // traverse L2 chain, find safe head D0
-	eng.ExpectL2BlockRefByHash(refD0.ParentHash, refC1, nil) // traverse back full seq window
+	l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)     // fetch L1 origin of head, it's canon
+	eng.ExpectL2BlockRefByHash(refE1.ParentHash, refE0, nil) // traverse L2 chain, find safe head B0
+	eng.ExpectL2BlockRefByHash(refE0.ParentHash, refD1, nil) // traverse back full seq window
+	l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
+	eng.ExpectL2BlockRefByHash(refD1.ParentHash, refD0, nil)
+	eng.ExpectL2BlockRefByHash(refD0.ParentHash, refC1, nil)
 	l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil)
 	eng.ExpectL2BlockRefByHash(refC1.ParentHash, refC0, nil)
 	eng.ExpectL2BlockRefByHash(refC0.ParentHash, refB1, nil)
