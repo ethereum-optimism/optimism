@@ -182,7 +182,7 @@ func makeRollupConfig(
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
 				Hash:   l1StartBlock.Hash(),
-				Number: 0,
+				Number: l1StartBlock.NumberU64(),
 			},
 			L2: eth.BlockID{
 				Hash:   l2Genesis.ToBlock().Hash(),
