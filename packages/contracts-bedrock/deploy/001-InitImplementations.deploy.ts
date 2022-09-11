@@ -104,10 +104,8 @@ const deployFn: DeployFunction = async (hre) => {
   ]
   await Promise.all(implTxs)
 
+  let tx
   // Reset the nonce for the next set of transactions
-  nonce = await l1.getTransactionCount(deployer)
-
-  const upgradeTxs: any[] = []
   for (const [proxy, upgrader] of Object.entries(upgradeABIs)) {
     const upgraderOut = await upgrader(deployConfig)
     const implName = proxy.replace('Proxy', '')
@@ -121,18 +119,17 @@ const deployFn: DeployFunction = async (hre) => {
       'Proxy',
       proxyDeployment.address
     )
-    upgradeTxs.push(
-      proxyContract.upgradeToAndCall(
-        implContract.address,
-        implContract.interface.encodeFunctionData(
-          upgraderOut[0] as string,
-          upgraderOut[1] as any[]
-        ),
-        {
-          nonce: ++nonce,
-        }
+    console.log(`Upgrading contract impl ${implName}.`)
+    tx = await proxyContract.upgradeToAndCall(
+      implContract.address,
+      implContract.interface.encodeFunctionData(
+        upgraderOut[0] as string,
+        upgraderOut[1] as any[]
       )
     )
+    console.log(`Awaiting TX hash ${tx.hash}.`)
+    await tx.wait()
+    console.log('Done.')
   }
 
   const bridge = await get('L1StandardBridge')
@@ -140,11 +137,11 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy',
     bridgeProxy.address
   )
-  upgradeTxs.push(
-    bridgeProxyContract.upgradeTo(bridge.address, {
-      nonce: ++nonce,
-    })
-  )
+  console.log(`Upgrading L1StandardBridge at ${bridge.address}.`)
+  tx = await bridgeProxyContract.upgradeTo(bridge.address)
+  console.log(`Awaiting TX hash ${tx.hash}.`)
+  await tx.wait()
+  console.log('Done')
 
   const factory = await get('OptimismMintableERC20Factory')
   const factoryProxy = await get('OptimismMintableERC20FactoryProxy')
@@ -152,13 +149,11 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy',
     factoryProxy.address
   )
-  upgradeTxs.push(
-    factoryProxyContract.upgradeTo(factory.address, {
-      nonce: ++nonce,
-    })
-  )
-  const rawTxs = await Promise.all(upgradeTxs)
-  await Promise.all(rawTxs.map((tx) => tx.wait()))
+  console.log(`Upgrading OptimismMintableERC20Factory at ${factory.address}.`)
+  tx = await factoryProxyContract.upgradeTo(factory.address)
+  console.log(`Awaiting TX hash ${tx.hash}.`)
+  await tx.wait()
+  console.log('Done')
 
   await validateOracle(hre, deployConfig, deployL2StartingTimestamp)
   await validatePortal(hre)
