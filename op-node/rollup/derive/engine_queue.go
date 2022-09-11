@@ -175,6 +175,7 @@ func (eq *EngineQueue) tryFinalizeL2() {
 		}
 	}
 	eq.finalized = finalizedL2
+	eq.metrics.RecordL2Ref("l2_finalized", finalizedL2)
 }
 
 // postProcessSafeL2 buffers the L1 block the safe head was fully derived from,
