@@ -16,17 +16,12 @@ const deployFn: DeployFunction = async (hre) => {
     'OptimismMintableERC20FactoryProxy',
   ]
 
-  const { deployer } = await hre.getNamedAccounts()
-  let nonce = await hre.ethers.provider.getTransactionCount(deployer)
-  // Subtract 1 from the nonce to simplify the loop below
-  nonce = nonce - 1
-
   // Wait on all the txs in parallel so that the deployment goes faster
   const txs = []
   for (const proxy of proxies) {
     const deployment = await hre.deployments.get(proxy)
     const Proxy = await hre.ethers.getContractAt('Proxy', deployment.address)
-    const tx = await Proxy.changeAdmin(admin.address, { nonce: ++nonce })
+    const tx = await Proxy.changeAdmin(admin.address)
     txs.push(tx)
   }
   await Promise.all(txs.map((tx) => tx.wait()))
@@ -38,10 +33,8 @@ const deployFn: DeployFunction = async (hre) => {
   )
 
   const postConfig = [
-    await AddressManager.transferOwnership(admin.address, { nonce: ++nonce }),
-    await ProxyAdmin.setAddressManager(addressManager.address, {
-      nonce: ++nonce,
-    }),
+    await AddressManager.transferOwnership(admin.address),
+    await ProxyAdmin.setAddressManager(addressManager.address),
   ]
   await Promise.all(postConfig.map((tx) => tx.wait()))
 }
