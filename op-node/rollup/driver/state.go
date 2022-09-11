@@ -187,7 +187,7 @@ func (s *state) handleNewL1FinalizedBlock(finalized eth.L1BlockRef) {
 	s.log.Info("New L1 finalized block", "l1_finalized", finalized)
 	s.metrics.RecordL1Ref("l1_finalized", finalized)
 	s.l1Finalized = finalized
-	// TODO(proto): forward signal to derivation to finalize L2 chain as well
+	s.derivation.Finalize(finalized.ID())
 }
 
 // findL1Origin determines what the next L1 Origin should be.
