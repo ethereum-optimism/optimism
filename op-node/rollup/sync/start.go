@@ -49,7 +49,7 @@ var ReorgFinalizedErr = errors.New("cannot reorg finalized block")
 var WrongChainErr = errors.New("wrong chain")
 var TooDeepReorgErr = errors.New("reorg is too deep")
 
-const MaxReorgDepth = 500
+const MaxReorgDepth = 2500
 
 type FindHeadsResult struct {
 	Unsafe    eth.L2BlockRef
