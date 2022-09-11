@@ -217,6 +217,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return nil
 	}
 
+	// Ensure that the unsafe payload builds upon the current unsafe head
 	// TODO: once we support snap-sync we can remove this condition, and handle the "SYNCING" status of the execution engine.
 	if first.ParentHash != eq.unsafeHead.Hash {
 		if uint64(first.BlockNumber) == eq.unsafeHead.Number+1 {
@@ -233,12 +234,19 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return nil
 	}
 
-	// Note: the parent hash does not have to equal the existing unsafe head,
-	// the unsafe part of the chain may reorg freely without resetting the derivation pipeline.
+	status, err := eq.engine.NewPayload(ctx, first)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
+	}
+	if status.Status != eth.ExecutionValid {
+		eq.unsafePayloads.Pop()
+		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
+			first.ID(), first.ParentID(), eth.NewPayloadErr(first, status)))
+	}
 
-	// prepare for processing the unsafe payload
+	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
-		HeadBlockHash:      first.ParentHash,
+		HeadBlockHash:      first.BlockHash,
 		SafeBlockHash:      eq.safeHead.Hash, // this should guarantee we do not reorg past the safe head
 		FinalizedBlockHash: eq.finalized.Hash,
 	}
@@ -261,15 +269,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
 			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
-	status, err := eq.engine.NewPayload(ctx, first)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
-	}
-	if status.Status != eth.ExecutionValid {
-		eq.unsafePayloads.Pop()
-		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
-			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
-	}
+
 	eq.unsafeHead = ref
 	eq.unsafePayloads.Pop()
 	eq.metrics.RecordL2Ref("l2_unsafe", ref)
