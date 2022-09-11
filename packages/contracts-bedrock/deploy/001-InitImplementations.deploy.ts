@@ -1,6 +1,6 @@
 /* Imports: Internal */
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import { BigNumber, utils } from 'ethers'
+import { BigNumber } from 'ethers'
 import 'hardhat-deploy'
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
@@ -104,6 +104,7 @@ const deployFn: DeployFunction = async (hre) => {
   ]
   await Promise.all(implTxs)
 
+  let tx
   // Reset the nonce for the next set of transactions
   for (const [proxy, upgrader] of Object.entries(upgradeABIs)) {
     const upgraderOut = await upgrader(deployConfig)
@@ -119,7 +120,7 @@ const deployFn: DeployFunction = async (hre) => {
       proxyDeployment.address
     )
     console.log(`Upgrading contract impl ${implName}.`)
-    const tx = await proxyContract.upgradeToAndCall(
+    tx = await proxyContract.upgradeToAndCall(
       implContract.address,
       implContract.interface.encodeFunctionData(
         upgraderOut[0] as string,
@@ -137,7 +138,7 @@ const deployFn: DeployFunction = async (hre) => {
     bridgeProxy.address
   )
   console.log(`Upgrading L1StandardBridge at ${bridge.address}.`)
-  let tx = await bridgeProxyContract.upgradeTo(bridge.address)
+  tx = await bridgeProxyContract.upgradeTo(bridge.address)
   console.log(`Awaiting TX hash ${tx.hash}.`)
   await tx.wait()
   console.log('Done')
