@@ -137,15 +137,6 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public receivedMessages;
 
     /**
-     * @notice Mapping of blocked system addresses. Note that this is NOT a mapping of blocked user
-     *         addresses and cannot be used to prevent users from sending or receiving messages.
-     *         This is ONLY used to prevent the execution of messages to specific system addresses
-     *         that could cause security issues, e.g., having the CrossDomainMessenger send
-     *         messages to itself.
-     */
-    mapping(address => bool) public blockedSystemAddresses;
-
-    /**
      * @notice Emitted whenever a message is sent to the other chain.
      *
      * @param target       Address of the recipient of the message.
@@ -285,7 +276,7 @@ abstract contract CrossDomainMessenger is
         }
 
         require(
-            blockedSystemAddresses[_target] == false,
+            _isUnsafeTarget(_target) == false,
             "CrossDomainMessenger: cannot send message to blocked system address"
         );
 
@@ -365,23 +356,11 @@ abstract contract CrossDomainMessenger is
      * @notice Intializer.
      *
      * @param _otherMessenger         Address of the CrossDomainMessenger on the paired chain.
-     * @param _blockedSystemAddresses List of system addresses that need to be blocked to prevent
-     *                                certain security issues. Exact list depends on the network
-     *                                where this contract is deployed. See note attached to the
-     *                                blockedSystemAddresses variable in this contract for more
-     *                                detailed information about what this block list can and
-     *                                cannot be used for.
      */
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init(
-        address _otherMessenger,
-        address[] memory _blockedSystemAddresses
-    ) internal onlyInitializing {
+    function __CrossDomainMessenger_init(address _otherMessenger) internal onlyInitializing {
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
         otherMessenger = _otherMessenger;
-        for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {
-            blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
-        }
 
         __Context_init_unchained();
         __Ownable_init_unchained();
@@ -393,6 +372,11 @@ abstract contract CrossDomainMessenger is
      * @notice Sends a low-level message to the other messenger. Needs to be implemented by child
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
+     *
+     * @param _to       Recipient of the message on the other chain.
+     * @param _gasLimit Minimum gas limit the message can be executed with.
+     * @param _value    Amount of ETH to send with the message.
+     * @param _data     Message data.
      */
     function _sendMessage(
         address _to,
@@ -405,6 +389,21 @@ abstract contract CrossDomainMessenger is
      * @notice Checks whether the message is coming from the other messenger. Implemented by child
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
+     *
+     * @return Whether the message is coming from the other messenger.
      */
     function _isOtherMessenger() internal view virtual returns (bool);
+
+    /**
+     * @notice Checks whether a given call target is a system address that could cause the
+     *         messenger to peform an unsafe action. This is NOT a mechanism for blocking user
+     *         addresses. This is ONLY used to prevent the execution of messages to specific
+     *         system addresses that could cause security issues, e.g., having the
+     *         CrossDomainMessenger send messages to itself.
+     *
+     * @param _target Address of the contract to check.
+     *
+     * @return Whether or not the address is an unsafe system address.
+     */
+    function _isUnsafeTarget(address _target) internal view virtual returns (bool);
 }
