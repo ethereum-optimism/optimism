@@ -73,7 +73,6 @@ type ServiceConfig struct {
 	ConfDepth          uint64
 	MaxHeaderBatchSize uint64
 	StartBlockNumber   uint64
-	StartBlockHash     string
 	DB                 *db.Database
 }
 
@@ -188,7 +187,6 @@ func (s *Service) Loop(ctx context.Context) {
 func (s *Service) Update(newHeader *types.Header) error {
 	var lowest = db.BlockLocator{
 		Number: s.cfg.StartBlockNumber,
-		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
 	highestConfirmed, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
@@ -213,7 +211,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		return nil
 	}
 
-	if lowest.Hash != headers[0].ParentHash {
+	if lowest.Number > 0 && lowest.Hash != headers[0].ParentHash {
 		logger.Error("Parent hash does not connect to ",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash,
 			"lowest_block", lowest.Number, "hash", lowest.Hash)

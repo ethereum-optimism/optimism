@@ -46,12 +46,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("L2_ETH_RPC"),
 	}
-	L2GenesisBlockHashFlag = cli.StringFlag{
-		Name:     "l2-genesis-block-hash",
-		Usage:    "Genesis block hash of the L2 chain",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_GENESIS_BLOCK_HASH"),
-	}
 	DBHostFlag = cli.StringFlag{
 		Name:     "db-host",
 		Usage:    "Hostname of the database connection",
@@ -120,17 +114,11 @@ var (
 		Value:  50 * time.Millisecond,
 		EnvVar: prefixEnvVar("SENTRY_TRACE_RATE"),
 	}
-	StartBlockNumberFlag = cli.Uint64Flag{
+	L1StartBlockNumberFlag = cli.Uint64Flag{
 		Name:   "start-block-number",
 		Usage:  "The block number to start indexing from. Must be use together with start block hash",
 		Value:  0,
 		EnvVar: prefixEnvVar("START_BLOCK_NUMBER"),
-	}
-	StartBlockHashFlag = cli.StringFlag{
-		Name:   "start-block-hash",
-		Usage:  "The block hash to start indexing from. Must be use together with start block number",
-		Value:  "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3",
-		EnvVar: prefixEnvVar("START_BLOCK_HASH"),
 	}
 	ConfDepthFlag = cli.Uint64Flag{
 		Name:   "conf-depth",
@@ -181,7 +169,6 @@ var requiredFlags = []cli.Flag{
 	ChainIDFlag,
 	L1EthRPCFlag,
 	L2EthRPCFlag,
-	L2GenesisBlockHashFlag,
 	DBHostFlag,
 	DBPortFlag,
 	DBUserFlag,
@@ -198,8 +185,7 @@ var optionalFlags = []cli.Flag{
 	SentryTraceRateFlag,
 	ConfDepthFlag,
 	MaxHeaderBatchSizeFlag,
-	StartBlockNumberFlag,
-	StartBlockHashFlag,
+	L1StartBlockNumberFlag,
 	RESTHostnameFlag,
 	RESTPortFlag,
 	MetricsServerEnableFlag,

@@ -36,9 +36,6 @@ type Config struct {
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
-	// L2GenesisBlockHash is the l2 genesis block hash.
-	L2GenesisBlockHash string
-
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
@@ -79,11 +76,8 @@ type Config struct {
 	// events.
 	SentryTraceRate time.Duration
 
-	// StartBlockNumber is the block number to start indexing from.
-	StartBlockNumber uint64
-
-	// StartBlockHash is the block hash to start indexing from.
-	StartBlockHash string
+	// L1StartBlockNumber is the block number to start indexing L1 from.
+	L1StartBlockNumber uint64
 
 	// ConfDepth is the number of confirmations after which headers are
 	// considered confirmed.
@@ -118,17 +112,16 @@ type Config struct {
 func NewConfig(ctx *cli.Context) (Config, error) {
 	cfg := Config{
 		/* Required Flags */
-		BuildEnv:           ctx.GlobalString(flags.BuildEnvFlag.Name),
-		EthNetworkName:     ctx.GlobalString(flags.EthNetworkNameFlag.Name),
-		ChainID:            ctx.GlobalInt64(flags.ChainIDFlag.Name),
-		L1EthRpc:           ctx.GlobalString(flags.L1EthRPCFlag.Name),
-		L2EthRpc:           ctx.GlobalString(flags.L2EthRPCFlag.Name),
-		L2GenesisBlockHash: ctx.GlobalString(flags.L2GenesisBlockHashFlag.Name),
-		DBHost:             ctx.GlobalString(flags.DBHostFlag.Name),
-		DBPort:             ctx.GlobalUint64(flags.DBPortFlag.Name),
-		DBUser:             ctx.GlobalString(flags.DBUserFlag.Name),
-		DBPassword:         ctx.GlobalString(flags.DBPasswordFlag.Name),
-		DBName:             ctx.GlobalString(flags.DBNameFlag.Name),
+		BuildEnv:       ctx.GlobalString(flags.BuildEnvFlag.Name),
+		EthNetworkName: ctx.GlobalString(flags.EthNetworkNameFlag.Name),
+		ChainID:        ctx.GlobalInt64(flags.ChainIDFlag.Name),
+		L1EthRpc:       ctx.GlobalString(flags.L1EthRPCFlag.Name),
+		L2EthRpc:       ctx.GlobalString(flags.L2EthRPCFlag.Name),
+		DBHost:         ctx.GlobalString(flags.DBHostFlag.Name),
+		DBPort:         ctx.GlobalUint64(flags.DBPortFlag.Name),
+		DBUser:         ctx.GlobalString(flags.DBUserFlag.Name),
+		DBPassword:     ctx.GlobalString(flags.DBPasswordFlag.Name),
+		DBName:         ctx.GlobalString(flags.DBNameFlag.Name),
 		/* Optional Flags */
 		DisableIndexer:      ctx.GlobalBool(flags.DisableIndexer.Name),
 		LogLevel:            ctx.GlobalString(flags.LogLevelFlag.Name),
@@ -136,8 +129,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		SentryEnable:        ctx.GlobalBool(flags.SentryEnableFlag.Name),
 		SentryDsn:           ctx.GlobalString(flags.SentryDsnFlag.Name),
 		SentryTraceRate:     ctx.GlobalDuration(flags.SentryTraceRateFlag.Name),
-		StartBlockNumber:    ctx.GlobalUint64(flags.StartBlockNumberFlag.Name),
-		StartBlockHash:      ctx.GlobalString(flags.StartBlockHashFlag.Name),
+		L1StartBlockNumber:  ctx.GlobalUint64(flags.L1StartBlockNumberFlag.Name),
 		ConfDepth:           ctx.GlobalUint64(flags.ConfDepthFlag.Name),
 		MaxHeaderBatchSize:  ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MetricsServerEnable: ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),

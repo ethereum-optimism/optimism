@@ -168,8 +168,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		DB:                 db,
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
-		StartBlockNumber:   cfg.StartBlockNumber,
-		StartBlockHash:     cfg.StartBlockHash,
+		StartBlockNumber:   cfg.L1StartBlockNumber,
 	})
 	if err != nil {
 		return nil, err
@@ -184,7 +183,6 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   uint64(0),
-		StartBlockHash:     cfg.L2GenesisBlockHash,
 	})
 	if err != nil {
 		return nil, err
