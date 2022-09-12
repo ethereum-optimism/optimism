@@ -134,10 +134,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
 		"otherMessenger":   proxyL1CrossDomainMessenger,
-		"blockedSystemAddresses": map[any]any{
-			predeploys.L2CrossDomainMessenger: true,
-			predeploys.L2ToL1MessagePasser:    true,
-		},
 	}
 	storage["GasPriceOracle"] = state.StorageValues{
 		"_owner":   config.GasPriceOracleOwner,
