@@ -16,6 +16,15 @@ const main = async () => {
   const artifactPaths = glob
     .sync(`${contractArtifactsFolder}/**/*.json`)
     .filter((match) => {
+      return [
+        'artifacts/contracts/chugsplash',
+        'artifacts/contracts/L1',
+        'artifacts/contracts/L2',
+        'artifacts/contracts/libraries',
+        'artifacts/contracts/standards',
+      ].some((folder) => match.includes(folder))
+    })
+    .filter((match) => {
       // Filter out the debug outputs.
       return !match.endsWith('.dbg.json')
     })
