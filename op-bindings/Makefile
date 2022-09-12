@@ -2,7 +2,7 @@ SHELL := /bin/bash
 
 pkg := bindings
 
-all: mkdir bindings more
+all: version mkdir bindings more
 
 bindings: l1block-bindings \
 	l1-cross-domain-messenger-bindings \
@@ -23,8 +23,12 @@ bindings: l1block-bindings \
 	weth9-bindings \
 	deployer-whitelist-bindings
 
+version:
+	forge --version
+
 compile:
 	cd ../packages/contracts-bedrock/ && \
+		yarn clean && \
 		npx hardhat compile
 
 l1-cross-domain-messenger-bindings: compile
