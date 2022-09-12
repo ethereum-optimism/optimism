@@ -311,6 +311,9 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-chain-ops
+      - run:
+          name: Upload coverage reports to CodeCov
+          command: ./codecov
       - store_test_results:
           path: /test-results
       - run:
