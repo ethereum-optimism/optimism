@@ -1,5 +1,13 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.1.8
+
+### Patch Changes
+
+- Updated dependencies [dbfea116]
+  - @eth-optimism/core-utils@0.10.0
+  - @eth-optimism/common-ts@0.6.4
+
 ## 1.1.7
 
 ### Patch Changes
