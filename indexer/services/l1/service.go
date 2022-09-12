@@ -113,7 +113,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, fmt.Errorf("chain ID configured with %d but got %d", cfg.ChainID, chainID)
 	}
 
-	var bridges map[string]bridge.Bridge
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, ctx)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -278,7 +282,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 
 		receives++
-		if receives == len(s.bridges) {
+		if receives == 2*len(s.bridges) {
 			break
 		}
 	}

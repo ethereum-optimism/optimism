@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS withdrawals (
 	log_index INTEGER NOT NULL,
 	l1_block_hash VARCHAR REFERENCES l1_blocks(hash),
 	l2_block_hash VARCHAR NOT NULL REFERENCES l2_blocks(hash),
-	tx_hash VARCHAR NOT NULL,
+	tx_hash VARCHAR NOT NULL
 )
 `
 
