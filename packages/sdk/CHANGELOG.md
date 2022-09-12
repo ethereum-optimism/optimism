@@ -1,5 +1,19 @@
 # @eth-optimism/sdk
 
+## 1.6.1
+
+### Patch Changes
+
+- b27d0fa7: Add wsteth support for DAI bridge to sdk
+- Updated dependencies [7fdc490c]
+- Updated dependencies [3d228a0e]
+- Updated dependencies [dbfea116]
+- Updated dependencies [63ef1949]
+- Updated dependencies [299157e7]
+  - @eth-optimism/contracts-bedrock@0.6.0
+  - @eth-optimism/core-utils@0.10.0
+  - @eth-optimism/contracts@0.5.34
+
 ## 1.6.0
 
 ### Minor Changes
