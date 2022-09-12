@@ -1,5 +1,12 @@
 # @eth-optimism/common-ts
 
+## 0.6.4
+
+### Patch Changes
+
+- Updated dependencies [dbfea116]
+  - @eth-optimism/core-utils@0.10.0
+
 ## 0.6.3
 
 ### Patch Changes
