@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 0.2.3
+
+### Patch Changes
+
+- f4bf4f52: Fixes import paths in the contracts-periphery package
+
 ## 0.2.2
 
 ### Patch Changes

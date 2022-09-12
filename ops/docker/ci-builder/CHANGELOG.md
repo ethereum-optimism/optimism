@@ -1,5 +1,12 @@
 # @eth-optimism/ci-builder
 
+## 0.2.4
+
+### Patch Changes
+
+- c6fab69f: Update foundry to fix a bug in coverage generation
+- f7323e0b: Upgrade foundry to support consistent storage layouts
+
 ## 0.2.3
 
 ### Patch Changes
