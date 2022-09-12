@@ -5,14 +5,25 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/vm"
+)
+
+var (
+	errInvalidType   = errors.New("invalid type")
+	errUnimplemented = errors.New("type unimplemented")
 )
 
 // StorageValues represents the values to be set in storage.
 // The key is the name of the storage variable and the value
 // is the value to set in storage.
 type StorageValues map[string]any
+
+// StorageConfig represents the storage configuration for the L2 predeploy
+// contracts.
+type StorageConfig map[string]StorageValues
 
 // EncodedStorage represents the storage key and value serialized
 // to be placed in Ethereum state.
@@ -34,8 +45,22 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 	return encoded, nil
 }
 
-var errInvalidType = errors.New("invalid type")
-var errUnimplemented = errors.New("type unimplemented")
+// SetStorage will set the storage values in a db given a contract name,
+// address and the storage values
+func SetStorage(name string, address common.Address, values StorageValues, db vm.StateDB) error {
+	layout, err := bindings.GetStorageLayout(name)
+	if err != nil {
+		return err
+	}
+	slots, err := ComputeStorageSlots(layout, values)
+	if err != nil {
+		return fmt.Errorf("%s: %w", name, err)
+	}
+	for _, slot := range slots {
+		db.SetState(address, slot.Key, slot.Value)
+	}
+	return nil
+}
 
 // ComputeStorageSlots will compute the storage slots for a given contract.
 func ComputeStorageSlots(layout *solc.StorageLayout, values StorageValues) ([]*EncodedStorage, error) {
