@@ -28,8 +28,11 @@ type implConfig struct {
 	addr string
 }
 
-var defaultBridgeCfgs = []*implConfig{
-	{"Standard", "StandardBridge", L2StandardBridgeAddr},
+var defaultBridgeCfgs = map[uint64][]*implConfig{
+	// Devnet
+	901: {
+		{"Standard", "StandardBridge", L2StandardBridgeAddr},
+	},
 }
 
 var customBridgeCfgs = map[uint64][]*implConfig{
@@ -48,7 +51,7 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 
 func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx context.Context) (map[string]Bridge, error) {
 	allCfgs := make([]*implConfig, 0)
-	allCfgs = append(allCfgs, defaultBridgeCfgs...)
+	allCfgs = append(allCfgs, defaultBridgeCfgs[chainID.Uint64()]...)
 	allCfgs = append(allCfgs, customBridgeCfgs[chainID.Uint64()]...)
 
 	bridges := make(map[string]Bridge)
