@@ -32,7 +32,7 @@ var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d
 
 func TestBuildL2DeveloperGenesis(t *testing.T) {
 	hh, err := hardhat.New(
-		"goerli",
+		"alpha-1",
 		nil,
 		[]string{"../../packages/contracts-bedrock/deployments"},
 	)
