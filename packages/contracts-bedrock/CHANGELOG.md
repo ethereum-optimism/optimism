@@ -1,5 +1,18 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.6.0
+
+### Minor Changes
+
+- 7fdc490c: Removes initializer from StandardBridge in favor of immutables
+- 3d228a0e: Updates the storage layout for the CrossDomainMessenger base contract to reduce diff with the existing system.
+
+### Patch Changes
+
+- 63ef1949: Delete hardhat genesis tasks
+- Updated dependencies [dbfea116]
+  - @eth-optimism/core-utils@0.10.0
+
 ## 0.5.4
 
 ### Patch Changes

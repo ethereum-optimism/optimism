@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.34
+
+### Patch Changes
+
+- 299157e7: Significantly reduces contracts package bundle size
+- Updated dependencies [dbfea116]
+  - @eth-optimism/core-utils@0.10.0
+
 ## 0.5.33
 
 ### Patch Changes

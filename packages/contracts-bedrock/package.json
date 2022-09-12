@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.5.4",
+  "version": "0.6.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -37,7 +37,7 @@
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.9.3",
+    "@eth-optimism/core-utils": "^0.10.0",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
     "ethers": "^5.6.8",
