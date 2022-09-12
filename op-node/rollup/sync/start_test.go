@@ -221,6 +221,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL1:      'a',
 			GenesisL2:      'A',
 			UnsafeL2Head:   0,
+			SeqWindowSize:  2,
 			ExpectedErr:    WrongChainErr,
 		},
 		{
@@ -234,6 +235,7 @@ func TestFindSyncStart(t *testing.T) {
 			GenesisL1:      'a',
 			GenesisL2:      'X',
 			UnsafeL2Head:   0,
+			SeqWindowSize:  2,
 			ExpectedErr:    WrongChainErr,
 		},
 		{

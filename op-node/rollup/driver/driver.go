@@ -55,6 +55,7 @@ type DerivationPipeline interface {
 	Step(ctx context.Context) error
 	SetUnsafeHead(head eth.L2BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	Finalize(ref eth.BlockID)
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
