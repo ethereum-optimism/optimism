@@ -450,7 +450,7 @@ func (d *Database) GetWithdrawalStatus(hash common.Hash) (*WithdrawalJSON, error
 
 // GetWithdrawalsByAddress returns the list of Withdrawals indexed for the given
 // address paginated by the given params.
-func (d *Database) GetWithdrawalsByAddress(address common.Address, page PaginationParam) (*PaginatedWithdrawals, error) {
+func (d *Database) GetWithdrawalsByAddress(address common.Address, page PaginationParam, finalized bool) (*PaginatedWithdrawals, error) {
 	const selectWithdrawalsStatement = `
 	SELECT
 	    withdrawals.guid, withdrawals.from_address, withdrawals.to_address,
@@ -461,12 +461,17 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 	FROM withdrawals
 		INNER JOIN l2_blocks ON withdrawals.l2_block_hash=l2_blocks.hash
 		INNER JOIN l2_tokens ON withdrawals.l2_token=l2_tokens.address
-	WHERE withdrawals.from_address = $1 ORDER BY l2_blocks.timestamp LIMIT $2 OFFSET $3;
+	WHERE withdrawals.from_address = $1 AND withdrawals.l1_block_hash IS $2 ORDER BY l2_blocks.timestamp LIMIT $3 OFFSET $4;
 	`
 	var withdrawals []WithdrawalJSON
 
+	nullStr := "NULL"
+	if finalized {
+		nullStr = "NOT NULL"
+	}
+
 	err := txn(d.db, func(tx *sql.Tx) error {
-		rows, err := tx.Query(selectWithdrawalsStatement, address.String(), page.Limit, page.Offset)
+		rows, err := tx.Query(selectWithdrawalsStatement, address.String(), nullStr, page.Limit, page.Offset)
 		if err != nil {
 			return err
 		}

@@ -390,12 +390,19 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	finalizedStr := r.URL.Query().Get("finalized")
+	finalized, err := strconv.ParseBool(finalizedStr)
+	if err != nil && finalizedStr != "" {
+		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	page := db.PaginationParam{
 		Limit:  uint64(limit),
 		Offset: uint64(offset),
 	}
 
-	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page)
+	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page, finalized)
 	if err != nil {
 		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
