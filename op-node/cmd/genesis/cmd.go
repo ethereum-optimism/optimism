@@ -8,19 +8,17 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/urfave/cli"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
-	"github.com/urfave/cli"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
 var Subcommands = cli.Commands{
@@ -182,7 +180,7 @@ func makeRollupConfig(
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
 				Hash:   l1StartBlock.Hash(),
-				Number: 0,
+				Number: l1StartBlock.NumberU64(),
 			},
 			L2: eth.BlockID{
 				Hash:   l2Genesis.ToBlock().Hash(),

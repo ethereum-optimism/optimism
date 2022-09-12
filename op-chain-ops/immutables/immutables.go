@@ -12,15 +12,22 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
+// ImmutableValues represents the values to be set in immutable code.
+// The key is the name of the variable and the value is the value to set in
+// immutable code.
+type ImmutableValues map[string]any
+
+// ImmutableConfig represents the immutable configuration for the L2 predeploy
+// contracts.
+type ImmutableConfig map[string]ImmutableValues
+
 // DeploymentResults represents the output of deploying each of the
 // contracts so that the immutables can be set properly in the bytecode.
 type DeploymentResults map[string]hexutil.Bytes
 
-// TODO(tynes): once there are deploy time config params,
-// pass in a config struct to this function that comes from
-// a JSON file/cli flags and then populate the Deployment
-// Args.
-func BuildOptimism() (DeploymentResults, error) {
+// BuildOptimism will deploy the L2 predeploys so that their immutables are set
+// correctly.
+func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 	deployments := []deployer.Constructor{
 		{
 			Name: "GasPriceOracle",
@@ -33,6 +40,9 @@ func BuildOptimism() (DeploymentResults, error) {
 		},
 		{
 			Name: "L2StandardBridge",
+			Args: []interface{}{
+				immutable["L2StandardBridge"]["otherBridge"],
+			},
 		},
 		{
 			Name: "L2ToL1MessagePasser",
@@ -42,6 +52,12 @@ func BuildOptimism() (DeploymentResults, error) {
 		},
 		{
 			Name: "OptimismMintableERC20Factory",
+		},
+		{
+			Name: "DeployerWhitelist",
+		},
+		{
+			Name: "L1BlockNumber",
 		},
 	}
 	return BuildL2(deployments)
@@ -80,8 +96,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		l1CrossDomainMessenger := common.Address{}
 		addr, _, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend, l1CrossDomainMessenger)
 	case "L2StandardBridge":
-		// The OtherBridge value is not immutable, no need to set
-		otherBridge := common.Address{}
+		otherBridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return common.Address{}, fmt.Errorf("invalid type for otherBridge")
+		}
 		addr, _, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
@@ -91,6 +109,10 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		addr, _, _, err = bindings.DeploySequencerFeeVault(opts, backend)
 	case "OptimismMintableERC20Factory":
 		addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
+	case "DeployerWhitelist":
+		addr, _, _, err = bindings.DeployDeployerWhitelist(opts, backend)
+	case "L1BlockNumber":
+		addr, _, _, err = bindings.DeployL1BlockNumber(opts, backend)
 	default:
 		return addr, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

@@ -5,10 +5,10 @@ import (
 	"encoding/binary"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/google/go-cmp/cmp"
 )
 
 // FuzzExecutionPayloadUnmarshal checks that our SSZ decoding never panics

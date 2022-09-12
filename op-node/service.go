@@ -8,18 +8,16 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/urfave/cli"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -81,6 +79,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		P2P:                 p2pConfig,
 		P2PSigner:           p2pSignerSetup,
 		L1EpochPollInterval: ctx.GlobalDuration(flags.L1EpochPollIntervalFlag.Name),
+		Heartbeat: node.HeartbeatConfig{
+			Enabled: ctx.GlobalBool(flags.HeartbeatEnabledFlag.Name),
+			Moniker: ctx.GlobalString(flags.HeartbeatMonikerFlag.Name),
+			URL:     ctx.GlobalString(flags.HeartbeatURLFlag.Name),
+		},
 	}
 	if err := cfg.Check(); err != nil {
 		return nil, err

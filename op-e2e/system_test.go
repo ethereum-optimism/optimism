@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -168,7 +168,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
-	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(rollupRPCClient)
 
 	//  OutputOracle is already deployed
 	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
@@ -330,7 +330,7 @@ func TestSystemE2E(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
-	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(rollupRPCClient)
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.Nil(t, err)
@@ -386,6 +386,34 @@ func TestConfirmationDepth(t *testing.T) {
 	require.LessOrEqual(t, info.Number+seqConfDepth, l1Head.NumberU64(), "the L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
 
 	require.LessOrEqual(t, l2VerHead.Time()+cfg.L1BlockTime*verConfDepth, l2SeqHead.Time(), "the L2 verifier head should lag behind the sequencer without delay by at least the verifier conf depth")
+}
+
+// TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
+func TestFinalize(t *testing.T) {
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := defaultSystemConfig(t)
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+
+	// as configured in the extra geth lifecycle in testing setup
+	finalizedDistance := uint64(8)
+	// Wait enough time for L1 to finalize and L2 to confirm its data in finalized L1 blocks
+	<-time.After(time.Duration((finalizedDistance+4)*cfg.L1BlockTime) * time.Second)
+
+	// fetch the finalizes head of geth
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	l2Finalized, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
+	require.NoError(t, err)
+
+	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
 }
 
 func TestMintOnRevertedDeposit(t *testing.T) {
