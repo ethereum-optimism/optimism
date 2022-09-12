@@ -167,23 +167,18 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 //
 
 func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
-	outer := ib.prev.Progress()
-	if changed, err := ib.progress.Update(outer); err != nil || changed {
-		if changed && !outer.Closed {
-			ib.prevDone = false
-		}
-		return err
-	}
-
 	// Try to ingest data from the previous stage
 	if !ib.prevDone {
 		if data, err := ib.prev.NextData(ctx); err != nil {
 			ib.IngestData(data)
 		} else if err == io.EOF {
 			ib.prevDone = true
+			ib.progress.Update(ib.prev.progress)
 		} else {
 			return err
 		}
+	} else if !ib.prev.progress.Closed {
+		ib.progress.Update(ib.prev.progress)
 	}
 
 	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.

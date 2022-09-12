@@ -28,11 +28,10 @@ type StageProgress interface {
 }
 
 type PullStage interface {
-	Progress() Progress
-
-	// Reset resets a pull stage. The 'inner' refers to the stage that is closer to L2
-	// as the pull stage only retains a reference to the stage closer to L1.
-	Reset(ctx context.Context, inner Progress) error
+	// Reset resets a pull stage. The base is the L1 Block ref that the closer
+	// to L2 stage used as the reset. It returns the new base that this stage uses.
+	// Reset should only need to be called once & should return nil upon success.
+	Reset(ctx context.Context, base eth.L1BlockRef) (eth.L1BlockRef, error)
 }
 
 type Stage interface {
@@ -72,11 +71,13 @@ type DerivationPipeline struct {
 	log       log.Logger
 	cfg       *rollup.Config
 	l1Fetcher L1Fetcher
+	traversal *L1Traversal
 
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
-	resetting    int
-	pullResetIdx int
+	resetting     int
+	pullResetIdx  int
+	prevPullInner eth.L1BlockRef
 
 	// Index of the stage that is currently being processed.
 	active int
@@ -113,6 +114,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 
 	return &DerivationPipeline{
 		log:        log,
+		traversal:  l1Traversal,
 		cfg:        cfg,
 		l1Fetcher:  l1Fetcher,
 		resetting:  0,
@@ -184,17 +186,17 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	if dp.pullResetIdx < len(dp.pullStages) {
 		// Select the progress for the reset either from one stage to the inner.
 		// Reach out to dp.stages if we are the first pull stage
-		var inner Progress
+		var base eth.L1BlockRef
 		if dp.pullResetIdx == 0 {
-			fmt.Println("using progress from end of normal stages")
-			inner = dp.stages[len(dp.stages)-1].Progress()
+			base = dp.stages[len(dp.stages)-1].Progress().Origin
 		} else {
-			inner = dp.pullStages[dp.pullResetIdx-1].Progress()
+			base = dp.prevPullInner
 		}
 		// Do the reset
-		if err := dp.pullStages[dp.pullResetIdx].Reset(ctx, inner); err == io.EOF {
-			dp.log.Debug("reset of stage completed", "stage", dp.pullResetIdx, "origin", dp.pullStages[dp.pullResetIdx].Progress().Origin)
+		if newBase, err := dp.pullStages[dp.pullResetIdx].Reset(ctx, base); err == io.EOF {
+			dp.log.Debug("reset of stage completed", "stage", dp.pullResetIdx, "origin", newBase)
 			dp.pullResetIdx += 1
+			dp.prevPullInner = base
 			return nil
 		} else if err != nil {
 			return fmt.Errorf("stage %d failed resetting: %w", dp.pullResetIdx, err)
@@ -203,13 +205,14 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 		}
 	}
 
-	// Lastly advance the stages
+	// Advance the stages
 	for i, stage := range dp.stages {
 		var outer Progress
 		if i+1 < len(dp.stages) {
 			outer = dp.stages[i+1].Progress()
 		}
 		if err := stage.Step(ctx, outer); err == io.EOF {
+			fmt.Println("finished stage", i)
 			continue
 		} else if err != nil {
 			return fmt.Errorf("stage %d failed: %w", i, err)
@@ -217,5 +220,6 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 			return nil
 		}
 	}
-	return io.EOF
+	// Lastly when all stages cannot make any more progress, advance the L1 Traversal.
+	return dp.traversal.Advance(ctx)
 }
