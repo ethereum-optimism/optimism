@@ -100,6 +100,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contracts: OptimismContracts
     l1RpcProvider: BaseProvider
     startingL1BlockNumber: number
+    addressCache: {
+      [name: string]: string
+    }
   } = {} as any
 
   protected async _init(): Promise<void> {
@@ -195,6 +198,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     if (totalElements > 0) {
       await this.state.db.putHighestL2BlockNumber(totalElements - 1)
     }
+
+    // Initialize the address cache.
+    this.state.addressCache = {}
   }
 
   protected async _start(): Promise<void> {
@@ -370,24 +376,37 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       toBlock: number
     }[] = []
 
-    // Add a range for each address change.
     let l1BlockRangeStart = fromL1Block
-    for (const addressSetEvent of addressSetEvents) {
+
+    // Addresses on mainnet do NOT change. We can therefore skip costly checks related to cases
+    // where addresses do change (mainly on testnets).
+    if (this.options.l2ChainId === 10) {
       eventRanges.push({
-        address: addressSetEvent.args._oldAddress,
+        address: await this._getFixedAddress(contractName),
         fromBlock: l1BlockRangeStart,
-        toBlock: addressSetEvent.blockNumber,
+        toBlock: toL1Block,
       })
+    } else {
+      // Addresses can change on non-mainnet deployments. If an address changes, we will
+      // potentially need to sync events from both the old address and the new address. We will
+      // add an entry here for each address change.
+      for (const addressSetEvent of addressSetEvents) {
+        eventRanges.push({
+          address: addressSetEvent.args._oldAddress,
+          fromBlock: l1BlockRangeStart,
+          toBlock: addressSetEvent.blockNumber,
+        })
 
-      l1BlockRangeStart = addressSetEvent.blockNumber
+        l1BlockRangeStart = addressSetEvent.blockNumber
+      }
+
+      // Add one more range to get us to the end of the user-provided block range.
+      eventRanges.push({
+        address: await this._getContractAddressAtBlock(contractName, toL1Block),
+        fromBlock: l1BlockRangeStart,
+        toBlock: toL1Block,
+      })
     }
-
-    // Add one more range to get us to the end of the user-provided block range.
-    eventRanges.push({
-      address: await this._getContractAddressAtBlock(contractName, toL1Block),
-      fromBlock: l1BlockRangeStart,
-      toBlock: toL1Block,
-    })
 
     for (const eventRange of eventRanges) {
       // Find all relevant events within the range.
@@ -450,6 +469,23 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       // Address wasn't set before this.
       return constants.AddressZero
     }
+  }
+
+  /**
+   * Returns an address for a contract name whose address isn't expected to change.
+   *
+   * @param contractName Name of the contract to get an address for.
+   * @return Contract address.
+   */
+  private async _getFixedAddress(contractName: string): Promise<string> {
+    if (this.state.addressCache[contractName]) {
+      return this.state.addressCache[contractName]
+    }
+
+    const address =
+      this.state.contracts.Lib_AddressManager.getAddress(contractName)
+    this.state.addressCache[contractName] = address
+    return address
   }
 
   private async _findStartingL1BlockNumber(): Promise<number> {
