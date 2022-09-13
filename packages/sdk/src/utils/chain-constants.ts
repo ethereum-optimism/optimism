@@ -191,4 +191,11 @@ export const BRIDGE_ADAPTER_DATA: {
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
   },
+  [L2ChainID.OPTIMISM_GOERLI]: {
+    DAI: {
+      Adapter: DAIBridgeAdapter,
+      l1Bridge: '0x05a388Db09C2D44ec0b00Ee188cD42365c42Df23' as const,
+      l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
+    },
+  },
 }
