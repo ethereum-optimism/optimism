@@ -156,6 +156,8 @@ func getElementEncoder(storageType solc.StorageLayoutType, kind string) (Element
 		return EncodeAddressValue, nil
 	case "t_bool":
 		return EncodeBoolValue, nil
+	case "t_bytes32":
+		return EncodeBytes32Value, nil
 	default:
 		if strings.HasPrefix(target, "t_uint") {
 			return EncodeUintValue, nil
