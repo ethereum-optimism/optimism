@@ -245,7 +245,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             address(new L2CrossDomainMessenger(address(L1Messenger))).code
         );
 
-        L2Messenger.initialize(address(L1Messenger));
+        L2Messenger.initialize();
 
         // Label addresses
         vm.label(address(addressManager), "AddressManager");
