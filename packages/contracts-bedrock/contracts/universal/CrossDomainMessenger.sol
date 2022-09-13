@@ -251,7 +251,17 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = Hashing.hashCrossDomainMessage(
+        (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
+
+        // Block any messages that aren't version 1. All version 0 messages have been guaranteed to
+        // be relayed OR have been migrated to version 1 messages. Version 0 messages do not commit
+        // to the value or minGasLimit fields, which can create unexpected issues for end-users.
+        require(
+            version == 1,
+            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+        );
+
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
             _nonce,
             _sender,
             _target,
