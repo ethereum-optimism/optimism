@@ -8,11 +8,12 @@ import (
 	"io"
 	"math/big"
 
+	"github.com/urfave/cli"
+
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/urfave/cli"
 )
 
 var SigningDomainBlocksV1 = [32]byte{}
@@ -88,7 +89,7 @@ func LoadSignerSetup(ctx *cli.Context) (SignerSetup, error) {
 		// TODO: load from encrypted keystore
 		priv, err := crypto.LoadECDSA(keyFile)
 		if err != nil {
-			return nil, fmt.Errorf("failed to read batch submitter key: %v", err)
+			return nil, fmt.Errorf("failed to read batch submitter key: %w", err)
 		}
 
 		return &PreparedSigner{Signer: NewLocalSigner(priv)}, nil

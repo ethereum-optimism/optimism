@@ -2,13 +2,15 @@ package flags
 
 import (
 	"github.com/urfave/cli"
+
+	opservice "github.com/ethereum-optimism/optimism/op-service"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-const envVarPrefix = "OUTPUT_SUBMITTER_"
-
-func prefixEnvVar(name string) string {
-	return envVarPrefix + name
-}
+const envVarPrefix = "OP_PROPOSER"
 
 var (
 	/* Required Flags */
@@ -17,39 +19,39 @@ var (
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
 		Required: true,
-		EnvVar:   "L1_ETH_RPC",
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
 	L2EthRpcFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2",
 		Required: true,
-		EnvVar:   "L2_ETH_RPC",
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L2_ETH_RPC"),
 	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:     "rollup-rpc",
 		Usage:    "HTTP provider URL for the rollup node",
 		Required: true,
-		EnvVar:   "ROLLUP_RPC",
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
 	L2OOAddressFlag = cli.StringFlag{
 		Name:     "l2oo-address",
 		Usage:    "Address of the L2OutputOracle contract",
 		Required: true,
-		EnvVar:   "L2OO_ADDRESS",
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L2OO_ADDRESS"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
 		Usage: "Delay between querying L2 for more transactions and " +
 			"creating a new batch",
 		Required: true,
-		EnvVar:   prefixEnvVar("POLL_INTERVAL"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
 	NumConfirmationsFlag = cli.Uint64Flag{
 		Name: "num-confirmations",
 		Usage: "Number of confirmations which we will wait after " +
 			"appending a new batch",
 		Required: true,
-		EnvVar:   prefixEnvVar("NUM_CONFIRMATIONS"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "NUM_CONFIRMATIONS"),
 	}
 	SafeAbortNonceTooLowCountFlag = cli.Uint64Flag{
 		Name: "safe-abort-nonce-too-low-count",
@@ -57,43 +59,31 @@ var (
 			"give up on a tx at a particular nonce without receiving " +
 			"confirmation",
 		Required: true,
-		EnvVar:   prefixEnvVar("SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SAFE_ABORT_NONCE_TOO_LOW_COUNT"),
 	}
 	ResubmissionTimeoutFlag = cli.DurationFlag{
 		Name: "resubmission-timeout",
 		Usage: "Duration we will wait before resubmitting a " +
 			"transaction to L1",
 		Required: true,
-		EnvVar:   prefixEnvVar("RESUBMISSION_TIMEOUT"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
 	MnemonicFlag = cli.StringFlag{
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
 			"sequencer or the l2output",
-		Required: true,
-		EnvVar:   prefixEnvVar("MNEMONIC"),
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MNEMONIC"),
 	}
 	L2OutputHDPathFlag = cli.StringFlag{
 		Name: "l2-output-hd-path",
 		Usage: "The HD path used to derive the l2output wallet from the " +
 			"mnemonic. The mnemonic flag must also be set.",
-		Required: true,
-		EnvVar:   prefixEnvVar("L2_OUTPUT_HD_PATH"),
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "L2_OUTPUT_HD_PATH"),
 	}
-
-	/* Optional Flags */
-
-	LogLevelFlag = cli.StringFlag{
-		Name:   "log-level",
-		Usage:  "The lowest log level that will be output",
-		Value:  "info",
-		EnvVar: prefixEnvVar("LOG_LEVEL"),
-	}
-	LogTerminalFlag = cli.BoolFlag{
-		Name: "log-terminal",
-		Usage: "If true, outputs logs in terminal format, otherwise prints " +
-			"in JSON format.",
-		EnvVar: prefixEnvVar("LOG_TERMINAL"),
+	PrivateKeyFlag = cli.StringFlag{
+		Name:   "private-key",
+		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "PRIVATE_KEY"),
 	}
 )
 
@@ -106,14 +96,23 @@ var requiredFlags = []cli.Flag{
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
-	MnemonicFlag,
-	L2OutputHDPathFlag,
 }
 
 var optionalFlags = []cli.Flag{
-	LogLevelFlag,
-	LogTerminalFlag,
+	MnemonicFlag,
+	L2OutputHDPathFlag,
+	PrivateKeyFlag,
+}
+
+func init() {
+	requiredFlags = append(requiredFlags, oprpc.CLIFlags(envVarPrefix)...)
+
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
+
+	Flags = append(requiredFlags, optionalFlags...)
 }
 
 // Flags contains the list of configuration options available to the binary.
-var Flags = append(requiredFlags, optionalFlags...)
+var Flags []cli.Flag

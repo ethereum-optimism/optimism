@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-node
 
+## 0.2.1
+
+### Patch Changes
+
+- 839f784f: Fixes CI to properly release the hardhat-node
+
 ## 0.2.0
 
 ### Minor Changes

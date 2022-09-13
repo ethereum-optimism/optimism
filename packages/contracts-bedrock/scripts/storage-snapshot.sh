@@ -10,25 +10,25 @@ then
 fi
 
 contracts=(
-  L1CrossDomainMessenger
-  L1StandardBridge
-  L2OutputOracle
-  OptimismPortal
-  DeployerWhitelist
-  GasPriceOracle
-  L1Block
-  L1BlockNumber
-  L2CrossDomainMessenger
-  L2StandardBridge
-  L2ToL1MessagePasser
-  LegacyERC20ETH
-  SequencerFeeVault
-  WETH9
-  ProxyAdmin
-  Proxy
-  L1ChugSplashProxy
-  OptimismMintableERC20
-  OptimismMintableERC20Factory
+  contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger
+  contracts/L1/L1StandardBridge.sol:L1StandardBridge
+  contracts/L1/L2OutputOracle.sol:L2OutputOracle
+  contracts/L1/OptimismPortal.sol:OptimismPortal
+  contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist
+  contracts/L2/GasPriceOracle.sol:GasPriceOracle
+  contracts/L2/L1Block.sol:L1Block
+  contracts/legacy/L1BlockNumber.sol:L1BlockNumber
+  contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger
+  contracts/L2/L2StandardBridge.sol:L2StandardBridge
+  contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser
+  contracts/legacy/LegacyERC20ETH.sol:LegacyERC20ETH
+  contracts/L2/SequencerFeeVault.sol:SequencerFeeVault
+  contracts/vendor/WETH9.sol:WETH9
+  contracts/universal/ProxyAdmin.sol:ProxyAdmin
+  contracts/universal/Proxy.sol:Proxy
+  contracts/legacy/L1ChugSplashProxy.sol:L1ChugSplashProxy
+  contracts/universal/OptimismMintableERC20.sol:OptimismMintableERC20
+  contracts/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory
 )
 
 dir=$(dirname "$0")

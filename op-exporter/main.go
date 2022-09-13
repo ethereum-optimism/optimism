@@ -53,6 +53,14 @@ var (
 		"k8s.enable",
 		"Enable kubernetes info lookup.",
 	).Default("false").Bool()
+	enableRollUpGasPrices = kingpin.Flag(
+		"rollUpGasPrices.enable",
+		"Enable rollUpGasPrices info lookup.",
+	).Default("false").Bool()
+	enableGasBaseFee = kingpin.Flag(
+		"gaseBaseFee.enable",
+		"Enable gaseBaseFee info lookup.",
+	).Default("false").Bool()
 )
 
 type healthCheck struct {
@@ -62,6 +70,11 @@ type healthCheck struct {
 	updateTime     time.Time
 	allowedMethods []string
 	version        *string
+}
+
+type getBlockByNumberResponse struct {
+	BaseFeePerGas string `json:"baseFeePerGas"`
+	GasUsed       string `json:"gasUsed"`
 }
 
 func healthHandler(health *healthCheck) http.HandlerFunc {
@@ -105,8 +118,16 @@ func main() {
 		</body>
 		</html>`))
 	})
-	go getRollupGasPrices()
 	go getBlockNumber(&health)
+
+	if *enableRollUpGasPrices {
+		go getRollupGasPrices()
+	}
+
+	if *enableGasBaseFee {
+		go getBaseFee()
+	}
+
 	if *enableK8sQuery {
 		client, err := k8sClient.Newk8sClient()
 		if err != nil {
@@ -200,6 +221,33 @@ func getBlockNumber(health *healthCheck) {
 			health.mu.Unlock()
 		}
 		time.Sleep(time.Duration(*sequencerPollingSeconds) * time.Second)
+	}
+}
+
+func getBaseFee() {
+	rpcClient := jsonrpc.NewClientWithOpts(*rpcProvider, &jsonrpc.RPCClientOpts{})
+	var getBlockByNumbeResponse *getBlockByNumberResponse
+	for {
+		if err := rpcClient.CallFor(&getBlockByNumbeResponse, "eth_getBlockByNumber", "latest", false); err != nil {
+			log.Errorln("Error calling eth_getBlockByNumber", err)
+		} else {
+			log.Infoln("Got baseFee response: ", *getBlockByNumbeResponse)
+			baseFeePerGas, err := hexutil.DecodeUint64(getBlockByNumbeResponse.BaseFeePerGas)
+			if err != nil {
+				log.Warnln("Error converting baseFeePerGas " + getBlockByNumbeResponse.BaseFeePerGas)
+			}
+			gasBaseFeeMetric.WithLabelValues(
+				*networkLabel, "layer2").Set(float64(baseFeePerGas))
+
+			gasUsed, err := hexutil.DecodeUint64(getBlockByNumbeResponse.GasUsed)
+			if err != nil {
+				log.Warnln("Error converting gasUsed " + getBlockByNumbeResponse.GasUsed)
+			}
+			gasUsedMetric.WithLabelValues(
+				*networkLabel, "layer2").Set(float64(gasUsed))
+		}
+		time.Sleep(time.Duration(*sequencerPollingSeconds) * time.Second)
+
 	}
 }
 

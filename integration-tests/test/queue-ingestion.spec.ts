@@ -2,6 +2,7 @@
 import { providers } from 'ethers'
 import { applyL1ToL2Alias } from '@eth-optimism/core-utils'
 import { asL2Provider } from '@eth-optimism/sdk'
+import { getContractInterface } from '@eth-optimism/contracts'
 
 /* Imports: External */
 import { expect } from './shared/setup'
@@ -47,11 +48,9 @@ describe('Queue Ingestion', () => {
         receipt.remoteTx.hash
       )) as any
 
-      const params =
-        env.messenger.contracts.l2.L2CrossDomainMessenger.interface.decodeFunctionData(
-          'relayMessage',
-          l2Tx.data
-        )
+      const params = getContractInterface(
+        'L2CrossDomainMessenger'
+      ).decodeFunctionData('relayMessage', l2Tx.data)
 
       expect(params._sender.toLowerCase()).to.equal(
         env.l1Wallet.address.toLowerCase()

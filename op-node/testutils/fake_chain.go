@@ -3,15 +3,14 @@ package testutils
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
-
-	"github.com/ethereum/go-ethereum"
-
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 func FakeGenesis(l1 rune, l2 rune, l1GenesisNumber int) rollup.Genesis {
@@ -84,13 +83,17 @@ func NewFakeChainSource(l1 []string, l2 []string, l1GenesisNumber int, log log.L
 // what the head block is of the L1 and L2 chains. In addition, it enables re-orgs
 // to easily be implemented
 type FakeChainSource struct {
-	l1reorg int                // Index of the L1 chain to be operating on
-	l2reorg int                // Index of the L2 chain to be operating on
-	l1head  int                // Head block of the L1 chain
-	l2head  int                // Head block of the L2 chain
-	l1s     [][]eth.L1BlockRef // l1s[reorg] is the L1 chain in that specific re-org configuration
-	l2s     [][]eth.L2BlockRef // l2s[reorg] is the L2 chain in that specific re-org configuration
-	log     log.Logger
+	l1reorg     int // Index of the L1 chain to be operating on
+	l2reorg     int // Index of the L2 chain to be operating on
+	l1head      int // Head block of the L1 chain
+	l2head      int // Head block of the L2 chain
+	l1safe      int
+	l2safe      int
+	l1finalized int
+	l2finalized int
+	l1s         [][]eth.L1BlockRef // l1s[reorg] is the L1 chain in that specific re-org configuration
+	l2s         [][]eth.L2BlockRef // l2s[reorg] is the L2 chain in that specific re-org configuration
+	log         log.Logger
 }
 
 func (m *FakeChainSource) L1Range(ctx context.Context, base eth.BlockID, max uint64) ([]eth.BlockID, error) {
@@ -132,21 +135,40 @@ func (m *FakeChainSource) L1BlockRefByHash(ctx context.Context, l1Hash common.Ha
 	return eth.L1BlockRef{}, ethereum.NotFound
 }
 
-func (m *FakeChainSource) L1HeadBlockRef(ctx context.Context) (eth.L1BlockRef, error) {
-	m.log.Trace("L1HeadBlockRef", "l1Head", m.l1head, "reorg", m.l1reorg)
+func (m *FakeChainSource) L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error) {
+	m.log.Trace("L1BlockRefByLabel", "l1Head", m.l1head, "l1Safe", m.l1safe, "l1Finalized", m.l1finalized, "reorg", m.l1reorg)
 	l := len(m.l1s[m.l1reorg])
 	if l == 0 {
 		return eth.L1BlockRef{}, ethereum.NotFound
 	}
-	return m.l1s[m.l1reorg][m.l1head], nil
+	switch label {
+	case eth.Unsafe:
+		return m.l1s[m.l1reorg][m.l1head], nil
+	case eth.Safe:
+		return m.l1s[m.l1reorg][m.l1safe], nil
+	case eth.Finalized:
+		return m.l1s[m.l1reorg][m.l1finalized], nil
+	default:
+		return eth.L1BlockRef{}, fmt.Errorf("testutil FakeChainSource does not support L1BlockRefByLabel(%s)", label)
+	}
 }
 
-func (m *FakeChainSource) L2BlockRefHead(ctx context.Context) (eth.L2BlockRef, error) {
-	m.log.Trace("L2BlockRefHead", "l2Head", m.l2head, "reorg", m.l2reorg)
-	if len(m.l2s[m.l2reorg]) == 0 {
-		panic("bad test, no l2 chain")
+func (m *FakeChainSource) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
+	m.log.Trace("L2BlockRefByLabel", "l2Head", m.l2head, "l2Safe", m.l2safe, "l2Finalized", m.l2finalized, "reorg", m.l2reorg)
+	l := len(m.l2s[m.l2reorg])
+	if l == 0 {
+		return eth.L2BlockRef{}, ethereum.NotFound
 	}
-	return m.l2s[m.l2reorg][m.l2head], nil
+	switch label {
+	case eth.Unsafe:
+		return m.l2s[m.l2reorg][m.l2head], nil
+	case eth.Safe:
+		return m.l2s[m.l2reorg][m.l2safe], nil
+	case eth.Finalized:
+		return m.l2s[m.l2reorg][m.l2finalized], nil
+	default:
+		return eth.L2BlockRef{}, fmt.Errorf("testutil FakeChainSource does not support L2BlockRefByLabel(%s)", label)
+	}
 }
 
 func (m *FakeChainSource) L2BlockRefByNumber(ctx context.Context, l2Num *big.Int) (eth.L2BlockRef, error) {
@@ -195,6 +217,28 @@ func (m *FakeChainSource) ReorgL1() {
 	if m.l1reorg >= len(m.l1s) {
 		panic("No more re-org chains available")
 	}
+}
+
+func (m *FakeChainSource) SetL2Safe(safe common.Hash) {
+	m.log.Trace("Set L2 safe head", "new_safe", safe, "old_safe", m.l2safe)
+	for i, v := range m.l2s[m.l2reorg] {
+		if v.Hash == safe {
+			m.l2safe = i
+			return
+		}
+	}
+	panic(fmt.Errorf("unknown safe block: %s", safe))
+}
+
+func (m *FakeChainSource) SetL2Finalized(finalized common.Hash) {
+	m.log.Trace("Set L2 finalized head", "new_finalized", finalized, "old_finalized", m.l2finalized)
+	for i, v := range m.l2s[m.l2reorg] {
+		if v.Hash == finalized {
+			m.l2finalized = i
+			return
+		}
+	}
+	panic(fmt.Errorf("unknown finalized block: %s", finalized))
 }
 
 func (m *FakeChainSource) SetL2Head(head int) eth.L2BlockRef {
