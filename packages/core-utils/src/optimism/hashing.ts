@@ -1,5 +1,6 @@
-import { BigNumberish, BigNumber, utils } from 'ethers'
-const { keccak256, defaultAbiCoder } = utils
+import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { keccak256 } from '@ethersproject/keccak256'
+import { defaultAbiCoder } from '@ethersproject/abi'
 
 import {
   decodeVersionedNonce,
@@ -9,11 +10,40 @@ import {
   big1,
 } from './encoding'
 
+/**
+ * Bedrock output oracle data.
+ */
+export interface BedrockOutputData {
+  outputRoot: string
+  l1Timestamp: number
+  l2BlockNumber: number
+}
+
+/**
+ * Bedrock state commitment
+ */
 export interface OutputRootProof {
   version: string
   stateRoot: string
   withdrawerStorageRoot: string
   latestBlockhash: string
+}
+
+/**
+ * Bedrock proof data required to finalize an L2 to L1 message.
+ */
+export interface BedrockCrossChainMessageProof {
+  outputRootProof: OutputRootProof
+  withdrawalProof: string
+}
+
+/**
+ * Parameters that govern the L2OutputOracle.
+ */
+export type L2OutputOracleParameters = {
+  submissionInterval: number
+  startingBlockNumber: number
+  l2BlockTime: number
 }
 
 /**

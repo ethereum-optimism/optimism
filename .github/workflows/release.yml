@@ -134,7 +134,7 @@ jobs:
   hardhat-node:
     name: Publish Hardhat Node ${{ needs.release.outputs.hardhat-node }}
     needs: release
-    if: needs.release.hardhat-node != ''
+    if: needs.release.outputs.hardhat-node != ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

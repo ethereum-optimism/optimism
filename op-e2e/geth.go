@@ -8,9 +8,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/cmd/utils"
 
 	rollupEth "github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -20,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/node"
 
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
@@ -102,7 +104,60 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
-	return createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{pk})
+	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{pk})
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Clique does not have safe/finalized block info. But we do want to test the usage of that,
+	// since post-merge L1 has it (incl. Goerli testnet which is already upgraded). So we mock it on top of clique.
+	l1Node.RegisterLifecycle(&fakeSafeFinalizedL1{
+		eth: l1Eth,
+		// for testing purposes we make it really fast, otherwise we don't see it finalize in short tests
+		finalizedDistance: 8,
+		safeDistance:      4,
+	})
+
+	return l1Node, l1Eth, nil
+}
+
+type fakeSafeFinalizedL1 struct {
+	eth               *eth.Ethereum
+	finalizedDistance uint64
+	safeDistance      uint64
+	sub               ethereum.Subscription
+}
+
+var _ node.Lifecycle = (*fakeSafeFinalizedL1)(nil)
+
+func (f *fakeSafeFinalizedL1) Start() error {
+	headChanges := make(chan core.ChainHeadEvent, 10)
+	headsSub := f.eth.BlockChain().SubscribeChainHeadEvent(headChanges)
+	f.sub = event.NewSubscription(func(quit <-chan struct{}) error {
+		defer headsSub.Unsubscribe()
+		for {
+			select {
+			case head := <-headChanges:
+				num := head.Block.NumberU64()
+				if num > f.finalizedDistance {
+					toFinalize := f.eth.BlockChain().GetBlockByNumber(num - f.finalizedDistance)
+					f.eth.BlockChain().SetFinalized(toFinalize)
+				}
+				if num > f.safeDistance {
+					toSafe := f.eth.BlockChain().GetBlockByNumber(num - f.safeDistance)
+					f.eth.BlockChain().SetSafe(toSafe)
+				}
+			case <-quit:
+				return nil
+			}
+		}
+	})
+	return nil
+}
+
+func (f *fakeSafeFinalizedL1) Stop() error {
+	f.sub.Unsubscribe()
+	return nil
 }
 
 // init a geth node.
@@ -162,6 +217,10 @@ func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, pri
 		return nil, nil, err
 
 	}
+
+	// PR 25459 changed this to only default in CLI, but not in default programmatic RPC selection.
+	// PR 25642 fixed it for the mobile version only...
+	utils.RegisterFilterAPI(n, backend.APIBackend, ethCfg)
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
