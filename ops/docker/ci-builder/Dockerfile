@@ -1,14 +1,42 @@
-FROM ethereum/client-go:alltools-v1.10.21 as geth
+FROM debian:bullseye-20220822-slim as foundry-build
 
-FROM ethereumoptimism/foundry:latest as foundry
+WORKDIR /opt
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && \
+    apt-get install -y curl build-essential git && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs > rustup.sh && \
+    chmod +x ./rustup.sh && \
+    ./rustup.sh -y
+
+WORKDIR /opt/foundry
+
+# Only diff from upstream docker image is this clone instead
+# of COPY. We select a specific commit to use.
+RUN git clone https://github.com/foundry-rs/foundry.git . \
+    && git checkout f540aa9ebde88dce720140b332412089c2ee85b6
+
+# Make sure we use bash instead of sh to get the source
+# command below
+RUN rm /bin/sh && ln -s /bin/bash /bin/sh
+
+RUN source $HOME/.profile && \
+    cargo build --release && \
+    strip /opt/foundry/target/release/forge && \
+    strip /opt/foundry/target/release/cast && \
+    strip /opt/foundry/target/release/anvil
+
+FROM ethereum/client-go:alltools-v1.10.21 as geth
 
 FROM python:3.8.13-slim-bullseye
 
-ENV GOPATH /go
-ENV PATH /usr/local/go/bin:$GOPATH/bin:$PATH
+ENV GOPATH=/go
+ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
+ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
-COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
+COPY --from=foundry-build /opt/foundry/target/release/forge /usr/local/bin/forge
+COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
+COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
 COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
 COPY check-changed.sh /usr/local/bin/check-changed
 

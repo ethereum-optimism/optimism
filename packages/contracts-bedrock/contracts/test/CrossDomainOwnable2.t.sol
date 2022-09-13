@@ -6,6 +6,7 @@ import { CommonTest, Messenger_Initializer } from "./CommonTest.t.sol";
 import { CrossDomainOwnable2 } from "../L2/CrossDomainOwnable2.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 
 contract XDomainSetter2 is CrossDomainOwnable2 {
     uint256 public value;
@@ -41,7 +42,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
     }
 
     function test_revertOnlyOwner() external {
-        uint256 nonce = 0;
+        uint240 nonce = 0;
         address sender = bob;
         address target = address(setter);
         uint256 value = 0;
@@ -52,7 +53,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         );
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            nonce,
+            Encoding.encodeVersionedNonce(nonce, 1),
             sender,
             target,
             value,
@@ -67,7 +68,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
         L2Messenger.relayMessage(
-            nonce,
+            Encoding.encodeVersionedNonce(nonce, 1),
             sender,
             target,
             value,
@@ -88,7 +89,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         // the L1CrossDomainMessenger
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
         L2Messenger.relayMessage(
-            1,
+            Encoding.encodeVersionedNonce(1, 1),
             owner,
             address(setter),
             0,
