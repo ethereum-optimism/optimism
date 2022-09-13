@@ -10,6 +10,7 @@ import (
 	"text/template"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
+	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
 type flags struct {
@@ -61,6 +62,27 @@ func main() {
 		storage, err := hh.GetStorageLayout(name)
 		if err != nil {
 			log.Fatalf("error reading storage layout %s: %v\n", name, err)
+		}
+
+		// Make the storage layout deterministic. We don't use
+		// the ast ids for anythings
+		for i := 0; i < len(storage.Storage); i++ {
+			storage.Storage[i].AstId = 0
+		}
+		for key, value := range storage.Types {
+			if strings.Contains(value.Encoding, "contract") {
+				idx := strings.LastIndex(value.Encoding, ")")
+				if idx == -1 {
+					continue
+				}
+				storage.Types[key] = solc.StorageLayoutType{
+					Encoding:      value.Encoding[:idx],
+					Label:         value.Label,
+					NumberOfBytes: value.NumberOfBytes,
+					Key:           value.Key,
+					Value:         value.Value,
+				}
+			}
 		}
 
 		ser, err := json.Marshal(storage)
