@@ -48,3 +48,5 @@ export const fetchTokenList = async ({
       ),
   }
 }
+
+fetchTokenList().then(console.log)
