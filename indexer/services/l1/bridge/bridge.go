@@ -36,7 +36,7 @@ var defaultBridgeCfgs = map[uint64][]*implConfig{
 		{"ETH", "ETHBridge", predeploys.DevL1StandardBridge},
 	},
 	// Goerli
-	420: {
+	5: {
 		{"Standard", "StandardBridge", "0xFf94B6C486350aD92561Ba09bad3a59df764Da92"},
 		{"ETH", "ETHBridge", "0xFf94B6C486350aD92561Ba09bad3a59df764Da92"},
 	},
