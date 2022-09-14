@@ -24,10 +24,10 @@ import { Encoding } from "../libraries/Encoding.sol";
 contract CrossDomainMessengerLegacySpacer {
     /**
      * @custom:legacy
-     * @custom:spacer libAddressManager
+     * @custom:spacer address libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    address private spacer0;
+    bytes20 private spacer_0_0_20;
 }
 
 /**
@@ -93,17 +93,17 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @custom:legacy
-     * @custom:spacer blockedMessages
+     * @custom:spacer mapping(bytes32=>bool) blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer1;
+    bytes32 private spacer_201_0_32;
 
     /**
      * @custom:legacy
-     * @custom:spacer relayedMessages
+     * @custom:spacer mapping(bytes32=>bool) relayedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer2;
+    bytes32 private spacer_202_0_32;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
