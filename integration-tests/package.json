@@ -29,10 +29,10 @@
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.5.4",
-    "@eth-optimism/contracts": "^0.5.34",
+    "@eth-optimism/contracts": "^0.5.35",
     "@eth-optimism/contracts-periphery": "^0.2.3",
     "@eth-optimism/core-utils": "0.10.0",
-    "@eth-optimism/sdk": "1.6.1",
+    "@eth-optimism/sdk": "1.6.2",
     "@ethersproject/abstract-provider": "^5.6.1",
     "@ethersproject/providers": "^5.6.8",
     "@ethersproject/transactions": "^5.6.2",

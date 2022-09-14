@@ -1,5 +1,12 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.13
+
+### Patch Changes
+
+- Updated dependencies [cfa81f88]
+  - @eth-optimism/sdk@1.6.2
+
 ## 0.3.12
 
 ### Patch Changes
