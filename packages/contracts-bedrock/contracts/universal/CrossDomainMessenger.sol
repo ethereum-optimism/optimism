@@ -27,7 +27,7 @@ contract CrossDomainMessengerLegacySpacer {
      * @custom:spacer libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    address internal spacer0;
+    address private spacer0;
 }
 
 /**
@@ -91,14 +91,14 @@ abstract contract CrossDomainMessenger is
      * @custom:spacer blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer1;
+    uint256 private spacer1;
 
     /**
      * @custom:legacy
      * @custom:spacer relayedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer2;
+    uint256 private spacer2;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
