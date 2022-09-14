@@ -23,6 +23,7 @@
     "deploy": "hardhat deploy",
     "test": "yarn build:differential && forge test",
     "coverage": "yarn build:differential && forge coverage",
+    "coverage:lcov": "yarn build:differential && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "slither": "./scripts/slither.sh",
