@@ -1,6 +1,7 @@
 package crossdomain
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -54,7 +55,7 @@ func (c *CrossDomainMessage) Encode() ([]byte, error) {
 	case 1:
 		return EncodeCrossDomainMessageV1(c.Nonce, c.Sender, c.Target, c.Value, c.GasLimit, c.Data)
 	default:
-		return nil, fmt.Errorf("unknown nonce version %d", version)
+		return nil, fmt.Errorf("unknown version %d", version)
 	}
 }
 
@@ -67,6 +68,26 @@ func (c *CrossDomainMessage) Hash() (common.Hash, error) {
 	case 1:
 		return HashCrossDomainMessageV1(c.Nonce, c.Sender, c.Target, c.Value, c.GasLimit, c.Data)
 	default:
-		return common.Hash{}, fmt.Errorf("unknown nonce version %d", version)
+		return common.Hash{}, fmt.Errorf("unknown version %d", version)
+	}
+}
+
+// ToWithdrawal will turn a CrossDomainMessage into a Withdrawal.
+// This only works for version 0 CrossDomainMessages as not all of
+// the data is present for version 1 CrossDomainMessages to be turned
+// into Withdrawals.
+func (c *CrossDomainMessage) ToWithdrawal() (WithdrawalMessage, error) {
+	version := c.Version()
+	switch version {
+	case 0:
+		if c.Value != nil && c.Value.Cmp(common.Big0) != 0 {
+			return nil, errors.New("version 0 messages must have 0 value")
+		}
+		w := NewLegacyWithdrawal(c.Target, c.Sender, c.Data, c.Nonce)
+		return w, nil
+	case 1:
+		return nil, errors.New("version 1 messages cannot be turned into withdrawals")
+	default:
+		return nil, fmt.Errorf("unknown version %d", version)
 	}
 }
