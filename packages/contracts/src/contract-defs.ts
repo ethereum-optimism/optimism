@@ -1,4 +1,6 @@
-import { ethers } from 'ethers'
+import { ContractFactory } from '@ethersproject/contracts'
+import { Interface } from '@ethersproject/abi'
+import { Signer } from '@ethersproject/abstract-signer'
 
 /**
  * Gets the hardhat artifact for the given contract name.
@@ -54,9 +56,9 @@ export const getDeployedContractDefinition = (
  * @param name Contract name.
  * @returns The interface for the given contract name.
  */
-export const getContractInterface = (name: string): ethers.utils.Interface => {
+export const getContractInterface = (name: string): Interface => {
   const definition = getContractDefinition(name)
-  return new ethers.utils.Interface(definition.abi)
+  return new Interface(definition.abi)
 }
 
 /**
@@ -68,13 +70,9 @@ export const getContractInterface = (name: string): ethers.utils.Interface => {
  */
 export const getContractFactory = (
   name: string,
-  signer?: ethers.Signer
-): ethers.ContractFactory => {
+  signer?: Signer
+): ContractFactory => {
   const definition = getContractDefinition(name)
   const contractInterface = getContractInterface(name)
-  return new ethers.ContractFactory(
-    contractInterface,
-    definition.bytecode,
-    signer
-  )
+  return new ContractFactory(contractInterface, definition.bytecode, signer)
 }

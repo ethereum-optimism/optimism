@@ -3,7 +3,6 @@ import { Contract, Signer } from 'ethers'
 import { smock } from '@defi-wonderland/smock'
 
 import { expect } from '../../setup'
-import { getContractInterface } from '../../../src'
 import { deploy } from '../../helpers'
 
 describe('L1ChugSplashProxy', () => {
@@ -166,9 +165,7 @@ describe('L1ChugSplashProxy', () => {
     })
 
     it('should throw an error if the owner has signalled an upgrade', async () => {
-      const owner = await smock.fake<Contract>(
-        getContractInterface('iL1ChugSplashDeployer')
-      )
+      const owner = await smock.fake<Contract>('iL1ChugSplashDeployer')
 
       L1ChugSplashProxy = await deploy('L1ChugSplashProxy', {
         args: [owner.address],

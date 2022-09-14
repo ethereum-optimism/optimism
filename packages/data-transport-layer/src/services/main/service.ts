@@ -72,7 +72,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
   protected async _init(): Promise<void> {
     this.logger.info('Initializing L1 Data Transport Service...')
 
-    this.state.db = level(this.options.dbPath)
+    this.state.db = (level as any)(this.options.dbPath)
     await this.state.db.open()
 
     // BSS HF1 activates at block 0 if not specified.
