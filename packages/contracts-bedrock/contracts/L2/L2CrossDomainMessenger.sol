@@ -31,10 +31,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
     function initialize(address _l1CrossDomainMessenger) public initializer {
-        address[] memory blockedSystemAddresses = new address[](2);
-        blockedSystemAddresses[0] = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
-        blockedSystemAddresses[1] = Predeploys.L2_TO_L1_MESSAGE_PASSER;
-        __CrossDomainMessenger_init(_l1CrossDomainMessenger, blockedSystemAddresses);
+        __CrossDomainMessenger_init(_l1CrossDomainMessenger);
     }
 
     /**
@@ -48,12 +45,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     }
 
     /**
-     * @notice Sends a message from L2 to L1.
-     *
-     * @param _to       Address to send the message to.
-     * @param _gasLimit Minimum gas limit to execute the message with.
-     * @param _value    ETH value to send with the message.
-     * @param _data     Data to trigger the recipient with.
+     * @inheritdoc CrossDomainMessenger
      */
     function _sendMessage(
         address _to,
@@ -67,11 +59,16 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     }
 
     /**
-     * @notice Checks that the message sender is the L1CrossDomainMessenger on L1.
-     *
-     * @return True if the message sender is the L1CrossDomainMessenger on L1.
+     * @inheritdoc CrossDomainMessenger
      */
     function _isOtherMessenger() internal view override returns (bool) {
         return AddressAliasHelper.undoL1ToL2Alias(msg.sender) == otherMessenger;
+    }
+
+    /**
+     * @inheritdoc CrossDomainMessenger
+     */
+    function _isUnsafeTarget(address _target) internal view override returns (bool) {
+        return _target == address(this) || _target == address(Predeploys.L2_TO_L1_MESSAGE_PASSER);
     }
 }
