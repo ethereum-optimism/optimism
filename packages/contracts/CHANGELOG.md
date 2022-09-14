@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.35
+
+### Patch Changes
+
+- 334a3eb0: Quick patch to fix a build issue in the contracts package
+
 ## 0.5.34
 
 ### Patch Changes
