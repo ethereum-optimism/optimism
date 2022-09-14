@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.3.0
+
+### Minor Changes
+
+- 25c564bc: Automate foundry build
+
 ## 0.2.4
 
 ### Patch Changes
