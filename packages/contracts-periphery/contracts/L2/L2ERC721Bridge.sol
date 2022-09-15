@@ -263,11 +263,6 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, Initializable {
             "Withdrawal is not being initiated by NFT owner"
         );
 
-        // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
-        // usage
-        // slither-disable-next-line reentrancy-events
-        IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
-
         // Construct calldata for l1ERC721Bridge.finalizeBridgeERC721(_to, _tokenId)
         // slither-disable-next-line reentrancy-events
         address remoteToken = IOptimismMintableERC721(_localToken).remoteToken();
@@ -275,6 +270,11 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, Initializable {
             remoteToken == _remoteToken,
             "L2ERC721Bridge: remote token does not match given value"
         );
+
+        // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
+        // usage
+        // slither-disable-next-line reentrancy-events
+        IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
 
         bytes memory message = abi.encodeWithSelector(
             L1ERC721Bridge.finalizeBridgeERC721.selector,
