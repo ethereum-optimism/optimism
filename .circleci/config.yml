@@ -133,14 +133,14 @@ jobs:
           keys:
             - v2-cache-yarn-build-{{ .Revision }}
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: lint
           command: yarn lint:check
@@ -240,14 +240,14 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: Download and verify Codecov uploader
           command: |
