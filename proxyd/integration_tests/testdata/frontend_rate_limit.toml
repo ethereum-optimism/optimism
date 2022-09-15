@@ -15,9 +15,14 @@ backends = ["good"]
 
 [rpc_method_mappings]
 eth_chainId = "main"
+eth_foobar = "main"
 
 [rate_limit]
 rate_per_second = 2
 exempt_origins = ["exempt_origin"]
 exempt_user_agents = ["exempt_agent"]
 error_message = "over rate limit"
+
+[rate_limit.method_overrides.eth_foobar]
+limit = 1
+interval = "1s"
