@@ -30,17 +30,17 @@ interface IOptimismMintableERC721 is IERC721Enumerable {
     /**
      * @notice Chain ID of the chain where the remote token is deployed.
      */
-    function remoteChainId() external returns (uint256);
+    function remoteChainId() external view returns (uint256);
 
     /**
      * @notice Address of the token on the remote domain.
      */
-    function remoteToken() external returns (address);
+    function remoteToken() external view returns (address);
 
     /**
      * @notice Address of the ERC721 bridge on this network.
      */
-    function bridge() external returns (address);
+    function bridge() external view returns (address);
 
     /**
      * @notice Mints some token ID for a user.
