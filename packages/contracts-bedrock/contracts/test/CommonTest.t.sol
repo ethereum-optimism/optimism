@@ -15,9 +15,10 @@ import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
+import { Types } from "../libraries/Types.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { Proxy } from "../universal/Proxy.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
@@ -78,7 +79,6 @@ contract CommonTest is Test {
             abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
         );
     }
-
 }
 
 contract L2OutputOracle_Initializer is CommonTest {
@@ -185,6 +185,11 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         uint256 gasLimit
     );
 
+    event SentMessageExtension1(
+        address indexed sender,
+        uint256 value
+    );
+
     event WithdrawalInitiated(
         uint256 indexed nonce,
         address indexed sender,
@@ -195,6 +200,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
+    event FailedRelayedMessage(bytes32 indexed msgHash);
 
     event TransactionDeposited(
         address indexed from,
@@ -388,17 +394,15 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.stopPrank();
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
-        L1Bridge.initialize(payable(address(L1Messenger)));
 
         vm.label(address(proxy), "L1StandardBridge_Proxy");
         vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
-        L2StandardBridge l2B = new L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+        L2StandardBridge l2B = new L2StandardBridge(payable(proxy));
         vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(l2B).code);
         L2Bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
-        L2Bridge.initialize(payable(address(L1Bridge)));
 
         // Set up the L2 mintable token factory
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
@@ -452,24 +456,26 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FFIInterface is Test {
-    function getFinalizeWithdrawalTransactionInputs(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint64 _value,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) external returns (bytes32, bytes32, bytes32, bytes32, bytes memory) {
+    function getFinalizeWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
+        external
+        returns (
+            bytes32,
+            bytes32,
+            bytes32,
+            bytes32,
+            bytes memory
+        )
+    {
         string[] memory cmds = new string[](9);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
         cmds[2] = "getFinalizeWithdrawalTransactionInputs";
-        cmds[3] = vm.toString(_nonce);
-        cmds[4] = vm.toString(_sender);
-        cmds[5] = vm.toString(_target);
-        cmds[6] = vm.toString(_value);
-        cmds[7] = vm.toString(_gasLimit);
-        cmds[8] = vm.toString(_data);
+        cmds[3] = vm.toString(_tx.nonce);
+        cmds[4] = vm.toString(_tx.sender);
+        cmds[5] = vm.toString(_tx.target);
+        cmds[6] = vm.toString(_tx.value);
+        cmds[7] = vm.toString(_tx.gasLimit);
+        cmds[8] = vm.toString(_tx.data);
 
         bytes memory result = vm.ffi(cmds);
         (
@@ -569,9 +575,30 @@ contract FFIInterface is Test {
         cmds[8] = vm.toString(_value);
         cmds[9] = vm.toString(_gas);
         cmds[10] = vm.toString(_data);
-        bytes memory result = vm.ffi(cmds);
 
+        bytes memory result = vm.ffi(cmds);
         return abi.decode(result, (bytes32));
+    }
+
+    function encodeDepositTransaction(
+        Types.UserDepositTransaction calldata txn
+    ) external returns (bytes memory) {
+        string[] memory cmds = new string[](12);
+        cmds[0] = "node";
+        cmds[1] = "dist/scripts/differential-testing.js";
+        cmds[2] = "encodeDepositTransaction";
+        cmds[3] = vm.toString(txn.from);
+        cmds[4] = vm.toString(txn.to);
+        cmds[5] = vm.toString(txn.value);
+        cmds[6] = vm.toString(txn.mint);
+        cmds[7] = vm.toString(txn.gasLimit);
+        cmds[8] = vm.toString(txn.isCreation);
+        cmds[9] = vm.toString(txn.data);
+        cmds[10] = vm.toString(txn.l1BlockHash);
+        cmds[11] = vm.toString(txn.logIndex);
+
+        bytes memory result = vm.ffi(cmds);
+        return abi.decode(result, (bytes));
     }
 
     function encodeCrossDomainMessage(

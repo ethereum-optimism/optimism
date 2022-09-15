@@ -6,6 +6,18 @@ import (
 
 //Define the metrics we wish to expose
 var (
+	gasBaseFeeMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "op_baseFee",
+			Help: "Gas base fee."},
+		[]string{"network", "layer"},
+	)
+	gasUsedMetric = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "op_gasUsed",
+			Help: "Gas Used."},
+		[]string{"network", "layer"},
+	)
 	gasPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "op_gasPrice",
@@ -38,5 +50,6 @@ func init() {
 	prometheus.MustRegister(blockNumber)
 	prometheus.MustRegister(healthySequencer)
 	prometheus.MustRegister(opExporterVersion)
-
+	prometheus.MustRegister(gasBaseFeeMetric)
+	prometheus.MustRegister(gasUsedMetric)
 }

@@ -7,6 +7,7 @@ COPY ./op-proposer/docker.go.work /app/go.work
 COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-proposer /app/op-proposer
+COPY ./op-service /app/op-service
 
 WORKDIR /app/op-proposer
 

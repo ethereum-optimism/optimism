@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"math/rand"
 	"net/http"
@@ -74,6 +73,11 @@ var (
 		Message:       "gateway timeout",
 		HTTPErrorCode: 504,
 	}
+	ErrOverRateLimit = &RPCErr{
+		Code:          JSONRPCErrorInternal - 16,
+		Message:       "rate limited",
+		HTTPErrorCode: 429,
+	}
 
 	ErrBackendUnexpectedJSONRPC = errors.New("backend returned an unexpected JSON-RPC response")
 )
@@ -92,7 +96,7 @@ type Backend struct {
 	wsURL                string
 	authUsername         string
 	authPassword         string
-	rateLimiter          RateLimiter
+	rateLimiter          BackendRateLimiter
 	client               *LimitedHTTPClient
 	dialer               *websocket.Dialer
 	maxRetries           int
@@ -174,7 +178,7 @@ func NewBackend(
 	name string,
 	rpcURL string,
 	wsURL string,
-	rateLimiter RateLimiter,
+	rateLimiter BackendRateLimiter,
 	rpcSemaphore *semaphore.Weighted,
 	opts ...BackendOpt,
 ) *Backend {
@@ -349,7 +353,17 @@ func (b *Backend) setOffline() {
 }
 
 func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool) ([]*RPCRes, error) {
-	body := mustMarshalJSON(rpcReqs)
+	isSingleElementBatch := len(rpcReqs) == 1
+
+	// Single element batches are unwrapped before being sent
+	// since Alchemy handles single requests better than batches.
+
+	var body []byte
+	if isSingleElementBatch {
+		body = mustMarshalJSON(rpcReqs[0])
+	} else {
+		body = mustMarshalJSON(rpcReqs)
+	}
 
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", b.rpcURL, bytes.NewReader(body))
 	if err != nil {
@@ -362,10 +376,7 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 
 	xForwardedFor := GetXForwardedFor(ctx)
 	if b.stripTrailingXFF {
-		ipList := strings.Split(xForwardedFor, ", ")
-		if len(ipList) > 0 {
-			xForwardedFor = ipList[0]
-		}
+		xForwardedFor = stripXFF(xForwardedFor)
 	} else if b.proxydIP != "" {
 		xForwardedFor = fmt.Sprintf("%s, %s", xForwardedFor, b.proxydIP)
 	}
@@ -396,18 +407,28 @@ func (b *Backend) doForward(ctx context.Context, rpcReqs []*RPCReq, isBatch bool
 	}
 
 	defer httpRes.Body.Close()
-	resB, err := ioutil.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
+	resB, err := io.ReadAll(io.LimitReader(httpRes.Body, b.maxResponseSize))
 	if err != nil {
 		return nil, wrapErr(err, "error reading response body")
 	}
 
 	var res []*RPCRes
-	if err := json.Unmarshal(resB, &res); err != nil {
-		// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
-		if responseIsNotBatched(resB) {
-			return nil, ErrBackendUnexpectedJSONRPC
+	if isSingleElementBatch {
+		var singleRes RPCRes
+		if err := json.Unmarshal(resB, &singleRes); err != nil {
+			return nil, ErrBackendBadResponse
 		}
-		return nil, ErrBackendBadResponse
+		res = []*RPCRes{
+			&singleRes,
+		}
+	} else {
+		if err := json.Unmarshal(resB, &res); err != nil {
+			// Infura may return a single JSON-RPC response if, for example, the batch contains a request for an unsupported method
+			if responseIsNotBatched(resB) {
+				return nil, ErrBackendUnexpectedJSONRPC
+			}
+			return nil, ErrBackendBadResponse
+		}
 	}
 
 	if len(rpcReqs) != len(res) {
@@ -834,4 +855,9 @@ func RecordBatchRPCForward(ctx context.Context, backendName string, reqs []*RPCR
 	for _, req := range reqs {
 		RecordRPCForward(ctx, backendName, req.Method, source)
 	}
+}
+
+func stripXFF(xff string) string {
+	ipList := strings.Split(xff, ", ")
+	return strings.TrimSpace(ipList[0])
 }

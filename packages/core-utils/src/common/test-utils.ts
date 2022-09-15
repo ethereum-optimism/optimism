@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { BigNumber } from 'ethers'
+import { BigNumber } from '@ethersproject/bignumber'
 
 import { sleep } from './misc'
 

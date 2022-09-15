@@ -24,10 +24,13 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 - *no-emphasis-as-heading*: enable emphasized paragraphs
 
 ```shell
-yarn             # Install dependencies
-yarn lint        # Run linter
-yarn lint:links  # Check links
-yarn lint:toc    # Update TOC docs
+yarn                   # Install dependencies
+yarn lint:specs:check  # Run linter
+yarn lint:specs:fix    # Fix lint issues
+yarn lint:specs:toc    # Update TOC docs
+
+# Check links
+docker run --init -it -v `pwd`:/input lycheeverse/lychee --verbose --no-progress --exclude-loopback --exclude twitter.com --exclude-mail /input/README.md "/input/specs/**/*.md"
 ```
 
 To check links, you'll need to install [lychee]. The [version ran in CI][lychee-ci] is 0.8.1, but
@@ -59,9 +62,7 @@ Justification for linting rules:
 
 ```shell
 # Install linter globally (should not affect go.mod)
-go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.45.2
-# Disabling goanalysis_metalinter
-# See https://github.com/golangci/golangci-lint/issues/2788
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.48.0
 # run linter, add --fix option to fix problems (where supported)
-golangci-lint run -E asciicheck,goimports,misspell -D goanalysis_metalinter
+golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell
 ```

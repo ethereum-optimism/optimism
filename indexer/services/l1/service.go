@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/ethereum-optimism/optimism/indexer/bindings/scc"
 	"github.com/ethereum-optimism/optimism/indexer/server"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1/bridge"
 
@@ -66,17 +65,16 @@ type Driver interface {
 }
 
 type ServiceConfig struct {
-	Context               context.Context
-	Metrics               *metrics.Metrics
-	L1Client              *ethclient.Client
-	RawL1Client           *rpc.Client
-	ChainID               *big.Int
-	AddressManagerAddress common.Address
-	ConfDepth             uint64
-	MaxHeaderBatchSize    uint64
-	StartBlockNumber      uint64
-	StartBlockHash        string
-	DB                    *db.Database
+	Context            context.Context
+	Metrics            *metrics.Metrics
+	L1Client           *ethclient.Client
+	RawL1Client        *rpc.Client
+	ChainID            *big.Int
+	ConfDepth          uint64
+	MaxHeaderBatchSize uint64
+	StartBlockNumber   uint64
+	StartBlockHash     string
+	DB                 *db.Database
 }
 
 type Service struct {
@@ -85,7 +83,6 @@ type Service struct {
 	cancel func()
 
 	bridges        map[string]bridge.Bridge
-	batchScanner   *scc.StateCommitmentChainFilterer
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
@@ -116,24 +113,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, fmt.Errorf("chain ID configured with %d but got %d", cfg.ChainID, chainID)
 	}
 
-	addrs, err := bridge.NewAddresses(cfg.L1Client, cfg.AddressManagerAddress)
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, ctx)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
-
-	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, addrs, ctx)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
-	batchScanner, err := bridge.StateCommitmentChainScanner(cfg.L1Client, addrs)
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -151,7 +135,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		ctx:            ctx,
 		cancel:         cancel,
 		bridges:        bridges,
-		batchScanner:   batchScanner,
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
@@ -240,6 +223,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockHash := make(map[common.Hash][]db.Deposit)
+	withdrawalsByBlockHash := make(map[common.Hash][]db.Withdrawal)
 
 	start := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l1"))
 	defer func() {
@@ -248,6 +232,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 	}()
 
 	bridgeDepositsCh := make(chan bridge.DepositsMap, len(s.bridges))
+	bridgeWdsCh := make(chan bridge.WithdrawalsMap, len(s.bridges))
 	errCh := make(chan error, len(s.bridges))
 
 	for _, bridgeImpl := range s.bridges {
@@ -259,6 +244,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 			}
 			bridgeDepositsCh <- deposits
 		}(bridgeImpl)
+		go func(b bridge.Bridge) {
+			withdrawals, err := b.GetWithdrawalsByBlockRange(startHeight, endHeight)
+			if err != nil {
+				errCh <- err
+				return
+			}
+			bridgeWdsCh <- withdrawals
+		}(bridgeImpl)
 	}
 
 	var receives int
@@ -267,44 +260,50 @@ func (s *Service) Update(newHeader *types.Header) error {
 		case bridgeDeposits := <-bridgeDepositsCh:
 			for blockHash, deposits := range bridgeDeposits {
 				for _, deposit := range deposits {
-					if err := s.cacheToken(deposit); err != nil {
+					if err := s.cacheToken(deposit.L1Token); err != nil {
 						logger.Warn("error caching token", "err", err)
 					}
 				}
 
 				depositsByBlockHash[blockHash] = append(depositsByBlockHash[blockHash], deposits...)
 			}
+		case bridgeWithdrawals := <-bridgeWdsCh:
+			for blockHash, withdrawals := range bridgeWithdrawals {
+				for _, withdrawal := range withdrawals {
+					if err := s.cacheToken(withdrawal.L1Token); err != nil {
+						logger.Warn("error caching token", "err", err)
+					}
+				}
+
+				withdrawalsByBlockHash[blockHash] = append(withdrawalsByBlockHash[blockHash], withdrawals...)
+			}
 		case err := <-errCh:
 			return err
 		}
 
 		receives++
-		if receives == len(s.bridges) {
+		if receives == 2*len(s.bridges) {
 			break
 		}
-	}
-
-	stateBatches, err := QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
-	if err != nil {
-		logger.Error("Error querying state batches", "err", err)
 	}
 
 	for i, header := range headers {
 		blockHash := header.Hash
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
-		batches := stateBatches[blockHash]
+		withdrawals := withdrawalsByBlockHash[blockHash]
 
-		if len(deposits) == 0 && len(batches) == 0 && i != len(headers)-1 {
+		if len(deposits) == 0 && len(withdrawals) == 0 && i != len(headers)-1 {
 			continue
 		}
 
 		block := &db.IndexedL1Block{
-			Hash:       blockHash,
-			ParentHash: header.ParentHash,
-			Number:     number,
-			Timestamp:  header.Time,
-			Deposits:   deposits,
+			Hash:        blockHash,
+			ParentHash:  header.ParentHash,
+			Number:      number,
+			Timestamp:   header.Time,
+			Deposits:    deposits,
+			Withdrawals: withdrawals,
 		}
 
 		err := s.cfg.DB.AddIndexedL1Block(block)
@@ -312,35 +311,24 @@ func (s *Service) Update(newHeader *types.Header) error {
 			logger.Error(
 				"Unable to import ",
 				"block", number,
-				"hash", blockHash, "err", err,
+				"hash", blockHash,
+				"err", err,
 				"block", block,
 			)
 			return err
 		}
-
-		err = s.cfg.DB.AddStateBatch(batches)
-		if err != nil {
-			logger.Error(
-				"Unable to import state append batch",
-				"block", number,
-				"hash", blockHash, "err", err,
-				"block", block,
-			)
-			return err
-		}
-		s.metrics.RecordStateBatches(len(batches))
 
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
-			token := s.tokenCache[deposit.L1Token]
+			token := s.tokenCache[deposit.L2Token]
 			logger.Info(
-				"indexed deposit",
+				"indexed deposit ",
 				"tx_hash", deposit.TxHash,
 				"symbol", token.Symbol,
 				"amount", deposit.Amount,
 			)
-			s.metrics.RecordDeposit(deposit.L1Token)
+			s.metrics.RecordDeposit(deposit.L2Token)
 		}
 	}
 
@@ -469,33 +457,33 @@ func (s *Service) catchUp(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) cacheToken(deposit db.Deposit) error {
-	if s.tokenCache[deposit.L1Token] != nil {
+func (s *Service) cacheToken(address common.Address) error {
+	if s.tokenCache[address] != nil {
 		return nil
 	}
 
-	token, err := s.cfg.DB.GetL1TokenByAddress(deposit.L1Token.String())
+	token, err := s.cfg.DB.GetL1TokenByAddress(address.String())
 	if err != nil {
 		return err
 	}
 	if token != nil {
 		s.metrics.IncL1CachedTokensCount()
-		s.tokenCache[deposit.L1Token] = token
+		s.tokenCache[address] = token
 		return nil
 	}
 
-	token, err = QueryERC20(deposit.L1Token, s.cfg.L1Client)
+	token, err = QueryERC20(address, s.cfg.L1Client)
 	if err != nil {
 		logger.Error("Error querying ERC20 token details",
-			"l1_token", deposit.L1Token.String(), "err", err)
+			"l1_token", address.String(), "err", err)
 		token = &db.Token{
-			Address: deposit.L1Token.String(),
+			Address: address.String(),
 		}
 	}
-	if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
+	if err := s.cfg.DB.AddL1Token(address.String(), token); err != nil {
 		return err
 	}
-	s.tokenCache[deposit.L1Token] = token
+	s.tokenCache[address] = token
 	s.metrics.IncL1CachedTokensCount()
 	return nil
 }
