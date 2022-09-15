@@ -579,7 +579,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
 
         vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
-        op.finalizeWithdrawalTransaction{ value: _tx.value }(
+        op.finalizeWithdrawalTransaction(
             _tx,
             100, // l2BlockNumber
             proof,

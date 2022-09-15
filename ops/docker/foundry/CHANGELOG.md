@@ -1,5 +1,12 @@
 # @eth-optimism/foundry
 
+## 0.1.3
+
+### Patch Changes
+
+- c6fab69f: Update foundry to fix a bug in coverage generation
+- f7323e0b: Upgrade foundry to support consistent storage layouts
+
 ## 0.1.2
 
 ### Patch Changes

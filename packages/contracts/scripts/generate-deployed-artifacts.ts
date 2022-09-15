@@ -50,7 +50,11 @@ const main = async () => {
       )
       artifactNames.push(artifactName)
 
-      content += `const ${artifactName} = require('${relPath}')\n`
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const artifact = require(relPath)
+      content += `const ${artifactName} = { abi: ${JSON.stringify(
+        artifact.abi
+      )}, address: '${artifact.address}' }\n`
     }
   }
 

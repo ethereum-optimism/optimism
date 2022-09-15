@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.10.0
+
+### Minor Changes
+
+- dbfea116: Removes ethers as a dependency in favor of individual ethers sub-packages
+
 ## 0.9.3
 
 ### Patch Changes

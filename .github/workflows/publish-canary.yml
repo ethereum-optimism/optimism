@@ -200,7 +200,7 @@ jobs:
         with:
           context: .
           file: ./ops/docker/Dockerfile.packages
-          target: relayer
+          target: message-relayer
           push: true
           tags: ethereumoptimism/message-relayer:${{ needs.canary-publish.outputs.canary-docker-tag }}
 

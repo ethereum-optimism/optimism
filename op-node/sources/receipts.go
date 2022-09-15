@@ -4,12 +4,10 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []common.Hash, receipts []*types.Receipt) (types.Receipts, error) {

@@ -1,14 +1,17 @@
+import { getAddress } from '@ethersproject/address'
+import { ContractReceipt, Event } from '@ethersproject/contracts'
+import { BigNumber, BigNumberish } from '@ethersproject/bignumber'
+import { keccak256 } from '@ethersproject/keccak256'
+import { Zero } from '@ethersproject/constants'
+import * as RLP from '@ethersproject/rlp'
 import {
-  BigNumber,
-  BigNumberish,
+  arrayify,
   BytesLike,
-  ContractReceipt,
-  ethers,
-  Event,
-  utils,
-} from 'ethers'
-
-const { hexDataSlice, stripZeros, hexConcat, keccak256, zeroPad } = utils
+  hexDataSlice,
+  stripZeros,
+  hexConcat,
+  zeroPad,
+} from '@ethersproject/bytes'
 
 const formatBoolean = (value: boolean): Uint8Array => {
   return value ? new Uint8Array([1]) : new Uint8Array([])
@@ -34,7 +37,7 @@ const handleBoolean = (value: string): boolean => {
 
 const handleNumber = (value: string): BigNumber => {
   if (value === '0x') {
-    return ethers.constants.Zero
+    return Zero
   }
   return BigNumber.from(value)
 }
@@ -44,7 +47,7 @@ const handleAddress = (value: string): string => {
     // @ts-ignore
     return null
   }
-  return utils.getAddress(value)
+  return getAddress(value)
 }
 
 export enum SourceHashDomain {
@@ -142,8 +145,8 @@ export class DepositTx {
   encode() {
     const fields: any = [
       this.sourceHash() || '0x',
-      utils.getAddress(this.from) || '0x',
-      this.to != null ? utils.getAddress(this.to) : '0x',
+      getAddress(this.from) || '0x',
+      this.to != null ? getAddress(this.to) : '0x',
       formatNumber(this.mint || 0, 'mint'),
       formatNumber(this.value || 0, 'value'),
       formatNumber(this.gas || 0, 'gas'),
@@ -153,17 +156,17 @@ export class DepositTx {
 
     return hexConcat([
       BigNumber.from(this.type).toHexString(),
-      utils.RLP.encode(fields),
+      RLP.encode(fields),
     ])
   }
 
   decode(raw: BytesLike, extra: DepositTxExtraOpts = {}) {
-    const payload = utils.arrayify(raw)
+    const payload = arrayify(raw)
     if (payload[0] !== this.type) {
       throw new Error(`Invalid type ${payload[0]}`)
     }
     this.version = payload[1]
-    const transaction = utils.RLP.decode(payload.slice(1))
+    const transaction = RLP.decode(payload.slice(1))
     this._sourceHash = transaction[0]
     this.from = handleAddress(transaction[1])
     this.to = handleAddress(transaction[2])

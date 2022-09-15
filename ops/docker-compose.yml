@@ -12,7 +12,7 @@ x-system-addr-env: &system-addr-env
 services:
   # this is a helper service used because there's no official hardhat image
   l1_chain:
-    image: ethereumoptimism/hardhat:${DOCKER_TAG_HARDHAT:-latest}
+    image: ethereumoptimism/hardhat-node:${DOCKER_TAG_HARDHAT:-latest}
     build:
       context: ./docker/hardhat
       dockerfile: Dockerfile

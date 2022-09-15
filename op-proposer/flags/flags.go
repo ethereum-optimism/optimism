@@ -1,12 +1,13 @@
 package flags
 
 import (
+	"github.com/urfave/cli"
+
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/urfave/cli"
 )
 
 const envVarPrefix = "OP_PROPOSER"
