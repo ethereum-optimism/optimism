@@ -9,22 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// This is a generic wrapper around fetching all transactions in a block & then
-// it feeds one L1 transaction at a time to the next stage
-
-// DataIter is a minimal iteration interface to fetch rollup input data from an arbitrary data-availability source
-type DataIter interface {
-	// Next can be repeatedly called for more data, until it returns an io.EOF error.
-	// It never returns io.EOF and data at the same time.
-	Next(ctx context.Context) (eth.Data, error)
-}
-
-// DataAvailabilitySource provides rollup input data
-type DataAvailabilitySource interface {
-	// OpenData does any initial data-fetching work and returns an iterator to fetch data with.
-	OpenData(ctx context.Context, id eth.BlockID) (DataIter, error)
-}
-
 type L1SourceOutput interface {
 	StageProgress
 	IngestData(data []byte)
@@ -32,18 +16,18 @@ type L1SourceOutput interface {
 
 type L1Retrieval struct {
 	log     log.Logger
-	dataSrc DataAvailabilitySource
+	dataSrc *CalldataSource
 	next    L1SourceOutput
 
 	progress Progress
 
 	data  eth.Data
-	datas DataIter
+	datas *CalldataSourceImpl
 }
 
 var _ Stage = (*L1Retrieval)(nil)
 
-func NewL1Retrieval(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOutput) *L1Retrieval {
+func NewL1Retrieval(log log.Logger, dataSrc *CalldataSource, next L1SourceOutput) *L1Retrieval {
 	return &L1Retrieval{
 		log:     log,
 		dataSrc: dataSrc,
@@ -67,11 +51,7 @@ func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
 
 	// create a source if we have none
 	if l1r.datas == nil {
-		datas, err := l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
-		if err != nil {
-			return NewTemporaryError(fmt.Errorf("can't fetch L1 data: %v: %w", l1r.progress.Origin, err))
-		}
-		l1r.datas = datas
+		l1r.datas = l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
 		return nil
 	}
 

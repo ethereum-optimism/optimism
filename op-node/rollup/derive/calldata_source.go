@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -15,21 +14,60 @@ import (
 // CalldataSource readers raw transactions from a given block & then filters for
 // batch submitter transactions.
 // This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
-//
 
 type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 }
 
-type DataSlice []eth.Data
+// CalldataSourceImpl is a fault tolerant approach to fetching data.
+// The constructor will never fail & it will instead re-attempt the fetcher
+// at a later point.
+// This API greatly simplifies some calling code.
+type CalldataSourceImpl struct {
+	// Internal state + data
+	open bool
+	data []eth.Data
+	// Required to re-attempt fetching
+	id      eth.BlockID
+	cfg     *rollup.Config // TODO: `DataFromEVMTransactions` should probably not take the full config
+	fetcher L1TransactionFetcher
+	log     log.Logger
+}
 
-func (ds *DataSlice) Next(ctx context.Context) (eth.Data, error) {
-	if len(*ds) == 0 {
-		return nil, io.EOF
+func NewCalldataSourceImpl(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID) *CalldataSourceImpl {
+	_, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
+	if err != nil {
+		return &CalldataSourceImpl{
+			open:    false,
+			id:      block,
+			cfg:     cfg,
+			fetcher: fetcher,
+			log:     log,
+		}
+	} else {
+		return &CalldataSourceImpl{
+			open: true,
+			data: DataFromEVMTransactions(cfg, txs, log.New("origin", block)),
+		}
 	}
-	out := (*ds)[0]
-	*ds = (*ds)[1:]
-	return out, nil
+}
+
+func (cs *CalldataSourceImpl) Next(ctx context.Context) (eth.Data, error) {
+	if !cs.open {
+		if _, txs, err := cs.fetcher.InfoAndTxsByHash(ctx, cs.id.Hash); err == nil {
+			cs.open = true
+			cs.data = DataFromEVMTransactions(cs.cfg, txs, log.New("origin", cs.id))
+		} else {
+			return nil, err
+		}
+	}
+	if len(cs.data) == 0 {
+		return nil, io.EOF
+	} else {
+		data := cs.data[0]
+		cs.data = cs.data[1:]
+		return data, nil
+	}
 }
 
 type CalldataSource struct {
@@ -42,13 +80,8 @@ func NewCalldataSource(log log.Logger, cfg *rollup.Config, fetcher L1Transaction
 	return &CalldataSource{log: log, cfg: cfg, fetcher: fetcher}
 }
 
-func (cs *CalldataSource) OpenData(ctx context.Context, id eth.BlockID) (DataIter, error) {
-	_, txs, err := cs.fetcher.InfoAndTxsByHash(ctx, id.Hash)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch transactions: %w", err)
-	}
-	data := DataFromEVMTransactions(cs.cfg, txs, cs.log.New("origin", id))
-	return (*DataSlice)(&data), nil
+func (cs *CalldataSource) OpenData(ctx context.Context, id eth.BlockID) *CalldataSourceImpl {
+	return NewCalldataSourceImpl(ctx, cs.log, cs.cfg, cs.fetcher, id)
 }
 
 func DataFromEVMTransactions(config *rollup.Config, txs types.Transactions, log log.Logger) []eth.Data {
