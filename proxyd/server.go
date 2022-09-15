@@ -383,6 +383,12 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 		// since we don't have data right now on the size of each batch, we
 		// only apply this to the methods that have an additional rate limit.
 		if _, ok := s.overrideLims[parsedReq.Method]; ok && isLimited(parsedReq.Method) {
+			log.Info(
+				"rate limited specific RPC",
+				"source", "rpc",
+				"req_id", GetReqID(ctx),
+				"method", parsedReq.Method,
+			)
 			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, ErrOverRateLimit)
 			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrOverRateLimit)
 			continue
