@@ -127,7 +127,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
-    ) external payable {
+    ) external {
         // Prevent nested withdrawals within withdrawals.
         require(
             l2Sender == DEFAULT_L2_SENDER,
