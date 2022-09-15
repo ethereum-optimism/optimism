@@ -8,7 +8,6 @@ import { toRpcHexString } from '@eth-optimism/core-utils'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { expect } from '../../setup'
 
-const ERR_ALREADY_INITIALIZED = 'Initializable: contract is already initialized'
 const ERR_INVALID_X_DOMAIN_MESSAGE =
   'ERC721Bridge: function can only be called from the other bridge'
 const DUMMY_L1BRIDGE_ADDRESS: string =
@@ -62,17 +61,6 @@ describe('L2ERC721Bridge', () => {
       'L2T',
       { gasLimit: 4_000_000 } // Necessary to avoid an out-of-gas error
     )
-  })
-
-  describe('initialize', () => {
-    it('Should only be callable once', async () => {
-      await expect(
-        L2ERC721Bridge.initialize(
-          Fake__L2CrossDomainMessenger.address,
-          DUMMY_L1BRIDGE_ADDRESS
-        )
-      ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
-    })
   })
 
   // test the transfer flow of moving a token from L1 to L2

@@ -13,11 +13,6 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
  */
 abstract contract ERC721Bridge is Initializable {
     /**
-     * @notice Messenger contract on this domain.
-     */
-    CrossDomainMessenger public messenger;
-
-    /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
      * @param localToken  Address of the token on this domain.
@@ -75,9 +70,14 @@ abstract contract ERC721Bridge is Initializable {
     );
 
     /**
+     * @notice Messenger contract on this domain.
+     */
+    CrossDomainMessenger public immutable messenger;
+
+    /**
      * @notice Address of the bridge on the other network.
      */
-    address public otherBridge;
+    address public immutable otherBridge;
 
     /**
      * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
@@ -93,6 +93,15 @@ abstract contract ERC721Bridge is Initializable {
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
+    }
+
+    /**
+     * @param _messenger   Address of the CrossDomainMessenger on this network.
+     * @param _otherBridge Address of the ERC721 bridge on the other network.
+     */
+    constructor(address _messenger, address _otherBridge) {
+        messenger = CrossDomainMessenger(_messenger);
+        otherBridge = _otherBridge;
     }
 
     /**
@@ -157,21 +166,6 @@ abstract contract ERC721Bridge is Initializable {
             _minGasLimit,
             _extraData
         );
-    }
-
-    /**
-     * @notice Initializer.
-     *
-     * @param _messenger   Address of the CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the ERC721 bridge on the other network.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function __ERC721Bridge_init(address _messenger, address _otherBridge)
-        internal
-        onlyInitializing
-    {
-        messenger = CrossDomainMessenger(_messenger);
-        otherBridge = _otherBridge;
     }
 
     /**
