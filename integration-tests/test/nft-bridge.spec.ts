@@ -277,7 +277,11 @@ describe('ERC721 Bridge', () => {
           'FakeOptimismMintableERC721',
           bobWalletL2
         )
-      ).deploy(L1ERC721.address, L2ERC721Bridge.address)
+      ).deploy(
+        L2ERC721Bridge.address,
+        L1ERC721.address,
+        await getChainId(env.l1Wallet.provider)
+      )
       await FakeOptimismMintableERC721.deployed()
 
       // Use the fake contract to mint Alice an NFT with the same token ID
@@ -323,7 +327,11 @@ describe('ERC721 Bridge', () => {
           'FakeOptimismMintableERC721',
           aliceWalletL2
         )
-      ).deploy(DUMMY_L1ERC721_ADDRESS, L2ERC721Bridge.address)
+      ).deploy(
+        L2ERC721Bridge.address,
+        DUMMY_L1ERC721_ADDRESS,
+        await getChainId(env.l1Wallet.provider)
+      )
       await L2NativeNFT.deployed()
 
       // Alice mints an NFT from the L2 native ERC721 contract

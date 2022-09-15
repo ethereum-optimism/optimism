@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
+} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
