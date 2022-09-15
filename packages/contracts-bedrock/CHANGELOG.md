@@ -1,5 +1,19 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.6.2
+
+### Patch Changes
+
+- 651a2883: Make spacer variables private in the Bridge and Messenger contracts so that they cannot be accessed in child contracts.
+
+## 0.6.1
+
+### Patch Changes
+
+- 85232179: Add CrossDomainOwnable contracts
+- 593f1cfb: Removes the blockedSystemMessages mapping in favor of a simpler approach to preventing messages from being sent to internal system addresses.
+- f78eb056: Prevents v0 (legacy) messages from being relayed in the bedrock XDM.
+
 ## 0.6.0
 
 ### Minor Changes

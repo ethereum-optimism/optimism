@@ -49,7 +49,8 @@ type Server struct {
 	timeout              time.Duration
 	maxUpstreamBatchSize int
 	upgrader             *websocket.Upgrader
-	lim                  limiter.Store
+	mainLim              limiter.Store
+	overrideLims         map[string]limiter.Store
 	limConfig            RateLimitConfig
 	limExemptOrigins     map[string]bool
 	limExemptUserAgents  map[string]bool
@@ -58,6 +59,8 @@ type Server struct {
 	cache                RPCCache
 	srvMu                sync.Mutex
 }
+
+type limiterFunc func(method string) bool
 
 func NewServer(
 	backendGroups map[string]*BackendGroup,
@@ -89,12 +92,12 @@ func NewServer(
 		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
 	}
 
-	var lim limiter.Store
+	var mainLim limiter.Store
 	limExemptOrigins := make(map[string]bool)
 	limExemptUserAgents := make(map[string]bool)
 	if rateLimitConfig.RatePerSecond > 0 {
 		var err error
-		lim, err = memorystore.New(&memorystore.Config{
+		mainLim, err = memorystore.New(&memorystore.Config{
 			Tokens:   uint64(rateLimitConfig.RatePerSecond),
 			Interval: time.Second,
 		})
@@ -109,7 +112,19 @@ func NewServer(
 			limExemptUserAgents[strings.ToLower(agent)] = true
 		}
 	} else {
-		lim, _ = noopstore.New()
+		mainLim, _ = noopstore.New()
+	}
+
+	overrideLims := make(map[string]limiter.Store)
+	for method, override := range rateLimitConfig.MethodOverrides {
+		var err error
+		overrideLims[method], err = memorystore.New(&memorystore.Config{
+			Tokens:   uint64(override.Limit),
+			Interval: time.Duration(override.Interval),
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Server{
@@ -127,7 +142,8 @@ func NewServer(
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
-		lim:                 lim,
+		mainLim:             mainLim,
+		overrideLims:        overrideLims,
 		limConfig:           rateLimitConfig,
 		limExemptOrigins:    limExemptOrigins,
 		limExemptUserAgents: limExemptUserAgents,
@@ -197,22 +213,37 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 
 	origin := r.Header.Get("Origin")
 	userAgent := r.Header.Get("User-Agent")
-	exemptOrigin := s.limExemptOrigins[strings.ToLower(origin)]
-	exemptUserAgent := s.limExemptUserAgents[strings.ToLower(userAgent)]
 	// Use XFF in context since it will automatically be replaced by the remote IP
 	xff := stripXFF(GetXForwardedFor(ctx))
-	var ok bool
-	if exemptOrigin || exemptUserAgent {
-		ok = true
-	} else {
-		if xff == "" {
-			log.Warn("rejecting request without XFF or remote IP")
-			ok = false
-		} else {
-			_, _, _, ok, _ = s.lim.Take(ctx, xff)
-		}
+	isUnlimitedOrigin := s.isUnlimitedOrigin(origin)
+	isUnlimitedUserAgent := s.isUnlimitedUserAgent(userAgent)
+
+	if xff == "" {
+		writeRPCError(ctx, w, nil, ErrInvalidRequest("request does not include a remote IP"))
+		return
 	}
-	if !ok {
+
+	isLimited := func(method string) bool {
+		if isUnlimitedOrigin || isUnlimitedUserAgent {
+			return false
+		}
+
+		var lim limiter.Store
+		if method == "" {
+			lim = s.mainLim
+		} else {
+			lim = s.overrideLims[method]
+		}
+
+		if lim == nil {
+			return false
+		}
+
+		_, _, _, ok, _ := lim.Take(ctx, xff)
+		return !ok
+	}
+
+	if isLimited("") {
 		rpcErr := ErrOverRateLimit.Clone()
 		rpcErr.Message = s.limConfig.ErrorMessage
 		RecordRPCError(ctx, BackendProxyd, "unknown", rpcErr)
@@ -271,7 +302,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		batchRes, batchContainsCached, err := s.handleBatchRPC(ctx, reqs, true)
+		batchRes, batchContainsCached, err := s.handleBatchRPC(ctx, reqs, isLimited, true)
 		if err == context.DeadlineExceeded {
 			writeRPCError(ctx, w, nil, ErrGatewayTimeout)
 			return
@@ -287,7 +318,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rawBody := json.RawMessage(body)
-	backendRes, cached, err := s.handleBatchRPC(ctx, []json.RawMessage{rawBody}, false)
+	backendRes, cached, err := s.handleBatchRPC(ctx, []json.RawMessage{rawBody}, isLimited, false)
 	if err != nil {
 		writeRPCError(ctx, w, nil, ErrInternal)
 		return
@@ -296,7 +327,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	writeRPCRes(ctx, w, backendRes[0])
 }
 
-func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isBatch bool) ([]*RPCRes, bool, error) {
+func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isLimited limiterFunc, isBatch bool) ([]*RPCRes, bool, error) {
 	// A request set is transformed into groups of batches.
 	// Each batch group maps to a forwarded JSON-RPC batch request (subject to maxUpstreamBatchSize constraints)
 	// A groupID is used to decouple Requests that have duplicate ID so they're not part of the same batch that's
@@ -344,6 +375,22 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isB
 			)
 			RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrMethodNotWhitelisted)
 			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrMethodNotWhitelisted)
+			continue
+		}
+
+		// Take rate limit for specific methods.
+		// NOTE: eventually, this should apply to all batch requests. However,
+		// since we don't have data right now on the size of each batch, we
+		// only apply this to the methods that have an additional rate limit.
+		if _, ok := s.overrideLims[parsedReq.Method]; ok && isLimited(parsedReq.Method) {
+			log.Info(
+				"rate limited specific RPC",
+				"source", "rpc",
+				"req_id", GetReqID(ctx),
+				"method", parsedReq.Method,
+			)
+			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, ErrOverRateLimit)
+			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrOverRateLimit)
 			continue
 		}
 
@@ -492,6 +539,14 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 		ContextKeyReqID, // nolint:staticcheck
 		randStr(10),
 	)
+}
+
+func (s *Server) isUnlimitedOrigin(origin string) bool {
+	return s.limExemptOrigins[strings.ToLower(origin)]
+}
+
+func (s *Server) isUnlimitedUserAgent(origin string) bool {
+	return s.limExemptUserAgents[strings.ToLower(origin)]
 }
 
 func setCacheHeader(w http.ResponseWriter, cached bool) {
