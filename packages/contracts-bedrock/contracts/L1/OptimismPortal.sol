@@ -119,8 +119,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _tx              Withdrawal transaction to finalize.
      * @param _l2BlockNumber   L2 block number of the outputRoot.
-     * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
-     * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
+     * @param _outputRootProof Inclusion proof of the L2ToL1MessagePasser contract's storage root.
+     * @param _withdrawalProof Inclusion proof of the withdrawal in L2ToL1MessagePasser contract.
      */
     function finalizeWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
@@ -163,13 +163,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // and to prevent replay attacks.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
-        // Verify that the hash of this withdrawal was stored in the withdrawal contract on L2. If
-        // this is true, then we know that this withdrawal was actually triggered on L2 can can
-        // therefore be relayed on L1.
+        // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract on
+        //  L2. If this is true, then we know that this withdrawal was actually triggered on L2
+        // and can therefore be relayed on L1.
         require(
             _verifyWithdrawalInclusion(
                 withdrawalHash,
-                _outputRootProof.withdrawerStorageRoot,
+                _outputRootProof.messagePasserStorageRoot,
                 _withdrawalProof
             ),
             "OptimismPortal: invalid withdrawal inclusion proof"

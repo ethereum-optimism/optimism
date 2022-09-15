@@ -23,7 +23,7 @@ library Types {
     struct OutputRootProof {
         bytes32 version;
         bytes32 stateRoot;
-        bytes32 withdrawerStorageRoot;
+        bytes32 messagePasserStorageRoot;
         bytes32 latestBlockhash;
     }
 

@@ -538,7 +538,7 @@ contract FFIInterface is Test {
     function hashOutputRootProof(
         bytes32 _version,
         bytes32 _stateRoot,
-        bytes32 _withdrawerStorageRoot,
+        bytes32 _messagePasserStorageRoot,
         bytes32 _latestBlockhash
     ) external returns (bytes32) {
         string[] memory cmds = new string[](7);
@@ -547,7 +547,7 @@ contract FFIInterface is Test {
         cmds[2] = "hashOutputRootProof";
         cmds[3] = Strings.toHexString(uint256(_version));
         cmds[4] = Strings.toHexString(uint256(_stateRoot));
-        cmds[5] = Strings.toHexString(uint256(_withdrawerStorageRoot));
+        cmds[5] = Strings.toHexString(uint256(_messagePasserStorageRoot));
         cmds[6] = Strings.toHexString(uint256(_latestBlockhash));
 
         bytes memory result = vm.ffi(cmds);
