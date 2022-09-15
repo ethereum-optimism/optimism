@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.10.0
+
+### Minor Changes
+
+- 157ccc84: Support per-method rate limiting
+
 ## 3.9.1
 
 ### Patch Changes
