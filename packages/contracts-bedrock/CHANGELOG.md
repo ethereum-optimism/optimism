@@ -1,5 +1,97 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.6.2
+
+### Patch Changes
+
+- 651a2883: Make spacer variables private in the Bridge and Messenger contracts so that they cannot be accessed in child contracts.
+
+## 0.6.1
+
+### Patch Changes
+
+- 85232179: Add CrossDomainOwnable contracts
+- 593f1cfb: Removes the blockedSystemMessages mapping in favor of a simpler approach to preventing messages from being sent to internal system addresses.
+- f78eb056: Prevents v0 (legacy) messages from being relayed in the bedrock XDM.
+
+## 0.6.0
+
+### Minor Changes
+
+- 7fdc490c: Removes initializer from StandardBridge in favor of immutables
+- 3d228a0e: Updates the storage layout for the CrossDomainMessenger base contract to reduce diff with the existing system.
+
+### Patch Changes
+
+- 63ef1949: Delete hardhat genesis tasks
+- Updated dependencies [dbfea116]
+  - @eth-optimism/core-utils@0.10.0
+
+## 0.5.4
+
+### Patch Changes
+
+- a095d544: Include latest devnet deployment artifacts
+- cdf2163e: Bump oz packages to latest release
+- 791f30bc: Migrate deploy config to json from ts
+- 193befed: Fix nonce issue for parallel deployments
+- 02420db0: Add missing predeploy to Predeploys.sol
+- 94a8f287: Moves forge-std and ds-test to devDependencies to avoid breaking npm
+- 7d03c5c0: Update the L2 genesis hardhat task to use the ProxyAdmin's deployed address as the admin of each predeploy
+- fec22bfe: Fix legibility in the L2CrossDomainMessengerInitializer
+- 9272253e: Make a library call internal
+- c025f418: Add additional deployments of address manager and proxy admin
+- 329d21b6: Use safecall that doesn't copy calldata
+- 35eafed0: Deletes the L2 genesis creation hardhat task as its now replaced by go code
+- 3cde9205: Update @foundry-rs/hardhat-forge to 0.1.17
+
+## 0.5.3
+
+### Patch Changes
+
+- 056cb982: Fix slither script
+- a32e68ac: Update genesis-l2 task to set immutables in the bytecode
+- c648d55c: Fix build for smaller package
+- d544f804: Use the same initializable across codebase
+- ccbfe545: Update @foundry-rs/hardhat-forge@0.1.16
+- c97ad241: Fix build on latest foundry
+- 45541553: Emit an extra event when withdrawals are initiated to make chainops easier
+- 3dd296e8: Fix portal deployment to have L2OutputOracle proxy address
+- fe94b864: Add watch task
+- 28649d64: Add harhdat forge contract verification support
+- 898c7ac5: Update hardhat-forge dep, remove dead deps
+- 51a1595b: bedrock-goerli-96f44f79 deployment
+- 8ae39154: Update deposit transaction type
+- af96563a: Fix typechain exports
+- dac4a9f0: Updates the SDK to be compatible with Bedrock (via the "bedrock: true" constructor param). Updates the build pipeline for contracts-bedrock to export a properly formatted dist folder that matches our other packages.
+- Updated dependencies [0df744f6]
+- Updated dependencies [8ae39154]
+- Updated dependencies [dac4a9f0]
+  - @eth-optimism/core-utils@0.9.3
+
+## 0.5.2
+
+### Patch Changes
+
+- 1a22e822: Standardizes revert strings globally
+- 5e113137: Fixes a bug in the L2 Bedrock genesis script
+- 177a9ea8: Cleans linting errors in MerkleTrie.sol
+- 7d68f82f: Adds a new event SentMessageExtension1 to the CrossDomainMessenger contract. Includes additional data that's being attached to messages sent after the Bedrock upgrade.
+- 90630336: Properly generates and exports ABI and artifact files that can be imported by client libraries
+- 8bd7abde: Moves various legacy contracts into the legacy folder
+- 7e6eb9b2: The output oracle's getL2Output function now reverts when no output is returned
+- f243dacf: Bump to use solidity 0.8.15
+- 8d26459b: Remove subversion byte from deposit tx
+- fa9823f3: Naming improvements for functions and variables in the L2OutputOracle
+- 0bf3b9b4: Update forge-std
+- e764cbb7: Shortens library names
+- 3a0271f8: Introduces Types.sol
+- 5de373ea: Semver contract updated to include a getter for the full version string
+- Updated dependencies [0bf3b9b4]
+- Updated dependencies [8d26459b]
+- Updated dependencies [4477fe9f]
+  - @eth-optimism/core-utils@0.9.2
+
 ## 0.5.1
 
 ### Patch Changes

@@ -7,13 +7,13 @@ task('rekey', 'Generates a new set of keys for a test network').setAction(
     const mnemonic = bip39.generateMnemonic()
     const pathPrefix = "m/44'/60'/0'/0"
     const labels = [
-      'sequencerAddress',
+      'l2OutputOracleProposer',
       'proxyAdmin',
       'optimismBaseFeeRecipient',
       'optimismL1FeeRecipient',
       'optimismL2FeeRecipient',
       'p2pSequencerAddress',
-      'outputOracleOwner',
+      'l2OutputOracleOwner',
       'batchSenderAddress',
     ]
 

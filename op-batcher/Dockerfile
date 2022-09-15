@@ -7,6 +7,7 @@ COPY ./op-batcher/docker.go.work /app/go.work
 COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-proposer /app/op-proposer
+COPY ./op-service /app/op-service
 COPY ./op-batcher /app/op-batcher
 
 WORKDIR /app/op-batcher

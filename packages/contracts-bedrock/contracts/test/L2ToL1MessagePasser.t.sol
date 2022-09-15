@@ -18,6 +18,8 @@ contract L2ToL1MessagePasserTest is CommonTest {
         bytes data
     );
 
+    event WithdrawalInitiatedExtension1(bytes32 indexed hash);
+
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
     function setUp() virtual public {
@@ -35,6 +37,20 @@ contract L2ToL1MessagePasserTest is CommonTest {
             64000,
             hex""
         );
+
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
+            Types.WithdrawalTransaction(
+                messagePasser.nonce(),
+                address(this),
+                address(4),
+                100,
+                64000,
+                hex""
+            )
+        );
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalInitiatedExtension1(withdrawalHash);
 
         vm.deal(address(this), 2**64);
         messagePasser.initiateWithdrawal{ value: 100 }(

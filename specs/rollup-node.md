@@ -24,7 +24,6 @@ currently only concerned with the specification of the rollup driver.
   - [Derivation](#derivation)
 - [L2 Output RPC method](#l2-output-rpc-method)
   - [Output Method API](#output-method-api)
-- [L2 Batch creation RPC method](#l2-batch-creation-rpc-method)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -74,7 +73,3 @@ The input and return types here are as defined by the [engine API specs][engine-
 - returns:
   1. `version`: `DATA`, 32 Bytes - the output root version number, beginning with 0.
   1. `l2OutputRoot`: `DATA`, 32 Bytes - the output root
-
-## L2 Batch creation RPC method
-
-See [Batch derivation](./batching.md) for an RPC specification for batch data submission.

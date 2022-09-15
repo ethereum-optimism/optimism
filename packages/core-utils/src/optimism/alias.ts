@@ -1,4 +1,5 @@
-import { ethers } from 'ethers'
+import { isAddress } from '@ethersproject/address'
+import { BigNumber } from '@ethersproject/bignumber'
 
 import { bnToAddress } from '../common'
 
@@ -18,11 +19,11 @@ export const L1_TO_L2_ALIAS_OFFSET =
  * @returns Address with the scheme applied.
  */
 export const applyL1ToL2Alias = (address: string): string => {
-  if (!ethers.utils.isAddress(address)) {
+  if (!isAddress(address)) {
     throw new Error(`not a valid address: ${address}`)
   }
 
-  return bnToAddress(ethers.BigNumber.from(address).add(L1_TO_L2_ALIAS_OFFSET))
+  return bnToAddress(BigNumber.from(address).add(L1_TO_L2_ALIAS_OFFSET))
 }
 
 /**
@@ -32,9 +33,9 @@ export const applyL1ToL2Alias = (address: string): string => {
  * @returns Alias with the scheme reversed.
  */
 export const undoL1ToL2Alias = (address: string): string => {
-  if (!ethers.utils.isAddress(address)) {
+  if (!isAddress(address)) {
     throw new Error(`not a valid address: ${address}`)
   }
 
-  return bnToAddress(ethers.BigNumber.from(address).sub(L1_TO_L2_ALIAS_OFFSET))
+  return bnToAddress(BigNumber.from(address).sub(L1_TO_L2_ALIAS_OFFSET))
 }

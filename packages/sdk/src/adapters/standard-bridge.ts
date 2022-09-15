@@ -12,12 +12,13 @@ import {
   TransactionResponse,
   BlockTag,
 } from '@ethersproject/abstract-provider'
-import { getContractInterface, predeploys } from '@eth-optimism/contracts'
+import { predeploys } from '@eth-optimism/contracts'
+import { getContractInterface } from '@eth-optimism/contracts-bedrock'
 import { hexStringEquals } from '@eth-optimism/core-utils'
 
+import { CrossChainMessenger } from '../cross-chain-messenger'
 import {
   IBridgeAdapter,
-  ICrossChainMessenger,
   NumberLike,
   AddressLike,
   TokenBridgeMessage,
@@ -29,7 +30,7 @@ import { toAddress } from '../utils'
  * Bridge adapter for any token bridge that uses the standard token bridge interface.
  */
 export class StandardBridgeAdapter implements IBridgeAdapter {
-  public messenger: ICrossChainMessenger
+  public messenger: CrossChainMessenger
   public l1Bridge: Contract
   public l2Bridge: Contract
 
@@ -42,7 +43,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
    * @param opts.l2Bridge L2 bridge contract.
    */
   constructor(opts: {
-    messenger: ICrossChainMessenger
+    messenger: CrossChainMessenger
     l1Bridge: AddressLike
     l2Bridge: AddressLike
   }) {
@@ -54,7 +55,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     )
     this.l2Bridge = new Contract(
       toAddress(opts.l2Bridge),
-      getContractInterface('IL2ERC20Bridge'),
+      getContractInterface('L2StandardBridge'),
       this.messenger.l2Provider
     )
   }
@@ -82,19 +83,19 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         // adapter. Bridges that are not the ETH bridge should not be able to handle or even
         // present ETH deposits or withdrawals.
         return (
-          !hexStringEquals(event.args._l1Token, ethers.constants.AddressZero) &&
-          !hexStringEquals(event.args._l2Token, predeploys.OVM_ETH)
+          !hexStringEquals(event.args.l1Token, ethers.constants.AddressZero) &&
+          !hexStringEquals(event.args.l2Token, predeploys.OVM_ETH)
         )
       })
       .map((event) => {
         return {
           direction: MessageDirection.L1_TO_L2,
-          from: event.args._from,
-          to: event.args._to,
-          l1Token: event.args._l1Token,
-          l2Token: event.args._l2Token,
-          amount: event.args._amount,
-          data: event.args._data,
+          from: event.args.from,
+          to: event.args.to,
+          l1Token: event.args.l1Token,
+          l2Token: event.args.l2Token,
+          amount: event.args.amount,
+          data: event.args.extraData,
           logIndex: event.logIndex,
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
@@ -125,19 +126,19 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         // adapter. Bridges that are not the ETH bridge should not be able to handle or even
         // present ETH deposits or withdrawals.
         return (
-          !hexStringEquals(event.args._l1Token, ethers.constants.AddressZero) &&
-          !hexStringEquals(event.args._l2Token, predeploys.OVM_ETH)
+          !hexStringEquals(event.args.l1Token, ethers.constants.AddressZero) &&
+          !hexStringEquals(event.args.l2Token, predeploys.OVM_ETH)
         )
       })
       .map((event) => {
         return {
           direction: MessageDirection.L2_TO_L1,
-          from: event.args._from,
-          to: event.args._to,
-          l1Token: event.args._l1Token,
-          l2Token: event.args._l2Token,
-          amount: event.args._amount,
-          data: event.args._data,
+          from: event.args.from,
+          to: event.args.to,
+          l1Token: event.args.l1Token,
+          l2Token: event.args.l2Token,
+          amount: event.args.amount,
+          data: event.args.extraData,
           logIndex: event.logIndex,
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
@@ -156,10 +157,9 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
     try {
       const contract = new Contract(
         toAddress(l2Token),
-        getContractInterface('L2StandardERC20'),
+        getContractInterface('OptimismMintableERC20'),
         this.messenger.l2Provider
       )
-
       // Don't support ETH deposits or withdrawals via this bridge.
       if (
         hexStringEquals(toAddress(l1Token), ethers.constants.AddressZero) ||
@@ -170,6 +170,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
 
       // Make sure the L1 token matches.
       const remoteL1Token = await contract.l1Token()
+
       if (!hexStringEquals(remoteL1Token, toAddress(l1Token))) {
         return false
       }
@@ -183,8 +184,12 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
       return true
     } catch (err) {
       // If the L2 token is not an L2StandardERC20, it may throw an error. If there's a call
-      // exception then we assume that the token is not supported. Other errors are thrown.
-      if (err.message.toString().includes('CALL_EXCEPTION')) {
+      // exception then we assume that the token is not supported. Other errors are thrown. Since
+      // the JSON-RPC API is not well-specified, we need to handle multiple possible error codes.
+      if (
+        err.message.toString().includes('CALL_EXCEPTION') ||
+        err.stack.toString().includes('execution reverted')
+      ) {
         return false
       } else {
         throw err
@@ -203,7 +208,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
 
     const token = new Contract(
       toAddress(l1Token),
-      getContractInterface('L2StandardERC20'), // Any ERC20 will do
+      getContractInterface('OptimismMintableERC20'), // Any ERC20 will do
       this.messenger.l1Provider
     )
 
@@ -270,7 +275,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
 
       const token = new Contract(
         toAddress(l1Token),
-        getContractInterface('L2StandardERC20'), // Any ERC20 will do
+        getContractInterface('OptimismMintableERC20'), // Any ERC20 will do
         this.messenger.l1Provider
       )
 

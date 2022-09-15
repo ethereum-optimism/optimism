@@ -26,16 +26,17 @@ func (w Withdrawal) String() string {
 
 // WithdrawalJSON contains Withdrawal data suitable for JSON serialization.
 type WithdrawalJSON struct {
-	GUID           string          `json:"guid"`
-	FromAddress    string          `json:"from"`
-	ToAddress      string          `json:"to"`
-	L1Token        string          `json:"l1Token"`
-	L2Token        *Token          `json:"l2Token"`
-	Amount         string          `json:"amount"`
-	Data           []byte          `json:"data"`
-	LogIndex       uint64          `json:"logIndex"`
-	BlockNumber    uint64          `json:"blockNumber"`
-	BlockTimestamp string          `json:"blockTimestamp"`
-	TxHash         string          `json:"transactionHash"`
-	Batch          *StateBatchJSON `json:"batch"`
+	GUID             string `json:"guid"`
+	FromAddress      string `json:"from"`
+	ToAddress        string `json:"to"`
+	L1Token          string `json:"l1Token"`
+	L2Token          *Token `json:"l2Token"`
+	Amount           string `json:"amount"`
+	Data             []byte `json:"data"`
+	LogIndex         uint64 `json:"logIndex"`
+	L1BlockNumber    uint64 `json:"l1BlockNumber"`
+	L1BlockTimestamp string `json:"l1BlockTimestamp"`
+	L2BlockNumber    uint64 `json:"l2BlockNumber"`
+	L2BlockTimestamp string `json:"l2BlockTimestamp"`
+	TxHash           string `json:"transactionHash"`
 }

@@ -19,8 +19,11 @@ need_cmd() {
 need_cmd forge
 need_cmd abigen
 
-
-TYPE=$1
+NAME=$1
+# This can handle both fully qualified syntax or just
+# the name of the contract.
+# Fully qualified: path-to-contract-file:contract-name
+TYPE=$(echo "$NAME" | cut -d ':' -f2)
 PACKAGE=$2
 
 # Convert to lower case to respect golang package naming conventions
@@ -34,10 +37,9 @@ TEMP=$(mktemp -d)
 CWD=$(pwd)
 # Build contracts
 cd ${CONTRACTS_PATH}
-forge build
-forge inspect ${TYPE} abi > ${TEMP}/${TYPE}.abi
-forge inspect ${TYPE} bytecode > ${TEMP}/${TYPE}.bin
-forge inspect ${TYPE} deployedBytecode > ${CWD}/bin/${TYPE_LOWER}_deployed.hex
+forge inspect ${NAME} abi > ${TEMP}/${TYPE}.abi
+forge inspect ${NAME} bytecode > ${TEMP}/${TYPE}.bin
+forge inspect ${NAME} deployedBytecode > ${CWD}/bin/${TYPE_LOWER}_deployed.hex
 
 # Run ABIGEN
 cd ${CWD}

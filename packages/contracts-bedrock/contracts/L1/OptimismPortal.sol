@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { ExcessivelySafeCall } from "excessively-safe-call/src/ExcessivelySafeCall.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
@@ -136,6 +136,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2.
+        // In the context of the proxy delegate calling to this implementation,
+        // address(this) will return the address of the proxy.
         require(
             _tx.target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"
@@ -193,16 +195,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
-        // Trigger the call to the target contract. We use excessivelySafeCall because we don't
+        // Trigger the call to the target contract. We use SafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
-        // call to run out of gas.
-        (bool success, ) = ExcessivelySafeCall.excessivelySafeCall(
-            _tx.target,
-            _tx.gasLimit,
-            _tx.value,
-            0,
-            _tx.data
-        );
+        // call to run out of gas via a returndata bomb.
+        bool success = SafeCall.call(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
 
         // Reset the l2Sender back to the default value.
         l2Sender = DEFAULT_L2_SENDER;

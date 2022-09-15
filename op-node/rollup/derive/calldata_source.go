@@ -12,8 +12,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// CalldataSource readers raw transactions from a given block & then filters for
+// batch submitter transactions.
+// This is not a stage in the pipeline, but a wrapper for another stage in the pipeline
+//
+
 type L1TransactionFetcher interface {
-	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.L1Info, types.Transactions, error)
+	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 }
 
 type DataSlice []eth.Data
