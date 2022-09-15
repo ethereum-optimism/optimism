@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -25,7 +24,7 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	attrs, _, err := derive.PreparePayloadAttributes(fetchCtx, d.Config, d.dl, l2Head, l1Origin.ID())
+	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.Config, d.dl, l2Head, l2Head.Time+d.Config.BlockTime, l1Origin.ID())
 	if err != nil {
 		return l2Head, nil, err
 	}
@@ -45,12 +44,9 @@ func (d *outputImpl) createNewBlock(ctx context.Context, l2Head eth.L2BlockRef, 
 	}
 
 	// Actually execute the block and add it to the head of the chain.
-	payload, rpcErr, payloadErr := derive.InsertHeadBlock(ctx, d.log, d.l2, fc, attrs, false)
-	if rpcErr != nil {
-		return l2Head, nil, fmt.Errorf("failed to extend L2 chain due to RPC error: %v", rpcErr)
-	}
-	if payloadErr != nil {
-		return l2Head, nil, fmt.Errorf("failed to extend L2 chain, cannot produce valid payload: %v", payloadErr)
+	payload, errType, err := derive.InsertHeadBlock(ctx, d.log, d.l2, fc, attrs, false)
+	if err != nil {
+		return l2Head, nil, fmt.Errorf("failed to extend L2 chain, error (%d): %w", errType, err)
 	}
 
 	// Generate an L2 block ref from the payload.

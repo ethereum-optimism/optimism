@@ -3,7 +3,6 @@ package proxyd
 import (
 	"encoding/json"
 	"io"
-	"io/ioutil"
 	"strings"
 )
 
@@ -65,6 +64,14 @@ func (r *RPCErr) Error() string {
 	return r.Message
 }
 
+func (r *RPCErr) Clone() *RPCErr {
+	return &RPCErr{
+		Code:          r.Code,
+		Message:       r.Message,
+		HTTPErrorCode: r.HTTPErrorCode,
+	}
+}
+
 func IsValidID(id json.RawMessage) bool {
 	// handle the case where the ID is a string
 	if strings.HasPrefix(string(id), "\"") && strings.HasSuffix(string(id), "\"") {
@@ -95,7 +102,7 @@ func ParseBatchRPCReq(body []byte) ([]json.RawMessage, error) {
 }
 
 func ParseRPCRes(r io.Reader) (*RPCRes, error) {
-	body, err := ioutil.ReadAll(r)
+	body, err := io.ReadAll(r)
 	if err != nil {
 		return nil, wrapErr(err, "error reading RPC response")
 	}

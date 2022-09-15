@@ -4,14 +4,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/libp2p/go-libp2p-core/host"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 )
 
 // Prepared provides a p2p host and discv5 service that is already set up.

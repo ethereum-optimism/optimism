@@ -21,6 +21,34 @@ export const getContractDefinition = (name: string): any => {
 }
 
 /**
+ * Gets the deployed hardhat artifact for the given contract name.
+ * Will throw an error if the contract artifact is not found.
+ *
+ * @param name Contract name.
+ * @param network Network name.
+ * @returns The artifact for the given contract name.
+ */
+export const getDeployedContractDefinition = (
+  name: string,
+  network: string
+): {
+  address: string
+  abi: any
+} => {
+  const {
+    getDeployedContractArtifact,
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+  } = require('./contract-deployed-artifacts')
+  const artifact = getDeployedContractArtifact(name, network)
+  if (artifact === undefined) {
+    throw new Error(
+      `Unable to find artifact for contract on network ${network}: ${name}`
+    )
+  }
+  return artifact
+}
+
+/**
  * Gets an ethers Interface instance for the given contract name.
  *
  * @param name Contract name.

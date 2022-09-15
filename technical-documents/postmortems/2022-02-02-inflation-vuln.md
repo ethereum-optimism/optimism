@@ -192,7 +192,7 @@ the various risks they considered.
 
 - Our forthcoming network upgrade
   ([Optimism: Bedrock](https://github.com/ethereum-optimism/optimistic-specs)) will use a
-  [fresh fork of Geth](https://github.com/ethereum-optimism/reference-optimistic-geth), with a
+  [fresh fork of Geth](https://github.com/ethereum-optimism/op-geth), with a
   minimal set of changes which can be easily rebased to track the upstream Geth repository.
 - We will ensure the common Ethereum tests are run against Bedrock.
 - We are redesigning our code review process, to introduce measure which will:

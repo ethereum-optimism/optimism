@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type ServerConfig struct {
@@ -18,6 +19,9 @@ type ServerConfig struct {
 	TimeoutSeconds int `toml:"timeout_seconds"`
 
 	MaxUpstreamBatchSize int `toml:"max_upstream_batch_size"`
+
+	EnableRequestLog     bool `toml:"enable_request_log"`
+	MaxRequestBodyLogLen int  `toml:"max_request_body_log_len"`
 }
 
 type CacheConfig struct {
@@ -34,6 +38,31 @@ type MetricsConfig struct {
 	Enabled bool   `toml:"enabled"`
 	Host    string `toml:"host"`
 	Port    int    `toml:"port"`
+}
+
+type RateLimitConfig struct {
+	RatePerSecond    int                                 `toml:"rate_per_second"`
+	ExemptOrigins    []string                            `toml:"exempt_origins"`
+	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
+	ErrorMessage     string                              `toml:"error_message"`
+	MethodOverrides  map[string]*RateLimitMethodOverride `toml:"method_overrides"`
+}
+
+type RateLimitMethodOverride struct {
+	Limit    int          `toml:"limit"`
+	Interval TOMLDuration `toml:"interval"`
+}
+
+type TOMLDuration time.Duration
+
+func (t *TOMLDuration) UnmarshalText(b []byte) error {
+	d, err := time.ParseDuration(string(b))
+	if err != nil {
+		return err
+	}
+
+	*t = TOMLDuration(d)
+	return nil
 }
 
 type BackendOptions struct {
@@ -72,6 +101,7 @@ type Config struct {
 	Cache             CacheConfig         `toml:"cache"`
 	Redis             RedisConfig         `toml:"redis"`
 	Metrics           MetricsConfig       `toml:"metrics"`
+	RateLimit         RateLimitConfig     `toml:"rate_limit"`
 	BackendOptions    BackendOptions      `toml:"backend"`
 	Backends          BackendsConfig      `toml:"backends"`
 	Authentication    map[string]string   `toml:"authentication"`

@@ -2,33 +2,31 @@ package p2p
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/rand"
 	"math/big"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/ethereum/go-ethereum/rpc"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/network"
 	"github.com/libp2p/go-libp2p-core/peer"
-	tswarm "github.com/libp2p/go-libp2p-swarm/testing"
-	yamux "github.com/libp2p/go-libp2p-yamux"
 	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 func TestingConfig(t *testing.T) *Config {
@@ -39,7 +37,7 @@ func TestingConfig(t *testing.T) *Config {
 	mux := lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}
 
 	return &Config{
-		Priv:                (*ecdsa.PrivateKey)((p).(*crypto.Secp256k1PrivateKey)),
+		Priv:                (p).(*crypto.Secp256k1PrivateKey),
 		DisableP2P:          false,
 		NoDiscovery:         true, // we statically peer during most tests.
 		ListenIP:            net.IP{127, 0, 0, 1},
@@ -106,7 +104,7 @@ func TestP2PFull(t *testing.T) {
 	require.NoError(t, err)
 
 	confA := Config{
-		Priv:                (*ecdsa.PrivateKey)((pA).(*crypto.Secp256k1PrivateKey)),
+		Priv:                (pA).(*crypto.Secp256k1PrivateKey),
 		DisableP2P:          false,
 		NoDiscovery:         true,
 		ListenIP:            net.IP{127, 0, 0, 1},
@@ -129,7 +127,7 @@ func TestP2PFull(t *testing.T) {
 	}
 	// copy config A, and change the settings for B
 	confB := confA
-	confB.Priv = (*ecdsa.PrivateKey)((pB).(*crypto.Secp256k1PrivateKey))
+	confB.Priv = (pB).(*crypto.Secp256k1PrivateKey)
 	confB.Store = sync.MutexWrap(ds.NewMapDatastore())
 	// TODO: maybe swap the order of sec/mux preferences, to test that negotiation works
 
@@ -258,7 +256,7 @@ func TestDiscovery(t *testing.T) {
 	rollupCfg := &rollup.Config{L2ChainID: big.NewInt(901)}
 
 	confA := Config{
-		Priv:                (*ecdsa.PrivateKey)((pA).(*crypto.Secp256k1PrivateKey)),
+		Priv:                (pA).(*crypto.Secp256k1PrivateKey),
 		DisableP2P:          false,
 		NoDiscovery:         false,
 		AdvertiseIP:         net.IP{127, 0, 0, 1},
@@ -284,7 +282,7 @@ func TestDiscovery(t *testing.T) {
 	}
 	// copy config A, and change the settings for B
 	confB := confA
-	confB.Priv = (*ecdsa.PrivateKey)((pB).(*crypto.Secp256k1PrivateKey))
+	confB.Priv = (pB).(*crypto.Secp256k1PrivateKey)
 	confB.Store = sync.MutexWrap(ds.NewMapDatastore())
 	confB.DiscoveryDB = discDBB
 
@@ -301,7 +299,7 @@ func TestDiscovery(t *testing.T) {
 	confB.Bootnodes = []*enode.Node{nodeA.Dv5Udp().Self()}
 	// Copy B config to C, and ensure they have a different priv / peerstore
 	confC := confB
-	confC.Priv = (*ecdsa.PrivateKey)((pC).(*crypto.Secp256k1PrivateKey))
+	confC.Priv = (pC).(*crypto.Secp256k1PrivateKey)
 	confC.Store = sync.MutexWrap(ds.NewMapDatastore())
 	confB.DiscoveryDB = discDBC
 
