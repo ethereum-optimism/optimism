@@ -2,22 +2,32 @@ package op_proposer
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"errors"
 	"fmt"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
+
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
 )
 
 const (
@@ -31,25 +41,13 @@ const (
 // of a closure allows the parameters bound to the top-level main package, e.g.
 // GitVersion, to be captured and used once the function is executed.
 func Main(version string) func(ctx *cli.Context) error {
-	return func(ctx *cli.Context) error {
-		cfg := NewConfig(ctx)
-
-		// Set up our logging to stdout.
-		var logHandler log.Handler
-		if cfg.LogTerminal {
-			logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
-		} else {
-			logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
+	return func(cliCtx *cli.Context) error {
+		cfg := NewConfig(cliCtx)
+		if err := cfg.Check(); err != nil {
+			return fmt.Errorf("invalid CLI flags: %w", err)
 		}
 
-		logLevel, err := log.LvlFromString(cfg.LogLevel)
-		if err != nil {
-			return err
-		}
-
-		l := log.New()
-		l.SetHandler(log.LvlFilterHandler(logLevel, logHandler))
-
+		l := oplog.NewLogger(cfg.LogConfig)
 		l.Info("Initializing L2 Output Submitter")
 
 		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, version, l)
@@ -66,7 +64,40 @@ func Main(version string) func(ctx *cli.Context) error {
 		}
 		defer l2OutputSubmitter.Stop()
 
+		ctx, cancel := context.WithCancel(context.Background())
+
 		l.Info("L2 Output Submitter started")
+		pprofConfig := cfg.PprofConfig
+		if pprofConfig.Enabled {
+			l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+			go func() {
+				if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
+					l.Error("error starting pprof", "err", err)
+				}
+			}()
+		}
+
+		registry := opmetrics.NewRegistry()
+		metricsCfg := cfg.MetricsConfig
+		if metricsCfg.Enabled {
+			l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+			go func() {
+				if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+					l.Error("error starting metrics server", err)
+				}
+			}()
+		}
+
+		rpcCfg := cfg.RPCConfig
+		server := oprpc.NewServer(
+			rpcCfg.ListenAddr,
+			rpcCfg.ListenPort,
+			version,
+		)
+		if err := server.Start(); err != nil {
+			cancel()
+			return fmt.Errorf("error starting RPC server: %w", err)
+		}
 
 		interruptChannel := make(chan os.Signal, 1)
 		signal.Notify(interruptChannel, []os.Signal{
@@ -76,6 +107,7 @@ func Main(version string) func(ctx *cli.Context) error {
 			syscall.SIGQUIT,
 		}...)
 		<-interruptChannel
+		cancel()
 
 		return nil
 	}
@@ -97,20 +129,33 @@ func NewL2OutputSubmitter(
 ) (*L2OutputSubmitter, error) {
 
 	ctx := context.Background()
+	var l2OutputPrivKey *ecdsa.PrivateKey
+	var err error
 
-	// Parse l2output wallet private key and L2OO contract address.
-	wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-	if err != nil {
-		return nil, err
+	if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
+		return nil, errors.New("cannot specify both a private key and a mnemonic")
 	}
 
-	l2OutputPrivKey, err := wallet.PrivateKey(accounts.Account{
-		URL: accounts.URL{
-			Path: cfg.L2OutputHDPath,
-		},
-	})
-	if err != nil {
-		return nil, err
+	if cfg.PrivateKey == "" {
+		// Parse l2output wallet private key and L2OO contract address.
+		wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
+		if err != nil {
+			return nil, err
+		}
+
+		l2OutputPrivKey, err = wallet.PrivateKey(accounts.Account{
+			URL: accounts.URL{
+				Path: cfg.L2OutputHDPath,
+			},
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		l2OutputPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
@@ -201,7 +246,7 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient.RollupClient, error) {
+func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.RollupClient, error) {
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
@@ -210,7 +255,7 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient
 		return nil, err
 	}
 
-	return rollupclient.NewRollupClient(client), nil
+	return sources.NewRollupClient(client), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "resolveJsonModule": true
+  },
+  "include": [
+    "./lib/**/*.ts",
+    "./bedrock/**/*.(ts|json)",
+    "./package.json"
+  ]
+}

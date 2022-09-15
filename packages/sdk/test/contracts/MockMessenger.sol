@@ -48,7 +48,8 @@ contract MockMessenger is ICrossDomainMessenger {
         address sender;
         bytes message;
         uint256 messageNonce;
-        uint256 gasLimit;
+        uint256 minGasLimit;
+        uint256 value;
     }
 
     function doNothing() public {
@@ -63,7 +64,7 @@ contract MockMessenger is ICrossDomainMessenger {
             _params.sender,
             _params.message,
             _params.messageNonce,
-            _params.gasLimit
+            _params.minGasLimit
         );
     }
 
