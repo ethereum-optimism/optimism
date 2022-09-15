@@ -7,6 +7,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/backoff"
 	"github.com/ethereum/go-ethereum/log"
+	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -43,7 +44,7 @@ func (cfg *L2EndpointConfig) Setup(ctx context.Context, log log.Logger) (*rpc.Cl
 	if err := cfg.Check(); err != nil {
 		return nil, err
 	}
-	auth := rpc.NewJWTAuthProvider(cfg.L2EngineJWTSecret)
+	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.L2EngineJWTSecret))
 	l2Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L2EngineAddr, auth)
 	if err != nil {
 		return nil, err
@@ -82,7 +83,7 @@ type L1EndpointConfig struct {
 var _ L1EndpointSetup = (*L1EndpointConfig)(nil)
 
 func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger) (cl *rpc.Client, trust bool, err error) {
-	l1Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L1NodeAddr, nil)
+	l1Node, err := dialRPCClientWithBackoff(ctx, log, cfg.L1NodeAddr)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
@@ -102,17 +103,11 @@ func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger) (cl *rpc
 }
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
-func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, auth rpc.HeaderAuthProvider) (*rpc.Client, error) {
+func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
 	var ret *rpc.Client
 	err := backoff.Do(10, bOff, func() error {
-		var client *rpc.Client
-		var err error
-		if auth == nil {
-			client, err = rpc.DialContext(ctx, addr)
-		} else {
-			client, err = rpc.DialWithAuth(ctx, addr, auth)
-		}
+		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
 			if client == nil {
 				return fmt.Errorf("failed to dial address (%s): %w", addr, err)

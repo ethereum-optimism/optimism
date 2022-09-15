@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -85,7 +84,7 @@ func L1InfoDepositTxData(data []byte) (L1BlockInfo, error) {
 
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block eth.L1Info) (*types.DepositTx, error) {
+func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, error) {
 	infoDat := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
@@ -102,30 +101,30 @@ func L1InfoDeposit(seqNumber uint64, block eth.L1Info) (*types.DepositTx, error)
 		L1BlockHash: block.Hash(),
 		SeqNumber:   seqNumber,
 	}
-	// Uses ~30k normal case
-	// Uses ~70k on first transaction
-	// Round up to 75k to ensure that we always have enough gas.
+	// Set a very large gas limit with `IsSystemTransaction` to ensure
+	// that the L1 Attributes Transaction does not run out of gas.
 	return &types.DepositTx{
-		SourceHash: source.SourceHash(),
-		From:       L1InfoDepositerAddress,
-		To:         &L1BlockAddress,
-		Mint:       nil,
-		Value:      big.NewInt(0),
-		Gas:        150_000, // TODO: temporary work around. Block 1 seems to require more gas than specced.
-		Data:       data,
+		SourceHash:          source.SourceHash(),
+		From:                L1InfoDepositerAddress,
+		To:                  &L1BlockAddress,
+		Mint:                nil,
+		Value:               big.NewInt(0),
+		Gas:                 150_000_000,
+		IsSystemTransaction: true,
+		Data:                data,
 	}, nil
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info eth.L1Info) ([]byte, error) {
+func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo) ([]byte, error) {
 	dep, err := L1InfoDeposit(seqNumber, l1Info)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 info tx: %v", err)
+		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
 	}
 	l1Tx := types.NewTx(dep)
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode L1 info tx: %v", err)
+		return nil, fmt.Errorf("failed to encode L1 info tx: %w", err)
 	}
 	return opaqueL1Tx, nil
 }

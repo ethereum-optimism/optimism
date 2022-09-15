@@ -1,8 +1,11 @@
 #!/bin/bash
 
-if [ ! -d forge-artifacts/build-info ]; then
-    npx hardhat compile
-fi
+rm -rf artifacts forge-artifacts
 
-cp -rf forge-artifacts/build-info artifacts/build-info
+# Handle slither bug unable to work with the foundry tests
+TEMP=$(mktemp -d)
+mv contracts/test $TEMP/test
+
 slither .
+
+mv $TEMP/test contracts/test

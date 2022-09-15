@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -35,8 +35,12 @@ func SingleResponseHandler(code int, response string) http.HandlerFunc {
 }
 
 func BatchedResponseHandler(code int, responses ...string) http.HandlerFunc {
-	// all proxyd upstream requests are batched
 	return func(w http.ResponseWriter, r *http.Request) {
+		if len(responses) == 1 {
+			SingleResponseHandler(code, responses[0])(w, r)
+			return
+		}
+
 		var body string
 		body += "["
 		for i, response := range responses {
@@ -118,7 +122,7 @@ func (h *BatchRPCResponseRouter) ServeHTTP(w http.ResponseWriter, r *http.Reques
 	h.mtx.Lock()
 	defer h.mtx.Unlock()
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(err)
 	}
@@ -237,12 +241,12 @@ func (m *MockBackend) Requests() []*RecordedRequest {
 
 func (m *MockBackend) wrappedHandler(w http.ResponseWriter, r *http.Request) {
 	m.mtx.Lock()
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(err)
 	}
 	clone := r.Clone(context.Background())
-	clone.Body = ioutil.NopCloser(bytes.NewReader(body))
+	clone.Body = io.NopCloser(bytes.NewReader(body))
 	m.requests = append(m.requests, &RecordedRequest{
 		Method:  r.Method,
 		Headers: r.Header.Clone(),

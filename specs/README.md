@@ -1,7 +1,7 @@
 <!-- DOCTOC SKIP -->
 # Optimism Bedrock specs
 
-This directory contains the plain english specs for Optimism, an minimal optimistic rollup protocol
+This directory contains the plain english specs for Optimism, a minimal optimistic rollup protocol
 that maintains 1:1 compatibility with Ethereum.
 
 ## Specification Contents

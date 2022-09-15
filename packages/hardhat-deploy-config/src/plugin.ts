@@ -1,4 +1,5 @@
 import * as path from 'path'
+import * as fs from 'fs'
 
 import { extendEnvironment, extendConfig } from 'hardhat/config'
 import {
@@ -28,9 +29,16 @@ const normalizePath = (
 export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
   let config: any
   try {
-    config =
+    const base = `${hre.config.paths.deployConfig}/${hre.network.name}`
+    if (fs.existsSync(`${base}.ts`)) {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
-      require(`${hre.config.paths.deployConfig}/${hre.network.name}.ts`).default
+      config = require(`${base}.ts`).default
+    } else if (fs.existsSync(`${base}.json`)) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      config = require(`${base}.json`)
+    } else {
+      throw new Error('not found')
+    }
   } catch (err) {
     throw new Error(
       `error while loading deploy config for network: ${hre.network.name}, ${err}`

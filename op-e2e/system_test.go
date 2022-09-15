@@ -18,9 +18,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -45,7 +45,7 @@ var _ = func() bool {
 var verboseGethNodes bool
 
 func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", false, "Enable logs on geth nodes")
+	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.Parse()
 }
 
@@ -110,6 +110,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 					SequencerConfDepth: 0,
 					SequencerEnabled:   false,
 				},
+				L1EpochPollInterval: time.Second * 4,
 			},
 			"sequencer": {
 				Driver: driver.Config{
@@ -119,9 +120,11 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 				},
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 				RPC: node.RPCConfig{
-					ListenAddr: "127.0.0.1",
-					ListenPort: 9093,
+					ListenAddr:  "127.0.0.1",
+					ListenPort:  9093,
+					EnableAdmin: true,
 				},
+				L1EpochPollInterval: time.Second * 4,
 			},
 		},
 		Loggers: map[string]log.Logger{
@@ -134,7 +137,7 @@ func defaultSystemConfig(t *testing.T) SystemConfig {
 			BlockTime:         1,
 			MaxSequencerDrift: 10,
 			SeqWindowSize:     30,
-			ChannelTimeout:    20,
+			ChannelTimeout:    10,
 			L1ChainID:         big.NewInt(900),
 			L2ChainID:         big.NewInt(901),
 			// TODO pick defaults
@@ -165,7 +168,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
-	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(rollupRPCClient)
 
 	//  OutputOracle is already deployed
 	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(sys.L2OOContractAddr, l1Client)
@@ -327,7 +330,7 @@ func TestSystemE2E(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), cfg.Nodes["sequencer"].RPC.HttpEndpoint())
 	require.Nil(t, err)
-	rollupClient := rollupclient.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(rollupRPCClient)
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.Nil(t, err)
@@ -383,6 +386,34 @@ func TestConfirmationDepth(t *testing.T) {
 	require.LessOrEqual(t, info.Number+seqConfDepth, l1Head.NumberU64(), "the L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
 
 	require.LessOrEqual(t, l2VerHead.Time()+cfg.L1BlockTime*verConfDepth, l2SeqHead.Time(), "the L2 verifier head should lag behind the sequencer without delay by at least the verifier conf depth")
+}
+
+// TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
+func TestFinalize(t *testing.T) {
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := defaultSystemConfig(t)
+
+	sys, err := cfg.start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+
+	// as configured in the extra geth lifecycle in testing setup
+	finalizedDistance := uint64(8)
+	// Wait enough time for L1 to finalize and L2 to confirm its data in finalized L1 blocks
+	<-time.After(time.Duration((finalizedDistance+4)*cfg.L1BlockTime) * time.Second)
+
+	// fetch the finalizes head of geth
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	l2Finalized, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
+	require.NoError(t, err)
+
+	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
 }
 
 func TestMintOnRevertedDeposit(t *testing.T) {
@@ -962,7 +993,7 @@ func TestFees(t *testing.T) {
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
 
 	// Find gaspriceoracle contract
-	gpoContract, err := bindings.NewGasPriceOracle(common.HexToAddress(predeploys.OVM_GasPriceOracle), l2Seq)
+	gpoContract, err := bindings.NewGasPriceOracle(common.HexToAddress(predeploys.GasPriceOracle), l2Seq)
 	require.Nil(t, err)
 
 	// GPO signer

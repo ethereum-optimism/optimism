@@ -7,13 +7,14 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 type MockAttributesQueueOutput struct {
@@ -48,7 +49,7 @@ func TestAttributesQueue_Step(t *testing.T) {
 		DepositContractAddress: common.Address{0xbb},
 	}
 	rng := rand.New(rand.NewSource(1234))
-	l1Info := testutils.RandomL1Info(rng)
+	l1Info := testutils.RandomBlockInfo(rng)
 
 	l1Fetcher := &testutils.MockL1Source{}
 	defer l1Fetcher.AssertExpectations(t)
@@ -68,9 +69,10 @@ func TestAttributesQueue_Step(t *testing.T) {
 	out.ExpectSafeL2Head(safeHead)
 
 	batch := &BatchData{BatchV1{
+		ParentHash:   safeHead.Hash,
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
-		Timestamp:    12345,
+		Timestamp:    safeHead.Time + cfg.BlockTime,
 		Transactions: []eth.Data{eth.Data("foobar"), eth.Data("example")},
 	}}
 

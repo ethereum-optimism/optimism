@@ -5,7 +5,7 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
@@ -14,7 +14,7 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
  * @title StandardBridge
  * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
  */
-abstract contract StandardBridge is Initializable {
+abstract contract StandardBridge {
     using SafeERC20 for IERC20;
 
     /**
@@ -25,12 +25,24 @@ abstract contract StandardBridge is Initializable {
     /**
      * @notice Messenger contract on this domain.
      */
-    CrossDomainMessenger public messenger;
+    CrossDomainMessenger public immutable messenger;
 
     /**
      * @notice Corresponding bridge on the other domain.
      */
-    StandardBridge public otherBridge;
+    StandardBridge public immutable otherBridge;
+
+    /**
+     * @custom:legacy
+     * @notice Spacer for backwards compatibility.
+     */
+    uint256 private spacer0;
+
+    /**
+     * @custom:legacy
+     * @notice Spacer for backwards compatibility.
+     */
+    uint256 private spacer1;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
@@ -155,6 +167,15 @@ abstract contract StandardBridge is Initializable {
     modifier onlySelf() {
         require(msg.sender == address(this), "StandardBridge: function can only be called by self");
         _;
+    }
+
+    /**
+     * @param _messenger   Address of CrossDomainMessenger on this network.
+     * @param _otherBridge Address of the other StandardBridge contract.
+     */
+    constructor(address payable _messenger, address payable _otherBridge) {
+        messenger = CrossDomainMessenger(_messenger);
+        otherBridge = StandardBridge(_otherBridge);
     }
 
     /**
@@ -284,7 +305,7 @@ abstract contract StandardBridge is Initializable {
         require(_to != address(this), "StandardBridge: cannot send to self");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
-        (bool success, ) = _to.call{ value: _amount }(new bytes(0));
+        bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
         require(success, "StandardBridge: ETH transfer failed");
     }
 
@@ -364,21 +385,6 @@ abstract contract StandardBridge is Initializable {
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] - _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
-    }
-
-    /**
-     * @notice Initializer.
-     *
-     * @param _messenger   Address of CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the other StandardBridge contract.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function __StandardBridge_init(address payable _messenger, address payable _otherBridge)
-        internal
-        onlyInitializing
-    {
-        messenger = CrossDomainMessenger(_messenger);
-        otherBridge = StandardBridge(_otherBridge);
     }
 
     /**

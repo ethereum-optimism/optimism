@@ -5,12 +5,13 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 type MockDataSource struct {
@@ -32,13 +33,12 @@ type MockIngestData struct {
 	MockOriginStage
 }
 
-func (im *MockIngestData) IngestData(data []byte) error {
-	out := im.Mock.MethodCalled("IngestData", data)
-	return *out[0].(*error)
+func (im *MockIngestData) IngestData(data []byte) {
+	im.Mock.MethodCalled("IngestData", data)
 }
 
-func (im *MockIngestData) ExpectIngestData(data []byte, err error) {
-	im.Mock.On("IngestData", data).Return(&err)
+func (im *MockIngestData) ExpectIngestData(data []byte) {
+	im.Mock.On("IngestData", data).Return()
 }
 
 var _ L1SourceOutput = (*MockIngestData)(nil)
@@ -58,8 +58,8 @@ func TestL1Retrieval_Step(t *testing.T) {
 	// mock some L1 data to open for the origin that is opened by the outer stage
 	dataSrc.ExpectOpenData(outer.Origin.ID(), iter, nil)
 
-	next.ExpectIngestData(a, nil)
-	next.ExpectIngestData(b, nil)
+	next.ExpectIngestData(a)
+	next.ExpectIngestData(b)
 
 	defer dataSrc.AssertExpectations(t)
 	defer next.AssertExpectations(t)

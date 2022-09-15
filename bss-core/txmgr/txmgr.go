@@ -330,7 +330,8 @@ func waitMined(
 
 // CalcGasFeeCap deterministically computes the recommended gas fee cap given
 // the base fee and gasTipCap. The resulting gasFeeCap is equal to:
-//   gasTipCap + 2*baseFee.
+//
+//	gasTipCap + 2*baseFee.
 func CalcGasFeeCap(baseFee, gasTipCap *big.Int) *big.Int {
 	return new(big.Int).Add(
 		gasTipCap,

@@ -2,24 +2,50 @@ package eth
 
 import (
 	"bytes"
+	"context"
 	"fmt"
+	"io"
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 type ErrorCode int
 
 const (
-	UnavailablePayload ErrorCode = -32001
+	UnknownPayload           ErrorCode = -32001 // Payload does not exist / is not available.
+	InvalidForkchoiceState   ErrorCode = -38002 // Forkchoice state is invalid / inconsistent.
+	InvalidPayloadAttributes ErrorCode = -38003 // Payload attributes are invalid / inconsistent.
 )
+
+// InputError distinguishes an user-input error from regular rpc errors,
+// to help the (Engine) API user divert from accidental input mistakes.
+type InputError struct {
+	Inner error
+	Code  ErrorCode
+}
+
+func (ie InputError) Error() string {
+	return fmt.Sprintf("input error %d: %s", ie.Code, ie.Inner.Error())
+}
+
+func (ie InputError) Unwrap() error {
+	return ie.Inner
+}
+
+// Is checks if the error is the given target type.
+// Any type of InputError counts, regardless of code.
+func (ie InputError) Is(target error) bool {
+	_, ok := target.(InputError)
+	return ok // we implement Unwrap, so we do not have to check the inner type now
+}
 
 type Bytes32 [32]byte
 
@@ -175,7 +201,7 @@ func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {
 	for i, tx := range bl.Transactions() {
 		otx, err := tx.MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("tx %d failed to marshal: %v", i, err)
+			return nil, fmt.Errorf("tx %d failed to marshal: %w", i, err)
 		}
 		opaqueTxs[i] = otx
 	}
@@ -252,3 +278,39 @@ type ForkchoiceUpdatedResult struct {
 	// the payload id if requested
 	PayloadID *PayloadID `json:"payloadId"`
 }
+
+// ReceiptsFetcher fetches receipts of a block,
+// and enables the caller to parallelize fetching and backoff on fetching errors as needed.
+type ReceiptsFetcher interface {
+	// Reset clears the previously fetched results for a fresh re-attempt.
+	Reset()
+	// Fetch retrieves receipts in batches, until it returns io.EOF to indicate completion.
+	Fetch(ctx context.Context) error
+	// Complete indicates when all data has been fetched.
+	Complete() bool
+	// Result returns the receipts, or an error if the Fetch-ing is not Complete,
+	// or an error if the results are invalid.
+	// If an error is returned, the fetcher is Reset automatically.
+	Result() (types.Receipts, error)
+}
+
+// FetchedReceipts is a simple util to implement the ReceiptsFetcher with readily available receipts.
+type FetchedReceipts types.Receipts
+
+func (f FetchedReceipts) Reset() {
+	// nothing to reset
+}
+
+func (f FetchedReceipts) Fetch(ctx context.Context) error {
+	return io.EOF
+}
+
+func (f FetchedReceipts) Complete() bool {
+	return true
+}
+
+func (f FetchedReceipts) Result() (types.Receipts, error) {
+	return types.Receipts(f), nil
+}
+
+var _ ReceiptsFetcher = (FetchedReceipts)(nil)
