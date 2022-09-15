@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/holiman/uint256"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/holiman/uint256"
 )
 
 var (
@@ -20,12 +21,13 @@ var (
 // UnmarshalDepositLogEvent decodes an EVM log entry emitted by the deposit contract into typed deposit data.
 //
 // parse log data for:
-//     event TransactionDeposited(
-//         address indexed from,
-//         address indexed to,
-//         uint256 indexed version,
-//         bytes opaqueData
-//     );
+//
+//	event TransactionDeposited(
+//	    address indexed from,
+//	    address indexed to,
+//	    uint256 indexed version,
+//	    bytes opaqueData
+//	);
 //
 // Additionally, the event log-index and
 func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
@@ -77,6 +79,7 @@ func UnmarshalDepositLogEvent(ev *types.Log) (*types.DepositTx, error) {
 	}
 	dep.SourceHash = source.SourceHash()
 	dep.From = from
+	dep.IsSystemTransaction = false
 
 	var err error
 	switch version {

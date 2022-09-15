@@ -5,8 +5,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/log"
 	"golang.org/x/term"
+
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type LogConfig struct {

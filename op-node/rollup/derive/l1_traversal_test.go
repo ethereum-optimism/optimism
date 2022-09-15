@@ -5,11 +5,12 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 func TestL1Traversal_Step(t *testing.T) {
@@ -47,9 +48,10 @@ func TestL1Traversal_Step(t *testing.T) {
 	require.Equal(t, a, tr.Progress().Origin, "stage needs to adopt the origin of next stage on reset")
 	require.False(t, tr.Progress().Closed, "stage needs to be open after reset")
 
+	require.ErrorIs(t, RepeatStep(t, tr.Step, Progress{}, 10), ErrTemporary, "expected temporary error because of RPC mock fail")
 	require.NoError(t, RepeatStep(t, tr.Step, Progress{}, 10))
 	require.Equal(t, c, tr.Progress().Origin, "expected to be stuck on ethereum.NotFound on d")
 	require.NoError(t, RepeatStep(t, tr.Step, Progress{}, 1))
 	require.Equal(t, c, tr.Progress().Origin, "expected to be stuck again, should get the EOF within 1 step")
-	require.ErrorIs(t, RepeatStep(t, tr.Step, Progress{}, 10), ReorgErr, "completed pipeline, until L1 input f that causes a reorg")
+	require.ErrorIs(t, RepeatStep(t, tr.Step, Progress{}, 10), ErrReset, "completed pipeline, until L1 input f that causes a reorg")
 }

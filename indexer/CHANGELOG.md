@@ -1,5 +1,19 @@
 # @eth-optimism/indexer
 
+## 0.2.0
+
+### Minor Changes
+
+- 4b0d5109: This release supports bedrock contracts and is configured for the public alpha testnet on goerli.
+
+## 0.1.4
+
+### Patch Changes
+
+- 74babaa4: Delete dead file
+- 3e67f784: Update go-ethereum to 1.10.21
+- ec8d6b7c: Remove some duplicated code
+
 ## 0.1.3
 
 ### Patch Changes

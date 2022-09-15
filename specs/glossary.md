@@ -47,6 +47,7 @@
   - [Payload Attributes](#payload-attributes)
   - [L2 Genesis Block](#l2-genesis-block)
   - [L2 Chain Inception](#l2-chain-inception)
+  - [Safe L2 Block](#safe-l2-block)
   - [Safe L2 Head](#safe-l2-head)
   - [Unsafe L2 Block](#unsafe-l2-block)
   - [Unsafe L2 Head](#unsafe-l2-head)
@@ -217,7 +218,7 @@ Additionally, the first block in the window defines the [depositing transactions
 
 A sequencing epoch is sequential range of L2 blocks derived from a [sequencing window](#sequencing-window) of L1 blocks.
 
-Each epoch is identified by an epoch number, which is equal to the block number number of the first L1 block in the
+Each epoch is identified by an epoch number, which is equal to the block number of the first L1 block in the
 sequencing window.
 
 Epochs can have variable size, subject to some constraints. See the [L2 chain derivation specification][derivation-spec]
@@ -278,7 +279,7 @@ There are two kinds of deposited transactions:
 
 An *L1 attributes deposited transaction* is [deposited transaction][deposited] that is used to register the L1 block
 attributes (number, timestamp, ...) on L2 via a call to the [L1 Attributes Predeployed Contract][l1-attr-predeploy].
-That contract can then be used to read the the attributes of the L1 block corresponding to the current L2 block.
+That contract can then be used to read the attributes of the L1 block corresponding to the current L2 block.
 
 L1 attributes deposited transactions are specified in the [L1 Attributes Deposit][l1-attributes-tx-spec] section of the
 deposits specification.
@@ -418,7 +419,7 @@ number](#sequencing-epoch) and an L2 block timestamp (which can trivially be con
 block time is constant).
 
 Sequencer batches are part of the [L2 derivation inputs][deriv-inputs]. Each batch represents the inputs needed to build
-**one** L2 block (given the existing L2 chain state) — excepted for the fist block of each epoch, which also needs
+**one** L2 block (given the existing L2 chain state) — except for the first block of each epoch, which also needs
 information about deposits (cf. the section on [L2 derivation inputs][deriv-inputs]).
 
 ## Channel
@@ -430,7 +431,7 @@ to group multiple batches together is simply to obtain a better compression rate
 costs.
 
 A channel can be split in [frames][channel-frame] in order to be transmitted via [batcher
-transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
+transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might be too large to
 include in a single batcher transaction.
 
 A channel is uniquely identified by its timestamp (UNIX time at which the channel was created) and a random value. See
@@ -531,7 +532,7 @@ L2 derivation inputs include:
 This term refers to an object that can be derived from [L2 chain derivation inputs][deriv-inputs] found on L1, which are
 then passed to the [execution engine][execution-engine] to construct L2 blocks.
 
-The payload attributes object essentially essentially encodes a [a block without output properties][block].
+The payload attributes object essentially encodes [a block without output properties][block].
 
 Payload attributes are originally specified in the [Ethereum Engine API specification][engine-api], which we expand in
 the [Execution Engine Specification](exec-engine.md).
@@ -575,12 +576,18 @@ oracle][output-oracle] contract.
 
 In the current implementation, this is the L1 block number at which the output oracle contract was deployed or upgraded.
 
+## Safe L2 Block
+
+[safe-l2-block]: glossary.md#safe-l2-block
+
+A safe L2 block is an L2 block can be derived entirely from L1 by a [rollup node][rollup-node]. This can vary between
+different nodes, based on their view of the L1 chain.
+
 ## Safe L2 Head
 
 [safe-l2-head]: glossary.md#safe-l2-head
 
-The safe L2 head is most recent L2 block that was can be derived entirely from L1 by a [rollup node][rollup-node]. This
-can vary between different nodes, based on their view of the L1 chain.
+The safe L2 head is the highest [safe L2 block][safe-l2-block] that a [rollup node][rollup-node] knows about.
 
 ## Unsafe L2 Block
 

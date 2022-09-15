@@ -171,7 +171,7 @@ For async communication over different channels over the same connection, multip
 
 #### GossipSub
 
-[GossipSub 1.1](gossipsub) (`/meshsub/1.1.0`, i.e. with peer-scoring extension) is a pubsub protocol for mesh-networks,
+[GossipSub 1.1][gossipsub] (`/meshsub/1.1.0`, i.e. with peer-scoring extension) is a pubsub protocol for mesh-networks,
 deployed on L1 consensus (Eth2) and other protocols such as Filecoin, offering lots of customization options.
 
 ##### Content-based message identification

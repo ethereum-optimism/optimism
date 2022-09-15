@@ -43,7 +43,7 @@ In general:
   - e.g. `[g-block]: glossary.md#block`
 - Example: [Rollup Node Specification source][rollup-node]
 
-[glossary]: ../specs/glossary.md
+[glossary]: ../glossary.md
 [rollup-node]: https://raw.githubusercontent.com/ethereum-optimism/optimistic-specs/main/specs/rollup-node.md
 
 ## Internal (In-File) Links
