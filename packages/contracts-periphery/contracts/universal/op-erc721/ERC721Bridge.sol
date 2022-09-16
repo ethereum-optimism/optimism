@@ -105,15 +105,19 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to the caller's account on the other domain.
+     * @notice Initiates a bridge of an NFT to the caller's account on the other chain. Note that
+     *         this function can only be called by EOAs. Smart contract wallets should use the
+     *         `bridgeERC721To` function after ensuring that the recipient address on the remote
+     *         chain exists. Also note that the current owner of the token on this chain must
+     *         approve this contract to operate the NFT before it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
      * @param _tokenId     Token ID to bridge.
      * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
-     * @param _extraData   Optional data to forward to the other domain. Data supplied here will
-     *                     not be used to execute any code on the other domain and is only emitted
-     *                     as extra data for the convenience of off-chain tooling.
+     * @param _extraData   Optional data to forward to the other chain. Data supplied here will not
+     *                     be used to execute any code on the other chain and is only emitted as
+     *                     extra data for the convenience of off-chain tooling.
      */
     function bridgeERC721(
         address _localToken,
@@ -122,8 +126,12 @@ abstract contract ERC721Bridge is Initializable {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) external {
-        // Modifier requiring sender to be EOA. This check could be bypassed by a malicious
-        // contract via initcode, but it takes care of the user error we want to avoid.
+        // Modifier requiring sender to be EOA. This prevents against a user error that would occur
+        // if the sender is a smart contract wallet that has a different address on the remote chain
+        // (or doesn't have an address on the remote chain at all). The user would fail to receive
+        // the NFT if they use this function because it sends the NFT to the same address as the
+        // caller. This check could be bypassed by a malicious contract via initcode, but it takes
+        // care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "ERC721Bridge: account is not externally owned");
 
         _initiateBridgeERC721(
@@ -138,16 +146,18 @@ abstract contract ERC721Bridge is Initializable {
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to some recipient's account on the other domain.
+     * @notice Initiates a bridge of an NFT to some recipient's account on the other chain. Note
+     *         that the current owner of the token on this chain must approve this contract to
+     *         operate the NFT before it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
      * @param _to          Address to receive the token on the other domain.
      * @param _tokenId     Token ID to bridge.
      * @param _minGasLimit Minimum gas limit for the bridge message on the other domain.
-     * @param _extraData   Optional data to forward to the other domain. Data supplied here will
-     *                     not be used to execute any code on the other domain and is only emitted
-     *                     as extra data for the convenience of off-chain tooling.
+     * @param _extraData   Optional data to forward to the other chain. Data supplied here will not
+     *                     be used to execute any code on the other chain and is only emitted as
+     *                     extra data for the convenience of off-chain tooling.
      */
     function bridgeERC721To(
         address _localToken,
