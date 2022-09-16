@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
+} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
