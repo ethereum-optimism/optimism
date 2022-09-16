@@ -89,13 +89,13 @@ contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
     address public otherBridge;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      *
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
     constructor(address _messenger, address _otherBridge)
-        Semver(0, 0, 1)
+        Semver(1, 0, 0)
         CrossDomainEnabled(address(0))
     {
         initialize(_messenger, _otherBridge);
