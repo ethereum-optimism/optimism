@@ -4,14 +4,12 @@ pragma solidity 0.8.15;
 import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title L1ERC721Bridge
@@ -19,7 +17,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
  *         acts as an escrow for ERC721 tokens deposted into L2.
  */
-contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
+contract L1ERC721Bridge is ERC721Bridge, Semver {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -111,13 +109,14 @@ contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
 
         messenger = _messenger;
         otherBridge = _otherBridge;
-
-        // Initialize upgradable OZ contracts
-        __Ownable_init();
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to the caller's account on L2.
+     * @notice Initiates a bridge of an NFT to the caller's account on L2. Note that this function
+     *         can only be called by EOAs. Smart contract wallets should use the `bridgeERC721To`
+     *         function after ensuring that the recipient address on the remote chain exists. Also
+     *         note that the current owner of the token on this chain must approve this contract to
+     *         operate the NFT before it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -134,8 +133,12 @@ contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) external {
-        // Modifier requiring sender to be EOA. This check could be bypassed by a malicious
-        // contract via initcode, but it takes care of the user error we want to avoid.
+        // Modifier requiring sender to be EOA. This prevents against a user error that would occur
+        // if the sender is a smart contract wallet that has a different address on the remote chain
+        // (or doesn't have an address on the remote chain at all). The user would fail to receive
+        // the NFT if they use this function because it sends the NFT to the same address as the
+        // caller. This check could be bypassed by a malicious contract via initcode, but it takes
+        // care of the user error we want to avoid.
         require(!Address.isContract(msg.sender), "L1ERC721Bridge: account is not externally owned");
 
         _initiateBridgeERC721(
@@ -150,7 +153,9 @@ contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to some recipient's account on L2.
+     * @notice Initiates a bridge of an NFT to some recipient's account on L2. Note that the current
+     *         owner of the token on this chain must approve this contract to operate the NFT before
+     *         it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
