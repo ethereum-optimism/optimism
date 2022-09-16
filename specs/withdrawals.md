@@ -21,9 +21,9 @@ more specific terms to differentiate:
 - A *withdrawal finalizing transaction* refers specifically to an L1 transaction which finalizes and relays the
   withdrawal.
 
-Withdrawals are initiated on L2 via a call to the Withdrawals predeploy contract, which records the important properties
-of the message in its storage. Withdrawals are finalized on L1 via a call to the `L2WithdrawalVerifier` contract, which
-proves the inclusion of this withdrawal message.
+Withdrawals are initiated on L2 via a call to the Message Passer predeploy contract, which records the important
+properties of the message in its storage. Withdrawals are finalized on L1 via a call to the `L2WithdrawalVerifier`
+contract, which proves the inclusion of this withdrawal message.
 
 In this way, withdrawals are different from [deposits][g-deposits] which make use of a special transaction type in the
 [execution engine][g-execution-engine] client. Rather, withdrawals transaction must use smart contracts on L1 for

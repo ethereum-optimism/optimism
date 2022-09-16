@@ -26,7 +26,7 @@
     "gas-snapshot": "yarn build:differential && forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "slither": "./scripts/slither.sh",
-    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo",
+    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./src/contract-artifacts.ts",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
