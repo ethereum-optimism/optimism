@@ -39,9 +39,7 @@
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | msgNonce           | uint240                  | 205  | 0      | 30    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| otherMessenger     | address                  | 206  | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-|--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| receivedMessages   | mapping(bytes32 => bool) | 207  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| receivedMessages   | mapping(bytes32 => bool) | 206  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 +--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
 
 =======================
@@ -200,9 +198,7 @@
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | msgNonce           | uint240                  | 205  | 0      | 30    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| otherMessenger     | address                  | 206  | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-|--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| receivedMessages   | mapping(bytes32 => bool) | 207  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| receivedMessages   | mapping(bytes32 => bool) | 206  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 +--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
 
 =======================
