@@ -87,6 +87,11 @@ abstract contract CrossDomainMessenger is
     address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
+     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
+     */
+    address public immutable otherMessenger;
+
+    /**
      * @custom:legacy
      * @custom:spacer blockedMessages
      * @notice Spacer for backwards compatibility.
@@ -122,11 +127,6 @@ abstract contract CrossDomainMessenger is
      *         the actual nonce to be used for the message.
      */
     uint240 internal msgNonce;
-
-    /**
-     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
-     */
-    address public otherMessenger;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
@@ -175,6 +175,13 @@ abstract contract CrossDomainMessenger is
      * @param msgHash Hash of the message that failed to be relayed.
      */
     event FailedRelayedMessage(bytes32 indexed msgHash);
+
+    /**
+     * @param _otherMessenger Address of the messenger on the paired chain.
+     */
+    constructor(address _otherMessenger) {
+        otherMessenger = _otherMessenger;
+    }
 
     /**
      * @notice Allows the owner of this contract to temporarily pause message relaying. Backup
@@ -364,14 +371,10 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @notice Intializer.
-     *
-     * @param _otherMessenger         Address of the CrossDomainMessenger on the paired chain.
      */
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init(address _otherMessenger) internal onlyInitializing {
+    function __CrossDomainMessenger_init() internal onlyInitializing {
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
-        otherMessenger = _otherMessenger;
-
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();
