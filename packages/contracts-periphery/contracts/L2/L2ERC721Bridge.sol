@@ -3,15 +3,13 @@ pragma solidity 0.8.15;
 
 import {
     CrossDomainEnabled
-} from "@eth-optimism/contracts/libraries/bridge/CrossDomainEnabled.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+} from "@eth-optimism/contracts/contracts/libraries/bridge/CrossDomainEnabled.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../universal/op-erc721/IOptimismMintableERC721.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title L2ERC721Bridge
@@ -20,7 +18,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  *         acts as a minter for new tokens when it hears about deposits into the L1 ERC721 bridge.
  *         This contract also acts as a burner for tokens being withdrawn.
  */
-contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
+contract L2ERC721Bridge is Semver, CrossDomainEnabled, Initializable {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
@@ -103,15 +101,14 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     function initialize(address _messenger, address _otherBridge) public initializer {
         messenger = _messenger;
         otherBridge = _otherBridge;
-
-        // Initialize upgradable OZ contracts
-        __Ownable_init();
     }
 
     /**
      * @notice Initiates a bridge of an NFT to the caller's account on L1. Note that this function
      *         can only be called by EOAs. Smart contract wallets should use the `bridgeERC721To`
-     *         function after ensuring that the recipient address on the remote chain exists.
+     *         function after ensuring that the recipient address on the remote chain exists. Also
+     *         note that the current owner of the token on this chain must approve this contract to
+     *         operate the NFT before it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -148,7 +145,9 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
     }
 
     /**
-     * @notice Initiates a bridge of an NFT to some recipient's account on L1.
+     * @notice Initiates a bridge of an NFT to some recipient's account on L1. Note that the current
+     *         owner of the token on this chain must approve this contract to operate the NFT before
+     *         it can be bridged.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -270,11 +269,6 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
             "Withdrawal is not being initiated by NFT owner"
         );
 
-        // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
-        // usage
-        // slither-disable-next-line reentrancy-events
-        IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
-
         // Construct calldata for l1ERC721Bridge.finalizeBridgeERC721(_to, _tokenId)
         // slither-disable-next-line reentrancy-events
         address remoteToken = IOptimismMintableERC721(_localToken).remoteToken();
@@ -282,6 +276,11 @@ contract L2ERC721Bridge is Semver, CrossDomainEnabled, OwnableUpgradeable {
             remoteToken == _remoteToken,
             "L2ERC721Bridge: remote token does not match given value"
         );
+
+        // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
+        // usage
+        // slither-disable-next-line reentrancy-events
+        IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
 
         bytes memory message = abi.encodeWithSelector(
             L1ERC721Bridge.finalizeBridgeERC721.selector,
