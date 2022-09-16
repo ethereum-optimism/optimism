@@ -77,7 +77,7 @@ Example usage:
 
 ```bash
 $ op-node genesis devnet-l2 \
-   --artifacts $CONTRACTS_BEDROCK/artifacts,$CONTRACTS_GOVERNANCE/artifacts \
+   --artifacts $CONTRACTS_BEDROCK/artifacts \
    --network $NETWORK \
    --deployments $CONTRACTS_BEDROCK/deployments \
    --deploy-config $CONTRACTS_BEDROCK/deploy-config \

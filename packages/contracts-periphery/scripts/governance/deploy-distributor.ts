@@ -4,8 +4,8 @@ import { task } from 'hardhat/config'
 import dotenv from 'dotenv'
 import { BigNumber } from 'ethers'
 
-import { MerkleDistributorInfo } from '../src/parse-balance-map'
-import { prompt } from '../src/prompt'
+import { MerkleDistributorInfo } from '../../src/governance/parse-balance-map'
+import { prompt } from '../../src/governance/prompt'
 dotenv.config()
 
 task('deploy-distributor')

@@ -3,7 +3,7 @@ import { ethers } from 'ethers'
 import { LedgerSigner } from '@ethersproject/hardware-wallets'
 import dotenv from 'dotenv'
 
-import { prompt } from '../src/prompt'
+import { prompt } from '../../src/governance/prompt'
 dotenv.config()
 
 // Hardcode the expected addresse

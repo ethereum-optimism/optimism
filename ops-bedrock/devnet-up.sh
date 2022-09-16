@@ -34,7 +34,6 @@ L2_URL="http://localhost:9545"
 
 OP_NODE="$PWD/op-node"
 CONTRACTS_BEDROCK="$PWD/packages/contracts-bedrock"
-CONTRACTS_GOVERNANCE="$PWD/packages/contracts-governance"
 NETWORK=devnetL1
 DEVNET="$PWD/.devnet"
 

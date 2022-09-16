@@ -9,12 +9,10 @@ import {
   MAX_UINT256,
   buildDataPermit,
   buildDataDelegation,
-} from './helpers/eip712'
-import {
   SECONDS_IN_365_DAYS,
   getBlockTimestamp,
   fastForwardDays,
-} from './helpers/time-travel'
+} from '../../../helpers'
 
 describe('Governance Token Testing', () => {
   let network: { chainId: number }

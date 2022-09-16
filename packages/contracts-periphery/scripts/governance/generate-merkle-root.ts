@@ -2,7 +2,7 @@ import fs from 'fs'
 
 import { task } from 'hardhat/config'
 
-import { parseBalanceMap } from '../src/parse-balance-map'
+import { parseBalanceMap } from '../../src/governance/parse-balance-map'
 
 task('generate-merkle-root')
   .addParam(

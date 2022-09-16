@@ -3,7 +3,7 @@ import fs from 'fs'
 import { task } from 'hardhat/config'
 import dotenv from 'dotenv'
 
-import { prompt } from '../src/prompt'
+import { prompt } from '../../src/governance/prompt'
 
 dotenv.config()
 

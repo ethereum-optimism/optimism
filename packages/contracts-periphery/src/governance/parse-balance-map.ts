@@ -1,6 +1,6 @@
 import { BigNumber, utils } from 'ethers'
 
-import BalanceTree from './balance-tree'
+import { BalanceTree } from './balance-tree'
 
 const { isAddress, getAddress } = utils
 

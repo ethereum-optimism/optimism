@@ -1,7 +1,9 @@
 import fs from 'fs'
 
-import { program } from 'commander'
+import { Command } from 'commander'
 import { BigNumber, utils } from 'ethers'
+
+const program = new Command()
 
 program
   .version('0.0.0')

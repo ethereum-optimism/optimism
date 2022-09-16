@@ -335,9 +335,6 @@ const config: HardhatUserConfig = {
       {
         artifacts: '../contracts/artifacts',
       },
-      {
-        artifacts: '../contracts-governance/artifacts',
-      },
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],

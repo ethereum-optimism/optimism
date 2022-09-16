@@ -2,7 +2,7 @@ import fs from 'fs'
 
 import { task } from 'hardhat/config'
 
-import { MerkleDistributorInfo } from '../src/parse-balance-map'
+import { MerkleDistributorInfo } from '../../src/governance/parse-balance-map'
 
 task('test-claims')
   .addParam('inFile', 'Input claims file')

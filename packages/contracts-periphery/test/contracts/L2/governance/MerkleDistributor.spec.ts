@@ -1,10 +1,10 @@
+import { expectApprox } from '@eth-optimism/core-utils'
 import chai, { expect } from 'chai'
 import { solidity, MockProvider } from 'ethereum-waffle'
 import { Contract, BigNumber, constants, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 
-import BalanceTree from '../src/balance-tree'
-import { parseBalanceMap } from '../src/parse-balance-map'
+import { BalanceTree, parseBalanceMap } from '../../../../src'
 
 chai.use(solidity)
 
@@ -67,7 +67,7 @@ describe('MerkleDistributor', () => {
     wallet1 = wallets[1]
     token = await deployContract(
       wallet0,
-      'TestERC20',
+      'DistributorERC20',
       ['Token', 'TKN', 0],
       overrides
     )
@@ -267,7 +267,10 @@ describe('MerkleDistributor', () => {
           overrides
         )
         const receipt = await tx.wait()
-        expect(receipt.gasUsed).to.eq(84480) // old 78466
+        expectApprox(receipt.gasUsed, 80000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
     })
     describe('larger tree', () => {
@@ -319,7 +322,10 @@ describe('MerkleDistributor', () => {
           overrides
         )
         const receipt = await tx.wait()
-        expect(receipt.gasUsed).to.eq(87237) // old 80960
+        expectApprox(receipt.gasUsed, 83000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
 
       it('gas second down about 15k', async function () {
@@ -341,7 +347,10 @@ describe('MerkleDistributor', () => {
           overrides
         )
         const receipt = await tx.wait()
-        expect(receipt.gasUsed).to.eq(70117) // old 65940
+        expectApprox(receipt.gasUsed, 66000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
     })
 
@@ -400,7 +409,10 @@ describe('MerkleDistributor', () => {
           overrides
         )
         const receipt = await tx.wait()
-        expect(receipt.gasUsed).to.eq(99061) // old 91650
+        expectApprox(receipt.gasUsed, 93000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
       it('gas deeper node', async function () {
         if (isCoverage) {
@@ -415,7 +427,10 @@ describe('MerkleDistributor', () => {
           overrides
         )
         const receipt = await tx.wait()
-        expect(receipt.gasUsed).to.eq(98997) // old 91586
+        expectApprox(receipt.gasUsed, 93000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
       it('gas average random distribution', async function () {
         if (isCoverage) {
@@ -437,7 +452,10 @@ describe('MerkleDistributor', () => {
           count++
         }
         const average = total.div(count)
-        expect(average).to.eq(82453) // old 77075
+        expectApprox(average, 77000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
       // this is what we gas golfed by packing the bitmap
       it('gas average first 25', async function () {
@@ -460,7 +478,10 @@ describe('MerkleDistributor', () => {
           count++
         }
         const average = total.div(count)
-        expect(average).to.eq(66203) // old 62824
+        expectApprox(average, 60000, {
+          percentUpperDeviation: 2,
+          percentLowerDeviation: 2,
+        })
       })
 
       it('no double claims in random distribution', async () => {

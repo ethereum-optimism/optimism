@@ -672,12 +672,6 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: contracts-governance-tests
-          package_name: contracts-governance
-          dependencies: "(core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
           name: contracts-periphery-tests
           package_name: contracts-periphery
           dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"

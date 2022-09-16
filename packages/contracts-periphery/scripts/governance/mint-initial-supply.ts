@@ -2,7 +2,7 @@ import { task } from 'hardhat/config'
 import { ethers } from 'ethers'
 import dotenv from 'dotenv'
 
-import { prompt } from '../src/prompt'
+import { prompt } from '../../src/governance/prompt'
 
 dotenv.config()
 
