@@ -118,6 +118,12 @@ We also have the following custom tags:
 
 - Event parameters should NOT be prefixed with an underscore.
 
+#### Spacers
+
+We use spacer variables to account for old storage slots that are no longer being used.
+The name of a spacer variable MUST be in the format `spacer_<slot>_<offset>_<length>` where `<slot>` is the original storage slot number, `<offset>` is the original offset position within the storage slot, and `<length>` is the original size of the variable.
+Spacers MUST be `private`.
+
 ### Proxy by Default
 
 All contracts should be assumed to live behind proxies (except in certain special circumstances).
