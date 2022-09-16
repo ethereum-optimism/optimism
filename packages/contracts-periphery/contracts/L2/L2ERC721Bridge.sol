@@ -6,7 +6,6 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../universal/op-erc721/IOptimismMintableERC721.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title L2ERC721Bridge

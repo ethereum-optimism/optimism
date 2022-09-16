@@ -4,14 +4,13 @@ pragma solidity 0.8.15;
 import {
     CrossDomainMessenger
 } from "@eth-optimism/contracts-bedrock/contracts/universal/CrossDomainMessenger.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title ERC721Bridge
  * @notice ERC721Bridge is a base contract for the L1 and L2 ERC721 bridges.
  */
-abstract contract ERC721Bridge is Initializable {
+abstract contract ERC721Bridge {
     /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
