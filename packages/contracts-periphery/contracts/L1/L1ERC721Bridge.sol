@@ -2,20 +2,18 @@
 pragma solidity 0.8.15;
 
 import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title L1ERC721Bridge
  * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
  *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
- *         acts as an escrow for ERC721 tokens deposted into L2.
+ *         acts as an escrow for ERC721 tokens deposited into L2.
  */
-contract L1ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
+contract L1ERC721Bridge is ERC721Bridge, Semver {
     /**
      * @notice Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token
      *         by ID was deposited for a given L2 token.

@@ -2,13 +2,11 @@
 pragma solidity 0.8.15;
 
 import { ERC721Bridge } from "../universal/op-erc721/ERC721Bridge.sol";
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { IOptimismMintableERC721 } from "../universal/op-erc721/IOptimismMintableERC721.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 
 /**
  * @title L2ERC721Bridge
@@ -17,7 +15,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  *         acts as a minter for new tokens when it hears about deposits into the L1 ERC721 bridge.
  *         This contract also acts as a burner for tokens being withdrawn.
  */
-contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
+contract L2ERC721Bridge is ERC721Bridge, Semver {
     /**
      * @custom:semver 0.0.1
      *
@@ -111,11 +109,6 @@ contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
             "Withdrawal is not being initiated by NFT owner"
         );
 
-        // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
-        // usage
-        // slither-disable-next-line reentrancy-events
-        IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
-
         // Construct calldata for l1ERC721Bridge.finalizeBridgeERC721(_to, _tokenId)
         // slither-disable-next-line reentrancy-events
         address remoteToken = IOptimismMintableERC721(_localToken).remoteToken();
@@ -123,6 +116,11 @@ contract L2ERC721Bridge is ERC721Bridge, Semver, OwnableUpgradeable {
             remoteToken == _remoteToken,
             "L2ERC721Bridge: remote token does not match given value"
         );
+
+        // When a withdrawal is initiated, we burn the withdrawer's NFT to prevent subsequent L2
+        // usage
+        // slither-disable-next-line reentrancy-events
+        IOptimismMintableERC721(_localToken).burn(_from, _tokenId);
 
         bytes memory message = abi.encodeWithSelector(
             L1ERC721Bridge.finalizeBridgeERC721.selector,
