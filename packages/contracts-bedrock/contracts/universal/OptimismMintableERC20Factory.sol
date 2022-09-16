@@ -87,20 +87,17 @@ contract OptimismMintableERC20Factory {
             "OptimismMintableERC20Factory: must provide remote token address"
         );
 
-        OptimismMintableERC20 localToken = new OptimismMintableERC20(
-            bridge,
-            _remoteToken,
-            _name,
-            _symbol
+        address localToken = address(
+            new OptimismMintableERC20(bridge, _remoteToken, _name, _symbol)
         );
 
         // Emit the old event too for legacy support.
-        emit StandardL2TokenCreated(_remoteToken, address(localToken));
+        emit StandardL2TokenCreated(_remoteToken, localToken);
 
         // Emit the updated event. The arguments here differ from the legacy event, but
         // are consistent with the ordering used in StandardBridge events.
-        emit OptimismMintableERC20Created(address(localToken), _remoteToken, msg.sender);
+        emit OptimismMintableERC20Created(localToken, _remoteToken, msg.sender);
 
-        return address(localToken);
+        return localToken;
     }
 }

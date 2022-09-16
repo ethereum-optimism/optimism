@@ -75,7 +75,7 @@ const createOptimismMintableERC20 = async (
     throw new Error('Unable to find OptimismMintableERC20Created event')
   }
 
-  const l2WethAddress = event.args.remoteToken
+  const l2WethAddress = event.args.localToken
   console.log(`Deployed to ${l2WethAddress}`)
 
   return new Contract(
