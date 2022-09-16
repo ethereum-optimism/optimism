@@ -108,18 +108,17 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1Stand
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": proxyL1StandardBridge,
 	}
+	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
+		"otherMessenger": proxyL1CrossDomainMessenger,
+	}
 
 	return immutable, nil
 }
 
-// StorageConfig represents the storage configuration for the L2 predeploy
-// contracts.
-type StorageConfig map[string]state.StorageValues
-
 // NewL2StorageConfig will create a StorageConfig given an instance of a
 // Hardhat and a DeployConfig.
-func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (StorageConfig, error) {
-	storage := make(StorageConfig)
+func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (state.StorageConfig, error) {
+	storage := make(state.StorageConfig)
 
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"nonce": 0,
@@ -133,11 +132,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 		"_paused":          false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
-		"otherMessenger":   proxyL1CrossDomainMessenger,
-		"blockedSystemAddresses": map[any]any{
-			predeploys.L2CrossDomainMessenger: true,
-			predeploys.L2ToL1MessagePasser:    true,
-		},
 	}
 	storage["GasPriceOracle"] = state.StorageValues{
 		"_owner":   config.GasPriceOracleOwner,

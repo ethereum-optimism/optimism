@@ -27,7 +27,7 @@ contract CrossDomainMessengerLegacySpacer {
      * @custom:spacer libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    address internal spacer0;
+    address private spacer0;
 }
 
 /**
@@ -87,18 +87,23 @@ abstract contract CrossDomainMessenger is
     address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
+     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
+     */
+    address public immutable otherMessenger;
+
+    /**
      * @custom:legacy
      * @custom:spacer blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer1;
+    uint256 private spacer1;
 
     /**
      * @custom:legacy
      * @custom:spacer relayedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer2;
+    uint256 private spacer2;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
@@ -124,26 +129,12 @@ abstract contract CrossDomainMessenger is
     uint240 internal msgNonce;
 
     /**
-     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
-     */
-    address public otherMessenger;
-
-    /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
      *         be present in this mapping if it failed to be relayed on this chain at least once.
      *         If a message is successfully relayed on the first attempt, then it will only be
      *         present within the successfulMessages mapping.
      */
     mapping(bytes32 => bool) public receivedMessages;
-
-    /**
-     * @notice Mapping of blocked system addresses. Note that this is NOT a mapping of blocked user
-     *         addresses and cannot be used to prevent users from sending or receiving messages.
-     *         This is ONLY used to prevent the execution of messages to specific system addresses
-     *         that could cause security issues, e.g., having the CrossDomainMessenger send
-     *         messages to itself.
-     */
-    mapping(address => bool) public blockedSystemAddresses;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
@@ -184,6 +175,13 @@ abstract contract CrossDomainMessenger is
      * @param msgHash Hash of the message that failed to be relayed.
      */
     event FailedRelayedMessage(bytes32 indexed msgHash);
+
+    /**
+     * @param _otherMessenger Address of the messenger on the paired chain.
+     */
+    constructor(address _otherMessenger) {
+        otherMessenger = _otherMessenger;
+    }
 
     /**
      * @notice Allows the owner of this contract to temporarily pause message relaying. Backup
@@ -260,7 +258,17 @@ abstract contract CrossDomainMessenger is
         uint256 _minGasLimit,
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
-        bytes32 versionedHash = Hashing.hashCrossDomainMessage(
+        (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
+
+        // Block any messages that aren't version 1. All version 0 messages have been guaranteed to
+        // be relayed OR have been migrated to version 1 messages. Version 0 messages do not commit
+        // to the value or minGasLimit fields, which can create unexpected issues for end-users.
+        require(
+            version == 1,
+            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+        );
+
+        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
             _nonce,
             _sender,
             _target,
@@ -285,7 +293,7 @@ abstract contract CrossDomainMessenger is
         }
 
         require(
-            blockedSystemAddresses[_target] == false,
+            _isUnsafeTarget(_target) == false,
             "CrossDomainMessenger: cannot send message to blocked system address"
         );
 
@@ -363,26 +371,10 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @notice Intializer.
-     *
-     * @param _otherMessenger         Address of the CrossDomainMessenger on the paired chain.
-     * @param _blockedSystemAddresses List of system addresses that need to be blocked to prevent
-     *                                certain security issues. Exact list depends on the network
-     *                                where this contract is deployed. See note attached to the
-     *                                blockedSystemAddresses variable in this contract for more
-     *                                detailed information about what this block list can and
-     *                                cannot be used for.
      */
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init(
-        address _otherMessenger,
-        address[] memory _blockedSystemAddresses
-    ) internal onlyInitializing {
+    function __CrossDomainMessenger_init() internal onlyInitializing {
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
-        otherMessenger = _otherMessenger;
-        for (uint256 i = 0; i < _blockedSystemAddresses.length; i++) {
-            blockedSystemAddresses[_blockedSystemAddresses[i]] = true;
-        }
-
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();
@@ -393,6 +385,11 @@ abstract contract CrossDomainMessenger is
      * @notice Sends a low-level message to the other messenger. Needs to be implemented by child
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
+     *
+     * @param _to       Recipient of the message on the other chain.
+     * @param _gasLimit Minimum gas limit the message can be executed with.
+     * @param _value    Amount of ETH to send with the message.
+     * @param _data     Message data.
      */
     function _sendMessage(
         address _to,
@@ -405,6 +402,21 @@ abstract contract CrossDomainMessenger is
      * @notice Checks whether the message is coming from the other messenger. Implemented by child
      *         contracts because the logic for this depends on the network where the messenger is
      *         being deployed.
+     *
+     * @return Whether the message is coming from the other messenger.
      */
     function _isOtherMessenger() internal view virtual returns (bool);
+
+    /**
+     * @notice Checks whether a given call target is a system address that could cause the
+     *         messenger to peform an unsafe action. This is NOT a mechanism for blocking user
+     *         addresses. This is ONLY used to prevent the execution of messages to specific
+     *         system addresses that could cause security issues, e.g., having the
+     *         CrossDomainMessenger send messages to itself.
+     *
+     * @param _target Address of the contract to check.
+     *
+     * @return Whether or not the address is an unsafe system address.
+     */
+    function _isUnsafeTarget(address _target) internal view virtual returns (bool);
 }

@@ -1,11 +1,12 @@
 {
   "name": "@eth-optimism/sdk",
-  "version": "1.6.0",
+  "version": "1.6.3",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
-    "dist/*"
+    "dist/*",
+    "src/*"
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
@@ -47,9 +48,9 @@
     "mocha": "^10.0.0"
   },
   "dependencies": {
-    "@eth-optimism/contracts": "0.5.33",
-    "@eth-optimism/core-utils": "0.9.3",
-    "@eth-optimism/contracts-bedrock": "0.5.4",
+    "@eth-optimism/contracts": "0.5.35",
+    "@eth-optimism/core-utils": "0.10.0",
+    "@eth-optimism/contracts-bedrock": "0.6.2",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
     "rlp": "^2.2.7"

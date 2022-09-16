@@ -36,13 +36,13 @@ abstract contract StandardBridge {
      * @custom:legacy
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer0;
+    uint256 private spacer0;
 
     /**
      * @custom:legacy
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer1;
+    uint256 private spacer1;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
