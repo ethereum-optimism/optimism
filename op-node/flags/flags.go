@@ -28,6 +28,11 @@ var (
 		Usage:  "Address of L2 Engine JSON-RPC endpoints to use (engine and eth namespace required)",
 		EnvVar: prefixEnvVar("L2_ENGINE_RPC"),
 	}
+	BeaconAddr = cli.StringFlag{
+		Name:   "beacon",
+		Usage:  "Address of the Beacon HTTP Server to use (blob extension API required)",
+		EnvVar: prefixEnvVar("BEACON_HTTP"),
+	}
 	RollupConfig = cli.StringFlag{
 		Name:   "rollup.config",
 		Usage:  "Rollup chain parameters",
