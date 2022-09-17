@@ -23,3 +23,7 @@ use (
 
 // For local debugging:
 replace github.com/ethereum/go-ethereum v1.10.23 => ../go-ethereum
+
+replace github.com/protolambda/go-kzg => github.com/Inphi/go-kzg v0.0.0-20220819034031-381084440411
+
+replace github.com/kilic/bls12-381 => github.com/Inphi/bls12-381 v0.0.0-20220819032644-3ae7bcd28efc
