@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -91,3 +92,7 @@ func NewCriticalError(err error) error {
 var ErrTemporary = NewTemporaryError(nil)
 var ErrReset = NewResetError(nil)
 var ErrCritical = NewCriticalError(nil)
+
+// NotEnoughData implies that the function currently does not have enough data to progress
+// but if it is retried enough times, it will eventually return a real value or io.EOF
+var NotEnoughData = errors.New("not enough data")

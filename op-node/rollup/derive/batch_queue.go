@@ -38,6 +38,7 @@ type BatchQueue struct {
 	log      log.Logger
 	config   *rollup.Config
 	next     BatchQueueOutput
+	prev     *ChannelInReader
 	progress Progress
 
 	l1Blocks []eth.L1BlockRef
@@ -47,11 +48,12 @@ type BatchQueue struct {
 }
 
 // NewBatchQueue creates a BatchQueue, which should be Reset(origin) before use.
-func NewBatchQueue(log log.Logger, cfg *rollup.Config, next BatchQueueOutput) *BatchQueue {
+func NewBatchQueue(log log.Logger, cfg *rollup.Config, next BatchQueueOutput, prev *ChannelInReader) *BatchQueue {
 	return &BatchQueue{
 		log:    log,
 		config: cfg,
 		next:   next,
+		prev:   prev,
 	}
 }
 
@@ -60,19 +62,58 @@ func (bq *BatchQueue) Progress() Progress {
 }
 
 func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
-	if changed, err := bq.progress.Update(outer); err != nil {
-		return err
-	} else if changed {
-		if !bq.progress.Closed { // init inputs if we moved to a new open origin
+
+	originBehind := bq.progress.Origin.Number < bq.next.SafeL2Head().L1Origin.Number
+
+	// Advance origin if needed
+	// Note: The entire pipeline has the same origin
+	// We just don't accept batches prior to the L1 origin of the L2 safe head
+	if bq.progress.Origin != bq.prev.Origin() {
+		bq.progress.Closed = false
+		bq.progress.Origin = bq.prev.Origin()
+		if !originBehind {
 			bq.l1Blocks = append(bq.l1Blocks, bq.progress.Origin)
 		}
+		bq.log.Info("Advancing bq origin", "origin", bq.progress.Origin)
 		return nil
 	}
+	if !bq.progress.Closed {
+		if batch, err := bq.prev.NextBatch(ctx); err == io.EOF {
+			bq.log.Info("Closing batch queue origin")
+			bq.progress.Closed = true
+			return nil
+		} else if err != nil {
+			return err
+		} else {
+			bq.log.Info("have batch")
+			if !originBehind {
+				bq.AddBatch(batch)
+			} else {
+				bq.log.Warn("Skipping old batch")
+			}
+		}
+	}
+
+	// Skip adding batches / blocks to the internal state until they are from the same L1 origin
+	// as the current safe head.
+	if originBehind {
+		if bq.progress.Closed {
+			return io.EOF
+		} else {
+			// Immediately close the stage
+			bq.progress.Closed = true
+			return nil
+		}
+	}
+
 	batch, err := bq.deriveNextBatch(ctx)
 	if err == io.EOF {
-		// very noisy, commented for now, or we should bump log level from trace to debug
-		// bq.log.Trace("need more L1 data before deriving next batch", "progress", bq.progress.Origin)
-		return io.EOF
+		bq.log.Info("no more batches in deriveNextBatch")
+		if bq.progress.Closed {
+			return io.EOF
+		} else {
+			return nil
+		}
 	} else if err != nil {
 		return err
 	}
