@@ -24,10 +24,10 @@ import { Encoding } from "../libraries/Encoding.sol";
 contract CrossDomainMessengerLegacySpacer {
     /**
      * @custom:legacy
-     * @custom:spacer libAddressManager
+     * @custom:spacer address libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    address private spacer0;
+    bytes20 private spacer_0_0_20;
 }
 
 /**
@@ -93,23 +93,22 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @custom:legacy
-     * @custom:spacer blockedMessages
+     * @custom:spacer mapping(bytes32=>bool) blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer1;
+    bytes32 private spacer_201_0_32;
 
     /**
      * @custom:legacy
-     * @custom:spacer relayedMessages
+     * @custom:spacer mapping(bytes32=>bool) relayedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer2;
+    bytes32 private spacer_202_0_32;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
-     *         be present in this mapping if it failed to be relayed on this chain at least once.
-     *         If a message is successfully relayed on the first attempt, then it will only be
-     *         present within the successfulMessages mapping.
+     *         be present in this mapping if it has successfully been relayed on this chain, and
+     *         can therefore not be relayed again.
      */
     mapping(bytes32 => bool) public successfulMessages;
 
@@ -200,7 +199,10 @@ abstract contract CrossDomainMessenger is
     }
 
     /**
-     * @notice Sends a message to some target address on the other chain.
+     * @notice Sends a message to some target address on the other chain. Note that if the call
+     *         always reverts, then the message will be unrelayable, and any ETH sent will be
+     *         permanently locked. The same will occur if the target on the other chain is
+     *         considered unsafe (see the _isUnsafeTarget() function).
      *
      * @param _target      Target contract or wallet address.
      * @param _message     Message to trigger the target address with.
