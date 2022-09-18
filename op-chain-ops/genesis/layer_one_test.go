@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	config := new(DeployConfig)
 	require.NoError(t, dec.Decode(config))
-	config.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
+	config.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix() - 100)
 
 	genesis, err := BuildL1DeveloperGenesis(config)
 	require.NoError(t, err)
