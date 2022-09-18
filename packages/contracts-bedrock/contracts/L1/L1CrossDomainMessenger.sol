@@ -24,7 +24,10 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @param _portal Address of the OptimismPortal contract on this network.
      */
-    constructor(OptimismPortal _portal) Semver(0, 0, 1) {
+    constructor(OptimismPortal _portal)
+        Semver(0, 0, 1)
+        CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
+    {
         portal = _portal;
         initialize();
     }
@@ -33,7 +36,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
      * @notice Initializer.
      */
     function initialize() public initializer {
-        __CrossDomainMessenger_init(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+        __CrossDomainMessenger_init();
     }
 
     /**

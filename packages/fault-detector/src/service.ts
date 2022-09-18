@@ -106,8 +106,21 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
       this.logger.info(`finding appropriate starting height`)
-      this.state.highestCheckedBatchIndex =
-        await findFirstUnfinalizedStateBatchIndex(this.state.scc)
+      const firstUnfinalized = await findFirstUnfinalizedStateBatchIndex(
+        this.state.scc
+      )
+
+      // We may not have an unfinalized batches in the case where no batches have been submitted
+      // for the entire duration of the FPW. We generally do not expect this to happen on mainnet,
+      // but it happens often on testnets because the FPW is very short.
+      if (firstUnfinalized === undefined) {
+        this.logger.info(`no unfinalized batches found, starting from latest`)
+        this.state.highestCheckedBatchIndex = (
+          await this.state.scc.getTotalBatches()
+        ).toNumber()
+      } else {
+        this.state.highestCheckedBatchIndex = firstUnfinalized
+      }
     } else {
       this.state.highestCheckedBatchIndex = this.options.startBatchIndex
     }

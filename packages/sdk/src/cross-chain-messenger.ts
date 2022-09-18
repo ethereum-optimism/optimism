@@ -1306,7 +1306,7 @@ export class CrossChainMessenger {
           // TODO: Handle multiple versions in the future
           version: ethers.constants.HashZero,
           stateRoot: block.stateRoot,
-          withdrawerStorageRoot: stateTrieProof.storageRoot,
+          messagePasserStorageRoot: stateTrieProof.storageRoot,
           latestBlockhash: block.hash,
         },
         withdrawalProof: ethers.utils.RLP.encode(stateTrieProof.storageProof),
@@ -1691,7 +1691,7 @@ export class CrossChainMessenger {
           [
             proof.outputRootProof.version,
             proof.outputRootProof.stateRoot,
-            proof.outputRootProof.withdrawerStorageRoot,
+            proof.outputRootProof.messagePasserStorageRoot,
             proof.outputRootProof.latestBlockhash,
           ],
           proof.withdrawalProof,

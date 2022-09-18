@@ -306,7 +306,8 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
 
     /**
      * @notice Returns the L2 timestamp corresponding to a given L2 block number.
-     *         Returns a null output proposal if none is found.
+     *         If the L2 block number provided is between checkpoints, this function will return the
+     *         timestamp of the previous checkpoint.
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      */

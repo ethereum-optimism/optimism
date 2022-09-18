@@ -12,9 +12,8 @@ import { RLPWriter } from "./rlp/RLPWriter.sol";
 library Encoding {
     /**
      * @notice RLP encodes the L2 transaction that would be generated when a given deposit is sent
-     *         to the L2 system. Useful for searching for a deposit in the L2 system.
-     *         This currently only supports user deposits and not system
-     *         transactions.
+     *         to the L2 system. Useful for searching for a deposit in the L2 system. The
+     *         transaction is prefixed with 0x7e to identify its EIP-2718 type.
      *
      * @param _tx User deposit transaction to encode.
      *
