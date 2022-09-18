@@ -34,15 +34,17 @@ abstract contract StandardBridge {
 
     /**
      * @custom:legacy
+     * @custom:spacer address messenger
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer0;
+    bytes32 private spacer_0_0_32;
 
     /**
      * @custom:legacy
+     * @custom:spacer address l2TokenBridge
      * @notice Spacer for backwards compatibility.
      */
-    uint256 internal spacer1;
+    bytes32 private spacer_1_0_32;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
@@ -202,7 +204,9 @@ abstract contract StandardBridge {
      *         smart contract and the call fails, the ETH will be temporarily locked in the
      *         StandardBridge on the other chain until the call is replayed. If the call cannot be
      *         replayed with any amount of gas (call always reverts), then the ETH will be
-     *         permanently locked in the StandardBridge on the other chain.
+     *         permanently locked in the StandardBridge on the other chain. ETH will also
+     *         be locked if the receiver is the other bridge, because finalizeBridgeETH will revert
+     *         in that case.
      *
      * @param _to          Address of the receiver.
      * @param _minGasLimit Minimum amount of gas that the bridge can be relayed with.

@@ -33,6 +33,10 @@ var defaultBridgeCfgs = map[uint64][]*implConfig{
 	901: {
 		{"Standard", "StandardBridge", L2StandardBridgeAddr},
 	},
+	// Goerli Alpha Testnet
+	28528: {
+		{"Standard", "StandardBridge", L2StandardBridgeAddr},
+	},
 }
 
 var customBridgeCfgs = map[uint64][]*implConfig{

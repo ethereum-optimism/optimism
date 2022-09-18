@@ -21,17 +21,18 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    constructor(address _l1CrossDomainMessenger) Semver(0, 0, 1) {
-        initialize(_l1CrossDomainMessenger);
+    constructor(address _l1CrossDomainMessenger)
+        Semver(0, 0, 1)
+        CrossDomainMessenger(_l1CrossDomainMessenger)
+    {
+        initialize();
     }
 
     /**
      * @notice Initializer.
-     *
-     * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    function initialize(address _l1CrossDomainMessenger) public initializer {
-        __CrossDomainMessenger_init(_l1CrossDomainMessenger);
+    function initialize() public initializer {
+        __CrossDomainMessenger_init();
     }
 
     /**
