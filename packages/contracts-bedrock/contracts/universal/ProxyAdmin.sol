@@ -248,7 +248,9 @@ contract ProxyAdmin is Owned {
             string memory name = implementationName[_proxy];
             addressManager.setAddress(name, _implementation);
         } else {
-            revert("ProxyAdmin: unknown proxy type");
+            // It should not be possible to retrieve a ProxyType value which is not matched by
+            // one of the previous conditions.
+            assert(false);
         }
     }
 }

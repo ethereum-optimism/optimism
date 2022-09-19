@@ -288,8 +288,9 @@ abstract contract CrossDomainMessenger is
         );
 
         if (_isOtherMessenger()) {
-            // Should never happen.
-            require(msg.value == _value, "CrossDomainMessenger: mismatched message value");
+            // This property should always hold when the message is first submitted (as opposed to
+            // being replayed).
+            assert(msg.value == _value);
         } else {
             require(
                 msg.value == 0,
