@@ -101,13 +101,13 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	bank := NewChannelBank(log, cfg, l1Src, l1Fetcher)
 	chInReader := NewChannelInReader(log, bank)
 	batchQueue := NewBatchQueue(log, cfg, chInReader)
+	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, batchQueue)
 
 	// Push stages (that act like pull stages b/c we push from the innermost stages prior to the outermost stages)
-	eng := NewEngineQueue(log, cfg, engine, metrics)
-	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng, batchQueue)
+	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue)
 
-	stages := []Stage{eng, attributesQueue}
-	pullStages := []PullStage{batchQueue, chInReader, bank, l1Src, l1Traversal}
+	stages := []Stage{eng}
+	pullStages := []PullStage{attributesQueue, batchQueue, chInReader, bank, l1Src, l1Traversal}
 
 	return &DerivationPipeline{
 		log:        log,
