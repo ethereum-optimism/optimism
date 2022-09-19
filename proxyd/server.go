@@ -391,8 +391,10 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 				"req_id", GetReqID(ctx),
 				"method", parsedReq.Method,
 			)
-			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, ErrOverRateLimit)
-			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrOverRateLimit)
+			rpcErr := ErrOverRateLimit.Clone()
+			rpcErr.Message = s.limConfig.ErrorMessage
+			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, rpcErr)
+			responses[i] = NewRPCErrorRes(parsedReq.ID, rpcErr)
 			continue
 		}
 

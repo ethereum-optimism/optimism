@@ -16,7 +16,7 @@ type resWithCode struct {
 	res  []byte
 }
 
-const frontendOverLimitResponse = `{"error":{"code":-32016,"message":"over rate limit"},"id":null,"jsonrpc":"2.0"}`
+const frontendOverLimitResponse = `{"error":{"code":-32016,"message":"over rate limit with special message"},"id":null,"jsonrpc":"2.0"}`
 
 var ethChainID = "eth_chainId"
 
