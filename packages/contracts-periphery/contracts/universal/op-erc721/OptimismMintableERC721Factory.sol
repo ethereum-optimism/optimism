@@ -36,11 +36,11 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
     mapping(address => bool) public isStandardOptimismMintableERC721;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      *
      * @param _bridge Address of the ERC721 bridge on this network.
      */
-    constructor(address _bridge, uint256 _remoteChainId) Semver(0, 0, 1) {
+    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 0, 0) {
         initialize(_bridge, _remoteChainId);
     }
 

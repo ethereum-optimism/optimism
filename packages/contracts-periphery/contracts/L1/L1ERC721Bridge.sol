@@ -277,7 +277,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         // that maps to the L1 NFT.
         require(
             deposits[_localToken][_remoteToken][_tokenId] == true,
-            "L1ERC721Bridge: token ID is not escrowed in l1 bridge for this l1/l2 nft pair"
+            "L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge"
         );
 
         // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
