@@ -151,6 +151,13 @@ account will be increased, but no other state transition will occur.
 If `isSystemTransaction` in the deposit is set to `true`, the gas used by the deposit is unmetered.
 It must not be subtracted from the gas pool and the `usedGas` field of the receipt must be set to 0.
 
+Note for application developers: because `CALLER` and `ORIGIN` are set to `from`, the
+semantics of using the `tx.origin == msg.sender` check will not work to determine whether
+or not a caller is an EOA during a deposit transaction. Instead, the check could only be useful for
+identifying the first call in the L2 deposit transaction. However this check does still satisfy
+the common case in which developers are using this check to ensure that the `CALLER` is unable to
+execute code before and after the call.
+
 #### Nonce Handling
 
 Despite the lack of signature validation, we still increment the nonce of the `from` account when a

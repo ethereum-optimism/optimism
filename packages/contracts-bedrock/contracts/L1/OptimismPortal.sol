@@ -64,11 +64,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
     /**
-     * @notice Reserve extra slots (to to a total of 50) in the storage layout for future upgrades.
-     */
-    uint256[48] private __gap;
-
-    /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
      *
@@ -119,15 +114,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _tx              Withdrawal transaction to finalize.
      * @param _l2BlockNumber   L2 block number of the outputRoot.
-     * @param _outputRootProof Inclusion proof of the withdrawer contracts storage root.
-     * @param _withdrawalProof Inclusion proof for the given withdrawal in the withdrawer contract.
+     * @param _outputRootProof Inclusion proof of the L2ToL1MessagePasser contract's storage root.
+     * @param _withdrawalProof Inclusion proof of the withdrawal in L2ToL1MessagePasser contract.
      */
     function finalizeWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
-    ) external payable {
+    ) external {
         // Prevent nested withdrawals within withdrawals.
         require(
             l2Sender == DEFAULT_L2_SENDER,
@@ -163,13 +158,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // and to prevent replay attacks.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
-        // Verify that the hash of this withdrawal was stored in the withdrawal contract on L2. If
-        // this is true, then we know that this withdrawal was actually triggered on L2 can can
-        // therefore be relayed on L1.
+        // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract on
+        //  L2. If this is true, then we know that this withdrawal was actually triggered on L2
+        // and can therefore be relayed on L1.
         require(
             _verifyWithdrawalInclusion(
                 withdrawalHash,
-                _outputRootProof.withdrawerStorageRoot,
+                _outputRootProof.messagePasserStorageRoot,
                 _withdrawalProof
             ),
             "OptimismPortal: invalid withdrawal inclusion proof"

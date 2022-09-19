@@ -58,17 +58,17 @@
   },
   "dependencies": {
     "@eth-optimism/core-utils": "0.10.0",
-    "@ethersproject/abstract-provider": "^5.6.1",
-    "@ethersproject/abstract-signer": "^5.6.2"
+    "@ethersproject/abstract-provider": "^5.7.0",
+    "@ethersproject/abstract-signer": "^5.7.0"
   },
   "devDependencies": {
     "@codechecks/client": "^0.1.11",
     "@defi-wonderland/smock": "^2.0.2",
     "@eth-optimism/hardhat-deploy-config": "^0.2.2",
-    "@ethersproject/abi": "^5.6.3",
-    "@ethersproject/bytes": "^5.6.1",
-    "@ethersproject/hardware-wallets": "^5.6.1",
-    "@ethersproject/providers": "^5.6.8",
+    "@ethersproject/abi": "^5.7.0",
+    "@ethersproject/bytes": "^5.7.0",
+    "@ethersproject/hardware-wallets": "^5.7.0",
+    "@ethersproject/providers": "^5.7.0",
     "@nomiclabs/ethereumjs-vm": "^4.2.2",
     "@nomiclabs/hardhat-ethers": "^2.0.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
@@ -88,7 +88,7 @@
     "directory-tree": "^2.2.7",
     "dotenv": "^10.0.0",
     "ethereum-waffle": "^3.3.0",
-    "ethers": "^5.6.8",
+    "ethers": "^5.7.0",
     "glob": "^7.1.6",
     "hardhat": "^2.9.6",
     "hardhat-deploy": "^0.11.10",

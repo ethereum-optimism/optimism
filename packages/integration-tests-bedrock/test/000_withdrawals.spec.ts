@@ -241,7 +241,7 @@ describe('Withdrawals', () => {
         {
           version: constants.HashZero,
           stateRoot: targetStateRoot,
-          withdrawerStorageRoot: proof.storageHash,
+          messagePasserStorageRoot: proof.storageHash,
           latestBlockhash: targetHash,
         },
         rlp.encode(proof.storageProof[0].proof),
