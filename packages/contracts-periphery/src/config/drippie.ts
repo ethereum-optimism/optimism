@@ -7,6 +7,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { Etherscan } from '../etherscan'
 
 export interface DripConfig {
+  reentrant?: boolean
   interval: BigNumberish
   dripcheck: string
   checkparams?: any
@@ -113,6 +114,7 @@ export const parseDrippieConfig = async (
     }
 
     dripConfig.interval = ethers.BigNumber.from(dripConfig.interval)
+    dripConfig.reentrant = dripConfig.reentrant || false
   }
 
   return parsed as Required<DrippieConfig>
