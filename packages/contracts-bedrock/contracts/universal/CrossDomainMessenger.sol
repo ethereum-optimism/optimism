@@ -31,6 +31,7 @@ contract CrossDomainMessengerLegacySpacer {
 }
 
 /**
+ * @custom:upgradeable
  * @title CrossDomainMessenger
  * @notice CrossDomainMessenger is a base contract that provides the core logic for the L1 and L2
  *         cross-chain messenger contracts. It's designed to be a universal interface that only
@@ -134,6 +135,13 @@ abstract contract CrossDomainMessenger is
      *         present within the successfulMessages mapping.
      */
     mapping(bytes32 => bool) public receivedMessages;
+
+    /**
+     * @notice Reserve extra slots in the storage layout for future upgrades.
+     *         A gap size of 41 was chosen here, so that the first slot used in a child contract
+     *         would be a multiple of 50.
+     */
+    uint256[42] private __gap;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
