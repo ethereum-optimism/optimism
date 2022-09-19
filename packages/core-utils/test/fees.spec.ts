@@ -1,6 +1,6 @@
 import './setup'
 
-import { BigNumber } from 'ethers'
+import { BigNumber } from '@ethersproject/bignumber'
 
 import { zeroesAndOnes, calldataCost } from '../src'
 

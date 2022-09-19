@@ -67,6 +67,13 @@ WORKDIR /opt/optimism/packages/contracts
 COPY ./ops/scripts/deployer.sh .
 CMD ["yarn", "run", "deploy"]
 
+FROM alpine:3.16.2 as contract-artifacts-bedrock
+RUN mkdir -p /artifacts
+WORKDIR /artifacts
+COPY --from=base /opt/optimism/packages/contracts-bedrock/artifacts  /artifacts/contracts-bedrock
+COPY --from=base /opt/optimism/packages/contracts-governance/artifacts  /artifacts/contracts-governance
+CMD ["echo", "0"]
+
 FROM base as deployer-bedrock
 WORKDIR /opt/optimism/packages/contracts-bedrock
 CMD ["yarn", "run", "deploy"]

@@ -2,6 +2,7 @@ package eth
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -23,6 +24,8 @@ var payloadBufPool = sync.Pool{New: func() any {
 	x := make([]byte, 0, 100_000)
 	return &x
 }}
+
+var ErrBadTransactionOffset = errors.New("transactions offset is smaller than extra data offset, aborting")
 
 func (payload *ExecutionPayload) SizeSSZ() (full uint32) {
 	full = executionPayloadFixedPart + uint32(len(payload.ExtraData))
@@ -166,6 +169,9 @@ func (payload *ExecutionPayload) UnmarshalSSZ(scope uint32, r io.Reader) error {
 	copy(payload.BlockHash[:], buf[offset:offset+32])
 	offset += 32
 	transactionsOffset := binary.LittleEndian.Uint32(buf[offset : offset+4])
+	if transactionsOffset < extraDataOffset {
+		return ErrBadTransactionOffset
+	}
 	offset += 4
 	if offset != executionPayloadFixedPart {
 		panic("fixed part size is inconsistent")
@@ -178,7 +184,7 @@ func (payload *ExecutionPayload) UnmarshalSSZ(scope uint32, r io.Reader) error {
 	copy(payload.ExtraData, buf[extraDataOffset:transactionsOffset])
 	txs, err := unmarshalTransactions(buf[transactionsOffset:])
 	if err != nil {
-		return fmt.Errorf("failed to unmarshal transactions list: %v", err)
+		return fmt.Errorf("failed to unmarshal transactions list: %w", err)
 	}
 	payload.Transactions = txs
 	return nil

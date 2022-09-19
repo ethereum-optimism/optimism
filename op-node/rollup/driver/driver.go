@@ -26,6 +26,8 @@ type Metrics interface {
 	RecordL1Ref(name string, ref eth.L1BlockRef)
 	RecordL2Ref(name string, ref eth.L2BlockRef)
 
+	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+
 	SetDerivationIdle(idle bool)
 
 	RecordL1ReorgDepth(d uint64)
@@ -53,6 +55,7 @@ type DerivationPipeline interface {
 	Step(ctx context.Context) error
 	SetUnsafeHead(head eth.L2BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	Finalize(ref eth.BlockID)
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
@@ -79,13 +82,21 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 
 	var state *state
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, func() eth.L1BlockRef { return state.l1Head }, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2)
+	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
 	state = NewState(driverCfg, log, snapshotLog, cfg, l1, l2, output, derivationPipeline, network, metrics)
 	return &Driver{s: state}
 }
 
 func (d *Driver) OnL1Head(ctx context.Context, head eth.L1BlockRef) error {
 	return d.s.OnL1Head(ctx, head)
+}
+
+func (d *Driver) OnL1Safe(ctx context.Context, safe eth.L1BlockRef) error {
+	return d.s.OnL1Safe(ctx, safe)
+}
+
+func (d *Driver) OnL1Finalized(ctx context.Context, finalized eth.L1BlockRef) error {
+	return d.s.OnL1Finalized(ctx, finalized)
 }
 
 func (d *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error {
@@ -96,7 +107,7 @@ func (d *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	return d.s.ResetDerivationPipeline(ctx)
 }
 
-func (d *Driver) SyncStatus(ctx context.Context) (*SyncStatus, error) {
+func (d *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return d.s.SyncStatus(ctx)
 }
 

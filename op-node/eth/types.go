@@ -8,13 +8,13 @@ import (
 	"math/big"
 	"reflect"
 
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/holiman/uint256"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 type ErrorCode int
@@ -201,7 +201,7 @@ func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {
 	for i, tx := range bl.Transactions() {
 		otx, err := tx.MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("tx %d failed to marshal: %v", i, err)
+			return nil, fmt.Errorf("tx %d failed to marshal: %w", i, err)
 		}
 		opaqueTxs[i] = otx
 	}

@@ -16,16 +16,17 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/ethereum/go-ethereum/rpc"
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -34,8 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
@@ -284,7 +284,11 @@ mainLoop:
 				l.log.Warn("issue fetching L2 head", "err", err)
 				continue
 			}
-			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock)
+			if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
+				l.log.Info("Rollup node has no L1 head info yet")
+				continue
+			}
+			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock, "l1_head", syncStatus.HeadL1)
 			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
 				l.log.Trace("No unsubmitted blocks from sequencer")
 				continue
@@ -299,7 +303,7 @@ mainLoop:
 				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
 				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 			}
-			if ch, err := derive.NewChannelOut(syncStatus.HeadL1.Time); err != nil {
+			if ch, err := derive.NewChannelOut(); err != nil {
 				l.log.Error("Error creating channel", "err", err)
 				continue
 			} else {
@@ -487,7 +491,7 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient.RollupClient, error) {
+func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.RollupClient, error) {
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
@@ -496,7 +500,7 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*rollupclient
 		return nil, err
 	}
 
-	return rollupclient.NewRollupClient(client), nil
+	return sources.NewRollupClient(client), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if

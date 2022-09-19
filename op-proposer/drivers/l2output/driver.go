@@ -7,9 +7,10 @@ import (
 	"math/big"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-proposer/rollupclient"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -27,7 +28,7 @@ type Config struct {
 	Name         string
 	L1Client     *ethclient.Client
 	L2Client     *ethclient.Client
-	RollupClient *rollupclient.RollupClient
+	RollupClient *sources.RollupClient
 	L2OOAddr     common.Address
 	ChainID      *big.Int
 	PrivKey      *ecdsa.PrivateKey
@@ -168,12 +169,12 @@ func (d *Driver) CraftTx(
 
 	l1Header, err := d.cfg.L1Client.HeaderByNumber(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
+		return nil, fmt.Errorf("error resolving checkpoint block: %w", err)
 	}
 
 	l2Header, err := d.cfg.L2Client.HeaderByNumber(ctx, nextCheckpointBlock)
 	if err != nil {
-		return nil, fmt.Errorf("error resolving checkpoint block: %v", err)
+		return nil, fmt.Errorf("error resolving checkpoint block: %w", err)
 	}
 
 	if l2Header.Number.Cmp(nextCheckpointBlock) != 0 {

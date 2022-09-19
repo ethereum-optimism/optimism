@@ -218,7 +218,7 @@ Additionally, the first block in the window defines the [depositing transactions
 
 A sequencing epoch is sequential range of L2 blocks derived from a [sequencing window](#sequencing-window) of L1 blocks.
 
-Each epoch is identified by an epoch number, which is equal to the block number number of the first L1 block in the
+Each epoch is identified by an epoch number, which is equal to the block number of the first L1 block in the
 sequencing window.
 
 Epochs can have variable size, subject to some constraints. See the [L2 chain derivation specification][derivation-spec]
@@ -279,7 +279,7 @@ There are two kinds of deposited transactions:
 
 An *L1 attributes deposited transaction* is [deposited transaction][deposited] that is used to register the L1 block
 attributes (number, timestamp, ...) on L2 via a call to the [L1 Attributes Predeployed Contract][l1-attr-predeploy].
-That contract can then be used to read the the attributes of the L1 block corresponding to the current L2 block.
+That contract can then be used to read the attributes of the L1 block corresponding to the current L2 block.
 
 L1 attributes deposited transactions are specified in the [L1 Attributes Deposit][l1-attributes-tx-spec] section of the
 deposits specification.
@@ -419,7 +419,7 @@ number](#sequencing-epoch) and an L2 block timestamp (which can trivially be con
 block time is constant).
 
 Sequencer batches are part of the [L2 derivation inputs][deriv-inputs]. Each batch represents the inputs needed to build
-**one** L2 block (given the existing L2 chain state) — excepted for the fist block of each epoch, which also needs
+**one** L2 block (given the existing L2 chain state) — except for the first block of each epoch, which also needs
 information about deposits (cf. the section on [L2 derivation inputs][deriv-inputs]).
 
 ## Channel
@@ -431,7 +431,7 @@ to group multiple batches together is simply to obtain a better compression rate
 costs.
 
 A channel can be split in [frames][channel-frame] in order to be transmitted via [batcher
-transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might too large to
+transactions][batcher-transaction]. The reason to split a channel into frames is that a channel might be too large to
 include in a single batcher transaction.
 
 A channel is uniquely identified by its timestamp (UNIX time at which the channel was created) and a random value. See

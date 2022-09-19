@@ -31,7 +31,10 @@ export const getContractDefinition = (name: string): any => {
 export const getDeployedContractDefinition = (
   name: string,
   network: string
-): any => {
+): {
+  address: string
+  abi: any
+} => {
   const {
     getDeployedContractArtifact,
     // eslint-disable-next-line @typescript-eslint/no-var-requires

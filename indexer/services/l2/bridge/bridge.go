@@ -12,10 +12,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+type DepositsMap map[common.Hash][]db.Deposit // Finalizations
 type WithdrawalsMap map[common.Hash][]db.Withdrawal
 
 type Bridge interface {
 	Address() common.Address
+	GetDepositsByBlockRange(uint64, uint64) (DepositsMap, error)
 	GetWithdrawalsByBlockRange(uint64, uint64) (WithdrawalsMap, error)
 	String() string
 }
@@ -26,8 +28,15 @@ type implConfig struct {
 	addr string
 }
 
-var defaultBridgeCfgs = []*implConfig{
-	{"Standard", "StandardBridge", L2StandardBridgeAddr},
+var defaultBridgeCfgs = map[uint64][]*implConfig{
+	// Devnet
+	901: {
+		{"Standard", "StandardBridge", L2StandardBridgeAddr},
+	},
+	// Goerli Alpha Testnet
+	28528: {
+		{"Standard", "StandardBridge", L2StandardBridgeAddr},
+	},
 }
 
 var customBridgeCfgs = map[uint64][]*implConfig{
@@ -46,7 +55,7 @@ var customBridgeCfgs = map[uint64][]*implConfig{
 
 func BridgesByChainID(chainID *big.Int, client bind.ContractFilterer, ctx context.Context) (map[string]Bridge, error) {
 	allCfgs := make([]*implConfig, 0)
-	allCfgs = append(allCfgs, defaultBridgeCfgs...)
+	allCfgs = append(allCfgs, defaultBridgeCfgs[chainID.Uint64()]...)
 	allCfgs = append(allCfgs, customBridgeCfgs[chainID.Uint64()]...)
 
 	bridges := make(map[string]Bridge)

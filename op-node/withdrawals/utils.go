@@ -219,10 +219,10 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		BlockNumber: new(big.Int).Set(header.Number),
 		Data:        ev.Data,
 		OutputRootProof: bindings.TypesOutputRootProof{
-			Version:               [32]byte{}, // Empty for version 1
-			StateRoot:             header.Root,
-			WithdrawerStorageRoot: p.StorageHash,
-			LatestBlockhash:       header.Hash(),
+			Version:                  [32]byte{}, // Empty for version 1
+			StateRoot:                header.Root,
+			MessagePasserStorageRoot: p.StorageHash,
+			LatestBlockhash:          header.Hash(),
 		},
 		WithdrawalProof: withdrawalProof,
 	}, nil
@@ -235,7 +235,8 @@ var (
 	AddressType, _ = abi.NewType("address", "", nil)
 )
 
-// WithdrawalHash computes the hash of the withdrawal that was stored in the L2 withdrawal contract state.
+// WithdrawalHash computes the hash of the withdrawal that was stored in the L2toL1MessagePasser
+// contract state.
 // TODO:
 //   - I don't like having to use the ABI Generated struct
 //   - There should be a better way to run the ABI encoding
@@ -319,6 +320,5 @@ func StorageSlotOfWithdrawalHash(hash common.Hash) common.Hash {
 	// Where p is the 32 byte value of the storage slot and ++ is concatenation
 	buf := make([]byte, 64)
 	copy(buf, hash[:])
-	buf[63] = 1
 	return crypto.Keccak256Hash(buf)
 }

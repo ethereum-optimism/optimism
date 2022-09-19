@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -30,8 +31,12 @@ type Config struct {
 
 	Pprof PprofConfig
 
+	// Used to poll the L1 for new finalized or safe blocks
+	L1EpochPollInterval time.Duration
+
 	// Optional
-	Tracer Tracer
+	Tracer    Tracer
+	Heartbeat HeartbeatConfig
 }
 
 type RPCConfig struct {
@@ -70,6 +75,12 @@ type PprofConfig struct {
 
 func (p PprofConfig) Check() error {
 	return nil
+}
+
+type HeartbeatConfig struct {
+	Enabled bool
+	Moniker string
+	URL     string
 }
 
 // Check verifies that the given configuration makes sense

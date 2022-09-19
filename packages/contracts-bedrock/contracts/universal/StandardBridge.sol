@@ -6,7 +6,6 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
@@ -15,7 +14,7 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
  * @title StandardBridge
  * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
  */
-abstract contract StandardBridge is Initializable {
+abstract contract StandardBridge {
     using SafeERC20 for IERC20;
 
     /**
@@ -26,12 +25,26 @@ abstract contract StandardBridge is Initializable {
     /**
      * @notice Messenger contract on this domain.
      */
-    CrossDomainMessenger public messenger;
+    CrossDomainMessenger public immutable messenger;
 
     /**
      * @notice Corresponding bridge on the other domain.
      */
-    StandardBridge public otherBridge;
+    StandardBridge public immutable otherBridge;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer address messenger
+     * @notice Spacer for backwards compatibility.
+     */
+    bytes32 private spacer_0_0_32;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer address l2TokenBridge
+     * @notice Spacer for backwards compatibility.
+     */
+    bytes32 private spacer_1_0_32;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
@@ -159,6 +172,15 @@ abstract contract StandardBridge is Initializable {
     }
 
     /**
+     * @param _messenger   Address of CrossDomainMessenger on this network.
+     * @param _otherBridge Address of the other StandardBridge contract.
+     */
+    constructor(address payable _messenger, address payable _otherBridge) {
+        messenger = CrossDomainMessenger(_messenger);
+        otherBridge = StandardBridge(_otherBridge);
+    }
+
+    /**
      * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
      */
     receive() external payable onlyEOA {
@@ -182,7 +204,9 @@ abstract contract StandardBridge is Initializable {
      *         smart contract and the call fails, the ETH will be temporarily locked in the
      *         StandardBridge on the other chain until the call is replayed. If the call cannot be
      *         replayed with any amount of gas (call always reverts), then the ETH will be
-     *         permanently locked in the StandardBridge on the other chain.
+     *         permanently locked in the StandardBridge on the other chain. ETH will also
+     *         be locked if the receiver is the other bridge, because finalizeBridgeETH will revert
+     *         in that case.
      *
      * @param _to          Address of the receiver.
      * @param _minGasLimit Minimum amount of gas that the bridge can be relayed with.
@@ -365,21 +389,6 @@ abstract contract StandardBridge is Initializable {
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] - _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
-    }
-
-    /**
-     * @notice Initializer.
-     *
-     * @param _messenger   Address of CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the other StandardBridge contract.
-     */
-    // solhint-disable-next-line func-name-mixedcase
-    function __StandardBridge_init(address payable _messenger, address payable _otherBridge)
-        internal
-        onlyInitializing
-    {
-        messenger = CrossDomainMessenger(_messenger);
-        otherBridge = StandardBridge(_otherBridge);
     }
 
     /**

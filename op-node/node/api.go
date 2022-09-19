@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,7 +22,7 @@ type l2EthClient interface {
 }
 
 type driverClient interface {
-	SyncStatus(ctx context.Context) (*driver.SyncStatus, error)
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
 	ResetDerivationPipeline(context.Context) error
 }
 
@@ -97,7 +96,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 	return []eth.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
 }
 
-func (n *nodeAPI) SyncStatus(ctx context.Context) (*driver.SyncStatus, error) {
+func (n *nodeAPI) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	recordDur := n.m.RecordRPCServerRequest("optimism_syncStatus")
 	defer recordDur()
 	return n.dr.SyncStatus(ctx)

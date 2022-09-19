@@ -1,6 +1,6 @@
 import EventEmitter from 'events'
 
-import { BigNumber } from 'ethers'
+import { BigNumber } from '@ethersproject/bignumber'
 import { deepCopy } from '@ethersproject/properties'
 import { ConnectionInfo, fetchJson } from '@ethersproject/web'
 
