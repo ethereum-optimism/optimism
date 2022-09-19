@@ -119,7 +119,6 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // finalizeDeposit
     // - only callable by l1TokenBridge
     // - supported token pair emits DepositFinalized
-    // - invalid deposit emits DepositFailed
     // - invalid deposit calls Withdrawer.initiateWithdrawal
     function test_finalizeDeposit() external {
         // TODO: events and calls
@@ -128,6 +127,24 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(L2Bridge.otherBridge()))
+        );
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit ERC20BridgeFinalized(
+            address(L2Token), // localToken
+            address(L1Token), // remoteToken
+            alice,
+            alice,
+            100,
+            hex""
+        );
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit DepositFinalized(
+            address(L1Token),
+            address(L2Token),
+            alice,
+            alice,
+            100,
+            hex""
         );
         vm.prank(address(L2Messenger));
         L2Bridge.finalizeDeposit(
@@ -142,7 +159,6 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     // finalizeDeposit
     // - only callable by l1TokenBridge
-    // - supported token pair emits DepositFinalized
     // - invalid deposit emits DepositFailed
     // - invalid deposit calls Withdrawer.initiateWithdrawal
     function test_finalizeDeposit_failsToCompleteOutboundTransfer() external {
@@ -154,6 +170,13 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
         address invalidL2Token = address(0x1234);
         vm.prank(address(L2Messenger));
+        // For simplicity, the next two expectEmit events skip
+        // verification of the non-indexed event data
+        vm.expectEmit(true, true, true, false, address(messagePasser));
+        emit WithdrawalInitiated(0, address(L2Messenger), address(L1Messenger), 0, 0, hex"");
+        vm.expectEmit(true, true, true, false, address(L2Messenger));
+        emit SentMessage(address(L1Bridge), address(0), hex"", 0, 0);
+
         vm.expectEmit(true, true, true, true);
         emit ERC20BridgeInitiated(
             invalidL2Token,
@@ -172,6 +195,16 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             100,
             hex""
         );
+        vm.expectEmit(true, true, true, true);
+        emit DepositFailed(
+            address(L1Token),
+            invalidL2Token,
+            alice,
+            alice,
+            100,
+            hex""
+        );
+
         L2Bridge.finalizeDeposit(
             address(L1Token),
             invalidL2Token,

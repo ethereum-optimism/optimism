@@ -342,9 +342,10 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) public onlyOtherBridge {
+    ) public onlyOtherBridge returns (bool) {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
             emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            return true;
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
@@ -361,6 +362,7 @@ abstract contract StandardBridge {
                 _extraData
             );
             emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            return false;
         }
     }
 

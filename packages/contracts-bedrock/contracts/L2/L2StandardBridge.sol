@@ -152,10 +152,22 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) external payable virtual {
         if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
             finalizeBridgeETH(_from, _to, _amount, _extraData);
+            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         } else {
-            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
+            bool finalized = finalizeBridgeERC20(
+                _l2Token,
+                _l1Token,
+                _from,
+                _to,
+                _amount,
+                _extraData
+            );
+            if (finalized) {
+                emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+            } else {
+                emit DepositFailed(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+            }
         }
-        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**
