@@ -17,7 +17,7 @@ type L1Retrieval struct {
 	datas *CalldataSourceImpl
 }
 
-var _ PullStage = (*L1Retrieval)(nil)
+var _ ResetableStage = (*L1Retrieval)(nil)
 
 func NewL1Retrieval(log log.Logger, dataSrc *CalldataSource, prev *L1Traversal) *L1Retrieval {
 	return &L1Retrieval{

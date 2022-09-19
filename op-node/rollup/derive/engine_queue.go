@@ -75,11 +75,12 @@ type EngineQueue struct {
 
 	progress Progress // only used for pipeline resets
 
-	metrics Metrics
+	metrics   Metrics
+	l1Fetcher L1Fetcher
 }
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev *AttributesQueue) *EngineQueue {
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev *AttributesQueue, l1Fetcher L1Fetcher) *EngineQueue {
 	return &EngineQueue{
 		log:          log,
 		cfg:          cfg,
@@ -90,7 +91,8 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 			MaxSize: maxUnsafePayloadsMemory,
 			SizeFn:  payloadMemSize,
 		},
-		prev: prev,
+		prev:      prev,
+		l1Fetcher: l1Fetcher,
 	}
 }
 
@@ -146,7 +148,7 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 	return uint64(eq.safeAttributes[len(eq.safeAttributes)-1].Timestamp)
 }
 
-func (eq *EngineQueue) Step(ctx context.Context, _ Progress) error {
+func (eq *EngineQueue) Step(ctx context.Context) error {
 	if len(eq.safeAttributes) > 0 {
 		return eq.tryNextSafeAttributes(ctx)
 	}
@@ -397,13 +399,13 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
 // The unsafe head is set to the head of the L2 chain, unless the existing safe head is not canonical.
-func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	result, err := sync.FindL2Heads(ctx, eq.cfg, l1Fetcher, eq.engine)
+func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef) error {
+	result, err := sync.FindL2Heads(ctx, eq.cfg, eq.l1Fetcher, eq.engine)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
 	finalized, safe, unsafe := result.Finalized, result.Safe, result.Unsafe
-	l1Origin, err := l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
+	l1Origin, err := eq.l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))
 	}
@@ -416,7 +418,7 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	if l1Origin.Number < eq.cfg.ChannelTimeout {
 		pipelineNumber = 0
 	}
-	pipelineOrigin, err := l1Fetcher.L1BlockRefByNumber(ctx, pipelineNumber)
+	pipelineOrigin, err := eq.l1Fetcher.L1BlockRefByNumber(ctx, pipelineNumber)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", pipelineNumber, err))
 	}

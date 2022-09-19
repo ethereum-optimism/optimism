@@ -26,12 +26,6 @@ import (
 // It is internally responsible for making sure that batches with L1 inclusions block outside it's
 // working range are not considered or pruned.
 
-type BatchQueueOutput interface {
-	StageProgress
-	AddBatch(batch *BatchData)
-	SafeL2Head() eth.L2BlockRef
-}
-
 // BatchQueue contains a set of batches for every L1 block.
 // L1 blocks are contiguous and this does not support reorgs.
 type BatchQueue struct {
