@@ -289,9 +289,10 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
             _remoteToken == IOptimismMintableERC721(_localToken).remoteToken(),
             "L2ERC721Bridge: wrong remote token for Optimism Mintable ERC721 local token"
         );
+        require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
 
         // When a deposit is finalized, we give the NFT with the same tokenId to the account
-        // on L2.
+        // on L2. Note that safeMint makes a callback to the _to address which is user provided.
         IOptimismMintableERC721(_localToken).safeMint(_to, _tokenId);
     }
 
