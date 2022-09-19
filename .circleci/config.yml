@@ -152,7 +152,8 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: upload coverage
-          command: ./codecov --verbose
+          command: |
+           ./codecov --verbose || exit 0
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -307,7 +308,8 @@ jobs:
           working_directory: op-chain-ops
       - run:
           name: Upload coverage reports to CodeCov
-          command: ./codecov
+          command: |
+            ./codecov --verbose || exit 0
       - store_test_results:
           path: /test-results
       - run:
