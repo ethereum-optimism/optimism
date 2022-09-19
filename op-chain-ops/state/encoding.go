@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
+	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -156,6 +156,8 @@ func getElementEncoder(storageType solc.StorageLayoutType, kind string) (Element
 		return EncodeAddressValue, nil
 	case "t_bool":
 		return EncodeBoolValue, nil
+	case "t_bytes32":
+		return EncodeBytes32Value, nil
 	default:
 		if strings.HasPrefix(target, "t_uint") {
 			return EncodeUintValue, nil

@@ -8,12 +8,13 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/stretchr/testify/require"
 )
 
 func TestPreparePayloadAttributes(t *testing.T) {
@@ -172,7 +173,7 @@ func encodeDeposits(deposits []*types.DepositTx) (out []eth.Data, err error) {
 	for i, tx := range deposits {
 		opaqueTx, err := types.NewTx(tx).MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("bad deposit %d: %v", i, err)
+			return nil, fmt.Errorf("bad deposit %d: %w", i, err)
 		}
 		out = append(out, opaqueTx)
 	}

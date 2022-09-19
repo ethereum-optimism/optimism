@@ -1,4 +1,9 @@
-import { BaseServiceV2, Gauge, validators } from '@eth-optimism/common-ts'
+import {
+  BaseServiceV2,
+  ExpressRouter,
+  Gauge,
+  validators,
+} from '@eth-optimism/common-ts'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
@@ -29,6 +34,7 @@ type State = {
   scc: Contract
   messenger: CrossChainMessenger
   highestCheckedBatchIndex: number
+  diverged: boolean
 }
 
 export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
@@ -90,6 +96,9 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       l2ChainId: await getChainId(this.options.l2RpcProvider),
     })
 
+    // Not diverged by default.
+    this.state.diverged = false
+
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
     this.state.scc = this.state.messenger.contracts.l1.StateCommitmentChain
     this.state.fpw = (await this.state.scc.FRAUD_PROOF_WINDOW()).toNumber()
@@ -97,14 +106,35 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
       this.logger.info(`finding appropriate starting height`)
-      this.state.highestCheckedBatchIndex =
-        await findFirstUnfinalizedStateBatchIndex(this.state.scc)
+      const firstUnfinalized = await findFirstUnfinalizedStateBatchIndex(
+        this.state.scc
+      )
+
+      // We may not have an unfinalized batches in the case where no batches have been submitted
+      // for the entire duration of the FPW. We generally do not expect this to happen on mainnet,
+      // but it happens often on testnets because the FPW is very short.
+      if (firstUnfinalized === undefined) {
+        this.logger.info(`no unfinalized batches found, starting from latest`)
+        this.state.highestCheckedBatchIndex = (
+          await this.state.scc.getTotalBatches()
+        ).toNumber()
+      } else {
+        this.state.highestCheckedBatchIndex = firstUnfinalized
+      }
     } else {
       this.state.highestCheckedBatchIndex = this.options.startBatchIndex
     }
 
     this.logger.info(`starting height`, {
       startBatchIndex: this.state.highestCheckedBatchIndex,
+    })
+  }
+
+  async routes(router: ExpressRouter): Promise<void> {
+    router.get('/status', async (req, res) => {
+      return res.status(200).json({
+        ok: !this.state.diverged,
+      })
     })
   }
 
@@ -226,6 +256,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     for (const [i, stateRoot] of stateRoots.entries()) {
       if (blocks[i].stateRoot !== stateRoot) {
+        this.state.diverged = true
         this.metrics.isCurrentlyMismatched.set(1)
         this.logger.error(`state root mismatch`, {
           blockNumber: blocks[i].number,
@@ -250,6 +281,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     )
 
     // If we got through the above without throwing an error, we should be fine to reset.
+    this.state.diverged = false
     this.metrics.isCurrentlyMismatched.set(0)
   }
 }

@@ -13,6 +13,11 @@ import (
 
 	"github.com/btcsuite/btcd/btcec/v2"
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
+	"github.com/libp2p/go-libp2p-core/crypto"
+	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/multiformats/go-multiaddr"
+
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	gcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -20,10 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
-	"github.com/multiformats/go-multiaddr"
 )
 
 const (
@@ -137,7 +138,7 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, *crypto.Secp256k1PublicKey, e
 	}
 	mAddr, err := multiaddr.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), r.TCP()))
 	if err != nil {
-		return nil, nil, fmt.Errorf("could not construct multi addr: %v", err)
+		return nil, nil, fmt.Errorf("could not construct multi addr: %w", err)
 	}
 	var enrPub Secp256k1
 	if err := r.Load(&enrPub); err != nil {
@@ -146,7 +147,7 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, *crypto.Secp256k1PublicKey, e
 	pub := (*crypto.Secp256k1PublicKey)(&enrPub)
 	peerID, err := peer.IDFromPublicKey(pub)
 	if err != nil {
-		return nil, pub, fmt.Errorf("could not compute peer ID from pubkey for multi-addr: %v", err)
+		return nil, pub, fmt.Errorf("could not compute peer ID from pubkey for multi-addr: %w", err)
 	}
 	return &peer.AddrInfo{
 		ID:    peerID,
@@ -177,18 +178,18 @@ func (o *OptimismENRData) EncodeRLP(w io.Writer) error {
 func (o *OptimismENRData) DecodeRLP(s *rlp.Stream) error {
 	b, err := s.Bytes()
 	if err != nil {
-		return fmt.Errorf("failed to decode outer ENR entry: %v", err)
+		return fmt.Errorf("failed to decode outer ENR entry: %w", err)
 	}
 	// We don't check the byte length: the below readers are limited, and the ENR itself has size limits.
 	// Future "optimism" entries may contain additional data, and will be tagged with a newer version etc.
 	r := bytes.NewReader(b)
 	chainID, err := binary.ReadUvarint(r)
 	if err != nil {
-		return fmt.Errorf("failed to read chain ID var int: %v", err)
+		return fmt.Errorf("failed to read chain ID var int: %w", err)
 	}
 	version, err := binary.ReadUvarint(r)
 	if err != nil {
-		return fmt.Errorf("failed to read version var int: %v", err)
+		return fmt.Errorf("failed to read version var int: %w", err)
 	}
 	o.chainID = chainID
 	o.version = version

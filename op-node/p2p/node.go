@@ -6,17 +6,17 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/hashicorp/go-multierror"
+	"github.com/libp2p/go-libp2p-core/connmgr"
+	"github.com/libp2p/go-libp2p-core/host"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	ma "github.com/multiformats/go-multiaddr"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/hashicorp/go-multierror"
-	"github.com/libp2p/go-libp2p-core/connmgr"
-	"github.com/libp2p/go-libp2p-core/host"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 )
 
 type NodeP2P struct {
@@ -56,7 +56,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		if n.dv5Udp != nil {
 			n.dv5Udp.Close()
 		}
-		return fmt.Errorf("failed to start p2p host: %v", err)
+		return fmt.Errorf("failed to start p2p host: %w", err)
 	}
 
 	if n.host != nil {
@@ -71,12 +71,12 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		n.host.RemoveStreamHandler(identify.IDDelta)
 		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg)
 		if err != nil {
-			return fmt.Errorf("failed to start gossipsub router: %v", err)
+			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
 
 		n.gsOut, err = JoinGossip(resourcesCtx, n.host.ID(), n.gs, log, rollupCfg, gossipIn)
 		if err != nil {
-			return fmt.Errorf("failed to join blocks gossip topic: %v", err)
+			return fmt.Errorf("failed to join blocks gossip topic: %w", err)
 		}
 		log.Info("started p2p host", "addrs", n.host.Addrs(), "peerID", n.host.ID().Pretty())
 
@@ -88,7 +88,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		// All nil if disabled.
 		n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"), rollupCfg, tcpPort)
 		if err != nil {
-			return fmt.Errorf("failed to start discv5: %v", err)
+			return fmt.Errorf("failed to start discv5: %w", err)
 		}
 	}
 	return nil
@@ -129,12 +129,12 @@ func (n *NodeP2P) Close() error {
 	}
 	if n.gsOut != nil {
 		if err := n.gsOut.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %v", err))
+			result = multierror.Append(result, fmt.Errorf("failed to close gossip cleanly: %w", err))
 		}
 	}
 	if n.host != nil {
 		if err := n.host.Close(); err != nil {
-			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %v", err))
+			result = multierror.Append(result, fmt.Errorf("failed to close p2p host cleanly: %w", err))
 		}
 	}
 	return result.ErrorOrNil()

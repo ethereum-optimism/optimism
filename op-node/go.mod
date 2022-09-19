@@ -5,9 +5,9 @@ go 1.18
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
-	github.com/ethereum-optimism/optimism/op-bindings v0.5.0
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.0.0-20220822214343-2106bdb7fc11
-	github.com/ethereum/go-ethereum v1.10.21
+	github.com/ethereum-optimism/optimism/op-bindings v0.8.6
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.8.6
+	github.com/ethereum/go-ethereum v1.10.23
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8
 	github.com/hashicorp/go-multierror v1.1.1
@@ -72,7 +72,7 @@ require (
 	github.com/klauspost/compress v1.15.1 // indirect
 	github.com/klauspost/cpuid/v2 v2.1.0 // indirect
 	github.com/koron/go-ssdp v0.0.3 // indirect
-	github.com/kr/pretty v0.3.0 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-eventbus v0.2.1 // indirect
@@ -127,7 +127,6 @@ require (
 	github.com/raulk/go-watchdog v1.3.0 // indirect
 	github.com/rivo/uniseg v0.3.4 // indirect
 	github.com/rjeczalik/notify v0.9.2 // indirect
-	github.com/rogpeppe/go-internal v1.8.1 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
@@ -160,4 +159,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.21 => github.com/ethereum-optimism/op-geth v0.0.0-20220819161933-acfde114de61
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220909213840-e6575c0168f1

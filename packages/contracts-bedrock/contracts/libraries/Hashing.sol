@@ -164,7 +164,7 @@ library Hashing {
                 abi.encode(
                     _outputRootProof.version,
                     _outputRootProof.stateRoot,
-                    _outputRootProof.withdrawerStorageRoot,
+                    _outputRootProof.messagePasserStorageRoot,
                     _outputRootProof.latestBlockhash
                 )
             );

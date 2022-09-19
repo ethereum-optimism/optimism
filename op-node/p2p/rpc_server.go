@@ -7,13 +7,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	gcrypto "github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/p2p/discover"
-	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/crypto"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -22,6 +16,12 @@ import (
 	"github.com/libp2p/go-libp2p-core/peerstore"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p-testing/netutil"
+
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	gcrypto "github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
 // TODO: dynamic peering
@@ -356,7 +356,7 @@ func (s *APIBackend) ConnectPeer(ctx context.Context, addr string) error {
 	h := s.node.Host()
 	addrInfo, err := peer.AddrInfoFromString(addr)
 	if err != nil {
-		return fmt.Errorf("bad peer address: %v", err)
+		return fmt.Errorf("bad peer address: %w", err)
 	}
 	// Put a sanity limit on the connection time
 	ctx, cancel := context.WithTimeout(ctx, time.Second*30)

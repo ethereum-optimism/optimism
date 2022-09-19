@@ -9,20 +9,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
-
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
+	"github.com/urfave/cli"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
-
-	"github.com/ethereum-optimism/optimism/op-node/version"
-
+	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/flags"
-
+	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
+	"github.com/ethereum-optimism/optimism/op-node/version"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
 )
 
 var (
@@ -116,6 +113,30 @@ func RollupNodeMain(ctx *cli.Context) error {
 	m.RecordInfo(VersionWithMeta)
 	m.RecordUp()
 	log.Info("Rollup node started")
+
+	if cfg.Heartbeat.Enabled {
+		var peerID string
+		if cfg.P2P == nil {
+			peerID = "disabled"
+		} else {
+			peerID = n.P2P().Host().ID().String()
+		}
+
+		beatCtx, beatCtxCancel := context.WithCancel(context.Background())
+		payload := &heartbeat.Payload{
+			Version: version.Version,
+			Meta:    version.Meta,
+			Moniker: cfg.Heartbeat.Moniker,
+			PeerID:  peerID,
+			ChainID: cfg.Rollup.L2ChainID.Uint64(),
+		}
+		go func() {
+			if err := heartbeat.Beat(beatCtx, log, cfg.Heartbeat.URL, payload); err != nil {
+				log.Error("heartbeat goroutine crashed", "err", err)
+			}
+		}()
+		defer beatCtxCancel()
+	}
 
 	if cfg.Pprof.Enabled {
 		var srv http.Server

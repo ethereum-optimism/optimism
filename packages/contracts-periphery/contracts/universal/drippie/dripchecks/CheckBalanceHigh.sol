@@ -8,12 +8,21 @@ import { IDripCheck } from "../IDripCheck.sol";
  * @notice DripCheck for checking if an account's balance is above a given threshold.
  */
 contract CheckBalanceHigh is IDripCheck {
-    event _EventToExposeStructInABI__Params(Params params);
     struct Params {
         address target;
         uint256 threshold;
     }
 
+    /**
+     * @notice External event used to help client-side tooling encode parameters.
+     *
+     * @param params Parameters to encode.
+     */
+    event _EventToExposeStructInABI__Params(Params params);
+
+    /**
+     * @inheritdoc IDripCheck
+     */
     function check(bytes memory _params) external view returns (bool) {
         Params memory params = abi.decode(_params, (Params));
 

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 type ServerConfig struct {
@@ -40,10 +41,28 @@ type MetricsConfig struct {
 }
 
 type RateLimitConfig struct {
-	RatePerSecond    int      `toml:"rate_per_second"`
-	ExemptOrigins    []string `toml:"exempt_origins"`
-	ExemptUserAgents []string `toml:"exempt_user_agents"`
-	ErrorMessage     string   `toml:"error_message"`
+	RatePerSecond    int                                 `toml:"rate_per_second"`
+	ExemptOrigins    []string                            `toml:"exempt_origins"`
+	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
+	ErrorMessage     string                              `toml:"error_message"`
+	MethodOverrides  map[string]*RateLimitMethodOverride `toml:"method_overrides"`
+}
+
+type RateLimitMethodOverride struct {
+	Limit    int          `toml:"limit"`
+	Interval TOMLDuration `toml:"interval"`
+}
+
+type TOMLDuration time.Duration
+
+func (t *TOMLDuration) UnmarshalText(b []byte) error {
+	d, err := time.ParseDuration(string(b))
+	if err != nil {
+		return err
+	}
+
+	*t = TOMLDuration(d)
+	return nil
 }
 
 type BackendOptions struct {

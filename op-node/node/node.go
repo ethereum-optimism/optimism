@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/peer"
-
 	"github.com/hashicorp/go-multierror"
+	"github.com/libp2p/go-libp2p-core/peer"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -15,7 +14,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -116,7 +114,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
 		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
 	if err != nil {
-		return fmt.Errorf("failed to create L1 source: %v", err)
+		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -198,7 +196,7 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if cfg.P2P != nil {
 		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n)
-		if err != nil {
+		if err != nil || p2pNode == nil {
 			return err
 		}
 		n.p2pNode = p2pNode
@@ -238,6 +236,9 @@ func (n *OpNode) Start(ctx context.Context) error {
 func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 	n.tracer.OnNewL1Head(ctx, sig)
 
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -247,6 +248,9 @@ func (n *OpNode) OnNewL1Head(ctx context.Context, sig eth.L1BlockRef) {
 }
 
 func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
@@ -256,6 +260,9 @@ func (n *OpNode) OnNewL1Safe(ctx context.Context, sig eth.L1BlockRef) {
 }
 
 func (n *OpNode) OnNewL1Finalized(ctx context.Context, sig eth.L1BlockRef) {
+	if n.l2Driver == nil {
+		return
+	}
 	// Pass on the event to the L2 Engine
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()

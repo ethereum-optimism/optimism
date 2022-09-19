@@ -13,7 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/solc"
+	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state/testdata"
 
@@ -276,7 +276,7 @@ func TestMergeStorage(t *testing.T) {
 
 	for _, test := range cases {
 		got := state.MergeStorage(test.input)
-		require.Equal(t, got, test.expect)
+		require.Equal(t, test.expect, got)
 	}
 }
 

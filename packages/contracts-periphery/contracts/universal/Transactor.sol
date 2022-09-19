@@ -18,7 +18,6 @@ contract Transactor is Owned {
      *
      * @param _target Address to call.
      * @param _data   Data to send with the call.
-     * @param _gas    Amount of gas to send with the call.
      * @param _value  ETH value to send with the call.
      *
      * @return Boolean success value.
@@ -27,10 +26,9 @@ contract Transactor is Owned {
     function CALL(
         address _target,
         bytes memory _data,
-        uint256 _gas,
         uint256 _value
     ) external payable onlyOwner returns (bool, bytes memory) {
-        return _target.call{ gas: _gas, value: _value }(_data);
+        return _target.call{ value: _value }(_data);
     }
 
     /**
@@ -38,17 +36,17 @@ contract Transactor is Owned {
      *
      * @param _target Address to call.
      * @param _data   Data to send with the call.
-     * @param _gas    Amount of gas to send with the call.
      *
      * @return Boolean success value.
      * @return Bytes data returned by the call.
      */
-    function DELEGATECALL(
-        address _target,
-        bytes memory _data,
-        uint256 _gas
-    ) external payable onlyOwner returns (bool, bytes memory) {
+    function DELEGATECALL(address _target, bytes memory _data)
+        external
+        payable
+        onlyOwner
+        returns (bool, bytes memory)
+    {
         // slither-disable-next-line controlled-delegatecall
-        return _target.delegatecall{ gas: _gas }(_data);
+        return _target.delegatecall(_data);
     }
 }
