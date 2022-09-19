@@ -90,13 +90,13 @@ contract Hashing_Test is CommonTest {
     function test_hashOutputRootProof_differential(
         bytes32 _version,
         bytes32 _stateRoot,
-        bytes32 _withdrawerStorageRoot,
+        bytes32 _messagePasserStorageRoot,
         bytes32 _latestBlockhash
     ) external {
         Types.OutputRootProof memory proof = Types.OutputRootProof({
             version: _version,
             stateRoot: _stateRoot,
-            withdrawerStorageRoot: _withdrawerStorageRoot,
+            messagePasserStorageRoot: _messagePasserStorageRoot,
             latestBlockhash: _latestBlockhash
         });
 
@@ -105,7 +105,7 @@ contract Hashing_Test is CommonTest {
         bytes32 _hash = ffi.hashOutputRootProof(
             _version,
             _stateRoot,
-            _withdrawerStorageRoot,
+            _messagePasserStorageRoot,
             _latestBlockhash
         );
 

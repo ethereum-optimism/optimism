@@ -24,13 +24,14 @@ import { Encoding } from "../libraries/Encoding.sol";
 contract CrossDomainMessengerLegacySpacer {
     /**
      * @custom:legacy
-     * @custom:spacer libAddressManager
+     * @custom:spacer address libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    address private spacer0;
+    bytes20 private spacer_0_0_20;
 }
 
 /**
+ * @custom:upgradeable
  * @title CrossDomainMessenger
  * @notice CrossDomainMessenger is a base contract that provides the core logic for the L1 and L2
  *         cross-chain messenger contracts. It's designed to be a universal interface that only
@@ -87,24 +88,28 @@ abstract contract CrossDomainMessenger is
     address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
-     * @custom:legacy
-     * @custom:spacer blockedMessages
-     * @notice Spacer for backwards compatibility.
+     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
-    uint256 private spacer1;
+    address public immutable otherMessenger;
 
     /**
      * @custom:legacy
-     * @custom:spacer relayedMessages
+     * @custom:spacer mapping(bytes32=>bool) blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer2;
+    bytes32 private spacer_201_0_32;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer mapping(bytes32=>bool) relayedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    bytes32 private spacer_202_0_32;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
-     *         be present in this mapping if it failed to be relayed on this chain at least once.
-     *         If a message is successfully relayed on the first attempt, then it will only be
-     *         present within the successfulMessages mapping.
+     *         be present in this mapping if it has successfully been relayed on this chain, and
+     *         can therefore not be relayed again.
      */
     mapping(bytes32 => bool) public successfulMessages;
 
@@ -124,17 +129,19 @@ abstract contract CrossDomainMessenger is
     uint240 internal msgNonce;
 
     /**
-     * @notice Address of the paired CrossDomainMessenger contract on the other chain.
-     */
-    address public otherMessenger;
-
-    /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
      *         be present in this mapping if it failed to be relayed on this chain at least once.
      *         If a message is successfully relayed on the first attempt, then it will only be
      *         present within the successfulMessages mapping.
      */
     mapping(bytes32 => bool) public receivedMessages;
+
+    /**
+     * @notice Reserve extra slots in the storage layout for future upgrades.
+     *         A gap size of 41 was chosen here, so that the first slot used in a child contract
+     *         would be a multiple of 50.
+     */
+    uint256[42] private __gap;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
@@ -177,6 +184,13 @@ abstract contract CrossDomainMessenger is
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
     /**
+     * @param _otherMessenger Address of the messenger on the paired chain.
+     */
+    constructor(address _otherMessenger) {
+        otherMessenger = _otherMessenger;
+    }
+
+    /**
      * @notice Allows the owner of this contract to temporarily pause message relaying. Backup
      *         security mechanism just in case. Owner should be the same as the upgrade wallet to
      *         maintain the security model of the system as a whole.
@@ -193,7 +207,10 @@ abstract contract CrossDomainMessenger is
     }
 
     /**
-     * @notice Sends a message to some target address on the other chain.
+     * @notice Sends a message to some target address on the other chain. Note that if the call
+     *         always reverts, then the message will be unrelayable, and any ETH sent will be
+     *         permanently locked. The same will occur if the target on the other chain is
+     *         considered unsafe (see the _isUnsafeTarget() function).
      *
      * @param _target      Target contract or wallet address.
      * @param _message     Message to trigger the target address with.
@@ -271,8 +288,9 @@ abstract contract CrossDomainMessenger is
         );
 
         if (_isOtherMessenger()) {
-            // Should never happen.
-            require(msg.value == _value, "CrossDomainMessenger: mismatched message value");
+            // This property should always hold when the message is first submitted (as opposed to
+            // being replayed).
+            assert(msg.value == _value);
         } else {
             require(
                 msg.value == 0,
@@ -364,14 +382,10 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @notice Intializer.
-     *
-     * @param _otherMessenger         Address of the CrossDomainMessenger on the paired chain.
      */
     // solhint-disable-next-line func-name-mixedcase
-    function __CrossDomainMessenger_init(address _otherMessenger) internal onlyInitializing {
+    function __CrossDomainMessenger_init() internal onlyInitializing {
         xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
-        otherMessenger = _otherMessenger;
-
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();

@@ -2,7 +2,6 @@ version: 2.1
 
 orbs:
   go: circleci/go@1.5.0
-
 jobs:
   yarn-monorepo:
     docker:
@@ -33,6 +32,9 @@ jobs:
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
+      - run:
+          name: print forge version
+          command: forge --version
       - save_cache:
           key: v2-cache-yarn-install-{{ checksum "yarn.lock" }}
           paths:
@@ -56,6 +58,7 @@ jobs:
           key: v2-cache-yarn-build-{{ .Revision }}
           paths:
             - "."
+
 
   docker-publish:
     environment:
@@ -138,9 +141,19 @@ jobs:
             yarn slither || exit 0
           working_directory: packages/contracts-bedrock
       - run:
-          name: test
-          command: yarn test
+          name: print forge version
+          command: forge --version
           working_directory: packages/contracts-bedrock
+      - run:
+          name: test and generate coverage
+          command: yarn coverage:lcov
+          environment:
+            FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: upload coverage
+          command: |
+           ./codecov --verbose || exit 0
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -293,6 +306,10 @@ jobs:
           command: |
             gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-chain-ops
+      - run:
+          name: Upload coverage reports to CodeCov
+          command: |
+            ./codecov --verbose || exit 0
       - store_test_results:
           path: /test-results
       - run:

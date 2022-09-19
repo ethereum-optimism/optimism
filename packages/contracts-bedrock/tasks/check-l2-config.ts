@@ -5,15 +5,6 @@ import 'hardhat-deploy'
 
 import { predeploys } from '../src'
 
-const checkCode = async (provider: providers.JsonRpcProvider) => {
-  for (const [name, address] of Object.entries(predeploys)) {
-    const code = await provider.getCode(address)
-    if (code === '0x') {
-      throw new Error(`Missing code for ${name}`)
-    }
-  }
-}
-
 task('check-l2-config', 'Validate L2 config')
   .addParam(
     'l2ProviderUrl',
@@ -22,69 +13,67 @@ task('check-l2-config', 'Validate L2 config')
     types.string
   )
   .setAction(async (args, hre) => {
-    const { l2ProviderUrl } = args
-    const l2Provider = new providers.JsonRpcProvider(l2ProviderUrl)
+    const l2Provider = new providers.JsonRpcProvider(args.l2ProviderUrl)
 
-    await checkCode(l2Provider)
+    const loadPredeploy = async (name: string): Promise<Contract> => {
+      const artifact = await hre.artifacts.readArtifact(name)
+      return new Contract(predeploys[name], artifact.abi, l2Provider)
+    }
 
-    const Artifact__L2CrossDomainMessenger = await hre.artifacts.readArtifact(
-      'L2CrossDomainMessenger'
-    )
-    const Artifact__L2StandardBridge = await hre.artifacts.readArtifact(
-      'L2StandardBridge'
-    )
-    const Artifact__OptimismMintableERC20Factory =
-      await hre.artifacts.readArtifact('OptimismMintableERC20Factory')
+    const getContractAddress = async (name: string): Promise<string> => {
+      const deployment = await hre.deployments.get(name)
+      return deployment.address
+    }
 
-    const L2CrossDomainMessenger = new Contract(
-      predeploys.L2CrossDomainMessenger,
-      Artifact__L2CrossDomainMessenger.abi,
-      l2Provider
-    )
+    // Verify that all predeploys have code.
+    // TODO: Actually check that the predeploys have the expected code.
+    for (const [name, address] of Object.entries(predeploys)) {
+      const code = await l2Provider.getCode(address)
+      if (code === '0x') {
+        throw new Error(`Missing code for ${name}`)
+      }
+    }
 
-    const Deployment__L1CrossDomainMessenger = await hre.deployments.get(
+    // Confirming that L2CrossDomainMessenger.otherMessenger() is set properly.
+    const L2CrossDomainMessenger = await loadPredeploy('L2CrossDomainMessenger')
+    const actualOtherMessenger = await getContractAddress(
       'L1CrossDomainMessengerProxy'
     )
-    const otherMessenger = await L2CrossDomainMessenger.otherMessenger()
-    if (otherMessenger !== Deployment__L1CrossDomainMessenger.address) {
+    const expectedOtherMessenger = await L2CrossDomainMessenger.otherMessenger()
+    if (expectedOtherMessenger !== actualOtherMessenger) {
       throw new Error(
-        `L2CrossDomainMessenger otherMessenger not set correctly. Got ${otherMessenger}, expected ${Deployment__L1CrossDomainMessenger.address}`
+        `L2CrossDomainMessenger otherMessenger not set correctly. Got ${actualOtherMessenger}, expected ${actualOtherMessenger}`
       )
     }
 
-    const L2StandardBridge = new Contract(
-      predeploys.L2StandardBridge,
-      Artifact__L2StandardBridge.abi,
-      l2Provider
-    )
-
-    const messenger = await L2StandardBridge.messenger()
-    if (messenger !== predeploys.L2CrossDomainMessenger) {
+    // Confirming that L2StandardBridge.messenger() is set properly.
+    const L2StandardBridge = await loadPredeploy('L2StandardBridge')
+    const actualMessenger = await L2StandardBridge.messenger()
+    const expectedMessenger = predeploys.L2CrossDomainMessenger
+    if (expectedMessenger !== actualMessenger) {
       throw new Error(
-        `L2StandardBridge messenger not set correctly. Got ${messenger}, expected ${predeploys.L2CrossDomainMessenger}`
+        `L2StandardBridge messenger not set correctly. Got ${actualMessenger}, expected ${expectedMessenger}`
       )
     }
 
-    const Deployment__L1StandardBridge = await hre.deployments.get(
-      'L1StandardBridgeProxy'
-    )
-    const otherBridge = await L2StandardBridge.otherBridge()
-    if (otherBridge !== Deployment__L1StandardBridge.address) {
+    // Confirming that L2StandardBridge.otherBridge() is set properly.
+    const actualOtherBridge = await getContractAddress('L1StandardBridgeProxy')
+    const expectedOtherBridge = await L2StandardBridge.otherBridge()
+    if (expectedOtherBridge !== actualOtherBridge) {
       throw new Error(
-        `L2StandardBridge otherBridge not set correctly. Got ${otherBridge}, expected ${Deployment__L1StandardBridge.address}`
+        `L2StandardBridge otherBridge not set correctly. Got ${actualMessenger}, expected ${expectedOtherBridge}`
       )
     }
 
-    const OptimismMintableERC20Factory = new Contract(
-      predeploys.OptimismMintableERC20Factory,
-      Artifact__OptimismMintableERC20Factory.abi,
-      l2Provider
+    // Confirming that OptimismMintableERC20Factory.bridge() is set properly.
+    const OptimismMintableERC20Factory = await loadPredeploy(
+      'OptimismMintableERC20Factory'
     )
-
-    const bridge = await OptimismMintableERC20Factory.bridge()
-    if (bridge !== predeploys.L2StandardBridge) {
+    const actualBridge = await OptimismMintableERC20Factory.bridge()
+    const expectedBridge = predeploys.L2StandardBridge
+    if (expectedBridge !== actualBridge) {
       throw new Error(
-        `OptimismMintableERC20Factory bridge not set correctly. Got ${bridge}, expected ${predeploys.L2StandardBridge}`
+        `OptimismMintableERC20Factory bridge not set correctly. Got ${actualBridge}, expected ${expectedBridge}`
       )
     }
   })

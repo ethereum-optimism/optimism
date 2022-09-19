@@ -136,10 +136,10 @@ export class DrippieMonService extends BaseServiceV2<
       let executable: boolean
       try {
         // To avoid making unnecessary RPC requests, filter out any drips that we don't expect to
-        // be executable right now. Only active drips (status = 1) and drips that are due to be
+        // be executable right now. Only active drips (status = 2) and drips that are due to be
         // executed are expected to be executable (but might not be based on the dripcheck).
         if (
-          drip.status === 1 &&
+          drip.status === 2 &&
           drip.last.toNumber() + drip.config.interval.toNumber() <
             Date.now() / 1000
         ) {

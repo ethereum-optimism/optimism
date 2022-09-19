@@ -25,7 +25,7 @@ export interface BedrockOutputData {
 export interface OutputRootProof {
   version: string
   stateRoot: string
-  withdrawerStorageRoot: string
+  messagePasserStorageRoot: string
   latestBlockhash: string
 }
 
@@ -162,7 +162,7 @@ export const hashOutputRootProof = (proof: OutputRootProof): string => {
       [
         proof.version,
         proof.stateRoot,
-        proof.withdrawerStorageRoot,
+        proof.messagePasserStorageRoot,
         proof.latestBlockhash,
       ]
     )

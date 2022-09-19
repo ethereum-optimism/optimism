@@ -28,7 +28,7 @@ describe('Transactor', () => {
     describe('when called by authorized address', () => {
       it('should do a call to the target contract', async () => {
         const data = CallRecorder.interface.encodeFunctionData('record')
-        await Transactor.CALL(CallRecorder.address, data, 1_000_000, 0, {
+        await Transactor.CALL(CallRecorder.address, data, 0, {
           gasLimit: 2_000_000,
         })
 
@@ -40,7 +40,7 @@ describe('Transactor', () => {
       it('should be able to call with value', async () => {
         const data = CallRecorder.interface.encodeFunctionData('record')
         const value = 69
-        await Transactor.CALL(CallRecorder.address, data, 1_000_000, value, {
+        await Transactor.CALL(CallRecorder.address, data, value, {
           gasLimit: 2_000_000,
           value,
         })
@@ -48,32 +48,15 @@ describe('Transactor', () => {
         const call = await CallRecorder.lastCall()
         expect(call.value).to.equal(value)
       })
-
-      it('should be able to set gas limit', async () => {
-        const data = CallRecorder.interface.encodeFunctionData('record')
-        const gas = 100_000
-        await Transactor.CALL(CallRecorder.address, data, gas, 0, {
-          gasLimit: 2_000_000,
-        })
-
-        const call = await CallRecorder.lastCall()
-        expect(call.gas.toNumber()).to.be.lessThan(gas)
-      })
     })
 
     describe('when called by not authorized address', () => {
       it('should be reverted', async () => {
         const data = CallRecorder.interface.encodeFunctionData('record')
         await expect(
-          Transactor.connect(signer2).CALL(
-            CallRecorder.address,
-            data,
-            1_000_000,
-            0,
-            {
-              gasLimit: 2_000_000,
-            }
-          )
+          Transactor.connect(signer2).CALL(CallRecorder.address, data, 0, {
+            gasLimit: 2_000_000,
+          })
         ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
@@ -86,7 +69,6 @@ describe('Transactor', () => {
         const ret = await Transactor.callStatic.DELEGATECALL(
           Reverter.address,
           data,
-          1_000_000,
           {
             gasLimit: 2_000_000,
           }
@@ -101,14 +83,9 @@ describe('Transactor', () => {
       it('should be reverted', async () => {
         const data = Reverter.interface.encodeFunctionData('doRevert')
         await expect(
-          Transactor.connect(signer2).DELEGATECALL(
-            Reverter.address,
-            data,
-            1_000_000,
-            {
-              gasLimit: 2_000_000,
-            }
-          )
+          Transactor.connect(signer2).DELEGATECALL(Reverter.address, data, {
+            gasLimit: 2_000_000,
+          })
         ).to.be.revertedWith('UNAUTHORIZED')
       })
     })
