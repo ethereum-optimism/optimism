@@ -244,8 +244,11 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isLimited("") {
-		rpcErr := ErrOverRateLimit.Clone()
-		rpcErr.Message = s.limConfig.ErrorMessage
+		rpcErr := ErrOverRateLimit
+		if s.limConfig.ErrorMessage != "" {
+			rpcErr = ErrOverRateLimit.Clone()
+			rpcErr.Message = s.limConfig.ErrorMessage
+		}
 		RecordRPCError(ctx, BackendProxyd, "unknown", rpcErr)
 		log.Warn(
 			"rate limited request",
@@ -264,6 +267,8 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 		"req_id", GetReqID(ctx),
 		"auth", GetAuthCtx(ctx),
 		"user_agent", userAgent,
+		"origin", origin,
+		"remote_ip", xff,
 	)
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, s.maxBodySize))
@@ -389,8 +394,13 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 				"req_id", GetReqID(ctx),
 				"method", parsedReq.Method,
 			)
-			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, ErrOverRateLimit)
-			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrOverRateLimit)
+			rpcErr := ErrOverRateLimit
+			if s.limConfig.ErrorMessage != "" {
+				rpcErr = rpcErr.Clone()
+				rpcErr.Message = s.limConfig.ErrorMessage
+			}
+			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, rpcErr)
+			responses[i] = NewRPCErrorRes(parsedReq.ID, rpcErr)
 			continue
 		}
 

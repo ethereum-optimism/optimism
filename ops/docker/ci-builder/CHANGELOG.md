@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.3.1
+
+### Patch Changes
+
+- 7375a949: Download and verify codecov uploader binary in the ci-builder image
+
 ## 0.3.0
 
 ### Minor Changes

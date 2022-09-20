@@ -64,11 +64,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     mapping(bytes32 => bool) public finalizedWithdrawals;
 
     /**
-     * @notice Reserve extra slots (to to a total of 50) in the storage layout for future upgrades.
-     */
-    uint256[48] private __gap;
-
-    /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
      *         are read by the rollup node and used to derive deposit transactions on L2.
      *

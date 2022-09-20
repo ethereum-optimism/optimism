@@ -1,5 +1,20 @@
 # @eth-optimism/fault-detector
 
+## 0.2.7
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 17999a54: Adds a fault status API to the Fault Detector.
+- 2f058b84: Fixes a small bug in the fault detector that would cause errors for testnets where the fault proof window is extremely short.
+- Updated dependencies [7215f4ce]
+- Updated dependencies [206f6033]
+- Updated dependencies [d7679ca4]
+  - @eth-optimism/common-ts@0.6.5
+  - @eth-optimism/contracts@0.5.36
+  - @eth-optimism/core-utils@0.10.1
+  - @eth-optimism/sdk@1.6.4
+
 ## 0.2.6
 
 ### Patch Changes
