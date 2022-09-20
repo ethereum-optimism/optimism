@@ -3,11 +3,13 @@ package sources
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -67,6 +69,11 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 func (s *L1Client) L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error) {
 	info, err := s.InfoByLabel(ctx, label)
 	if err != nil {
+		// Both geth and erigon like to serve non-standard errors for the safe and finalized heads, correct that.
+		// This happens when the chain just started and nothing is marked as safe/finalized yet.
+		if strings.Contains(err.Error(), "block not found") || strings.Contains(err.Error(), "Unknown block") {
+			err = ethereum.NotFound
+		}
 		return eth.L1BlockRef{}, fmt.Errorf("failed to fetch head header: %w", err)
 	}
 	ref := eth.InfoToL1BlockRef(info)

@@ -1,6 +1,7 @@
-import { ethers, BigNumberish, BigNumber } from 'ethers'
+import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { Interface } from '@ethersproject/abi'
 
-const iface = new ethers.utils.Interface([
+const iface = new Interface([
   'function relayMessage(address,address,bytes,uint256)',
   'function relayMessage(uint256,address,address,uint256,uint256,bytes)',
 ])

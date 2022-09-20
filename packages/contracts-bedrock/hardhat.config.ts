@@ -45,6 +45,11 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
+    'alpha-1': {
+      chainId: 5,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+    },
     deployer: {
       chainId: Number(process.env.CHAIN_ID),
       url: process.env.L1_RPC || '',

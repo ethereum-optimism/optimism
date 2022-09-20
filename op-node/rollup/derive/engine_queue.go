@@ -175,6 +175,7 @@ func (eq *EngineQueue) tryFinalizeL2() {
 		}
 	}
 	eq.finalized = finalizedL2
+	eq.metrics.RecordL2Ref("l2_finalized", finalizedL2)
 }
 
 // postProcessSafeL2 buffers the L1 block the safe head was fully derived from,
@@ -217,6 +218,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return nil
 	}
 
+	// Ensure that the unsafe payload builds upon the current unsafe head
 	// TODO: once we support snap-sync we can remove this condition, and handle the "SYNCING" status of the execution engine.
 	if first.ParentHash != eq.unsafeHead.Hash {
 		if uint64(first.BlockNumber) == eq.unsafeHead.Number+1 {
@@ -233,12 +235,19 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return nil
 	}
 
-	// Note: the parent hash does not have to equal the existing unsafe head,
-	// the unsafe part of the chain may reorg freely without resetting the derivation pipeline.
+	status, err := eq.engine.NewPayload(ctx, first)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
+	}
+	if status.Status != eth.ExecutionValid {
+		eq.unsafePayloads.Pop()
+		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
+			first.ID(), first.ParentID(), eth.NewPayloadErr(first, status)))
+	}
 
-	// prepare for processing the unsafe payload
+	// Mark the new payload as valid
 	fc := eth.ForkchoiceState{
-		HeadBlockHash:      first.ParentHash,
+		HeadBlockHash:      first.BlockHash,
 		SafeBlockHash:      eq.safeHead.Hash, // this should guarantee we do not reorg past the safe head
 		FinalizedBlockHash: eq.finalized.Hash,
 	}
@@ -261,15 +270,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
 			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
-	status, err := eq.engine.NewPayload(ctx, first)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
-	}
-	if status.Status != eth.ExecutionValid {
-		eq.unsafePayloads.Pop()
-		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
-			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
-	}
+
 	eq.unsafeHead = ref
 	eq.unsafePayloads.Pop()
 	eq.metrics.RecordL2Ref("l2_unsafe", ref)
@@ -302,6 +303,10 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 
 	payload, err := eq.engine.PayloadByNumber(ctx, eq.safeHead.Number+1)
 	if err != nil {
+		if errors.Is(err, ethereum.NotFound) {
+			// engine may have restarted, or inconsistent safe head. We need to reset
+			return NewResetError(fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err))
+		}
 		return NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
 	}
 	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
@@ -380,23 +385,11 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
 // The unsafe head is set to the head of the L2 chain, unless the existing safe head is not canonical.
 func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	finalized, err := eq.engine.L2BlockRefByLabel(ctx, eth.Finalized)
-	if errors.Is(err, ethereum.NotFound) {
-		// default to genesis if we have not finalized anything before.
-		finalized, err = eq.engine.L2BlockRefByHash(ctx, eq.cfg.Genesis.L2.Hash)
-	}
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the finalized L2 block: %w", err))
-	}
-	// TODO: this should be resetting using the safe head instead. Out of scope for L2 client bindings PR.
-	prevUnsafe, err := eq.engine.L2BlockRefByLabel(ctx, eth.Unsafe)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the L2 Head block: %w", err))
-	}
-	unsafe, safe, err := sync.FindL2Heads(ctx, prevUnsafe, eq.cfg.SeqWindowSize, l1Fetcher, eq.engine, &eq.cfg.Genesis)
+	result, err := sync.FindL2Heads(ctx, eq.cfg, l1Fetcher, eq.engine)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
+	finalized, safe, unsafe := result.Finalized, result.Safe, result.Unsafe
 	l1Origin, err := l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))

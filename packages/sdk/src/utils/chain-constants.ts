@@ -153,6 +153,11 @@ export const BRIDGE_ADAPTER_DATA: {
   [ChainID in L2ChainID]?: BridgeAdapterData
 } = {
   [L2ChainID.OPTIMISM]: {
+    wstETH: {
+      Adapter: DAIBridgeAdapter,
+      l1Bridge: '0x76943C0D61395d8F2edF9060e1533529cAe05dE6' as const,
+      l2Bridge: '0x8E01013243a96601a86eb3153F0d9Fa4fbFb6957' as const,
+    },
     BitBTC: {
       Adapter: StandardBridgeAdapter,
       l1Bridge: '0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128' as const,
@@ -183,6 +188,13 @@ export const BRIDGE_ADAPTER_DATA: {
     DAI: {
       Adapter: DAIBridgeAdapter,
       l1Bridge: '0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3' as const,
+      l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
+    },
+  },
+  [L2ChainID.OPTIMISM_GOERLI]: {
+    DAI: {
+      Adapter: DAIBridgeAdapter,
+      l1Bridge: '0x05a388Db09C2D44ec0b00Ee188cD42365c42Df23' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
   },

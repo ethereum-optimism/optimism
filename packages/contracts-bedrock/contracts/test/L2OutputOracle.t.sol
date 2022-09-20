@@ -138,9 +138,15 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(owner, oracle.owner());
 
         vm.startPrank(owner);
+        vm.expectRevert("L2OutputOracle: owner cannot be the same as the proposer");
+        oracle.transferOwnership(proposer);
+        // Double check owner has not changed.
+        assertEq(owner, oracle.owner());
+
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferred(owner, newOwner);
         oracle.transferOwnership(newOwner);
+        assertEq(newOwner, oracle.owner());
         vm.stopPrank();
     }
 

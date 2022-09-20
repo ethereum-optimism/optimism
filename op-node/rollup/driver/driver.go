@@ -55,6 +55,7 @@ type DerivationPipeline interface {
 	Step(ctx context.Context) error
 	SetUnsafeHead(head eth.L2BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	Finalize(ref eth.BlockID)
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
@@ -106,7 +107,7 @@ func (d *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	return d.s.ResetDerivationPipeline(ctx)
 }
 
-func (d *Driver) SyncStatus(ctx context.Context) (*SyncStatus, error) {
+func (d *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return d.s.SyncStatus(ctx)
 }
 

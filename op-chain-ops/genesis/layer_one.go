@@ -123,20 +123,12 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
-	l1SBrABI, err := bindings.L1StandardBridgeMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-	data, err = l1SBrABI.Pack("initialize", predeploys.DevL1CrossDomainMessengerAddr)
-	if err != nil {
-		return nil, err
-	}
 	if err := upgradeProxy(
 		backend,
 		opts,
 		depsByName["L1StandardBridgeProxy"].Address,
 		depsByName["L1StandardBridge"].Address,
-		data,
+		nil,
 	); err != nil {
 		return nil, err
 	}

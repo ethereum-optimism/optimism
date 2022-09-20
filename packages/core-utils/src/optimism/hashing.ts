@@ -1,5 +1,6 @@
-import { BigNumberish, BigNumber, utils } from 'ethers'
-const { keccak256, defaultAbiCoder } = utils
+import { BigNumberish, BigNumber } from '@ethersproject/bignumber'
+import { keccak256 } from '@ethersproject/keccak256'
+import { defaultAbiCoder } from '@ethersproject/abi'
 
 import {
   decodeVersionedNonce,
@@ -24,7 +25,7 @@ export interface BedrockOutputData {
 export interface OutputRootProof {
   version: string
   stateRoot: string
-  withdrawerStorageRoot: string
+  messagePasserStorageRoot: string
   latestBlockhash: string
 }
 
@@ -161,7 +162,7 @@ export const hashOutputRootProof = (proof: OutputRootProof): string => {
       [
         proof.version,
         proof.stateRoot,
-        proof.withdrawerStorageRoot,
+        proof.messagePasserStorageRoot,
         proof.latestBlockhash,
       ]
     )

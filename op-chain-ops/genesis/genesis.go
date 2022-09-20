@@ -20,6 +20,15 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		return nil, errors.New("must define L2 ChainID")
 	}
 
+	eip1559Denom := config.EIP1559Denominator
+	if eip1559Denom == 0 {
+		eip1559Denom = 50
+	}
+	eip1559Elasticity := config.EIP1559Elasticity
+	if eip1559Elasticity == 0 {
+		eip1559Elasticity = 10
+	}
+
 	optimismChainConfig := params.ChainConfig{
 		ChainID:                       new(big.Int).SetUint64(config.L2ChainID),
 		HomesteadBlock:                big.NewInt(0),
@@ -44,8 +53,10 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		Optimism: &params.OptimismConfig{
-			BaseFeeRecipient: config.OptimismBaseFeeRecipient,
-			L1FeeRecipient:   config.OptimismL2FeeRecipient,
+			BaseFeeRecipient:   config.OptimismBaseFeeRecipient,
+			L1FeeRecipient:     config.OptimismL2FeeRecipient,
+			EIP1559Denominator: eip1559Denom,
+			EIP1559Elasticity:  eip1559Elasticity,
 		},
 	}
 
@@ -63,7 +74,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 	}
 	difficulty := config.L2GenesisBlockDifficulty
 	if difficulty == nil {
-		difficulty = newHexBig(1)
+		difficulty = newHexBig(0)
 	}
 
 	return &core.Genesis{

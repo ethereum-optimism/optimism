@@ -75,7 +75,7 @@ var (
 	}
 	ErrOverRateLimit = &RPCErr{
 		Code:          JSONRPCErrorInternal - 16,
-		Message:       "rate limited",
+		Message:       "over rate limit",
 		HTTPErrorCode: 429,
 	}
 
