@@ -20,6 +20,7 @@ describe('OptimismMintableERC721', () => {
   let baseUri: string
   const remoteChainId = 100
 
+  let Factory__OptimismMintableERC721
   before(async () => {
     ;[l2BridgeImpersonator, alice] = await ethers.getSigners()
     l2BridgeImpersonatorAddress = await l2BridgeImpersonator.getAddress()
@@ -33,15 +34,15 @@ describe('OptimismMintableERC721', () => {
       '/tokenURI?uint256='
     )
 
-    OptimismMintableERC721 = await (
-      await ethers.getContractFactory('OptimismMintableERC721')
-    ).deploy(
+    Factory__OptimismMintableERC721 = await ethers.getContractFactory(
+      'OptimismMintableERC721'
+    )
+    OptimismMintableERC721 = await Factory__OptimismMintableERC721.deploy(
       l2BridgeImpersonatorAddress,
       remoteChainId,
       DUMMY_L1ERC721_ADDRESS,
       'L2ERC721',
-      'ERC',
-      { gasLimit: 4_000_000 } // Necessary to avoid an out-of-gas error
+      'ERC'
     )
 
     // Get a new fake L2 bridge
@@ -52,7 +53,7 @@ describe('OptimismMintableERC721', () => {
     )
 
     // mint an nft to alice
-    await OptimismMintableERC721.connect(l2BridgeImpersonator).mint(
+    await OptimismMintableERC721.connect(l2BridgeImpersonator).safeMint(
       aliceAddress,
       TOKEN_ID,
       {
@@ -62,6 +63,48 @@ describe('OptimismMintableERC721', () => {
   })
 
   describe('constructor', () => {
+    it('should revert if bridge is address(0)', async () => {
+      await expect(
+        Factory__OptimismMintableERC721.deploy(
+          ethers.constants.AddressZero,
+          remoteChainId,
+          DUMMY_L1ERC721_ADDRESS,
+          'L2ERC721',
+          'ERC'
+        )
+      ).to.be.revertedWith(
+        'OptimismMintableERC721: bridge cannot be address(0)'
+      )
+    })
+
+    it('should revert if remote chain id is address(0)', async () => {
+      await expect(
+        Factory__OptimismMintableERC721.deploy(
+          l2BridgeImpersonatorAddress,
+          0,
+          DUMMY_L1ERC721_ADDRESS,
+          'L2ERC721',
+          'ERC'
+        )
+      ).to.be.revertedWith(
+        'OptimismMintableERC721: remote chain id cannot be zero'
+      )
+    })
+
+    it('should revert if remote token is address(0)', async () => {
+      await expect(
+        Factory__OptimismMintableERC721.deploy(
+          l2BridgeImpersonatorAddress,
+          remoteChainId,
+          ethers.constants.AddressZero,
+          'L2ERC721',
+          'ERC'
+        )
+      ).to.be.revertedWith(
+        'OptimismMintableERC721: remote token cannot be address(0)'
+      )
+    })
+
     it('should be able to create a standard ERC721 contract with the correct parameters', async () => {
       expect(await OptimismMintableERC721.bridge()).to.equal(
         l2BridgeImpersonatorAddress
@@ -83,7 +126,7 @@ describe('OptimismMintableERC721', () => {
   describe('mint and burn', () => {
     it('should not allow anyone but the L2 bridge to mint and burn', async () => {
       await expect(
-        OptimismMintableERC721.connect(alice).mint(aliceAddress, 100)
+        OptimismMintableERC721.connect(alice).safeMint(aliceAddress, 100)
       ).to.be.revertedWith(
         'OptimismMintableERC721: only bridge can call this function'
       )
@@ -102,7 +145,7 @@ describe('OptimismMintableERC721', () => {
         .true
 
       // OptimismMintableERC721
-      expect(await OptimismMintableERC721.supportsInterface(0x051e4975)).to.be
+      expect(await OptimismMintableERC721.supportsInterface(0xe49bc7f8)).to.be
         .true
 
       // ERC721
