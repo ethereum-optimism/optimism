@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.18
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+
 ## 0.5.17
 
 ### Patch Changes
