@@ -295,11 +295,13 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	}
 	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err)
+		eq.log.Debug("MMDBG mismatch", "hash", eq.safeHead.Hash, "payload", payload, "attrs", eq.safeAttributes[0])
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
 		return eq.forceNextSafeAttributes(ctx)
 	}
 	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
+		eq.log.Debug("MMDBG PayloadToBlockRef error", "payload", payload, "ref", ref, "err", err)
 		return NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %v", err))
 	}
 	eq.safeHead = ref

@@ -37,6 +37,7 @@ func (l1t *L1Traversal) Progress() Progress {
 }
 
 func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
+	log.Debug("MMDBG l1_traversal Step")
 	if !l1t.progress.Closed { // close origin and do another pipeline sweep, before we try to move to the next origin
 		l1t.progress.Closed = true
 		return nil

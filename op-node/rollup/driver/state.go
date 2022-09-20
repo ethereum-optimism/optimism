@@ -442,6 +442,7 @@ func (s *state) eventLoop() {
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed, "attempts", stepAttempts)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
+			s.log.Debug("MMDBG derivation.Step", "err", err, "stepCtx", stepCtx)
 			cancel()
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {

@@ -148,6 +148,9 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 	defer dp.metrics.RecordL1Ref("l1_derived", dp.Progress().Origin)
 
 	// if any stages need to be reset, do that first.
+	//log.Debug("MMDBG pipeline.go Step", "dp.resetting", dp.resetting, "stages", dp.stages)
+	log.Debug("MMDBG pipeline.go Step", "dp", dp)
+	
 	if dp.resetting < len(dp.stages) {
 		if err := dp.stages[dp.resetting].ResetStep(ctx, dp.l1Fetcher); err == io.EOF {
 			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)

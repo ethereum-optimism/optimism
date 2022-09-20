@@ -2,9 +2,9 @@ package node
 
 import (
 	"context"
-	"fmt"
+	//"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	//"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -76,7 +76,11 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 	if head == nil {
 		return nil, ethereum.NotFound
 	}
+	
+	var fakeHash common.Hash
 
+	log.Debug("MMDBG Skipping GetProof for", "block", number)
+	/*
 	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, toBlockNumArg(number))
 	if err != nil {
 		n.log.Error("failed to get contract proof", "err", err)
@@ -90,9 +94,11 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 		n.log.Error("invalid withdrawal root detected in block", "stateRoot", head.Root(), "blocknum", number, "msg", err)
 		return nil, fmt.Errorf("invalid withdrawal root hash")
 	}
-
+	*/
+	
 	var l2OutputRootVersion eth.Bytes32 // it's zero for now
-	l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root(), proof.StorageHash)
+	//l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root(), proof.StorageHash)
+	l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root(), fakeHash)
 
 	return []eth.Bytes32{l2OutputRootVersion, l2OutputRoot}, nil
 }

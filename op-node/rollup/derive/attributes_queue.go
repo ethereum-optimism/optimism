@@ -56,6 +56,7 @@ func (aq *AttributesQueue) Progress() Progress {
 }
 
 func (aq *AttributesQueue) Step(ctx context.Context, outer Progress) error {
+	log.Debug("MMDBG attributes_queue Step")
 	if changed, err := aq.progress.Update(outer); err != nil || changed {
 		return err
 	}

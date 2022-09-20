@@ -1,0 +1,16 @@
+# syntax = docker/dockerfile:1.2
+
+FROM bobanetwork/erigon-base
+
+USER root
+
+#FROM golang:1.15-alpine3.13
+
+RUN apk add --no-cache bash
+
+RUN adduser -D -u 1100 -g 1100 boba
+COPY ./l2-erigon.sh /home/boba/
+RUN mkdir -p /home/boba/datadir
+
+EXPOSE 8545 8551 9090
+ENTRYPOINT ["/home/boba/l2-erigon.sh"]

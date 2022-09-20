@@ -7,6 +7,7 @@ COPY ./op-node/docker.go.work /app/go.work
 COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-chain-ops /app/op-chain-ops
+COPY ./op-geth /app/op-geth
 
 WORKDIR /app/op-node
 

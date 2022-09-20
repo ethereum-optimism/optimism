@@ -21,24 +21,10 @@ services:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
 
-#  l2:
-#    build:
-#      context: .
-#      dockerfile: Dockerfile.l2
-#    ports:
-#      - "9545:8545"
-#    volumes:
-#      - "l2_data:/db"
-#      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-#      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-#    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
-#      - "/bin/sh"
-#      - "/entrypoint.sh"
-#      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
   l2:
     build:
       context: .
-      dockerfile: Dockerfile.l2-erigon
+      dockerfile: Dockerfile.l2
     ports:
       - "9545:8545"
     volumes:
@@ -47,8 +33,22 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
-      - "/home/boba/l2-erigon.sh"
+      - "/entrypoint.sh"
       - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
+#  l2:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile.l2-erigon
+#    ports:
+#      - "9545:8545"
+#    volumes:
+#      - "l2_data:/db"
+#      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+#      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+#    entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
+#      - "/bin/sh"
+#      - "/home/boba/l2-erigon.sh"
+#      - "--authrpc.jwtsecret=/config/test-jwt-secret.txt"
 
   op-node:
     depends_on:

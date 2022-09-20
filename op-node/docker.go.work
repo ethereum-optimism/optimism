@@ -5,3 +5,4 @@ use (
 	./op-node
     ./op-chain-ops
 )
+replace github.com/ethereum/go-ethereum v1.10.21 => /app/op-geth

@@ -60,6 +60,7 @@ func (bq *BatchQueue) Progress() Progress {
 }
 
 func (bq *BatchQueue) Step(ctx context.Context, outer Progress) error {
+	log.Debug("MMDBG batch_queue Step")
 	if changed, err := bq.progress.Update(outer); err != nil {
 		return err
 	} else if changed {
