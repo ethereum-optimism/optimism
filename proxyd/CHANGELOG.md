@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.10.1
+
+### Patch Changes
+
+- b82a8f48: Add logging for origin and remote IP'
+- 1bf9559c: Carry over custom limit message in batches
+
 ## 3.10.0
 
 ### Minor Changes
