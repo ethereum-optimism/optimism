@@ -65,6 +65,15 @@ describe('L2ERC721Bridge', () => {
     )
   })
 
+  describe('constructor', async () => {
+    it('initializes correctly', async () => {
+      expect(await L2ERC721Bridge.messenger()).equals(
+        Fake__L2CrossDomainMessenger.address
+      )
+      expect(await L2ERC721Bridge.otherBridge()).equals(DUMMY_L1BRIDGE_ADDRESS)
+    })
+  })
+
   // test the transfer flow of moving a token from L1 to L2
   describe('finalizeBridgeERC721', () => {
     it('onlyFromCrossDomainAccount: should revert on calls from a non-crossDomainMessenger L2 account', async () => {

@@ -90,7 +90,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
 
             // Send the message to the L2 bridge.
             // slither-disable-next-line reentrancy-events
-            sendCrossDomainMessage(otherBridge, 600_000, message);
+            messenger.sendMessage(otherBridge, message, 600_000);
 
             // slither-disable-next-line reentrancy-events
             emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);

@@ -111,7 +111,7 @@ abstract contract ERC721Bridge {
         );
         _;
     }
-    
+
     /**
      * @notice Ensures that the caller is this contract.
      */
@@ -201,7 +201,7 @@ abstract contract ERC721Bridge {
         bytes calldata _extraData
     ) external {
         require(_to != address(0), "ERC721Bridge: nft recipient cannot be address(0)");
-    
+
         _initiateBridgeERC721(
             _localToken,
             _remoteToken,
