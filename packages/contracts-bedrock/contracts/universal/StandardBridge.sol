@@ -11,6 +11,7 @@ import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
 /**
+ * @custom:upgradeable
  * @title StandardBridge
  * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
  */
@@ -50,6 +51,13 @@ abstract contract StandardBridge {
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
      */
     mapping(address => mapping(address => uint256)) public deposits;
+
+    /**
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+     *         A gap size of 47 was chosen here, so that the first slot used in a child contract
+     *         would be a multiple of 50.
+     */
+    uint256[47] private __gap;
 
     /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
@@ -334,9 +342,10 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) public onlyOtherBridge {
+    ) public onlyOtherBridge returns (bool) {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
             emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            return true;
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
@@ -353,6 +362,7 @@ abstract contract StandardBridge {
                 _extraData
             );
             emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            return false;
         }
     }
 

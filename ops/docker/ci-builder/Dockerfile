@@ -41,7 +41,7 @@ COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
 COPY check-changed.sh /usr/local/bin/check-changed
 
 RUN apt-get update && \
-  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl && \
+  apt-get install -y bash curl openssh-client git build-essential ca-certificates jq musl gnupg coreutils && \
   curl -sL https://deb.nodesource.com/setup_16.x -o nodesource_setup.sh && \
   curl -sL https://go.dev/dl/go1.19.linux-amd64.tar.gz -o go1.19.linux-amd64.tar.gz && \
   tar -C /usr/local/ -xzvf go1.19.linux-amd64.tar.gz && \
@@ -84,3 +84,12 @@ RUN echo "downloading solidity compilers" && \
   rm solc-linux-amd64-v0.8.9+commit.e5eed63a && \
   rm solc-linux-amd64-v0.8.10+commit.fc410830 && \
   rm solc-linux-amd64-v0.8.12+commit.f00d7308
+
+RUN echo "downloading and verifying Codecov uploader" && \
+  curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import # One-time step && \
+  curl -Os "https://uploader.codecov.io/latest/linux/codecov" && \
+  curl -Os "https://uploader.codecov.io/latest/linux/codecov.SHA256SUM" && \
+  curl -Os "https://uploader.codecov.io/latest/linux/codecov.SHA256SUM.sig" && \
+  gpgv codecov.SHA256SUM.sig codecov.SHA256SUM && \
+  shasum -a 256 -c codecov.SHA256SUM || sha256sum -c codecov.SHA256SUM && \
+  chmod +x codecov
