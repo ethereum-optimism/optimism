@@ -11,6 +11,7 @@ import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
 /**
+ * @custom:upgradeable
  * @title StandardBridge
  * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
  */
@@ -34,20 +35,29 @@ abstract contract StandardBridge {
 
     /**
      * @custom:legacy
+     * @custom:spacer address messenger
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer0;
+    bytes32 private spacer_0_0_32;
 
     /**
      * @custom:legacy
+     * @custom:spacer address l2TokenBridge
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer1;
+    bytes32 private spacer_1_0_32;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
      */
     mapping(address => mapping(address => uint256)) public deposits;
+
+    /**
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+     *         A gap size of 47 was chosen here, so that the first slot used in a child contract
+     *         would be a multiple of 50.
+     */
+    uint256[47] private __gap;
 
     /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
@@ -202,7 +212,9 @@ abstract contract StandardBridge {
      *         smart contract and the call fails, the ETH will be temporarily locked in the
      *         StandardBridge on the other chain until the call is replayed. If the call cannot be
      *         replayed with any amount of gas (call always reverts), then the ETH will be
-     *         permanently locked in the StandardBridge on the other chain.
+     *         permanently locked in the StandardBridge on the other chain. ETH will also
+     *         be locked if the receiver is the other bridge, because finalizeBridgeETH will revert
+     *         in that case.
      *
      * @param _to          Address of the receiver.
      * @param _minGasLimit Minimum amount of gas that the bridge can be relayed with.
@@ -330,9 +342,10 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) public onlyOtherBridge {
+    ) public onlyOtherBridge returns (bool) {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
             emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            return true;
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
@@ -349,6 +362,7 @@ abstract contract StandardBridge {
                 _extraData
             );
             emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+            return false;
         }
     }
 

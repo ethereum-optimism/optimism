@@ -11,7 +11,8 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  * @custom:predeploy 0x4200000000000000000000000000000000000010
  * @title L2StandardBridge
  * @notice The L2StandardBridge is responsible for transfering ETH and ERC20 tokens between L1 and
- *         L2. ERC20 tokens sent to L1 are escrowed within this contract.
+ *         L2. In the case that an ERC20 token is native to L2, it will be escrowed within this
+ *         contract. If the ERC20 token is native to L1, it will be burnt.
  *         Note that this contract is not intended to support all variations of ERC20 tokens.
  *         Examples of some token types that may not be properly supported by this contract include,
  *         but are not limited to: tokens with transfer fees, rebasing tokens, and
@@ -151,10 +152,22 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) external payable virtual {
         if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
             finalizeBridgeETH(_from, _to, _amount, _extraData);
+            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         } else {
-            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
+            bool finalized = finalizeBridgeERC20(
+                _l2Token,
+                _l1Token,
+                _from,
+                _to,
+                _amount,
+                _extraData
+            );
+            if (finalized) {
+                emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+            } else {
+                emit DepositFailed(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+            }
         }
-        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**

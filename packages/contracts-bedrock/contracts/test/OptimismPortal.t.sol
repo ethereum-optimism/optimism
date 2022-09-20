@@ -293,7 +293,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         _outputRootProof = Types.OutputRootProof({
             version: bytes32(uint256(0)),
             stateRoot: _stateRoot,
-            withdrawerStorageRoot: _storageRoot,
+            messagePasserStorageRoot: _storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
         _proposedBlockNumber = oracle.nextBlockNumber();
@@ -432,7 +432,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
             version: bytes32(0),
             stateRoot: stateRoot,
-            withdrawerStorageRoot: storageRoot,
+            messagePasserStorageRoot: storageRoot,
             latestBlockhash: bytes32(0)
         });
         vm.mockCall(
@@ -494,7 +494,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
             version: bytes32(0),
             stateRoot: stateRoot,
-            withdrawerStorageRoot: storageRoot,
+            messagePasserStorageRoot: storageRoot,
             latestBlockhash: bytes32(0)
         });
 
@@ -555,7 +555,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         Types.OutputRootProof memory proof = Types.OutputRootProof({
             version: bytes32(uint256(0)),
             stateRoot: stateRoot,
-            withdrawerStorageRoot: storageRoot,
+            messagePasserStorageRoot: storageRoot,
             latestBlockhash: bytes32(uint256(0))
         });
 
@@ -579,7 +579,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
 
         vm.warp(op.FINALIZATION_PERIOD_SECONDS() + 1);
-        op.finalizeWithdrawalTransaction{ value: _tx.value }(
+        op.finalizeWithdrawalTransaction(
             _tx,
             100, // l2BlockNumber
             proof,

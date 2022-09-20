@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity 0.8.16;
 
 import { AssetReceiver } from "../AssetReceiver.sol";
 import { IDripCheck } from "./IDripCheck.sol";
@@ -21,14 +21,14 @@ contract Drippie is AssetReceiver {
      * @notice Enum representing different status options for a given drip.
      *
      * @custom:value NONE     Drip does not exist.
-     * @custom:value ACTIVE   Drip is active and can be executed.
      * @custom:value PAUSED   Drip is paused and cannot be executed until reactivated.
+     * @custom:value ACTIVE   Drip is active and can be executed.
      * @custom:value ARCHIVED Drip is archived and can no longer be executed or reactivated.
      */
     enum DripStatus {
         NONE,
-        ACTIVE,
         PAUSED,
+        ACTIVE,
         ARCHIVED
     }
 
@@ -45,6 +45,7 @@ contract Drippie is AssetReceiver {
      * @notice Represents the configuration for a given drip.
      */
     struct DripConfig {
+        bool reentrant;
         uint256 interval;
         IDripCheck dripcheck;
         bytes checkparams;
@@ -123,7 +124,7 @@ contract Drippie is AssetReceiver {
      * @param _name   Name of the drip.
      * @param _config Configuration for the drip.
      */
-    function create(string memory _name, DripConfig memory _config) external onlyOwner {
+    function create(string calldata _name, DripConfig calldata _config) external onlyOwner {
         // Make sure this drip doesn't already exist. We *must* guarantee that no other function
         // will ever set the status of a drip back to NONE after it's been created. This is why
         // archival is a separate status.
@@ -132,9 +133,25 @@ contract Drippie is AssetReceiver {
             "Drippie: drip with that name already exists"
         );
 
+        // Validate the drip interval, only allowing an interval of zero if the drip has explicitly
+        // been marked as reentrant. Prevents client-side bugs making a drip infinitely executable
+        // within the same block (of course, restricted by gas limits).
+        if (_config.reentrant) {
+            require(
+                _config.interval == 0,
+                "Drippie: if allowing reentrant drip, must set interval to zero"
+            );
+        } else {
+            require(
+                _config.interval > 0,
+                "Drippie: interval must be greater than zero if drip is not reentrant"
+            );
+        }
+
         // We initialize this way because Solidity won't let us copy arrays into storage yet.
         DripState storage state = drips[_name];
         state.status = DripStatus.PAUSED;
+        state.config.reentrant = _config.reentrant;
         state.config.interval = _config.interval;
         state.config.dripcheck = _config.dripcheck;
         state.config.checkparams = _config.checkparams;
@@ -157,7 +174,7 @@ contract Drippie is AssetReceiver {
      * @param _name   Name of the drip to update.
      * @param _status New drip status.
      */
-    function status(string memory _name, DripStatus _status) external onlyOwner {
+    function status(string calldata _name, DripStatus _status) external onlyOwner {
         // Make sure we can never set drip status back to NONE. A simple security measure to
         // prevent accidental overwrites if this code is ever updated down the line.
         require(
@@ -165,27 +182,30 @@ contract Drippie is AssetReceiver {
             "Drippie: drip status can never be set back to NONE after creation"
         );
 
+        // Load the drip status once to avoid unnecessary SLOADs.
+        DripStatus curr = drips[_name].status;
+
         // Make sure the drip in question actually exists. Not strictly necessary but there doesn't
         // seem to be any clear reason why you would want to do this, and it may save some gas in
         // the case of a front-end bug.
         require(
-            drips[_name].status != DripStatus.NONE,
-            "Drippie: drip with that name does not exist"
+            curr != DripStatus.NONE,
+            "Drippie: drip with that name does not exist and cannot be updated"
         );
 
         // Once a drip has been archived, it cannot be un-archived. This is, after all, the entire
         // point of archiving a drip.
         require(
-            drips[_name].status != DripStatus.ARCHIVED,
-            "Drippie: drip with that name has been archived"
+            curr != DripStatus.ARCHIVED,
+            "Drippie: drip with that name has been archived and cannot be updated"
         );
 
         // Although not strictly necessary, we make sure that the status here is actually changing.
         // This may save the client some gas if there's a front-end bug and the user accidentally
         // tries to "change" the status to the same value as before.
         require(
-            drips[_name].status != _status,
-            "Drippie: cannot set drip status to same status as before"
+            curr != _status,
+            "Drippie: cannot set drip status to the same status as its current status"
         );
 
         // If the user is trying to archive this drip, make sure the drip has been paused. We do
@@ -193,14 +213,14 @@ contract Drippie is AssetReceiver {
         // abundantly clear.
         if (_status == DripStatus.ARCHIVED) {
             require(
-                drips[_name].status == DripStatus.PAUSED,
-                "Drippie: drip must be paused to be archived"
+                curr == DripStatus.PAUSED,
+                "Drippie: drip must first be paused before being archived"
             );
         }
 
         // If we made it here then we can safely update the status.
         drips[_name].status = _status;
-        emit DripStatusUpdated(_name, _name, drips[_name].status);
+        emit DripStatusUpdated(_name, _name, _status);
     }
 
     /**
@@ -208,9 +228,9 @@ contract Drippie is AssetReceiver {
      *
      * @param _name Drip to check.
      *
-     * @return True if the drip is executable, false otherwise.
+     * @return True if the drip is executable, reverts otherwise.
      */
-    function executable(string memory _name) public view returns (bool) {
+    function executable(string calldata _name) public view returns (bool) {
         DripState storage state = drips[_name];
 
         // Only allow active drips to be executed, an obvious security measure.
@@ -245,18 +265,18 @@ contract Drippie is AssetReceiver {
      *         signal that the drip should be executable according to the drip parameters, drip
      *         check, and drip interval. Note that drip parameters are read entirely from the state
      *         and are not supplied as user input, so there should not be any way for a
-     *         non-authorized user to influence the behavior of the drip.
+     *         non-authorized user to influence the behavior of the drip. Note that the drip check
+     *         is executed only **once** at the beginning of the call to the drip function and will
+     *         not be executed again between the drip actions within this call.
      *
      * @param _name Name of the drip to trigger.
      */
-    function drip(string memory _name) external {
+    function drip(string calldata _name) external {
         DripState storage state = drips[_name];
 
-        // Make sure the drip can be executed.
-        require(
-            executable(_name) == true,
-            "Drippie: drip cannot be executed at this time, try again later"
-        );
+        // Make sure the drip can be executed. Since executable reverts if the drip is not ready to
+        // be executed, we don't need to do an assertion that the returned value is true.
+        executable(_name);
 
         // Update the last execution time for this drip before the call. Note that it's entirely
         // possible for a drip to be executed multiple times per block or even multiple times
@@ -264,6 +284,11 @@ contract Drippie is AssetReceiver {
         // should set a drip interval of 1 if they'd like the drip to be executed only once per
         // block (since this will then prevent re-entrancy).
         state.last = block.timestamp;
+
+        // Update the number of times this drip has been executed. Although this increases the cost
+        // of using Drippie, it slightly simplifies the client-side by not having to worry about
+        // counting drips via events. Useful for monitoring the rate of drip execution.
+        state.count++;
 
         // Execute each action in the drip. We allow drips to have multiple actions because there
         // are scenarios in which a contract must do multiple things atomically. For example, the
@@ -297,7 +322,6 @@ contract Drippie is AssetReceiver {
             );
         }
 
-        state.count++;
         emit DripExecuted(_name, _name, msg.sender, block.timestamp);
     }
 }

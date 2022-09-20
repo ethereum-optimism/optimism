@@ -146,7 +146,7 @@ const command = args[0]
     case 'hashOutputRootProof': {
       const version = hexZeroPad(BigNumber.from(args[1]).toHexString(), 32)
       const stateRoot = hexZeroPad(BigNumber.from(args[2]).toHexString(), 32)
-      const withdrawerStorageRoot = hexZeroPad(
+      const messagePasserStorageRoot = hexZeroPad(
         BigNumber.from(args[3]).toHexString(),
         32
       )
@@ -158,7 +158,7 @@ const command = args[0]
       const hash = hashOutputRootProof({
         version,
         stateRoot,
-        withdrawerStorageRoot,
+        messagePasserStorageRoot,
         latestBlockhash,
       })
       const output = utils.defaultAbiCoder.encode(['bytes32'], [hash])
@@ -211,7 +211,7 @@ const command = args[0]
       const outputRoot = hashOutputRootProof({
         version: constants.HashZero,
         stateRoot: bufferToHex(world.root),
-        withdrawerStorageRoot: bufferToHex(storage.root),
+        messagePasserStorageRoot: bufferToHex(storage.root),
         latestBlockhash: constants.HashZero,
       })
 
