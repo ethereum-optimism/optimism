@@ -279,7 +279,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
             deposits[_localToken][_remoteToken][_tokenId] == true,
             "L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge"
         );
-        require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
+        require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
         // Bridge.
