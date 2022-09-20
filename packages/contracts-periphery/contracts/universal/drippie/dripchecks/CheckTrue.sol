@@ -8,6 +8,9 @@ import { IDripCheck } from "../IDripCheck.sol";
  * @notice DripCheck that always returns true.
  */
 contract CheckTrue is IDripCheck {
+    /**
+     * @inheritdoc IDripCheck
+     */
     function check(bytes memory) external pure returns (bool) {
         return true;
     }

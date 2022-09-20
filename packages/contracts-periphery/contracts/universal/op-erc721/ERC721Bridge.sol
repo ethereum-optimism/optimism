@@ -31,6 +31,24 @@ abstract contract ERC721Bridge {
     );
 
     /**
+     * @notice Emitted when an NFT is refunded to the owner after an ERC721 bridge from the other
+     *         chain fails.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param to          Address to receive the refunded token.
+     * @param tokenId     ID of the specific token being refunded.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC721Refunded(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed to,
+        uint256 tokenId,
+        bytes extraData
+    );
+
+    /**
      * @notice Emitted when an ERC721 bridge from the other network is finalized.
      *
      * @param localToken  Address of the token on this domain.
@@ -93,6 +111,14 @@ abstract contract ERC721Bridge {
         );
         _;
     }
+    
+    /**
+     * @notice Ensures that the caller is this contract.
+     */
+    modifier onlySelf() {
+        require(msg.sender == address(this), "ERC721Bridge: function can only be called by self");
+        _;
+    }
 
     /**
      * @param _messenger   Address of the CrossDomainMessenger on this network.
@@ -109,6 +135,10 @@ abstract contract ERC721Bridge {
      *         `bridgeERC721To` function after ensuring that the recipient address on the remote
      *         chain exists. Also note that the current owner of the token on this chain must
      *         approve this contract to operate the NFT before it can be bridged.
+     *         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
+     *         bridge only supports ERC721s originally deployed on Ethereum. Users will need to
+     *         wait for the one-week challenge period to elapse before their Optimism-native NFT
+     *         can be refunded on L2.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -148,6 +178,10 @@ abstract contract ERC721Bridge {
      * @notice Initiates a bridge of an NFT to some recipient's account on the other chain. Note
      *         that the current owner of the token on this chain must approve this contract to
      *         operate the NFT before it can be bridged.
+     *         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This
+     *         bridge only supports ERC721s originally deployed on Ethereum. Users will need to
+     *         wait for the one-week challenge period to elapse before their Optimism-native NFT
+     *         can be refunded on L2.
      *
      * @param _localToken  Address of the ERC721 on this domain.
      * @param _remoteToken Address of the ERC721 on the remote domain.
@@ -166,6 +200,8 @@ abstract contract ERC721Bridge {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) external {
+        require(_to != address(0), "ERC721Bridge: nft recipient cannot be address(0)");
+    
         _initiateBridgeERC721(
             _localToken,
             _remoteToken,

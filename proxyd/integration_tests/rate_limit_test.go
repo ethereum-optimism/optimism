@@ -16,7 +16,8 @@ type resWithCode struct {
 	res  []byte
 }
 
-const frontendOverLimitResponse = `{"error":{"code":-32016,"message":"over rate limit"},"id":null,"jsonrpc":"2.0"}`
+const frontendOverLimitResponse = `{"error":{"code":-32016,"message":"over rate limit with special message"},"id":null,"jsonrpc":"2.0"}`
+const frontendOverLimitResponseWithID = `{"error":{"code":-32016,"message":"over rate limit with special message"},"id":999,"jsonrpc":"2.0"}`
 
 var ethChainID = "eth_chainId"
 
@@ -31,7 +32,7 @@ func TestBackendMaxRPSLimit(t *testing.T) {
 	shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
 	defer shutdown()
-	limitedRes, codes := spamReqs(t, client, ethChainID, 503)
+	limitedRes, codes := spamReqs(t, client, ethChainID, 503, 3)
 	require.Equal(t, 2, codes[200])
 	require.Equal(t, 1, codes[503])
 	RequireEqualJSON(t, []byte(noBackendsResponse), limitedRes)
@@ -50,7 +51,7 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 
 	t.Run("non-exempt over limit", func(t *testing.T) {
 		client := NewProxydClient("http://127.0.0.1:8545")
-		limitedRes, codes := spamReqs(t, client, ethChainID, 429)
+		limitedRes, codes := spamReqs(t, client, ethChainID, 429, 3)
 		require.Equal(t, 1, codes[429])
 		require.Equal(t, 2, codes[200])
 		RequireEqualJSON(t, []byte(frontendOverLimitResponse), limitedRes)
@@ -60,7 +61,7 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 		h := make(http.Header)
 		h.Set("User-Agent", "exempt_agent")
 		client := NewProxydClientWithHeaders("http://127.0.0.1:8545", h)
-		_, codes := spamReqs(t, client, ethChainID, 429)
+		_, codes := spamReqs(t, client, ethChainID, 429, 3)
 		require.Equal(t, 3, codes[200])
 	})
 
@@ -68,7 +69,7 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 		h := make(http.Header)
 		h.Set("Origin", "exempt_origin")
 		client := NewProxydClientWithHeaders("http://127.0.0.1:8545", h)
-		_, codes := spamReqs(t, client, ethChainID, 429)
+		_, codes := spamReqs(t, client, ethChainID, 429, 3)
 		require.Equal(t, 3, codes[200])
 	})
 
@@ -79,7 +80,7 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 		h2.Set("X-Forwarded-For", "1.1.1.1")
 		client1 := NewProxydClientWithHeaders("http://127.0.0.1:8545", h1)
 		client2 := NewProxydClientWithHeaders("http://127.0.0.1:8545", h2)
-		_, codes := spamReqs(t, client1, ethChainID, 429)
+		_, codes := spamReqs(t, client1, ethChainID, 429, 3)
 		require.Equal(t, 1, codes[429])
 		require.Equal(t, 2, codes[200])
 		_, code, err := client2.SendRPC(ethChainID, nil)
@@ -95,11 +96,11 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 
 	t.Run("RPC override", func(t *testing.T) {
 		client := NewProxydClient("http://127.0.0.1:8545")
-		limitedRes, codes := spamReqs(t, client, "eth_foobar", 429)
+		limitedRes, codes := spamReqs(t, client, "eth_foobar", 429, 2)
 		// use 2 and 1 here since the limit for eth_foobar is 1
-		require.Equal(t, 2, codes[429])
+		require.Equal(t, 1, codes[429])
 		require.Equal(t, 1, codes[200])
-		RequireEqualJSON(t, []byte(frontendOverLimitResponse), limitedRes)
+		RequireEqualJSON(t, []byte(frontendOverLimitResponseWithID), limitedRes)
 	})
 
 	time.Sleep(time.Second)
@@ -140,9 +141,9 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 	})
 }
 
-func spamReqs(t *testing.T, client *ProxydHTTPClient, method string, limCode int) ([]byte, map[int]int) {
+func spamReqs(t *testing.T, client *ProxydHTTPClient, method string, limCode int, n int) ([]byte, map[int]int) {
 	resCh := make(chan *resWithCode)
-	for i := 0; i < 3; i++ {
+	for i := 0; i < n; i++ {
 		go func() {
 			res, code, err := client.SendRPC(method, nil)
 			require.NoError(t, err)
@@ -155,7 +156,7 @@ func spamReqs(t *testing.T, client *ProxydHTTPClient, method string, limCode int
 
 	codes := make(map[int]int)
 	var limitedRes []byte
-	for i := 0; i < 3; i++ {
+	for i := 0; i < n; i++ {
 		res := <-resCh
 		code := res.code
 		if codes[code] == 0 {

@@ -1,5 +1,18 @@
 # data transport layer
 
+## 0.5.45
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- b1cec1d5: Fixes a bug that would break DTL sync when addresses are changed
+- Updated dependencies [7215f4ce]
+- Updated dependencies [206f6033]
+- Updated dependencies [d7679ca4]
+  - @eth-optimism/common-ts@0.6.5
+  - @eth-optimism/contracts@0.5.36
+  - @eth-optimism/core-utils@0.10.1
+
 ## 0.5.44
 
 ### Patch Changes

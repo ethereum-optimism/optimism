@@ -9,8 +9,8 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
 /**
  * @title L1ERC721Bridge
  * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
- *         make it possible to transfer ERC721 tokens between Optimism and Ethereum. This contract
- *         acts as an escrow for ERC721 tokens deposited into L2.
+ *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
+ *         acts as an escrow for ERC721 tokens deposted into L2.
  */
 contract L1ERC721Bridge is ERC721Bridge, Semver {
     /**
@@ -20,13 +20,13 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
     mapping(address => mapping(address => mapping(uint256 => bool))) public deposits;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      *
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
     constructor(address _messenger, address _otherBridge)
-        Semver(0, 0, 1)
+        Semver(1, 0, 0)
         ERC721Bridge(_messenger, _otherBridge)
     {}
 
@@ -55,20 +55,82 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyOtherBridge {
-        // Checks that the L1/L2 token pair has a token ID that is escrowed in the L1 Bridge
+        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
+            if (_from == otherBridge) {
+                // The _from address is the address of the remote bridge if a transfer fails to be
+                // finalized on the remote chain.
+                // slither-disable-next-line reentrancy-events
+                emit ERC721Refunded(_localToken, _remoteToken, _to, _tokenId, _extraData);
+            } else {
+                // slither-disable-next-line reentrancy-events
+                emit ERC721BridgeFinalized(
+                    _localToken,
+                    _remoteToken,
+                    _from,
+                    _to,
+                    _tokenId,
+                    _extraData
+                );
+            }
+        } catch {
+            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge or if
+            // another error occurred during finalization, we initiate a cross-domain message to
+            // send the NFT back to its original owner on L2. This can happen if an L2 native NFT is
+            // bridged to L1, or if a user mistakenly entered an incorrect L1 ERC721 address.
+            bytes memory message = abi.encodeWithSelector(
+                L2ERC721Bridge.finalizeBridgeERC721.selector,
+                _remoteToken,
+                _localToken,
+                address(this), // Set the new _from address to be this contract since the NFT was
+                // never transferred to the recipient on this chain.
+                _from, // Refund the NFT to the original owner on the remote chain.
+                _tokenId,
+                _extraData
+            );
+
+            // Send the message to the L2 bridge.
+            // slither-disable-next-line reentrancy-events
+            sendCrossDomainMessage(otherBridge, 600_000, message);
+
+            // slither-disable-next-line reentrancy-events
+            emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        }
+    }
+
+    /**
+     * @notice Completes an outbound token transfer. Public function, but can only be called by
+     *         this contract. It's security critical that there be absolutely no way for anyone to
+     *         trigger this function, except by explicit trigger within this contract. Used as a
+     *         simple way to be able to try/catch any type of revert that could occur during an
+     *         ERC721 mint/transfer.
+     *
+     * @param _localToken  Address of the ERC721 on this chain.
+     * @param _remoteToken Address of the corresponding token on the remote chain.
+     * @param _to          Address of the receiver.
+     * @param _tokenId     ID of the token being deposited.
+     */
+    function completeOutboundTransfer(
+        address _localToken,
+        address _remoteToken,
+        address _to,
+        uint256 _tokenId
+    ) external onlySelf {
+        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
+        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
+        // that maps to the L1 NFT.
         require(
             deposits[_localToken][_remoteToken][_tokenId] == true,
-            "Token ID is not escrowed in the L1 Bridge"
+            "L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge"
         );
+        require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
+        // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
+        // Bridge.
         deposits[_localToken][_remoteToken][_tokenId] = false;
 
-        // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the withdrawer
-        // slither-disable-next-line reentrancy-events
-        IERC721(_localToken).transferFrom(address(this), _to, _tokenId);
-
-        // slither-disable-next-line reentrancy-events
-        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
+        // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
+        // withdrawer.
+        IERC721(_localToken).safeTransferFrom(address(this), _to, _tokenId);
     }
 
     /**
@@ -83,6 +145,8 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal override {
+        require(_remoteToken != address(0), "ERC721Bridge: remote token cannot be address(0)");
+
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
             L2ERC721Bridge.finalizeBridgeERC721.selector,
