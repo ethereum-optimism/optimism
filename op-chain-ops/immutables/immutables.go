@@ -110,7 +110,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	case "SequencerFeeVault":
 		// No arguments to SequencerFeeVault
 		addr, _, _, err = bindings.DeploySequencerFeeVault(opts, backend)
-case "L2OptimismMintableERC20Factory":
+	case "L2OptimismMintableERC20Factory":
 		// No arguments to L2OptimismMintableERC20Factory
 		addr, _, _, err = bindings.DeployL2OptimismMintableERC20Factory(opts, backend)
 	case "DeployerWhitelist":

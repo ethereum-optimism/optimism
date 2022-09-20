@@ -27,10 +27,10 @@ func TestBuildOptimism(t *testing.T) {
 		"L2StandardBridge":               true,
 		"L2ToL1MessagePasser":            true,
 		"SequencerFeeVault":              true,
-		"OptimismMintableERC20Factory": true,
-		"DeployerWhitelist":            true,
+		"OptimismMintableERC20Factory":   true,
+		"DeployerWhitelist":              true,
 		"L2OptimismMintableERC20Factory": true,
-"L1BlockNumber":                true,
+		"L1BlockNumber":                  true,
 	}
 
 	// Only the exact contracts that we care about are being
