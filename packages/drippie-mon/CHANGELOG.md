@@ -1,5 +1,32 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.15
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 0ceff8b8: Drippie Spearbit audit fix for issue #25, reorder DripStatus enum for clarity
+- Updated dependencies [7215f4ce]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [206f6033]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [d7679ca4]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+- Updated dependencies [0ceff8b8]
+  - @eth-optimism/common-ts@0.6.5
+  - @eth-optimism/contracts-periphery@0.2.4
+  - @eth-optimism/core-utils@0.10.1
+  - @eth-optimism/sdk@1.6.4
+
 ## 0.3.14
 
 ### Patch Changes

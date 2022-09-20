@@ -1,5 +1,24 @@
 # @eth-optimism/contracts-periphery
 
+## 0.2.4
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 0ceff8b8: Drippie Spearbit audit fix for issues #32 and #33, clarify behavior of executable function
+- 0ceff8b8: Drippie Spearbit audit fix for issue #25, reorder DripStatus enum for clarity
+- 0ceff8b8: Drippie Spearbit audit fix for issue #44, document drip count and increment before external calls
+- 0ceff8b8: Drippie Spearbit audit fix for issue 24, use call over transfer for withdrawETH
+- 0ceff8b8: Drippie Spearbit audit fix for issue 22, remove unnecessary gas parameter
+- 0ceff8b8: Drippie Spearbit audit fix for issue #34, missing natspec
+- 0ceff8b8: Drippie Spearbit audit fix for issue #28, document dripcheck behavior in drip function
+- 0ceff8b8: Drippie Spearbit audit fix #42, remove unnecessary SLOADs in the status function
+- 0ceff8b8: Drippie Spearbit audit fix for issue #39, update to latest version of Solidity
+- 0ceff8b8: Drippie Spearbit audit fix for issue #21, use correct version of Solmate
+- 0ceff8b8: Drippie Spearbit audit fix for issue #31, require explicit opt-in for reentrant drips
+- 0ceff8b8: Drippie Spearbit audit fix for issue #45, calldata over memory to save gas
+- 0ceff8b8: Drippie Spearbit audit fix for issue #35, correct contract layout ordering
+
 ## 0.2.3
 
 ### Patch Changes
