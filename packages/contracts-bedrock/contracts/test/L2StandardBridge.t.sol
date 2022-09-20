@@ -157,6 +157,48 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
     }
 
+    // finalizeDeposit Refund (with a Mintable local token)
+    // Completes the round trip for a failed and refunded withdrawal
+    // - emits ERC20BridgeRefunded and DepositFinalized
+    // - mints balance to the refund recipient
+    function test_finalizeDeposit_refund() external {
+        // TODO: events and calls
+        // cache the otherBridge address
+        address otherBridge = address(L2Bridge.otherBridge());
+        vm.mockCall(
+            address(L2Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(otherBridge)
+        );
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit ERC20BridgeRefunded(
+            address(L2Token), // localToken
+            address(L1Token), // remoteToken
+            alice,
+            100,
+            hex""
+        );
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit DepositFinalized(
+            address(L1Token),
+            address(L2Token),
+            otherBridge,
+            alice,
+            100,
+            hex""
+        );
+        vm.prank(address(L2Messenger));
+        L2Bridge.finalizeDeposit(
+            address(L1Token),
+            address(L2Token),
+            otherBridge,
+            alice,
+            100,
+            hex""
+        );
+        assertEq(L2Token.balanceOf(alice), 100);
+    }
+
     // finalizeDeposit
     // - only callable by l1TokenBridge
     // - invalid deposit emits DepositFailed
@@ -181,7 +223,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         emit ERC20BridgeInitiated(
             invalidL2Token,
             address(L1Token),
-            alice,
+            address(L2Bridge),
             alice,
             100,
             hex""
@@ -231,6 +273,9 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.finalizeDeposit(address(L1Token), address(L2Bridge), alice, bob, 100, hex"");
     }
 
+    // finalizeBridgeERC20
+    // - fails due to mismatch with remoteToken address on the local mintable token
+    //
     function test_finalizeBridgeERC20FailSendBack() external {
         deal(address(BadL2Token), address(L2Bridge), 100, true);
 
@@ -246,12 +291,20 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(L2Bridge.deposits(address(BadL2Token), address(L1Token)), 100);
 
         vm.expectEmit(true, true, true, true);
-
         emit ERC20BridgeInitiated(
             address(BadL2Token),
             address(L1Token),
-            bob,
+            address(L2Bridge),
             alice,
+            100,
+            hex""
+        );
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeFailed(
+            address(BadL2Token),
+            address(L1Token),
+            alice,
+            bob,
             100,
             hex""
         );

@@ -356,6 +356,60 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         assertEq(L1Token.balanceOf(address(alice)), 100);
     }
 
+    // finalizeERC20Withdrawal Refund (with a native local token)
+    // Completes the round trip for a failed and refunded deposit
+    // - updates bridge.deposits
+    // - emits ERC20BridgeRefunded
+    // - emits ERC20WithdrawalFinalized
+    // - transfers balance to the refund recipient
+    function test_finalizeERC20Withdrawal_refund() external {
+        deal(address(L1Token), address(L1Bridge), 100, true);
+        uint256 slot = stdstore
+            .target(address(L1Bridge))
+            .sig("deposits(address,address)")
+            .with_key(address(L1Token))
+            .with_key(address(L2Token))
+            .find();
+        // Give the L1 bridge some ERC20 tokens
+        vm.store(address(L1Bridge), bytes32(slot), bytes32(uint256(100)));
+        // cache the otherBridge address
+        address otherBridge = address(L1Bridge.otherBridge());
+        vm.mockCall(
+            address(L1Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(otherBridge)
+        );
+        vm.expectEmit(true, true, true, true, address(L1Bridge));
+        emit ERC20WithdrawalFinalized(
+            address(L1Token),
+            address(L2Token),
+            otherBridge,
+            alice,
+            100,
+            hex""
+        );
+        vm.expectEmit(true, true, true, true, address(L1Bridge));
+        emit ERC20BridgeRefunded(
+            address(L1Token), // localToken
+            address(L2Token), // remoteToken
+            alice,
+            100,
+            hex""
+        );
+        vm.prank(address(L1Messenger));
+        L1Bridge.finalizeERC20Withdrawal(
+            address(L1Token),
+            address(L2Token),
+            otherBridge,
+            alice,
+            100,
+            hex""
+        );
+        assertEq(L1Token.balanceOf(address(L1Bridge)), 0);
+        assertEq(L1Token.balanceOf(alice), 100);
+        assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 0);
+    }
+
     function test_onlyPortalFinalizeERC20Withdrawal() external {
         vm.mockCall(
             address(L1Bridge.messenger()),
@@ -407,12 +461,20 @@ contract L1StandardBridge_Test is Bridge_Initializer {
         assertEq(L1Bridge.deposits(address(BadL1Token), address(L2Token)), 100);
 
         vm.expectEmit(true, true, true, true);
-
         emit ERC20BridgeInitiated(
             address(BadL1Token),
             address(L2Token),
-            bob,
+            address(L1Bridge),
             alice,
+            100,
+            hex""
+        );
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeFailed(
+            address(BadL1Token),
+            address(L2Token),
+            alice,
+            bob,
             100,
             hex""
         );

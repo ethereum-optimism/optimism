@@ -147,6 +147,24 @@ abstract contract StandardBridge {
     );
 
     /**
+     * @notice Emitted when an NFT is refunded to the owner after an ERC721 bridge from the other
+     *         chain fails.
+     *
+     * @param localToken  Address of the token on this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param to          Address to receive the refunded token.
+     * @param amount      Amount sent.
+     * @param extraData   Extra data for use on the client-side.
+     */
+    event ERC20BridgeRefunded(
+        address indexed localToken,
+        address indexed remoteToken,
+        address indexed to,
+        uint256 amount,
+        bytes extraData
+    );
+
+    /**
      * @notice Only allow EOAs to call the functions. Note that this is not safe against contracts
      *         calling code within their constructors, but also doesn't really matter since we're
      *         just trying to prevent users accidentally depositing with smart contract wallets.
@@ -344,18 +362,34 @@ abstract contract StandardBridge {
         bytes calldata _extraData
     ) public onlyOtherBridge returns (bool) {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
-            emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-            return true;
+            if (_from == address(otherBridge)) {
+                // The _from address is the address of the remote bridge if a transfer fails to be
+                // finalized on the remote chain.
+                // slither-disable-next-line reentrancy-events
+                emit ERC20BridgeRefunded(_localToken, _remoteToken, _to, _amount, _extraData);
+                return true;
+            } else {
+                emit ERC20BridgeFinalized(
+                    _localToken,
+                    _remoteToken,
+                    _from,
+                    _to,
+                    _amount,
+                    _extraData
+                );
+                return true;
+            }
         } catch {
             // Something went wrong during the bridging process, return to sender.
             // Can happen if a bridge UI specifies the wrong L2 token.
-            // We reverse the to and from addresses to make sure the tokens are returned to the
-            // sender on the other chain and preserve the accuracy of accounting based on emitted
+            // Since the _to address never received the L2 token, we set this bridge contract
+            // as the sender address for the refund below, and set the recipient as the _from
+            // address. This preserves the accuracy of accounting based on emitted
             // events.
             _initiateBridgeERC20Unchecked(
                 _localToken,
                 _remoteToken,
-                _to,
+                address(this),
                 _from,
                 _amount,
                 0, // _minGasLimit, 0 is fine here
