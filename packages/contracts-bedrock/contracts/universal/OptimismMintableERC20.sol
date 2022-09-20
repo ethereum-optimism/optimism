@@ -12,7 +12,7 @@ import { IERC165, ILegacyMintableERC20, IOptimismMintableERC20 } from "./Support
  *         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
  *         meant for use on L2.
  */
-contract OptimismMintableERC20 is IOptimismMintableERC20, ERC20 {
+contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20 {
     /**
      * @notice Address of the corresponding version of this token on the remote chain.
      */
@@ -69,7 +69,12 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ERC20 {
      * @param _to     Address to mint tokens to.
      * @param _amount Amount of tokens to mint.
      */
-    function mint(address _to, uint256 _amount) external virtual onlyBridge {
+    function mint(address _to, uint256 _amount)
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
         _mint(_to, _amount);
         emit Mint(_to, _amount);
     }
@@ -80,7 +85,12 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ERC20 {
      * @param _from   Address to burn tokens from.
      * @param _amount Amount of tokens to burn.
      */
-    function burn(address _from, uint256 _amount) external virtual onlyBridge {
+    function burn(address _from, uint256 _amount)
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
         _burn(_from, _amount);
         emit Burn(_from, _amount);
     }
