@@ -1,5 +1,18 @@
 # @eth-optimism/message-relayer
 
+## 0.5.14
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 4f0cc4a4: Small patch release meant to test a fix for a bug in our canary release process for this package.
+- Updated dependencies [7215f4ce]
+- Updated dependencies [206f6033]
+- Updated dependencies [d7679ca4]
+  - @eth-optimism/common-ts@0.6.5
+  - @eth-optimism/core-utils@0.10.1
+  - @eth-optimism/sdk@1.6.4
+
 ## 0.5.13
 
 ### Patch Changes
