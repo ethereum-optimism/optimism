@@ -130,17 +130,17 @@ export const CONTRACT_ADDRESSES: {
   },
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: {
     l1: {
-      AddressManager: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788' as const,
+      AddressManager: '0x6900000000000000000000000000000000000005' as const,
       L1CrossDomainMessenger:
-        '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512' as const,
-      L1StandardBridge: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0' as const,
+        '0x6900000000000000000000000000000000000002' as const,
+      L1StandardBridge: '0x6900000000000000000000000000000000000003' as const,
       StateCommitmentChain:
-        '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9' as const,
+        '0x0000000000000000000000000000000000000000' as const,
       CanonicalTransactionChain:
-        '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9' as const,
-      BondManager: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707' as const,
-      OptimismPortal: '0x0165878A594ca255338adfa4d48449f69242Eb8F' as const,
-      L2OutputOracle: '0x5FbDB2315678afecb367f032d93F642f64180aa3' as const,
+        '0x0000000000000000000000000000000000000000' as const,
+      BondManager: '0x0000000000000000000000000000000000000000' as const,
+      OptimismPortal: '0x6900000000000000000000000000000000000001' as const,
+      L2OutputOracle: '0x6900000000000000000000000000000000000000' as const,
     },
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
@@ -153,6 +153,11 @@ export const BRIDGE_ADAPTER_DATA: {
   [ChainID in L2ChainID]?: BridgeAdapterData
 } = {
   [L2ChainID.OPTIMISM]: {
+    wstETH: {
+      Adapter: DAIBridgeAdapter,
+      l1Bridge: '0x76943C0D61395d8F2edF9060e1533529cAe05dE6' as const,
+      l2Bridge: '0x8E01013243a96601a86eb3153F0d9Fa4fbFb6957' as const,
+    },
     BitBTC: {
       Adapter: StandardBridgeAdapter,
       l1Bridge: '0xaBA2c5F108F7E820C049D5Af70B16ac266c8f128' as const,
@@ -183,6 +188,13 @@ export const BRIDGE_ADAPTER_DATA: {
     DAI: {
       Adapter: DAIBridgeAdapter,
       l1Bridge: '0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3' as const,
+      l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
+    },
+  },
+  [L2ChainID.OPTIMISM_GOERLI]: {
+    DAI: {
+      Adapter: DAIBridgeAdapter,
+      l1Bridge: '0x05a388Db09C2D44ec0b00Ee188cD42365c42Df23' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
   },

@@ -32,8 +32,8 @@ func ParseAddress(address string) (common.Address, error) {
 
 // GetConfiguredPrivateKey computes the private key for our configured services.
 // The two supported methods are:
-//  - Derived from BIP39 mnemonic and BIP32 HD derivation path.
-//  - Directly from a serialized private key.
+//   - Derived from BIP39 mnemonic and BIP32 HD derivation path.
+//   - Directly from a serialized private key.
 func GetConfiguredPrivateKey(mnemonic, hdPath, privKeyStr string) (
 	*ecdsa.PrivateKey, error) {
 

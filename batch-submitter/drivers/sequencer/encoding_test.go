@@ -15,10 +15,10 @@ import (
 
 // TestBatchContextEncodeDecode tests the (de)serialization of a BatchContext
 // against the spec test vector. The encoding should be:
-//  - num_sequenced_txs:        3 bytes
-//  - num_subsequent_queue_txs: 3 bytes
-//  - timestamp:                5 bytes
-//  - block_number:             5 bytes
+//   - num_sequenced_txs:        3 bytes
+//   - num_subsequent_queue_txs: 3 bytes
+//   - timestamp:                5 bytes
+//   - block_number:             5 bytes
 func TestBatchContextEncodeDecode(t *testing.T) {
 	t.Parallel()
 

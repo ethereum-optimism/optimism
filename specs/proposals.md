@@ -34,7 +34,7 @@ are part of later specification milestones.
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output roots, which are commitments made on a configurable interval,
-to the `L2OutputOracle` contract running on L2. It does this by running the [L2 output proposer](../op-proposer/),
+to the `L2OutputOracle` contract running on L1. It does this by running the [L2 output proposer](../op-proposer/),
 a service which periodically queries the rollup node's
 [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
 from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
@@ -82,10 +82,10 @@ where:
    inclusion in the pre-image of the `latest_block_hash`. This reduces the merkle proof depth and cost of accessing the
    L2 state root on L1.
 
-1. The `withdrawal_storage_root` (`bytes32`) elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of the [L2 Withdrawal
-   contract](./withdrawals.md#the-l2tol1messagepasser-contract) storage. Instead of making an MPT proof for a withdrawal
-   against the state root (proving first the storage root of the L2 withdrawal contract against the state root, then
-   the withdrawal against that storage root), we can prove against the L2 withdrawal contract's storage root directly,
+1. The `withdrawal_storage_root` (`bytes32`) elevates the Merkle-Patricia-Trie ([MPT][g-mpt]) root of the [Message
+   Passer contract](./withdrawals.md#the-l2tol1messagepasser-contract) storage. Instead of making an MPT proof for a
+   withdrawal against the state root (proving first the storage root of the L2toL1MessagePasser against the state root,
+   then the withdrawal against that storage root), we can prove against the L2toL1MessagePasser's storage root directly,
    thus reducing the verification cost of withdrawals on L1.
 
 ## L2 Output Oracle Smart Contract

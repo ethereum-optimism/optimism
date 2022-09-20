@@ -1,5 +1,38 @@
 # @eth-optimism/sdk
 
+## 1.6.3
+
+### Patch Changes
+
+- Updated dependencies [651a2883]
+  - @eth-optimism/contracts-bedrock@0.6.2
+
+## 1.6.2
+
+### Patch Changes
+
+- cfa81f88: Add DAI bridge support to Goerli
+- Updated dependencies [85232179]
+- Updated dependencies [593f1cfb]
+- Updated dependencies [334a3eb0]
+- Updated dependencies [f78eb056]
+  - @eth-optimism/contracts-bedrock@0.6.1
+  - @eth-optimism/contracts@0.5.35
+
+## 1.6.1
+
+### Patch Changes
+
+- b27d0fa7: Add wsteth support for DAI bridge to sdk
+- Updated dependencies [7fdc490c]
+- Updated dependencies [3d228a0e]
+- Updated dependencies [dbfea116]
+- Updated dependencies [63ef1949]
+- Updated dependencies [299157e7]
+  - @eth-optimism/contracts-bedrock@0.6.0
+  - @eth-optimism/core-utils@0.10.0
+  - @eth-optimism/contracts@0.5.34
+
 ## 1.6.0
 
 ### Minor Changes

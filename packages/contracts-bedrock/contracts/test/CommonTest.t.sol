@@ -200,6 +200,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
+    event FailedRelayedMessage(bytes32 indexed msgHash);
 
     event TransactionDeposited(
         address indexed from,
@@ -244,7 +245,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             address(new L2CrossDomainMessenger(address(L1Messenger))).code
         );
 
-        L2Messenger.initialize(address(L1Messenger));
+        L2Messenger.initialize();
 
         // Label addresses
         vm.label(address(addressManager), "AddressManager");
@@ -393,17 +394,15 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.stopPrank();
 
         L1Bridge = L1StandardBridge(payable(address(proxy)));
-        L1Bridge.initialize(payable(address(L1Messenger)));
 
         vm.label(address(proxy), "L1StandardBridge_Proxy");
         vm.label(address(L1Bridge_Impl), "L1StandardBridge_Impl");
 
         // Deploy the L2StandardBridge, move it to the correct predeploy
         // address and then initialize it
-        L2StandardBridge l2B = new L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
+        L2StandardBridge l2B = new L2StandardBridge(payable(proxy));
         vm.etch(Predeploys.L2_STANDARD_BRIDGE, address(l2B).code);
         L2Bridge = L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE));
-        L2Bridge.initialize(payable(address(L1Bridge)));
 
         // Set up the L2 mintable token factory
         OptimismMintableERC20Factory factory = new OptimismMintableERC20Factory(
@@ -539,7 +538,7 @@ contract FFIInterface is Test {
     function hashOutputRootProof(
         bytes32 _version,
         bytes32 _stateRoot,
-        bytes32 _withdrawerStorageRoot,
+        bytes32 _messagePasserStorageRoot,
         bytes32 _latestBlockhash
     ) external returns (bytes32) {
         string[] memory cmds = new string[](7);
@@ -548,7 +547,7 @@ contract FFIInterface is Test {
         cmds[2] = "hashOutputRootProof";
         cmds[3] = Strings.toHexString(uint256(_version));
         cmds[4] = Strings.toHexString(uint256(_stateRoot));
-        cmds[5] = Strings.toHexString(uint256(_withdrawerStorageRoot));
+        cmds[5] = Strings.toHexString(uint256(_messagePasserStorageRoot));
         cmds[6] = Strings.toHexString(uint256(_latestBlockhash));
 
         bytes memory result = vm.ffi(cmds);

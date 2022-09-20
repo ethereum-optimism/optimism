@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
-
 	"github.com/ethereum/go-ethereum/rpc"
 )
 

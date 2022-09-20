@@ -278,7 +278,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 
 		receives++
-		if receives == len(s.bridges) {
+		if receives == 2*len(s.bridges) {
 			break
 		}
 	}

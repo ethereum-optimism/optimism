@@ -281,8 +281,10 @@ func (cfg SystemConfig) start() (*System, error) {
 			MergeNetsplitBlock:      common.Big0,
 			TerminalTotalDifficulty: common.Big0,
 			Optimism: &params.OptimismConfig{
-				BaseFeeRecipient: cfg.BaseFeeRecipient,
-				L1FeeRecipient:   cfg.L1FeeRecipient,
+				BaseFeeRecipient:   cfg.BaseFeeRecipient,
+				L1FeeRecipient:     cfg.L1FeeRecipient,
+				EIP1559Elasticity:  2,
+				EIP1559Denominator: 8,
 			},
 		},
 		Alloc:      l2Alloc,

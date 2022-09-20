@@ -374,10 +374,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     let l1BlockRangeStart = fromL1Block
     for (const addressSetEvent of addressSetEvents) {
       eventRanges.push({
-        address: await this._getContractAddressAtBlock(
-          contractName,
-          addressSetEvent.blockNumber
-        ),
+        address: addressSetEvent.args._oldAddress,
         fromBlock: l1BlockRangeStart,
         toBlock: addressSetEvent.blockNumber,
       })

@@ -6,9 +6,8 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -120,12 +119,12 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, err
 func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo) ([]byte, error) {
 	dep, err := L1InfoDeposit(seqNumber, l1Info)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create L1 info tx: %v", err)
+		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
 	}
 	l1Tx := types.NewTx(dep)
 	opaqueL1Tx, err := l1Tx.MarshalBinary()
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode L1 info tx: %v", err)
+		return nil, fmt.Errorf("failed to encode L1 info tx: %w", err)
 	}
 	return opaqueL1Tx, nil
 }
