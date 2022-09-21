@@ -96,7 +96,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeInitiated(
@@ -115,7 +115,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFinalized(
@@ -134,7 +134,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFailed(
@@ -325,12 +325,11 @@ abstract contract StandardBridge {
      * @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
      *         StandardBridge contract on the remote chain.
      *
-     *
      * @param _localToken  Address of the ERC20 on this chain.
      * @param _remoteToken Address of the corresponding token on the remote chain.
      * @param _from        Address of the sender.
      * @param _to          Address of the receiver.
-     * @param _amount      Amount of ETH being bridged.
+     * @param _amount      Amount of the ERC20 being bridged.
      * @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
      *                     not be triggered with this data, but it will be emitted and can be used
      *                     to identify the transaction.
@@ -376,7 +375,7 @@ abstract contract StandardBridge {
      * @param _localToken  Address of the ERC20 on this chain.
      * @param _remoteToken Address of the corresponding token on the remote chain.
      * @param _to          Address of the receiver.
-     * @param _amount      Amount of ETH being bridged.
+     * @param _amount      Amount of the ERC20 being bridged.
      */
     function completeOutboundTransfer(
         address _localToken,
