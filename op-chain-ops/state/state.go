@@ -32,6 +32,11 @@ type EncodedStorage struct {
 	Value common.Hash
 }
 
+type StorageRangeResult struct {
+	Storage map[common.Hash]EncodedStorage
+	NextKey *common.Hash
+}
+
 // EncodeStorage will encode a storage layout
 func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.StorageLayoutType) ([]*EncodedStorage, error) {
 	if storageType.NumberOfBytes > 32 {
