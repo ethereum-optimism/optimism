@@ -1,0 +1,45 @@
+NAME:
+   indexer - Indexer Service
+
+USAGE:
+   main [global options] command [command options] [arguments...]
+
+VERSION:
+   -0.1.0-unstable
+
+DESCRIPTION:
+   Service for indexing deposits and withdrawals by account on L1 and L2
+
+COMMANDS:
+   help, h  Shows a list of commands or help for one command
+
+GLOBAL OPTIONS:
+   --build-env value              Build environment for which the binary is produced, e.g. production or development [$INDEXER_BUILD_ENV]
+   --eth-network-name value       Ethereum network name [$INDEXER_ETH_NETWORK_NAME]
+   --chain-id value               Ethereum chain ID [$INDEXER_CHAIN_ID]
+   --l1-eth-rpc value             HTTP provider URL for L1 [$INDEXER_L1_ETH_RPC]
+   --l2-eth-rpc value             HTTP provider URL for L2 [$INDEXER_L2_ETH_RPC]
+   --l2-genesis-block-hash value  Genesis block hash of the L2 chain [$INDEXER_L2_GENESIS_BLOCK_HASH]
+   --db-host value                Hostname of the database connection [$INDEXER_DB_HOST]
+   --db-port value                Port of the database connection (default: 0) [$INDEXER_DB_PORT]
+   --db-user value                Username of the database connection [$INDEXER_DB_USER]
+   --db-password value            Password of the database connection [$INDEXER_DB_PASSWORD]
+   --db-name value                Database name of the database connection [$INDEXER_DB_NAME]
+   --disable-indexer              Whether or not to enable the indexer on this instance [$INDEXER_DISABLE_INDEXER]
+   --log-level value              The lowest log level that will be output (default: "info") [$INDEXER_LOG_LEVEL]
+   --log-terminal                 If true, outputs logs in terminal format, otherwise prints in JSON format. If SENTRY_ENABLE is set to true, this flag is ignored and logs are printed using JSON [$INDEXER_LOG_TERMINAL]
+   --sentry-enable                Whether or not to enable Sentry. If true, sentry-dsn must also be set [$INDEXER_SENTRY_ENABLE]
+   --sentry-dsn value             Sentry data source name [$INDEXER_SENTRY_DSN]
+   --sentry-trace-rate value      Sentry trace rate (default: 50ms) [$INDEXER_SENTRY_TRACE_RATE]
+   --conf-depth value             The number of confirmations after which headers are considered confirmed (default: 20) [$INDEXER_CONF_DEPTH]
+   --max-header-batch-size value  The maximum number of headers to request as a batch (default: 2000) [$INDEXER_MAX_HEADER_BATCH_SIZE]
+   --start-block-number value     The block number to start indexing from. Must be use together with start block hash (default: 0) [$INDEXER_START_BLOCK_NUMBER]
+   --start-block-hash value       The block hash to start indexing from. Must be use together with start block number (default: "0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3") [$INDEXER_START_BLOCK_HASH]
+   --rest-hostname value          The hostname of the REST server (default: "127.0.0.1") [$INDEXER_REST_HOSTNAME]
+   --rest-port value              The port of the REST server (default: 8080) [$INDEXER_REST_PORT]
+   --metrics-server-enable        Whether or not to run the embedded metrics server [$INDEXER_METRICS_SERVER_ENABLE]
+   --metrics-hostname value       The hostname of the metrics server (default: "127.0.0.1") [$INDEXER_METRICS_HOSTNAME]
+   --metrics-port value           The port of the metrics server (default: 7300) [$INDEXER_METRICS_PORT]
+   --help, -h                     show help
+   --version, -v                  print the version
+[35mCRIT [0m[09-17|18:59:46.259] Application failed                       [35mmessage[0m="Required flag \"l2-genesis-block-hash\" not set"
