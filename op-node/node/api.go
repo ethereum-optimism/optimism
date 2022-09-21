@@ -4,7 +4,7 @@ import (
 	"context"
 	//"fmt"
 
-	//"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -78,9 +78,9 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number rpc.BlockNumber) ([]
 	
 	var fakeHash common.Hash
 
-	log.Debug("MMDBG Skipping GetProof for", "block", number)
-	/*
 	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, toBlockNumArg(number))
+	n.log.Debug("MMDBG Ignoring GetProof for", "block", number, "err", err, "proof", proof)
+	/*
 	if err != nil {
 		n.log.Error("failed to get contract proof", "err", err)
 		return nil, err
