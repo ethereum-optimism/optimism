@@ -35,17 +35,17 @@ abstract contract StandardBridge {
 
     /**
      * @custom:legacy
-     * @custom:spacer address messenger
+     * @custom:spacer messenger
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_0_0_32;
+    address private spacer_0_0_20;
 
     /**
      * @custom:legacy
-     * @custom:spacer address l2TokenBridge
+     * @custom:spacer l2TokenBridge
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_1_0_32;
+    address private spacer_1_0_20;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
