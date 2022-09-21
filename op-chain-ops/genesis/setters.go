@@ -115,11 +115,11 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	return nil
 }
 
-// Get the storage layout of the L2ToL1MessagePasser
+// Get the storage layout of the LegacyMessagePasser
 // Iterate over the storage layout to know which storage slots to ignore
 // Iterate over each storage slot, compute the migration
 func MigrateDepositHashes(db vm.StateDB) error {
-	layout, err := bindings.GetStorageLayout("L2ToL1MessagePasser")
+	layout, err := bindings.GetStorageLayout("LegacyMessagePasser")
 	if err != nil {
 		return err
 	}
@@ -136,7 +136,7 @@ func MigrateDepositHashes(db vm.StateDB) error {
 		ignore[encoded] = true
 	}
 
-	return db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
+	return db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if _, ok := ignore[key]; ok {
 			return true
 		}

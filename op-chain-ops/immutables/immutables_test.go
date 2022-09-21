@@ -29,6 +29,7 @@ func TestBuildOptimism(t *testing.T) {
 		"SequencerFeeVault":            true,
 		"OptimismMintableERC20Factory": true,
 		"DeployerWhitelist":            true,
+		"LegacyMessagePasser":          true,
 		"L1BlockNumber":                true,
 	}
 
