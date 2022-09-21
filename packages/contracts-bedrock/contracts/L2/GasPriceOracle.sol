@@ -19,15 +19,17 @@ import { L1Block } from "../L2/L1Block.sol";
 contract GasPriceOracle is Ownable, Semver {
     /**
      * @custom:legacy
+     * @custom:spacer gasPrice
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer0;
+    uint256 private spacer_1_0_32;
 
     /**
      * @custom:legacy
+     * @custom:spacer l1BaseFee
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer1;
+    uint256 private spacer_2_0_32;
 
     /**
      * @notice Constant L1 gas overhead per transaction.
