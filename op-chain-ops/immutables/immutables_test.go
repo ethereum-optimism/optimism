@@ -13,6 +13,9 @@ func TestBuildOptimism(t *testing.T) {
 		"L2StandardBridge": {
 			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
+		"L2CrossDomainMessenger": {
+			"otherMessenger": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
 	})
 	require.Nil(t, err)
 	require.NotNil(t, results)

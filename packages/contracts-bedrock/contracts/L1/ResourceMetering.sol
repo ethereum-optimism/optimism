@@ -8,6 +8,7 @@ import { FixedPointMathLib } from "@rari-capital/solmate/src/utils/FixedPointMat
 import { Burn } from "../libraries/Burn.sol";
 
 /**
+ * @custom:upgradeable
  * @title ResourceMetering
  * @notice ResourceMetering implements an EIP-1559 style resource metering system where pricing
  *         updates automatically based on current demand.

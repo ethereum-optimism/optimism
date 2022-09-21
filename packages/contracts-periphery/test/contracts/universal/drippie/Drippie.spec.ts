@@ -60,7 +60,7 @@ describe('Drippie', () => {
         ).to.emit(Drippie, 'DripCreated')
 
         const drip = await Drippie.drips(DEFAULT_DRIP_NAME)
-        expect(drip.status).to.equal(2) // PAUSED
+        expect(drip.status).to.equal(1) // PAUSED
         expect(drip.last).to.deep.equal(hre.ethers.BigNumber.from(0))
         expect(drip.config.interval).to.deep.equal(DEFAULT_DRIP_CONFIG.interval)
         expect(drip.config.dripcheck).to.deep.equal(
@@ -106,15 +106,15 @@ describe('Drippie', () => {
       it('should allow setting between PAUSED and ACTIVE', async () => {
         await Drippie.create(DEFAULT_DRIP_NAME, DEFAULT_DRIP_CONFIG)
 
-        expect((await Drippie.drips(DEFAULT_DRIP_NAME)).status).to.equal(2) // PAUSED
+        expect((await Drippie.drips(DEFAULT_DRIP_NAME)).status).to.equal(1) // PAUSED
 
-        await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
+        await Drippie.status(DEFAULT_DRIP_NAME, 2) // ACTIVE
 
-        expect((await Drippie.drips(DEFAULT_DRIP_NAME)).status).to.equal(1) // ACTIVE
+        expect((await Drippie.drips(DEFAULT_DRIP_NAME)).status).to.equal(2) // ACTIVE
 
-        await Drippie.status(DEFAULT_DRIP_NAME, 2) // PAUSED
+        await Drippie.status(DEFAULT_DRIP_NAME, 1) // PAUSED
 
-        expect((await Drippie.drips(DEFAULT_DRIP_NAME)).status).to.equal(2) // PAUSED
+        expect((await Drippie.drips(DEFAULT_DRIP_NAME)).status).to.equal(1) // PAUSED
       })
 
       it('should not allow setting status to NONE', async () => {
@@ -128,8 +128,8 @@ describe('Drippie', () => {
       it('should not allow setting status to same status as before', async () => {
         await Drippie.create(DEFAULT_DRIP_NAME, DEFAULT_DRIP_CONFIG)
 
-        await expect(Drippie.status(DEFAULT_DRIP_NAME, 2)).to.be.revertedWith(
-          'Drippie: cannot set drip status to same status as before'
+        await expect(Drippie.status(DEFAULT_DRIP_NAME, 1)).to.be.revertedWith(
+          'Drippie: cannot set drip status to the same status as its current status'
         )
       })
 
@@ -144,10 +144,10 @@ describe('Drippie', () => {
       it('should not allow setting status to ARCHIVED if ACTIVE', async () => {
         await Drippie.create(DEFAULT_DRIP_NAME, DEFAULT_DRIP_CONFIG)
 
-        await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
+        await Drippie.status(DEFAULT_DRIP_NAME, 2) // ACTIVE
 
         await expect(Drippie.status(DEFAULT_DRIP_NAME, 3)).to.be.revertedWith(
-          'Drippie: drip must be paused to be archived'
+          'Drippie: drip must first be paused before being archived'
         )
       })
 
@@ -190,7 +190,7 @@ describe('Drippie', () => {
   describe('drip', () => {
     it('should drip the amount', async () => {
       await Drippie.create(DEFAULT_DRIP_NAME, DEFAULT_DRIP_CONFIG)
-      await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
+      await Drippie.status(DEFAULT_DRIP_NAME, 2) // ACTIVE
 
       await expect(Drippie.drip(DEFAULT_DRIP_NAME)).to.emit(
         Drippie,
@@ -217,7 +217,7 @@ describe('Drippie', () => {
         ],
       })
 
-      await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
+      await Drippie.status(DEFAULT_DRIP_NAME, 2) // ACTIVE
       await Drippie.drip(DEFAULT_DRIP_NAME)
 
       expect(await SimpleStorage.get('0x' + '33'.repeat(32))).to.equal(
@@ -248,7 +248,7 @@ describe('Drippie', () => {
         ],
       })
 
-      await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
+      await Drippie.status(DEFAULT_DRIP_NAME, 2) // ACTIVE
       await Drippie.drip(DEFAULT_DRIP_NAME)
 
       expect(await SimpleStorage.get('0x' + '33'.repeat(32))).to.equal(
@@ -261,7 +261,7 @@ describe('Drippie', () => {
 
     it('should revert if dripping twice in one interval', async () => {
       await Drippie.create(DEFAULT_DRIP_NAME, DEFAULT_DRIP_CONFIG)
-      await Drippie.status(DEFAULT_DRIP_NAME, 1) // ACTIVE
+      await Drippie.status(DEFAULT_DRIP_NAME, 2) // ACTIVE
       await Drippie.drip(DEFAULT_DRIP_NAME)
 
       await expect(Drippie.drip(DEFAULT_DRIP_NAME)).to.be.revertedWith(

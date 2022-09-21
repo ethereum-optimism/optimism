@@ -240,6 +240,7 @@ contract ProxyAdmin is Owned {
             Proxy(_proxy).upgradeTo(_implementation);
         } else if (ptype == ProxyType.CHUGSPLASH) {
             L1ChugSplashProxy(_proxy).setStorage(
+                // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
                 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc,
                 bytes32(uint256(uint160(_implementation)))
             );
@@ -247,7 +248,9 @@ contract ProxyAdmin is Owned {
             string memory name = implementationName[_proxy];
             addressManager.setAddress(name, _implementation);
         } else {
-            revert("ProxyAdmin: unknown proxy type");
+            // It should not be possible to retrieve a ProxyType value which is not matched by
+            // one of the previous conditions.
+            assert(false);
         }
     }
 }
