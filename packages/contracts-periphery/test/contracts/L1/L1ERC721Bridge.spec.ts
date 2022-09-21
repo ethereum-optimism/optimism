@@ -13,9 +13,8 @@ import ICrossDomainMessenger from '@eth-optimism/contracts/artifacts/contracts/l
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { expect } from '../../setup'
 
-const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
-const ERR_INVALID_X_DOMAIN_MSG_SENDER =
-  'OVM_XCHAIN: wrong sender of cross-domain message'
+const ERR_INVALID_X_DOMAIN_MESSAGE =
+  'ERC721Bridge: function can only be called from the other bridge'
 const DUMMY_L2_ERC721_ADDRESS = ethers.utils.getAddress(
   '0x' + 'abba'.repeat(10)
 )
@@ -84,25 +83,7 @@ describe('L1ERC721Bridge', () => {
     })
   })
 
-  describe('initialize', async () => {
-    it('reverts if messenger is address(0)', async () => {
-      await expect(
-        Factory__L1ERC721Bridge.deploy(
-          constants.AddressZero,
-          DUMMY_L2_BRIDGE_ADDRESS
-        )
-      ).to.be.revertedWith('ERC721Bridge: messenger cannot be address(0)')
-    })
-
-    it('reverts if otherBridge is address(0)', async () => {
-      await expect(
-        Factory__L1ERC721Bridge.deploy(
-          Fake__L1CrossDomainMessenger.address,
-          constants.AddressZero
-        )
-      ).to.be.revertedWith('ERC721Bridge: other bridge cannot be address(0)')
-    })
-
+  describe('constructor', async () => {
     it('initializes correctly', async () => {
       expect(await L1ERC721Bridge.messenger()).equals(
         Fake__L1CrossDomainMessenger.address
@@ -277,7 +258,7 @@ describe('L1ERC721Bridge', () => {
           FINALIZATION_GAS,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith('L1ERC721Bridge: account is not externally owned')
+      ).to.be.revertedWith('ERC721Bridge: account is not externally owned')
     })
 
     describe('Handling ERC721.transferFrom() failures that revert', () => {
@@ -346,7 +327,7 @@ describe('L1ERC721Bridge', () => {
           tokenId,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith(ERR_INVALID_MESSENGER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2DepositedERC721)', async () => {
@@ -362,7 +343,7 @@ describe('L1ERC721Bridge', () => {
             from: Fake__L1CrossDomainMessenger.address,
           }
         )
-      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     describe('withdrawal attempts that pass the onlyFromCrossDomainAccount check', () => {

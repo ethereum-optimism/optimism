@@ -15,10 +15,10 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
     /**
      * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
      *
-     * @param remoteToken Address of the token on the remote domain.
      * @param localToken  Address of the token on the this domain.
+     * @param remoteToken Address of the token on the remote domain.
      */
-    event OptimismMintableERC721Created(address indexed remoteToken, address indexed localToken);
+    event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken);
 
     /**
      * @notice Address of the ERC721 bridge on this network.
@@ -97,6 +97,6 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
         );
 
         isStandardOptimismMintableERC721[address(localToken)] = true;
-        emit OptimismMintableERC721Created(_remoteToken, address(localToken));
+        emit OptimismMintableERC721Created(address(localToken), _remoteToken);
     }
 }
