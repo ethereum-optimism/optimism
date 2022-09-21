@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import "./SupportedInterfaces.sol";
+import { IERC165, ILegacyMintableERC20, IOptimismMintableERC20 } from "./SupportedInterfaces.sol";
 
 /**
  * @title OptimismMintableERC20
@@ -12,7 +12,7 @@ import "./SupportedInterfaces.sol";
  *         Designed to be backwards compatible with the older StandardL2ERC20 token which was only
  *         meant for use on L2.
  */
-contract OptimismMintableERC20 is ERC20 {
+contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, ERC20 {
     /**
      * @notice Address of the corresponding version of this token on the remote chain.
      */
@@ -69,7 +69,12 @@ contract OptimismMintableERC20 is ERC20 {
      * @param _to     Address to mint tokens to.
      * @param _amount Amount of tokens to mint.
      */
-    function mint(address _to, uint256 _amount) external virtual onlyBridge {
+    function mint(address _to, uint256 _amount)
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
         _mint(_to, _amount);
         emit Mint(_to, _amount);
     }
@@ -80,7 +85,12 @@ contract OptimismMintableERC20 is ERC20 {
      * @param _from   Address to burn tokens from.
      * @param _amount Amount of tokens to burn.
      */
-    function burn(address _from, uint256 _amount) external virtual onlyBridge {
+    function burn(address _from, uint256 _amount)
+        external
+        virtual
+        override(IOptimismMintableERC20, ILegacyMintableERC20)
+        onlyBridge
+    {
         _burn(_from, _amount);
         emit Burn(_from, _amount);
     }
@@ -94,8 +104,10 @@ contract OptimismMintableERC20 is ERC20 {
      */
     function supportsInterface(bytes4 _interfaceId) external pure returns (bool) {
         bytes4 iface1 = type(IERC165).interfaceId;
-        bytes4 iface2 = type(IL1Token).interfaceId;
-        bytes4 iface3 = type(IRemoteToken).interfaceId;
+        // Interface corresponding to the legacy L2StandardERC20.
+        bytes4 iface2 = type(ILegacyMintableERC20).interfaceId;
+        // Interface corresponding to the updated OptimismMintableERC20 (this contract).
+        bytes4 iface3 = type(IOptimismMintableERC20).interfaceId;
         return _interfaceId == iface1 || _interfaceId == iface2 || _interfaceId == iface3;
     }
 
