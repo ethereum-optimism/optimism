@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"net/http"
 	"net/url"
 
@@ -32,15 +31,13 @@ func (cl *BeaconClient) FetchSidecar(ctx context.Context, slot uint64) (*derive.
 	if err != nil {
 		return nil, err
 	}
-	body, err := io.ReadAll(res.Body)
-	res.Body.Close()
 
 	if res.StatusCode > 204 {
 		return nil, errors.New("status code %d", res.StatusCode)
 	}
 
 	var sidecar derive.BlobsSidecar
-	if err := json.Unmarshal(body, sidecar); err != nil {
+	if err := json.Unmarshal(res.Body, sidecar); err != nil {
 		return nil, err
 	}
 
