@@ -13,9 +13,9 @@
     "deployments/**/*.json"
   ],
   "scripts": {
-    "build": "npx hardhat compile",
-    "test": "npx hardhat test",
-    "test:coverage": "IS_COVERAGE=true npx hardhat coverage",
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "test:coverage": "IS_COVERAGE=true hardhat coverage",
     "lint:js:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:js:check",
@@ -28,6 +28,10 @@
     "deploy:mainnet": "hardhat deploy-token --network 'optimism-mainnet'"
   },
   "dependencies": {
+    "ethereumjs-util": "^7.1.4",
+    "ethers": "^5.7.0"
+  },
+  "devDependencies": {
     "@eth-optimism/core-utils": "^0.10.1",
     "@eth-optimism/sdk": "^1.6.4",
     "@ethersproject/hardware-wallets": "^5.7.0",
@@ -36,19 +40,15 @@
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "@nomiclabs/hardhat-web3": "^2.0.0",
     "@openzeppelin/contracts": "4.5.0",
-    "commander": "^9.3.0",
-    "csv-parse": "^5.0.4",
-    "eth-sig-util": "^3.0.1",
-    "ethereumjs-util": "^7.1.4",
-    "ethers": "^5.7.0",
-    "hardhat": "^2.9.6"
-  },
-  "devDependencies": {
     "@types/mocha": "^9.1.1",
-    "chai": "^4.3.6",
-    "dotenv": "^16.0.0",
     "eslint": "^8.9.0",
     "ethereum-waffle": "^3.4.0",
+    "eth-sig-util": "^3.0.1",
+    "chai": "^4.3.6",
+    "commander": "^9.3.0",
+    "csv-parse": "^5.0.4",
+    "dotenv": "^16.0.0",
+    "hardhat": "^2.11.2",
     "hardhat-gas-reporter": "^1.0.7",
     "prettier": "^2.3.1",
     "prettier-plugin-solidity": "^1.0.0-beta.18",

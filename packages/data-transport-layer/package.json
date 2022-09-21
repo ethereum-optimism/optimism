@@ -52,7 +52,7 @@
     "ethers": "^5.7.0",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
-    "level": "^6.0.1",
+    "level6": "npm:level@^6.0.1",
     "levelup": "^4.4.0"
   },
   "devDependencies": {
@@ -60,7 +60,7 @@
     "@types/levelup": "^4.3.0",
     "bfj": "^7.0.2",
     "chai-as-promised": "^7.1.1",
-    "hardhat": "^2.9.6",
+    "hardhat": "^2.11.2",
     "mocha": "^8.4.0",
     "pino-pretty": "^4.7.1",
     "prettier": "^2.3.1",

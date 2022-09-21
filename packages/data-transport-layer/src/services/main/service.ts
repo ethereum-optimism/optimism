@@ -1,7 +1,7 @@
 /* Imports: External */
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
-import level from 'level'
+import level from 'level6'
 import { Counter } from 'prom-client'
 
 /* Imports: Internal */
