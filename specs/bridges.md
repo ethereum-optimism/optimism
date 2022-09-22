@@ -22,18 +22,19 @@ The `L2StandardBridge` is a predeploy contract located at
 
 ```solidity
 interface StandardBridge {
-    event ERC20BridgeFinalized(address indexed _localToken, address indexed _remoteToken, address indexed _from, address _to, uint256 _amount, bytes _data);
-    event ERC20BridgeInitiated(address indexed _localToken, address indexed _remoteToken, address indexed _from, address _to, uint256 _amount, bytes _data);
-    event ETHBridgeFinalized(address indexed _from, address indexed _to, uint256 _amount, bytes _data);
-    event ETHBridgeInitiated(address indexed _from, address indexed _to, uint256 _amount, bytes _data);
+    event ERC20BridgeFinalized(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData);
+    event ERC20BridgeFinalized(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData);
+    event ERC20BridgeInitiated(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData);
+    event ETHBridgeFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
+    event ETHBridgeInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);
 
-    function bridgeERC20(address _localToken, address _remoteToken, uint256 _amount, uint32 _minGasLimit, bytes memory _data) external;
-    function bridgeERC20To(address _localToken, address _remoteToken, address _to, uint256 _amount, uint32 _minGasLimit, bytes memory _data) external;
-    function bridgeETH(uint32 _minGasLimit, bytes memory _data) payable external;
-    function bridgeETHTo(address _to, uint32 _minGasLimit, bytes memory _data) payable external;
+    function bridgeERC20(address _localToken, address _remoteToken, uint256 _amount, uint32 _minGasLimit, bytes memory _extraData) external;
+    function bridgeERC20To(address _localToken, address _remoteToken, address _to, uint256 _amount, uint32 _minGasLimit, bytes memory _extraData) external;
+    function bridgeETH(uint32 _minGasLimit, bytes memory _extraData) payable external;
+    function bridgeETHTo(address _to, uint32 _minGasLimit, bytes memory _extraData) payable external;
     function deposits(address, address) view external returns (uint256);
-    function finalizeBridgeERC20(address _localToken, address _remoteToken, address _from, address _to, uint256 _amount, bytes memory _data) external;
-    function finalizeBridgeETH(address _from, address _to, uint256 _amount, bytes memory _data) payable external;
+    function finalizeBridgeERC20(address _localToken, address _remoteToken, address _from, address _to, uint256 _amount, bytes memory _extraData) external;
+    function finalizeBridgeETH(address _from, address _to, uint256 _amount, bytes memory _extraData) payable external;
     function messenger() view external returns (address);
     function otherBridge() view external returns (address);
 }

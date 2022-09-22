@@ -102,6 +102,8 @@ Some basic rules:
 We also have the following custom tags:
 
 - `@custom:proxied`: Add to a contract whenever it's meant to live behind a proxy.
+- `@custom:upgradeable`: Add to a contract whenever it's meant to be used in an upgradeable contract.
+- `@custom:semver`: Add to a constructor to indicate the version of a contract.
 - `@custom:legacy`: Add to an event or function when it only exists for legacy support.
 
 #### Errors

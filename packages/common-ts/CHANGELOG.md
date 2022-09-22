@@ -1,5 +1,15 @@
 # @eth-optimism/common-ts
 
+## 0.6.5
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- d7679ca4: Add source maps
+- Updated dependencies [7215f4ce]
+- Updated dependencies [206f6033]
+  - @eth-optimism/core-utils@0.10.1
+
 ## 0.6.4
 
 ### Patch Changes

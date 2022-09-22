@@ -1,5 +1,12 @@
 # @eth-optimism/integration-tests-bedrock
 
+## 0.5.12
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 206f6033: Fix outdated references to 'withdrawal contract'
+
 ## 0.5.11
 
 ### Patch Changes

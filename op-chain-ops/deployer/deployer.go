@@ -5,14 +5,13 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // TestKey is the same test key that geth uses
@@ -39,14 +38,17 @@ type Deployment struct {
 type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (common.Address, error)
 
 func NewBackend() *backends.SimulatedBackend {
-	return backends.NewSimulatedBackendWithCacheConfig(
-		&core.CacheConfig{
+	return backends.NewSimulatedBackendWithOpts(
+		backends.WithCacheConfig(&core.CacheConfig{
 			Preimages: true,
-		},
-		core.GenesisAlloc{
-			crypto.PubkeyToAddress(TestKey.PublicKey): {Balance: thousandETH},
-		},
-		15000000,
+		}),
+		backends.WithGenesis(core.Genesis{
+			Config: params.AllEthashProtocolChanges,
+			Alloc: core.GenesisAlloc{
+				crypto.PubkeyToAddress(TestKey.PublicKey): {Balance: thousandETH},
+			},
+			GasLimit: 15000000,
+		}),
 	)
 }
 

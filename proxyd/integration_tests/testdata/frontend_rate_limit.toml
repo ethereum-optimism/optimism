@@ -21,7 +21,7 @@ eth_foobar = "main"
 rate_per_second = 2
 exempt_origins = ["exempt_origin"]
 exempt_user_agents = ["exempt_agent"]
-error_message = "over rate limit"
+error_message = "over rate limit with special message"
 
 [rate_limit.method_overrides.eth_foobar]
 limit = 1

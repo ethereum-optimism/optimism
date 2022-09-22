@@ -14,7 +14,8 @@ contract AssetReceiver is Transactor {
     /**
      * @notice Emitted when ETH is received by this address.
      *
-     * @param from Address that sent ETH to this contract.
+     * @param from   Address that sent ETH to this contract.
+     * @param amount Amount of ETH received.
      */
     event ReceivedETH(address indexed from, uint256 amount);
 
@@ -86,7 +87,7 @@ contract AssetReceiver is Transactor {
      */
     function withdrawETH(address payable _to, uint256 _amount) public onlyOwner {
         // slither-disable-next-line reentrancy-unlimited-gas
-        _to.transfer(_amount);
+        (bool success, ) = _to.call{ value: _amount }("");
         emit WithdrewETH(msg.sender, _to, _amount);
     }
 
