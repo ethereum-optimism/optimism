@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"sync"
 )
 
@@ -17,6 +18,10 @@ const executionPayloadFixedPart = 32 + 20 + 32 + 32 + 256 + 32 + 8 + 8 + 8 + 8 +
 
 // MAX_TRANSACTIONS_PER_PAYLOAD in consensus spec
 const maxTransactionsPerPayload = 1 << 20
+
+// ErrExtraDataTooLarge occurs when the ExecutionPayload's ExtraData field
+// is too large to be properly represented in SSZ.
+var ErrExtraDataTooLarge = errors.New("extra data too large")
 
 // The payloads are small enough to read and write at once.
 // But this happens often enough that we want to avoid re-allocating buffers for this.
@@ -57,6 +62,10 @@ func unmarshalBytes32LE(in []byte, z *Uint256Quantity) {
 
 // MarshalSSZ encodes the ExecutionPayload as SSZ type
 func (payload *ExecutionPayload) MarshalSSZ(w io.Writer) (n int, err error) {
+	if len(payload.ExtraData) > math.MaxUint32-executionPayloadFixedPart {
+		return 0, ErrExtraDataTooLarge
+	}
+
 	scope := payload.SizeSSZ()
 
 	buf := *payloadBufPool.Get().(*[]byte)
