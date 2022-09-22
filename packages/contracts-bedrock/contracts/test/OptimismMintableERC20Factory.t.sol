@@ -32,8 +32,8 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit OptimismMintableERC20Created(
-            remote,
             local,
+            remote,
             alice
         );
 
@@ -57,8 +57,8 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit OptimismMintableERC20Created(
-            remote,
             local,
+            remote,
             alice
         );
 
