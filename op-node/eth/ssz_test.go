@@ -3,6 +3,7 @@ package eth
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -123,4 +124,26 @@ func TestOPB01(t *testing.T) {
 	var unmarshalled ExecutionPayload
 	err = unmarshalled.UnmarshalSSZ(uint32(len(data)), bytes.NewReader(data))
 	require.Equal(t, ErrBadTransactionOffset, err)
+}
+
+// TestOPB04 verifies that the SSZ marshaling code
+// properly returns an error when the ExtraData field
+// cannot be represented in the outputted SSZ.
+func TestOPB04(t *testing.T) {
+	// First, test the maximum len - which in this case is the max uint32
+	// minus the execution payload fixed part.
+	payload := &ExecutionPayload{
+		ExtraData: make([]byte, math.MaxUint32-executionPayloadFixedPart),
+	}
+	var buf bytes.Buffer
+	_, err := payload.MarshalSSZ(&buf)
+	require.NoError(t, err)
+	buf.Reset()
+
+	payload = &ExecutionPayload{
+		ExtraData: make([]byte, math.MaxUint32-executionPayloadFixedPart+1),
+	}
+	_, err = payload.MarshalSSZ(&buf)
+	require.Error(t, err)
+	require.Equal(t, ErrExtraDataTooLarge, err)
 }
