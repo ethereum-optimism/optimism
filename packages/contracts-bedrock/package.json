@@ -26,6 +26,7 @@
     "coverage:lcov": "yarn build:differential && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "validate-spacers": "hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./src/contract-artifacts.ts",
     "lint:ts:check": "eslint . --max-warnings=0",
