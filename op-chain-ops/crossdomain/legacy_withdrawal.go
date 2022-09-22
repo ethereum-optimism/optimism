@@ -14,10 +14,10 @@ import (
 
 // LegacyWithdrawal represents a pre bedrock upgrade withdrawal.
 type LegacyWithdrawal struct {
-	Target *common.Address
-	Sender *common.Address
-	Data   []byte
-	Nonce  *big.Int
+	Target *common.Address `json:"target"`
+	Sender *common.Address `json:"sender"`
+	Data   []byte          `json:"data"`
+	Nonce  *big.Int        `json:"nonce"`
 }
 
 var _ WithdrawalMessage = (*LegacyWithdrawal)(nil)
