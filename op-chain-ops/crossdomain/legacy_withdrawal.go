@@ -50,8 +50,12 @@ func (w *LegacyWithdrawal) Encode() ([]byte, error) {
 
 // Decode will decode a serialized LegacyWithdrawal
 func (w *LegacyWithdrawal) Decode(data []byte) error {
-	selector := crypto.Keccak256([]byte("relayMessage(address,address,bytes,uint256)"))
-	if !bytes.Equal(data[0:4], selector[0:4]) {
+	if len(data) < len(predeploys.L2CrossDomainMessengerAddr)+4 {
+		return fmt.Errorf("withdrawal data too short: %d", len(data))
+	}
+
+	selector := crypto.Keccak256([]byte("relayMessage(address,address,bytes,uint256)"))[0:4]
+	if !bytes.Equal(data[0:4], selector) {
 		return fmt.Errorf("invalid selector: 0x%x", data[0:4])
 	}
 
@@ -82,11 +86,19 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 	if !ok {
 		return errors.New("cannot abi decode sender")
 	}
+	msgData, ok := decoded[2].([]byte)
+	if !ok {
+		return errors.New("cannot abi decode data")
+	}
+	nonce, ok := decoded[3].(*big.Int)
+	if !ok {
+		return errors.New("cannot abi decode nonce")
+	}
 
 	w.Target = &target
 	w.Sender = &sender
-	w.Data = decoded[2].([]byte)
-	w.Nonce = decoded[3].(*big.Int)
+	w.Data = msgData
+	w.Nonce = nonce
 	return nil
 }
 
