@@ -228,6 +228,7 @@ jobs:
   bedrock-go-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - run:
