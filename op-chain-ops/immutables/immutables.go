@@ -60,6 +60,9 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 			Name: "DeployerWhitelist",
 		},
 		{
+			Name: "LegacyMessagePasser",
+		},
+		{
 			Name: "L1BlockNumber",
 		},
 	}
@@ -115,6 +118,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
 	case "DeployerWhitelist":
 		addr, _, _, err = bindings.DeployDeployerWhitelist(opts, backend)
+	case "LegacyMessagePasser":
+		addr, _, _, err = bindings.DeployLegacyMessagePasser(opts, backend)
 	case "L1BlockNumber":
 		addr, _, _, err = bindings.DeployL1BlockNumber(opts, backend)
 	default:

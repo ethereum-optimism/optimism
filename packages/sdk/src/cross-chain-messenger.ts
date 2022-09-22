@@ -1220,7 +1220,7 @@ export class CrossChainMessenger {
     // compatible without WithdrawalInitiatedExtension1
     const logs: Partial<{ number: WithdrawalEntry }> = {}
     for (const [i, log] of Object.entries(receipt.logs)) {
-      if (log.address === predeploys.OVM_L2ToL1MessagePasser) {
+      if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
         const decoded =
           this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
         // Find the withdrawal initiated events
@@ -1273,7 +1273,7 @@ export class CrossChainMessenger {
       [withdrawalHash, ethers.constants.HashZero]
     )
     const isMessageSent =
-      await this.contracts.l2.L2ToL1MessagePasser.sentMessages(withdrawalHash)
+      await this.contracts.l2.BedrockMessagePasser.sentMessages(withdrawalHash)
 
     if (!isMessageSent) {
       throw new Error(`Withdrawal not initiated on L2`)
@@ -1284,7 +1284,7 @@ export class CrossChainMessenger {
     const stateTrieProof = await makeStateTrieProof(
       this.l2Provider as ethers.providers.JsonRpcProvider,
       output.l2BlockNumber,
-      this.contracts.l2.OVM_L2ToL1MessagePasser.address,
+      this.contracts.l2.BedrockMessagePasser.address,
       messageSlot
     )
 

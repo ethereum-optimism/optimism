@@ -73,7 +73,7 @@ An L2 account sends a withdrawal message (and possibly also ETH) to the `L2ToL1M
 [message-passer-contract]: #the-l2tol1messagepasser-contract
 
 A withdrawal is initiated by calling the L2ToL1MessagePasser contract's `initiateWithdrawal` function.
-The L2ToL1MessagePasser is a simple predeploy contract at `0x4200000000000000000000000000000000000000`
+The L2ToL1MessagePasser is a simple predeploy contract at `0x4200000000000000000000000000000000000016`
 which stores messages to be withdrawn.
 
 ```js

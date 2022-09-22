@@ -11,6 +11,7 @@ bindings: l1block-bindings \
 	optimism-portal-bindings \
 	l2-output-oracle-bindings \
 	gas-price-oracle-bindings \
+  legacy-message-passer-bindings \
 	address-manager-bindings \
 	l2-cross-domain-messenger-bindings \
 	l2-standard-bridge-bindings \
@@ -76,6 +77,9 @@ proxy-bindings: compile
 proxy-admin-bindings: compile
 	./gen_bindings.sh contracts/universal/ProxyAdmin.sol:ProxyAdmin $(pkg)
 
+legacy-message-passer-bindings: compile
+	./gen_bindings.sh contracts/legacy/LegacyMessagePasser.sol:LegacyMessagePasser $(pkg)
+
 erc20-bindings: compile
 	./gen_bindings.sh node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol:ERC20 $(pkg)
 
@@ -92,7 +96,7 @@ more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
-		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger \
+		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger \
 		-package bindings
 
 mkdir:
