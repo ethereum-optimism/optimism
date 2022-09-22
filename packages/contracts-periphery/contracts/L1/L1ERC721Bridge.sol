@@ -56,33 +56,22 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         bytes calldata _extraData
     ) external onlyOtherBridge {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
-            if (_from == otherBridge) {
-                // The _from address is the address of the remote bridge if a transfer fails to be
-                // finalized on the remote chain.
-                // slither-disable-next-line reentrancy-events
-                emit ERC721Refunded(_localToken, _remoteToken, _to, _tokenId, _extraData);
-            } else {
-                // slither-disable-next-line reentrancy-events
-                emit ERC721BridgeFinalized(
-                    _localToken,
-                    _remoteToken,
-                    _from,
-                    _to,
-                    _tokenId,
-                    _extraData
-                );
-            }
+            // slither-disable-next-line reentrancy-events
+            emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
         } catch {
             // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge or if
             // another error occurred during finalization, we initiate a cross-domain message to
             // send the NFT back to its original owner on L2. This can happen if an L2 native NFT is
             // bridged to L1, or if a user mistakenly entered an incorrect L1 ERC721 address.
+            // In either case, we stop the process here and construct a withdrawal in which we
+            // flip the to and from addresses. This ensures that event-based accounting
+            // will indicate net-zero transfer to the recipient. The ERC721BridgeFailed event
+            // emitted below can also be used to identify this occurence.
             bytes memory message = abi.encodeWithSelector(
                 L2ERC721Bridge.finalizeBridgeERC721.selector,
                 _remoteToken,
                 _localToken,
-                address(this), // Set the new _from address to be this contract since the NFT was
-                // never transferred to the recipient on this chain.
+                _to,
                 _from, // Refund the NFT to the original owner on the remote chain.
                 _tokenId,
                 _extraData
@@ -115,14 +104,13 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId
     ) external onlySelf {
-        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge. Without
-        // this check, an attacker could steal a legitimate L1 NFT by supplying an arbitrary L2 NFT
-        // that maps to the L1 NFT.
+        require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
+
+        // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.
         require(
             deposits[_localToken][_remoteToken][_tokenId] == true,
             "L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge"
         );
-        require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Mark that the token ID for this L1/L2 token pair is no longer escrowed in the L1
         // Bridge.

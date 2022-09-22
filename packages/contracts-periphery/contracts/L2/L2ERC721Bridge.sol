@@ -52,43 +52,30 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         bytes calldata _extraData
     ) external onlyOtherBridge {
         try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
-            if (_from == otherBridge) {
-                // The _from address is the address of the remote bridge if a transfer fails to be
-                // finalized on the remote chain.
-                // slither-disable-next-line reentrancy-events
-                emit ERC721Refunded(_localToken, _remoteToken, _to, _tokenId, _extraData);
-            } else {
-                // slither-disable-next-line reentrancy-events
-                emit ERC721BridgeFinalized(
-                    _localToken,
-                    _remoteToken,
-                    _from,
-                    _to,
-                    _tokenId,
-                    _extraData
-                );
-            }
+            // slither-disable-next-line reentrancy-events
+            emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
         } catch {
             // Either the L2 token which is being deposited-into disagrees about the correct address
             // of its L1 token, or does not support the correct interface.
             // This should only happen if there is a malicious L2 token, or if a user somehow
             // specified the wrong L2 token address to deposit into.
-            // In either case, we stop the process here and construct a withdrawal
-            // message so that users can get their NFT out in some cases.
             // There is no way to prevent malicious token contracts altogether, but this does limit
             // user error and mitigate some forms of malicious contract behavior.
+            /// In either case, we stop the process here and construct a withdrawal in which we
+            // flip the to and from addresses. This ensures that event-based accounting
+            // will indicate net-zero transfer to the recipient. The ERC721BridgeFailed event
+            // emitted below can also be used to identify this occurence.
             bytes memory message = abi.encodeWithSelector(
                 L1ERC721Bridge.finalizeBridgeERC721.selector,
                 _remoteToken,
                 _localToken,
-                address(this), // Set the new _from address to be this contract since the NFT was
-                // never transferred to the recipient on this chain.
+                _to,
                 _from, // Refund the NFT to the original owner on the remote chain.
                 _tokenId,
                 _extraData
             );
 
-            // Send message up to L1 bridge
+            // Send the message to the L1 bridge
             // slither-disable-next-line reentrancy-events
             messenger.sendMessage(otherBridge, message, 0);
 
@@ -115,8 +102,11 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         address _to,
         uint256 _tokenId
     ) external onlySelf {
+        require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
+
         require(
-            // slither-disable-next-line reentrancy-events
+            // Note that supportsInterface makes a callback to the _localToken address
+            // which is user provided.
             ERC165Checker.supportsInterface(_localToken, type(IOptimismMintableERC721).interfaceId),
             "L2ERC721Bridge: local token interface is not compliant"
         );
@@ -124,7 +114,6 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
             _remoteToken == IOptimismMintableERC721(_localToken).remoteToken(),
             "L2ERC721Bridge: wrong remote token for Optimism Mintable ERC721 local token"
         );
-        require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
 
         // When a deposit is finalized, we give the NFT with the same tokenId to the account
         // on L2. Note that safeMint makes a callback to the _to address which is user provided.
