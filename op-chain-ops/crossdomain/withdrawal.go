@@ -70,6 +70,10 @@ func (w *Withdrawal) Decode(data []byte) error {
 		return err
 	}
 
+	nonce, ok := decoded[0].(*big.Int)
+	if !ok {
+		return errors.New("cannot abi decode nonce")
+	}
 	sender, ok := decoded[1].(common.Address)
 	if !ok {
 		return errors.New("cannot abi decode sender")
@@ -78,13 +82,25 @@ func (w *Withdrawal) Decode(data []byte) error {
 	if !ok {
 		return errors.New("cannot abi decode target")
 	}
+	value, ok := decoded[3].(*big.Int)
+	if !ok {
+		return errors.New("cannot abi decode value")
+	}
+	gasLimit, ok := decoded[4].(*big.Int)
+	if !ok {
+		return errors.New("cannot abi decode gasLimit")
+	}
+	msgData, ok := decoded[5].([]byte)
+	if !ok {
+		return errors.New("cannot abi decode data")
+	}
 
-	w.Nonce = decoded[0].(*big.Int)
+	w.Nonce = nonce
 	w.Sender = &sender
 	w.Target = &target
-	w.Value = decoded[3].(*big.Int)
-	w.GasLimit = decoded[4].(*big.Int)
-	w.Data = decoded[5].([]byte)
+	w.Value = value
+	w.GasLimit = gasLimit
+	w.Data = msgData
 	return nil
 }
 
