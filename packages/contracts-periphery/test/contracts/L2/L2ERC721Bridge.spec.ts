@@ -155,7 +155,7 @@ describe('L2ERC721Bridge', () => {
           [
             DUMMY_L1ERC721_ADDRESS,
             NonCompliantERC721.address,
-            L2ERC721Bridge.address, // the 'from' address is the l2 bridge to indicate that the l2 recipient never controlled the nft.
+            bobsAddress,
             aliceAddress,
             TOKEN_ID,
             NON_NULL_BYTES32,
@@ -210,41 +210,6 @@ describe('L2ERC721Bridge', () => {
       // Bob is now the owner of the L2 ERC721
       const tokenIdOwner = await L2ERC721.ownerOf(TOKEN_ID)
       tokenIdOwner.should.equal(bobsAddress)
-    })
-
-    it('should credit funds to the depositer to finalize refund', async () => {
-      Fake__L2CrossDomainMessenger.xDomainMessageSender.returns(
-        DUMMY_L1BRIDGE_ADDRESS
-      )
-
-      // Assert that nobody owns the L2 token initially
-      await expect(L2ERC721.ownerOf(TOKEN_ID)).to.be.revertedWith(
-        'ERC721: owner query for nonexistent token'
-      )
-
-      // finalizing a refund emits an ERC721Refunded event with the correct arguments.
-      await expect(
-        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeBridgeERC721(
-          L2ERC721.address,
-          DUMMY_L1ERC721_ADDRESS,
-          DUMMY_L1BRIDGE_ADDRESS, // _from is the l1 bridge for refunds
-          aliceAddress,
-          TOKEN_ID,
-          NON_NULL_BYTES32,
-          { from: Fake__L2CrossDomainMessenger.address }
-        )
-      )
-        .to.emit(L2ERC721Bridge, 'ERC721Refunded')
-        .withArgs(
-          L2ERC721.address,
-          DUMMY_L1ERC721_ADDRESS,
-          aliceAddress,
-          TOKEN_ID,
-          NON_NULL_BYTES32
-        )
-
-      // NFT is transferred to new owner
-      expect(await L2ERC721.ownerOf(TOKEN_ID)).to.equal(aliceAddress)
     })
   })
 
