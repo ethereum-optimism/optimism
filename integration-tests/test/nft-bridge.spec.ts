@@ -129,10 +129,7 @@ describe('ERC721 Bridge', () => {
     const erc721CreatedEvent = receipt.events[0]
     expect(erc721CreatedEvent.event).to.be.eq('OptimismMintableERC721Created')
 
-    OptimismMintableERC721 = await ethers.getContractAt(
-      Artifact__OptimismMintableERC721.abi,
-      erc721CreatedEvent.args.localToken
-    )
+    OptimismMintableERC721 = new ethers.Contract(erc721CreatedEvent.args.localToken, Artifact__OptimismMintableERC721.abi,bobWalletL2)
 
     // Mint an L1 ERC721 to Bob on L1
     const tx2 = await L1ERC721.mint(bobAddress, TOKEN_ID)
