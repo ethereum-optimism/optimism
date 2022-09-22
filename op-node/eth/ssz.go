@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/l2geth/common/math"
 	"io"
+	"math"
 	"sync"
 )
 
