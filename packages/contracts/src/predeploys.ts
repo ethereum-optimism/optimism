@@ -16,6 +16,7 @@ export const predeploys = {
   OVM_SequencerFeeVault: '0x4200000000000000000000000000000000000011',
   L2StandardTokenFactory: '0x4200000000000000000000000000000000000012',
   OVM_L1BlockNumber: '0x4200000000000000000000000000000000000013',
+  GovernanceToken: '0x4200000000000000000000000000000000000042',
 
   // We're temporarily disabling OVM_ETH because the jury is still out on whether or not ETH as an
   // ERC20 is desirable.
@@ -25,8 +26,7 @@ export const predeploys = {
   WETH9: '0x4200000000000000000000000000000000000006',
 }
 
+// System addresses, for use later
 export const futurePredeploys = {
-  // System addresses, for use later
-  System0: '0x4200000000000000000000000000000000000042',
   System1: '0x4200000000000000000000000000000000000014',
 }
