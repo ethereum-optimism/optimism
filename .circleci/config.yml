@@ -224,6 +224,10 @@ jobs:
           name: Test
           command: yarn test:coverage
           working_directory: packages/<<parameters.package_name>>
+      - run:
+          name: Upload coverage reports to CodeCov
+          command: |
+            codecov --verbose || exit 0
 
   bedrock-go-tests:
     docker:
