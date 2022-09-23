@@ -108,7 +108,7 @@ contract L1StandardBridge is StandardBridge, Semver {
      * @param _l2Token   Address of the corresponding token on L2.
      * @param _from      Address of the withdrawer on L2.
      * @param _to        Address of the recipient on L1.
-     * @param _amount    Amount of ETH to withdraw.
+     * @param _amount    Amount of the ERC20 to withdraw.
      * @param _extraData Optional data forwarded from L2.
      */
     function finalizeERC20Withdrawal(

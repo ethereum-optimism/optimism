@@ -2,6 +2,7 @@ import {
   predeploys,
   getDeployedContractDefinition,
 } from '@eth-optimism/contracts'
+import { predeploys as bedrockPredeploys } from '@eth-optimism/contracts-bedrock'
 
 import {
   L1ChainID,
@@ -49,6 +50,7 @@ export const DEFAULT_L2_CONTRACT_ADDRESSES: OEL2ContractsLike = {
   OVM_GasPriceOracle: predeploys.OVM_GasPriceOracle,
   OVM_SequencerFeeVault: predeploys.OVM_SequencerFeeVault,
   WETH: predeploys.WETH9,
+  BedrockMessagePasser: bedrockPredeploys.L2ToL1MessagePasser,
 }
 
 /**

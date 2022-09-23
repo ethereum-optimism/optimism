@@ -8,10 +8,8 @@ import { toRpcHexString } from '@eth-optimism/core-utils'
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { expect } from '../../setup'
 
-const ERR_ALREADY_INITIALIZED = 'Initializable: contract is already initialized'
-const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
-const ERR_INVALID_X_DOMAIN_MSG_SENDER =
-  'OVM_XCHAIN: wrong sender of cross-domain message'
+const ERR_INVALID_X_DOMAIN_MESSAGE =
+  'ERC721Bridge: function can only be called from the other bridge'
 const DUMMY_L1BRIDGE_ADDRESS: string =
   '0x1234123412341234123412341234123412341234'
 const DUMMY_L1ERC721_ADDRESS: string =
@@ -19,6 +17,8 @@ const DUMMY_L1ERC721_ADDRESS: string =
 const ERR_INVALID_WITHDRAWAL: string =
   'Withdrawal is not being initiated by NFT owner'
 const TOKEN_ID: number = 10
+
+const FINALIZATION_GAS = 600_000
 
 describe('L2ERC721Bridge', () => {
   let alice: Signer
@@ -65,14 +65,12 @@ describe('L2ERC721Bridge', () => {
     )
   })
 
-  describe('initialize', () => {
-    it('Should only be callable once', async () => {
-      await expect(
-        L2ERC721Bridge.initialize(
-          Fake__L2CrossDomainMessenger.address,
-          DUMMY_L1BRIDGE_ADDRESS
-        )
-      ).to.be.revertedWith(ERR_ALREADY_INITIALIZED)
+  describe('constructor', async () => {
+    it('initializes correctly', async () => {
+      expect(await L2ERC721Bridge.messenger()).equals(
+        Fake__L2CrossDomainMessenger.address
+      )
+      expect(await L2ERC721Bridge.otherBridge()).equals(DUMMY_L1BRIDGE_ADDRESS)
     })
   })
 
@@ -88,7 +86,7 @@ describe('L2ERC721Bridge', () => {
           TOKEN_ID,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith(ERR_INVALID_MESSENGER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L1ERC721Bridge)', async () => {
@@ -108,7 +106,7 @@ describe('L2ERC721Bridge', () => {
             from: Fake__L2CrossDomainMessenger.address,
           }
         )
-      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     it('should initialize a withdrawal if the L2 token is not compliant', async () => {
@@ -215,6 +213,19 @@ describe('L2ERC721Bridge', () => {
     })
   })
 
+  describe('completeOutboundTransfer', async () => {
+    it('reverts if caller is not L2 bridge', async () => {
+      await expect(
+        L2ERC721Bridge.completeOutboundTransfer(
+          L2ERC721.address,
+          DUMMY_L1ERC721_ADDRESS,
+          bobsAddress,
+          TOKEN_ID
+        )
+      ).to.be.revertedWith('ERC721Bridge: function can only be called by self')
+    })
+  })
+
   describe('withdrawals', () => {
     let L2Token: Contract
     beforeEach(async () => {
@@ -238,7 +249,19 @@ describe('L2ERC721Bridge', () => {
       ])
 
       const signer = await ethers.getSigner(L2ERC721Bridge.address)
-      await L2Token.connect(signer).mint(aliceAddress, TOKEN_ID)
+      await L2Token.connect(signer).safeMint(aliceAddress, TOKEN_ID)
+    })
+
+    it('bridgeERC721() reverts if remote token is address(0)', async () => {
+      await expect(
+        L2ERC721Bridge.connect(alice).bridgeERC721(
+          L2Token.address,
+          constants.AddressZero,
+          TOKEN_ID,
+          FINALIZATION_GAS,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('ERC721Bridge: remote token cannot be address(0)')
     })
 
     it('bridgeERC721() reverts when called by non-owner of nft', async () => {
@@ -262,7 +285,7 @@ describe('L2ERC721Bridge', () => {
           0,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith('L2ERC721Bridge: account is not externally owned')
+      ).to.be.revertedWith('ERC721Bridge: account is not externally owned')
     })
 
     it('bridgeERC721() burns and sends the correct withdrawal message', async () => {
@@ -329,6 +352,19 @@ describe('L2ERC721Bridge', () => {
       )
       // gaslimit should be correct
       expect(withdrawalCallToMessenger.args[2]).to.equal(0)
+    })
+
+    it('bridgeERC721To() reverts if NFT receiver is address(0)', async () => {
+      await expect(
+        L2ERC721Bridge.connect(alice).bridgeERC721To(
+          L2Token.address,
+          DUMMY_L1ERC721_ADDRESS,
+          constants.AddressZero,
+          TOKEN_ID,
+          0,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('ERC721Bridge: nft recipient cannot be address(0)')
     })
 
     it('bridgeERC721To() reverts when called by non-owner of nft', async () => {

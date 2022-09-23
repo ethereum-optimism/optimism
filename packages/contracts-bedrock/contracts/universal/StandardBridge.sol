@@ -6,7 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
-import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
+import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
@@ -35,17 +35,17 @@ abstract contract StandardBridge {
 
     /**
      * @custom:legacy
-     * @custom:spacer address messenger
+     * @custom:spacer messenger
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_0_0_32;
+    address private spacer_0_0_20;
 
     /**
      * @custom:legacy
-     * @custom:spacer address l2TokenBridge
+     * @custom:spacer l2TokenBridge
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_1_0_32;
+    address private spacer_1_0_20;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
@@ -96,7 +96,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeInitiated(
@@ -115,7 +115,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFinalized(
@@ -134,7 +134,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFailed(
@@ -325,12 +325,11 @@ abstract contract StandardBridge {
      * @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
      *         StandardBridge contract on the remote chain.
      *
-     *
      * @param _localToken  Address of the ERC20 on this chain.
      * @param _remoteToken Address of the corresponding token on the remote chain.
      * @param _from        Address of the sender.
      * @param _to          Address of the receiver.
-     * @param _amount      Amount of ETH being bridged.
+     * @param _amount      Amount of the ERC20 being bridged.
      * @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
      *                     not be triggered with this data, but it will be emitted and can be used
      *                     to identify the transaction.
@@ -376,7 +375,7 @@ abstract contract StandardBridge {
      * @param _localToken  Address of the ERC20 on this chain.
      * @param _remoteToken Address of the corresponding token on the remote chain.
      * @param _to          Address of the receiver.
-     * @param _amount      Amount of ETH being bridged.
+     * @param _amount      Amount of the ERC20 being bridged.
      */
     function completeOutboundTransfer(
         address _localToken,
@@ -533,7 +532,9 @@ abstract contract StandardBridge {
      * @return True if the token is an OptimismMintableERC20.
      */
     function _isOptimismMintableERC20(address _token) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(_token, type(IL1Token).interfaceId);
+        return
+            ERC165Checker.supportsInterface(_token, type(ILegacyMintableERC20).interfaceId) ||
+            ERC165Checker.supportsInterface(_token, type(IOptimismMintableERC20).interfaceId);
     }
 
     /**

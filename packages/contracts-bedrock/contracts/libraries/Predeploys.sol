@@ -9,7 +9,7 @@ library Predeploys {
     /**
      * @notice Address of the L2ToL1MessagePasser predeploy.
      */
-    address internal constant L2_TO_L1_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
+    address internal constant L2_TO_L1_MESSAGE_PASSER = 0x4200000000000000000000000000000000000016;
 
     /**
      * @notice Address of the L2CrossDomainMessenger predeploy.
@@ -37,6 +37,12 @@ library Predeploys {
      * @notice Address of the L1Block predeploy.
      */
     address internal constant L1_BLOCK_ATTRIBUTES = 0x4200000000000000000000000000000000000015;
+
+    /**
+     * @notice Address of the GasPriceOracle predeploy. Includes fee information
+     *         and helpers for computing the L1 portion of the transaction fee.
+     */
+    address internal constant GAS_PRICE_ORACLE = 0x420000000000000000000000000000000000000F;
 
     /**
      * @custom:legacy
@@ -67,8 +73,9 @@ library Predeploys {
     address internal constant L1_BLOCK_NUMBER = 0x4200000000000000000000000000000000000013;
 
     /**
-     * @notice Address of the GasPriceOracle predeploy. Includes fee information
-     *         and helpers for computing the L1 portion of the transaction fee.
+     * @custom:legacy
+     * @notice Address of the LegacyMessagePasser predeploy. Deprecate. Use the updated
+     *         L2ToL1MessagePasser contract instead.
      */
-    address internal constant GAS_PRICE_ORACLE = 0x420000000000000000000000000000000000000F;
+    address internal constant LEGACY_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
 }

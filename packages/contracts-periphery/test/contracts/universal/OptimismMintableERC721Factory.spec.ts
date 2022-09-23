@@ -22,6 +22,7 @@ describe('OptimismMintableERC721Factory', () => {
   let baseURI: string
   const remoteChainId = 100
 
+  let Factory__OptimismMintableERC721Factory: ContractFactory
   beforeEach(async () => {
     ;[signer] = await ethers.getSigners()
 
@@ -31,9 +32,14 @@ describe('OptimismMintableERC721Factory', () => {
     )
     L1ERC721 = await Factory__L1ERC721.deploy('L1ERC721', 'ERC')
 
-    OptimismMintableERC721Factory = await (
-      await ethers.getContractFactory('OptimismMintableERC721Factory')
-    ).deploy(DUMMY_L2_BRIDGE_ADDRESS, remoteChainId)
+    Factory__OptimismMintableERC721Factory = await ethers.getContractFactory(
+      'OptimismMintableERC721Factory'
+    )
+    OptimismMintableERC721Factory =
+      await Factory__OptimismMintableERC721Factory.deploy(
+        DUMMY_L2_BRIDGE_ADDRESS,
+        remoteChainId
+      )
 
     baseURI = ''.concat(
       'ethereum:',
@@ -41,6 +47,25 @@ describe('OptimismMintableERC721Factory', () => {
       '@',
       remoteChainId.toString(),
       '/tokenURI?uint256='
+    )
+  })
+
+  it('should revert if bridge is initialized as address(0)', async () => {
+    await expect(
+      Factory__OptimismMintableERC721Factory.deploy(
+        ethers.constants.AddressZero,
+        remoteChainId
+      )
+    ).to.be.revertedWith(
+      'OptimismMintableERC721Factory: bridge cannot be address(0)'
+    )
+  })
+
+  it('should revert if remote chain id is initialized as zero', async () => {
+    await expect(
+      Factory__OptimismMintableERC721Factory.deploy(DUMMY_L2_BRIDGE_ADDRESS, 0)
+    ).to.be.revertedWith(
+      'OptimismMintableERC721Factory: remote chain id cannot be zero'
     )
   })
 

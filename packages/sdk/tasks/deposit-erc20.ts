@@ -75,9 +75,7 @@ const createOptimismMintableERC20 = async (
     throw new Error('Unable to find OptimismMintableERC20Created event')
   }
 
-  // TODO(tynes): may need to be updated based on
-  // https://github.com/ethereum-optimism/optimism/pull/3104
-  const l2WethAddress = event.args.remoteToken
+  const l2WethAddress = event.args.localToken
   console.log(`Deployed to ${l2WethAddress}`)
 
   return new Contract(
