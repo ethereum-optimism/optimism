@@ -109,6 +109,7 @@ func TestBatching(t *testing.T) {
 				NewRPCReq("3", "eth_chainId", nil),
 				NewRPCReq("4", "eth_call", nil),
 				NewRPCReq("5", "eth_call", nil),
+				NewRPCReq("6", "eth_call", nil),
 			},
 			expectedRes:          "{\"error\":{\"code\":-32014,\"message\":\"over batch size custom message\"},\"id\":null,\"jsonrpc\":\"2.0\"}",
 			maxUpstreamBatchSize: 2,
