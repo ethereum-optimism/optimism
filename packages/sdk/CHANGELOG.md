@@ -1,5 +1,17 @@
 # @eth-optimism/sdk
 
+## 1.6.5
+
+### Patch Changes
+
+- e2faaa8b: Update for new BedrockMessagePasser contract
+- Updated dependencies [cb5fed67]
+- Updated dependencies [c427f0c0]
+- Updated dependencies [e2faaa8b]
+- Updated dependencies [d28ad592]
+- Updated dependencies [76c8ee2d]
+  - @eth-optimism/contracts-bedrock@0.7.0
+
 ## 1.6.4
 
 ### Patch Changes

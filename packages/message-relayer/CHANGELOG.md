@@ -1,5 +1,12 @@
 # @eth-optimism/message-relayer
 
+## 0.5.15
+
+### Patch Changes
+
+- Updated dependencies [e2faaa8b]
+  - @eth-optimism/sdk@1.6.5
+
 ## 0.5.14
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.7.0
+
+### Minor Changes
+
+- e2faaa8b: Moves the L2ToL1MessagePasser to a new address and puts a LegacyMessagePasser at the old address.
+
+### Patch Changes
+
+- cb5fed67: Clarify intent with mintable token interfaces
+- c427f0c0: Fixes to natspec docs
+- d28ad592: Tweaks storage spacers to standardize names and use original types
+- 76c8ee2d: Fix event names orderings for `OptimismMintableERC20Created`
+
 ## 0.6.3
 
 ### Patch Changes
