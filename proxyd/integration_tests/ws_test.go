@@ -1,12 +1,13 @@
 package integration_tests
 
 import (
-	"github.com/ethereum/go-ethereum/log"
 	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/proxyd"
 	"github.com/gorilla/websocket"
