@@ -222,6 +222,20 @@ var (
 	}, []string{
 		"backend_name",
 	})
+
+	batchSizeHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
+		Namespace: MetricsNamespace,
+		Name:      "batch_size_summary",
+		Help:      "Summary of batch sizes",
+		Buckets: []float64{
+			1,
+			5,
+			10,
+			25,
+			50,
+			100,
+		},
+	})
 )
 
 func RecordRedisError(source string) {
@@ -277,4 +291,8 @@ func RecordCacheHit(method string) {
 
 func RecordCacheMiss(method string) {
 	cacheMissesTotal.WithLabelValues(method).Inc()
+}
+
+func RecordBatchSize(size int) {
+	batchSizeHistogram.Observe(float64(size))
 }

@@ -17,3 +17,7 @@ backends = ["good"]
 eth_chainId = "main"
 net_version = "main"
 eth_call = "main"
+
+[batch]
+error_message = "over batch size custom message"
+max_size = 5
