@@ -1,6 +1,7 @@
 package integration_tests
 
 import (
+	"github.com/ethereum/go-ethereum/log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -41,6 +42,13 @@ func TestConcurrentWSPanic(t *testing.T) {
 	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, nil)
 	require.NoError(t, err)
 	defer shutdown()
+
+	// suppress tons of log messages
+	oldHandler := log.Root().GetHandler()
+	log.Root().SetHandler(log.DiscardHandler())
+	defer func() {
+		log.Root().SetHandler(oldHandler)
+	}()
 
 	<-readyCh
 

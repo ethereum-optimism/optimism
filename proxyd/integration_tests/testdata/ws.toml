@@ -1,3 +1,5 @@
+whitelist_error_message = "rpc method is not whitelisted"
+
 ws_backend_group = "main"
 
 ws_method_whitelist = [
