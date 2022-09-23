@@ -3,6 +3,8 @@ package immutables
 import (
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
@@ -84,47 +86,47 @@ func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
 	return results, nil
 }
 
-func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (common.Address, error) {
-	var addr common.Address
+func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
+	var tx *types.Transaction
 	var err error
 	switch deployment.Name {
 	case "GasPriceOracle":
 		// The owner of the gas price oracle is not immutable, not required
 		// to be set here. It cannot be `address(0)`
 		owner := common.Address{1}
-		addr, _, _, err = bindings.DeployGasPriceOracle(opts, backend, owner)
+		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend, owner)
 	case "L1Block":
 		// No arguments required for the L1Block contract
-		addr, _, _, err = bindings.DeployL1Block(opts, backend)
+		_, tx, _, err = bindings.DeployL1Block(opts, backend)
 	case "L2CrossDomainMessenger":
 		otherMessenger, ok := deployment.Args[0].(common.Address)
 		if !ok {
-			return common.Address{}, fmt.Errorf("invalid type for otherMessenger")
+			return nil, fmt.Errorf("invalid type for otherMessenger")
 		}
-		addr, _, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend, otherMessenger)
+		_, tx, _, err = bindings.DeployL2CrossDomainMessenger(opts, backend, otherMessenger)
 	case "L2StandardBridge":
 		otherBridge, ok := deployment.Args[0].(common.Address)
 		if !ok {
-			return common.Address{}, fmt.Errorf("invalid type for otherBridge")
+			return nil, fmt.Errorf("invalid type for otherBridge")
 		}
-		addr, _, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
+		_, tx, _, err = bindings.DeployL2StandardBridge(opts, backend, otherBridge)
 	case "L2ToL1MessagePasser":
 		// No arguments required for L2ToL1MessagePasser
-		addr, _, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
+		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "SequencerFeeVault":
 		// No arguments to SequencerFeeVault
-		addr, _, _, err = bindings.DeploySequencerFeeVault(opts, backend)
+		_, tx, _, err = bindings.DeploySequencerFeeVault(opts, backend)
 	case "OptimismMintableERC20Factory":
-		addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
 	case "DeployerWhitelist":
-		addr, _, _, err = bindings.DeployDeployerWhitelist(opts, backend)
+		_, tx, _, err = bindings.DeployDeployerWhitelist(opts, backend)
 	case "LegacyMessagePasser":
-		addr, _, _, err = bindings.DeployLegacyMessagePasser(opts, backend)
+		_, tx, _, err = bindings.DeployLegacyMessagePasser(opts, backend)
 	case "L1BlockNumber":
-		addr, _, _, err = bindings.DeployL1BlockNumber(opts, backend)
+		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
 	default:
-		return addr, fmt.Errorf("unknown contract: %s", deployment.Name)
+		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
 
-	return addr, err
+	return tx, err
 }
