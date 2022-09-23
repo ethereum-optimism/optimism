@@ -1,10 +1,11 @@
 package derive
 
 import (
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/stretchr/testify/require"
 	"math/big"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChannelOutAddBlock(t *testing.T) {
