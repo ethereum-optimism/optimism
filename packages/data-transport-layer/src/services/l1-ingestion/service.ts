@@ -118,6 +118,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         user: this.options.l1RpcProviderUser,
         password: this.options.l1RpcProviderPassword,
         headers: { 'User-Agent': 'data-transport-layer' },
+        timeout: 30000,
       })
     } else {
       this.state.l1RpcProvider = this.options.l1RpcProvider

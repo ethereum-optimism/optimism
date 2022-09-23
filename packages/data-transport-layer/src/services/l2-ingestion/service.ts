@@ -1,7 +1,7 @@
 /* Imports: External */
 import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { StaticJsonRpcProvider } from '@ethersproject/providers'
-import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
+import { sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { BigNumber } from 'ethers'
 import { LevelUp } from 'levelup'
 import axios from 'axios'
@@ -103,6 +103,7 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
             user: this.options.l2RpcProviderUser,
             password: this.options.l2RpcProviderPassword,
             headers: { 'User-Agent': 'data-transport-layer' },
+            timeout: 30000,
           })
         : this.options.l2RpcProvider
   }
@@ -126,8 +127,13 @@ export class L2IngestionService extends BaseService<L2IngestionServiceOptions> {
     }
   }
 
+  private async getChainId(): Promise<number> {
+    const network = await this.state.l2RpcProvider.getNetwork()
+    return network.chainId
+  }
+
   protected async checkConsistency(): Promise<void> {
-    const chainId = await getChainId(this.state.l2RpcProvider)
+    const chainId = await this.getChainId()
     const shouldDoCheck = !(await this.state.db.getConsistencyCheckFlag())
     if (shouldDoCheck && chainId === 69) {
       this.logger.info('performing consistency check')
