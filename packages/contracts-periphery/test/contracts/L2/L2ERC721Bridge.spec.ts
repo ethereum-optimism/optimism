@@ -36,6 +36,7 @@ describe('L2ERC721Bridge', () => {
     Factory__L1ERC721Bridge = await ethers.getContractFactory('L1ERC721Bridge')
   })
 
+  let Factory__L2ERC721Bridge: ContractFactory
   let L2ERC721Bridge: Contract
   let L2ERC721: Contract
   let Fake__L2CrossDomainMessenger: FakeContract
@@ -48,9 +49,11 @@ describe('L2ERC721Bridge', () => {
     )
 
     // Deploy the contract under test
-    L2ERC721Bridge = await (
-      await ethers.getContractFactory('L2ERC721Bridge')
-    ).deploy(Fake__L2CrossDomainMessenger.address, DUMMY_L1BRIDGE_ADDRESS)
+    Factory__L2ERC721Bridge = await ethers.getContractFactory('L2ERC721Bridge')
+    L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
+      Fake__L2CrossDomainMessenger.address,
+      DUMMY_L1BRIDGE_ADDRESS
+    )
 
     // Deploy an L2 ERC721
     L2ERC721 = await (
@@ -66,6 +69,24 @@ describe('L2ERC721Bridge', () => {
   })
 
   describe('constructor', async () => {
+    it('reverts if cross domain messenger is address(0)', async () => {
+      await expect(
+        Factory__L2ERC721Bridge.deploy(
+          constants.AddressZero,
+          DUMMY_L1BRIDGE_ADDRESS
+        )
+      ).to.be.revertedWith('ERC721Bridge: messenger cannot be address(0)')
+    })
+
+    it('reverts if other bridge is address(0)', async () => {
+      await expect(
+        Factory__L2ERC721Bridge.deploy(
+          Fake__L2CrossDomainMessenger.address,
+          constants.AddressZero
+        )
+      ).to.be.revertedWith('ERC721Bridge: other bridge cannot be address(0)')
+    })
+
     it('initializes correctly', async () => {
       expect(await L2ERC721Bridge.messenger()).equals(
         Fake__L2CrossDomainMessenger.address
