@@ -96,18 +96,19 @@ type BackendGroupsConfig map[string]*BackendGroupConfig
 type MethodMappingsConfig map[string]string
 
 type Config struct {
-	WSBackendGroup    string              `toml:"ws_backend_group"`
-	Server            ServerConfig        `toml:"server"`
-	Cache             CacheConfig         `toml:"cache"`
-	Redis             RedisConfig         `toml:"redis"`
-	Metrics           MetricsConfig       `toml:"metrics"`
-	RateLimit         RateLimitConfig     `toml:"rate_limit"`
-	BackendOptions    BackendOptions      `toml:"backend"`
-	Backends          BackendsConfig      `toml:"backends"`
-	Authentication    map[string]string   `toml:"authentication"`
-	BackendGroups     BackendGroupsConfig `toml:"backend_groups"`
-	RPCMethodMappings map[string]string   `toml:"rpc_method_mappings"`
-	WSMethodWhitelist []string            `toml:"ws_method_whitelist"`
+	WSBackendGroup        string              `toml:"ws_backend_group"`
+	Server                ServerConfig        `toml:"server"`
+	Cache                 CacheConfig         `toml:"cache"`
+	Redis                 RedisConfig         `toml:"redis"`
+	Metrics               MetricsConfig       `toml:"metrics"`
+	RateLimit             RateLimitConfig     `toml:"rate_limit"`
+	BackendOptions        BackendOptions      `toml:"backend"`
+	Backends              BackendsConfig      `toml:"backends"`
+	Authentication        map[string]string   `toml:"authentication"`
+	BackendGroups         BackendGroupsConfig `toml:"backend_groups"`
+	RPCMethodMappings     map[string]string   `toml:"rpc_method_mappings"`
+	WSMethodWhitelist     []string            `toml:"ws_method_whitelist"`
+	WhitelistErrorMessage string              `toml:"whitelist_error_message"`
 }
 
 func ReadFromEnvOrConfig(value string) (string, error) {

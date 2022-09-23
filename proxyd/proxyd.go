@@ -55,6 +55,17 @@ func Start(config *Config) (func(), error) {
 		}
 	}
 
+	// While modifying shared globals is a bad practice, the alternative
+	// is to clone these errors on every invocation. This is inefficient.
+	// We'd also have to make sure that errors.Is and errors.As continue
+	// to function properly on the cloned errors.
+	if config.RateLimit.ErrorMessage != "" {
+		ErrOverRateLimit.Message = config.RateLimit.ErrorMessage
+	}
+	if config.WhitelistErrorMessage != "" {
+		ErrMethodNotWhitelisted.Message = config.WhitelistErrorMessage
+	}
+
 	maxConcurrentRPCs := config.Server.MaxConcurrentRPCs
 	if maxConcurrentRPCs == 0 {
 		maxConcurrentRPCs = math.MaxInt64

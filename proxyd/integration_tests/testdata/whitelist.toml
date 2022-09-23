@@ -1,3 +1,5 @@
+whitelist_error_message = "rpc method is not whitelisted custom message"
+
 [server]
 rpc_port = 8545
 
