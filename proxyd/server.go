@@ -145,6 +145,7 @@ func NewServer(
 		cache:                cache,
 		enableRequestLog:     enableRequestLog,
 		maxRequestBodyLogLen: maxRequestBodyLogLen,
+		maxBatchSize:         maxBatchSize,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
