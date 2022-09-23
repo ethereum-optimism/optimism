@@ -65,6 +65,9 @@ func Start(config *Config) (func(), error) {
 	if config.WhitelistErrorMessage != "" {
 		ErrMethodNotWhitelisted.Message = config.WhitelistErrorMessage
 	}
+	if config.BatchConfig.ErrorMessage != "" {
+		ErrTooManyBatchRequests.Message = config.BatchConfig.ErrorMessage
+	}
 
 	maxConcurrentRPCs := config.Server.MaxConcurrentRPCs
 	if maxConcurrentRPCs == 0 {
@@ -236,6 +239,7 @@ func Start(config *Config) (func(), error) {
 		config.RateLimit,
 		config.Server.EnableRequestLog,
 		config.Server.MaxRequestBodyLogLen,
+		config.BatchConfig.MaxSize,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("error creating server: %w", err)
