@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { RLPReader } from "../libraries/rlp/RLPReader.sol";
+import { RLPReader } from "../libraries/RLPReader.sol";
 import { CommonTest } from "./CommonTest.t.sol";
 
 contract RLPReader_Test is CommonTest {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { RLPWriter } from "../libraries/rlp/RLPWriter.sol";
+import { RLPWriter } from "../libraries/RLPWriter.sol";
 import { CommonTest } from "./CommonTest.t.sol";
 
 contract RLPWriter_Test is CommonTest {

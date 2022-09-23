@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Types } from "./Types.sol";
 import { Hashing } from "./Hashing.sol";
-import { RLPWriter } from "./rlp/RLPWriter.sol";
+import { RLPWriter } from "./RLPWriter.sol";
 
 /**
  * @title Encoding

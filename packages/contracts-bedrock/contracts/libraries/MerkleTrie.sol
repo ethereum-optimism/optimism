@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Bytes } from "../Bytes.sol";
-import { RLPReader } from "../rlp/RLPReader.sol";
-import { RLPWriter } from "../rlp/RLPWriter.sol";
+import { Bytes } from "./Bytes.sol";
+import { RLPReader } from "./RLPReader.sol";
+import { RLPWriter } from "./RLPWriter.sol";
 
 /**
  * @title MerkleTrie
@@ -59,29 +59,6 @@ library MerkleTrie {
      * @notice RLP representation of `NULL`.
      */
     bytes1 internal constant RLP_NULL = bytes1(0x80);
-
-    /**
-     * @notice Verifies a proof that a given key/value pair is present in the trie.
-     *
-     * @param _key   Key of the node to search for, as a hex string.
-     * @param _value Value of the node to search for, as a hex string.
-     * @param _proof Merkle trie inclusion proof for the desired node. Unlike traditional Merkle
-     *               trees, this proof is executed top-down and consists of a list of RLP-encoded
-     *               nodes that make a path down to the target node.
-     * @param _root  Known root of the Merkle trie. Used to verify that the included proof is
-     *               correctly constructed.
-     *
-     * @return Whether or not the proof is valid.
-     */
-    function verifyInclusionProof(
-        bytes memory _key,
-        bytes memory _value,
-        bytes memory _proof,
-        bytes32 _root
-    ) internal pure returns (bool) {
-        (bool exists, bytes memory value) = get(_key, _proof, _root);
-        return (exists && Bytes.equal(_value, value));
-    }
 
     /**
      * @notice Retrieves the value associated with a given key.

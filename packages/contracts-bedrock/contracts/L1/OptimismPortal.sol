@@ -6,7 +6,8 @@ import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
-import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
+import { MerkleTrie } from "../libraries/MerkleTrie.sol";
+import { Bytes } from "../libraries/Bytes.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 import { Semver } from "../universal/Semver.sol";
@@ -302,12 +303,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             )
         );
 
-        return
-            SecureMerkleTrie.verifyInclusionProof(
-                abi.encode(storageKey),
-                hex"01",
-                _proof,
-                _storageRoot
-            );
+        (bool exists, bytes memory value) = MerkleTrie.get(
+            abi.encode(keccak256(abi.encode(storageKey))),
+            _proof,
+            _storageRoot
+        );
+
+        return exists && Bytes.equal(value, hex"01");
     }
 }
