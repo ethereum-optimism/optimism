@@ -1,12 +1,13 @@
 package genesis
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
 	"strings"
 
-	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -16,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -45,7 +47,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
-	backend := deployer.NewBackend()
+	backend := deployer.NewBackendWithGenesisTimestamp(uint64(config.L1GenesisBlockTimestamp))
 
 	deployments, err := deployL1Contracts(config, backend)
 	if err != nil {
@@ -78,7 +80,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := upgradeProxy(
+	if _, err := upgradeProxy(
 		backend,
 		opts,
 		depsByName["L2OutputOracleProxy"].Address,
@@ -96,7 +98,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := upgradeProxy(
+	if _, err := upgradeProxy(
 		backend,
 		opts,
 		depsByName["OptimismPortalProxy"].Address,
@@ -113,7 +115,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := upgradeProxy(
+	if _, err := upgradeProxy(
 		backend,
 		opts,
 		depsByName["L1CrossDomainMessengerProxy"].Address,
@@ -123,7 +125,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
-	if err := upgradeProxy(
+	if _, err := upgradeProxy(
 		backend,
 		opts,
 		depsByName["L1StandardBridgeProxy"].Address,
@@ -133,7 +135,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
-	if err := upgradeProxy(
+	var lastUpgradeTx *types.Transaction
+	if lastUpgradeTx, err = upgradeProxy(
 		backend,
 		opts,
 		depsByName["OptimismMintableERC20FactoryProxy"].Address,
@@ -143,7 +146,16 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
+	// Commit all the upgrades at once, then wait for the last
+	// transaction to be mined. The simulator performs async
+	// processing, and as such we need to wait for the transaction
+	// receipt to appear before considering the above transactions
+	// committed to the chain.
+
 	backend.Commit()
+	if _, err := bind.WaitMined(context.Background(), backend, lastUpgradeTx); err != nil {
+		return nil, err
+	}
 
 	memDB := state.NewMemoryStateDB(genesis)
 	if err := SetL1Proxies(memDB, predeploys.DevProxyAdminAddr); err != nil {
@@ -243,13 +255,13 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 	return deployer.Deploy(backend, constructors, l1Deployer)
 }
 
-func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (common.Address, error) {
-	var addr common.Address
+func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
+	var tx *types.Transaction
 	var err error
 
 	switch deployment.Name {
 	case "L2OutputOracle":
-		addr, _, _, err = bindings.DeployL2OutputOracle(
+		_, tx, _, err = bindings.DeployL2OutputOracle(
 			opts,
 			backend,
 			deployment.Args[0].(*big.Int),
@@ -262,68 +274,66 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[7].(common.Address),
 		)
 	case "OptimismPortal":
-		addr, _, _, err = bindings.DeployOptimismPortal(
+		_, tx, _, err = bindings.DeployOptimismPortal(
 			opts,
 			backend,
 			predeploys.DevL2OutputOracleAddr,
 			deployment.Args[0].(*big.Int),
 		)
 	case "L1CrossDomainMessenger":
-		addr, _, _, err = bindings.DeployL1CrossDomainMessenger(
+		_, tx, _, err = bindings.DeployL1CrossDomainMessenger(
 			opts,
 			backend,
 			predeploys.DevOptimismPortalAddr,
 		)
 	case "L1StandardBridge":
-		addr, _, _, err = bindings.DeployL1StandardBridge(
+		_, tx, _, err = bindings.DeployL1StandardBridge(
 			opts,
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
 		)
 	case "OptimismMintableERC20Factory":
-		addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(
+		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(
 			opts,
 			backend,
 			predeploys.DevL1StandardBridgeAddr,
 		)
 	case "AddressManager":
-		addr, _, _, err = bindings.DeployAddressManager(
+		_, tx, _, err = bindings.DeployAddressManager(
 			opts,
 			backend,
 		)
 	case "ProxyAdmin":
-		addr, _, _, err = bindings.DeployProxyAdmin(
+		_, tx, _, err = bindings.DeployProxyAdmin(
 			opts,
 			backend,
 			common.Address{},
 		)
 	default:
 		if strings.HasSuffix(deployment.Name, "Proxy") {
-			addr, _, _, err = bindings.DeployProxy(opts, backend, deployer.TestAddress)
+			_, tx, _, err = bindings.DeployProxy(opts, backend, deployer.TestAddress)
 		} else {
 			err = fmt.Errorf("unknown contract %s", deployment.Name)
 		}
 	}
 
-	return addr, err
+	return tx, err
 }
 
-func upgradeProxy(backend *backends.SimulatedBackend, opts *bind.TransactOpts, proxyAddr common.Address, implAddr common.Address, callData []byte) error {
+func upgradeProxy(backend *backends.SimulatedBackend, opts *bind.TransactOpts, proxyAddr common.Address, implAddr common.Address, callData []byte) (*types.Transaction, error) {
+	var tx *types.Transaction
 	proxy, err := bindings.NewProxy(proxyAddr, backend)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if callData == nil {
-		_, err = proxy.UpgradeTo(opts, implAddr)
+		tx, err = proxy.UpgradeTo(opts, implAddr)
 	} else {
-		_, err = proxy.UpgradeToAndCall(
+		tx, err = proxy.UpgradeToAndCall(
 			opts,
 			implAddr,
 			callData,
 		)
 	}
-	if err == nil {
-		backend.Commit()
-	}
-	return err
+	return tx, err
 }
