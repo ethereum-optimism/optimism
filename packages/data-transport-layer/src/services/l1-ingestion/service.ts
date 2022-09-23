@@ -422,18 +422,45 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
       // Handle events, if any.
       if (events.length > 0) {
         const tick = Date.now()
+        let storeDuration = 0
+        let parseDuration = 0
+        let extraDataDuration = 0
+        let sub = 0
 
         for (const event of events) {
+          const extraDataTick = Date.now()
           const extraData = await handlers.getExtraData(
             event,
             this.state.l1RpcProvider
           )
+          sub = Date.now() - extraDataTick
+          this.logger.info('Processed getExtraData', {
+            eventName,
+            durationMs: sub,
+          })
+          extraDataDuration += sub
+
+          const parseTick = Date.now()
           const parsedEvent = await handlers.parseEvent(
             event,
             extraData,
             this.options.l2ChainId
           )
+          sub = Date.now() - parseTick
+          this.logger.info('Processed parseEvent', {
+            eventName,
+            durationMs: sub,
+          })
+          parseDuration += sub
+
+          const storeTick = Date.now()
           await handlers.storeEvent(parsedEvent, this.state.db)
+          sub = Date.now() - storeTick
+          this.logger.info('Processed storeEvent', {
+            eventName,
+            durationMs: sub,
+          })
+          storeDuration += sub
         }
 
         const tock = Date.now()
@@ -442,6 +469,9 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           eventName,
           numEvents: events.length,
           durationMs: tock - tick,
+          storeDuration,
+          parseDuration,
+          extraDataDuration,
         })
       }
     }
