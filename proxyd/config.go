@@ -95,6 +95,11 @@ type BackendGroupsConfig map[string]*BackendGroupConfig
 
 type MethodMappingsConfig map[string]string
 
+type BatchConfig struct {
+	MaxSize      int    `toml:"max_size"`
+	ErrorMessage string `toml:"error_message"`
+}
+
 type Config struct {
 	WSBackendGroup        string              `toml:"ws_backend_group"`
 	Server                ServerConfig        `toml:"server"`
@@ -104,6 +109,7 @@ type Config struct {
 	RateLimit             RateLimitConfig     `toml:"rate_limit"`
 	BackendOptions        BackendOptions      `toml:"backend"`
 	Backends              BackendsConfig      `toml:"backends"`
+	BatchConfig           BatchConfig         `toml:"batch"`
 	Authentication        map[string]string   `toml:"authentication"`
 	BackendGroups         BackendGroupsConfig `toml:"backend_groups"`
 	RPCMethodMappings     map[string]string   `toml:"rpc_method_mappings"`
