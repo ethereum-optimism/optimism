@@ -789,6 +789,14 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
 
+	log.Trace("ApplyTransaction metrics",
+		"AccountReads", common.PrettyDuration(w.current.state.AccountReads),
+		"StorageReads", common.PrettyDuration(w.current.state.StorageReads),
+		"AccountUpdates", common.PrettyDuration(w.current.state.AccountUpdates),
+		"AccountCommits", common.PrettyDuration(w.current.state.AccountCommits),
+		"StorageUpdates", common.PrettyDuration(w.current.state.StorageUpdates),
+		"StorageCommits", common.PrettyDuration(w.current.state.StorageCommits),
+	)
 	updateTransactionStateMetrics(start, w.current.state)
 
 	return receipt.Logs, nil
