@@ -33,13 +33,13 @@ func TestBatching(t *testing.T) {
 	callMock1 := mockResult{"eth_call", "1", "ekans1"}
 
 	tests := []struct {
-		name                string
-		handler             http.Handler
-		mocks               []mockResult
-		reqs                []*proxyd.RPCReq
-		expectedRes         string
-		maxBatchSize        int
-		numExpectedForwards int
+		name                 string
+		handler              http.Handler
+		mocks                []mockResult
+		reqs                 []*proxyd.RPCReq
+		expectedRes          string
+		maxUpstreamBatchSize int
+		numExpectedForwards  int
 	}{
 		{
 			name:  "backend returns batches out of order",
@@ -49,9 +49,9 @@ func TestBatching(t *testing.T) {
 				NewRPCReq("2", "eth_chainId", nil),
 				NewRPCReq("3", "eth_chainId", nil),
 			},
-			expectedRes:         asArray(chainIDResponse1, chainIDResponse2, chainIDResponse3),
-			maxBatchSize:        2,
-			numExpectedForwards: 2,
+			expectedRes:          asArray(chainIDResponse1, chainIDResponse2, chainIDResponse3),
+			maxUpstreamBatchSize: 2,
+			numExpectedForwards:  2,
 		},
 		{
 			// infura behavior
@@ -65,8 +65,8 @@ func TestBatching(t *testing.T) {
 				`{"error":{"code":-32011,"message":"no backends available for method"},"id":1,"jsonrpc":"2.0"}`,
 				`{"error":{"code":-32011,"message":"no backends available for method"},"id":2,"jsonrpc":"2.0"}`,
 			),
-			maxBatchSize:        10,
-			numExpectedForwards: 1,
+			maxUpstreamBatchSize: 10,
+			numExpectedForwards:  1,
 		},
 		{
 			name:    "backend returns single RPC response object for minibatches",
@@ -79,8 +79,8 @@ func TestBatching(t *testing.T) {
 				`{"error":{"code":-32011,"message":"no backends available for method"},"id":1,"jsonrpc":"2.0"}`,
 				`{"error":{"code":-32011,"message":"no backends available for method"},"id":2,"jsonrpc":"2.0"}`,
 			),
-			maxBatchSize:        1,
-			numExpectedForwards: 2,
+			maxUpstreamBatchSize: 1,
+			numExpectedForwards:  2,
 		},
 		{
 			name: "duplicate request ids are on distinct batches",
@@ -96,9 +96,24 @@ func TestBatching(t *testing.T) {
 				NewRPCReq("1", "eth_chainId", nil),
 				NewRPCReq("1", "eth_call", nil),
 			},
-			expectedRes:         asArray(netVersionResponse1, chainIDResponse2, chainIDResponse1, callResponse1),
-			maxBatchSize:        2,
-			numExpectedForwards: 3,
+			expectedRes:          asArray(netVersionResponse1, chainIDResponse2, chainIDResponse1, callResponse1),
+			maxUpstreamBatchSize: 2,
+			numExpectedForwards:  3,
+		},
+		{
+			name:  "over max size",
+			mocks: []mockResult{},
+			reqs: []*proxyd.RPCReq{
+				NewRPCReq("1", "net_version", nil),
+				NewRPCReq("2", "eth_chainId", nil),
+				NewRPCReq("3", "eth_chainId", nil),
+				NewRPCReq("4", "eth_call", nil),
+				NewRPCReq("5", "eth_call", nil),
+				NewRPCReq("6", "eth_call", nil),
+			},
+			expectedRes:          "{\"error\":{\"code\":-32014,\"message\":\"over batch size custom message\"},\"id\":null,\"jsonrpc\":\"2.0\"}",
+			maxUpstreamBatchSize: 2,
+			numExpectedForwards:  0,
 		},
 		{
 			name: "eth_accounts does not get forwarded",
@@ -109,15 +124,15 @@ func TestBatching(t *testing.T) {
 				NewRPCReq("1", "eth_call", nil),
 				NewRPCReq("2", "eth_accounts", nil),
 			},
-			expectedRes:         asArray(callResponse1, ethAccountsResponse2),
-			maxBatchSize:        2,
-			numExpectedForwards: 1,
+			expectedRes:          asArray(callResponse1, ethAccountsResponse2),
+			maxUpstreamBatchSize: 2,
+			numExpectedForwards:  1,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			config.Server.MaxUpstreamBatchSize = tt.maxBatchSize
+			config.Server.MaxUpstreamBatchSize = tt.maxUpstreamBatchSize
 
 			handler := tt.handler
 			if handler == nil {
