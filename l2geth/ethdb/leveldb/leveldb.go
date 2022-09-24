@@ -170,6 +170,7 @@ func (db *Database) dumpDBMetrics() {
 		logGauge("diskSizeGauge", db.diskSizeGauge)
 		logGauge("memCompGauge", db.memCompGauge)
 		logGauge("level0CompGauge", db.level0CompGauge)
+		logGauge("nonlevel0CompGauge", db.nonlevel0CompGauge)
 		logGauge("seekCompGauge", db.seekCompGauge)
 
 		time.Sleep(metricsGatheringInterval)
