@@ -781,6 +781,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 
 	start := time.Now()
 	receipt, err := core.ApplyTransaction(w.chainConfig, w.chain, &coinbase, w.current.gasPool, w.current.state, w.current.header, tx, &w.current.header.GasUsed, *w.chain.GetVMConfig())
+	log.Trace("commitTransaction - core.ApplyTransaction", "elapsed", common.PrettyDuration(time.Since(start)))
 	if err != nil {
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
@@ -963,9 +964,11 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 		Extra:      w.extra,
 		Time:       tx.L1Timestamp(),
 	}
+	log.Trace("commitNewTx - EnginePrep", "elapsed")
 	if err := w.engine.Prepare(w.chain, header); err != nil {
 		return fmt.Errorf("Failed to prepare header for mining: %w", err)
 	}
+	log.Trace("commitNewTx - EnginePrep done", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	// Could potentially happen if starting to mine in an odd state.
 	err := w.makeCurrent(parent, header)
 	if err != nil {
@@ -975,9 +978,12 @@ func (w *worker) commitNewTx(tx *types.Transaction) error {
 	acc, _ := types.Sender(w.current.signer, tx)
 	transactions[acc] = types.Transactions{tx}
 	txs := types.NewTransactionsByPriceAndNonce(w.current.signer, transactions)
+
+	log.Trace("commitNewTx - commitTransactionsWithError")
 	if err := w.commitTransactionsWithError(txs, w.coinbase, nil); err != nil {
 		return err
 	}
+	log.Trace("commitNewTx - commitTransactionsWithError done", "elapsed", common.PrettyDuration(time.Since(tstart)))
 	return w.commit(nil, w.fullTaskHook, tstart)
 }
 
@@ -1106,6 +1112,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), start time.Time
 	if err != nil {
 		return err
 	}
+	log.Trace("commit: FinalizedAndAssemble", "elapsed", common.PrettyDuration(time.Since(start)))
 
 	// As a sanity check, ensure all new blocks have exactly one
 	// transaction. This check is done here just in case any of our
@@ -1121,8 +1128,10 @@ func (w *worker) commit(uncles []*types.Header, interval func(), start time.Time
 		}
 		// Writing to the taskCh will result in the block being added to the
 		// chain via the resultCh
+		log.Trace("commit: Writing to taskCh")
 		select {
 		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
+			log.Trace("commit: Written to taskCh")
 			w.unconfirmed.Shift(block.NumberU64() - 1)
 
 			feesWei := new(big.Int)
