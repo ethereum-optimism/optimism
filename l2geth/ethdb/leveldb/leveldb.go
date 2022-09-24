@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
+//go:build !js
 // +build !js
 
 // Package leveldb implements the key-value database layer based on LevelDB.
@@ -130,7 +131,49 @@ func New(file string, cache int, handles int, namespace string) (*Database, erro
 
 	// Start up the metrics gathering and return
 	go ldb.meter(metricsGatheringInterval)
+	go ldb.dumpDBMetrics()
 	return ldb, nil
+}
+
+type metricsLogger struct {
+	logger log.Logger
+}
+
+func (m *metricsLogger) Printf(format string, v ...interface{}) {
+	m.logger.Info(format, v...)
+}
+
+func (db *Database) dumpDBMetrics() {
+	logMeter := func(name string, metric metrics.Meter) {
+		m := metric.Snapshot()
+		db.log.Trace("db meter",
+			"name", name,
+			"count", m.Count(),
+			"rate1", m.Rate1(),
+			"rate5", m.Rate5(),
+			"rate15", m.Rate15(),
+			"rateMean", m.RateMean(),
+		)
+	}
+	logGauge := func(name string, metric metrics.Gauge) {
+		db.log.Trace("db gauge", "name", name, "value", metric.Value())
+	}
+
+	for {
+		logMeter("compTimeMeter", db.compTimeMeter)
+		logMeter("compReadMeter", db.compReadMeter)
+		logMeter("compWriteMeter", db.compWriteMeter)
+		logMeter("diskReadMeter", db.diskReadMeter)
+		logMeter("diskWriteMeter", db.diskWriteMeter)
+		logMeter("writeDelayMeter", db.writeDelayMeter)
+
+		logGauge("diskSizeGauge", db.diskSizeGauge)
+		logGauge("memCompGauge", db.memCompGauge)
+		logGauge("level0CompGauge", db.level0CompGauge)
+		logGauge("seekCompGauge", db.seekCompGauge)
+
+		time.Sleep(metricsGatheringInterval)
+	}
 }
 
 // Close stops the metrics collection, flushes any pending data to disk and closes
