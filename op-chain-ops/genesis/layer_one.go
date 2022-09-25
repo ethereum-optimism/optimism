@@ -250,6 +250,9 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: "L1StandardBridge",
 		},
 		{
+			Name: "L1ERC721Bridge",
+		},
+		{
 			Name: "OptimismMintableERC20Factory",
 		},
 		{
@@ -326,6 +329,13 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployWETH9(
 			opts,
 			backend,
+		)
+	case "L1ERC721Bridge":
+		_, tx, _, err = bindings.DeployL1ERC721Bridge(
+			opts,
+			backend,
+			predeploys.DevL1CrossDomainMessengerAddr,
+			predeploys.L2ERC721BridgeAddr,
 		)
 	default:
 		if strings.HasSuffix(deployment.Name, "Proxy") {
