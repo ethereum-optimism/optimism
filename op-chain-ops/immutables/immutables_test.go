@@ -1,6 +1,7 @@
 package immutables_test
 
 import (
+	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
@@ -16,21 +17,29 @@ func TestBuildOptimism(t *testing.T) {
 		"L2CrossDomainMessenger": {
 			"otherMessenger": common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
+		"L2ERC721Bridge": {
+			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		"OptimismMintableERC721Factory": {
+			"remoteChainId": big.NewInt(1),
+		},
 	})
 	require.Nil(t, err)
 	require.NotNil(t, results)
 
 	contracts := map[string]bool{
-		"GasPriceOracle":               true,
-		"L1Block":                      true,
-		"L2CrossDomainMessenger":       true,
-		"L2StandardBridge":             true,
-		"L2ToL1MessagePasser":          true,
-		"SequencerFeeVault":            true,
-		"OptimismMintableERC20Factory": true,
-		"DeployerWhitelist":            true,
-		"LegacyMessagePasser":          true,
-		"L1BlockNumber":                true,
+		"GasPriceOracle":                true,
+		"L1Block":                       true,
+		"L2CrossDomainMessenger":        true,
+		"L2StandardBridge":              true,
+		"L2ToL1MessagePasser":           true,
+		"SequencerFeeVault":             true,
+		"OptimismMintableERC20Factory":  true,
+		"DeployerWhitelist":             true,
+		"LegacyMessagePasser":           true,
+		"L1BlockNumber":                 true,
+		"L2ERC721Bridge":                true,
+		"OptimismMintableERC721Factory": true,
 	}
 
 	// Only the exact contracts that we care about are being
