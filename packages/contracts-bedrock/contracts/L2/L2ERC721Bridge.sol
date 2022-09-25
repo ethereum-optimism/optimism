@@ -51,65 +51,15 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyOtherBridge {
-        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
-            // slither-disable-next-line reentrancy-events
-            emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        } catch {
-            // Either the L2 token which is being deposited-into disagrees about the correct address
-            // of its L1 token, or does not support the correct interface.
-            // This should only happen if there is a malicious L2 token, or if a user somehow
-            // specified the wrong L2 token address to deposit into.
-            // There is no way to prevent malicious token contracts altogether, but this does limit
-            // user error and mitigate some forms of malicious contract behavior.
-            /// In either case, we stop the process here and construct a withdrawal in which we
-            // flip the to and from addresses. This ensures that event-based accounting
-            // will indicate net-zero transfer to the recipient. The ERC721BridgeFailed event
-            // emitted below can also be used to identify this occurence.
-            bytes memory message = abi.encodeWithSelector(
-                L1ERC721Bridge.finalizeBridgeERC721.selector,
-                _remoteToken,
-                _localToken,
-                _to,
-                _from, // Refund the NFT to the original owner on the remote chain.
-                _tokenId,
-                _extraData
-            );
-
-            // Send the message to the L1 bridge
-            // slither-disable-next-line reentrancy-events
-            messenger.sendMessage(otherBridge, message, 0);
-
-            // slither-disable-next-line reentrancy-events
-            emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        }
-    }
-
-    /**
-     * @notice Completes an outbound token transfer. Public function, but can only be called by
-     *         this contract. It's security critical that there be absolutely no way for anyone to
-     *         trigger this function, except by explicit trigger within this contract. Used as a
-     *         simple way to be able to try/catch any type of revert that could occur during an
-     *         ERC721 mint/transfer.
-     *
-     * @param _localToken  Address of the ERC721 on this chain.
-     * @param _remoteToken Address of the corresponding token on the remote chain.
-     * @param _to          Address of the receiver.
-     * @param _tokenId     ID of the token being deposited.
-     */
-    function completeOutboundTransfer(
-        address _localToken,
-        address _remoteToken,
-        address _to,
-        uint256 _tokenId
-    ) external onlySelf {
         require(_localToken != address(this), "L2ERC721Bridge: local token cannot be self");
 
+        // Note that supportsInterface makes a callback to the _localToken address which is user
+        // provided.
         require(
-            // Note that supportsInterface makes a callback to the _localToken address
-            // which is user provided.
             ERC165Checker.supportsInterface(_localToken, type(IOptimismMintableERC721).interfaceId),
             "L2ERC721Bridge: local token interface is not compliant"
         );
+
         require(
             _remoteToken == IOptimismMintableERC721(_localToken).remoteToken(),
             "L2ERC721Bridge: wrong remote token for Optimism Mintable ERC721 local token"
@@ -118,6 +68,9 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         // When a deposit is finalized, we give the NFT with the same tokenId to the account
         // on L2. Note that safeMint makes a callback to the _to address which is user provided.
         IOptimismMintableERC721(_localToken).safeMint(_to, _tokenId);
+
+        // slither-disable-next-line reentrancy-events
+        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 
     /**
