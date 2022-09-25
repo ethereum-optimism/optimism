@@ -69,7 +69,7 @@ async function pageTable() {
                             <th scope="col">L1Head</th>
                             <th scope="col">L1Current</th>
                             <th scope="col">L2Head</th>
-                            <th scope="col">L2SafeHead</th>
+                            <th scope="col">L2Safe</th>
                             <th scope="col">L2FinalizedHead</th>
                         </tr>
                     </thead>
@@ -100,8 +100,8 @@ async function pageTable() {
                         <td title="${tooltipFormat(e.l2Head)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2Head.hash)};">
                             ${prettyHex(e.l2Head.hash)}
                         </td>
-                        <td title="${tooltipFormat(e.l2SafeHead)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2SafeHead.hash)};">
-                            ${prettyHex(e.l2SafeHead.hash)}
+                        <td title="${tooltipFormat(e.l2Safe)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2Safe.hash)};">
+                            ${prettyHex(e.l2Safe.hash)}
                         </td>
                         <td title="${tooltipFormat(e.l2FinalizedHead)}" data-bs-html="true" data-toggle="tooltip" style="background-color:${colorCode(e.l2FinalizedHead.hash)};">
                             ${prettyHex(e.l2FinalizedHead.hash)}

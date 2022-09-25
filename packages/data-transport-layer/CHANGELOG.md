@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.5.46
+
+### Patch Changes
+
+- cf3fcf41: Optimization for mainnet under the assumption that addresses do not change.
+
 ## 0.5.45
 
 ### Patch Changes

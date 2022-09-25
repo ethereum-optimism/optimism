@@ -1,5 +1,15 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.0
+
+### Major Changes
+
+- 5c3f2b1f: Fixes NFT bridge related contracts in response to the OpenZeppelin audit. Updates tests to support these changes, including integration tests.
+
+### Patch Changes
+
+- 3883f34b: Remove ERC721Refunded events
+
 ## 0.2.4
 
 ### Patch Changes

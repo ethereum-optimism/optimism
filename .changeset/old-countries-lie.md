@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-periphery': patch
 ---
 
-Remove ERC721Refunded events
+Remove ownable upgradable from erc721 factory

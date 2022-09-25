@@ -1,5 +1,12 @@
 # @eth-optimism/ci-builder
 
+## 0.3.2
+
+### Patch Changes
+
+- fcfcf6e7: Remove ugly shell hack
+- 009939e0: Fix codecov download step
+
 ## 0.3.1
 
 ### Patch Changes

@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
+
 type ChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
@@ -153,6 +155,9 @@ func blockToBatch(block *types.Block, w io.Writer) error {
 		opaqueTxs = append(opaqueTxs, otx)
 	}
 	l1InfoTx := block.Transactions()[0]
+	if l1InfoTx.Type() != types.DepositTxType {
+		return ErrNotDepositTx
+	}
 	l1Info, err := L1InfoDepositTxData(l1InfoTx.Data())
 	if err != nil {
 		return err // TODO: wrap err
