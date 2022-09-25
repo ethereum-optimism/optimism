@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const SequencerFeeVaultStorageLayoutJSON = "{\"storage\":[{\"astId\":2741,\"contract\":\"contracts/L2/SequencerFeeVault.sol:SequencerFeeVault\",\"label\":\"l1FeeWallet\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"}}}"
+const SequencerFeeVaultStorageLayoutJSON = "{\"storage\":[{\"astId\":3262,\"contract\":\"contracts/L2/SequencerFeeVault.sol:SequencerFeeVault\",\"label\":\"l1FeeWallet\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"}}}"
 
 var SequencerFeeVaultStorageLayout = new(solc.StorageLayout)
 

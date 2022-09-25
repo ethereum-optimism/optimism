@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const DeployerWhitelistStorageLayoutJSON = "{\"storage\":[{\"astId\":2900,\"contract\":\"contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist\",\"label\":\"owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":2905,\"contract\":\"contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist\",\"label\":\"whitelist\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"}}}"
+const DeployerWhitelistStorageLayoutJSON = "{\"storage\":[{\"astId\":3421,\"contract\":\"contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist\",\"label\":\"owner\",\"offset\":0,\"slot\":\"0\",\"type\":\"t_address\"},{\"astId\":3426,\"contract\":\"contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist\",\"label\":\"whitelist\",\"offset\":0,\"slot\":\"1\",\"type\":\"t_mapping(t_address,t_bool)\"}],\"types\":{\"t_address\":{\"encoding\":\"inplace\",\"label\":\"address\",\"numberOfBytes\":\"20\"},\"t_bool\":{\"encoding\":\"inplace\",\"label\":\"bool\",\"numberOfBytes\":\"1\"},\"t_mapping(t_address,t_bool)\":{\"encoding\":\"mapping\",\"label\":\"mapping(address =\u003e bool)\",\"numberOfBytes\":\"32\",\"key\":\"t_address\",\"value\":\"t_bool\"}}}"
 
 var DeployerWhitelistStorageLayout = new(solc.StorageLayout)
 
