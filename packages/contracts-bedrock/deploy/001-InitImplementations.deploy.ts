@@ -5,6 +5,8 @@ import 'hardhat-deploy'
 import '@nomiclabs/hardhat-ethers'
 import '@eth-optimism/hardhat-deploy-config'
 
+import { predeploys } from '../src/constants'
+
 const upgradeABIs = {
   L2OutputOracleProxy: async (deployConfig) => [
     'initialize(bytes32,uint256,address,address)',
@@ -40,6 +42,7 @@ const deployFn: DeployFunction = async (hre) => {
   const portalProxy = await get('OptimismPortalProxy')
   const messengerProxy = await get('L1CrossDomainMessengerProxy')
   const bridgeProxy = await get('L1StandardBridgeProxy')
+  const erc721BridgeProxy = await get('L1ERC721BridgeProxy')
 
   let nonce = await l1.getTransactionCount(deployer)
   const implTxs = [
@@ -101,6 +104,13 @@ const deployFn: DeployFunction = async (hre) => {
       waitConfirmations: deployConfig.deploymentWaitConfirmations,
       nonce: ++nonce,
     }),
+    deploy('L1ERC721Bridge', {
+      from: deployer,
+      args: [messengerProxy.address, predeploys.L2ERC721Bridge],
+      log: true,
+      waitConfirmations: deployConfig.waitConfirmations,
+      nonce: ++nonce,
+    }),
   ]
   await Promise.all(implTxs)
 
@@ -155,11 +165,23 @@ const deployFn: DeployFunction = async (hre) => {
   await tx.wait()
   console.log('Done')
 
+  const erc721Bridge = await get('L1ERC721Bridge')
+  const erc721BridgeProxyContract = await hre.ethers.getContractAt(
+    'Proxy',
+    erc721BridgeProxy.address
+  )
+  console.log(`Upgrading L1ERC721Bridge at ${erc721Bridge.address}`)
+  tx = await erc721BridgeProxyContract.upgradeTo(erc721Bridge.address)
+  console.log(`Awaiting TX hash ${tx.hash}.`)
+  await tx.wait()
+  console.log('Done')
+
   await validateOracle(hre, deployConfig, deployL2StartingTimestamp)
   await validatePortal(hre)
   await validateMessenger(hre)
   await validateBridge(hre)
   await validateTokenFactory(hre)
+  await validateERC721Bridge(hre)
 }
 
 const validateOracle = async (hre, deployConfig, deployL2StartingTimestamp) => {
@@ -242,6 +264,23 @@ const validateBridge = async (hre) => {
   )
   if (messenger.address !== (await L1StandardBridge.messenger())) {
     throw new Error('misconfigured messenger')
+  }
+}
+
+// The messenger address should be set to the proxy messenger
+// The other bridge should be set to the predeploy on L2
+const validateERC721Bridge = async (hre) => {
+  const messenger = await hre.deployments.get('L1CrossDomainMessengerProxy')
+  const proxy = await hre.deployments.get('L1ERC721BridgeProxy')
+  const L1ERC721Bridge = await hre.ethers.getContractAt(
+    'L1ERC721Bridge',
+    proxy.address
+  )
+  if (messenger.address !== (await L1ERC721Bridge.messenger())) {
+    throw new Error('misconfigured messenger')
+  }
+  if ((await L1ERC721Bridge.otherBridge()) !== predeploys.L2ERC721Bridge) {
+    throw new Error('misconfigured otherBridge')
   }
 }
 
