@@ -146,7 +146,7 @@ func TestWithdrawalLegacyStorageSlot(t *testing.T) {
 
 			// Get the account out of the state diff that corresponds
 			// to the L2ToL1MessagePasser
-			messagePasser, ok := diff[predeploys.L2ToL1MessagePasserAddr]
+			messagePasser, ok := diff[predeploys.LegacyMessagePasserAddr]
 			require.True(t, ok)
 
 			// The computed storage slot must be in the state diff. Note
@@ -186,7 +186,7 @@ func FuzzEncodeDecodeLegacyWithdrawal(f *testing.F) {
 // against the calldata
 func findPassMessage(trace *callFrame) *callFrame {
 	isCall := trace.Type == "CALL"
-	isTarget := trace.To == predeploys.L2ToL1MessagePasser
+	isTarget := trace.To == predeploys.LegacyMessagePasser
 	isFrom := trace.From == predeploys.L2CrossDomainMessenger
 	if isCall && isTarget && isFrom {
 		return trace
