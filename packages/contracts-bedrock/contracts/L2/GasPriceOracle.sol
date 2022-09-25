@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Semver } from "../universal/Semver.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { CrossDomainOwnable } from "./CrossDomainOwnable.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
@@ -16,7 +16,7 @@ import { L1Block } from "../L2/L1Block.sol";
  *         contract exposes an API that is useful for knowing how large the L1 portion of their
  *         transaction fee will be.
  */
-contract GasPriceOracle is Ownable, Semver {
+contract GasPriceOracle is CrossDomainOwnable, Semver {
     /**
      * @custom:legacy
      * @custom:spacer gasPrice
@@ -44,7 +44,7 @@ contract GasPriceOracle is Ownable, Semver {
     /**
      * @notice Number of decimals used in the scalar.
      */
-    uint256 public decimals;
+    uint256 public decimals = 6;
 
     /**
      * @notice Emitted when the overhead value is updated.
@@ -66,16 +66,14 @@ contract GasPriceOracle is Ownable, Semver {
      *
      * @param _owner Address that will initially own this contract.
      */
-    constructor(address _owner) Ownable() Semver(0, 0, 1) {
-        transferOwnership(_owner);
-    }
+    constructor(address _owner) CrossDomainOwnable(_owner) Semver(0, 0, 1) {}
 
     /**
      * @notice Allows the owner to modify the overhead.
      *
      * @param _overhead New overhead value.
      */
-    function setOverhead(uint256 _overhead) external onlyOwner {
+    function setOverhead(uint256 _overhead) external onlyCrossDomainOwner {
         overhead = _overhead;
         emit OverheadUpdated(_overhead);
     }
@@ -85,20 +83,20 @@ contract GasPriceOracle is Ownable, Semver {
      *
      * @param _scalar New scalar value.
      */
-    function setScalar(uint256 _scalar) external onlyOwner {
+    function setScalar(uint256 _scalar) external onlyCrossDomainOwner {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
     }
 
     /**
-     * @notice Allows the owner to modify the decimals.
-     *
-     * @param _decimals New decimals value.
-     */
-    function setDecimals(uint256 _decimals) external onlyOwner {
-        decimals = _decimals;
-        emit DecimalsUpdated(_decimals);
-    }
+      * @notice Allows the owner to modify the decimals.
+      *
+      * @param _decimals New decimals value.
+      */
+     function setDecimals(uint256 _decimals) external onlyOwner {
+         decimals = _decimals;
+         emit DecimalsUpdated(_decimals);
+     }
 
     /**
      * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
