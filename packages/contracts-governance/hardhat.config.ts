@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-etherscan'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
 import 'solidity-coverage'
+import '@eth-optimism/hardhat-deploy-config'
 
 import './scripts/deploy-token'
 import './scripts/multi-send'
