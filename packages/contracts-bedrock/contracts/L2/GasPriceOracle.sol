@@ -73,7 +73,7 @@ contract GasPriceOracle is CrossDomainOwnable, Semver {
      *
      * @param _overhead New overhead value.
      */
-    function setOverhead(uint256 _overhead) external onlyCrossDomainOwner {
+    function setOverhead(uint256 _overhead) external onlyOwner {
         overhead = _overhead;
         emit OverheadUpdated(_overhead);
     }
@@ -83,7 +83,7 @@ contract GasPriceOracle is CrossDomainOwnable, Semver {
      *
      * @param _scalar New scalar value.
      */
-    function setScalar(uint256 _scalar) external onlyCrossDomainOwner {
+    function setScalar(uint256 _scalar) external onlyOwner {
         scalar = _scalar;
         emit ScalarUpdated(_scalar);
     }

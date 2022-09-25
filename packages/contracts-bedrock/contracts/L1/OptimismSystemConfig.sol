@@ -9,42 +9,76 @@ import { OptimismPortal } from "./OptimismPortal.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 
-//
+/**
+ * @title OptimismSystemConfig
+ * @notice This contract...
+ *
+ *         TODO:
+ *           - set batcher key
+ *           - set p2p key
+ */
 contract OptimismSystemConfig is OwnableUpgradeable, Semver {
-
+    /**
+     *
+     */
     uint256 public overhead;
+
+    /**
+     *
+     */
     uint256 public scalar;
 
+    /**
+     *
+     */
     OptimismPortal public portal;
 
+    /**
+     *
+     */
     event OverheadUpdated(uint256 overhead);
+
+    /**
+     *
+     */
     event ScalarUpdated(uint256 scalar);
 
+    /**
+     * @custom:semver 0.0.1
+     *
+     * @param _owner Address that will initially own this contract.
+     * @param _portal Address of the OptimismPortal
+     * @param _overhead Initial value of GasPriceOracle overhead
+     * @param _scalar Initial value of the GasPriceOracle scalar
+     */
     constructor(
+        address _owner,
         OptimismPortal _portal,
         uint256 _overhead,
         uint256 _scalar
     ) Semver(0, 0, 1) {
-        portal = _portal;
-        overhead = _overhead;
-        scalar = _scalar;
-
-        initialize(_portal, _overhead, _scalar);
+        initialize(_owner, _portal, _overhead, _scalar);
     }
 
+    /**
+     * @notice
+     */
     function initialize(
+        address _owner,
         OptimismPortal _portal,
         uint256 _overhead,
         uint256 _scalar
-    ) public {
+    ) public initializer {
         portal = _portal;
         overhead = _overhead;
         scalar = _scalar;
+
+        _transferOwnership(_owner);
     }
 
-    // set batcher key
-    // set p2p key
-
+    /**
+     * @notice
+     */
     function setOverhead(uint256 _overhead) external {
         overhead = _overhead;
 
@@ -59,6 +93,9 @@ contract OptimismSystemConfig is OwnableUpgradeable, Semver {
         emit ScalarUpdated(_overhead);
     }
 
+    /**
+     * @notice
+     */
     function setScalar(uint256 _scalar) external {
         scalar = _scalar;
 
@@ -73,6 +110,9 @@ contract OptimismSystemConfig is OwnableUpgradeable, Semver {
         emit OverheadUpdated(_scalar);
     }
 
+    /**
+     *
+     */
     function _callOptimismPortal(address _to, bytes memory _data) internal {
         portal.depositTransaction(
             _to,

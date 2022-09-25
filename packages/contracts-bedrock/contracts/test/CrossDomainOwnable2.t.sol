@@ -11,6 +11,8 @@ import { Encoding } from "../libraries/Encoding.sol";
 contract XDomainSetter2 is CrossDomainOwnable2 {
     uint256 public value;
 
+    constructor(address _owner) CrossDomainOwnable2(_owner) {}
+
     function set(uint256 _value) external onlyOwner {
         value = _value;
     }
@@ -22,7 +24,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
     function setUp() override public {
         super.setUp();
         vm.prank(alice);
-        setter = new XDomainSetter2();
+        setter = new XDomainSetter2(msg.sender);
     }
 
     function test_revertNotSetOnlyOwner() external {

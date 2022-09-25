@@ -10,6 +10,8 @@ import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32Addres
 contract XDomainSetter is CrossDomainOwnable {
     uint256 public value;
 
+    constructor(address _owner) CrossDomainOwnable(msg.sender) {}
+
     function set(uint256 _value) external onlyOwner {
         value = _value;
     }
@@ -19,7 +21,7 @@ contract CrossDomainOwnable_Test is CommonTest {
     XDomainSetter setter;
 
     function setUp() external {
-        setter = new XDomainSetter();
+        setter = new XDomainSetter(address(this));
     }
 
     // Check that the revert message is correct
@@ -51,7 +53,7 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         super.setUp();
 
         vm.prank(alice);
-        setter = new XDomainSetter();
+        setter = new XDomainSetter(address(this));
     }
 
     function test_depositTransaction_crossDomainOwner() external {

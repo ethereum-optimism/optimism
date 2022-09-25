@@ -15,6 +15,17 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
  */
 abstract contract CrossDomainOwnable2 is Ownable {
     /**
+     * @notice Set the owner of the contract. OpenZeppelin's ownable by default
+     *         will set the owner of the contract to be `msg.sender` and it is
+     *         up to the implementer to transfer the ownership if using the
+     *         deployer as the owner is not desired. This makes ownership
+     *         transfer much more explicit.
+     */
+    constructor(address _owner) {
+        _transferOwnership(_owner);
+    }
+
+    /**
      * @notice Overrides the implementation of the `onlyOwner` modifier
      *         to check that the unaliased `xDomainMessageSender`
      *         is the owner of the contract. This value is set

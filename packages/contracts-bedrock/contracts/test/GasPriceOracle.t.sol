@@ -5,6 +5,7 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 import { L1Block } from "../L2/L1Block.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
+import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 
 contract GasPriceOracle_Test is CommonTest {
 
@@ -12,9 +13,9 @@ contract GasPriceOracle_Test is CommonTest {
     event ScalarUpdated(uint256);
     event DecimalsUpdated(uint256);
 
-    GasPriceOracle gasOracle;
-    L1Block l1Block;
-    address depositor;
+    GasPriceOracle internal gasOracle;
+    L1Block internal l1Block;
+    address internal depositor;
 
     function setUp() external {
         // place the L1Block contract at the predeploy address
@@ -49,13 +50,16 @@ contract GasPriceOracle_Test is CommonTest {
     }
 
     function test_owner() external {
+        address owner = gasOracle.owner();
         // alice is passed into the constructor of the gasOracle
-        assertEq(gasOracle.owner(), alice);
+        assertEq(owner, alice);
     }
 
     function test_storageLayout() external {
+        address owner = gasOracle.owner();
+
         // the overhead is at slot 3
-        vm.prank(gasOracle.owner());
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         gasOracle.setOverhead(456);
         assertEq(
             456,
@@ -63,7 +67,7 @@ contract GasPriceOracle_Test is CommonTest {
         );
 
         // scalar is at slot 4
-        vm.prank(gasOracle.owner());
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         gasOracle.setScalar(333);
         assertEq(
             333,
@@ -71,7 +75,7 @@ contract GasPriceOracle_Test is CommonTest {
         );
 
         // decimals is at slot 5
-        vm.prank(gasOracle.owner());
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         assertEq(
             6,
             uint256(vm.load(address(gasOracle), bytes32(uint256(5))))
@@ -96,7 +100,8 @@ contract GasPriceOracle_Test is CommonTest {
     }
 
     function test_setGasPriceReverts() external {
-        vm.prank(gasOracle.owner());
+        address owner = gasOracle.owner();
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature(
                 "setGasPrice(uint256)",
@@ -109,7 +114,8 @@ contract GasPriceOracle_Test is CommonTest {
     }
 
     function test_setL1BaseFeeReverts() external {
-        vm.prank(gasOracle.owner());
+        address owner = gasOracle.owner();
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature(
                 "setL1BaseFee(uint256)",
@@ -125,13 +131,14 @@ contract GasPriceOracle_Test is CommonTest {
         vm.expectEmit(true, true, true, true);
         emit OverheadUpdated(1234);
 
-        vm.prank(gasOracle.owner());
+        address owner = gasOracle.owner();
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         gasOracle.setOverhead(1234);
         assertEq(gasOracle.overhead(), 1234);
     }
 
     function test_onlyOwnerSetOverhead() external {
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert("CrossDomainOwnable: caller is not the owner");
         gasOracle.setOverhead(0);
     }
 
@@ -139,27 +146,29 @@ contract GasPriceOracle_Test is CommonTest {
         vm.expectEmit(true, true, true, true);
         emit ScalarUpdated(666);
 
-        vm.prank(gasOracle.owner());
+        address owner = gasOracle.owner();
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
         gasOracle.setScalar(666);
         assertEq(gasOracle.scalar(), 666);
     }
 
     function test_onlyOwnerSetScalar() external {
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert("CrossDomainOwnable: caller is not the owner");
         gasOracle.setScalar(0);
     }
 
-     function test_setDecimals() external {
-         vm.expectEmit(true, true, true, true);
-         emit DecimalsUpdated(18);
+    function test_setDecimals() external {
+        vm.expectEmit(true, true, true, true);
+        emit DecimalsUpdated(18);
 
-         vm.prank(gasOracle.owner());
-         gasOracle.setDecimals(18);
-         assertEq(gasOracle.decimals(), 18);
-     }
+        address owner = gasOracle.owner();
+        vm.prank(AddressAliasHelper.applyL1ToL2Alias(owner));
+        gasOracle.setDecimals(18);
+        assertEq(gasOracle.decimals(), 18);
+    }
 
      function test_onlyOwnerSetDecimals() external {
-         vm.expectRevert("Ownable: caller is not the owner");
+         vm.expectRevert("CrossDomainOwnable: caller is not the owner");
          gasOracle.setDecimals(0);
      }
 }
