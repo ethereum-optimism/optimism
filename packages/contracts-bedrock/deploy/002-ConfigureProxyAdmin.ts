@@ -14,6 +14,7 @@ const deployFn: DeployFunction = async (hre) => {
     'L1StandardBridgeProxy',
     'OptimismPortalProxy',
     'OptimismMintableERC20FactoryProxy',
+    'L1ERC721BridgeProxy',
   ]
 
   // Wait on all the txs in parallel so that the deployment goes faster
