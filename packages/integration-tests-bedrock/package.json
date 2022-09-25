@@ -29,7 +29,7 @@
   "devDependencies": {
     "@eth-optimism/contracts": "0.5.36",
     "@eth-optimism/core-utils": "0.10.1",
-    "@eth-optimism/sdk": "1.6.4",
+    "@eth-optimism/sdk": "1.6.5",
     "@ethersproject/abstract-provider": "^5.7.0",
     "chai-as-promised": "^7.1.1",
     "chai": "^4.3.4",

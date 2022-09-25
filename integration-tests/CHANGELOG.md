@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.19
+
+### Patch Changes
+
+- 5c3f2b1f: Fixes NFT bridge related contracts in response to the OpenZeppelin audit. Updates tests to support these changes, including integration tests.
+
 ## 0.5.18
 
 ### Patch Changes

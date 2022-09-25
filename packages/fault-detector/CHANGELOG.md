@@ -1,5 +1,16 @@
 # @eth-optimism/fault-detector
 
+## 0.3.0
+
+### Minor Changes
+
+- 4a5e1832: Updates metrics to use better labels.
+
+### Patch Changes
+
+- Updated dependencies [e2faaa8b]
+  - @eth-optimism/sdk@1.6.5
+
 ## 0.2.7
 
 ### Patch Changes
