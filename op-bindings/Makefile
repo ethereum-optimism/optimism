@@ -23,7 +23,9 @@ bindings: l1block-bindings \
 	erc20-bindings \
 	weth9-bindings \
 	deployer-whitelist-bindings \
-	l2-erc721-bridge-bindings
+	l2-erc721-bridge-bindings \
+	l1-erc721-bridge-bindings \
+	optimism-mintable-erc721-factory-bindings
 
 version:
 	forge --version
@@ -65,6 +67,12 @@ l2-standard-bridge-bindings: compile
 
 l2-erc721-bridge-bindings:
 	./gen_bindings.sh contracts/L2/L2ERC721Bridge.sol:L2ERC721Bridge $(pkg)
+
+l1-erc721-bridge-bindings:
+	./gen_bindings.sh contracts/L1/L1ERC721Bridge.sol:L1ERC721Bridge $(pkg)
+
+optimism-mintable-erc721-factory-bindings:
+	./gen_bindings.sh contracts/universal/OptimismMintableERC721Factory.sol:OptimismMintableERC721Factory $(pkg)
 
 sequencer-fee-vault-bindings: compile
 	./gen_bindings.sh contracts/L2/SequencerFeeVault.sol:SequencerFeeVault $(pkg)
