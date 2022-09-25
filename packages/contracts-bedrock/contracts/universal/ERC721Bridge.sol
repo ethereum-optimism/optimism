@@ -29,24 +29,6 @@ abstract contract ERC721Bridge {
     );
 
     /**
-     * @notice Emitted when an NFT is refunded to the owner after an ERC721 bridge from the other
-     *         chain fails.
-     *
-     * @param localToken  Address of the token on this domain.
-     * @param remoteToken Address of the token on the remote domain.
-     * @param to          Address to receive the refunded token.
-     * @param tokenId     ID of the specific token being refunded.
-     * @param extraData   Extra data for use on the client-side.
-     */
-    event ERC721Refunded(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed to,
-        uint256 tokenId,
-        bytes extraData
-    );
-
-    /**
      * @notice Emitted when an ERC721 bridge from the other network is finalized.
      *
      * @param localToken  Address of the token on this domain.
@@ -57,25 +39,6 @@ abstract contract ERC721Bridge {
      * @param extraData   Extra data for use on the client-side.
      */
     event ERC721BridgeFinalized(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
-        uint256 tokenId,
-        bytes extraData
-    );
-
-    /**
-     * @notice Emitted when an ERC721 bridge from the other network fails.
-     *
-     * @param localToken  Address of the token on this domain.
-     * @param remoteToken Address of the token on the remote domain.
-     * @param from        Address that initiated bridging action.
-     * @param to          Address to receive the token.
-     * @param tokenId     ID of the specific token deposited.
-     * @param extraData   Extra data for use on the client-side.
-     */
-    event ERC721BridgeFailed(
         address indexed localToken,
         address indexed remoteToken,
         address indexed from,
@@ -111,18 +74,13 @@ abstract contract ERC721Bridge {
     }
 
     /**
-     * @notice Ensures that the caller is this contract.
-     */
-    modifier onlySelf() {
-        require(msg.sender == address(this), "ERC721Bridge: function can only be called by self");
-        _;
-    }
-
-    /**
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
     constructor(address _messenger, address _otherBridge) {
+        require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
+        require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
+
         messenger = CrossDomainMessenger(_messenger);
         otherBridge = _otherBridge;
     }
