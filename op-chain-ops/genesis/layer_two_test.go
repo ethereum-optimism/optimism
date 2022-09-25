@@ -77,7 +77,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
 		require.Equal(t, account.Code, depB)
 	}
-	require.Equal(t, 2338, len(gen.Alloc))
+	require.Equal(t, 2340, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
@@ -102,5 +102,5 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 		ProxyAdmin: common.Address{},
 	})
 	require.NoError(t, err)
-	require.Equal(t, 2317, len(gen.Alloc))
+	require.Equal(t, 2319, len(gen.Alloc))
 }

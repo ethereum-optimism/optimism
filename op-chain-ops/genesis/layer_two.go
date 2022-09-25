@@ -12,6 +12,7 @@ type L2Addresses struct {
 	ProxyAdmin                  common.Address
 	L1StandardBridgeProxy       common.Address
 	L1CrossDomainMessengerProxy common.Address
+	L1ERC721BridgeProxy         common.Address
 }
 
 // BuildL2DeveloperGenesis will build the developer Optimism Genesis
@@ -57,6 +58,7 @@ func BuildL2Genesis(db *state.MemoryStateDB, config *DeployConfig, l1Block *type
 		l1Block,
 		l2Addrs.L1StandardBridgeProxy,
 		l2Addrs.L1CrossDomainMessengerProxy,
+		l2Addrs.L1ERC721BridgeProxy,
 	)
 	if err != nil {
 		return nil, err
