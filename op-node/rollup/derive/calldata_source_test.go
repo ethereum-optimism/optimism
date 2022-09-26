@@ -1,10 +1,7 @@
 package derive
 
 import (
-	"context"
 	"crypto/ecdsa"
-	"fmt"
-	"io"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -45,61 +42,15 @@ func (tx *testTx) Create(t *testing.T, signer types.Signer, rng *rand.Rand) *typ
 	return out
 }
 
-type calldataTestSetup struct {
-	inboxPriv   *ecdsa.PrivateKey
-	batcherPriv *ecdsa.PrivateKey
-	cfg         *rollup.Config
-	signer      types.Signer
-}
-
 type calldataTest struct {
 	name string
 	txs  []testTx
-	err  error
 }
 
-func (ct *calldataTest) Run(t *testing.T, setup *calldataTestSetup) {
-	rng := rand.New(rand.NewSource(1234))
-	l1Src := &testutils.MockL1Source{}
-	txs := make([]*types.Transaction, len(ct.txs))
-
-	expectedData := make([]eth.Data, 0)
-
-	for i, tx := range ct.txs {
-		txs[i] = tx.Create(t, setup.signer, rng)
-		if tx.good {
-			expectedData = append(expectedData, txs[i].Data())
-		}
-	}
-
-	info := testutils.RandomBlockInfo(rng)
-	l1Src.ExpectInfoAndTxsByHash(info.Hash(), info, txs, ct.err)
-
-	defer l1Src.Mock.AssertExpectations(t)
-
-	src := NewCalldataSource(testlog.Logger(t, log.LvlError), setup.cfg, l1Src)
-	dataIter, err := src.OpenData(context.Background(), info.ID())
-
-	if ct.err != nil {
-		require.ErrorIs(t, err, ct.err)
-		return
-	}
-	require.NoError(t, err)
-
-	for {
-		dat, err := dataIter.Next(context.Background())
-		if err == io.EOF {
-			break
-		}
-		require.NoError(t, err)
-		require.Equal(t, dat, expectedData[0], "data must match next expected value")
-		expectedData = expectedData[1:]
-	}
-	require.Len(t, expectedData, 0, "all expected data should have been read")
-}
-
-func TestCalldataSource_OpenData(t *testing.T) {
-
+// TestDataFromEVMTransactions creates some transactions from a specified template and asserts
+// that DataFromEVMTransactions properly filters and returns the data from the authorized transactions
+// inside the transaction set.
+func TestDataFromEVMTransactions(t *testing.T) {
 	inboxPriv := testutils.RandomKey()
 	batcherPriv := testutils.RandomKey()
 	cfg := &rollup.Config{
@@ -107,59 +58,68 @@ func TestCalldataSource_OpenData(t *testing.T) {
 		BatchInboxAddress:  crypto.PubkeyToAddress(inboxPriv.PublicKey),
 		BatchSenderAddress: crypto.PubkeyToAddress(batcherPriv.PublicKey),
 	}
-	signer := cfg.L1Signer()
-	setup := &calldataTestSetup{
-		inboxPriv:   inboxPriv,
-		batcherPriv: batcherPriv,
-		cfg:         cfg,
-		signer:      signer,
-	}
 
 	altInbox := testutils.RandomAddress(rand.New(rand.NewSource(1234)))
 	altAuthor := testutils.RandomKey()
 
 	testCases := []calldataTest{
-		{name: "simple", txs: []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: batcherPriv, good: true}}},
-		{name: "other inbox", txs: []testTx{{to: &altInbox, dataLen: 1234, author: batcherPriv, good: false}}},
-		{name: "other author", txs: []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: altAuthor, good: false}}},
-		{name: "inbox is author", txs: []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: inboxPriv, good: false}}},
-		{name: "author is inbox", txs: []testTx{{to: &cfg.BatchSenderAddress, dataLen: 1234, author: batcherPriv, good: false}}},
-		{name: "unrelated", txs: []testTx{{to: &altInbox, dataLen: 1234, author: altAuthor, good: false}}},
-		{name: "contract creation", txs: []testTx{{to: nil, dataLen: 1234, author: batcherPriv, good: false}}},
-		{name: "empty tx", txs: []testTx{{to: &cfg.BatchInboxAddress, dataLen: 0, author: batcherPriv, good: true}}},
-		{name: "value tx", txs: []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, value: 42, author: batcherPriv, good: true}}},
-		{name: "empty block", txs: []testTx{}},
+		{
+			name: "simple",
+			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: batcherPriv, good: true}},
+		},
+		{
+			name: "other inbox",
+			txs:  []testTx{{to: &altInbox, dataLen: 1234, author: batcherPriv, good: false}}},
+		{
+			name: "other author",
+			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: altAuthor, good: false}}},
+		{
+			name: "inbox is author",
+			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: inboxPriv, good: false}}},
+		{
+			name: "author is inbox",
+			txs:  []testTx{{to: &cfg.BatchSenderAddress, dataLen: 1234, author: batcherPriv, good: false}}},
+		{
+			name: "unrelated",
+			txs:  []testTx{{to: &altInbox, dataLen: 1234, author: altAuthor, good: false}}},
+		{
+			name: "contract creation",
+			txs:  []testTx{{to: nil, dataLen: 1234, author: batcherPriv, good: false}}},
+		{
+			name: "empty tx",
+			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 0, author: batcherPriv, good: true}}},
+		{
+			name: "value tx",
+			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, value: 42, author: batcherPriv, good: true}}},
+		{
+			name: "empty block", txs: []testTx{},
+		},
+		{
+			name: "mixed txs",
+			txs: []testTx{
+				{to: &cfg.BatchInboxAddress, dataLen: 1234, value: 42, author: batcherPriv, good: true},
+				{to: &cfg.BatchInboxAddress, dataLen: 3333, value: 32, author: altAuthor, good: false},
+				{to: &cfg.BatchInboxAddress, dataLen: 2000, value: 22, author: batcherPriv, good: true},
+				{to: &altInbox, dataLen: 2020, value: 12, author: batcherPriv, good: false},
+			},
+		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			testCase.Run(t, setup)
-		})
+	for i, tc := range testCases {
+		rng := rand.New(rand.NewSource(int64(i)))
+		signer := cfg.L1Signer()
+
+		var expectedData []eth.Data
+		var txs []*types.Transaction
+		for i, tx := range tc.txs {
+			txs = append(txs, tx.Create(t, signer, rng))
+			if tx.good {
+				expectedData = append(expectedData, txs[i].Data())
+			}
+		}
+
+		out := DataFromEVMTransactions(cfg, txs, testlog.Logger(t, log.LvlCrit))
+		require.ElementsMatch(t, expectedData, out)
 	}
 
-	t.Run("random combinations", func(t *testing.T) {
-		var all []testTx
-		for _, tc := range testCases {
-			all = append(all, tc.txs...)
-		}
-		var combiTestCases []calldataTest
-		for i := 0; i < 100; i++ {
-			txs := append(make([]testTx, 0), all...)
-			rng := rand.New(rand.NewSource(42 + int64(i)))
-			rng.Shuffle(len(txs), func(i, j int) {
-				txs[i], txs[j] = txs[j], txs[i]
-			})
-			subset := txs[:rng.Intn(len(txs))]
-			combiTestCases = append(combiTestCases, calldataTest{
-				name: fmt.Sprintf("combi_%d_subset_%d", i, len(subset)),
-				txs:  subset,
-			})
-		}
-
-		for _, testCase := range combiTestCases {
-			t.Run(testCase.name, func(t *testing.T) {
-				testCase.Run(t, setup)
-			})
-		}
-	})
 }
