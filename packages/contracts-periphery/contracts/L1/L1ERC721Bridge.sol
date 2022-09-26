@@ -10,7 +10,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  * @title L1ERC721Bridge
  * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
  *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
- *         acts as an escrow for ERC721 tokens deposted into L2.
+ *         acts as an escrow for ERC721 tokens deposited into L2.
  */
 contract L1ERC721Bridge is ERC721Bridge, Semver {
     /**
