@@ -88,7 +88,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
 	bank := NewChannelBank(log, cfg, chInReader)
-	dataSrc := NewCalldataSource(log, cfg, l1Fetcher)
+	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher)
 	l1Src := NewL1Retrieval(log, dataSrc, bank)
 	l1Traversal := NewL1Traversal(log, l1Fetcher, l1Src)
 	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src, l1Traversal}
