@@ -18,6 +18,7 @@ const deployFn: DeployFunction = async (hre) => {
       from: deployer,
       args: [hre.deployConfig.ddd],
       log: true,
+      waitConfirmations: 1,
     }
   )
 
