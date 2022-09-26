@@ -138,3 +138,19 @@ Unless explicitly discussed otherwise, you MUST include the following basic upgr
 2. Include a `uint8 public constant VERSION = X` at the TOP of your contract.
 3. Include a function `initialize` with the modifier `reinitializer(VERSION)`.
 4. In the `constructor`, set any `immutable` variables and call the `initialize` function for setting mutables.
+
+### Versioning
+
+All (non-library and non-abstract) contracts MUST extend the `Semver` base contract which exposes a `version()` function that returns a semver-compliant version string.
+During the Bedrock development process the `Semver` value for all contracts SHOULD return `0.0.1` (this is not particularly important, but it's an easy standard to follow).
+When the initial Bedrock upgrade is released, the `Semver` value MUST be updated to `1.0.0`.
+
+After the initial Bedrock upgrade, contracts MUST use the following versioning scheme:
+
+- `patch` releases are to be used only for changes that do NOT modify contract bytecode (such as updating comments).
+- `minor` releases are to be used for changes that modify bytecode OR changes that expand the contract ABI provided that these changes do NOT break the existing interface.
+- `major` releases are to be used for changes that break the existing contract interface OR changes that modify the security model of a contract.
+
+#### Exceptions
+
+We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
