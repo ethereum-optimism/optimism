@@ -29,6 +29,7 @@ const NAME_REMAPPING = {
   AddressManager: 'Lib_AddressManager' as const,
   OVM_L1BlockNumber: 'iOVM_L1BlockNumber' as const,
   WETH: 'WETH9' as const,
+  BedrockMessagePasser: 'L2ToL1MessagePasser' as const,
 }
 
 /**

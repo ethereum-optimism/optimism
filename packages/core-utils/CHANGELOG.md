@@ -1,5 +1,12 @@
 # @eth-optimism/core-utils
 
+## 0.10.1
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 206f6033: Fix outdated references to 'withdrawal contract'
+
 ## 0.10.0
 
 ### Minor Changes

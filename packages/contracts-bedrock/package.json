@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -23,8 +23,10 @@
     "deploy": "hardhat deploy",
     "test": "yarn build:differential && forge test",
     "coverage": "yarn build:differential && forge coverage",
+    "coverage:lcov": "yarn build:differential && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && forge snapshot",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
+    "validate-spacers": "hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./src/contract-artifacts.ts",
     "lint:ts:check": "eslint . --max-warnings=0",
@@ -37,14 +39,14 @@
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.10.0",
+    "@eth-optimism/core-utils": "^0.10.1",
     "@openzeppelin/contracts": "4.7.3",
     "@openzeppelin/contracts-upgradeable": "4.7.3",
     "ethers": "^5.7.0",
     "hardhat": "^2.9.6"
   },
   "devDependencies": {
-    "@eth-optimism/hardhat-deploy-config": "^0.2.2",
+    "@eth-optimism/hardhat-deploy-config": "^0.2.3",
     "@ethereumjs/trie": "^5.0.0-beta.1",
     "@ethereumjs/util": "^8.0.0-beta.1",
     "ethereumjs-wallet": "^1.0.2",

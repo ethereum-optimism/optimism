@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 
@@ -11,24 +8,24 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  * @title OptimismMintableERC721Factory
  * @notice Factory contract for creating OptimismMintableERC721 contracts.
  */
-contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
+contract OptimismMintableERC721Factory is Semver {
     /**
      * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
      *
-     * @param remoteToken Address of the token on the remote domain.
      * @param localToken  Address of the token on the this domain.
+     * @param remoteToken Address of the token on the remote domain.
      */
-    event OptimismMintableERC721Created(address indexed remoteToken, address indexed localToken);
+    event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken);
 
     /**
      * @notice Address of the ERC721 bridge on this network.
      */
-    address public bridge;
+    address public immutable bridge;
 
     /**
      * @notice Chain ID for the remote network.
      */
-    uint256 public remoteChainId;
+    uint256 public immutable remoteChainId;
 
     /**
      * @notice Tracks addresses created by this factory.
@@ -36,25 +33,22 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
     mapping(address => bool) public isStandardOptimismMintableERC721;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      *
      * @param _bridge Address of the ERC721 bridge on this network.
      */
-    constructor(address _bridge, uint256 _remoteChainId) Semver(0, 0, 1) {
-        initialize(_bridge, _remoteChainId);
-    }
+    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 0, 0) {
+        require(
+            _bridge != address(0),
+            "OptimismMintableERC721Factory: bridge cannot be address(0)"
+        );
+        require(
+            _remoteChainId != 0,
+            "OptimismMintableERC721Factory: remote chain id cannot be zero"
+        );
 
-    /**
-     * @notice Initializes the factory.
-     *
-     * @param _bridge Address of the ERC721 bridge on this network.
-     */
-    function initialize(address _bridge, uint256 _remoteChainId) public initializer {
         bridge = _bridge;
         remoteChainId = _remoteChainId;
-
-        // Initialize upgradable OZ contracts
-        __Ownable_init();
     }
 
     /**
@@ -88,6 +82,6 @@ contract OptimismMintableERC721Factory is Semver, OwnableUpgradeable {
         );
 
         isStandardOptimismMintableERC721[address(localToken)] = true;
-        emit OptimismMintableERC721Created(_remoteToken, address(localToken));
+        emit OptimismMintableERC721Created(address(localToken), _remoteToken);
     }
 }

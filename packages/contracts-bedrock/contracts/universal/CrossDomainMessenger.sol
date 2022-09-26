@@ -24,10 +24,10 @@ import { Encoding } from "../libraries/Encoding.sol";
 contract CrossDomainMessengerLegacySpacer {
     /**
      * @custom:legacy
-     * @custom:spacer address libAddressManager
+     * @custom:spacer libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    bytes20 private spacer_0_0_20;
+    address private spacer_0_0_20;
 }
 
 /**
@@ -94,17 +94,17 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @custom:legacy
-     * @custom:spacer mapping(bytes32=>bool) blockedMessages
+     * @custom:spacer blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_201_0_32;
+    mapping(bytes32 => bool) private spacer_201_0_32;
 
     /**
      * @custom:legacy
-     * @custom:spacer mapping(bytes32=>bool) relayedMessages
+     * @custom:spacer relayedMessages
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_202_0_32;
+    mapping(bytes32 => bool) private spacer_202_0_32;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
@@ -288,8 +288,9 @@ abstract contract CrossDomainMessenger is
         );
 
         if (_isOtherMessenger()) {
-            // Should never happen.
-            require(msg.value == _value, "CrossDomainMessenger: mismatched message value");
+            // This property should always hold when the message is first submitted (as opposed to
+            // being replayed).
+            assert(msg.value == _value);
         } else {
             require(
                 msg.value == 0,

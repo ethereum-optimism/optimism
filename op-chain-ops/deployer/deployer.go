@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/params"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 // TestKey is the same test key that geth uses
@@ -36,17 +36,26 @@ type Deployment struct {
 	Address  common.Address
 }
 
-type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (common.Address, error)
+type Deployer func(*backends.SimulatedBackend, *bind.TransactOpts, Constructor) (*types.Transaction, error)
 
 func NewBackend() *backends.SimulatedBackend {
-	return backends.NewSimulatedBackendWithCacheConfig(
-		&core.CacheConfig{
+	return NewBackendWithGenesisTimestamp(0)
+}
+
+func NewBackendWithGenesisTimestamp(ts uint64) *backends.SimulatedBackend {
+	return backends.NewSimulatedBackendWithOpts(
+		backends.WithCacheConfig(&core.CacheConfig{
 			Preimages: true,
-		},
-		core.GenesisAlloc{
-			crypto.PubkeyToAddress(TestKey.PublicKey): {Balance: thousandETH},
-		},
-		15000000,
+		}),
+		backends.WithGenesis(core.Genesis{
+			Config:     params.AllEthashProtocolChanges,
+			Timestamp:  ts,
+			Difficulty: big.NewInt(0),
+			Alloc: core.GenesisAlloc{
+				crypto.PubkeyToAddress(TestKey.PublicKey): {Balance: thousandETH},
+			},
+			GasLimit: 15000000,
+		}),
 	)
 }
 
@@ -60,13 +69,22 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 
 	opts.GasLimit = 15_000_000
 
+	ctx := context.Background()
 	for i, deployment := range constructors {
-		addr, err := cb(backend, opts, deployment)
+		tx, err := cb(backend, opts, deployment)
 		if err != nil {
 			return nil, err
 		}
 
+		// The simulator performs asynchronous processing,
+		// so we need to both commit the change here as
+		// well as wait for the transaction receipt.
 		backend.Commit()
+		addr, err := bind.WaitDeployed(ctx, backend, tx)
+		if err != nil {
+			return nil, err
+		}
+
 		if addr == (common.Address{}) {
 			return nil, fmt.Errorf("no address for %s", deployment.Name)
 		}

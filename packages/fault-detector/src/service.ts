@@ -22,11 +22,9 @@ type Options = {
 }
 
 type Metrics = {
-  highestCheckedBatchIndex: Gauge
-  highestKnownBatchIndex: Gauge
+  highestBatchIndex: Gauge
   isCurrentlyMismatched: Gauge
-  l1NodeConnectionFailures: Gauge
-  l2NodeConnectionFailures: Gauge
+  nodeConnectionFailures: Gauge
 }
 
 type State = {
@@ -64,25 +62,19 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         },
       },
       metricsSpec: {
-        highestCheckedBatchIndex: {
+        highestBatchIndex: {
           type: Gauge,
-          desc: 'Highest good batch index',
-        },
-        highestKnownBatchIndex: {
-          type: Gauge,
-          desc: 'Highest known batch index',
+          desc: 'Highest batch indices (checked and known)',
+          labels: ['type'],
         },
         isCurrentlyMismatched: {
           type: Gauge,
           desc: '0 if state is ok, 1 if state is mismatched',
         },
-        l1NodeConnectionFailures: {
+        nodeConnectionFailures: {
           type: Gauge,
-          desc: 'Number of times L1 node connection has failed',
-        },
-        l2NodeConnectionFailures: {
-          type: Gauge,
-          desc: 'Number of times L2 node connection has failed',
+          desc: 'Number of times node connection has failed',
+          labels: ['layer', 'section'],
         },
       },
     })
@@ -148,7 +140,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         node: 'l1',
         section: 'getTotalBatches',
       })
-      this.metrics.l1NodeConnectionFailures.inc()
+      this.metrics.nodeConnectionFailures.inc({
+        layer: 'l1',
+        section: 'getTotalBatches',
+      })
       await sleep(15000)
       return
     }
@@ -157,7 +152,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       await sleep(15000)
       return
     } else {
-      this.metrics.highestKnownBatchIndex.set(latestBatchIndex)
+      this.metrics.highestBatchIndex.set(
+        {
+          type: 'known',
+        },
+        latestBatchIndex
+      )
     }
 
     this.logger.info(`checking batch`, {
@@ -177,7 +177,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         node: 'l1',
         section: 'findEventForStateBatch',
       })
-      this.metrics.l1NodeConnectionFailures.inc()
+      this.metrics.nodeConnectionFailures.inc({
+        layer: 'l1',
+        section: 'findEventForStateBatch',
+      })
       await sleep(15000)
       return
     }
@@ -191,7 +194,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         node: 'l1',
         section: 'getTransaction',
       })
-      this.metrics.l1NodeConnectionFailures.inc()
+      this.metrics.nodeConnectionFailures.inc({
+        layer: 'l1',
+        section: 'getTransaction',
+      })
       await sleep(15000)
       return
     }
@@ -214,7 +220,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         node: 'l2',
         section: 'getBlockNumber',
       })
-      this.metrics.l2NodeConnectionFailures.inc()
+      this.metrics.nodeConnectionFailures.inc({
+        layer: 'l2',
+        section: 'getBlockNumber',
+      })
       await sleep(15000)
       return
     }
@@ -246,7 +255,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           node: 'l2',
           section: 'getBlockRange',
         })
-        this.metrics.l2NodeConnectionFailures.inc()
+        this.metrics.nodeConnectionFailures.inc({
+          layer: 'l2',
+          section: 'getBlockRange',
+        })
         await sleep(15000)
         return
       }
@@ -276,7 +288,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     }
 
     this.state.highestCheckedBatchIndex++
-    this.metrics.highestCheckedBatchIndex.set(
+    this.metrics.highestBatchIndex.set(
+      {
+        type: 'checked',
+      },
       this.state.highestCheckedBatchIndex
     )
 

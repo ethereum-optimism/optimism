@@ -1,5 +1,37 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.7.0
+
+### Minor Changes
+
+- e2faaa8b: Moves the L2ToL1MessagePasser to a new address and puts a LegacyMessagePasser at the old address.
+
+### Patch Changes
+
+- cb5fed67: Clarify intent with mintable token interfaces
+- c427f0c0: Fixes to natspec docs
+- d28ad592: Tweaks storage spacers to standardize names and use original types
+- 76c8ee2d: Fix event names orderings for `OptimismMintableERC20Created`
+
+## 0.6.3
+
+### Patch Changes
+
+- 88dde7c8: Uses assert rather than a require statements to check for conditions we believe are unreachable.This is more semantically explicit, and should enable us to more effectively use some advanced analysis methods in our testing.
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 249a8ed6: Fixed a backwards compatibility issue in which incorrect events were emitted during a failed deposit finalization on the L2 bridge.
+- 7d7c4fdf: Makes spacers private and updates names to reflect slot, offset, and length.
+- e164e22e: Makes finalizeWithdrawalTransaction not payable because it doesn't need to be and it was causing confusion throughout the codebase.
+- 0bc1be45: Make the use of storage gaps consistent across contracts
+- af3e56b1: Fix to Ensure the Oracle's owner and proposer accounts are unique
+- 206f6033: Fix outdated references to 'withdrawal contract'
+- 88dde7c8: Use assert statements for unreachable conditions.
+- 8790156c: Simplifies the initialization function of the CrossDomainMessenger in Bedrock
+- 515685f4: Update comments on GovernanceToken to match Seaport style.
+- Updated dependencies [7215f4ce]
+- Updated dependencies [206f6033]
+  - @eth-optimism/core-utils@0.10.1
+
 ## 0.6.2
 
 ### Patch Changes

@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 /* Contract Imports */
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import { Semver } from "./Semver.sol";
 
 /**
  * @custom:proxied
@@ -13,7 +14,7 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
  *         who may be less familiar with deploying smart contracts. Designed to be backwards
  *         compatible with the older StandardL2ERC20Factory contract.
  */
-contract OptimismMintableERC20Factory {
+contract OptimismMintableERC20Factory is Semver {
     /**
      * @notice Address of the StandardBridge on this chain.
      */
@@ -45,7 +46,7 @@ contract OptimismMintableERC20Factory {
     /**
      * @param _bridge Address of the StandardBridge on this chain.
      */
-    constructor(address _bridge) {
+    constructor(address _bridge) Semver(0, 0, 1) {
         bridge = _bridge;
     }
 
@@ -87,17 +88,17 @@ contract OptimismMintableERC20Factory {
             "OptimismMintableERC20Factory: must provide remote token address"
         );
 
-        OptimismMintableERC20 localToken = new OptimismMintableERC20(
-            bridge,
-            _remoteToken,
-            _name,
-            _symbol
+        address localToken = address(
+            new OptimismMintableERC20(bridge, _remoteToken, _name, _symbol)
         );
 
         // Emit the old event too for legacy support.
-        emit StandardL2TokenCreated(_remoteToken, address(localToken));
-        emit OptimismMintableERC20Created(_remoteToken, address(localToken), msg.sender);
+        emit StandardL2TokenCreated(_remoteToken, localToken);
 
-        return address(localToken);
+        // Emit the updated event. The arguments here differ from the legacy event, but
+        // are consistent with the ordering used in StandardBridge events.
+        emit OptimismMintableERC20Created(localToken, _remoteToken, msg.sender);
+
+        return localToken;
     }
 }

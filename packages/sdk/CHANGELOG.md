@@ -1,5 +1,39 @@
 # @eth-optimism/sdk
 
+## 1.6.5
+
+### Patch Changes
+
+- e2faaa8b: Update for new BedrockMessagePasser contract
+- Updated dependencies [cb5fed67]
+- Updated dependencies [c427f0c0]
+- Updated dependencies [e2faaa8b]
+- Updated dependencies [d28ad592]
+- Updated dependencies [76c8ee2d]
+  - @eth-optimism/contracts-bedrock@0.7.0
+
+## 1.6.4
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 206f6033: Fix outdated references to 'withdrawal contract'
+- d7679ca4: Add source maps
+- Updated dependencies [88dde7c8]
+- Updated dependencies [7215f4ce]
+- Updated dependencies [249a8ed6]
+- Updated dependencies [7d7c4fdf]
+- Updated dependencies [e164e22e]
+- Updated dependencies [0bc1be45]
+- Updated dependencies [af3e56b1]
+- Updated dependencies [206f6033]
+- Updated dependencies [88dde7c8]
+- Updated dependencies [8790156c]
+- Updated dependencies [515685f4]
+  - @eth-optimism/contracts-bedrock@0.6.3
+  - @eth-optimism/contracts@0.5.36
+  - @eth-optimism/core-utils@0.10.1
+
 ## 1.6.3
 
 ### Patch Changes
