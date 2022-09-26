@@ -230,6 +230,8 @@ func (cfg SystemConfig) start() (*System, error) {
 		l2Alloc[addr] = core.GenesisAccount{Balance: balance}
 	}
 
+	// TODO: https://github.com/ethereum-optimism/optimism/pull/3562
+
 	l2Alloc[cfg.L1InfoPredeployAddress] = core.GenesisAccount{Code: common.FromHex(bindings.L1BlockDeployedBin), Balance: common.Big0}
 	l2Alloc[predeploys.L2ToL1MessagePasserAddr] = core.GenesisAccount{Code: common.FromHex(bindings.L2ToL1MessagePasserDeployedBin), Balance: common.Big0}
 	l2Alloc[predeploys.GasPriceOracleAddr] = core.GenesisAccount{Code: common.FromHex(bindings.GasPriceOracleDeployedBin), Balance: common.Big0, Storage: map[common.Hash]common.Hash{
