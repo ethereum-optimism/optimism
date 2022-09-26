@@ -6,23 +6,18 @@ import 'hardhat-deploy'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
+  const { deploy } = hre.deployments
 
-  const { deploy } = await hre.deployments.deterministic(
-    'OptimismMintableERC721FactoryProxy',
-    {
-      contract: 'Proxy',
-      salt: hre.ethers.utils.solidityKeccak256(
-        ['string'],
-        ['OptimismMintableERC721FactoryProxy']
-      ),
-      from: deployer,
-      args: [hre.deployConfig.ddd],
-      log: true,
-      waitConfirmations: 1,
-    }
-  )
-
-  await deploy()
+  // Deploy the OptimismMintableERC721FactoryProxy with
+  // the deployer as the admin. The admin and implementation
+  // will be updated with the deployment of the implementation
+  await deploy('OptimismMintableERC721FactoryProxy', {
+    contract: 'Proxy',
+    from: deployer,
+    args: [deployer],
+    log: true,
+    waitConfirmations: 1,
+  })
 
   const Deployment__OptimismMintableERC721FactoryProxy =
     await hre.deployments.get('OptimismMintableERC721FactoryProxy')

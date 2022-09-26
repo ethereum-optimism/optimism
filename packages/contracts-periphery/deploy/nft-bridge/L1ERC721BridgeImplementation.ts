@@ -9,6 +9,19 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
   const { getAddress } = hre.ethers.utils
 
+  const Deployment__L1ERC721BridgeProxy = await hre.deployments.get(
+    'L1ERC721BridgeProxy'
+  )
+
+  const L1ERC721BridgeProxy = await hre.ethers.getContractAt(
+    'Proxy',
+    Deployment__L1ERC721BridgeProxy.address
+  )
+  const admin = await L1ERC721BridgeProxy.admin()
+  if (getAddress(admin) !== getAddress(deployer)) {
+    throw new Error('deployer is not proxy admin')
+  }
+
   // Get the address of the currently deployed L1CrossDomainMessenger.
   // This should be the address of the proxy
   const Deployment__L1CrossDomainMessenger = await hre.deployments.get(
@@ -49,6 +62,34 @@ const deployFn: DeployFunction = async (hre) => {
   const otherBridge = await L1ERC721Bridge.otherBridge()
   if (getAddress(otherBridge) !== getAddress(predeploy)) {
     throw new Error('L1ERC721Bridge.otherBridge misconfigured')
+  }
+
+  {
+    // Upgrade the Proxy to the newly deployed implementation
+    const tx = await L1ERC721BridgeProxy.upgradeTo(
+      Deployment__L1ERC721Bridge.address
+    )
+    const receipt = await tx.wait()
+    console.log(`L1ERC721BridgeProxy upgraded: ${receipt.transactionHash}`)
+  }
+
+  {
+    if (
+      hre.network.name === 'optimism' ||
+      hre.network.name === 'optimism-goerli'
+    ) {
+      let newAdmin: string
+      if (hre.network.name === 'optimism') {
+        newAdmin = '0x2501c477D0A35545a387Aa4A3EEe4292A9a8B3F0'
+      } else if (hre.network.name === 'optimism-goerli') {
+        newAdmin = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
+      }
+      const tx = await L1ERC721BridgeProxy.changeAdmin(newAdmin)
+      const receipt = await tx.wait()
+      console.log(
+        `L1ERC721BridgeProxy admin updated: ${receipt.transactionHash}`
+      )
+    }
   }
 }
 

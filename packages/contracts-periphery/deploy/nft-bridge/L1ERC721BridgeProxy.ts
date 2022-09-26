@@ -6,23 +6,15 @@ import 'hardhat-deploy'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
+  const { deploy } = hre.deployments
 
-  const { deploy } = await hre.deployments.deterministic(
-    'L1ERC721BridgeProxy',
-    {
-      contract: 'Proxy',
-      salt: hre.ethers.utils.solidityKeccak256(
-        ['string'],
-        ['L1ERC721BridgeProxy']
-      ),
-      from: deployer,
-      args: [hre.deployConfig.ddd],
-      log: true,
-      waitConfirmations: 1,
-    }
-  )
-
-  await deploy()
+  await deploy('L1ERC721BridgeProxy', {
+    contract: 'Proxy',
+    from: deployer,
+    args: [deployer],
+    log: true,
+    waitConfirmations: 1,
+  })
 
   const Deployment__L1ERC721BridgeProxy = await hre.deployments.get(
     'L1ERC721BridgeProxy'
