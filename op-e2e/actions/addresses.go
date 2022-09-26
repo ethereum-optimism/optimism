@@ -45,7 +45,6 @@ func CollectAddresses(sd *SetupData, dp *DeployParams) (out []common.Address) {
 	//  - addresses of signing accounts
 	out = append(out, dp.Addresses.Batcher,
 		dp.Addresses.Deployer,
-		dp.Addresses.CliqueSigner,
 		dp.Addresses.Proposer,
 		dp.Addresses.Batcher,
 		dp.Addresses.SequencerP2P,

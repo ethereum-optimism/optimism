@@ -14,7 +14,7 @@ import (
 var DefaultMnemonicConfig = &MnemonicConfig{
 	Mnemonic:     "test test test test test test test test test test test junk",
 	Deployer:     "m/44'/60'/0'/0/1",
-	CliqueSigner: "m/44'/60'/0'/0/2",
+	// clique signer: removed, use engine API instead
 	Proposer:     "m/44'/60'/0'/0/3",
 	Batcher:      "m/44'/60'/0'/0/4",
 	SequencerP2P: "m/44'/60'/0'/0/5",
@@ -29,7 +29,6 @@ type MnemonicConfig struct {
 	Mnemonic string `json:"mnemonic"`
 
 	Deployer     string `json:"deployer"`
-	CliqueSigner string `json:"cliqueSigner"`
 
 	// rollup actors
 	Proposer     string `json:"proposer"`
@@ -52,10 +51,6 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	}
 
 	deployer, err := wallet.PrivateKey(account(m.Deployer))
-	if err != nil {
-		return nil, err
-	}
-	cliqueSigner, err := wallet.PrivateKey(account(m.CliqueSigner))
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +81,6 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 
 	return &Secrets{
 		Deployer:     deployer,
-		CliqueSigner: cliqueSigner,
 		Proposer:     proposer,
 		Batcher:      batcher,
 		SequencerP2P: sequencerP2P,
@@ -98,7 +92,6 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 
 type Secrets struct {
 	Deployer     *ecdsa.PrivateKey
-	CliqueSigner *ecdsa.PrivateKey
 
 	// rollup actors
 	Proposer     *ecdsa.PrivateKey
@@ -121,7 +114,6 @@ func EncodePrivKey(priv *ecdsa.PrivateKey) hexutil.Bytes {
 func (s *Secrets) Addresses() *Addresses {
 	return &Addresses{
 		Deployer:     crypto.PubkeyToAddress(s.Deployer.PublicKey),
-		CliqueSigner: crypto.PubkeyToAddress(s.CliqueSigner.PublicKey),
 		Proposer:     crypto.PubkeyToAddress(s.Proposer.PublicKey),
 		Batcher:      crypto.PubkeyToAddress(s.Batcher.PublicKey),
 		SequencerP2P: crypto.PubkeyToAddress(s.SequencerP2P.PublicKey),
@@ -133,7 +125,6 @@ func (s *Secrets) Addresses() *Addresses {
 
 type Addresses struct {
 	Deployer     common.Address
-	CliqueSigner common.Address
 
 	// rollup actors
 	Proposer     common.Address

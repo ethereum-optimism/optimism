@@ -7,14 +7,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 var testingJWTSecret = [32]byte{123}
@@ -70,7 +71,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 
 		L1BlockTime:                 15,
 		L1GenesisBlockNonce:         0,
-		CliqueSignerAddress:         addresses.CliqueSigner, // TODO: remove clique, or make it optional
+		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
 		L1GenesisBlockGasLimit:      15_000_000,
 		L1GenesisBlockDifficulty:    uint642big(1),
