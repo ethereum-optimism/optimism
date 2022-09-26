@@ -85,6 +85,24 @@ describe('L1ERC721Bridge', () => {
 
   describe('constructor', async () => {
     it('initializes correctly', async () => {
+      it('reverts if cross domain messenger is address(0)', async () => {
+        await expect(
+          Factory__L1ERC721Bridge.deploy(
+            constants.AddressZero,
+            DUMMY_L2_BRIDGE_ADDRESS
+          )
+        ).to.be.revertedWith('ERC721Bridge: messenger cannot be address(0)')
+      })
+
+      it('reverts if other bridge is address(0)', async () => {
+        await expect(
+          Factory__L1ERC721Bridge.deploy(
+            Fake__L1CrossDomainMessenger.address,
+            constants.AddressZero
+          )
+        ).to.be.revertedWith('ERC721Bridge: other bridge cannot be address(0)')
+      })
+
       expect(await L1ERC721Bridge.messenger()).equals(
         Fake__L1CrossDomainMessenger.address
       )
