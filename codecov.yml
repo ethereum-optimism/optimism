@@ -1,0 +1,4 @@
+ignore:
+  - "l2geth"
+  - "**/*.t.sol"
+  - "op-bindings/bindings/*.go"
