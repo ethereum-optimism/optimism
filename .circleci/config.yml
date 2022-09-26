@@ -92,6 +92,7 @@ jobs:
             - run:
                 name: Build with context
                 command: |
+                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin "<<parameters.repo>>"
                   docker build \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
@@ -103,6 +104,7 @@ jobs:
             - run:
                 name: Build
                 command: |
+                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin "<<parameters.repo>>"
                   docker build \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
