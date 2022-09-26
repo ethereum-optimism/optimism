@@ -2,32 +2,19 @@ package derive
 
 import (
 	"context"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// This is a generic wrapper around fetching all transactions in a block & then
-// it feeds one L1 transaction at a time to the next stage
-
-// DataIter is a minimal iteration interface to fetch rollup input data from an arbitrary data-availability source
-type DataIter interface {
-	// Next can be repeatedly called for more data, until it returns an io.EOF error.
-	// It never returns io.EOF and data at the same time.
-	Next(ctx context.Context) (eth.Data, error)
-}
-
-// DataAvailabilitySource provides rollup input data
-type DataAvailabilitySource interface {
-	// OpenData does any initial data-fetching work and returns an iterator to fetch data with.
-	OpenData(ctx context.Context, id eth.BlockID) (DataIter, error)
-}
-
 type L1SourceOutput interface {
 	StageProgress
 	IngestData(data []byte)
+}
+
+type DataAvailabilitySource interface {
+	OpenData(ctx context.Context, id eth.BlockID) DataIter
 }
 
 type L1Retrieval struct {
@@ -67,11 +54,7 @@ func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
 
 	// create a source if we have none
 	if l1r.datas == nil {
-		datas, err := l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
-		if err != nil {
-			return NewTemporaryError(fmt.Errorf("can't fetch L1 data: %v: %w", l1r.progress.Origin, err))
-		}
-		l1r.datas = datas
+		l1r.datas = l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
 		return nil
 	}
 
@@ -84,7 +67,7 @@ func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
 			l1r.datas = nil
 			return io.EOF
 		} else if err != nil {
-			return NewTemporaryError(fmt.Errorf("context to retrieve next L1 data failed: %w", err))
+			return err
 		} else {
 			l1r.data = data
 			return nil
