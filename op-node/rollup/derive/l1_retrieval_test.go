@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -14,13 +15,27 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type fakeDataIter struct {
+	data []eth.Data
+}
+
+func (cs *fakeDataIter) Next(ctx context.Context) (eth.Data, error) {
+	if len(cs.data) == 0 {
+		return nil, io.EOF
+	} else {
+		data := cs.data[0]
+		cs.data = cs.data[1:]
+		return data, nil
+	}
+}
+
 type MockDataSource struct {
 	mock.Mock
 }
 
-func (m *MockDataSource) OpenData(ctx context.Context, id eth.BlockID) (DataIter, error) {
+func (m *MockDataSource) OpenData(ctx context.Context, id eth.BlockID) DataIter {
 	out := m.Mock.MethodCalled("OpenData", id)
-	return out[0].(DataIter), *out[1].(*error)
+	return out[0].(DataIter)
 }
 
 func (m *MockDataSource) ExpectOpenData(id eth.BlockID, iter DataIter, err error) {
@@ -51,7 +66,7 @@ func TestL1Retrieval_Step(t *testing.T) {
 
 	a := testutils.RandomData(rng, 10)
 	b := testutils.RandomData(rng, 15)
-	iter := &DataSlice{a, b}
+	iter := &fakeDataIter{data: []eth.Data{a, b}}
 
 	outer := Progress{Origin: testutils.NextRandomRef(rng, next.progress.Origin), Closed: false}
 
