@@ -1,3 +1,4 @@
+AddressAliasHelper_Test:test_fuzz_roundtrip(address) (runs: 256, μ: 466, ~: 466)
 GasBenchMark_L1CrossDomainMessenger:test_L1MessengerSendMessage_benchmark_0() (gas: 261333)
 GasBenchMark_L1CrossDomainMessenger:test_L1MessengerSendMessage_benchmark_1() (gas: 75493)
 GasBenchMark_L1StandardBridge_Deposit:test_depositERC20_benchmark_0() (gas: 348072)
