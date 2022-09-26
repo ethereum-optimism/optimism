@@ -28,13 +28,12 @@ const deployFn: DeployFunction = async (hre) => {
     throw new Error(`Unexpected admin ${admin}`)
   }
 
+  const L1ERC721BridgeAddress = Deployment__L1ERC721Bridge.address
+
   // Deploy the L2ERC721Bridge implementation
   await hre.deployments.deploy('L2ERC721Bridge', {
     from: deployer,
-    args: [
-      predeploys.L2CrossDomainMessenger,
-      Deployment__L1ERC721Bridge.address,
-    ],
+    args: [predeploys.L2CrossDomainMessenger, L1ERC721BridgeAddress],
     log: true,
     waitConfirmations: 1,
   })
@@ -43,6 +42,22 @@ const deployFn: DeployFunction = async (hre) => {
   console.log(
     `L2ERC721Bridge deployed to ${Deployment__L2ERC721Bridge.address}`
   )
+
+  // Check that the L2ERC721Bridge was deployed correctly
+  const L2ERC721Bridge = await hre.ethers.getContractAt(
+    'L2ERC721Bridge',
+    Deployment__L2ERC721Bridge.address
+  )
+
+  const messenger = await L2ERC721Bridge.messenger()
+  if (getAddress(messenger) !== getAddress(predeploys.L2CrossDomainMessenger)) {
+    throw new Error('messenger misconfigured')
+  }
+
+  const otherBridge = await L2ERC721Bridge.otherBridge()
+  if (getAddress(otherBridge) !== getAddress(L1ERC721BridgeAddress)) {
+    throw new Error('otherBridge misconfigured')
+  }
 
   {
     // Upgrade the implementation of the proxy to the newly deployed

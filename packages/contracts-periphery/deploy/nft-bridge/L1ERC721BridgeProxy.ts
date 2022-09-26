@@ -23,6 +23,13 @@ const deployFn: DeployFunction = async (hre) => {
   )
 
   await deploy()
+
+  const Deployment__L1ERC721BridgeProxy = await hre.deployments.get(
+    'L1ERC721BridgeProxy'
+  )
+  console.log(
+    `L1ERC721BridgeProxy deployed to ${Deployment__L1ERC721BridgeProxy.address}`
+  )
 }
 
 deployFn.tags = ['L1ERC721BridgeProxy']

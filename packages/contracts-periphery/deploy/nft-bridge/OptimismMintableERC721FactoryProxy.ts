@@ -23,6 +23,12 @@ const deployFn: DeployFunction = async (hre) => {
   )
 
   await deploy()
+
+  const Deployment__OptimismMintableERC721FactoryProxy =
+    await hre.deployments.get('OptimismMintableERC721FactoryProxy')
+  console.log(
+    `OptimismMintableERC721FactoryProxy deployed to ${Deployment__OptimismMintableERC721FactoryProxy.address}`
+  )
 }
 
 deployFn.tags = ['OptimismMintableERC721FactoryProxy']
