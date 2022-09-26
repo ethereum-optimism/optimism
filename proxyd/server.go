@@ -28,7 +28,7 @@ const (
 	ContextKeyAuth              = "authorization"
 	ContextKeyReqID             = "req_id"
 	ContextKeyXForwardedFor     = "x_forwarded_for"
-	MaxBatchRPCCalls            = 100
+	MaxBatchRPCCallsHardLimit   = 100
 	cacheStatusHdr              = "X-Proxyd-Cache-Status"
 	defaultServerTimeout        = time.Second * 10
 	maxRequestBodyLogLen        = 2000
@@ -48,6 +48,7 @@ type Server struct {
 	authenticatedPaths   map[string]string
 	timeout              time.Duration
 	maxUpstreamBatchSize int
+	maxBatchSize         int
 	upgrader             *websocket.Upgrader
 	mainLim              limiter.Store
 	overrideLims         map[string]limiter.Store
@@ -75,6 +76,7 @@ func NewServer(
 	rateLimitConfig RateLimitConfig,
 	enableRequestLog bool,
 	maxRequestBodyLogLen int,
+	maxBatchSize int,
 ) (*Server, error) {
 	if cache == nil {
 		cache = &NoopRPCCache{}
@@ -90,6 +92,10 @@ func NewServer(
 
 	if maxUpstreamBatchSize == 0 {
 		maxUpstreamBatchSize = defaultMaxUpstreamBatchSize
+	}
+
+	if maxBatchSize == 0 || maxBatchSize > MaxBatchRPCCallsHardLimit {
+		maxBatchSize = MaxBatchRPCCallsHardLimit
 	}
 
 	var mainLim limiter.Store
@@ -139,6 +145,7 @@ func NewServer(
 		cache:                cache,
 		enableRequestLog:     enableRequestLog,
 		maxRequestBodyLogLen: maxRequestBodyLogLen,
+		maxBatchSize:         maxBatchSize,
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
@@ -244,12 +251,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isLimited("") {
-		rpcErr := ErrOverRateLimit
-		if s.limConfig.ErrorMessage != "" {
-			rpcErr = ErrOverRateLimit.Clone()
-			rpcErr.Message = s.limConfig.ErrorMessage
-		}
-		RecordRPCError(ctx, BackendProxyd, "unknown", rpcErr)
+		RecordRPCError(ctx, BackendProxyd, "unknown", ErrOverRateLimit)
 		log.Warn(
 			"rate limited request",
 			"req_id", GetReqID(ctx),
@@ -258,7 +260,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			"origin", origin,
 			"remote_ip", xff,
 		)
-		writeRPCError(ctx, w, nil, rpcErr)
+		writeRPCError(ctx, w, nil, ErrOverRateLimit)
 		return
 	}
 
@@ -296,7 +298,9 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if len(reqs) > MaxBatchRPCCalls {
+		RecordBatchSize(len(reqs))
+
+		if len(reqs) > s.maxBatchSize {
 			RecordRPCError(ctx, BackendProxyd, MethodUnknown, ErrTooManyBatchRequests)
 			writeRPCError(ctx, w, nil, ErrTooManyBatchRequests)
 			return
@@ -394,13 +398,8 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 				"req_id", GetReqID(ctx),
 				"method", parsedReq.Method,
 			)
-			rpcErr := ErrOverRateLimit
-			if s.limConfig.ErrorMessage != "" {
-				rpcErr = rpcErr.Clone()
-				rpcErr.Message = s.limConfig.ErrorMessage
-			}
-			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, rpcErr)
-			responses[i] = NewRPCErrorRes(parsedReq.ID, rpcErr)
+			RecordRPCError(ctx, BackendProxyd, parsedReq.Method, ErrOverRateLimit)
+			responses[i] = NewRPCErrorRes(parsedReq.ID, ErrOverRateLimit)
 			continue
 		}
 
