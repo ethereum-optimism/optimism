@@ -5,11 +5,10 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -100,12 +99,40 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, errors.New("must define L1 ChainID")
 	}
 
-	chainConfig := *params.AllCliqueProtocolChanges
-	chainConfig.Clique = &params.CliqueConfig{
-		Period: config.L1BlockTime,
-		Epoch:  30000,
+	chainConfig := params.ChainConfig{
+		ChainID:             uint642Big(config.L1ChainID),
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      false,
+		EIP150Block:         big.NewInt(0),
+		EIP150Hash:          common.Hash{},
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		ArrowGlacierBlock:   big.NewInt(0),
+		GrayGlacierBlock:    big.NewInt(0),
+		ShanghaiBlock:       nil,
+		CancunBlock:         nil,
 	}
-	chainConfig.ChainID = uint642Big(config.L1ChainID)
+
+	if config.CliqueSignerAddress != (common.Address{}) {
+		// warning: clique has an overly strict block header timestamp check against the system wallclock,
+		// causing blocks to get scheduled as "future block" and not get mined instantly when produced.
+		chainConfig.Clique = &params.CliqueConfig{
+			Period: config.L1BlockTime,
+			Epoch:  30000,
+		}
+	} else {
+		chainConfig.MergeNetsplitBlock = big.NewInt(0)
+		chainConfig.TerminalTotalDifficulty = big.NewInt(0)
+		chainConfig.TerminalTotalDifficultyPassed = true
+	}
 
 	gasLimit := config.L1GenesisBlockGasLimit
 	if gasLimit == 0 {
@@ -124,7 +151,10 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		timestamp = hexutil.Uint64(time.Now().Unix())
 	}
 
-	extraData := append(append(make([]byte, 32), config.CliqueSignerAddress[:]...), make([]byte, crypto.SignatureLength)...)
+	extraData := make([]byte, 0)
+	if config.CliqueSignerAddress != (common.Address{}) {
+		extraData = append(append(make([]byte, 32), config.CliqueSignerAddress[:]...), make([]byte, crypto.SignatureLength)...)
+	}
 
 	return &core.Genesis{
 		Config:     &chainConfig,
