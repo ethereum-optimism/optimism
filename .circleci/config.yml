@@ -85,7 +85,7 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
-      # BElow is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
       # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
       - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
       - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
