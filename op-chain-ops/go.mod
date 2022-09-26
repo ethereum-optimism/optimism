@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220820030939-de38b6f6f77e
-	github.com/ethereum-optimism/optimism/op-bindings v0.8.7
+	github.com/ethereum-optimism/optimism/op-bindings v0.8.8
 	github.com/ethereum/go-ethereum v1.10.23
 	github.com/mattn/go-isatty v0.0.14
 	github.com/stretchr/testify v1.8.0
@@ -58,4 +58,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220921202220-511148385c73
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd

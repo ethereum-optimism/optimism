@@ -277,6 +277,8 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           const handlers = {
             SequencerBatchAppended:
               this.state.db.getLatestTransactionBatch.bind(this.state.db),
+            SequencerBatchAppendedTransaction:
+              this.state.db.getLatestTransaction.bind(this.state.db),
             StateBatchAppended: this.state.db.getLatestStateRootBatch.bind(
               this.state.db
             ),
