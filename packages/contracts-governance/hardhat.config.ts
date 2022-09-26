@@ -61,6 +61,14 @@ const config: HardhatUserConfig = {
       url: 'http://localhost:8545',
     },
   },
+  paths: {
+    deployConfig: 'deploy-config',
+  },
+  deployConfigSpec: {
+    upgrader: {
+      type: 'address',
+    },
+  },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,
     currency: 'USD',
