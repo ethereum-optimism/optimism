@@ -176,8 +176,8 @@ github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd h1:NchOn
 github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd/go.mod h1:/6CsT5Ceen2WPLI/oCA3xMcZ5sWMF/D46SjM/ayY0Oo=
 github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220820030939-de38b6f6f77e h1:LUfy9ofKcen9Cm1T9JyGNnrPLR2AmyelFbohS6bs4X8=
 github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220820030939-de38b6f6f77e/go.mod h1:Oj5A6Qs/Ao1SP17i3uKroyhz49q/ehagSXRAlvwaI5Y=
-github.com/ethereum-optimism/optimism/op-bindings v0.8.7 h1:/WSsNqCSZw9JzPb0nv9SFdD+tj/u/9Jcf8AahDMQJDM=
-github.com/ethereum-optimism/optimism/op-bindings v0.8.7/go.mod h1:3TGO6MZKWHY0Qo7S49xboaoCro2LuopTDI3Otp88EBI=
+github.com/ethereum-optimism/optimism/op-bindings v0.8.8 h1:HN625JI2VsRsli+U6GAXipg7lAKx8EOmGIovN79Az+I=
+github.com/ethereum-optimism/optimism/op-bindings v0.8.8/go.mod h1:pyTCbh2o/SY+5/AL2Qo5GgAao3Gtt9Ff6tfK9Pa9emM=
 github.com/ethereum/go-ethereum v1.10.4/go.mod h1:nEE0TP5MtxGzOMd7egIrbPJMQBnhVU3ELNxhBglIzhg=
 github.com/ethereum/go-ethereum v1.10.16/go.mod h1:Anj6cxczl+AHy63o4X9O8yWNHuN5wMpfb8MAnHkWn7Y=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
