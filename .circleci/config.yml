@@ -807,17 +807,6 @@ workflows:
             - gcr
           requires:
             - contracts-bedrock-tests
-      - docker-publish:
-          name: contract-artifacts-bedrock-publish-dev
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/contract-artifacts-bedrock:<<pipeline.git.revision>>
-          target: contract-artifacts-bedrock
-          docker_context: .
-          repo: us-central1-docker.pkg.dev
-          context:
-            - gcr
-          requires:
-            - contracts-bedrock-tests
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
