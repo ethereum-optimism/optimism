@@ -13,14 +13,14 @@ jobs:
             - v2-cache-source-{{ .Branch }}-{{ .Revision }}
             - v2-cache-source-{{ .Branch }}
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - save_cache:
           key: v2-cache-source-{{ .Branch }}-{{ .Revision }}
           paths:
@@ -122,14 +122,14 @@ jobs:
           keys:
             - v2-cache-yarn-build-{{ .Revision }}
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: lint
           command: yarn lint:check
@@ -211,14 +211,14 @@ jobs:
           keys:
             - v2-cache-yarn-build-{{ .Revision }}
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: Lint
           command: yarn lint:check
@@ -239,14 +239,14 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: lint op-bindings
           command: |
@@ -347,14 +347,14 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-node")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+          # name: Check if we should run
+          # command: |
+          #   shopt -s inherit_errexit
+          #   CHANGED=$(check-changed "op-node")
+          #   if [[ "$CHANGED" = "FALSE" ]]; then
+          #     circleci step halt
+          #   fi
       - run:
           name: Fuzz
           command: make fuzz
@@ -368,14 +368,14 @@ jobs:
           keys:
             - v2-cache-yarn-build-{{ .Revision }}
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "packages/")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+          # command: |
+          #   shopt -s inherit_errexit
+          #   CHANGED=$(check-changed "packages/")
+          #   if [[ "$CHANGED" = "FALSE" ]]; then
+          #     circleci step halt
+          #   fi
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
       - run:
@@ -424,15 +424,15 @@ jobs:
       - image: cimg/postgres:14.1
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)")
-            echo $CHANGED
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)")
+      #       echo $CHANGED
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: Lint
           command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
@@ -480,13 +480,13 @@ jobs:
       DOCKER_BUILDKIT: 1
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: Install latest golang
           command: |
