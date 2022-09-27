@@ -385,56 +385,6 @@ describe('L1ERC721Bridge', () => {
         )
       })
 
-      it('should refund an L2 NFT that fails to be finalized on l1', async () => {
-        const RANDOM_L1_ERC721_ADDRESS = ethers.utils.getAddress(
-          '0x' + 'cdbc'.repeat(10)
-        )
-        // alice sends bob an nft that has an incorrect l1 erc721 address
-        await expect(
-          L1ERC721Bridge.finalizeBridgeERC721(
-            RANDOM_L1_ERC721_ADDRESS, // incorrect address for the l1 erc721
-            DUMMY_L2_ERC721_ADDRESS,
-            aliceAddress,
-            bobsAddress,
-            tokenId,
-            NON_NULL_BYTES32,
-            {
-              from: Fake__L1CrossDomainMessenger.address,
-            }
-          )
-        )
-          .to.emit(L1ERC721Bridge, 'ERC721BridgeFailed')
-          .withArgs(
-            RANDOM_L1_ERC721_ADDRESS,
-            DUMMY_L2_ERC721_ADDRESS,
-            aliceAddress,
-            bobsAddress,
-            tokenId,
-            NON_NULL_BYTES32
-          )
-
-        // Get the second call from `Fake__L1CrossDomainMessenger` because the first call is `finalizeBridgeERC721`.
-        const depositCallToMessenger =
-          Fake__L1CrossDomainMessenger.sendMessage.getCall(1)
-
-        // Check the correct cross-chain call was sent:
-        // Message should be sent to the L2 bridge
-        expect(depositCallToMessenger.args[0]).to.equal(DUMMY_L2_BRIDGE_ADDRESS)
-        // Message data should be a call telling the L2DepositedERC721 to finalize the deposit
-        expect(depositCallToMessenger.args[1]).to.equal(
-          IL2ERC721Bridge.encodeFunctionData('finalizeBridgeERC721', [
-            DUMMY_L2_ERC721_ADDRESS,
-            RANDOM_L1_ERC721_ADDRESS,
-            bobsAddress,
-            aliceAddress,
-            tokenId,
-            NON_NULL_BYTES32,
-          ])
-        )
-        // Gas limit is 0
-        expect(depositCallToMessenger.args[2]).to.equal(FINALIZATION_GAS)
-      })
-
       it('should credit funds to the withdrawer to finalize withdrawal', async () => {
         // finalizing the withdrawal emits an ERC721BridgeFinalized event with the correct arguments.
         await expect(
@@ -470,19 +420,6 @@ describe('L1ERC721Bridge', () => {
           )
         ).to.equal(false)
       })
-    })
-  })
-
-  describe('completeOutboundTransfer', async () => {
-    it('reverts if caller is not L1 bridge', async () => {
-      await expect(
-        L1ERC721Bridge.completeOutboundTransfer(
-          L1ERC721.address,
-          DUMMY_L2_ERC721_ADDRESS,
-          bobsAddress,
-          tokenId
-        )
-      ).to.be.revertedWith('ERC721Bridge: function can only be called by self')
     })
   })
 })
