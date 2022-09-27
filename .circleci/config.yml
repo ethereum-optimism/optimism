@@ -780,7 +780,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -789,7 +788,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -798,4 +796,3 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
