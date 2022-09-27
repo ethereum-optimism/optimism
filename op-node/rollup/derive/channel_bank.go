@@ -38,18 +38,20 @@ type ChannelBank struct {
 	progress Progress
 
 	next ChannelBankOutput
+	prev *L1Retrieval
 }
 
 var _ Stage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput, prev *L1Retrieval) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
 		next:         next,
+		prev:         prev,
 	}
 }
 
@@ -141,26 +143,52 @@ func (ib *ChannelBank) Read() (data []byte, err error) {
 	return data, nil
 }
 
-func (ib *ChannelBank) Step(ctx context.Context, outer Progress) error {
-	if changed, err := ib.progress.Update(outer); err != nil || changed {
-		return err
+// Step does the advancement for the channel bank.
+// Channel bank as the first non-pull stage does it's own progress maintentance.
+// When closed, it checks against the previous origin to determine if to open itself
+func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
+	// Open ourselves
+	// This is ok to do b/c we would not have yielded control to the lower stages
+	// of the pipeline without being completely done reading from L1.
+	if ib.progress.Closed {
+		if ib.progress.Origin != ib.prev.Origin() {
+			ib.progress.Closed = false
+			ib.progress.Origin = ib.prev.Origin()
+			return nil
+		}
 	}
 
-	// If the bank is behind the channel reader, then we are replaying old data to prepare the bank.
-	// Read if we can, and drop if it gives anything
-	if ib.next.Progress().Origin.Number > ib.progress.Origin.Number {
-		_, err := ib.Read()
+	skipIngest := ib.next.Progress().Origin.Number > ib.progress.Origin.Number
+	outOfData := false
+
+	if data, err := ib.prev.NextData(ctx); err == io.EOF {
+		outOfData = true
+	} else if err != nil {
 		return err
+	} else {
+		ib.IngestData(data)
 	}
 
 	// otherwise, read the next channel data from the bank
 	data, err := ib.Read()
 	if err == io.EOF { // need new L1 data in the bank before we can read more channel data
-		return io.EOF
+		if outOfData {
+			if !ib.progress.Closed {
+				ib.progress.Closed = true
+				return nil
+			}
+			return io.EOF
+		} else {
+			return nil
+		}
 	} else if err != nil {
 		return err
+	} else {
+		if !skipIngest {
+			ib.next.WriteChannel(data)
+			return nil
+		}
 	}
-	ib.next.WriteChannel(data)
 	return nil
 }
 

@@ -96,19 +96,18 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 
 	// Pull stages
 	l1Traversal := NewL1Traversal(log, l1Fetcher)
+	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
+	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 
 	// Push stages (that act like pull stages b/c we push from the innermost stages prior to the outermost stages)
 	eng := NewEngineQueue(log, cfg, engine, metrics)
 	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
 	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
-	bank := NewChannelBank(log, cfg, chInReader)
+	bank := NewChannelBank(log, cfg, chInReader, l1Src)
 
-	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher)
-	l1Src := NewL1Retrieval(log, dataSrc, bank, l1Traversal)
-
-	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src}
-	pullStages := []PullStage{l1Traversal}
+	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank}
+	pullStages := []PullStage{l1Src, l1Traversal}
 
 	return &DerivationPipeline{
 		log:        log,
