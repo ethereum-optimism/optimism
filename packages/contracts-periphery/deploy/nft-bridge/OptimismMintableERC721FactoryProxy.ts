@@ -8,6 +8,11 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deploy } = hre.deployments
 
+  console.log(
+    `Deploying OptimismMintableERC721FactoryProxy to ${hre.network.name}`
+  )
+  console.log(`Using deployer ${deployer}`)
+
   // Deploy the OptimismMintableERC721FactoryProxy with
   // the deployer as the admin. The admin and implementation
   // will be updated with the deployment of the implementation

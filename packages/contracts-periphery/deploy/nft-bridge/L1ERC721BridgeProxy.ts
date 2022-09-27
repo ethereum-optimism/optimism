@@ -8,6 +8,9 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deploy } = hre.deployments
 
+  console.log(`Deploying L1ERC721BridgeProxy to ${hre.network.name}`)
+  console.log(`Using deployer ${deployer}`)
+
   await deploy('L1ERC721BridgeProxy', {
     contract: 'Proxy',
     from: deployer,

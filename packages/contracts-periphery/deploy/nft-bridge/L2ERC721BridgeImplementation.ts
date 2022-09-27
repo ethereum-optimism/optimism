@@ -9,9 +9,8 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { getAddress } = hre.ethers.utils
 
-  const Deployment__L1ERC721Bridge = await hre.deployments.get(
-    'L1ERC721BridgeProxy'
-  )
+  console.log(`Deploying L2ERC721Bridge to ${hre.network.name}`)
+  console.log(`Using deployer ${deployer}`)
 
   const L2ERC721BridgeProxy = await hre.ethers.getContractAt(
     'Proxy',
@@ -23,10 +22,15 @@ const deployFn: DeployFunction = async (hre) => {
   // admin of the L2ERC721BridgeProxy so that it is easy to upgrade
   // the implementation. The admin is then changed depending on the
   // network after the L2ERC721BridgeProxy is upgraded to the implementation
-  const admin = L2ERC721BridgeProxy.admin()
+  const admin = await L2ERC721BridgeProxy.callStatic.admin()
+
   if (getAddress(admin) !== getAddress(deployer)) {
     throw new Error(`Unexpected admin ${admin}`)
   }
+
+  const Deployment__L1ERC721Bridge = await hre.deployments.get(
+    'L1ERC721BridgeProxy'
+  )
 
   const L1ERC721BridgeAddress = Deployment__L1ERC721Bridge.address
 
@@ -76,7 +80,8 @@ const deployFn: DeployFunction = async (hre) => {
     // appropriate address
     if (
       hre.network.name === 'optimism' ||
-      hre.network.name === 'optimism-goerli'
+      hre.network.name === 'optimism-goerli' ||
+      hre.network.name === 'ops-l2'
     ) {
       let owner: string
       if (hre.network.name === 'optimism') {
@@ -85,12 +90,15 @@ const deployFn: DeployFunction = async (hre) => {
       } else if (hre.network.name === 'optimism-goerli') {
         // Goerli admin key
         owner = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
+      } else {
+        owner = deployer
       }
 
+      console.log(`Changing admin to ${owner}`)
       const tx = await L2ERC721BridgeProxy.changeAdmin(owner)
       const receipt = await tx.wait()
       console.log(
-        `Changed admin of the L2ERC721BridgeProxy: ${receipt.transactionhash}`
+        `Changed admin of the L2ERC721BridgeProxy: ${receipt.transactionHash}`
       )
     }
   }

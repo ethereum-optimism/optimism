@@ -8,6 +8,9 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { getAddress } = hre.ethers.utils
 
+  console.log(`Deploying OptimismMintableERC721Factory to ${hre.network.name}`)
+  console.log(`Using deployer ${deployer}`)
+
   const Deployment__OptimismMintableERC721FactoryProxy =
     await hre.deployments.get('OptimismMintableERC721FactoryProxy')
 
@@ -19,7 +22,7 @@ const deployFn: DeployFunction = async (hre) => {
   // Check that the admin of the OptimismMintableERC721FactoryProxy is the
   // deployer. This makes it easy to upgrade the implementation of the proxy
   // and then transfer the admin privilege after deploying the implementation
-  const admin = await OptimismMintableERC721FactoryProxy.admin()
+  const admin = await OptimismMintableERC721FactoryProxy.callStatic.admin()
   if (getAddress(admin) !== getAddress(deployer)) {
     throw new Error('deployer is not proxy admin')
   }
@@ -29,8 +32,14 @@ const deployFn: DeployFunction = async (hre) => {
     remoteChainId = 1
   } else if (hre.network.name === 'optimism-goerli') {
     remoteChainId = 5
+  } else if (hre.network.name === 'ops-l2') {
+    remoteChainId = 31337
   } else {
     remoteChainId = hre.deployConfig.remoteChainId
+  }
+
+  if (typeof remoteChainId !== 'number') {
+    throw new Error('remoteChainId not defined')
   }
 
   await hre.deployments.deploy('OptimismMintableERC721Factory', {
@@ -61,13 +70,16 @@ const deployFn: DeployFunction = async (hre) => {
   {
     if (
       hre.network.name === 'optimism' ||
-      hre.network.name === 'optimism-goerli'
+      hre.network.name === 'optimism-goerli' ||
+      hre.network.name === 'ops-l2'
     ) {
       let newAdmin: string
       if (hre.network.name === 'optimism') {
         newAdmin = '0x2501c477D0A35545a387Aa4A3EEe4292A9a8B3F0'
       } else if (hre.network.name === 'optimism-goerli') {
         newAdmin = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
+      } else if (hre.network.name === 'ops-l2') {
+        newAdmin = deployer
       }
       const tx = await OptimismMintableERC721FactoryProxy.changeAdmin(newAdmin)
       const receipt = await tx.wait()
