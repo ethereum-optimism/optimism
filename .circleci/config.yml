@@ -33,6 +33,13 @@ jobs:
             - "packages/*/node_modules"
             - "packages/*/dist"
             - "packages/*/artifacts"
+            - "packages/contracts/src/contract-artifacts.ts"
+            - "packages/contracts/src/contract-deployed-artifacts.ts"
+            - "packages/contracts/chugsplash"
+            - "packages/contracts/L1"
+            - "packages/contracts/L2"
+            - "packages/contracts/libraries"
+            - "packages/contracts/standards"
 
 
   docker-publish:
