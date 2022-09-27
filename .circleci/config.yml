@@ -145,8 +145,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: upload coverage
-          command: |
-            codecov --verbose || exit 0
+          command: codecov --verbose --clean --flag contracts-bedrock-forge
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -214,9 +213,10 @@ jobs:
           command: yarn test:coverage
           working_directory: packages/<<parameters.package_name>>
       - run:
-          name: Upload coverage reports to CodeCov
+          name: Upload coverage
           command: |
-            codecov --verbose || exit 0
+            echo <<parameters.package_name>> # TEMP for debugging
+            codecov --verbose --clean --flag <<parameters.package_name>>
 
   bedrock-go-tests:
     docker:
@@ -301,9 +301,8 @@ jobs:
             gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-chain-ops
       - run:
-          name: Upload coverage reports to CodeCov
-          command: |
-            codecov --verbose || exit 0
+          name: upload coverage
+          command: codecov --verbose --clean --flag bedrock-go-tests
       - store_test_results:
           path: /test-results
       - run:
