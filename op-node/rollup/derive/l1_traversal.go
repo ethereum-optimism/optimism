@@ -11,42 +11,42 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// L1 Traversal fetches the next L1 block and exposes it through the progress API
+
 type L1BlockRefByNumberFetcher interface {
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
 
 type L1Traversal struct {
-	log      log.Logger
+	block    eth.L1BlockRef
+	done     bool
 	l1Blocks L1BlockRefByNumberFetcher
-	next     StageProgress
-	progress Progress
+	log      log.Logger
 }
 
-var _ Stage = (*L1Traversal)(nil)
+var _ PullStage = (*L1Traversal)(nil)
 
-func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher, next StageProgress) *L1Traversal {
+func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
 	return &L1Traversal{
 		log:      log,
 		l1Blocks: l1Blocks,
-		next:     next,
 	}
 }
 
-func (l1t *L1Traversal) Progress() Progress {
-	return l1t.progress
+// NextL1Block returns the next block. It does not advance, but it can only be
+// called once before returning io.EOF
+func (l1t *L1Traversal) NextL1Block(_ context.Context) (eth.L1BlockRef, error) {
+	if !l1t.done {
+		l1t.done = true
+		return l1t.block, nil
+	} else {
+		return eth.L1BlockRef{}, io.EOF
+	}
 }
 
-func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
-	if !l1t.progress.Closed { // close origin and do another pipeline sweep, before we try to move to the next origin
-		l1t.progress.Closed = true
-		return nil
-	}
-
-	// If we reorg to a shorter chain, then we'll only derive new L2 data once the L1 reorg
-	// becomes longer than the previous L1 chain.
-	// This is fine, assuming the new L1 chain is live, but we may want to reconsider this.
-
-	origin := l1t.progress.Origin
+// AdvanceL1Block advances the internal state of L1 Traversal
+func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
+	origin := l1t.block
 	nextL1Origin, err := l1t.l1Blocks.L1BlockRefByNumber(ctx, origin.Number+1)
 	if errors.Is(err, ethereum.NotFound) {
 		l1t.log.Debug("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
@@ -54,16 +54,20 @@ func (l1t *L1Traversal) Step(ctx context.Context, outer Progress) error {
 	} else if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find L1 block info by number, at origin %s next %d: %w", origin, origin.Number+1, err))
 	}
-	if l1t.progress.Origin.Hash != nextL1Origin.ParentHash {
-		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.progress.Origin, nextL1Origin, nextL1Origin.ParentID()))
+	if l1t.block.Hash != nextL1Origin.ParentHash {
+		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.block, nextL1Origin, nextL1Origin.ParentID()))
 	}
-	l1t.progress.Origin = nextL1Origin
-	l1t.progress.Closed = false
+	l1t.block = nextL1Origin
+	l1t.done = false
 	return nil
 }
 
-func (l1t *L1Traversal) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	l1t.progress = l1t.next.Progress()
-	l1t.log.Info("completed reset of derivation pipeline", "origin", l1t.progress.Origin)
+// Reset sets the internal L1 block to the supplied base.
+// Note that the next call to `NextL1Block` will return the block after `base`
+// TODO: Walk one back/figure this out.
+func (l1t *L1Traversal) Reset(ctx context.Context, base eth.L1BlockRef) error {
+	l1t.block = base
+	l1t.done = false
+	l1t.log.Info("completed reset of derivation pipeline", "origin", base)
 	return io.EOF
 }

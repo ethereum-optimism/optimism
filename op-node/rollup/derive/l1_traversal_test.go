@@ -1,57 +1,115 @@
 package derive
 
 import (
+	"context"
 	"errors"
+	"io"
 	"math/rand"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func TestL1Traversal_Step(t *testing.T) {
+// TestL1TraversalNext tests that the `Next` function only returns
+// a block reference once and then properly returns io.EOF afterwards
+func TestL1TraversalNext(t *testing.T) {
+	rng := rand.New(rand.NewSource(1234))
+	a := testutils.RandomBlockRef(rng)
+
+	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), nil)
+	// Load up the initial state with a reset
+	_ = tr.Reset(context.Background(), a)
+
+	// First call should always succeed
+	ref, err := tr.NextL1Block(context.Background())
+	require.Nil(t, err)
+	require.Equal(t, a, ref)
+
+	// Subsequent calls should return io.EOF
+	ref, err = tr.NextL1Block(context.Background())
+	require.Equal(t, eth.L1BlockRef{}, ref)
+	require.Equal(t, io.EOF, err)
+
+	ref, err = tr.NextL1Block(context.Background())
+	require.Equal(t, eth.L1BlockRef{}, ref)
+	require.Equal(t, io.EOF, err)
+}
+
+// TestL1TraversalAdvance tests that the `Advance` function properly
+// handles different error cases and returns the expected block ref
+// if there is no error.
+func TestL1TraversalAdvance(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	a := testutils.RandomBlockRef(rng)
 	b := testutils.NextRandomRef(rng, a)
-	c := testutils.NextRandomRef(rng, b)
-	d := testutils.NextRandomRef(rng, c)
-	e := testutils.NextRandomRef(rng, d)
+	// x is at the same height as b but does not extend `a`
+	x := testutils.RandomBlockRef(rng)
+	x.Number = b.Number
 
-	f := testutils.RandomBlockRef(rng) // a fork, doesn't build on d
-	f.Number = e.Number + 1            // even though it might be the next number
+	tests := []struct {
+		name        string
+		startBlock  eth.L1BlockRef
+		nextBlock   eth.L1BlockRef
+		fetcherErr  error
+		expectedErr error
+	}{
+		{
+			name:        "simple extension",
+			startBlock:  a,
+			nextBlock:   b,
+			fetcherErr:  nil,
+			expectedErr: nil,
+		},
+		{
+			name:        "reorg",
+			startBlock:  a,
+			nextBlock:   x,
+			fetcherErr:  nil,
+			expectedErr: ErrReset,
+		},
+		{
+			name:        "not found",
+			startBlock:  a,
+			nextBlock:   eth.L1BlockRef{},
+			fetcherErr:  ethereum.NotFound,
+			expectedErr: io.EOF,
+		},
+		{
+			name:        "temporary error",
+			startBlock:  a,
+			nextBlock:   eth.L1BlockRef{},
+			fetcherErr:  errors.New("interrupted connection"),
+			expectedErr: ErrTemporary,
+		},
+	}
 
-	l1Fetcher := &testutils.MockL1Source{}
-	l1Fetcher.ExpectL1BlockRefByNumber(b.Number, b, nil)
-	// pretend there's an RPC error
-	l1Fetcher.ExpectL1BlockRefByNumber(c.Number, c, errors.New("rpc error - check back later"))
-	l1Fetcher.ExpectL1BlockRefByNumber(c.Number, c, nil)
-	// pretend the block is not there yet for a while
-	l1Fetcher.ExpectL1BlockRefByNumber(d.Number, d, ethereum.NotFound)
-	l1Fetcher.ExpectL1BlockRefByNumber(d.Number, d, ethereum.NotFound)
-	// it will show up though
-	l1Fetcher.ExpectL1BlockRefByNumber(d.Number, d, nil)
-	l1Fetcher.ExpectL1BlockRefByNumber(e.Number, e, nil)
-	l1Fetcher.ExpectL1BlockRefByNumber(f.Number, f, nil)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			src := &testutils.MockL1Source{}
+			src.ExpectL1BlockRefByNumber(test.startBlock.Number+1, test.nextBlock, test.fetcherErr)
 
-	next := &MockOriginStage{progress: Progress{Origin: a, Closed: false}}
+			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), src)
+			// Load up the initial state with a reset
+			_ = tr.Reset(context.Background(), test.startBlock)
 
-	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), l1Fetcher, next)
+			// Advance it + assert output
+			err := tr.AdvanceL1Block(context.Background())
+			require.ErrorIs(t, err, test.expectedErr)
 
-	defer l1Fetcher.AssertExpectations(t)
-	defer next.AssertExpectations(t)
+			if test.expectedErr == nil {
+				ref, err := tr.NextL1Block(context.Background())
+				require.Nil(t, err)
+				require.Equal(t, test.nextBlock, ref)
+			}
 
-	require.NoError(t, RepeatResetStep(t, tr.ResetStep, nil, 1))
-	require.Equal(t, a, tr.Progress().Origin, "stage needs to adopt the origin of next stage on reset")
-	require.False(t, tr.Progress().Closed, "stage needs to be open after reset")
+			src.AssertExpectations(t)
+		})
+	}
 
-	require.ErrorIs(t, RepeatStep(t, tr.Step, Progress{}, 10), ErrTemporary, "expected temporary error because of RPC mock fail")
-	require.NoError(t, RepeatStep(t, tr.Step, Progress{}, 10))
-	require.Equal(t, c, tr.Progress().Origin, "expected to be stuck on ethereum.NotFound on d")
-	require.NoError(t, RepeatStep(t, tr.Step, Progress{}, 1))
-	require.Equal(t, c, tr.Progress().Origin, "expected to be stuck again, should get the EOF within 1 step")
-	require.ErrorIs(t, RepeatStep(t, tr.Step, Progress{}, 10), ErrReset, "completed pipeline, until L1 input f that causes a reorg")
 }

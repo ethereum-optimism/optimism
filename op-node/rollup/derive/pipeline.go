@@ -28,6 +28,12 @@ type StageProgress interface {
 	Progress() Progress
 }
 
+type PullStage interface {
+	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to.
+	// TODO: Return L1 Block reference
+	Reset(ctx context.Context, base eth.L1BlockRef) error
+}
+
 type Stage interface {
 	StageProgress
 
@@ -68,13 +74,17 @@ type DerivationPipeline struct {
 
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
-	resetting int
+	resetting    int
+	pullResetIdx int
 
 	// Index of the stage that is currently being processed.
 	active int
 
 	// stages in execution order. A stage Step that:
 	stages []Stage
+
+	pullStages []PullStage
+	traversal  *L1Traversal
 
 	eng EngineQueueStage
 
@@ -83,30 +93,40 @@ type DerivationPipeline struct {
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
+
+	// Pull stages
+	l1Traversal := NewL1Traversal(log, l1Fetcher)
+
+	// Push stages (that act like pull stages b/c we push from the innermost stages prior to the outermost stages)
 	eng := NewEngineQueue(log, cfg, engine, metrics)
 	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
 	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
 	chInReader := NewChannelInReader(log, batchQueue)
 	bank := NewChannelBank(log, cfg, chInReader)
+
 	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher)
-	l1Src := NewL1Retrieval(log, dataSrc, bank)
-	l1Traversal := NewL1Traversal(log, l1Fetcher, l1Src)
-	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src, l1Traversal}
+	l1Src := NewL1Retrieval(log, dataSrc, bank, l1Traversal)
+
+	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src}
+	pullStages := []PullStage{l1Traversal}
 
 	return &DerivationPipeline{
-		log:       log,
-		cfg:       cfg,
-		l1Fetcher: l1Fetcher,
-		resetting: 0,
-		active:    0,
-		stages:    stages,
-		eng:       eng,
-		metrics:   metrics,
+		log:        log,
+		cfg:        cfg,
+		l1Fetcher:  l1Fetcher,
+		resetting:  0,
+		active:     0,
+		stages:     stages,
+		pullStages: pullStages,
+		eng:        eng,
+		metrics:    metrics,
+		traversal:  l1Traversal,
 	}
 }
 
 func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
+	dp.pullResetIdx = 0
 }
 
 func (dp *DerivationPipeline) Progress() Progress {
@@ -160,7 +180,24 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 			return nil
 		}
 	}
+	// Then reset the pull based stages
+	if dp.pullResetIdx < len(dp.pullStages) {
+		// Use the last stage's progress as the one to pull from
+		inner := dp.stages[len(dp.stages)-1].Progress()
 
+		// Do the reset
+		if err := dp.pullStages[dp.pullResetIdx].Reset(ctx, inner.Origin); err == io.EOF {
+			// dp.log.Debug("reset of stage completed", "stage", dp.pullResetIdx, "origin", dp.pullStages[dp.pullResetIdx].Progress().Origin)
+			dp.pullResetIdx += 1
+			return nil
+		} else if err != nil {
+			return fmt.Errorf("stage %d failed resetting: %w", dp.pullResetIdx, err)
+		} else {
+			return nil
+		}
+	}
+
+	// Lastly advance the stages
 	for i, stage := range dp.stages {
 		var outer Progress
 		if i+1 < len(dp.stages) {
@@ -174,5 +211,6 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 			return nil
 		}
 	}
-	return io.EOF
+	// If every stage has returned io.EOF, try to advance the L1 Origin
+	return dp.traversal.AdvanceL1Block(ctx)
 }

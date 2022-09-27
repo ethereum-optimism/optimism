@@ -17,24 +17,29 @@ type DataAvailabilitySource interface {
 	OpenData(ctx context.Context, id eth.BlockID) DataIter
 }
 
+type NextBlockProvider interface {
+	NextL1Block(context.Context) (eth.L1BlockRef, error)
+}
+
 type L1Retrieval struct {
 	log     log.Logger
 	dataSrc DataAvailabilitySource
 	next    L1SourceOutput
+	prev    NextBlockProvider
 
 	progress Progress
 
-	data  eth.Data
 	datas DataIter
 }
 
 var _ Stage = (*L1Retrieval)(nil)
 
-func NewL1Retrieval(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOutput) *L1Retrieval {
+func NewL1Retrieval(log log.Logger, dataSrc DataAvailabilitySource, next L1SourceOutput, prev NextBlockProvider) *L1Retrieval {
 	return &L1Retrieval{
 		log:     log,
 		dataSrc: dataSrc,
 		next:    next,
+		prev:    prev,
 	}
 }
 
@@ -42,48 +47,46 @@ func (l1r *L1Retrieval) Progress() Progress {
 	return l1r.progress
 }
 
-func (l1r *L1Retrieval) Step(ctx context.Context, outer Progress) error {
-	if changed, err := l1r.progress.Update(outer); err != nil || changed {
-		return err
-	}
-
-	// specific to L1 source: if the L1 origin is closed, there is no more data to retrieve.
-	if l1r.progress.Closed {
-		return io.EOF
-	}
-
-	// create a source if we have none
-	if l1r.datas == nil {
-		l1r.datas = l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
-		return nil
-	}
-
-	// buffer data if we have none
-	if l1r.data == nil {
+// Step does an action in the L1 Retrieval stage
+// If there is data, it pushes it to the next stage.
+// If there is no more data open ourselves if we are closed or close ourselves if we are open
+func (l1r *L1Retrieval) Step(ctx context.Context, _ Progress) error {
+	if l1r.datas != nil {
 		l1r.log.Debug("fetching next piece of data")
 		data, err := l1r.datas.Next(ctx)
 		if err == io.EOF {
-			l1r.progress.Closed = true
 			l1r.datas = nil
 			return io.EOF
 		} else if err != nil {
 			return err
 		} else {
-			l1r.data = data
+			l1r.next.IngestData(data)
 			return nil
 		}
+	} else {
+		if l1r.progress.Closed {
+			next, err := l1r.prev.NextL1Block(ctx)
+			if err == io.EOF {
+				return io.EOF
+			} else if err != nil {
+				return err
+			}
+			l1r.datas = l1r.dataSrc.OpenData(ctx, next.ID())
+			l1r.progress.Origin = next
+			l1r.progress.Closed = false
+		} else {
+			l1r.progress.Closed = true
+		}
+		return nil
 	}
-
-	// flush the data to next stage
-	l1r.next.IngestData(l1r.data)
-	// and nil the data, the next step will retrieve the next data
-	l1r.data = nil
-	return nil
 }
 
+// ResetStep re-initializes the L1 Retrieval stage to block of it's `next` progress.
+// Note that we open up the `l1r.datas` here because it is requires to maintain the
+// internal invariants that later propagate up the derivation pipeline.
 func (l1r *L1Retrieval) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
 	l1r.progress = l1r.next.Progress()
-	l1r.datas = nil
-	l1r.data = nil
+	l1r.datas = l1r.dataSrc.OpenData(ctx, l1r.progress.Origin.ID())
+	l1r.log.Info("Reset of L1Retrieval done", "origin", l1r.progress.Origin)
 	return io.EOF
 }

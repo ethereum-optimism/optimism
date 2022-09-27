@@ -44,6 +44,19 @@ func (m *MockDataSource) ExpectOpenData(id eth.BlockID, iter DataIter, err error
 
 var _ DataAvailabilitySource = (*MockDataSource)(nil)
 
+type MockL1Traversal struct {
+	mock.Mock
+}
+
+func (m *MockL1Traversal) NextL1Block(_ context.Context) (eth.L1BlockRef, error) {
+	out := m.Mock.MethodCalled("NextL1Block")
+	return out[0].(eth.L1BlockRef), out[1].(error)
+}
+
+func (m *MockL1Traversal) ExpectNextL1Block(block eth.L1BlockRef, err error) {
+	m.Mock.On("NextL1Block").Return(block, err)
+}
+
 type MockIngestData struct {
 	MockOriginStage
 }
@@ -63,12 +76,13 @@ func TestL1Retrieval_Step(t *testing.T) {
 
 	next := &MockIngestData{MockOriginStage{progress: Progress{Origin: testutils.RandomBlockRef(rng), Closed: true}}}
 	dataSrc := &MockDataSource{}
+	prev := &MockL1Traversal{}
 
 	a := testutils.RandomData(rng, 10)
 	b := testutils.RandomData(rng, 15)
 	iter := &fakeDataIter{data: []eth.Data{a, b}}
 
-	outer := Progress{Origin: testutils.NextRandomRef(rng, next.progress.Origin), Closed: false}
+	outer := next.progress
 
 	// mock some L1 data to open for the origin that is opened by the outer stage
 	dataSrc.ExpectOpenData(outer.Origin.ID(), iter, nil)
@@ -79,7 +93,7 @@ func TestL1Retrieval_Step(t *testing.T) {
 	defer dataSrc.AssertExpectations(t)
 	defer next.AssertExpectations(t)
 
-	l1r := NewL1Retrieval(testlog.Logger(t, log.LvlError), dataSrc, next)
+	l1r := NewL1Retrieval(testlog.Logger(t, log.LvlError), dataSrc, next, prev)
 
 	// first we expect the stage to reset to the origin of the inner stage
 	require.NoError(t, RepeatResetStep(t, l1r.ResetStep, nil, 1))
