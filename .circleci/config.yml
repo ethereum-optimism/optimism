@@ -85,6 +85,13 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
+      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
+      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
+      - run: cat /etc/netplan/50-cloud-init.yaml
+      - run: sudo netplan apply
       - checkout
       - when:
           condition: <<parameters.target>>
@@ -92,6 +99,7 @@ jobs:
             - run:
                 name: Build with context
                 command: |
+                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
                   docker build \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
@@ -103,6 +111,7 @@ jobs:
             - run:
                 name: Build
                 command: |
+                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
                   docker build \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \

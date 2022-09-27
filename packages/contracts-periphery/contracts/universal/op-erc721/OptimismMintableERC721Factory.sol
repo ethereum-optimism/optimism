@@ -68,11 +68,6 @@ contract OptimismMintableERC721Factory is Semver {
             "OptimismMintableERC721Factory: L1 token address cannot be address(0)"
         );
 
-        require(
-            bridge != address(0),
-            "OptimismMintableERC721Factory: bridge address must be initialized"
-        );
-
         OptimismMintableERC721 localToken = new OptimismMintableERC721(
             bridge,
             remoteChainId,
