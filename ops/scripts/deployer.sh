@@ -54,6 +54,9 @@ npx hardhat take-dump --network $CONTRACTS_TARGET_NETWORK
 mv addresses.json ./genesis
 cp ./genesis/$CONTRACTS_TARGET_NETWORK.json ./genesis/state-dump.latest.json
 
+# expose the deployments
+cp -rf ./deployments ./genesis/deployments
+
 # service the addresses and dumps
 echo "Starting server."
 python3 -m http.server \
