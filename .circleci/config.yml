@@ -8,10 +8,6 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: xlarge
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-source-{{ .Branch }}-{{ .Revision }}
-            - v2-cache-source-{{ .Branch }}
       - checkout
       - run:
           name: Check if we should run
@@ -21,43 +17,22 @@ jobs:
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
-      - save_cache:
-          key: v2-cache-source-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - ".git"
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-install-{{ checksum "yarn.lock" }}
-            - v2-cache-yarn-install
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
       - run:
           name: print forge version
           command: forge --version
-      - save_cache:
-          key: v2-cache-yarn-install-{{ checksum "yarn.lock" }}
-          paths:
-            - node_modules
-            - packages/common-ts/node_modules
-            - packages/contracts/node_modules
-            - packages/contracts-bedrock/node_modules
-            - packages/contracts-periphery/node_modules
-            - packages/core-utils/node_modules
-            - packages/data-transport-layer/node_modules
-            - packages/drippie-mon/node_modules
-            - packages/fault-detector/node_modules
-            - packages/message-relayer/node_modules
-            - packages/replica-healthcheck/node_modules
-            - packages/sdk/node_modules
-            - integration-tests/node_modules
       - run:
           name: Build monorepo
           command: yarn build
-      - save_cache:
-          key: v2-cache-yarn-build-{{ .Revision }}
+      - persist_to_workspace:
+          root: "."
           paths:
-            - "."
+            - "node_modules"
+            - "packages/*/node_modules"
+            - "packages/*/dist"
+            - "packages/*/artifacts"
 
 
   docker-publish:
@@ -127,10 +102,8 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
@@ -187,10 +160,8 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: medium
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
@@ -217,10 +188,8 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
@@ -374,10 +343,8 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
