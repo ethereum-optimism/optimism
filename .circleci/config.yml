@@ -33,6 +33,13 @@ jobs:
             - "packages/*/node_modules"
             - "packages/*/dist"
             - "packages/*/artifacts"
+            - "packages/contracts/src/contract-artifacts.ts"
+            - "packages/contracts/src/contract-deployed-artifacts.ts"
+            - "packages/contracts/chugsplash"
+            - "packages/contracts/L1"
+            - "packages/contracts/L2"
+            - "packages/contracts/libraries"
+            - "packages/contracts/standards"
 
 
   docker-publish:
@@ -609,7 +616,7 @@ jobs:
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
             -docker.pull=true \
-            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
+            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
@@ -747,9 +754,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
       - docker-publish:
           name: op-batcher-publish-dev
           docker_file: op-batcher/Dockerfile
@@ -758,9 +762,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
       - docker-publish:
           name: op-proposer-publish-dev
           docker_file: op-proposer/Dockerfile
@@ -769,20 +770,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
-      - docker-publish:
-          name: deployer-bedrock-publish-dev
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
-          target: deployer-bedrock
-          docker_context: .
-          repo: us-central1-docker.pkg.dev
-          context:
-            - gcr
-          requires:
-            - contracts-bedrock-tests
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -791,7 +778,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -800,7 +786,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -809,4 +794,3 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
