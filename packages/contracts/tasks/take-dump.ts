@@ -7,12 +7,13 @@ import * as mkdirp from 'mkdirp'
 import { ethers } from 'ethers'
 import { task } from 'hardhat/config'
 import { remove0x } from '@eth-optimism/core-utils'
+import '@eth-optimism/hardhat-deploy-config'
 
 import { predeploys } from '../src/predeploys'
 import { getContractFromArtifact } from '../src/deploy-utils'
 import { names } from '../src/address-names'
 
-task('take-dump').setAction(async (args, hre) => {
+task('take-dump').setAction(async ({}, hre) => {
   /* eslint-disable @typescript-eslint/no-var-requires */
 
   // Needs to be imported here or hardhat will throw a fit about hardhat being imported from
