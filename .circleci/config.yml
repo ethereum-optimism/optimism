@@ -763,15 +763,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-      - docker-publish:
-          name: deployer-bedrock-publish-dev
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
-          target: deployer-bedrock
-          docker_context: .
-          repo: us-central1-docker.pkg.dev
-          context:
-            - gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
