@@ -612,7 +612,7 @@ jobs:
             -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
-            tar -cvf /tmp/workspace.tgz -C /root/project /root/project/workspace
+            tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
           name: "Archive workspace"
       - store_artifacts:
           path: /tmp/workspace.tgz
