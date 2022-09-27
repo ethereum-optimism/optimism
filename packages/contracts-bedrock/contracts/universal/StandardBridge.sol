@@ -418,6 +418,11 @@ abstract contract StandardBridge {
         uint32 _minGasLimit,
         bytes memory _extraData
     ) internal {
+        require(
+            msg.value == _amount,
+            "StandardBridge: bridging ETH must include sufficient ETH value"
+        );
+
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         messenger.sendMessage{ value: _amount }(
