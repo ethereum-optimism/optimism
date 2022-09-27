@@ -209,6 +209,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	// and we fetch the L1 origin of that as starting point for engine queue
 	l1F.ExpectL1BlockRefByHash(refB.Hash, refB, nil)
+	l1F.ExpectL1BlockRefByNumber(refB.Number, refB, nil)
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics)
 	require.NoError(t, RepeatResetStep(t, eq.ResetStep, l1F, 20))

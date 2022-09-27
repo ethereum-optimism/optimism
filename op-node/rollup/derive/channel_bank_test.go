@@ -113,12 +113,12 @@ func TestChannelBankSimple(t *testing.T) {
 
 	// Load the first + third frame
 	out, err := cb.NextData(context.Background())
-	require.ErrorIs(t, err, ErrTemporary)
+	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the second frame
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, ErrTemporary)
+	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Pull out the channel data
@@ -148,17 +148,17 @@ func TestChannelBankDuplicates(t *testing.T) {
 
 	// Load the first + third frame
 	out, err := cb.NextData(context.Background())
-	require.ErrorIs(t, err, ErrTemporary)
+	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the duplicate frames
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, ErrTemporary)
+	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the second frame
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, ErrTemporary)
+	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Pull out the channel data. Expect to see the original set & not the duplicates

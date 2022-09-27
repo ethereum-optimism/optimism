@@ -398,6 +398,15 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		return NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
 			safe, safe.Time, l1Origin, l1Origin.Time))
 	}
+
+	pipelineNumber := l1Origin.Number - eq.cfg.ChannelTimeout
+	if l1Origin.Number < eq.cfg.ChannelTimeout {
+		pipelineNumber = 0
+	}
+	pipelineOrigin, err := l1Fetcher.L1BlockRefByNumber(ctx, pipelineNumber)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", pipelineNumber, err))
+	}
 	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
@@ -405,7 +414,7 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	eq.finalityData = eq.finalityData[:0]
 	// note: we do not clear the unsafe payloadds queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.progress = Progress{
-		Origin: l1Origin,
+		Origin: pipelineOrigin,
 		Closed: false,
 	}
 	eq.metrics.RecordL2Ref("l2_finalized", finalized)

@@ -2,8 +2,6 @@ package derive
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -35,8 +33,6 @@ type ChannelBank struct {
 
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
-
-	origin eth.L1BlockRef
 
 	prev    NextDataProvider
 	fetcher L1Fetcher
@@ -79,7 +75,8 @@ func (cb *ChannelBank) prune() {
 // IngestData adds new L1 data to the channel bank.
 // Read() should be called repeatedly first, until everything has been read, before adding new data.\
 func (cb *ChannelBank) IngestData(data []byte) {
-	cb.log.Debug("channel bank got new data", "origin", cb.origin, "data_len", len(data))
+	origin := cb.Origin()
+	cb.log.Debug("channel bank got new data", "origin", origin, "data_len", len(data))
 
 	// TODO: Why is the prune here?
 	cb.prune()
@@ -95,19 +92,19 @@ func (cb *ChannelBank) IngestData(data []byte) {
 		currentCh, ok := cb.channels[f.ID]
 		if !ok {
 			// create new channel if it doesn't exist yet
-			currentCh = NewChannel(f.ID, cb.origin)
+			currentCh = NewChannel(f.ID, origin)
 			cb.channels[f.ID] = currentCh
 			cb.channelQueue = append(cb.channelQueue, f.ID)
 		}
 
 		// check if the channel is not timed out
-		if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.origin.Number {
+		if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < origin.Number {
 			cb.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "frame", f.FrameNumber)
 			continue
 		}
 
 		cb.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
-		if err := currentCh.AddFrame(f, cb.origin); err != nil {
+		if err := currentCh.AddFrame(f, origin); err != nil {
 			cb.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
 			continue
 		}
@@ -122,7 +119,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	}
 	first := cb.channelQueue[0]
 	ch := cb.channels[first]
-	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.origin.Number
+	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
 	if timedOut {
 		cb.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
 		delete(cb.channels, first)
@@ -147,9 +144,6 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 // consistency around channel bank pruning which depends upon the order
 // of operations.
 func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
-	if cb.origin != cb.prev.Origin() {
-		cb.origin = cb.prev.Origin()
-	}
 
 	// Do the read from the channel bank first
 	data, err := cb.Read()
@@ -168,27 +162,13 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 		return nil, err
 	} else {
 		cb.IngestData(data)
-		return nil, NewTemporaryError(errors.New("not enough data"))
+		return nil, NotEnoughData
 	}
 }
 
-// ResetStep walks back the L1 chain, starting at the origin of the next stage,
-// to find the origin that the channel bank should be reset to,
-// to get consistent reads starting at origin.
-// Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
-// so it is not relevant to replay it into the bank.
 func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef) error {
-	cb.log.Debug("walking back to find reset origin for channel bank", "origin", base)
-	// go back in history if we are not distant enough from the next stage
-	resetBlock := base.Number - cb.cfg.ChannelTimeout
-	if base.Number < cb.cfg.ChannelTimeout {
-		resetBlock = 0 // don't underflow
-	}
-	parent, err := cb.fetcher.L1BlockRefByNumber(ctx, resetBlock)
-	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
-	}
-	cb.origin = parent
+	cb.channels = make(map[ChannelID]*Channel)
+	cb.channelQueue = make([]ChannelID, 0, 10)
 	return io.EOF
 }
 
