@@ -754,9 +754,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
       - docker-publish:
           name: op-batcher-publish-dev
           docker_file: op-batcher/Dockerfile
@@ -765,9 +762,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
       - docker-publish:
           name: op-proposer-publish-dev
           docker_file: op-proposer/Dockerfile
@@ -776,20 +770,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
-      - docker-publish:
-          name: deployer-bedrock-publish-dev
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
-          target: deployer-bedrock
-          docker_context: .
-          repo: us-central1-docker.pkg.dev
-          context:
-            - gcr
-          requires:
-            - contracts-bedrock-tests
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -798,7 +778,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -807,7 +786,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -816,4 +794,3 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
