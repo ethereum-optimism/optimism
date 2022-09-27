@@ -26,12 +26,6 @@ import (
 // It is internally responsible for making sure that batches with L1 inclusions block outside it's
 // working range are not considered or pruned.
 
-type BatchQueueOutput interface {
-	StageProgress
-	AddBatch(batch *BatchData)
-	SafeL2Head() eth.L2BlockRef
-}
-
 type NextBatchProvider interface {
 	Origin() eth.L1BlockRef
 	NextBatch(ctx context.Context) (*BatchData, error)

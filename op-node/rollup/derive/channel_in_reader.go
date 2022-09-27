@@ -22,7 +22,7 @@ type ChannelInReader struct {
 	prev *ChannelBank
 }
 
-var _ PullStage = (*ChannelInReader)(nil)
+var _ ResetableStage = (*ChannelInReader)(nil)
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
 func NewChannelInReader(log log.Logger, prev *ChannelBank) *ChannelInReader {

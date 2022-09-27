@@ -5,25 +5,12 @@ import (
 	"io"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
-
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 var _ Engine = (*testutils.MockEngine)(nil)
 
 var _ L1Fetcher = (*testutils.MockL1Source)(nil)
-
-type MockOriginStage struct {
-	mock.Mock
-	progress Progress
-}
-
-func (m *MockOriginStage) Progress() Progress {
-	return m.progress
-}
-
-var _ StageProgress = (*MockOriginStage)(nil)
 
 // RepeatResetStep is a test util that will repeat the ResetStep function until an error.
 // If the step runs too many times, it will fail the test.
