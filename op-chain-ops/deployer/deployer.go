@@ -9,6 +9,8 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/consensus/beacon"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -43,12 +45,40 @@ func NewBackend() *backends.SimulatedBackend {
 }
 
 func NewBackendWithGenesisTimestamp(ts uint64) *backends.SimulatedBackend {
+	chainConfig := params.ChainConfig{
+		ChainID:             ChainID,
+		HomesteadBlock:      big.NewInt(0),
+		DAOForkBlock:        nil,
+		DAOForkSupport:      false,
+		EIP150Block:         big.NewInt(0),
+		EIP150Hash:          common.Hash{},
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+		ArrowGlacierBlock:   big.NewInt(0),
+		GrayGlacierBlock:    big.NewInt(0),
+		ShanghaiBlock:       nil,
+		CancunBlock:         nil,
+		// Activated proof of stake. We manually build/commit blocks in the simulator anyway,
+		// and the timestamp verification of PoS is not against the wallclock,
+		// preventing blocks from getting stuck temporarily in the future-blocks queue, decreasing setup time a lot.
+		MergeNetsplitBlock:            big.NewInt(0),
+		TerminalTotalDifficulty:       big.NewInt(0),
+		TerminalTotalDifficultyPassed: true,
+	}
+
 	return backends.NewSimulatedBackendWithOpts(
 		backends.WithCacheConfig(&core.CacheConfig{
 			Preimages: true,
 		}),
 		backends.WithGenesis(core.Genesis{
-			Config:     params.AllEthashProtocolChanges,
+			Config:     &chainConfig,
 			Timestamp:  ts,
 			Difficulty: big.NewInt(0),
 			Alloc: core.GenesisAlloc{
@@ -56,6 +86,7 @@ func NewBackendWithGenesisTimestamp(ts uint64) *backends.SimulatedBackend {
 			},
 			GasLimit: 15000000,
 		}),
+		backends.WithConsensus(beacon.New(ethash.NewFaker())),
 	)
 }
 

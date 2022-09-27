@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -12,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 // DeployConfig represents the deployment configuration for Optimism
@@ -40,7 +40,7 @@ type DeployConfig struct {
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
-	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"`
+	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"` // proof of stake genesis if left zeroed.
 	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
 	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
 	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`

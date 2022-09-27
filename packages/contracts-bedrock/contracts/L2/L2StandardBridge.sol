@@ -191,15 +191,11 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
-            require(
-                msg.value == _amount,
-                "L2StandardBridge: ETH withdrawals must include sufficient ETH value"
-            );
-
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
         }
+
         emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 }
