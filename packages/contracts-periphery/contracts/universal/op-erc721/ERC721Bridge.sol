@@ -50,25 +50,6 @@ abstract contract ERC721Bridge {
     );
 
     /**
-     * @notice Emitted when an ERC721 bridge from the other network fails.
-     *
-     * @param localToken  Address of the token on this domain.
-     * @param remoteToken Address of the token on the remote domain.
-     * @param from        Address that initiated bridging action.
-     * @param to          Address to receive the token.
-     * @param tokenId     ID of the specific token deposited.
-     * @param extraData   Extra data for use on the client-side.
-     */
-    event ERC721BridgeFailed(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
-        uint256 tokenId,
-        bytes extraData
-    );
-
-    /**
      * @notice Messenger contract on this domain.
      */
     CrossDomainMessenger public immutable messenger;
@@ -91,14 +72,6 @@ abstract contract ERC721Bridge {
             msg.sender == address(messenger) && messenger.xDomainMessageSender() == otherBridge,
             "ERC721Bridge: function can only be called from the other bridge"
         );
-        _;
-    }
-
-    /**
-     * @notice Ensures that the caller is this contract.
-     */
-    modifier onlySelf() {
-        require(msg.sender == address(this), "ERC721Bridge: function can only be called by self");
         _;
     }
 

@@ -130,62 +130,6 @@ describe('L2ERC721Bridge', () => {
       ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
-    it('should initialize a withdrawal if the L2 token is not compliant', async () => {
-      // Deploy a non compliant ERC721
-      const NonCompliantERC721 = await (
-        await ethers.getContractFactory(
-          '@openzeppelin/contracts/token/ERC721/ERC721.sol:ERC721'
-        )
-      ).deploy('L2Token', 'L2T')
-
-      Fake__L2CrossDomainMessenger.xDomainMessageSender.returns(
-        DUMMY_L1BRIDGE_ADDRESS
-      )
-
-      // A failed attempt to finalize the deposit causes an ERC721BridgeFailed event to be emitted.
-      await expect(
-        L2ERC721Bridge.connect(l2MessengerImpersonator).finalizeBridgeERC721(
-          NonCompliantERC721.address,
-          DUMMY_L1ERC721_ADDRESS,
-          aliceAddress,
-          bobsAddress,
-          TOKEN_ID,
-          NON_NULL_BYTES32,
-          {
-            from: Fake__L2CrossDomainMessenger.address,
-          }
-        )
-      )
-        .to.emit(L2ERC721Bridge, 'ERC721BridgeFailed')
-        .withArgs(
-          NonCompliantERC721.address,
-          DUMMY_L1ERC721_ADDRESS,
-          aliceAddress,
-          bobsAddress,
-          TOKEN_ID,
-          NON_NULL_BYTES32
-        )
-
-      const withdrawalCallToMessenger =
-        Fake__L2CrossDomainMessenger.sendMessage.getCall(0)
-
-      expect(withdrawalCallToMessenger.args[0]).to.equal(DUMMY_L1BRIDGE_ADDRESS)
-      expect(withdrawalCallToMessenger.args[1]).to.equal(
-        Factory__L1ERC721Bridge.interface.encodeFunctionData(
-          'finalizeBridgeERC721',
-          [
-            DUMMY_L1ERC721_ADDRESS,
-            NonCompliantERC721.address,
-            bobsAddress,
-            aliceAddress,
-            TOKEN_ID,
-            NON_NULL_BYTES32,
-          ]
-        )
-      )
-      expect(withdrawalCallToMessenger.args[2]).to.equal(0)
-    })
-
     it('should credit funds to the depositor', async () => {
       Fake__L2CrossDomainMessenger.xDomainMessageSender.returns(
         DUMMY_L1BRIDGE_ADDRESS
@@ -231,19 +175,6 @@ describe('L2ERC721Bridge', () => {
       // Bob is now the owner of the L2 ERC721
       const tokenIdOwner = await L2ERC721.ownerOf(TOKEN_ID)
       tokenIdOwner.should.equal(bobsAddress)
-    })
-  })
-
-  describe('completeOutboundTransfer', async () => {
-    it('reverts if caller is not L2 bridge', async () => {
-      await expect(
-        L2ERC721Bridge.completeOutboundTransfer(
-          L2ERC721.address,
-          DUMMY_L1ERC721_ADDRESS,
-          bobsAddress,
-          TOKEN_ID
-        )
-      ).to.be.revertedWith('ERC721Bridge: function can only be called by self')
     })
   })
 
