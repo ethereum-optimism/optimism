@@ -112,6 +112,21 @@ const config: HardhatUserConfig = {
         },
       },
     },
+    'ops-l2': {
+      chainId: 17,
+      accounts: [
+        '0x3b8d2345102cce2443acb240db6e87c8edd4bb3f821b17fab8ea2c9da08ea132',
+        '0xa6aecc98b63bafb0de3b29ae9964b14acb4086057808be29f90150214ebd4a0f',
+      ],
+      url: 'http://127.0.0.1:8545',
+    },
+    'ops-l1': {
+      chainId: 31337,
+      accounts: [
+        '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      ],
+      url: 'http://127.0.0.1:9545',
+    },
   },
   paths: {
     deployConfig: './config/deploy',
