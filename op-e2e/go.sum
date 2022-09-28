@@ -245,6 +245,8 @@ github.com/ethereum-optimism/optimism/op-batcher v0.8.8 h1:raKQUL3eQtWyJ+BNYPz7I
 github.com/ethereum-optimism/optimism/op-batcher v0.8.8/go.mod h1:RnDJ6ilMHfvNhKwlTt4uhxABH8dbQ8arXdZjCvUI+8A=
 github.com/ethereum-optimism/optimism/op-bindings v0.8.8 h1:HN625JI2VsRsli+U6GAXipg7lAKx8EOmGIovN79Az+I=
 github.com/ethereum-optimism/optimism/op-bindings v0.8.8/go.mod h1:pyTCbh2o/SY+5/AL2Qo5GgAao3Gtt9Ff6tfK9Pa9emM=
+github.com/ethereum-optimism/optimism/op-chain-ops v0.8.8 h1:wNn80nhMW4srM/TvA785mikElpPJhEtTLBBuYFxjUCM=
+github.com/ethereum-optimism/optimism/op-chain-ops v0.8.8/go.mod h1:l9YB+bMCfYZV6rjcC6XL0VHa+6hkgdVPioHwBL9u6r8=
 github.com/ethereum-optimism/optimism/op-node v0.8.8 h1:WuZF1RsZnB+u/wwWToVaC1lZWfGfgncLusUssA3Hm+o=
 github.com/ethereum-optimism/optimism/op-node v0.8.8/go.mod h1:O5nXPCx8vn9c/CHgBC7vP5utcanIQ4uhWKkJ3pAaaSQ=
 github.com/ethereum-optimism/optimism/op-proposer v0.8.8 h1:IV0P64q7RJ52yvLMBLAKyqeDOxdQPGHbhmIXGkMKG/8=
