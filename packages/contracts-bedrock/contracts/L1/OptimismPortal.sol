@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { Types } from "../libraries/Types.sol";
@@ -62,6 +62,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
+
+    /**
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+     */
+    uint256[48] private __gap;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
