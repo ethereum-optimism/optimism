@@ -17,6 +17,11 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type NextAttributesProvider interface {
+	Origin() eth.L1BlockRef
+	NextAttributes(context.Context, eth.L2BlockRef) (*eth.PayloadAttributes, error)
+}
+
 type Engine interface {
 	GetPayload(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error)
 	ForkchoiceUpdate(ctx context.Context, state *eth.ForkchoiceState, attr *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error)
@@ -64,8 +69,6 @@ type EngineQueue struct {
 
 	finalizedL1 eth.BlockID
 
-	progress Progress
-
 	safeAttributes []*eth.PayloadAttributes
 	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
 
@@ -73,14 +76,15 @@ type EngineQueue struct {
 	finalityData []FinalityData
 
 	engine Engine
+	prev   NextAttributesProvider
+
+	progress Progress // only used for pipeline resets
 
 	metrics Metrics
 }
 
-var _ AttributesQueueOutput = (*EngineQueue)(nil)
-
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
-func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics) *EngineQueue {
+func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev NextAttributesProvider) *EngineQueue {
 	return &EngineQueue{
 		log:          log,
 		cfg:          cfg,
@@ -91,6 +95,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 			MaxSize: maxUnsafePayloadsMemory,
 			SizeFn:  payloadMemSize,
 		},
+		prev: prev,
 	}
 }
 
@@ -146,17 +151,30 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 	return uint64(eq.safeAttributes[len(eq.safeAttributes)-1].Timestamp)
 }
 
-func (eq *EngineQueue) Step(ctx context.Context, outer Progress) error {
-	if changed, err := eq.progress.Update(outer); err != nil || changed {
-		return err
-	}
+func (eq *EngineQueue) Step(ctx context.Context, _ Progress) error {
 	if len(eq.safeAttributes) > 0 {
 		return eq.tryNextSafeAttributes(ctx)
+	}
+	outOfData := false
+	if len(eq.safeAttributes) == 0 {
+		if next, err := eq.prev.NextAttributes(ctx, eq.safeHead); err == io.EOF {
+			outOfData = true
+		} else if err != nil {
+			return err
+		} else {
+			eq.safeAttributes = append(eq.safeAttributes, next)
+			return NotEnoughData
+		}
 	}
 	if eq.unsafePayloads.Len() > 0 {
 		return eq.tryNextUnsafePayload(ctx)
 	}
-	return io.EOF
+
+	if outOfData {
+		return io.EOF
+	} else {
+		return nil
+	}
 }
 
 // tryFinalizeL2 traverses the past L1 blocks, checks if any has been finalized,
@@ -186,11 +204,11 @@ func (eq *EngineQueue) postProcessSafeL2() {
 		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
 	}
 	// remember the last L2 block that we fully derived from the given finality data
-	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.progress.Origin.Number {
+	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.prev.Origin().Number {
 		// append entry for new L1 block
 		eq.finalityData = append(eq.finalityData, FinalityData{
 			L2Block: eq.safeHead,
-			L1Block: eq.progress.Origin.ID(),
+			L1Block: eq.prev.Origin().ID(),
 		})
 	} else {
 		// if it's a now L2 block that was derived from the same latest L1 block, then just update the entry
@@ -205,7 +223,7 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_safe", eq.safeHead,
 		"l2_unsafe", eq.unsafeHead,
 		"l2_time", eq.unsafeHead.Time,
-		"l1_derived", eq.progress.Origin,
+		"l1_derived", eq.prev.Origin(),
 	)
 }
 
@@ -398,6 +416,15 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 		return NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
 			safe, safe.Time, l1Origin, l1Origin.Time))
 	}
+
+	pipelineNumber := l1Origin.Number - eq.cfg.ChannelTimeout
+	if l1Origin.Number < eq.cfg.ChannelTimeout {
+		pipelineNumber = 0
+	}
+	pipelineOrigin, err := l1Fetcher.L1BlockRefByNumber(ctx, pipelineNumber)
+	if err != nil {
+		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", pipelineNumber, err))
+	}
 	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
@@ -405,8 +432,7 @@ func (eq *EngineQueue) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
 	eq.finalityData = eq.finalityData[:0]
 	// note: we do not clear the unsafe payloadds queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.progress = Progress{
-		Origin: l1Origin,
-		Closed: false,
+		Origin: pipelineOrigin,
 	}
 	eq.metrics.RecordL2Ref("l2_finalized", finalized)
 	eq.metrics.RecordL2Ref("l2_safe", safe)
