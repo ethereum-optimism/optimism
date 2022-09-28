@@ -440,6 +440,10 @@ func (s *state) eventLoop() {
 			} else if err != nil && errors.Is(err, derive.ErrCritical) {
 				s.log.Error("Derivation process critical error", "err", err)
 				return
+			} else if err != nil && errors.Is(err, derive.NotEnoughData) {
+				stepAttempts = 0 // don't do a backoff for this error
+				reqStep()
+				continue
 			} else if err != nil {
 				s.log.Error("Derivation process error", "attempts", stepAttempts, "err", err)
 				reqStep()

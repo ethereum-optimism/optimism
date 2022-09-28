@@ -1,6 +1,8 @@
 package derive
 
 import (
+	"context"
+	"io"
 	"math/rand"
 	"testing"
 
@@ -13,6 +15,20 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type fakeAttributesQueue struct {
+	origin eth.L1BlockRef
+}
+
+func (f *fakeAttributesQueue) Origin() eth.L1BlockRef {
+	return f.origin
+}
+
+func (f *fakeAttributesQueue) NextAttributes(_ context.Context, _ eth.L2BlockRef) (*eth.PayloadAttributes, error) {
+	return nil, io.EOF
+}
+
+var _ NextAttributesProvider = (*fakeAttributesQueue)(nil)
 
 func TestEngineQueue_Finalize(t *testing.T) {
 	logger := testlog.Logger(t, log.LvlInfo)
@@ -209,9 +225,12 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	// and we fetch the L1 origin of that as starting point for engine queue
 	l1F.ExpectL1BlockRefByHash(refB.Hash, refB, nil)
+	l1F.ExpectL1BlockRefByNumber(refB.Number, refB, nil)
 
-	eq := NewEngineQueue(logger, cfg, eng, metrics)
-	require.NoError(t, RepeatResetStep(t, eq.ResetStep, l1F, 20))
+	prev := &fakeAttributesQueue{}
+
+	eq := NewEngineQueue(logger, cfg, eng, metrics, prev)
+	require.ErrorIs(t, eq.ResetStep(context.Background(), l1F), io.EOF)
 
 	require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
 	require.Equal(t, refB, eq.Progress().Origin, "Expecting to be set back derivation L1 progress to B")
@@ -219,20 +238,19 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	// now say C1 was included in D and became the new safe head
 	eq.progress.Origin = refD
+	prev.origin = refD
 	eq.safeHead = refC1
 	eq.postProcessSafeL2()
 
 	// now say D0 was included in E and became the new safe head
 	eq.progress.Origin = refE
+	prev.origin = refE
 	eq.safeHead = refD0
 	eq.postProcessSafeL2()
 
 	// let's finalize D (current L1), from which we fully derived C1 (it was safe head), but not D0 (included in E)
 	eq.Finalize(refD.ID())
 
-	// Now a few steps later, without consuming any additional L1 inputs,
-	// we should be able to resolve that B1 is now finalized, since it was included in finalized L1 block C
-	require.NoError(t, RepeatStep(t, eq.Step, eq.progress, 10))
 	require.Equal(t, refC1, eq.Finalized(), "C1 was included in finalized D, and should now be finalized")
 
 	l1F.AssertExpectations(t)
