@@ -29,7 +29,7 @@ func WriteDefaultJWT(t TestingBase) string {
 	return jwtPath
 }
 
-func uint642big(in uint64) *hexutil.Big {
+func uint64ToBig(in uint64) *hexutil.Big {
 	return (*hexutil.Big)(new(big.Int).SetUint64(in))
 }
 
@@ -76,24 +76,24 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
 		L1GenesisBlockGasLimit:      15_000_000,
-		L1GenesisBlockDifficulty:    uint642big(1),
+		L1GenesisBlockDifficulty:    uint64ToBig(1),
 		L1GenesisBlockMixHash:       common.Hash{},
 		L1GenesisBlockCoinbase:      common.Address{},
 		L1GenesisBlockNumber:        0,
 		L1GenesisBlockGasUsed:       0,
 		L1GenesisBlockParentHash:    common.Hash{},
-		L1GenesisBlockBaseFeePerGas: uint642big(1000_000_000), // 1 gwei
+		L1GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000), // 1 gwei
 
 		L2GenesisBlockNonce:         0,
 		L2GenesisBlockExtraData:     []byte{},
 		L2GenesisBlockGasLimit:      15_000_000,
-		L2GenesisBlockDifficulty:    uint642big(0),
+		L2GenesisBlockDifficulty:    uint64ToBig(0),
 		L2GenesisBlockMixHash:       common.Hash{},
 		L2GenesisBlockCoinbase:      common.Address{0: 0x42, 19: 0xf0}, // matching OptimismL2FeeRecipient
 		L2GenesisBlockNumber:        0,
 		L2GenesisBlockGasUsed:       0,
 		L2GenesisBlockParentHash:    common.Hash{},
-		L2GenesisBlockBaseFeePerGas: uint642big(1000_000_000),
+		L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
 
 		OptimismBaseFeeRecipient:    common.Address{0: 0x42, 19: 0xf1}, // tbd
 		OptimismL1FeeRecipient:      addresses.Batcher,
