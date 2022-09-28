@@ -1,7 +1,10 @@
 import { utils } from 'ethers'
 
+// https://optimistic.etherscan.io/address/0x2501c477d0a35545a387aa4a3eee4292a9a8b3f0
 export const l2MainnetMultisig = '0x2501c477D0A35545a387Aa4A3EEe4292A9a8B3F0'
+// https://etherscan.io/address/0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A
 export const l1MainnetMultisig = '0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A'
+// https://goerli.etherscan.io/address/0xf80267194936da1E98dB10bcE06F3147D580a62e
 export const goerliAdmin = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
 export const predeploy = '0x4200000000000000000000000000000000000014'
 export const predeployDeployer = '0xdfc82d475833a50de90c642770f34a9db7deb725'
