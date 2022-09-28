@@ -50,6 +50,7 @@ func (st *defaultTesting) Ctx() context.Context {
 }
 
 // InvalidAction indicates the failure is due to action incompatibility, does not stop the test.
+// The format and args behave the same as fmt.Sprintf, testing.T.Errorf, etc.
 func (st *defaultTesting) InvalidAction(format string, args ...any) {
 	st.TestingBase.Helper() // report the error on the call-site to make debugging clear, not here.
 	st.Errorf("invalid action err: "+format, args...)
