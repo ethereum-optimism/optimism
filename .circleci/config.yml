@@ -13,7 +13,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)")
+            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -115,7 +115,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)")
+            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -172,7 +172,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|op-bindings)")
+            CHANGED=$(check-changed "(contracts-bedrock|op-bindings)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -200,7 +200,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)")
+            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -228,7 +228,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
+            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -336,7 +336,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-node")
+            CHANGED=$(check-changed "op-node" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -355,7 +355,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "packages/")
+            CHANGED=$(check-changed "packages/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -411,7 +411,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)")
+            CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)" || echo "TRUE")
             echo $CHANGED
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
@@ -446,7 +446,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "l2geth")
+            CHANGED=$(check-changed "l2geth" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -466,7 +466,7 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -520,7 +520,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
