@@ -22,18 +22,24 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// Testing interface to log to. Some functions are marked as Helper function to log the call site accurately.
+// Standard Go testing.TB implements this, as well as Hive and other Go-like test frameworks.
+type Testing interface {
+	Logf(format string, args ...any)
+	Helper()
+}
+
 // Handler returns a log handler which logs to the unit test log of t.
-func Handler(t *testing.T, level log.Lvl) log.Handler {
+func Handler(t Testing, level log.Lvl) log.Handler {
 	return log.LvlFilterHandler(level, &handler{t, log.TerminalFormat(false)})
 }
 
 type handler struct {
-	t   *testing.T
+	t   Testing
 	fmt log.Format
 }
 
@@ -47,7 +53,7 @@ func (h *handler) Log(r *log.Record) error {
 // helpers, so the file and line number in unit test output correspond to the call site
 // which emitted the log message.
 type logger struct {
-	t  *testing.T
+	t  Testing
 	l  log.Logger
 	mu *sync.Mutex
 	h  *bufHandler
@@ -64,7 +70,7 @@ func (h *bufHandler) Log(r *log.Record) error {
 }
 
 // Logger returns a logger which logs to the unit test log of t.
-func Logger(t *testing.T, level log.Lvl) log.Logger {
+func Logger(t Testing, level log.Lvl) log.Logger {
 	l := &logger{
 		t:  t,
 		l:  log.New(),
