@@ -27,8 +27,12 @@ type Action func(t Testing)
 type ActionStatus uint
 
 const (
+	// ActionOK indicates the action is valid to apply
 	ActionOK ActionStatus = iota
+	// ActionInvalid indicates the action is not applicable, and a different next action may taken.
 	ActionInvalid
+	// More action status types may be used to indicate e.g. required rewinds,
+	// simple skips, or special cases for fuzzing.
 )
 
 // defaultTesting is a simple implementation of Testing that takes standard Go testing framework,
@@ -40,21 +44,25 @@ type defaultTesting struct {
 	state ActionStatus
 }
 
+// Ctx shares a context to execute an action with, the test runner may interrupt the action without stopping the test.
 func (st *defaultTesting) Ctx() context.Context {
 	return st.ctx
 }
 
+// InvalidAction indicates the failure is due to action incompatibility, does not stop the test.
 func (st *defaultTesting) InvalidAction(format string, args ...any) {
 	st.TestingBase.Helper() // report the error on the call-site to make debugging clear, not here.
 	st.Errorf("invalid action err: "+format, args...)
 	st.state = ActionInvalid
 }
 
+// Reset prepares the testing util for the next action, changing the context and state back to OK.
 func (st *defaultTesting) Reset(actionCtx context.Context) {
 	st.state = ActionOK
 	st.ctx = actionCtx
 }
 
+// State shares the current action state.
 func (st *defaultTesting) State() ActionStatus {
 	return st.state
 }
