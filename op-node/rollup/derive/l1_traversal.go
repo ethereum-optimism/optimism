@@ -33,6 +33,10 @@ func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher) *L1Trave
 	}
 }
 
+func (l1t *L1Traversal) Origin() eth.L1BlockRef {
+	return l1t.block
+}
+
 // NextL1Block returns the next block. It does not advance, but it can only be
 // called once before returning io.EOF
 func (l1t *L1Traversal) NextL1Block(_ context.Context) (eth.L1BlockRef, error) {
