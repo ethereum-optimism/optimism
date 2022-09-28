@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 
@@ -10,6 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+type NextDataProvider interface {
+	NextData(ctx context.Context) ([]byte, error)
+	Origin() eth.L1BlockRef
+}
 
 // ChannelBank is a stateful stage that does the following:
 // 1. Unmarshalls frames from L1 transaction data
@@ -22,11 +28,6 @@ import (
 // Specifically, the channel bank is not allowed to become too large between successive calls
 // to `IngestData`. This means that we can do an ingest and then do a read while becoming too large.
 
-type ChannelBankOutput interface {
-	StageProgress
-	WriteChannel(data []byte)
-}
-
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
 	log log.Logger
@@ -35,82 +36,79 @@ type ChannelBank struct {
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
 
-	progress Progress
+	origin eth.L1BlockRef
 
-	next ChannelBankOutput
-	prev *L1Retrieval
+	prev    NextDataProvider
+	fetcher L1Fetcher
 }
 
-var _ Stage = (*ChannelBank)(nil)
+var _ PullStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, next ChannelBankOutput, prev *L1Retrieval) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextDataProvider, fetcher L1Fetcher) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
 		channels:     make(map[ChannelID]*Channel),
 		channelQueue: make([]ChannelID, 0, 10),
-		next:         next,
 		prev:         prev,
+		fetcher:      fetcher,
 	}
 }
 
-func (ib *ChannelBank) Progress() Progress {
-	return ib.progress
+func (cb *ChannelBank) Origin() eth.L1BlockRef {
+	return cb.prev.Origin()
 }
 
-func (ib *ChannelBank) prune() {
+func (cb *ChannelBank) prune() {
 	// check total size
 	totalSize := uint64(0)
-	for _, ch := range ib.channels {
+	for _, ch := range cb.channels {
 		totalSize += ch.size
 	}
 	// prune until it is reasonable again. The high-priority channel failed to be read, so we start pruning there.
 	for totalSize > MaxChannelBankSize {
-		id := ib.channelQueue[0]
-		ch := ib.channels[id]
-		ib.channelQueue = ib.channelQueue[1:]
-		delete(ib.channels, id)
+		id := cb.channelQueue[0]
+		ch := cb.channels[id]
+		cb.channelQueue = cb.channelQueue[1:]
+		delete(cb.channels, id)
 		totalSize -= ch.size
 	}
 }
 
 // IngestData adds new L1 data to the channel bank.
 // Read() should be called repeatedly first, until everything has been read, before adding new data.\
-func (ib *ChannelBank) IngestData(data []byte) {
-	if ib.progress.Closed {
-		panic("write data to bank while closed")
-	}
-	ib.log.Debug("channel bank got new data", "origin", ib.progress.Origin, "data_len", len(data))
+func (cb *ChannelBank) IngestData(data []byte) {
+	cb.log.Debug("channel bank got new data", "origin", cb.origin, "data_len", len(data))
 
 	// TODO: Why is the prune here?
-	ib.prune()
+	cb.prune()
 
 	frames, err := ParseFrames(data)
 	if err != nil {
-		ib.log.Warn("malformed frame", "err", err)
+		cb.log.Warn("malformed frame", "err", err)
 		return
 	}
 
 	// Process each frame
 	for _, f := range frames {
-		currentCh, ok := ib.channels[f.ID]
+		currentCh, ok := cb.channels[f.ID]
 		if !ok {
 			// create new channel if it doesn't exist yet
-			currentCh = NewChannel(f.ID, ib.progress.Origin)
-			ib.channels[f.ID] = currentCh
-			ib.channelQueue = append(ib.channelQueue, f.ID)
+			currentCh = NewChannel(f.ID, cb.origin)
+			cb.channels[f.ID] = currentCh
+			cb.channelQueue = append(cb.channelQueue, f.ID)
 		}
 
 		// check if the channel is not timed out
-		if currentCh.OpenBlockNumber()+ib.cfg.ChannelTimeout < ib.progress.Origin.Number {
-			ib.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "frame", f.FrameNumber)
+		if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.origin.Number {
+			cb.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "frame", f.FrameNumber)
 			continue
 		}
 
-		ib.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
-		if err := currentCh.AddFrame(f, ib.progress.Origin); err != nil {
-			ib.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
+		cb.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
+		if err := currentCh.AddFrame(f, cb.origin); err != nil {
+			cb.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
 			continue
 		}
 	}
@@ -118,78 +116,60 @@ func (ib *ChannelBank) IngestData(data []byte) {
 
 // Read the raw data of the first channel, if it's timed-out or closed.
 // Read returns io.EOF if there is nothing new to read.
-func (ib *ChannelBank) Read() (data []byte, err error) {
-	if len(ib.channelQueue) == 0 {
+func (cb *ChannelBank) Read() (data []byte, err error) {
+	if len(cb.channelQueue) == 0 {
 		return nil, io.EOF
 	}
-	first := ib.channelQueue[0]
-	ch := ib.channels[first]
-	timedOut := ch.OpenBlockNumber()+ib.cfg.ChannelTimeout < ib.progress.Origin.Number
+	first := cb.channelQueue[0]
+	ch := cb.channels[first]
+	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.origin.Number
 	if timedOut {
-		ib.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
-		delete(ib.channels, first)
-		ib.channelQueue = ib.channelQueue[1:]
+		cb.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
+		delete(cb.channels, first)
+		cb.channelQueue = cb.channelQueue[1:]
 		return nil, io.EOF
 	}
 	if !ch.IsReady() {
 		return nil, io.EOF
 	}
 
-	delete(ib.channels, first)
-	ib.channelQueue = ib.channelQueue[1:]
+	delete(cb.channels, first)
+	cb.channelQueue = cb.channelQueue[1:]
 	r := ch.Reader()
 	// Suprress error here. io.ReadAll does return nil instead of io.EOF though.
 	data, _ = io.ReadAll(r)
 	return data, nil
 }
 
-// Step does the advancement for the channel bank.
-// Channel bank as the first non-pull stage does it's own progress maintentance.
-// When closed, it checks against the previous origin to determine if to open itself
-func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
-	// Open ourselves
-	// This is ok to do b/c we would not have yielded control to the lower stages
-	// of the pipeline without being completely done reading from L1.
-	if ib.progress.Closed {
-		if ib.progress.Origin != ib.prev.Origin() {
-			ib.progress.Closed = false
-			ib.progress.Origin = ib.prev.Origin()
-			return nil
-		}
+// NextData pulls the next piece of data from the channel bank.
+// Note that it attempts to pull data out of the channel bank prior to
+// loading data in (unlike most other stages). This is to ensure maintain
+// consistency around channel bank pruning which depends upon the order
+// of operations.
+func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
+	if cb.origin != cb.prev.Origin() {
+		cb.origin = cb.prev.Origin()
 	}
 
-	skipIngest := ib.next.Progress().Origin.Number > ib.progress.Origin.Number
-	outOfData := false
-
-	if data, err := ib.prev.NextData(ctx); err == io.EOF {
-		outOfData = true
+	// Do the read from the channel bank first
+	data, err := cb.Read()
+	if err == io.EOF {
+		// continue - We will attempt to load data into the channel bank
 	} else if err != nil {
-		return err
+		return nil, err
 	} else {
-		ib.IngestData(data)
+		return data, nil
 	}
 
-	// otherwise, read the next channel data from the bank
-	data, err := ib.Read()
-	if err == io.EOF { // need new L1 data in the bank before we can read more channel data
-		if outOfData {
-			if !ib.progress.Closed {
-				ib.progress.Closed = true
-				return nil
-			}
-			return io.EOF
-		} else {
-			return nil
-		}
+	// Then load data into the channel bank
+	if data, err := cb.prev.NextData(ctx); err == io.EOF {
+		return nil, io.EOF
 	} else if err != nil {
-		return err
+		return nil, err
 	} else {
-		if !skipIngest {
-			ib.next.WriteChannel(data)
-			return nil
-		}
+		cb.IngestData(data)
+		return nil, NewTemporaryError(errors.New("not enough data"))
 	}
-	return nil
 }
 
 // ResetStep walks back the L1 chain, starting at the origin of the next stage,
@@ -197,19 +177,18 @@ func (ib *ChannelBank) Step(ctx context.Context, _ Progress) error {
 // to get consistent reads starting at origin.
 // Any channel data before this origin will be timed out by the time the channel bank is synced up to the origin,
 // so it is not relevant to replay it into the bank.
-func (ib *ChannelBank) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
-	ib.progress = ib.next.Progress()
-	ib.log.Debug("walking back to find reset origin for channel bank", "origin", ib.progress.Origin)
+func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef) error {
+	cb.log.Debug("walking back to find reset origin for channel bank", "origin", base)
 	// go back in history if we are not distant enough from the next stage
-	resetBlock := ib.progress.Origin.Number - ib.cfg.ChannelTimeout
-	if ib.progress.Origin.Number < ib.cfg.ChannelTimeout {
+	resetBlock := base.Number - cb.cfg.ChannelTimeout
+	if base.Number < cb.cfg.ChannelTimeout {
 		resetBlock = 0 // don't underflow
 	}
-	parent, err := l1Fetcher.L1BlockRefByNumber(ctx, resetBlock)
+	parent, err := cb.fetcher.L1BlockRefByNumber(ctx, resetBlock)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find channel bank block, failed to retrieve L1 reference: %w", err))
 	}
-	ib.progress.Origin = parent
+	cb.origin = parent
 	return io.EOF
 }
 

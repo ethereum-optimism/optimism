@@ -26,13 +26,18 @@ type ChannelInReader struct {
 	progress Progress
 
 	next BatchQueueStage
+	prev *ChannelBank
 }
 
-var _ ChannelBankOutput = (*ChannelInReader)(nil)
+var _ Stage = (*ChannelInReader)(nil)
 
 // NewChannelInReader creates a ChannelInReader, which should be Reset(origin) before use.
-func NewChannelInReader(log log.Logger, next BatchQueueStage) *ChannelInReader {
-	return &ChannelInReader{log: log, next: next}
+func NewChannelInReader(log log.Logger, next BatchQueueStage, prev *ChannelBank) *ChannelInReader {
+	return &ChannelInReader{
+		log:  log,
+		next: next,
+		prev: prev,
+	}
 }
 
 func (cr *ChannelInReader) Progress() Progress {
@@ -58,27 +63,45 @@ func (cr *ChannelInReader) NextChannel() {
 }
 
 func (cr *ChannelInReader) Step(ctx context.Context, outer Progress) error {
-	if changed, err := cr.progress.Update(outer); err != nil || changed {
-		return err
+	// Close ourselves if required
+	if cr.progress.Closed {
+		if cr.progress.Origin != cr.prev.Origin() {
+			cr.progress.Closed = false
+			cr.progress.Origin = cr.prev.Origin()
+			return nil
+		}
 	}
 
 	if cr.nextBatchFn == nil {
-		return io.EOF
-	}
-
-	// TODO: can batch be non nil while err == io.EOF
-	// This depends on the behavior of rlp.Stream
-	batch, err := cr.nextBatchFn()
-
-	if err == io.EOF {
-		return io.EOF
-	} else if err != nil {
-		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
-		cr.NextChannel()
+		if data, err := cr.prev.NextData(ctx); err == io.EOF {
+			if !cr.progress.Closed {
+				cr.progress.Closed = true
+				return nil
+			} else {
+				return io.EOF
+			}
+		} else if err != nil {
+			return err
+		} else {
+			cr.WriteChannel(data)
+			return nil
+		}
+	} else {
+		// TODO: can batch be non nil while err == io.EOF
+		// This depends on the behavior of rlp.Stream
+		batch, err := cr.nextBatchFn()
+		if err == io.EOF {
+			cr.NextChannel()
+			return io.EOF
+		} else if err != nil {
+			cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
+			cr.NextChannel()
+			return nil
+		}
+		cr.next.AddBatch(batch.Batch)
 		return nil
 	}
-	cr.next.AddBatch(batch.Batch)
-	return nil
+
 }
 
 func (cr *ChannelInReader) ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error {
