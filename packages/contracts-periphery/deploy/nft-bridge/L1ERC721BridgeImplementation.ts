@@ -6,6 +6,13 @@ import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import fetch from 'node-fetch'
 
+import {
+  isTargetL1Network,
+  predeploy,
+  getProxyAdmin,
+  validateERC721Bridge,
+} from '../../src/nft-bridge-deploy-helpers'
+
 // Handle the `ops` deployment
 const getL1CrossDomainMessengerProxyDeployment = async (
   hre: HardhatRuntimeEnvironment
@@ -26,6 +33,11 @@ const deployFn: DeployFunction = async (hre) => {
   const { deploy } = hre.deployments
   const { getAddress } = hre.ethers.utils
 
+  if (!isTargetL1Network(hre.network.name)) {
+    console.log(`Deploying to unsupported network ${hre.network.name}`)
+    return
+  }
+
   console.log(`Deploying L1ERC721Bridge to ${hre.network.name}`)
   console.log(`Using deployer ${deployer}`)
 
@@ -37,6 +49,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy',
     Deployment__L1ERC721BridgeProxy.address
   )
+
   const admin = await L1ERC721BridgeProxy.callStatic.admin()
   if (getAddress(admin) !== getAddress(deployer)) {
     throw new Error('deployer is not proxy admin')
@@ -47,10 +60,9 @@ const deployFn: DeployFunction = async (hre) => {
   const Deployment__L1CrossDomainMessengerProxy =
     await getL1CrossDomainMessengerProxyDeployment(hre)
 
-  const L1CrossDomainMessengerAddress =
+  const L1CrossDomainMessengerProxyAddress =
     Deployment__L1CrossDomainMessengerProxy.address
 
-  const predeploy = '0x4200000000000000000000000000000000000014'
   // Deploy the L1ERC721Bridge. The arguments are
   // - messenger
   // - otherBridge
@@ -58,7 +70,7 @@ const deployFn: DeployFunction = async (hre) => {
   // predeploy address
   await deploy('L1ERC721Bridge', {
     from: deployer,
-    args: [L1CrossDomainMessengerAddress, predeploy],
+    args: [L1CrossDomainMessengerProxyAddress, predeploy],
     log: true,
     waitConfirmations: 1,
   })
@@ -68,21 +80,10 @@ const deployFn: DeployFunction = async (hre) => {
     `L1ERC721Bridge deployed to ${Deployment__L1ERC721Bridge.address}`
   )
 
-  const L1ERC721Bridge = await hre.ethers.getContractAt(
-    'L1ERC721Bridge',
-    Deployment__L1ERC721Bridge.address
-  )
-
-  // Check to make sure that it was initialized correctly
-  const messenger = await L1ERC721Bridge.messenger()
-  if (getAddress(messenger) !== getAddress(L1CrossDomainMessengerAddress)) {
-    throw new Error(`L1ERC721Bridge.messenger misconfigured`)
-  }
-
-  const otherBridge = await L1ERC721Bridge.otherBridge()
-  if (getAddress(otherBridge) !== getAddress(predeploy)) {
-    throw new Error('L1ERC721Bridge.otherBridge misconfigured')
-  }
+  await validateERC721Bridge(hre, Deployment__L1ERC721Bridge.address, {
+    messenger: L1CrossDomainMessengerProxyAddress,
+    otherBridge: predeploy,
+  })
 
   {
     // Upgrade the Proxy to the newly deployed implementation
@@ -94,26 +95,17 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   {
-    if (
-      hre.network.name === 'optimism' ||
-      hre.network.name === 'optimism-goerli' ||
-      hre.network.name === 'ops-l2'
-    ) {
-      let newAdmin: string
-      if (hre.network.name === 'optimism') {
-        newAdmin = '0x2501c477D0A35545a387Aa4A3EEe4292A9a8B3F0'
-      } else if (hre.network.name === 'optimism-goerli') {
-        newAdmin = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
-      } else {
-        newAdmin = deployer
-      }
-      const tx = await L1ERC721BridgeProxy.changeAdmin(newAdmin)
-      const receipt = await tx.wait()
-      console.log(
-        `L1ERC721BridgeProxy admin updated: ${receipt.transactionHash}`
-      )
-    }
+    // Set the admin correctly
+    const newAdmin = getProxyAdmin(hre.network.name)
+    const tx = await L1ERC721BridgeProxy.changeAdmin(newAdmin)
+    const receipt = await tx.wait()
+    console.log(`L1ERC721BridgeProxy admin updated: ${receipt.transactionHash}`)
   }
+
+  await validateERC721Bridge(hre, L1ERC721BridgeProxy.address, {
+    messenger: L1CrossDomainMessengerProxyAddress,
+    otherBridge: predeploy,
+  })
 }
 
 deployFn.tags = ['L1ERC721BridgeImplementation']

@@ -4,6 +4,8 @@ import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 
+import { getProxyAdmin, predeploy } from '../../src/nft-bridge-deploy-helpers'
+
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { getAddress } = hre.ethers.utils
@@ -44,7 +46,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await hre.deployments.deploy('OptimismMintableERC721Factory', {
     from: deployer,
-    args: ['0x4200000000000000000000000000000000000014', remoteChainId],
+    args: [predeploy, remoteChainId],
     log: true,
     waitConfirmations: 1,
   })
@@ -68,25 +70,12 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   {
-    if (
-      hre.network.name === 'optimism' ||
-      hre.network.name === 'optimism-goerli' ||
-      hre.network.name === 'ops-l2'
-    ) {
-      let newAdmin: string
-      if (hre.network.name === 'optimism') {
-        newAdmin = '0x2501c477D0A35545a387Aa4A3EEe4292A9a8B3F0'
-      } else if (hre.network.name === 'optimism-goerli') {
-        newAdmin = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
-      } else if (hre.network.name === 'ops-l2') {
-        newAdmin = deployer
-      }
-      const tx = await OptimismMintableERC721FactoryProxy.changeAdmin(newAdmin)
-      const receipt = await tx.wait()
-      console.log(
-        `OptimismMintableERC721FactoryProxy admin updated: ${receipt.transactionHash}`
-      )
-    }
+    const newAdmin = getProxyAdmin(hre.network.name)
+    const tx = await OptimismMintableERC721FactoryProxy.changeAdmin(newAdmin)
+    const receipt = await tx.wait()
+    console.log(
+      `OptimismMintableERC721FactoryProxy admin updated: ${receipt.transactionHash}`
+    )
   }
 }
 
