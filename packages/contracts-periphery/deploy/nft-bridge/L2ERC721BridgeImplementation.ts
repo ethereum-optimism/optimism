@@ -5,17 +5,26 @@ import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { predeploys } from '@eth-optimism/contracts'
 
+import {
+  isTargetL2Network,
+  predeploy,
+  validateERC721Bridge,
+  getProxyAdmin,
+} from '../../src/nft-bridge-deploy-helpers'
+
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { getAddress } = hre.ethers.utils
 
+  if (!isTargetL2Network(hre.network.name)) {
+    console.log(`Deploying to unsupported network ${hre.network.name}`)
+    return
+  }
+
   console.log(`Deploying L2ERC721Bridge to ${hre.network.name}`)
   console.log(`Using deployer ${deployer}`)
 
-  const L2ERC721BridgeProxy = await hre.ethers.getContractAt(
-    'Proxy',
-    '0x4200000000000000000000000000000000000014'
-  )
+  const L2ERC721BridgeProxy = await hre.ethers.getContractAt('Proxy', predeploy)
 
   // Check to make sure that the admin of the proxy is the deployer.
   // The deployer of the L2ERC721Bridge should be the same as the
@@ -47,21 +56,10 @@ const deployFn: DeployFunction = async (hre) => {
     `L2ERC721Bridge deployed to ${Deployment__L2ERC721Bridge.address}`
   )
 
-  // Check that the L2ERC721Bridge was deployed correctly
-  const L2ERC721Bridge = await hre.ethers.getContractAt(
-    'L2ERC721Bridge',
-    Deployment__L2ERC721Bridge.address
-  )
-
-  const messenger = await L2ERC721Bridge.messenger()
-  if (getAddress(messenger) !== getAddress(predeploys.L2CrossDomainMessenger)) {
-    throw new Error('messenger misconfigured')
-  }
-
-  const otherBridge = await L2ERC721Bridge.otherBridge()
-  if (getAddress(otherBridge) !== getAddress(L1ERC721BridgeAddress)) {
-    throw new Error('otherBridge misconfigured')
-  }
+  await validateERC721Bridge(hre, Deployment__L2ERC721Bridge.address, {
+    messenger: predeploys.L2CrossDomainMessenger,
+    otherBridge: L1ERC721BridgeAddress,
+  })
 
   {
     // Upgrade the implementation of the proxy to the newly deployed
@@ -75,32 +73,19 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  {
-    // On production networks transfer the admin privilege to the
-    // appropriate address
-    if (
-      hre.network.name === 'optimism' ||
-      hre.network.name === 'optimism-goerli' ||
-      hre.network.name === 'ops-l2'
-    ) {
-      let owner: string
-      if (hre.network.name === 'optimism') {
-        // L2 Foundation Multisig
-        owner = '0x2501c477D0A35545a387Aa4A3EEe4292A9a8B3F0'
-      } else if (hre.network.name === 'optimism-goerli') {
-        // Goerli admin key
-        owner = '0xf80267194936da1E98dB10bcE06F3147D580a62e'
-      } else {
-        owner = deployer
-      }
+  await validateERC721Bridge(hre, L2ERC721BridgeProxy.address, {
+    messenger: predeploys.L2CrossDomainMessenger,
+    otherBridge: L1ERC721BridgeAddress,
+  })
 
-      console.log(`Changing admin to ${owner}`)
-      const tx = await L2ERC721BridgeProxy.changeAdmin(owner)
-      const receipt = await tx.wait()
-      console.log(
-        `Changed admin of the L2ERC721BridgeProxy: ${receipt.transactionHash}`
-      )
-    }
+  {
+    const newAdmin = getProxyAdmin(hre.network.name)
+    console.log(`Changing admin to ${newAdmin}`)
+    const tx = await L2ERC721BridgeProxy.changeAdmin(newAdmin)
+    const receipt = await tx.wait()
+    console.log(
+      `Changed admin of the L2ERC721BridgeProxy: ${receipt.transactionHash}`
+    )
   }
 }
 

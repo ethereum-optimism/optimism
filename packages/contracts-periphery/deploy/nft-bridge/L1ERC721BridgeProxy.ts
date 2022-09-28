@@ -4,9 +4,16 @@ import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 
+import { isTargetL1Network } from '../../src/nft-bridge-deploy-helpers'
+
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
   const { deploy } = hre.deployments
+
+  if (!isTargetL1Network(hre.network.name)) {
+    console.log(`Deploying to unsupported network ${hre.network.name}`)
+    return
+  }
 
   console.log(`Deploying L1ERC721BridgeProxy to ${hre.network.name}`)
   console.log(`Using deployer ${deployer}`)
