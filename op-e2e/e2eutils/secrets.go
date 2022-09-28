@@ -1,0 +1,160 @@
+package e2eutils
+
+import (
+	"crypto/ecdsa"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto"
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+)
+
+// DefaultMnemonicConfig is the default mnemonic used in testing.
+// We prefer a mnemonic rather than direct private keys to make it easier
+// to export all testing keys in external tooling for use during debugging.
+var DefaultMnemonicConfig = &MnemonicConfig{
+	Mnemonic: "test test test test test test test test test test test junk",
+	Deployer: "m/44'/60'/0'/0/1",
+	// clique signer: removed, use engine API instead
+	Proposer:     "m/44'/60'/0'/0/3",
+	Batcher:      "m/44'/60'/0'/0/4",
+	SequencerP2P: "m/44'/60'/0'/0/5",
+	Alice:        "m/44'/60'/0'/0/6",
+	Bob:          "m/44'/60'/0'/0/7",
+	Mallory:      "m/44'/60'/0'/0/8",
+}
+
+// MnemonicConfig configures the private keys for testing purposes.
+type MnemonicConfig struct {
+	Mnemonic string
+
+	Deployer string
+
+	// rollup actors
+	Proposer     string
+	Batcher      string
+	SequencerP2P string
+
+	// prefunded L1/L2 accounts for testing
+	Alice   string
+	Bob     string
+	Mallory string
+}
+
+// Secrets computes the private keys for all mnemonic paths,
+// which can then be kept around for fast precomputed private key access.
+func (m *MnemonicConfig) Secrets() (*Secrets, error) {
+	wallet, err := hdwallet.NewFromMnemonic(m.Mnemonic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wallet: %w", err)
+	}
+	account := func(path string) accounts.Account {
+		return accounts.Account{URL: accounts.URL{Path: path}}
+	}
+
+	deployer, err := wallet.PrivateKey(account(m.Deployer))
+	if err != nil {
+		return nil, err
+	}
+	proposer, err := wallet.PrivateKey(account(m.Proposer))
+	if err != nil {
+		return nil, err
+	}
+	batcher, err := wallet.PrivateKey(account(m.Batcher))
+	if err != nil {
+		return nil, err
+	}
+	sequencerP2P, err := wallet.PrivateKey(account(m.SequencerP2P))
+	if err != nil {
+		return nil, err
+	}
+	alice, err := wallet.PrivateKey(account(m.Alice))
+	if err != nil {
+		return nil, err
+	}
+	bob, err := wallet.PrivateKey(account(m.Bob))
+	if err != nil {
+		return nil, err
+	}
+	mallory, err := wallet.PrivateKey(account(m.Mallory))
+	if err != nil {
+		return nil, err
+	}
+
+	return &Secrets{
+		Deployer:     deployer,
+		Proposer:     proposer,
+		Batcher:      batcher,
+		SequencerP2P: sequencerP2P,
+		Alice:        alice,
+		Bob:          bob,
+		Mallory:      mallory,
+	}, nil
+}
+
+// Secrets bundles secp256k1 private keys for all common rollup actors for testing purposes.
+type Secrets struct {
+	Deployer *ecdsa.PrivateKey
+
+	// rollup actors
+	Proposer     *ecdsa.PrivateKey
+	Batcher      *ecdsa.PrivateKey
+	SequencerP2P *ecdsa.PrivateKey
+
+	// prefunded L1/L2 accounts for testing
+	Alice   *ecdsa.PrivateKey
+	Bob     *ecdsa.PrivateKey
+	Mallory *ecdsa.PrivateKey
+}
+
+// EncodePrivKey encodes the given private key in 32 bytes
+func EncodePrivKey(priv *ecdsa.PrivateKey) hexutil.Bytes {
+	privkey := make([]byte, 32)
+	blob := priv.D.Bytes()
+	copy(privkey[32-len(blob):], blob)
+	return privkey
+}
+
+// Addresses computes the ethereum address of each account,
+// which can then be kept around for fast precomputed address access.
+func (s *Secrets) Addresses() *Addresses {
+	return &Addresses{
+		Deployer:     crypto.PubkeyToAddress(s.Deployer.PublicKey),
+		Proposer:     crypto.PubkeyToAddress(s.Proposer.PublicKey),
+		Batcher:      crypto.PubkeyToAddress(s.Batcher.PublicKey),
+		SequencerP2P: crypto.PubkeyToAddress(s.SequencerP2P.PublicKey),
+		Alice:        crypto.PubkeyToAddress(s.Alice.PublicKey),
+		Bob:          crypto.PubkeyToAddress(s.Bob.PublicKey),
+		Mallory:      crypto.PubkeyToAddress(s.Mallory.PublicKey),
+	}
+}
+
+// Addresses bundles the addresses for all common rollup addresses for testing purposes.
+type Addresses struct {
+	Deployer common.Address
+
+	// rollup actors
+	Proposer     common.Address
+	Batcher      common.Address
+	SequencerP2P common.Address
+
+	// prefunded L1/L2 accounts for testing
+	Alice   common.Address
+	Bob     common.Address
+	Mallory common.Address
+}
+
+func (a *Addresses) All() []common.Address {
+	return []common.Address{
+		a.Batcher,
+		a.Deployer,
+		a.Proposer,
+		a.Batcher,
+		a.SequencerP2P,
+		a.Alice,
+		a.Bob,
+		a.Mallory,
+	}
+}
