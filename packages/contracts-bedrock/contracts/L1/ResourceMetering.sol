@@ -76,6 +76,24 @@ abstract contract ResourceMetering is Initializable {
         // Run the underlying function.
         _;
 
+        // Determine the amount of ETH to be paid.
+        uint256 resourceCost = _amount * params.prevBaseFee;
+
+        // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
+        // into gas by dividing by the L1 base fee. We assume a minimum base fee of 1 gwei to avoid
+        // division by zero for L1s that don't support 1559 or to avoid excessive gas burns during
+        // periods of extremely low L1 demand. One-day average gas fee hasn't dipped below 1 gwei
+        // during any 1 day period in the last 5 years, so should be fine.
+        uint256 gasCost = resourceCost / Math.max(block.basefee, 1000000000);
+
+        // Give the user a refund based on the amount of gas they used to do all of the work up to
+        // this point. Since we're at the end of the modifier, this should be pretty accurate. Acts
+        // effectively like a dynamic stipend (with a minimum value).
+        uint256 usedGas = initialGas - gasleft();
+        if (gasCost > usedGas) {
+            Burn.gas(gasCost - usedGas);
+        }
+
         // Update block number and base fee if necessary.
         uint256 blockDiff = block.number - params.prevBlockNum;
         if (blockDiff > 0) {
@@ -133,24 +151,6 @@ abstract contract ResourceMetering is Initializable {
             int256(uint256(params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
             "ResourceMetering: cannot buy more gas than available gas limit"
         );
-
-        // Determine the amount of ETH to be paid.
-        uint256 resourceCost = _amount * params.prevBaseFee;
-
-        // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
-        // into gas by dividing by the L1 base fee. We assume a minimum base fee of 1 gwei to avoid
-        // division by zero for L1s that don't support 1559 or to avoid excessive gas burns during
-        // periods of extremely low L1 demand. One-day average gas fee hasn't dipped below 1 gwei
-        // during any 1 day period in the last 5 years, so should be fine.
-        uint256 gasCost = resourceCost / Math.max(block.basefee, 1000000000);
-
-        // Give the user a refund based on the amount of gas they used to do all of the work up to
-        // this point. Since we're at the end of the modifier, this should be pretty accurate. Acts
-        // effectively like a dynamic stipend (with a minimum value).
-        uint256 usedGas = initialGas - gasleft();
-        if (gasCost > usedGas) {
-            Burn.gas(gasCost - usedGas);
-        }
     }
 
     /**
