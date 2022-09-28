@@ -2,7 +2,6 @@ package derive
 
 import (
 	"context"
-	"io"
 	"math/big"
 	"math/rand"
 	"testing"
@@ -17,30 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type MockAttributesQueueOutput struct {
-	MockOriginStage
-}
-
-func (m *MockAttributesQueueOutput) AddSafeAttributes(attributes *eth.PayloadAttributes) {
-	m.Mock.MethodCalled("AddSafeAttributes", attributes)
-}
-
-func (m *MockAttributesQueueOutput) ExpectAddSafeAttributes(attributes *eth.PayloadAttributes) {
-	m.Mock.On("AddSafeAttributes", attributes).Once().Return()
-}
-
-func (m *MockAttributesQueueOutput) SafeL2Head() eth.L2BlockRef {
-	return m.Mock.MethodCalled("SafeL2Head").Get(0).(eth.L2BlockRef)
-}
-
-func (m *MockAttributesQueueOutput) ExpectSafeL2Head(head eth.L2BlockRef) {
-	m.Mock.On("SafeL2Head").Once().Return(head)
-}
-
-var _ AttributesQueueOutput = (*MockAttributesQueueOutput)(nil)
-
-func TestAttributesQueue_Step(t *testing.T) {
-	t.Skip("don't fake out batch queue")
+// TestAttributesQueue checks that it properly uses the PreparePayloadAttributes function
+// (which is well tested) and that it properly sets NoTxPool and adds in the candidate
+// transactions.
+func TestAttributesQueue(t *testing.T) {
 	// test config, only init the necessary fields
 	cfg := &rollup.Config{
 		BlockTime:              2,
@@ -57,17 +36,8 @@ func TestAttributesQueue_Step(t *testing.T) {
 
 	l1Fetcher.ExpectInfoByHash(l1Info.InfoHash, l1Info, nil)
 
-	out := &MockAttributesQueueOutput{}
-	out.progress = Progress{
-		Origin: l1Info.BlockRef(),
-		Closed: false,
-	}
-	defer out.AssertExpectations(t)
-
 	safeHead := testutils.RandomL2BlockRef(rng)
 	safeHead.L1Origin = l1Info.ID()
-
-	out.ExpectSafeL2Head(safeHead)
 
 	batch := &BatchData{BatchV1{
 		ParentHash:   safeHead.Hash,
@@ -86,13 +56,11 @@ func TestAttributesQueue_Step(t *testing.T) {
 		Transactions:          []eth.Data{l1InfoTx, eth.Data("foobar"), eth.Data("example")},
 		NoTxPool:              true,
 	}
-	out.ExpectAddSafeAttributes(&attrs)
 
-	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, l1Fetcher, out, nil)
-	require.NoError(t, RepeatResetStep(t, aq.ResetStep, l1Fetcher, 1))
+	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, l1Fetcher, nil)
 
-	aq.AddBatch(batch)
+	actual, err := aq.createNextAttributes(context.Background(), batch, safeHead)
 
-	require.NoError(t, aq.Step(context.Background(), out.progress), "adding batch to next stage, no EOF yet")
-	require.Equal(t, io.EOF, aq.Step(context.Background(), out.progress), "done with batches")
+	require.Nil(t, err)
+	require.Equal(t, attrs, *actual)
 }
