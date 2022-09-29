@@ -2,8 +2,8 @@
 
 set -e
 
-L1_NETWORK=goerli
-L2_NETWORK=optimism-goerli
+L1_NETWORK=ops-l1
+L2_NETWORK=ops-l2
 
 # Step 1: deploy the Proxy to the predeploy address on L2
 npx hardhat deploy --tags L2ERC721BridgeProxy --network $L2_NETWORK
