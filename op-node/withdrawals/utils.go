@@ -22,6 +22,7 @@ import (
 )
 
 var WithdrawalInitiatedTopic = common.HexToHash("0x87bf7b546c8de873abb0db5b579ec131f8d0cf5b14f39933551cf9ced23a6136")
+var WithdrawalInitiatedExtension1Topic = common.HexToHash("0x2ef6ceb1668fdd882b1f89ddd53a666b0c1113d14cf90c0fbf97c7b1ad880fbb")
 
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
@@ -287,23 +288,17 @@ func ParseWithdrawalInitiatedExtension1(receipt *types.Receipt) (*bindings.L2ToL
 	if err != nil {
 		return nil, err
 	}
-	abi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
 
 	for _, log := range receipt.Logs {
-		event, err := abi.EventByID(log.Topics[0])
+		if log.Topics[0] != WithdrawalInitiatedExtension1Topic {
+			continue
+		}
+
+		ev, err := contract.ParseWithdrawalInitiatedExtension1(*log)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse log: %w", err)
 		}
-		if event.Name == "WithdrawalInitiatedExtension1" {
-			ev, err := contract.ParseWithdrawalInitiatedExtension1(*log)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse log: %w", err)
-			}
-			return ev, nil
-		}
+		return ev, nil
 	}
 	return nil, errors.New("Unable to find WithdrawalInitiatedExtension1 event")
 }

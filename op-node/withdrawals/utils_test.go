@@ -115,3 +115,45 @@ func TestParseWithdrawalInitiated(t *testing.T) {
 		})
 	}
 }
+
+func TestParseWithdrawalInitiatedExtension1(t *testing.T) {
+	tests := []struct {
+		name     string
+		file     string
+		expected *bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1
+	}{
+		{
+			"withdrawal through bridge",
+			"bridge-withdrawal.json",
+			&bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1{
+				Hash: common.HexToHash("0x0d827f8148288e3a2466018f71b968ece4ea9f9e2a81c30da9bd46cce2868285"),
+				Raw: types.Log{
+					Address: common.HexToAddress("0x4200000000000000000000000000000000000016"),
+					Topics: []common.Hash{
+						common.HexToHash("0x2ef6ceb1668fdd882b1f89ddd53a666b0c1113d14cf90c0fbf97c7b1ad880fbb"),
+						common.HexToHash("0x0d827f8148288e3a2466018f71b968ece4ea9f9e2a81c30da9bd46cce2868285"),
+					},
+					Data:        []byte{},
+					BlockNumber: 0x36,
+					TxHash:      common.HexToHash("0x9346381068b59d2098495baa72ed2f773c1e09458610a7a208984859dff73add"),
+					TxIndex:     0x1,
+					BlockHash:   common.HexToHash("0xfdd4ad8a984b45687aca0463db491cbd0e85273d970019a3f8bf618b614938df"),
+					Index:       0x3,
+					Removed:     false,
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			f, err := os.Open(path.Join("testdata", test.file))
+			require.NoError(t, err)
+			dec := json.NewDecoder(f)
+			receipt := new(types.Receipt)
+			require.NoError(t, dec.Decode(receipt))
+			parsed, err := ParseWithdrawalInitiatedExtension1(receipt)
+			require.NoError(t, err)
+			require.EqualValues(t, test.expected, parsed)
+		})
+	}
+}
