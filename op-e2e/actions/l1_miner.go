@@ -17,6 +17,9 @@ import (
 type L1Miner struct {
 	L1Replica
 
+	// L1 block building preferences
+	prefCoinbase common.Address
+
 	// L1 block building data
 	l1BuildingHeader *types.Header             // block header that we add txs to for block building
 	l1BuildingState  *state.StateDB            // state used for block building
@@ -55,7 +58,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 		}
 		header := &types.Header{
 			ParentHash: parentHash,
-			Coinbase:   parent.Coinbase,
+			Coinbase:   s.prefCoinbase,
 			Difficulty: common.Big0,
 			Number:     new(big.Int).Add(parent.Number, common.Big1),
 			GasLimit:   parent.GasLimit,
@@ -111,6 +114,13 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 		}
 		s.l1Receipts = append(s.l1Receipts, receipt)
 		s.l1Transactions = append(s.l1Transactions, tx)
+	}
+}
+
+func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {
+	s.prefCoinbase = coinbase
+	if s.l1Building {
+		s.l1BuildingHeader.Coinbase = coinbase
 	}
 }
 
