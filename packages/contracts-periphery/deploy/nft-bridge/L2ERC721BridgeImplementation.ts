@@ -37,9 +37,9 @@ const deployFn: DeployFunction = async (hre) => {
     throw new Error(`Unexpected admin ${admin}`)
   }
 
-  const Deployment__L1ERC721Bridge = await hre.deployments.get(
-    'L1ERC721BridgeProxy'
-  )
+  const Deployment__L1ERC721Bridge = await hre.companionNetworks[
+    'l1'
+  ].deployments.get('L1ERC721BridgeProxy')
 
   const L1ERC721BridgeAddress = Deployment__L1ERC721Bridge.address
 
