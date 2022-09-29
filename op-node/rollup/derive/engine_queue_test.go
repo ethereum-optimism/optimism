@@ -8,12 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type fakeAttributesQueue struct {
@@ -193,7 +194,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	t.Log("refF0", refF0.Hash)
 	t.Log("refF1", refF1.Hash)
 
-	metrics := &TestMetrics{}
+	metrics := &testutils.TestDerivationMetrics{}
 	eng := &testutils.MockEngine{}
 	// we find the common point to initialize to by comparing the L1 origins in the L2 chain with the L1 chain
 	l1F := &testutils.MockL1Source{}
