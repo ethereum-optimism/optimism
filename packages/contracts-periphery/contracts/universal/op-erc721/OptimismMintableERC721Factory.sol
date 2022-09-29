@@ -14,8 +14,13 @@ contract OptimismMintableERC721Factory is Semver {
      *
      * @param localToken  Address of the token on the this domain.
      * @param remoteToken Address of the token on the remote domain.
+     * @param deployer    Address of the initiator of the deployment
      */
-    event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken);
+    event OptimismMintableERC721Created(
+        address indexed localToken,
+        address indexed remoteToken,
+        address deployer
+    );
 
     /**
      * @notice Address of the ERC721 bridge on this network.
@@ -30,7 +35,7 @@ contract OptimismMintableERC721Factory is Semver {
     /**
      * @notice Tracks addresses created by this factory.
      */
-    mapping(address => bool) public isStandardOptimismMintableERC721;
+    mapping(address => bool) public isOptimismMintableERC721;
 
     /**
      * @custom:semver 1.0.0
@@ -58,25 +63,23 @@ contract OptimismMintableERC721Factory is Semver {
      * @param _name        ERC721 name.
      * @param _symbol      ERC721 symbol.
      */
-    function createStandardOptimismMintableERC721(
+    function createOptimismMintableERC721(
         address _remoteToken,
         string memory _name,
         string memory _symbol
-    ) external {
+    ) external returns (address) {
         require(
             _remoteToken != address(0),
             "OptimismMintableERC721Factory: L1 token address cannot be address(0)"
         );
 
-        OptimismMintableERC721 localToken = new OptimismMintableERC721(
-            bridge,
-            remoteChainId,
-            _remoteToken,
-            _name,
-            _symbol
+        address localToken = address(
+            new OptimismMintableERC721(bridge, remoteChainId, _remoteToken, _name, _symbol)
         );
 
-        isStandardOptimismMintableERC721[address(localToken)] = true;
-        emit OptimismMintableERC721Created(address(localToken), _remoteToken);
+        isOptimismMintableERC721[localToken] = true;
+        emit OptimismMintableERC721Created(localToken, _remoteToken, msg.sender);
+
+        return localToken;
     }
 }
