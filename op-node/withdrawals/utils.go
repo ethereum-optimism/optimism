@@ -21,6 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+var WithdrawalInitiatedTopic = common.HexToHash("0x87bf7b546c8de873abb0db5b579ec131f8d0cf5b14f39933551cf9ced23a6136")
+
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
 // This functions polls and can block for a very long time if used on mainnet.
@@ -264,23 +266,17 @@ func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePa
 	if err != nil {
 		return nil, err
 	}
-	abi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
 
 	for _, log := range receipt.Logs {
-		event, err := abi.EventByID(log.Topics[0])
+		if log.Topics[0] != WithdrawalInitiatedTopic {
+			continue
+		}
+
+		ev, err := contract.ParseWithdrawalInitiated(*log)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse log: %w", err)
 		}
-		if event.Name == "WithdrawalInitiated" {
-			ev, err := contract.ParseWithdrawalInitiated(*log)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse log: %w", err)
-			}
-			return ev, nil
-		}
+		return ev, nil
 	}
 	return nil, errors.New("Unable to find WithdrawalInitiated event")
 }
