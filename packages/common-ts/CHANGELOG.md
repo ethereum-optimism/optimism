@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.6.6
+
+### Patch Changes
+
+- ce7da914: Minor update to BaseServiceV2 to keep the raw body around when requests are made.
+
 ## 0.6.5
 
 ### Patch Changes

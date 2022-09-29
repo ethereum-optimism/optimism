@@ -1,5 +1,14 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.1
+
+### Patch Changes
+
+- 02c457a5: Removes NFT refund logic if withdrawals fail.
+- d3fe9b6d: Adds input validation to the ERC721Bridge constructor, fixes a typo in the L1ERC721Bridge, and removes the ERC721Refunded event declaration.
+- 220ad4ef: Remove ownable upgradable from erc721 factory
+- 5d86ff0e: Increased solc version on drip checks to 0.8.16.
+
 ## 1.0.0
 
 ### Major Changes

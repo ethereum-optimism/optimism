@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -46,7 +46,7 @@
     "hardhat": "^2.9.6"
   },
   "devDependencies": {
-    "@eth-optimism/hardhat-deploy-config": "^0.2.3",
+    "@eth-optimism/hardhat-deploy-config": "^0.2.4",
     "@ethereumjs/trie": "^5.0.0-beta.1",
     "@ethereumjs/util": "^8.0.0-beta.1",
     "ethereumjs-wallet": "^1.0.2",
