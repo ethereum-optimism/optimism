@@ -290,7 +290,7 @@ func ParseWithdrawalInitiatedExtension1(receipt *types.Receipt) (*bindings.L2ToL
 	}
 
 	for _, log := range receipt.Logs {
-		if log.Topics[0] != WithdrawalInitiatedExtension1Topic {
+		if len(log.Topics) == 0 || log.Topics[0] != WithdrawalInitiatedExtension1Topic {
 			continue
 		}
 
