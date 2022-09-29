@@ -113,12 +113,11 @@ describe('ERC721 Bridge', () => {
     )
 
     // Create a L2 Standard ERC721 with the Standard ERC721 Factory
-    const tx =
-      await OptimismMintableERC721Factory.createStandardOptimismMintableERC721(
-        L1ERC721.address,
-        'L2ERC721',
-        'L2'
-      )
+    const tx = await OptimismMintableERC721Factory.createOptimismMintableERC721(
+      L1ERC721.address,
+      'L2ERC721',
+      'L2'
+    )
     const receipt = await tx.wait()
 
     // Get the OptimismMintableERC721Created event
