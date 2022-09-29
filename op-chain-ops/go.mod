@@ -4,8 +4,9 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20220820030939-de38b6f6f77e
-	github.com/ethereum-optimism/optimism/op-bindings v0.8.6
+	github.com/ethereum-optimism/optimism/op-bindings v0.8.8
 	github.com/ethereum/go-ethereum v1.10.23
+	github.com/holiman/uint256 v1.2.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli/v2 v2.10.2
@@ -32,7 +33,6 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
-	github.com/holiman/uint256 v1.2.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/mattn/go-runewidth v0.0.13 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
@@ -58,4 +58,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220921202220-511148385c73
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd

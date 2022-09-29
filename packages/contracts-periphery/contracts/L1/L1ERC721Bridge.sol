@@ -10,7 +10,7 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
  * @title L1ERC721Bridge
  * @notice The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to
  *         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract
- *         acts as an escrow for ERC721 tokens deposted into L2.
+ *         acts as an escrow for ERC721 tokens deposited into L2.
  */
 contract L1ERC721Bridge is ERC721Bridge, Semver {
     /**
@@ -55,55 +55,6 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint256 _tokenId,
         bytes calldata _extraData
     ) external onlyOtherBridge {
-        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _tokenId) {
-            // slither-disable-next-line reentrancy-events
-            emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        } catch {
-            // If the token ID for this L1/L2 NFT pair is not escrowed in the L1 Bridge or if
-            // another error occurred during finalization, we initiate a cross-domain message to
-            // send the NFT back to its original owner on L2. This can happen if an L2 native NFT is
-            // bridged to L1, or if a user mistakenly entered an incorrect L1 ERC721 address.
-            // In either case, we stop the process here and construct a withdrawal in which we
-            // flip the to and from addresses. This ensures that event-based accounting
-            // will indicate net-zero transfer to the recipient. The ERC721BridgeFailed event
-            // emitted below can also be used to identify this occurence.
-            bytes memory message = abi.encodeWithSelector(
-                L2ERC721Bridge.finalizeBridgeERC721.selector,
-                _remoteToken,
-                _localToken,
-                _to,
-                _from, // Refund the NFT to the original owner on the remote chain.
-                _tokenId,
-                _extraData
-            );
-
-            // Send the message to the L2 bridge.
-            // slither-disable-next-line reentrancy-events
-            messenger.sendMessage(otherBridge, message, 600_000);
-
-            // slither-disable-next-line reentrancy-events
-            emit ERC721BridgeFailed(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
-        }
-    }
-
-    /**
-     * @notice Completes an outbound token transfer. Public function, but can only be called by
-     *         this contract. It's security critical that there be absolutely no way for anyone to
-     *         trigger this function, except by explicit trigger within this contract. Used as a
-     *         simple way to be able to try/catch any type of revert that could occur during an
-     *         ERC721 mint/transfer.
-     *
-     * @param _localToken  Address of the ERC721 on this chain.
-     * @param _remoteToken Address of the corresponding token on the remote chain.
-     * @param _to          Address of the receiver.
-     * @param _tokenId     ID of the token being deposited.
-     */
-    function completeOutboundTransfer(
-        address _localToken,
-        address _remoteToken,
-        address _to,
-        uint256 _tokenId
-    ) external onlySelf {
         require(_localToken != address(this), "L1ERC721Bridge: local token cannot be self");
 
         // Checks that the L1/L2 NFT pair has a token ID that is escrowed in the L1 Bridge.
@@ -119,6 +70,9 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         // When a withdrawal is finalized on L1, the L1 Bridge transfers the NFT to the
         // withdrawer.
         IERC721(_localToken).safeTransferFrom(address(this), _to, _tokenId);
+
+        // slither-disable-next-line reentrancy-events
+        emit ERC721BridgeFinalized(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 
     /**

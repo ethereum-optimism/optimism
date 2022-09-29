@@ -50,7 +50,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_cannotWithdrawEthWithoutSendingIt() external {
         assertEq(address(messagePasser).balance, 0);
 
-        vm.expectRevert("L2StandardBridge: ETH withdrawals must include sufficient ETH value");
+        vm.expectRevert("StandardBridge: bridging ETH must include sufficient ETH value");
         vm.prank(alice, alice);
         L2Bridge.withdraw(
             address(Predeploys.LEGACY_ERC20_ETH),
@@ -157,57 +157,16 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
     }
 
-    // finalizeDeposit
-    // - only callable by l1TokenBridge
-    // - invalid deposit emits DepositFailed
-    // - invalid deposit calls Withdrawer.initiateWithdrawal
-    function test_finalizeDeposit_failsToCompleteOutboundTransfer() external {
-        // TODO: events and calls
+    function test_finalizeBridgeETH_incorrectValueReverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(L2Bridge.otherBridge()))
         );
-        address invalidL2Token = address(0x1234);
+        vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
-        // For simplicity, the next two expectEmit events skip
-        // verification of the non-indexed event data
-        vm.expectEmit(true, true, true, false, address(messagePasser));
-        emit WithdrawalInitiated(0, address(L2Messenger), address(L1Messenger), 0, 0, hex"");
-        vm.expectEmit(true, true, true, false, address(L2Messenger));
-        emit SentMessage(address(L1Bridge), address(0), hex"", 0, 0);
-
-        vm.expectEmit(true, true, true, true);
-        emit ERC20BridgeInitiated(
-            invalidL2Token,
-            address(L1Token),
-            alice,
-            alice,
-            100,
-            hex""
-        );
-        vm.expectEmit(true, true, true, true);
-        emit ERC20BridgeFailed(
-            invalidL2Token,
-            address(L1Token),
-            alice,
-            alice,
-            100,
-            hex""
-        );
-        vm.expectEmit(true, true, true, true);
-        emit DepositFailed(
-            address(L1Token),
-            invalidL2Token,
-            alice,
-            alice,
-            100,
-            hex""
-        );
-
-        L2Bridge.finalizeDeposit(
-            address(L1Token),
-            invalidL2Token,
+        vm.expectRevert("StandardBridge: amount sent does not match amount required");
+        L2Bridge.finalizeBridgeETH{value: 50}(
             alice,
             alice,
             100,
@@ -215,63 +174,37 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
     }
 
-    // finalizeBridgeERC20
-    // - fails when the local token's address equals bridge address
-    function test_ERC20BridgeFailed_whenLocalTokenIsBridge() external {
+    function test_finalizeBridgeETH_sendToSelfReverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(L2Bridge.otherBridge()))
         );
-        // fails when the local token's address equals bridge address
-        vm.expectEmit(true, true, true, true);
-        emit ERC20BridgeFailed(address(L2Bridge), address(L1Token), alice, bob, 100, hex"");
-
+        vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
-        L2Bridge.finalizeDeposit(address(L1Token), address(L2Bridge), alice, bob, 100, hex"");
+        vm.expectRevert("StandardBridge: cannot send to self");
+        L2Bridge.finalizeBridgeETH{value: 100}(
+            alice,
+            address(L2Bridge),
+            100,
+            hex""
+        );
     }
 
-    function test_finalizeBridgeERC20FailSendBack() external {
-        deal(address(BadL2Token), address(L2Bridge), 100, true);
-
-        uint256 slot = stdstore
-            .target(address(L2Bridge))
-            .sig("deposits(address,address)")
-            .with_key(address(BadL2Token))
-            .with_key(address(L1Token))
-            .find();
-
-        // Give the L2 bridge some ERC20 tokens
-        vm.store(address(L2Bridge), bytes32(slot), bytes32(uint256(100)));
-        assertEq(L2Bridge.deposits(address(BadL2Token), address(L1Token)), 100);
-
-        vm.expectEmit(true, true, true, true);
-
-        emit ERC20BridgeInitiated(
-            address(BadL2Token),
-            address(L1Token),
-            bob,
-            alice,
-            100,
-            hex""
-        );
-
+    function test_finalizeBridgeETH_sendToMessengerReverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(L2Bridge.otherBridge()))
         );
-        vm.prank(address(L2Bridge.messenger()));
-        L2Bridge.finalizeBridgeERC20(
-            address(BadL2Token),
-            address(L1Token),
+        vm.deal(address(L2Messenger), 100);
+        vm.prank(address(L2Messenger));
+        vm.expectRevert("StandardBridge: cannot send to messenger");
+        L2Bridge.finalizeBridgeETH{value: 100}(
             alice,
-            bob,
+            address(L2Messenger),
             100,
             hex""
         );
-
-        assertEq(BadL2Token.balanceOf(address(L2Bridge)), 100);
-        assertEq(BadL2Token.balanceOf(address(alice)), 0);
     }
 }

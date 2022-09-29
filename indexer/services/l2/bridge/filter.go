@@ -43,19 +43,3 @@ func FilterDepositFinalizedWithRetry(ctx context.Context, filterer *bindings.L2S
 		time.Sleep(clientRetryInterval)
 	}
 }
-
-// FilterDepositFailedWithRetry retries the given func until it succeeds,
-// waiting for clientRetryInterval duration after every call.
-func FilterDepositFailedWithRetry(ctx context.Context, filterer *bindings.L2StandardBridgeFilterer, opts *bind.FilterOpts) (*bindings.L2StandardBridgeDepositFailedIterator, error) {
-	for {
-		ctxt, cancel := context.WithTimeout(ctx, DefaultConnectionTimeout)
-		opts.Context = ctxt
-		res, err := filterer.FilterDepositFailed(opts, nil, nil, nil)
-		cancel()
-		if err == nil {
-			return res, nil
-		}
-		logger.Error("Error fetching filter", "err", err)
-		time.Sleep(clientRetryInterval)
-	}
-}

@@ -8,56 +8,38 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: xlarge
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-source-{{ .Branch }}-{{ .Revision }}
-            - v2-cache-source-{{ .Branch }}
       - checkout
       - run:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)")
+            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
-      - save_cache:
-          key: v2-cache-source-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - ".git"
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-install-{{ checksum "yarn.lock" }}
-            - v2-cache-yarn-install
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
       - run:
           name: print forge version
           command: forge --version
-      - save_cache:
-          key: v2-cache-yarn-install-{{ checksum "yarn.lock" }}
-          paths:
-            - node_modules
-            - packages/common-ts/node_modules
-            - packages/contracts/node_modules
-            - packages/contracts-bedrock/node_modules
-            - packages/contracts-periphery/node_modules
-            - packages/core-utils/node_modules
-            - packages/data-transport-layer/node_modules
-            - packages/drippie-mon/node_modules
-            - packages/fault-detector/node_modules
-            - packages/message-relayer/node_modules
-            - packages/replica-healthcheck/node_modules
-            - packages/sdk/node_modules
-            - integration-tests/node_modules
       - run:
           name: Build monorepo
           command: yarn build
-      - save_cache:
-          key: v2-cache-yarn-build-{{ .Revision }}
+      - persist_to_workspace:
+          root: "."
           paths:
-            - "."
+            - "node_modules"
+            - "packages/*/node_modules"
+            - "packages/*/dist"
+            - "packages/*/artifacts"
+            - "packages/contracts/src/contract-artifacts.ts"
+            - "packages/contracts/src/contract-deployed-artifacts.ts"
+            - "packages/contracts/chugsplash"
+            - "packages/contracts/L1"
+            - "packages/contracts/L2"
+            - "packages/contracts/libraries"
+            - "packages/contracts/standards"
 
 
   docker-publish:
@@ -85,6 +67,13 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
+      # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
+      # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
+      - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i '14 i \ \ \ \ \ \ \ \ \ \ \ \ \ \ \ addresses:' /etc/netplan/50-cloud-init.yaml
+      - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
+      - run: cat /etc/netplan/50-cloud-init.yaml
+      - run: sudo netplan apply
       - checkout
       - when:
           condition: <<parameters.target>>
@@ -92,6 +81,7 @@ jobs:
             - run:
                 name: Build with context
                 command: |
+                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
                   docker build \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
@@ -103,6 +93,7 @@ jobs:
             - run:
                 name: Build
                 command: |
+                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
                   docker build \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
@@ -118,21 +109,23 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)")
+            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
       - run:
           name: lint
           command: yarn lint:check
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: validate spacers
+          command: yarn validate-spacers
           working_directory: packages/contracts-bedrock
       - run:
           name: slither
@@ -152,8 +145,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: upload coverage
-          command: |
-            codecov --verbose || exit 0
+          command: codecov --verbose --clean --flag contracts-bedrock-forge
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -174,15 +166,13 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: medium
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|op-bindings)")
+            CHANGED=$(check-changed "(contracts-bedrock|op-bindings)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -204,15 +194,13 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)")
+            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -224,6 +212,11 @@ jobs:
           name: Test
           command: yarn test:coverage
           working_directory: packages/<<parameters.package_name>>
+      - run:
+          name: Upload coverage
+          command: |
+            echo <<parameters.package_name>> # TEMP for debugging
+            codecov --verbose --clean --flag <<parameters.package_name>>
 
   bedrock-go-tests:
     docker:
@@ -235,7 +228,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)")
+            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -308,9 +301,8 @@ jobs:
             gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-chain-ops
       - run:
-          name: Upload coverage reports to CodeCov
-          command: |
-            codecov --verbose || exit 0
+          name: upload coverage
+          command: codecov --verbose --clean --flag bedrock-go-tests
       - store_test_results:
           path: /test-results
       - run:
@@ -344,7 +336,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-node")
+            CHANGED=$(check-changed "op-node" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -357,15 +349,13 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
       - checkout
+      - attach_workspace: {at: "."}
       - run:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "packages/")
+            CHANGED=$(check-changed "packages/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -421,7 +411,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)")
+            CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)" || echo "TRUE")
             echo $CHANGED
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
@@ -447,27 +437,6 @@ jobs:
                 command: make <<parameters.binary_name>>
                 working_directory: <<parameters.working_directory>>
 
-  op-chain-ops-tests:
-    docker:
-      - image: ethereumoptimism/ci-builder:latest
-    steps:
-      - restore_cache:
-          keys:
-            - v2-cache-yarn-build-{{ .Revision }}
-      - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "op-chain-ops")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
-      - run:
-          name: Test
-          command: |
-            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-chain-ops
-
   geth-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
@@ -477,7 +446,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(check-changed "l2geth")
+            CHANGED=$(check-changed "l2geth" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -497,7 +466,7 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -551,7 +520,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -646,7 +615,7 @@ jobs:
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
             -docker.pull=true \
-            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log
+            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
@@ -772,10 +741,6 @@ workflows:
           binary_name: bss-core
           working_directory: bss-core
           build: false
-      - op-chain-ops-tests:
-          name: op-chain-ops-tests
-          requires:
-            - yarn-monorepo
       - geth-tests
       - integration-tests
       - semgrep-scan
@@ -788,9 +753,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
       - docker-publish:
           name: op-batcher-publish-dev
           docker_file: op-batcher/Dockerfile
@@ -799,9 +761,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
       - docker-publish:
           name: op-proposer-publish-dev
           docker_file: op-proposer/Dockerfile
@@ -810,31 +769,6 @@ workflows:
           repo: us-central1-docker.pkg.dev
           context:
             - gcr
-          requires:
-            - bedrock-go-tests
-            - op-bindings-build
-      - docker-publish:
-          name: deployer-bedrock-publish-dev
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/deployer-bedrock:<<pipeline.git.revision>>
-          target: deployer-bedrock
-          docker_context: .
-          repo: us-central1-docker.pkg.dev
-          context:
-            - gcr
-          requires:
-            - contracts-bedrock-tests
-      - docker-publish:
-          name: contract-artifacts-bedrock-publish-dev
-          docker_file: ops/docker/Dockerfile.packages
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/contract-artifacts-bedrock:<<pipeline.git.revision>>
-          target: contract-artifacts-bedrock
-          docker_context: .
-          repo: us-central1-docker.pkg.dev
-          context:
-            - gcr
-          requires:
-            - contracts-bedrock-tests
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -843,7 +777,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
@@ -852,7 +785,6 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
@@ -861,4 +793,3 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
-            - deployer-bedrock-publish-dev
