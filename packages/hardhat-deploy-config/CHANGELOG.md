@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-deploy-config
 
+## 0.2.4
+
+### Patch Changes
+
+- dd5ab8c0: Allow `paths` to be unset in hardhat config
+
 ## 0.2.3
 
 ### Patch Changes
