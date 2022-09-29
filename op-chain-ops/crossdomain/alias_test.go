@@ -4,17 +4,18 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 )
 
 func FuzzAliasing(f *testing.F) {
 	f.Fuzz(func(t *testing.T, address []byte) {
 		addr := common.BytesToAddress(address)
-		aliased := crossdomain.ApplyL1ToL2Alias(&addr)
+		aliased := crossdomain.ApplyL1ToL2Alias(addr)
 		unaliased := crossdomain.UndoL1ToL2Alias(aliased)
-		require.Equal(t, addr, *unaliased)
+		require.Equal(t, addr, unaliased)
 	})
 }
 
@@ -51,10 +52,10 @@ func TestAliasing(t *testing.T) {
 
 	for i, test := range cases {
 		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
-			aliased := crossdomain.ApplyL1ToL2Alias(&test.Input)
-			require.Equal(t, test.Output, *aliased)
+			aliased := crossdomain.ApplyL1ToL2Alias(test.Input)
+			require.Equal(t, test.Output, aliased)
 			unaliased := crossdomain.UndoL1ToL2Alias(aliased)
-			require.Equal(t, test.Input, *unaliased)
+			require.Equal(t, test.Input, unaliased)
 		})
 	}
 }
