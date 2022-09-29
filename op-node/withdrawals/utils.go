@@ -261,7 +261,9 @@ func WithdrawalHash(ev *bindings.L2ToL1MessagePasserWithdrawalInitiated) (common
 	return crypto.Keccak256Hash(enc), nil
 }
 
-// ParseWithdrawalInitiated parses
+// ParseWithdrawalInitiated parses WithdrawalInitiated events from
+// a transaction receipt. It does not support multiple withdrawals
+// per receipt.
 func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiated, error) {
 	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
@@ -282,7 +284,9 @@ func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePa
 	return nil, errors.New("Unable to find WithdrawalInitiated event")
 }
 
-// ParseWithdrawalInitiatedExtension1 parses
+// ParseWithdrawalInitiatedExtension1 parses WithdrawalInitiatedExtension1 events
+// from a transaction receipt. It does not support multiple withdrawals per
+// receipt.
 func ParseWithdrawalInitiatedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1, error) {
 	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
