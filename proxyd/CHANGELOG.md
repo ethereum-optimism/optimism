@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.10.2
+
+### Patch Changes
+
+- 6bb35fd8: Add customizable whitelist error
+- 7121648c: Batch metrics and max batch size
+
 ## 3.10.1
 
 ### Patch Changes
