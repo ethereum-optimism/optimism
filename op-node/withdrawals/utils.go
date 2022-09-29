@@ -21,6 +21,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+var WithdrawalInitiatedTopic = crypto.Keccak256Hash([]byte("WithdrawalInitiated(uint256,address,address,uint256,uint256,bytes)"))
+var WithdrawalInitiatedExtension1Topic = crypto.Keccak256Hash([]byte("WithdrawalInitiatedExtension1(bytes32)"))
+
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
 // This functions polls and can block for a very long time if used on mainnet.
@@ -258,56 +261,48 @@ func WithdrawalHash(ev *bindings.L2ToL1MessagePasserWithdrawalInitiated) (common
 	return crypto.Keccak256Hash(enc), nil
 }
 
-// ParseWithdrawalInitiated parses
+// ParseWithdrawalInitiated parses WithdrawalInitiated events from
+// a transaction receipt. It does not support multiple withdrawals
+// per receipt.
 func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiated, error) {
 	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
 		return nil, err
 	}
-	abi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
 
 	for _, log := range receipt.Logs {
-		event, err := abi.EventByID(log.Topics[0])
+		if len(log.Topics) == 0 || log.Topics[0] != WithdrawalInitiatedTopic {
+			continue
+		}
+
+		ev, err := contract.ParseWithdrawalInitiated(*log)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse log: %w", err)
 		}
-		if event.Name == "WithdrawalInitiated" {
-			ev, err := contract.ParseWithdrawalInitiated(*log)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse log: %w", err)
-			}
-			return ev, nil
-		}
+		return ev, nil
 	}
 	return nil, errors.New("Unable to find WithdrawalInitiated event")
 }
 
-// ParseWithdrawalInitiatedExtension1 parses
+// ParseWithdrawalInitiatedExtension1 parses WithdrawalInitiatedExtension1 events
+// from a transaction receipt. It does not support multiple withdrawals per
+// receipt.
 func ParseWithdrawalInitiatedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1, error) {
 	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
 		return nil, err
 	}
-	abi, err := bindings.L2ToL1MessagePasserMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
 
 	for _, log := range receipt.Logs {
-		event, err := abi.EventByID(log.Topics[0])
+		if len(log.Topics) == 0 || log.Topics[0] != WithdrawalInitiatedExtension1Topic {
+			continue
+		}
+
+		ev, err := contract.ParseWithdrawalInitiatedExtension1(*log)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to parse log: %w", err)
 		}
-		if event.Name == "WithdrawalInitiatedExtension1" {
-			ev, err := contract.ParseWithdrawalInitiatedExtension1(*log)
-			if err != nil {
-				return nil, fmt.Errorf("failed to parse log: %w", err)
-			}
-			return ev, nil
-		}
+		return ev, nil
 	}
 	return nil, errors.New("Unable to find WithdrawalInitiatedExtension1 event")
 }

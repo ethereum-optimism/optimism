@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,14 +41,6 @@ func BytesToBigInt(b []byte) *big.Int {
 	return new(big.Int).SetBytes(cap_byte_slice(b, 32))
 }
 
-func BigEqual(a, b *big.Int) bool {
-	if a == nil || b == nil {
-		return a == b
-	} else {
-		return a.Cmp(b) == 0
-	}
-}
-
 // FuzzL1InfoRoundTrip checks that our encoder round trips properly
 func FuzzL1InfoRoundTrip(f *testing.F) {
 	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, hash []byte, seqNumber uint64) {
@@ -67,7 +60,7 @@ func FuzzL1InfoRoundTrip(f *testing.F) {
 		if err != nil {
 			t.Fatalf("Failed to unmarshal binary: %v", err)
 		}
-		if !cmp.Equal(in, out, cmp.Comparer(BigEqual)) {
+		if !cmp.Equal(in, out, cmp.Comparer(testutils.BigEqual)) {
 			t.Fatalf("The data did not round trip correctly. in: %v. out: %v", in, out)
 		}
 
@@ -120,7 +113,7 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			t.Fatalf("Failed to unmarshal binary: %v", err)
 		}
 
-		if !cmp.Equal(expected, actual, cmp.Comparer(BigEqual)) {
+		if !cmp.Equal(expected, actual, cmp.Comparer(testutils.BigEqual)) {
 			t.Fatalf("The data did not round trip correctly. expected: %v. actual: %v", expected, actual)
 		}
 
@@ -266,7 +259,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			reconstructed.To = *dep.To
 		}
 
-		if !cmp.Equal(depositEvent, reconstructed, cmp.Comparer(BigEqual)) {
+		if !cmp.Equal(depositEvent, reconstructed, cmp.Comparer(testutils.BigEqual)) {
 			t.Fatalf("The deposit tx did not match. tx: %v. actual: %v", reconstructed, depositEvent)
 		}
 
@@ -279,7 +272,7 @@ func FuzzUnmarshallLogEvent(f *testing.F) {
 			OpaqueData: opaqueData,
 			Raw:        types.Log{},
 		}
-		if !cmp.Equal(depositEvent, inputArgs, cmp.Comparer(BigEqual)) {
+		if !cmp.Equal(depositEvent, inputArgs, cmp.Comparer(testutils.BigEqual)) {
 			t.Fatalf("The input args did not match. input: %v. actual: %v", inputArgs, depositEvent)
 		}
 	})
