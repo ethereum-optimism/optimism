@@ -44,6 +44,22 @@ type defaultTesting struct {
 	state ActionStatus
 }
 
+type StatefulTesting interface {
+	Testing
+	Reset(actionCtx context.Context)
+	State() ActionStatus
+}
+
+// NewDefaultTesting returns a new testing obj.
+// Returns an interface, we're likely changing the behavior here as we build more action tests.
+func NewDefaultTesting(tb e2eutils.TestingBase) StatefulTesting {
+	return &defaultTesting{
+		TestingBase: tb,
+		ctx:         context.Background(),
+		state:       ActionOK,
+	}
+}
+
 // Ctx shares a context to execute an action with, the test runner may interrupt the action without stopping the test.
 func (st *defaultTesting) Ctx() context.Context {
 	return st.ctx
