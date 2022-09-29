@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -104,8 +105,8 @@ func TestParseWithdrawalInitiated(t *testing.T) {
 			parsedValue := parsed.Value
 			expNonce := test.expected.Nonce
 			expValue := test.expected.Value
-			require.Equal(t, expNonce.String(), parsedNonce.String())
-			require.Equal(t, expValue.String(), parsedValue.String())
+			testutils.RequireBigEqual(t, expNonce, parsedNonce)
+			testutils.RequireBigEqual(t, expValue, parsedValue)
 			parsed.Nonce = nil
 			parsed.Value = nil
 			test.expected.Nonce = nil
