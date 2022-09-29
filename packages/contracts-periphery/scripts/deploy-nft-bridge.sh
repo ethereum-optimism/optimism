@@ -2,8 +2,8 @@
 
 set -e
 
-L1_NETWORK=ops-l1
-L2_NETWORK=ops-l2
+L1_NETWORK=goerli
+L2_NETWORK=optimism-goerli
 
 # Step 1: deploy the Proxy to the predeploy address on L2
 npx hardhat deploy --tags L2ERC721BridgeProxy --network $L2_NETWORK
@@ -20,5 +20,5 @@ npx hardhat deploy --tags L1ERC721BridgeImplementation --network $L1_NETWORK
 # Step 5: deploy the Proxy for the OptimismMintableERC721Factory to L2
 npx hardhat deploy --tags OptimismMintableERC721FactoryProxy --network $L2_NETWORK
 
-# Step 5: deploy the OptimismMintableERC721Factory to L2
+# Step 6: deploy the OptimismMintableERC721Factory to L2
 npx hardhat deploy --tags OptimismMintableERC721FactoryImplementation --network $L2_NETWORK

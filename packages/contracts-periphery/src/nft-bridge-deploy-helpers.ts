@@ -14,6 +14,7 @@ export const isTargetL2Network = (network: string): boolean => {
     case 'optimism':
     case 'optimism-goerli':
     case 'ops-l2':
+    case 'optimism-kovan':
       return true
     default:
       return false
@@ -25,6 +26,7 @@ export const isTargetL1Network = (network: string): boolean => {
     case 'mainnet':
     case 'goerli':
     case 'ops-l1':
+    case 'kovan':
       return true
     default:
       return false
@@ -37,6 +39,9 @@ export const getProxyAdmin = (network: string): string => {
       return l2MainnetMultisig
     case 'mainnet':
       return l1MainnetMultisig
+    case 'kovan':
+    case 'optimism-kovan':
+      return goerliAdmin
     case 'goerli':
     case 'optimism-goerli':
       return goerliAdmin
