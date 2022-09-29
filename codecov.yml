@@ -1,5 +1,6 @@
 comment: false
 ignore:
   - "l2geth"
-  - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "**/*.t.sol"
+  - "packages/contracts-bedrock/contracts/vendor"
