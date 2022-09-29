@@ -111,14 +111,14 @@ jobs:
     steps:
       - checkout
       - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)" || echo "TRUE")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: lint
           command: yarn lint:check
@@ -224,14 +224,14 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      # - run:
+      #     name: Check if we should run
+      #     command: |
+      #       shopt -s inherit_errexit
+      #       CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)" || echo "TRUE")
+      #       if [[ "$CHANGED" = "FALSE" ]]; then
+      #         circleci step halt
+      #       fi
       - run:
           name: lint op-bindings
           command: |
