@@ -1,5 +1,16 @@
 # data transport layer
 
+## 0.5.47
+
+### Patch Changes
+
+- 81c1cd99: Adds consistency checks for transaction entries in L1 syncing nodes
+- Updated dependencies [ce7da914]
+- Updated dependencies [628affc7]
+- Updated dependencies [740e1bcc]
+  - @eth-optimism/common-ts@0.6.6
+  - @eth-optimism/contracts@0.5.37
+
 ## 0.5.46
 
 ### Patch Changes

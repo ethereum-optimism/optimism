@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.37
+
+### Patch Changes
+
+- 628affc7: Add prefunded accounts to L2 genesis when doing local network
+- 740e1bcc: Expose the deployments in the deployer image
+
 ## 0.5.36
 
 ### Patch Changes

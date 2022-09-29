@@ -1,5 +1,18 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.8.0
+
+### Minor Changes
+
+- 3d4e8529: No refunds!
+
+### Patch Changes
+
+- 6ed68fa3: Fixes a small bug in the constructor of the L2OutputOracle contract
+- caf5dd3e: Updates README to include versioning rules.
+- a6cbfee2: Fuzz L2ToL1MessagePasser
+- 394a26ec: Modifies the StandardBridge to move a value check deeper down the call stack to be more defensive.
+
 ## 0.7.0
 
 ### Minor Changes
