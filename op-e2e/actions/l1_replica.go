@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/tracers"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -141,6 +142,11 @@ func (s *L1Replica) ActL1RPCFail(t Testing) {
 		t.InvalidAction("already have a mock l1 rpc fail set")
 	}
 	s.failL1RPC = errors.New("mock L1 RPC error")
+}
+
+func (s *L1Replica) EthClient() *ethclient.Client {
+	cl, _ := s.node.Attach() // never errors
+	return ethclient.NewClient(cl)
 }
 
 func (s *L1Replica) RPCClient() client.RPC {
