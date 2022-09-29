@@ -269,7 +269,7 @@ func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePa
 	}
 
 	for _, log := range receipt.Logs {
-		if log.Topics[0] != WithdrawalInitiatedTopic {
+		if len(log.Topics) == 0 || log.Topics[0] != WithdrawalInitiatedTopic {
 			continue
 		}
 
