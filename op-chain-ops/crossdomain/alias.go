@@ -7,27 +7,27 @@ import (
 )
 
 var (
-	uint160Max, _ = uint256.FromHex("0xffffffffffffffffffffffffffffffffffffffff")
-	offset        = new(uint256.Int).SetBytes(common.HexToAddress("0x1111000000000000000000000000000000001111").Bytes())
+	offsetAddr = common.HexToAddress("0x1111000000000000000000000000000000001111")
+	offsetU256 = new(uint256.Int).SetBytes20(offsetAddr[:])
 )
 
 // ApplyL1ToL2Alias will apply the alias applied to L1 to L2 messages when it
 // originates from a contract address
-func ApplyL1ToL2Alias(address *common.Address) *common.Address {
-	input := new(uint256.Int).SetBytes(address.Bytes())
-	output := new(uint256.Int).AddMod(input, offset, uint160Max)
-	if output.Cmp(input) < 0 {
-		output = output.Sub(output, new(uint256.Int).SetUint64(1))
-	}
-	addr := common.BigToAddress(output.ToBig())
-	return &addr
+func ApplyL1ToL2Alias(address common.Address) common.Address {
+	var input uint256.Int
+	input.SetBytes20(address[:])
+	input.Add(&input, offsetU256)
+	// clipping to bytes20 is the same as modulo 160 here, since the modulo is a multiple of 8 bits
+	return input.Bytes20()
 }
 
 // UndoL1ToL2Alias will remove the alias applied to L1 to L2 messages when it
 // originates from a contract address
-func UndoL1ToL2Alias(address *common.Address) *common.Address {
-	input := new(uint256.Int).SetBytes(address.Bytes())
-	output := new(uint256.Int).Sub(input, offset)
-	addr := common.BigToAddress(output.ToBig())
-	return &addr
+func UndoL1ToL2Alias(address common.Address) common.Address {
+	var input uint256.Int
+	input.SetBytes20(address[:])
+	input.Sub(&input, offsetU256)
+	// clipping to bytes20 is the same as modulo 160 here, since the modulo is a multiple of 8 bits.
+	// and underflows are not affected either.
+	return input.Bytes20()
 }
