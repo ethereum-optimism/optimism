@@ -21,8 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var WithdrawalInitiatedTopic = common.HexToHash("0x87bf7b546c8de873abb0db5b579ec131f8d0cf5b14f39933551cf9ced23a6136")
-var WithdrawalInitiatedExtension1Topic = common.HexToHash("0x2ef6ceb1668fdd882b1f89ddd53a666b0c1113d14cf90c0fbf97c7b1ad880fbb")
+var WithdrawalInitiatedTopic = crypto.Keccak256Hash([]byte("WithdrawalInitiated(uint256,address,address,uint256,uint256,bytes)"))
+var WithdrawalInitiatedExtension1Topic = crypto.Keccak256Hash([]byte("WithdrawalInitiatedExtension1(bytes32)"))
 
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
