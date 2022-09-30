@@ -218,7 +218,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
-	depositsByBlockHash := make(map[common.Hash][]db.Deposit)
 	withdrawalsByBlockHash := make(map[common.Hash][]db.Withdrawal)
 
 	start := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l2"))
@@ -227,19 +226,10 @@ func (s *Service) Update(newHeader *types.Header) error {
 		logger.Info("updated index", "start_height", startHeight, "end_height", endHeight, "duration", dur)
 	}()
 
-	bridgeDepositsCh := make(chan bridge.DepositsMap, len(s.bridges))
 	bridgeWdsCh := make(chan bridge.WithdrawalsMap)
 	errCh := make(chan error, len(s.bridges))
 
 	for _, bridgeImpl := range s.bridges {
-		go func(b bridge.Bridge) {
-			deposits, err := b.GetDepositsByBlockRange(startHeight, endHeight)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			bridgeDepositsCh <- deposits
-		}(bridgeImpl)
 		go func(b bridge.Bridge) {
 			wds, err := b.GetWithdrawalsByBlockRange(startHeight, endHeight)
 			if err != nil {
@@ -256,29 +246,19 @@ func (s *Service) Update(newHeader *types.Header) error {
 		case bridgeWds := <-bridgeWdsCh:
 			for blockHash, withdrawals := range bridgeWds {
 				for _, wd := range withdrawals {
-					if err := s.cacheToken(wd.L2Token); err != nil {
+					if err := s.cacheToken(wd); err != nil {
 						logger.Warn("error caching token", "err", err)
 					}
 				}
 
 				withdrawalsByBlockHash[blockHash] = append(withdrawalsByBlockHash[blockHash], withdrawals...)
 			}
-		case bridgeDeposits := <-bridgeDepositsCh:
-			for blockHash, deposits := range bridgeDeposits {
-				for _, deposit := range deposits {
-					if err := s.cacheToken(deposit.L2Token); err != nil {
-						logger.Warn("error caching token", "err", err)
-					}
-				}
-
-				depositsByBlockHash[blockHash] = append(depositsByBlockHash[blockHash], deposits...)
-			}
 		case err := <-errCh:
 			return err
 		}
 
 		receives++
-		if receives == 2*len(s.bridges) {
+		if receives == len(s.bridges) {
 			break
 		}
 	}
@@ -286,7 +266,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 	for i, header := range headers {
 		blockHash := header.Hash()
 		number := header.Number.Uint64()
-		deposits := depositsByBlockHash[blockHash]
 		withdrawals := withdrawalsByBlockHash[blockHash]
 
 		if len(withdrawals) == 0 && i != len(headers)-1 {
@@ -298,7 +277,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 			ParentHash:  header.ParentHash,
 			Number:      number,
 			Timestamp:   header.Time,
-			Deposits:    deposits,
 			Withdrawals: withdrawals,
 		}
 
@@ -358,16 +336,16 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	server.RespondWithJSON(w, http.StatusOK, status)
 }
 
-func (s *Service) GetWithdrawalStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Service) GetWithdrawalBatch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 
-	withdrawal, err := s.cfg.DB.GetWithdrawalStatus(common.HexToHash(vars["hash"]))
+	batch, err := s.cfg.DB.GetWithdrawalBatch(common.HexToHash(vars["hash"]))
 	if err != nil {
 		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	server.RespondWithJSON(w, http.StatusOK, withdrawal)
+	server.RespondWithJSON(w, http.StatusOK, batch)
 }
 
 func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
@@ -465,32 +443,32 @@ func (s *Service) catchUp(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) cacheToken(address common.Address) error {
-	if s.tokenCache[address] != nil {
+func (s *Service) cacheToken(withdrawal db.Withdrawal) error {
+	if s.tokenCache[withdrawal.L2Token] != nil {
 		return nil
 	}
 
-	token, err := s.cfg.DB.GetL2TokenByAddress(address.String())
+	token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
 	if err != nil {
 		return err
 	}
 	if token != nil {
 		s.metrics.IncL2CachedTokensCount()
-		s.tokenCache[address] = token
+		s.tokenCache[withdrawal.L2Token] = token
 		return nil
 	}
-	token, err = QueryERC20(address, s.cfg.L2Client)
+	token, err = QueryERC20(withdrawal.L2Token, s.cfg.L2Client)
 	if err != nil {
 		logger.Error("Error querying ERC20 token details",
-			"l2_token", address.String(), "err", err)
+			"l2_token", withdrawal.L2Token.String(), "err", err)
 		token = &db.Token{
-			Address: address.String(),
+			Address: withdrawal.L2Token.String(),
 		}
 	}
-	if err := s.cfg.DB.AddL2Token(address.String(), token); err != nil {
+	if err := s.cfg.DB.AddL2Token(withdrawal.L2Token.String(), token); err != nil {
 		return err
 	}
-	s.tokenCache[address] = token
+	s.tokenCache[withdrawal.L2Token] = token
 	s.metrics.IncL2CachedTokensCount()
 	return nil
 }
