@@ -36,6 +36,8 @@ const deployFn: DeployFunction = async (hre) => {
     remoteChainId = 5
   } else if (hre.network.name === 'ops-l2') {
     remoteChainId = 31337
+  } else if (hre.network.name === 'optimism-kovan') {
+    remoteChainId = 42
   } else {
     remoteChainId = hre.deployConfig.remoteChainId
   }
