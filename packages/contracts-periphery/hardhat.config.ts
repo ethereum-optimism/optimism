@@ -64,6 +64,9 @@ const config: HardhatUserConfig = {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
         },
       },
+      companionNetworks: {
+        l1: 'kovan',
+      },
     },
     'optimism-goerli': {
       chainId: 420,
@@ -123,6 +126,9 @@ const config: HardhatUserConfig = {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
         },
       },
+      companionNetworks: {
+        l2: 'optimism-kovan',
+      },
     },
     'ops-l2': {
       chainId: 17,
@@ -148,6 +154,18 @@ const config: HardhatUserConfig = {
   },
   paths: {
     deployConfig: './config/deploy',
+  },
+  external: {
+    contracts: [
+      {
+        artifacts: '../contracts/artifacts',
+      },
+    ],
+    deployments: {
+      goerli: ['../contracts/deployments/goerli'],
+      kovan: ['../contracts/deployments/kovan'],
+      ethereum: ['../contracts/deployments/mainnet'],
+    },
   },
   deployConfigSpec: configSpec,
   mocha: {

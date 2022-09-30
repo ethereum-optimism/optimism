@@ -20,5 +20,5 @@ npx hardhat deploy --tags L1ERC721BridgeImplementation --network $L1_NETWORK
 # Step 5: deploy the Proxy for the OptimismMintableERC721Factory to L2
 npx hardhat deploy --tags OptimismMintableERC721FactoryProxy --network $L2_NETWORK
 
-# Step 5: deploy the OptimismMintableERC721Factory to L2
+# Step 6: deploy the OptimismMintableERC721Factory to L2
 npx hardhat deploy --tags OptimismMintableERC721FactoryImplementation --network $L2_NETWORK
