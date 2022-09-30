@@ -4,12 +4,15 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/beacon"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/tracers"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -38,7 +41,14 @@ type L2Engine struct {
 	l2Signer   types.Signer
 
 	// L2 block building data
-	// TODO proto - block building PR
+	l2BuildingHeader *types.Header             // block header that we add txs to for block building
+	l2BuildingState  *state.StateDB            // state used for block building
+	l2GasPool        *core.GasPool             // track gas used of ongoing building
+	pendingIndices   map[common.Address]uint64 // per account, how many txs from the pool were already included in the block, since the pool is lagging behind block mining.
+	l2Transactions   []*types.Transaction      // collects txs that were successfully included into current block build
+	l2Receipts       []*types.Receipt          // collect receipts of ongoing building
+	l2ForceEmpty     bool                      // when no additional txs may be processed (i.e. when sequencer drift runs out)
+	l2TxFailed       []*types.Transaction      // log of failed transactions which could not be included
 
 	payloadID beacon.PayloadID // ID of payload that is currently being built
 
@@ -103,6 +113,11 @@ func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.Bloc
 	return eng
 }
 
+func (s *L2Engine) EthClient() *ethclient.Client {
+	cl, _ := s.node.Attach() // never errors
+	return ethclient.NewClient(cl)
+}
+
 func (e *L2Engine) RPCClient() client.RPC {
 	cl, _ := e.node.Attach() // never errors
 	return testutils.RPCErrFaker{
@@ -122,4 +137,41 @@ func (e *L2Engine) ActL2RPCFail(t Testing) {
 		return
 	}
 	e.failL2RPC = errors.New("mock L2 RPC error")
+}
+
+// ActL2IncludeTx includes the next transaction from the given address in the block that is being built
+func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
+	return func(t Testing) {
+		if e.l2BuildingHeader == nil {
+			t.InvalidAction("not currently building a block, cannot include tx from queue")
+			return
+		}
+		if e.l2ForceEmpty {
+			t.InvalidAction("cannot include any sequencer txs")
+			return
+		}
+
+		i := e.pendingIndices[from]
+		txs, q := e.eth.TxPool().ContentFrom(from)
+		if uint64(len(txs)) <= i {
+			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
+		}
+		tx := txs[i]
+		if tx.Gas() > e.l2BuildingHeader.GasLimit {
+			t.Fatalf("tx consumes %d gas, more than available in L2 block %d", tx.Gas(), e.l2BuildingHeader.GasLimit)
+		}
+		if tx.Gas() > uint64(*e.l2GasPool) {
+			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*e.l2GasPool))
+			return
+		}
+		e.pendingIndices[from] = i + 1 // won't retry the tx
+		receipt, err := core.ApplyTransaction(e.l2Cfg.Config, e.l2Chain, &e.l2BuildingHeader.Coinbase,
+			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
+		if err != nil {
+			e.l2TxFailed = append(e.l2TxFailed, tx)
+			t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(e.l2Transactions), err)
+		}
+		e.l2Receipts = append(e.l2Receipts, receipt)
+		e.l2Transactions = append(e.l2Transactions, tx)
+	}
 }

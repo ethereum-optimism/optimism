@@ -2,11 +2,19 @@ package actions
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/trie"
+
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -26,12 +34,101 @@ var (
 	INVALID_TERMINAL_BLOCK = eth.PayloadStatusV1{Status: eth.ExecutionInvalid, LatestValidHash: &common.Hash{}}
 )
 
+// computePayloadId computes a pseudo-random payloadid, based on the parameters.
+func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) beacon.PayloadID {
+	// Hash
+	hasher := sha256.New()
+	hasher.Write(headBlockHash[:])
+	_ = binary.Write(hasher, binary.BigEndian, params.Timestamp)
+	hasher.Write(params.PrevRandao[:])
+	hasher.Write(params.SuggestedFeeRecipient[:])
+	for _, tx := range params.Transactions {
+		_ = binary.Write(hasher, binary.BigEndian, uint64(len(tx))) // length-prefix to avoid collisions
+		hasher.Write(tx)
+	}
+	if params.NoTxPool {
+		hasher.Write([]byte{1})
+	}
+	var out beacon.PayloadID
+	copy(out[:], hasher.Sum(nil)[:8])
+	return out
+}
+
 func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttributes) error {
-	return fmt.Errorf("todo")
+	if ea.l2BuildingHeader != nil {
+		ea.log.Warn("started building new block without ending previous block", "previous", ea.l2BuildingHeader, "prev_payload_id", ea.payloadID)
+	}
+
+	parentHeader := ea.l2Chain.GetHeaderByHash(parent)
+	if parentHeader == nil {
+		return fmt.Errorf("uknown parent block: %s", parent)
+	}
+	statedb, err := state.New(parentHeader.Root, state.NewDatabase(ea.l2Database), nil)
+	if err != nil {
+		return fmt.Errorf("failed to init state db around block %s (state %s): %w", parent, parentHeader.Root, err)
+	}
+
+	header := &types.Header{
+		ParentHash: parent,
+		Coinbase:   params.SuggestedFeeRecipient,
+		Difficulty: common.Big0,
+		Number:     new(big.Int).Add(parentHeader.Number, common.Big1),
+		GasLimit:   parentHeader.GasLimit,
+		Time:       uint64(params.Timestamp),
+		Extra:      nil,
+		MixDigest:  common.Hash(params.PrevRandao),
+	}
+
+	header.BaseFee = misc.CalcBaseFee(ea.l2Cfg.Config, parentHeader)
+
+	ea.l2BuildingHeader = header
+	ea.l2BuildingState = statedb
+	ea.l2Receipts = make([]*types.Receipt, 0)
+	ea.l2Transactions = make([]*types.Transaction, 0)
+	ea.pendingIndices = make(map[common.Address]uint64)
+	ea.l2ForceEmpty = params.NoTxPool
+	ea.l2GasPool = new(core.GasPool).AddGas(header.GasLimit)
+	ea.payloadID = computePayloadId(parent, params)
+
+	// pre-process the deposits
+	for i, otx := range params.Transactions {
+		var tx types.Transaction
+		if err := tx.UnmarshalBinary(otx); err != nil {
+			return fmt.Errorf("transaction %d is not valid: %v", i, err)
+		}
+
+		receipt, err := core.ApplyTransaction(ea.l2Cfg.Config, ea.l2Chain, &ea.l2BuildingHeader.Coinbase,
+			ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, &tx, &ea.l2BuildingHeader.GasUsed, *ea.l2Chain.GetVMConfig())
+		if err != nil {
+			ea.l2TxFailed = append(ea.l2TxFailed, &tx)
+			return fmt.Errorf("failed to apply deposit transaction to L2 block (tx %d): %w", i, err)
+		}
+		ea.l2Receipts = append(ea.l2Receipts, receipt)
+		ea.l2Transactions = append(ea.l2Transactions, &tx)
+	}
+	return nil
 }
 
 func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
-	return nil, fmt.Errorf("todo")
+	if ea.l2BuildingHeader == nil {
+		return nil, fmt.Errorf("no block is being built currently (id %s)", ea.payloadID)
+	}
+	header := ea.l2BuildingHeader
+	ea.l2BuildingHeader = nil
+
+	header.GasUsed = header.GasLimit - uint64(*ea.l2GasPool)
+	header.Root = ea.l2BuildingState.IntermediateRoot(ea.l2Cfg.Config.IsEIP158(header.Number))
+	block := types.NewBlock(header, ea.l2Transactions, nil, ea.l2Receipts, trie.NewStackTrie(nil))
+
+	// Write state changes to db
+	root, err := ea.l2BuildingState.Commit(ea.l2Cfg.Config.IsEIP158(header.Number))
+	if err != nil {
+		return nil, fmt.Errorf("l2 state write error: %v", err)
+	}
+	if err := ea.l2BuildingState.Database().TrieDB().Commit(root, false, nil); err != nil {
+		return nil, fmt.Errorf("l2 trie write error: %v", err)
+	}
+	return block, nil
 }
 
 func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID) (*eth.ExecutionPayload, error) {
