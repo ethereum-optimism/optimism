@@ -51,10 +51,25 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     '0x4200000000000000000000000000000000000042'
   )
 
+  const Old__MintManager = await hre.ethers.getContractAt(
+    'MintManager',
+    oldImpl
+  )
+  const oldOwner = await Old__MintManager.owner()
+
   const getAddress = hre.ethers.utils.getAddress
 
   const Deployment__MintManager = await hre.deployments.get('MintManager')
   const newImpl = Deployment__MintManager.address
+
+  console.log()
+  console.log('Action is required to complete this deployment')
+  console.log(
+    'Ownership of the GovernanceToken should be migrated to the newly deployed MintManager'
+  )
+  console.log(`MintManager.owner() -> ${oldOwner}`)
+  console.log(`Call MintManager(${oldImpl}).upgrade(${newImpl})`)
+  console.log()
 
   while (true) {
     const owner = await GovernanceToken.owner()
