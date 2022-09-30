@@ -364,15 +364,6 @@ contract Bridge_Initializer is Messenger_Initializer {
         bytes data
     );
 
-    event ERC20BridgeFailed(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
-    );
-
     function setUp() public virtual override {
         super.setUp();
 
