@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -14,6 +15,16 @@ type RPC interface {
 	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
 	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
 	EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (*rpc.ClientSubscription, error)
+}
+
+// RPCGeneric is a temporary interface added to make compilation work until interfaces
+// are updated to support the generic EthSubscribe that returns ethereum.Subscription
+// below
+type RPCGeneric interface {
+	Close()
+	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
+	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
+	EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error)
 }
 
 // InstrumentedRPCClient is an RPC client that tracks
