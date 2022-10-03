@@ -10,9 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type NextDataProvider interface {
-	NextData(ctx context.Context) ([]byte, error)
-	Origin() eth.L1BlockRef
+type NextFrameProvider interface {
+	NextFrame() (FrameWithL1Inclusion, error)
 }
 
 // ChannelBank is a stateful stage that does the following:
@@ -34,14 +33,15 @@ type ChannelBank struct {
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
 
-	prev    NextDataProvider
-	fetcher L1Fetcher
+	prev                  NextFrameProvider
+	fetcher               L1Fetcher
+	originForFutureStages eth.L1BlockRef
 }
 
 var _ ResetableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextDataProvider, fetcher L1Fetcher) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
@@ -53,7 +53,7 @@ func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextDataProvider, f
 }
 
 func (cb *ChannelBank) Origin() eth.L1BlockRef {
-	return cb.prev.Origin()
+	return cb.originForFutureStages
 }
 
 func (cb *ChannelBank) prune() {
@@ -74,41 +74,34 @@ func (cb *ChannelBank) prune() {
 
 // IngestData adds new L1 data to the channel bank.
 // Read() should be called repeatedly first, until everything has been read, before adding new data.\
-func (cb *ChannelBank) IngestData(data []byte) {
-	origin := cb.Origin()
-	cb.log.Debug("channel bank got new data", "origin", origin, "data_len", len(data))
+func (cb *ChannelBank) IngestData(f FrameWithL1Inclusion) {
+	origin := f.l1InclusionBlock
+	cb.log.Debug("channel bank got new data", "origin", origin, "data_len", len(f.frame.Data))
 
 	// TODO: Why is the prune here?
 	cb.prune()
 
-	frames, err := ParseFrames(data)
-	if err != nil {
-		cb.log.Warn("malformed frame", "err", err)
+	// Process each frame
+	currentCh, ok := cb.channels[f.frame.ID]
+	if !ok {
+		// create new channel if it doesn't exist yet
+		currentCh = NewChannel(f.frame.ID, origin)
+		cb.channels[f.frame.ID] = currentCh
+		cb.channelQueue = append(cb.channelQueue, f.frame.ID)
+	}
+
+	// check if the channel is not timed out
+	if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < origin.Number {
+		cb.log.Warn("channel is timed out, ignore frame", "channel", f.frame.ID, "frame", f.frame.FrameNumber)
 		return
 	}
 
-	// Process each frame
-	for _, f := range frames {
-		currentCh, ok := cb.channels[f.ID]
-		if !ok {
-			// create new channel if it doesn't exist yet
-			currentCh = NewChannel(f.ID, origin)
-			cb.channels[f.ID] = currentCh
-			cb.channelQueue = append(cb.channelQueue, f.ID)
-		}
-
-		// check if the channel is not timed out
-		if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < origin.Number {
-			cb.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "frame", f.FrameNumber)
-			continue
-		}
-
-		cb.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
-		if err := currentCh.AddFrame(f, origin); err != nil {
-			cb.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
-			continue
-		}
+	cb.log.Trace("ingesting frame", "channel", f.frame.ID, "frame_number", f.frame.FrameNumber, "length", len(f.frame.Data))
+	if err := currentCh.AddFrame(f.frame, origin); err != nil {
+		cb.log.Warn("failed to ingest frame into channel", "channel", f.frame.ID, "frame_number", f.frame.FrameNumber, "err", err)
+		return
 	}
+
 }
 
 // Read the raw data of the first channel, if it's timed-out or closed.
@@ -156,12 +149,13 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 	}
 
 	// Then load data into the channel bank
-	if data, err := cb.prev.NextData(ctx); err == io.EOF {
+	if frame, err := cb.prev.NextFrame(); err == io.EOF {
 		return nil, io.EOF
 	} else if err != nil {
+		// TODO: Should not happen
 		return nil, err
 	} else {
-		cb.IngestData(data)
+		cb.IngestData(frame)
 		return nil, NotEnoughData
 	}
 }

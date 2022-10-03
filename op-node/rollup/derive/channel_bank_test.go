@@ -57,7 +57,7 @@ func (f *fakeChannelBankInput) AddFrames(frames ...testFrame) {
 	f.AddOutput(data.Bytes(), nil)
 }
 
-var _ NextDataProvider = (*fakeChannelBankInput)(nil)
+var _ NextFrameProvider = (*fakeChannelBankInput)(nil)
 
 // format: <channelID-data>:<frame-number>:<content><optional-last-frame-marker "!">
 // example: "abc:0:helloworld!"
