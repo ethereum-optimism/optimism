@@ -18,7 +18,8 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	miner := NewL1Miner(log, sd.L1Cfg)
+	miner, done := NewL1Miner(log, sd.L1Cfg)
+	defer done()
 
 	cl := miner.EthClient()
 	signer := types.LatestSigner(sd.L1Cfg.Config)
