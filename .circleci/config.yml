@@ -286,9 +286,14 @@ jobs:
             gotestsum --junitfile /test-results/op-batcher.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-batcher
       - run:
-          name: test op-e2e
+          name: test op-e2e (WS)
           command: |
             gotestsum --format standard-verbose --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
+          working_directory: op-e2e
+      - run:
+          name: test op-e2e (HTTP)
+          command: |
+            OP_E2E_USE_HTTP=true gotestsum --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
           working_directory: op-e2e
       - run:
           name: test op-service

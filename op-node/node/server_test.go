@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
+	rpcclient "github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
@@ -101,7 +102,7 @@ func TestOutputAtBlock(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := rpcclient.DialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
 	assert.NoError(t, err)
 
 	var out []eth.Bytes32
@@ -127,7 +128,7 @@ func TestVersion(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := rpcclient.DialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
 	assert.NoError(t, err)
 
 	var out string
@@ -162,7 +163,7 @@ func TestSyncStatus(t *testing.T) {
 	assert.NoError(t, server.Start())
 	defer server.Stop()
 
-	client, err := dialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
+	client, err := rpcclient.DialRPCClientWithBackoff(context.Background(), log, "http://"+server.Addr().String())
 	assert.NoError(t, err)
 
 	var out *eth.SyncStatus

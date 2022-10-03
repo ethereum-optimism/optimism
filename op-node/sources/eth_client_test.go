@@ -6,6 +6,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
@@ -30,7 +31,7 @@ func (m *mockRPC) CallContext(ctx context.Context, result interface{}, method st
 	return m.MethodCalled("CallContext", ctx, result, method, args).Get(0).([]error)[0]
 }
 
-func (m *mockRPC) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (*rpc.ClientSubscription, error) {
+func (m *mockRPC) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
 	called := m.MethodCalled("EthSubscribe", channel, args)
 	return called.Get(0).(*rpc.ClientSubscription), called.Get(1).([]error)[0]
 }
