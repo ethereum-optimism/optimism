@@ -33,7 +33,7 @@ type EngineQueueStage interface {
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
-	Progress() Progress
+	Origin() eth.L1BlockRef
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.BlockID)
@@ -96,8 +96,8 @@ func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
 
-func (dp *DerivationPipeline) Progress() Progress {
-	return dp.eng.Progress()
+func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
+	return dp.eng.Origin()
 }
 
 func (dp *DerivationPipeline) Finalize(l1Origin eth.BlockID) {
@@ -133,12 +133,12 @@ func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 // An error is expected when the underlying source closes.
 // When Step returns nil, it should be called again, to continue the derivation process.
 func (dp *DerivationPipeline) Step(ctx context.Context) error {
-	defer dp.metrics.RecordL1Ref("l1_derived", dp.Progress().Origin)
+	defer dp.metrics.RecordL1Ref("l1_derived", dp.Origin())
 
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
-		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Progress().Origin); err == io.EOF {
-			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Progress().Origin)
+		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin()); err == io.EOF {
+			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Origin())
 			dp.resetting += 1
 			return nil
 		} else if err != nil {

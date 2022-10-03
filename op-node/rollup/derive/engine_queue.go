@@ -78,7 +78,7 @@ type EngineQueue struct {
 	engine Engine
 	prev   NextAttributesProvider
 
-	progress Progress // only used for pipeline resets
+	origin eth.L1BlockRef // only used for pipeline resets
 
 	metrics   Metrics
 	l1Fetcher L1Fetcher
@@ -101,8 +101,8 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 	}
 }
 
-func (eq *EngineQueue) Progress() Progress {
-	return eq.progress
+func (eq *EngineQueue) Origin() eth.L1BlockRef {
+	return eq.origin
 }
 
 func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
@@ -433,9 +433,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef) error {
 	eq.finalized = finalized
 	eq.finalityData = eq.finalityData[:0]
 	// note: we do not clear the unsafe payloadds queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
-	eq.progress = Progress{
-		Origin: pipelineOrigin,
-	}
+	eq.origin = pipelineOrigin
 	eq.metrics.RecordL2Ref("l2_finalized", finalized)
 	eq.metrics.RecordL2Ref("l2_safe", safe)
 	eq.metrics.RecordL2Ref("l2_unsafe", unsafe)
