@@ -28,6 +28,30 @@ const deployFn: DeployFunction = async (hre) => {
       defaultHardhatNetworkHdAccountsConfigParams
     ).slice(0, 20)
 
+    // Set balances on L1 for the predeploy deployers
+
+    // 0xa961b0d6dce82db098cf70a42a14add3ee3db2d5
+    await hre.network.provider.send('hardhat_setBalance', [
+      '0xa961b0d6dce82db098cf70a42a14add3ee3db2d5',
+      '0x8000000000000000000000',
+    ])
+    accounts.push({
+      privateKey:
+        '0xa6aecc98b63bafb0de3b29ae9964b14acb4086057808be29f90150214ebd4a0f',
+      balance: '',
+    })
+
+    // 0xdfc82d475833a50de90c642770f34a9db7deb725
+    await hre.network.provider.send('hardhat_setBalance', [
+      '0xdfc82d475833a50de90c642770f34a9db7deb725',
+      '0x8000000000000000000000',
+    ])
+    accounts.push({
+      privateKey:
+        '0x3b8d2345102cce2443acb240db6e87c8edd4bb3f821b17fab8ea2c9da08ea132',
+      balance: '',
+    })
+
     // Fund the accounts in parallel to speed things up.
     await Promise.all(
       accounts.map(async (account, index) => {

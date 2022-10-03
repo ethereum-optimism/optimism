@@ -5,8 +5,8 @@ go 1.18
 require (
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1
-	github.com/ethereum-optimism/optimism/op-bindings v0.8.8
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.8.8
+	github.com/ethereum-optimism/optimism/op-bindings v0.8.9
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.8.9
 	github.com/ethereum/go-ethereum v1.10.23
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8

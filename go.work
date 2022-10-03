@@ -3,6 +3,7 @@ go 1.18
 use (
 	./batch-submitter
 	./bss-core
+	./endpoint-monitor
 	./gas-oracle
 	./indexer
 	./l2geth

@@ -1,5 +1,12 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.1.10
+
+### Patch Changes
+
+- Updated dependencies [ce7da914]
+  - @eth-optimism/common-ts@0.6.6
+
 ## 1.1.9
 
 ### Patch Changes

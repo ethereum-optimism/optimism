@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.20
+
+### Patch Changes
+
+- 02c457a5: Removes NFT refund logic if withdrawals fail.
+
 ## 0.5.19
 
 ### Patch Changes
