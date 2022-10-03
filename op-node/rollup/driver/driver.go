@@ -36,7 +36,7 @@ type Metrics interface {
 
 type Downloader interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
 type L1Chain interface {

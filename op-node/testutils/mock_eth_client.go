@@ -105,13 +105,13 @@ func (m *MockEthClient) ExpectPayloadByLabel(label eth.BlockLabel, payload *eth.
 	m.Mock.On("PayloadByLabel", label).Once().Return(payload, &err)
 }
 
-func (m *MockEthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error) {
+func (m *MockEthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	out := m.Mock.MethodCalled("Fetch", blockHash)
-	return *out[0].(*eth.BlockInfo), out[1].(types.Transactions), out[2].(eth.ReceiptsFetcher), *out[3].(*error)
+	return *out[0].(*eth.BlockInfo), out[1].(types.Receipts), *out[2].(*error)
 }
 
-func (m *MockEthClient) ExpectFetch(hash common.Hash, info eth.BlockInfo, transactions types.Transactions, receipts types.Receipts, err error) {
-	m.Mock.On("Fetch", hash).Once().Return(&info, transactions, eth.FetchedReceipts(receipts), &err)
+func (m *MockEthClient) ExpectFetch(hash common.Hash, info eth.BlockInfo, receipts types.Receipts, err error) {
+	m.Mock.On("Fetch", hash).Once().Return(&info, receipts, &err)
 }
 
 func (m *MockEthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {

@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -80,7 +81,8 @@ type EthClient struct {
 	log log.Logger
 
 	// cache receipts in bundles per block hash
-	// common.Hash -> types.Receipts
+	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
+	// common.Hash -> eth.ReceiptsFetcher
 	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
@@ -230,21 +232,39 @@ func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*
 	return s.payloadCall(ctx, "eth_getBlockByNumber", string(label))
 }
 
-func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error) {
+// Fetch returns a block info and all of the receipts associated with transactions in the block.
+// It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
+// to ensure that the execution engine did not fail to return any receipts.
+func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	info, txs, err := s.InfoAndTxsByHash(ctx, blockHash)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
+	var fetcher eth.ReceiptsFetcher
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		return info, txs, v.(eth.ReceiptsFetcher), nil
+		fetcher = v.(eth.ReceiptsFetcher)
+	} else {
+		txHashes := make([]common.Hash, len(txs))
+		for i := 0; i < len(txs); i++ {
+			txHashes[i] = txs[i].Hash()
+		}
+		fetcher = NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
+		s.receiptsCache.Add(blockHash, fetcher)
+
 	}
-	txHashes := make([]common.Hash, len(txs))
-	for i := 0; i < len(txs); i++ {
-		txHashes[i] = txs[i].Hash()
+	for {
+		if err := fetcher.Fetch(ctx); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, nil, err
+		}
 	}
-	r := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-	s.receiptsCache.Add(blockHash, r)
-	return info, txs, r, nil
+	receipts, err := fetcher.Result()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return info, receipts, nil
 }
 
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
