@@ -45,7 +45,7 @@ type L1Replica struct {
 }
 
 // NewL1Replica constructs a L1Replica starting at the given genesis.
-func NewL1Replica(log log.Logger, genesis *core.Genesis) (*L1Replica, func() error) {
+func NewL1Replica(log log.Logger, genesis *core.Genesis) *L1Replica {
 	ethCfg := &ethconfig.Config{
 		NetworkId:                 genesis.Config.ChainID.Uint64(),
 		Genesis:                   genesis,
@@ -87,7 +87,7 @@ func NewL1Replica(log log.Logger, genesis *core.Genesis) (*L1Replica, func() err
 		l1Cfg:      genesis,
 		l1Signer:   types.LatestSigner(genesis.Config),
 		failL1RPC:  nil,
-	}, n.Close
+	}
 }
 
 // ActL1RewindToParent rewinds the L1 chain to parent block of head
@@ -185,4 +185,8 @@ func (s *L1Replica) ActL1SafeNext(t Testing) {
 		return
 	}
 	s.l1Chain.SetSafe(next)
+}
+
+func (s *L1Replica) Close() error {
+	return s.node.Close()
 }

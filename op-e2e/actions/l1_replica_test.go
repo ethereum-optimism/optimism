@@ -32,8 +32,10 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	replica, done := NewL1Replica(log, sd.L1Cfg)
-	defer done()
+	replica := NewL1Replica(log, sd.L1Cfg)
+	t.Cleanup(func() {
+		_ = replica.Close()
+	})
 	// mock an RPC failure
 	replica.ActL1RPCFail(t)
 	// check RPC failure
@@ -76,8 +78,10 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	}
 
 	// Enough setup, create the test actor and run the actual actions
-	replica1, done1 := NewL1Replica(log, sd.L1Cfg)
-	defer done1()
+	replica1 := NewL1Replica(log, sd.L1Cfg)
+	t.Cleanup(func() {
+		_ = replica1.Close()
+	})
 	syncFromA := replica1.ActL1Sync(canonL1(chainA))
 	// sync canonical chain A
 	for replica1.l1Chain.CurrentBlock().NumberU64()+1 < uint64(len(chainA)) {
@@ -95,8 +99,10 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	require.Equal(t, replica1.l1Chain.CurrentBlock().Hash(), chainB[len(chainB)-1].Hash(), "sync replica1 to head of chain B")
 
 	// Adding and syncing a new replica
-	replica2, done2 := NewL1Replica(log, sd.L1Cfg)
-	defer done2()
+	replica2 := NewL1Replica(log, sd.L1Cfg)
+	t.Cleanup(func() {
+		_ = replica2.Close()
+	})
 	syncFromOther := replica2.ActL1Sync(replica1.CanonL1Chain())
 	for replica2.l1Chain.CurrentBlock().NumberU64()+1 < uint64(len(chainB)) {
 		syncFromOther(t)

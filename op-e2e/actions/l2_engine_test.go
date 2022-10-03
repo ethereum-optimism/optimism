@@ -95,6 +95,9 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	sd.L2Cfg.MustCommit(db)
 
 	engine := NewL2Engine(log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	t.Cleanup(func() {
+		_ = engine.Close()
+	})
 
 	cl := engine.EthClient()
 	signer := types.LatestSigner(sd.L2Cfg.Config)

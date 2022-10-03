@@ -29,11 +29,11 @@ type L1Miner struct {
 }
 
 // NewL1Miner creates a new L1Replica that can also build blocks.
-func NewL1Miner(log log.Logger, genesis *core.Genesis) (*L1Miner, func() error) {
-	rep, done := NewL1Replica(log, genesis)
+func NewL1Miner(log log.Logger, genesis *core.Genesis) *L1Miner {
+	rep := NewL1Replica(log, genesis)
 	return &L1Miner{
 		L1Replica: *rep,
-	}, done
+	}
 }
 
 // ActL1StartBlock returns an action to build a new L1 block on top of the head block,
@@ -139,4 +139,8 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	if err != nil {
 		t.Fatalf("failed to insert block into l1 chain")
 	}
+}
+
+func (s *L1Miner) Close() error {
+	return s.L1Replica.Close()
 }
