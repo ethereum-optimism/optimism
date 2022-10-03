@@ -98,6 +98,8 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 	}
 	nodeConfig := &node.Config{
 		Name:        "l1-geth",
+		HTTPHost:    "127.0.0.1",
+		HTTPPort:    0,
 		WSHost:      "127.0.0.1",
 		WSPort:      0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},

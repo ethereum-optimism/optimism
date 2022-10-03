@@ -355,3 +355,11 @@ func (n *OpNode) Close() error {
 	}
 	return result.ErrorOrNil()
 }
+
+func (n *OpNode) ListenAddr() string {
+	return n.server.listenAddr.String()
+}
+
+func (n *OpNode) HTTPEndpoint() string {
+	return fmt.Sprintf("http://%s", n.ListenAddr())
+}
