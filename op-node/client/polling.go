@@ -19,7 +19,7 @@ var ErrSubscriberClosed = errors.New("subscriber closed")
 // via a polling loop. It's designed for HTTP endpoints, but WS will
 // work too.
 type PollingClient struct {
-	c        RPCGeneric
+	c        RPC
 	lgr      log.Logger
 	pollRate time.Duration
 	ctx      context.Context
@@ -52,7 +52,7 @@ func WithPollRate(duration time.Duration) WrappedHTTPClientOption {
 // NewPollingClient returns a new PollingClient. Canceling the passed-in context
 // will close the client. Callers are responsible for closing the client in order
 // to prevent resource leaks.
-func NewPollingClient(ctx context.Context, lgr log.Logger, c RPCGeneric, opts ...WrappedHTTPClientOption) *PollingClient {
+func NewPollingClient(ctx context.Context, lgr log.Logger, c RPC, opts ...WrappedHTTPClientOption) *PollingClient {
 	ctx, cancel := context.WithCancel(ctx)
 	res := &PollingClient{
 		c:         c,
@@ -142,6 +142,8 @@ func (w *PollingClient) pollHeads() {
 		}
 		time.AfterFunc(w.pollRate, w.reqPoll)
 	}
+
+	reqPollAfter()
 
 	defer close(w.closedCh)
 

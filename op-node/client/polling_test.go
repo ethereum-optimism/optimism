@@ -203,6 +203,6 @@ func requireChansEqual(t *testing.T, chans []chan *types.Header, root common.Has
 	}
 }
 
-func doSubscribe(client RPCGeneric, ch chan<- *types.Header) (ethereum.Subscription, error) {
+func doSubscribe(client RPC, ch chan<- *types.Header) (ethereum.Subscription, error) {
 	return client.EthSubscribe(context.Background(), ch, "newHeads")
 }

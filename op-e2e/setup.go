@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
@@ -337,13 +338,25 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	// Configure connections to L1 and L2 for rollup nodes.
 	// TODO: refactor testing to use in-process rpc connections instead of websockets.
+
+	l1EndpointConfig := l1Node.WSEndpoint()
+	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
+	if useHTTP {
+		log.Info("using HTTP client")
+		l1EndpointConfig = l1Node.HTTPEndpoint()
+	}
+
 	for name, rollupCfg := range cfg.Nodes {
+		l2EndpointConfig := sys.nodes[name].WSAuthEndpoint()
+		if useHTTP {
+			l2EndpointConfig = sys.nodes[name].HTTPAuthEndpoint()
+		}
 		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
-			L1NodeAddr: l1Node.WSEndpoint(),
+			L1NodeAddr: l1EndpointConfig,
 			L1TrustRPC: false,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
-			L2EngineAddr:      sys.nodes[name].WSAuthEndpoint(),
+			L2EngineAddr:      l2EndpointConfig,
 			L2EngineJWTSecret: cfg.JWTSecret,
 		}
 	}
