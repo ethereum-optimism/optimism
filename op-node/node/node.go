@@ -60,6 +60,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
+		fmt.Println(err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
 			return nil, multierror.Append(err, closeErr)
@@ -315,6 +316,7 @@ func (n *OpNode) Close() error {
 	var result *multierror.Error
 
 	if n.server != nil {
+		fmt.Println("closing server")
 		n.server.Stop()
 	}
 	if n.p2pNode != nil {

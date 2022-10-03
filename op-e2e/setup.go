@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
+	"net"
 	"os"
 	"path"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/stretchr/testify/require"
 )
 
 // Init testing to enable test flags
@@ -124,7 +126,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
 				RPC: rollupNode.RPCConfig{
 					ListenAddr:  "127.0.0.1",
-					ListenPort:  9093,
+					ListenPort:  GetFreePort(t),
 					EnableAdmin: true,
 				},
 				L1EpochPollInterval: time.Second * 4,
@@ -561,7 +563,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// Wait up to 6 blocks to deploy the Optimism portal
-	_, err = waitForTransaction(tx.Hash(), l1Client, 6*time.Second*time.Duration(cfg.L1BlockTime))
+	_, err = WaitForTransaction(tx.Hash(), l1Client, 6*time.Second*time.Duration(cfg.L1BlockTime))
 	if err != nil {
 		return nil, fmt.Errorf("waiting for OptimismPortal: %w", err)
 	}
@@ -753,4 +755,18 @@ func CalcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 	onesGas := (ones + 68) * 16 // params.TxDataNonZeroGasEIP2028
 	l1Gas := new(big.Int).SetUint64(zeroesGas + onesGas)
 	return new(big.Int).Add(l1Gas, overhead)
+}
+
+func SafeAddBig(a *big.Int, b *big.Int) *big.Int {
+	return new(big.Int).Add(a, b)
+}
+
+// GetFreePort gets an open, random port.
+func GetFreePort(t *testing.T) int {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+	l, err := net.ListenTCP("tcp", addr)
+	require.NoError(t, err)
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
 }
