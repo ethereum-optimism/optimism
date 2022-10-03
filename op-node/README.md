@@ -87,3 +87,5 @@ $ op-node genesis devnet-l2 \
 Note that both `contracts-bedrock` and `contracts-governance` are required
 as the `GovernanceToken` is also a predeploy and it lives in
 `contracts-governance`.
+
+BUILD KICKER - REMOVE BEFORE MERGE

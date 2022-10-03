@@ -2,9 +2,13 @@ package op_e2e
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"math/big"
+	"os"
+	"path"
 	"strings"
+	"testing"
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
@@ -14,11 +18,14 @@ import (
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -31,6 +38,123 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
+
+// Init testing to enable test flags
+var _ = func() bool {
+	testing.Init()
+	return true
+}()
+
+var VerboseGethNodes bool
+
+func init() {
+	flag.BoolVar(&VerboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
+	flag.Parse()
+}
+
+// Temporary until the contract is deployed properly instead of as a pre-deploy to a specific address
+var MockDepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
+
+const (
+	CliqueSignerHDPath = "m/44'/60'/0'/0/0"
+	TransactorHDPath   = "m/44'/60'/0'/0/1"
+	L2OutputHDPath     = "m/44'/60'/0'/0/3"
+	BSSHDPath          = "m/44'/60'/0'/0/4"
+	P2PSignerHDPath    = "m/44'/60'/0'/0/5"
+	DeployerHDPath     = "m/44'/60'/0'/0/6"
+)
+
+var (
+	batchInboxAddress = common.Address{0xff, 0x02}
+	testingJWTSecret  = [32]byte{123}
+)
+
+func writeDefaultJWT(t *testing.T) string {
+	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
+	jwtPath := path.Join(t.TempDir(), "jwt_secret")
+	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0600); err != nil {
+		t.Fatalf("failed to prepare jwt file for geth: %v", err)
+	}
+	return jwtPath
+}
+
+func DefaultSystemConfig(t *testing.T) SystemConfig {
+	return SystemConfig{
+		Mnemonic: "squirrel green gallery layer logic title habit chase clog actress language enrich body plate fun pledge gap abuse mansion define either blast alien witness",
+		Premine: map[string]int{
+			CliqueSignerHDPath: 10000000,
+			TransactorHDPath:   10000000,
+			L2OutputHDPath:     10000000,
+			BSSHDPath:          10000000,
+			DeployerHDPath:     10000000,
+		},
+		DepositCFG: DepositContractConfig{
+			FinalizationPeriod: big.NewInt(60 * 60 * 24),
+		},
+		L2OOCfg: L2OOContractConfig{
+			SubmissionFrequency:   big.NewInt(4),
+			HistoricalTotalBlocks: big.NewInt(0),
+		},
+		L2OutputHDPath:             L2OutputHDPath,
+		BatchSubmitterHDPath:       BSSHDPath,
+		P2PSignerHDPath:            P2PSignerHDPath,
+		DeployerHDPath:             DeployerHDPath,
+		CliqueSignerDerivationPath: CliqueSignerHDPath,
+		L1InfoPredeployAddress:     predeploys.L1BlockAddr,
+		L1BlockTime:                2,
+		L1ChainID:                  big.NewInt(900),
+		L2ChainID:                  big.NewInt(901),
+		JWTFilePath:                writeDefaultJWT(t),
+		JWTSecret:                  testingJWTSecret,
+		Nodes: map[string]*rollupNode.Config{
+			"verifier": {
+				Driver: driver.Config{
+					VerifierConfDepth:  0,
+					SequencerConfDepth: 0,
+					SequencerEnabled:   false,
+				},
+				L1EpochPollInterval: time.Second * 4,
+			},
+			"sequencer": {
+				Driver: driver.Config{
+					VerifierConfDepth:  0,
+					SequencerConfDepth: 0,
+					SequencerEnabled:   true,
+				},
+				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
+				RPC: rollupNode.RPCConfig{
+					ListenAddr:  "127.0.0.1",
+					ListenPort:  9093,
+					EnableAdmin: true,
+				},
+				L1EpochPollInterval: time.Second * 4,
+			},
+		},
+		Loggers: map[string]log.Logger{
+			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
+			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
+			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
+			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
+		},
+		RollupConfig: rollup.Config{
+			BlockTime:         1,
+			MaxSequencerDrift: 10,
+			SeqWindowSize:     30,
+			ChannelTimeout:    10,
+			L1ChainID:         big.NewInt(900),
+			L2ChainID:         big.NewInt(901),
+			// TODO pick defaults
+			P2PSequencerAddress: common.Address{}, // TODO configure sequencer p2p key
+			FeeRecipientAddress: common.Address{0xff, 0x01},
+			BatchInboxAddress:   batchInboxAddress,
+			// Batch Sender address is filled out in system start
+			DepositContractAddress: MockDepositContractAddr,
+		},
+		P2PTopology:      nil, // no P2P connectivity by default
+		BaseFeeRecipient: common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
+		L1FeeRecipient:   common.HexToAddress("0xDe3829A23DF1479438622a08a116E8Eb3f620BB5"),
+	}
+}
 
 // deriveAddress returns the address associated derivation path for the wallet.
 // It will panic if the derivation path is not correctly formatted.
@@ -99,10 +223,10 @@ type System struct {
 	cfg SystemConfig
 
 	// Retain wallet
-	wallet *hdwallet.Wallet
+	Wallet *hdwallet.Wallet
 
 	// Connections to running nodes
-	nodes               map[string]*node.Node
+	Nodes               map[string]*node.Node
 	backends            map[string]*eth.Ethereum
 	Clients             map[string]*ethclient.Client
 	RolupGenesis        rollup.Genesis
@@ -151,16 +275,16 @@ func (sys *System) Close() {
 	for _, node := range sys.rollupNodes {
 		node.Close()
 	}
-	for _, node := range sys.nodes {
+	for _, node := range sys.Nodes {
 		node.Close()
 	}
 	sys.Mocknet.Close()
 }
 
-func (cfg SystemConfig) start() (*System, error) {
+func (cfg SystemConfig) Start() (*System, error) {
 	sys := &System{
 		cfg:         cfg,
-		nodes:       make(map[string]*node.Node),
+		Nodes:       make(map[string]*node.Node),
 		backends:    make(map[string]*eth.Ethereum),
 		Clients:     make(map[string]*ethclient.Client),
 		rollupNodes: make(map[string]*rollupNode.OpNode),
@@ -171,7 +295,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			for _, node := range sys.rollupNodes {
 				node.Close()
 			}
-			for _, node := range sys.nodes {
+			for _, node := range sys.Nodes {
 				node.Close()
 			}
 		}
@@ -182,7 +306,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create wallet: %w", err)
 	}
-	sys.wallet = wallet
+	sys.Wallet = wallet
 
 	// Create the BSS and set it's config here because it needs to be derived from the accounts
 	bssPrivKey, err := wallet.PrivateKey(accounts.Account{
@@ -301,7 +425,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
-	sys.nodes["l1"] = l1Node
+	sys.Nodes["l1"] = l1Node
 	sys.backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
@@ -309,7 +433,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		if err != nil {
 			return nil, err
 		}
-		sys.nodes[name] = node
+		sys.Nodes[name] = node
 		sys.backends[name] = backend
 	}
 
@@ -324,7 +448,7 @@ func (cfg SystemConfig) start() (*System, error) {
 		didErrAfterStart = true
 		return nil, err
 	}
-	for name, node := range sys.nodes {
+	for name, node := range sys.Nodes {
 		if name == "l1" {
 			continue
 		}
@@ -343,7 +467,7 @@ func (cfg SystemConfig) start() (*System, error) {
 			L1TrustRPC: false,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
-			L2EngineAddr:      sys.nodes[name].WSAuthEndpoint(),
+			L2EngineAddr:      sys.Nodes[name].WSAuthEndpoint(),
 			L2EngineJWTSecret: cfg.JWTSecret,
 		}
 	}
@@ -358,7 +482,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 	l1Client := ethclient.NewClient(rpc.DialInProc(l1Srv))
 	sys.Clients["l1"] = l1Client
-	for name, node := range sys.nodes {
+	for name, node := range sys.Nodes {
 		client, err := ethclient.DialContext(ctx, node.WSEndpoint())
 		if err != nil {
 			didErrAfterStart = true
@@ -389,7 +513,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	sys.cfg.RollupConfig.P2PSequencerAddress = p2pSignerAddr
 
 	// Deploy Deposit Contract
-	deployerPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+	deployerPrivKey, err := sys.Wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
 			Path: cfg.DeployerHDPath,
 		},
@@ -549,8 +673,8 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	// L2Output Submitter
 	sys.l2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
-		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 rollupEndpoint,
 		L2OOAddress:               sys.L2OOContractAddr.String(),
 		PollInterval:              50 * time.Millisecond,
@@ -574,8 +698,8 @@ func (cfg SystemConfig) start() (*System, error) {
 
 	// Batch Submitter
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
-		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 rollupEndpoint,
 		MinL1TxSize:               1,
 		MaxL1TxSize:               120000,
@@ -601,4 +725,32 @@ func (cfg SystemConfig) start() (*System, error) {
 	}
 
 	return sys, nil
+}
+
+// CalcGasFees determines the actual cost of the transaction given a specific basefee
+func CalcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
+	x := new(big.Int).Add(gasTipCap, baseFee)
+	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
+	if x.Cmp(gasFeeCap) > 0 {
+		x = gasFeeCap
+	}
+	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
+}
+
+// CalcL1GasUsed returns the gas used to include the transaction data in
+// the calldata on L1
+func CalcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
+	var zeroes, ones uint64
+	for _, byt := range data {
+		if byt == 0 {
+			zeroes++
+		} else {
+			ones++
+		}
+	}
+
+	zeroesGas := zeroes * 4     // params.TxDataZeroGas
+	onesGas := (ones + 68) * 16 // params.TxDataNonZeroGasEIP2028
+	l1Gas := new(big.Int).SetUint64(zeroesGas + onesGas)
+	return new(big.Int).Add(l1Gas, overhead)
 }

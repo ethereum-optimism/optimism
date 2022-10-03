@@ -2,22 +2,15 @@ package op_e2e
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"math/big"
-	"os"
-	"path"
 	"testing"
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/node"
-	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -26,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -36,131 +28,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Init testing to enable test flags
-var _ = func() bool {
-	testing.Init()
-	return true
-}()
-
-var verboseGethNodes bool
-
-func init() {
-	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
-	flag.Parse()
-}
-
-// Temporary until the contract is deployed properly instead of as a pre-deploy to a specific address
-var MockDepositContractAddr = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
-
-const (
-	cliqueSignerHDPath = "m/44'/60'/0'/0/0"
-	transactorHDPath   = "m/44'/60'/0'/0/1"
-	l2OutputHDPath     = "m/44'/60'/0'/0/3"
-	bssHDPath          = "m/44'/60'/0'/0/4"
-	p2pSignerHDPath    = "m/44'/60'/0'/0/5"
-	deployerHDPath     = "m/44'/60'/0'/0/6"
-)
-
-var (
-	batchInboxAddress = common.Address{0xff, 0x02}
-	testingJWTSecret  = [32]byte{123}
-)
-
-func writeDefaultJWT(t *testing.T) string {
-	// Sadly the geth node config cannot load JWT secret from memory, it has to be a file
-	jwtPath := path.Join(t.TempDir(), "jwt_secret")
-	if err := os.WriteFile(jwtPath, []byte(hexutil.Encode(testingJWTSecret[:])), 0600); err != nil {
-		t.Fatalf("failed to prepare jwt file for geth: %v", err)
-	}
-	return jwtPath
-}
-
-func defaultSystemConfig(t *testing.T) SystemConfig {
-	return SystemConfig{
-		Mnemonic: "squirrel green gallery layer logic title habit chase clog actress language enrich body plate fun pledge gap abuse mansion define either blast alien witness",
-		Premine: map[string]int{
-			cliqueSignerHDPath: 10000000,
-			transactorHDPath:   10000000,
-			l2OutputHDPath:     10000000,
-			bssHDPath:          10000000,
-			deployerHDPath:     10000000,
-		},
-		DepositCFG: DepositContractConfig{
-			FinalizationPeriod: big.NewInt(60 * 60 * 24),
-		},
-		L2OOCfg: L2OOContractConfig{
-			SubmissionFrequency:   big.NewInt(4),
-			HistoricalTotalBlocks: big.NewInt(0),
-		},
-		L2OutputHDPath:             l2OutputHDPath,
-		BatchSubmitterHDPath:       bssHDPath,
-		P2PSignerHDPath:            p2pSignerHDPath,
-		DeployerHDPath:             deployerHDPath,
-		CliqueSignerDerivationPath: cliqueSignerHDPath,
-		L1InfoPredeployAddress:     predeploys.L1BlockAddr,
-		L1BlockTime:                2,
-		L1ChainID:                  big.NewInt(900),
-		L2ChainID:                  big.NewInt(901),
-		JWTFilePath:                writeDefaultJWT(t),
-		JWTSecret:                  testingJWTSecret,
-		Nodes: map[string]*rollupNode.Config{
-			"verifier": {
-				Driver: driver.Config{
-					VerifierConfDepth:  0,
-					SequencerConfDepth: 0,
-					SequencerEnabled:   false,
-				},
-				L1EpochPollInterval: time.Second * 4,
-			},
-			"sequencer": {
-				Driver: driver.Config{
-					VerifierConfDepth:  0,
-					SequencerConfDepth: 0,
-					SequencerEnabled:   true,
-				},
-				// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
-				RPC: node.RPCConfig{
-					ListenAddr:  "127.0.0.1",
-					ListenPort:  9093,
-					EnableAdmin: true,
-				},
-				L1EpochPollInterval: time.Second * 4,
-			},
-		},
-		Loggers: map[string]log.Logger{
-			"verifier":  testlog.Logger(t, log.LvlInfo).New("role", "verifier"),
-			"sequencer": testlog.Logger(t, log.LvlInfo).New("role", "sequencer"),
-			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
-			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
-		},
-		RollupConfig: rollup.Config{
-			BlockTime:         1,
-			MaxSequencerDrift: 10,
-			SeqWindowSize:     30,
-			ChannelTimeout:    10,
-			L1ChainID:         big.NewInt(900),
-			L2ChainID:         big.NewInt(901),
-			// TODO pick defaults
-			P2PSequencerAddress: common.Address{}, // TODO configure sequencer p2p key
-			FeeRecipientAddress: common.Address{0xff, 0x01},
-			BatchInboxAddress:   batchInboxAddress,
-			// Batch Sender address is filled out in system start
-			DepositContractAddress: MockDepositContractAddr,
-		},
-		P2PTopology:      nil, // no P2P connectivity by default
-		BaseFeeRecipient: common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"),
-		L1FeeRecipient:   common.HexToAddress("0xDe3829A23DF1479438622a08a116E8Eb3f620BB5"),
-	}
-}
-
 func TestL2OutputSubmitter(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -229,13 +104,13 @@ func TestL2OutputSubmitter(t *testing.T) {
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
 // All nodes are run in process (but are the full nodes, not mocked or stubbed).
 func TestSystemE2E(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -247,7 +122,7 @@ func TestSystemE2E(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Transactor Account
-	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+	ethPrivKey, err := sys.Wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
 			Path: "m/44'/60'/0'/0/0",
 		},
@@ -260,7 +135,7 @@ func TestSystemE2E(t *testing.T) {
 	// Find deposit contract
 	depositContract, err := bindings.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
-	l1Node := sys.nodes["l1"]
+	l1Node := sys.Nodes["l1"]
 
 	// Create signer
 	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -343,11 +218,11 @@ func TestSystemE2E(t *testing.T) {
 
 // TestConfirmationDepth runs the rollup with both sequencer and verifier not immediately processing the tip of the chain.
 func TestConfirmationDepth(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 	cfg.RollupConfig.SeqWindowSize = 4
 	cfg.RollupConfig.MaxSequencerDrift = 3 * cfg.L1BlockTime
 	seqConfDepth := uint64(2)
@@ -356,7 +231,7 @@ func TestConfirmationDepth(t *testing.T) {
 	cfg.Nodes["sequencer"].Driver.VerifierConfDepth = 0
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = verConfDepth
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -388,41 +263,13 @@ func TestConfirmationDepth(t *testing.T) {
 	require.LessOrEqual(t, l2VerHead.Time()+cfg.L1BlockTime*verConfDepth, l2SeqHead.Time(), "the L2 verifier head should lag behind the sequencer without delay by at least the verifier conf depth")
 }
 
-// TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
-func TestFinalize(t *testing.T) {
-	if !verboseGethNodes {
-		log.Root().SetHandler(log.DiscardHandler())
-	}
-
-	cfg := defaultSystemConfig(t)
-
-	sys, err := cfg.start()
-	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
-
-	l2Seq := sys.Clients["sequencer"]
-
-	// as configured in the extra geth lifecycle in testing setup
-	finalizedDistance := uint64(8)
-	// Wait enough time for L1 to finalize and L2 to confirm its data in finalized L1 blocks
-	<-time.After(time.Duration((finalizedDistance+4)*cfg.L1BlockTime) * time.Second)
-
-	// fetch the finalizes head of geth
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	l2Finalized, err := l2Seq.BlockByNumber(ctx, big.NewInt(int64(rpc.FinalizedBlockNumber)))
-	require.NoError(t, err)
-
-	require.NotZerof(t, l2Finalized.NumberU64(), "must have finalized L2 block")
-}
-
 func TestMintOnRevertedDeposit(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -432,7 +279,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	// Find deposit contract
 	depositContract, err := bindings.NewOptimismPortal(sys.DepositContractAddr, l1Client)
 	require.Nil(t, err)
-	l1Node := sys.nodes["l1"]
+	l1Node := sys.Nodes["l1"]
 
 	// create signer
 	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -490,21 +337,21 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 }
 
 func TestMissingBatchE2E(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 	// Note this test zeroes the balance of the batch-submitter to make the batches unable to go into L1.
 	// The test logs may look scary, but this is expected:
 	// 'batcher unable to publish transaction    role=batcher   err="insufficient funds for gas * price + value"'
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 	// small sequence window size so the test does not take as long
 	cfg.RollupConfig.SeqWindowSize = 4
 
 	// Specifically set batch submitter balance to stop batches from being included
-	cfg.Premine[bssHDPath] = 0
+	cfg.Premine[BSSHDPath] = 0
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -512,9 +359,9 @@ func TestMissingBatchE2E(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Transactor Account
-	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+	ethPrivKey, err := sys.Wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
-			Path: transactorHDPath,
+			Path: TransactorHDPath,
 		},
 	})
 	require.Nil(t, err)
@@ -599,11 +446,11 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 	// slow down L1 blocks so we can see the L2 blocks arrive well before the L1 blocks do.
 	// Keep the seq window small so the L2 chain is started quick
 	cfg.L1BlockTime = 10
@@ -624,7 +471,7 @@ func TestSystemMockP2P(t *testing.T) {
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -632,9 +479,9 @@ func TestSystemMockP2P(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Transactor Account
-	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+	ethPrivKey, err := sys.Wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
-			Path: transactorHDPath,
+			Path: TransactorHDPath,
 		},
 	})
 	require.Nil(t, err)
@@ -672,13 +519,13 @@ func TestSystemMockP2P(t *testing.T) {
 }
 
 func TestL1InfoContract(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -763,46 +610,18 @@ func TestL1InfoContract(t *testing.T) {
 
 }
 
-// calcGasFees determines the actual cost of the transaction given a specific basefee
-func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
-	x := new(big.Int).Add(gasTipCap, baseFee)
-	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
-	if x.Cmp(gasFeeCap) > 0 {
-		x = gasFeeCap
-	}
-	return x.Mul(x, new(big.Int).SetUint64(gasUsed))
-}
-
-// calcL1GasUsed returns the gas used to include the transaction data in
-// the calldata on L1
-func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
-	var zeroes, ones uint64
-	for _, byt := range data {
-		if byt == 0 {
-			zeroes++
-		} else {
-			ones++
-		}
-	}
-
-	zeroesGas := zeroes * 4     // params.TxDataZeroGas
-	onesGas := (ones + 68) * 16 // params.TxDataNonZeroGasEIP2028
-	l1Gas := new(big.Int).SetUint64(zeroesGas + onesGas)
-	return new(big.Int).Add(l1Gas, overhead)
-}
-
 // TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
 func TestWithdrawals(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 	cfg.DepositCFG.FinalizationPeriod = big.NewInt(2) // 2s finalization period
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -811,9 +630,9 @@ func TestWithdrawals(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Transactor Account
-	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+	ethPrivKey, err := sys.Wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
-			Path: transactorHDPath,
+			Path: TransactorHDPath,
 		},
 	})
 	require.Nil(t, err)
@@ -895,7 +714,7 @@ func TestWithdrawals(t *testing.T) {
 
 	// Take fee into account
 	diff = new(big.Int).Sub(startBalance, endBalance)
-	fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	fees := CalcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
 	diff = diff.Sub(diff, fees)
 	require.Equal(t, withdrawAmount, diff)
 
@@ -916,7 +735,7 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	rpc, err := rpc.Dial(sys.nodes["verifier"].WSEndpoint())
+	rpc, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
 	require.Nil(t, err)
 	l2client := withdrawals.NewClient(rpc)
 
@@ -963,20 +782,20 @@ func TestWithdrawals(t *testing.T) {
 	// Ensure that withdrawal - gas fees are added to the L1 balance
 	// Fun fact, the fee is greater than the withdrawal amount
 	diff = new(big.Int).Sub(endBalance, startBalance)
-	fees = calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	fees = CalcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
 	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 	require.Equal(t, withdrawAmount, diff)
 }
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	if !verboseGethNodes {
+	if !VerboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
-	cfg := defaultSystemConfig(t)
+	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.start()
+	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -984,9 +803,9 @@ func TestFees(t *testing.T) {
 	l2Verif := sys.Clients["verifier"]
 
 	// Transactor Account
-	ethPrivKey, err := sys.wallet.PrivateKey(accounts.Account{
+	ethPrivKey, err := sys.Wallet.PrivateKey(accounts.Account{
 		URL: accounts.URL{
-			Path: transactorHDPath,
+			Path: TransactorHDPath,
 		},
 	})
 	require.Nil(t, err)
@@ -1124,7 +943,7 @@ func TestFees(t *testing.T) {
 	// Tally L1 Fee
 	bytes, err := tx.MarshalBinary()
 	require.Nil(t, err)
-	l1GasUsed := calcL1GasUsed(bytes, overhead)
+	l1GasUsed := CalcL1GasUsed(bytes, overhead)
 	divisor := new(big.Int).Exp(big.NewInt(10), decimals, nil)
 	l1Fee := new(big.Int).Mul(l1GasUsed, l1Header.BaseFee)
 	l1Fee = l1Fee.Mul(l1Fee, scalar)
