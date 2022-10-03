@@ -92,18 +92,27 @@ func NewL1Replica(log log.Logger, genesis *core.Genesis) *L1Replica {
 
 // ActL1RewindToParent rewinds the L1 chain to parent block of head
 func (s *L1Replica) ActL1RewindToParent(t Testing) {
-	head := s.l1Chain.CurrentHeader().Number.Uint64()
-	if head == 0 {
-		t.InvalidAction("cannot rewind L1 past genesis")
-		return
-	}
-	finalized := s.l1Chain.CurrentFinalizedBlock()
-	if finalized != nil && head <= finalized.NumberU64() {
-		t.InvalidAction("cannot rewind head of chain past finalized block %d", finalized.NumberU64())
-		return
-	}
-	if err := s.l1Chain.SetHead(head - 1); err != nil {
-		t.Fatalf("failed to rewind L1 chain to nr %d: %v", head-1, err)
+	s.ActL1RewindDepth(1)(t)
+}
+
+func (s *L1Replica) ActL1RewindDepth(depth uint64) Action {
+	return func(t Testing) {
+		if depth == 0 {
+			return
+		}
+		head := s.l1Chain.CurrentHeader().Number.Uint64()
+		if head < depth {
+			t.InvalidAction("cannot rewind L1 past genesis (current: %d, rewind depth: %d)", head, depth)
+			return
+		}
+		finalized := s.l1Chain.CurrentFinalizedBlock()
+		if finalized != nil && head < finalized.NumberU64()+depth {
+			t.InvalidAction("cannot rewind head of chain past finalized block %d with rewind depth %d", finalized.NumberU64(), depth)
+			return
+		}
+		if err := s.l1Chain.SetHead(head - depth); err != nil {
+			t.Fatalf("failed to rewind L1 chain to nr %d: %v", head-depth, err)
+		}
 	}
 }
 
