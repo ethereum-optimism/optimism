@@ -195,3 +195,7 @@ func (s *L1Replica) ActL1SafeNext(t Testing) {
 	}
 	s.l1Chain.SetSafe(next)
 }
+
+func (s *L1Replica) Close() error {
+	return s.node.Close()
+}
