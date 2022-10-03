@@ -19,6 +19,9 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner := NewL1Miner(log, sd.L1Cfg)
+	t.Cleanup(func() {
+		_ = miner.Close()
+	})
 
 	cl := miner.EthClient()
 	signer := types.LatestSigner(sd.L1Cfg.Config)
@@ -53,6 +56,9 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 
 	// now make a replica that syncs these two blocks from the miner
 	replica := NewL1Replica(log, sd.L1Cfg)
+	t.Cleanup(func() {
+		_ = replica.Close()
+	})
 	replica.ActL1Sync(miner.CanonL1Chain())(t)
 	replica.ActL1Sync(miner.CanonL1Chain())(t)
 	require.Equal(t, replica.l1Chain.CurrentBlock().Hash(), miner.l1Chain.CurrentBlock().Hash())

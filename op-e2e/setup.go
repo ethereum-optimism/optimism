@@ -541,17 +541,11 @@ func (cfg SystemConfig) start() (*System, error) {
 		}
 	}
 
-	rollupEndpoint := fmt.Sprintf(
-		"http://%s:%d",
-		sys.cfg.Nodes["sequencer"].RPC.ListenAddr,
-		sys.cfg.Nodes["sequencer"].RPC.ListenPort,
-	)
-
 	// L2Output Submitter
 	sys.l2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
 		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                 rollupEndpoint,
+		RollupRpc:                 sys.rollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               sys.L2OOContractAddr.String(),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
@@ -576,7 +570,7 @@ func (cfg SystemConfig) start() (*System, error) {
 	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                 rollupEndpoint,
+		RollupRpc:                 sys.rollupNodes["sequencer"].HTTPEndpoint(),
 		MinL1TxSize:               1,
 		MaxL1TxSize:               120000,
 		ChannelTimeout:            sys.cfg.RollupConfig.ChannelTimeout,

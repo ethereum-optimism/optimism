@@ -175,3 +175,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		e.l2Transactions = append(e.l2Transactions, tx)
 	}
 }
+
+func (e *L2Engine) Close() error {
+	return e.node.Close()
+}
