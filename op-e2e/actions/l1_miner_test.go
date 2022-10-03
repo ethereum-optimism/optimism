@@ -52,7 +52,8 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 	require.Equal(t, tx.Hash(), bl.Transactions()[0].Hash())
 
 	// now make a replica that syncs these two blocks from the miner
-	replica := NewL1Replica(log, sd.L1Cfg)
+	replica, done := NewL1Replica(log, sd.L1Cfg)
+	defer done()
 	replica.ActL1Sync(miner.CanonL1Chain())(t)
 	replica.ActL1Sync(miner.CanonL1Chain())(t)
 	require.Equal(t, replica.l1Chain.CurrentBlock().Hash(), miner.l1Chain.CurrentBlock().Hash())
