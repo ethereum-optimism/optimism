@@ -63,11 +63,14 @@ type DerivationPipeline struct {
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
 
-	// Pull stages
+	// Advance / Clear stages
 	l1Traversal := NewL1Traversal(log, l1Fetcher)
-	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
-	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
-	bank := NewChannelBank(log, cfg, l1Src, l1Fetcher)
+	frameQueue := NewFrameQueue(log, cfg, l1Fetcher)
+	// channel buffer
+	// batcher buffer
+
+	// Pull stages
+	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher)
 	chInReader := NewChannelInReader(log, bank)
 	batchQueue := NewBatchQueue(log, cfg, chInReader)
 	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, batchQueue)
@@ -78,7 +81,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
 	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
 	// Note: The engine queue stage is the only reset that can fail.
-	stages := []ResetableStage{eng, l1Traversal, l1Src, bank, chInReader, batchQueue, attributesQueue}
+	stages := []ResetableStage{eng, l1Traversal, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
 		log:       log,
