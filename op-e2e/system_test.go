@@ -252,7 +252,7 @@ func TestConfirmationDepth(t *testing.T) {
 
 	// Wait enough time for the sequencer to submit a block with distance from L1 head, submit it,
 	// and for the slower verifier to read a full sequence window and cover confirmation depth for reading and some margin
-	<-time.After(time.Duration((sys.RollupConfig.SeqWindowSize+verConfDepth+3)*cfg.DeployConfig.L1BlockTime) * time.Second)
+	<-time.After(time.Duration((cfg.DeployConfig.SequencerWindowSize+verConfDepth+3)*cfg.DeployConfig.L1BlockTime) * time.Second)
 
 	// within a second, get both L1 and L2 verifier and sequencer block heads
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
