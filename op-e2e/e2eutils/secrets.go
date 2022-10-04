@@ -140,6 +140,7 @@ func (s *Secrets) Addresses() *Addresses {
 	}
 }
 
+// Addresses bundles the addresses for all common rollup addresses for testing purposes.
 type Addresses struct {
 	Deployer     common.Address
 	CliqueSigner common.Address
