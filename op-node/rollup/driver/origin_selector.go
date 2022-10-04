@@ -16,10 +16,20 @@ type L1Blocks interface {
 }
 
 type L1OriginSelector struct {
-	Cfg                 *rollup.Config
-	Log                 log.Logger
-	L1                  L1Blocks
-	SequencingConfDepth uint64
+	log log.Logger
+	cfg *rollup.Config
+
+	l1                  L1Blocks
+	sequencingConfDepth uint64
+}
+
+func NewL1OriginSelector(log log.Logger, cfg *rollup.Config, l1 L1Blocks, sequencingConfDepth uint64) *L1OriginSelector {
+	return &L1OriginSelector{
+		log:                 log,
+		cfg:                 cfg,
+		l1:                  l1,
+		sequencingConfDepth: sequencingConfDepth,
+	}
 }
 
 // FindL1Origin determines what the next L1 Origin should be.
@@ -32,25 +42,25 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1Bloc
 	}
 
 	// Grab a reference to the current L1 origin block.
-	currentOrigin, err := los.L1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
+	currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
 
-	if currentOrigin.Number+1+los.SequencingConfDepth > l1Head.Number {
+	if currentOrigin.Number+1+los.sequencingConfDepth > l1Head.Number {
 		// TODO: we can decide to ignore confirmation depth if we would be forced
 		//  to make an empty block (only deposits) by staying on the current origin.
 		log.Info("sequencing with old origin to preserve conf depth",
 			"current", currentOrigin, "current_time", currentOrigin.Time,
 			"l1_head", l1Head, "l1_head_time", l1Head.Time,
 			"l2_head", l2Head, "l2_head_time", l2Head.Time,
-			"depth", los.SequencingConfDepth)
+			"depth", los.sequencingConfDepth)
 		return currentOrigin, nil
 	}
 
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
-	nextOrigin, err := los.L1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
+	nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 	if err != nil {
 		log.Error("Failed to get next origin. Falling back to current origin", "err", err)
 		return currentOrigin, nil
@@ -61,7 +71,7 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1Bloc
 	// could decide to continue to build on top of the previous origin until the Sequencer runs out
 	// of slack. For simplicity, we implement our Sequencer to always start building on the latest
 	// L1 block when we can.
-	if l2Head.Time+los.Cfg.BlockTime >= nextOrigin.Time {
+	if l2Head.Time+los.cfg.BlockTime >= nextOrigin.Time {
 		return nextOrigin, nil
 	}
 

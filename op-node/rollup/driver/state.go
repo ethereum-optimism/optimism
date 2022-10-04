@@ -158,7 +158,7 @@ func (s *Driver) createNewL2Block(ctx context.Context) error {
 	}
 
 	// Actually create the new block.
-	newUnsafeL2Head, payload, err := s.sequencer.createNewBlock(ctx, l2Head, l2Safe.ID(), l2Finalized.ID(), l1Origin)
+	newUnsafeL2Head, payload, err := s.sequencer.CreateNewBlock(ctx, l2Head, l2Safe.ID(), l2Finalized.ID(), l1Origin)
 	if err != nil {
 		s.log.Error("Could not extend chain as sequencer", "err", err, "l2_parent", l2Head, "l1_origin", l1Origin)
 		return err
