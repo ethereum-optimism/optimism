@@ -81,7 +81,8 @@ type EthClient struct {
 	log log.Logger
 
 	// cache receipts in bundles per block hash
-	// common.Hash -> types.Receipts
+	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
+	// common.Hash -> eth.ReceiptsFetcher
 	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
@@ -239,27 +240,33 @@ func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.Block
 	if err != nil {
 		return nil, nil, err
 	}
+	// Try to reuse the receipts fetcher because is caches the results of intermediate calls. This means
+	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
+	// The underlying fetcher uses the receipts hash to verify receipt integrity.
+	var fetcher eth.ReceiptsFetcher
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		return info, v.(types.Receipts), nil
+		fetcher = v.(eth.ReceiptsFetcher)
+	} else {
+		txHashes := make([]common.Hash, len(txs))
+		for i := 0; i < len(txs); i++ {
+			txHashes[i] = txs[i].Hash()
+		}
+		fetcher = NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
+		s.receiptsCache.Add(blockHash, fetcher)
 	}
-	txHashes := make([]common.Hash, len(txs))
-	for i := 0; i < len(txs); i++ {
-		txHashes[i] = txs[i].Hash()
-	}
-	rf := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
+	// Fetch all receipts
 	for {
-		if err := rf.Fetch(ctx); err == io.EOF {
+		if err := fetcher.Fetch(ctx); err == io.EOF {
 			break
 		} else if err != nil {
 			return nil, nil, err
 		}
 	}
-	receipts, err := rf.Result()
+	receipts, err := fetcher.Result()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	s.receiptsCache.Add(blockHash, receipts)
 	return info, receipts, nil
 }
 
