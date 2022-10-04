@@ -242,8 +242,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	for addr, amount := range cfg.Premine {
-		existing, ok := l1Genesis.Alloc[addr]
-		if ok {
+		if existing, ok := l1Genesis.Alloc[addr]; ok {
 			l1Genesis.Alloc[addr] = core.GenesisAccount{
 				Code:    existing.Code,
 				Storage: existing.Storage,
