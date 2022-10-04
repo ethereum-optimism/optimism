@@ -101,6 +101,7 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	}, nil
 }
 
+// Secrets bundles secp256k1 private keys for all common rollup actors for testing purposes.
 type Secrets struct {
 	Deployer     *ecdsa.PrivateKey
 	CliqueSigner *ecdsa.PrivateKey
