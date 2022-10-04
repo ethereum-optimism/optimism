@@ -121,7 +121,7 @@ func (s *L2Engine) EthClient() *ethclient.Client {
 func (e *L2Engine) RPCClient() client.RPC {
 	cl, _ := e.node.Attach() // never errors
 	return testutils.RPCErrFaker{
-		RPC: cl,
+		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {
 			err := e.failL2RPC
 			e.failL2RPC = nil // reset back, only error once.
