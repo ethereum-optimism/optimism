@@ -224,7 +224,11 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 		signatureBytes, payloadBytes := data[:65], data[65:]
 
 		// [REJECT] if the signature by the sequencer is not valid
-		signingHash := BlockSigningHash(cfg, payloadBytes)
+		signingHash, err := BlockSigningHash(cfg, payloadBytes)
+		if err != nil {
+			log.Warn("failed to compute block signing hash", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
 
 		pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
 		if err != nil {

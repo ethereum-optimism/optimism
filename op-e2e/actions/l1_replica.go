@@ -161,7 +161,7 @@ func (s *L1Replica) EthClient() *ethclient.Client {
 func (s *L1Replica) RPCClient() client.RPC {
 	cl, _ := s.node.Attach() // never errors
 	return testutils.RPCErrFaker{
-		RPC: cl,
+		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {
 			err := s.failL1RPC
 			s.failL1RPC = nil // reset back, only error once.
@@ -194,4 +194,8 @@ func (s *L1Replica) ActL1SafeNext(t Testing) {
 		return
 	}
 	s.l1Chain.SetSafe(next)
+}
+
+func (s *L1Replica) Close() error {
+	return s.node.Close()
 }

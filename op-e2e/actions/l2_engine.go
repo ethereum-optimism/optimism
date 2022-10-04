@@ -121,7 +121,7 @@ func (s *L2Engine) EthClient() *ethclient.Client {
 func (e *L2Engine) RPCClient() client.RPC {
 	cl, _ := e.node.Attach() // never errors
 	return testutils.RPCErrFaker{
-		RPC: cl,
+		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {
 			err := e.failL2RPC
 			e.failL2RPC = nil // reset back, only error once.
@@ -174,4 +174,8 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		e.l2Receipts = append(e.l2Receipts, receipt)
 		e.l2Transactions = append(e.l2Transactions, tx)
 	}
+}
+
+func (e *L2Engine) Close() error {
+	return e.node.Close()
 }

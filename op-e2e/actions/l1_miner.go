@@ -150,3 +150,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 		t.Fatalf("failed to insert block into l1 chain")
 	}
 }
+
+func (s *L1Miner) Close() error {
+	return s.L1Replica.Close()
+}
