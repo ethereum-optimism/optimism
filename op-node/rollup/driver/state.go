@@ -492,7 +492,7 @@ func (s *state) ResetDerivationPipeline(ctx context.Context) error {
 }
 
 func (s *state) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	respCh := make(chan eth.SyncStatus)
+	respCh := make(chan eth.SyncStatus, 1)
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
