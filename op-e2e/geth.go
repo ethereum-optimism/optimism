@@ -8,9 +8,9 @@ import (
 	"math/big"
 	"time"
 
+	rollupEth "github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 
-	rollupEth "github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,8 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/node"
-
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
 
 func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time.Duration) (*types.Receipt, error) {
@@ -85,15 +83,9 @@ func getGenesisInfo(client *ethclient.Client) (id rollupEth.BlockID, timestamp u
 	return rollupEth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, block.Time()
 }
 
-func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
-	signer := deriveAccount(wallet, cfg.CliqueSignerDerivationPath)
-	pk, err := wallet.PrivateKey(signer)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to locate private key in wallet: %w", err)
-	}
-
+func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
-		NetworkId: cfg.L1ChainID.Uint64(),
+		NetworkId: cfg.DeployConfig.L1ChainID,
 		Genesis:   genesis,
 	}
 	nodeConfig := &node.Config{
@@ -106,7 +98,7 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
-	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{pk})
+	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner})
 	if err != nil {
 		return nil, nil, err
 	}
