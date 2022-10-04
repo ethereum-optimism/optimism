@@ -112,7 +112,6 @@ func TestL2OutputSubmitter(t *testing.T) {
 		case <-ticker.C:
 		}
 	}
-
 }
 
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.

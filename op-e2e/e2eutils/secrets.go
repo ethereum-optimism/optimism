@@ -45,6 +45,8 @@ type MnemonicConfig struct {
 	Mallory string
 }
 
+// Secrets computes the private keys for all mnemonic paths,
+// which can then be kept around for fast precomputed private key access.
 func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	wallet, err := hdwallet.NewFromMnemonic(m.Mnemonic)
 	if err != nil {
