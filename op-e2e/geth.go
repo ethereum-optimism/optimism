@@ -8,7 +8,6 @@ import (
 	"math/big"
 	"time"
 
-	rollupEth "github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 
 	"github.com/ethereum/go-ethereum"
@@ -71,16 +70,6 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 			return nil, errors.New("timeout")
 		}
 	}
-}
-
-func getGenesisInfo(client *ethclient.Client) (id rollupEth.BlockID, timestamp uint64) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	block, err := client.BlockByNumber(ctx, common.Big0)
-	if err != nil {
-		panic(err)
-	}
-	return rollupEth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, block.Time()
 }
 
 func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {

@@ -985,8 +985,8 @@ func TestFees(t *testing.T) {
 	coinbaseDiff := new(big.Int).Sub(coinbaseEndBalance, coinbaseStartBalance)
 
 	// Tally L2 Fee
-	//l2Fee := gasTip.Mul(gasTip, new(big.Int).SetUint64(receipt.GasUsed))
-	//require.Equal(t, l2Fee, coinbaseDiff, "l2 fee mismatch")
+	l2Fee := gasTip.Mul(gasTip, new(big.Int).SetUint64(receipt.GasUsed))
+	require.Equal(t, l2Fee, coinbaseDiff, "l2 fee mismatch")
 
 	// Tally BaseFee
 	baseFee := new(big.Int).Mul(header.BaseFee, new(big.Int).SetUint64(receipt.GasUsed))

@@ -14,6 +14,7 @@ import (
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -23,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -33,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,25 +40,8 @@ var (
 	testingJWTSecret = [32]byte{123}
 )
 
-// deriveAddress returns the address associated derivation path for the wallet.
-// It will panic if the derivation path is not correctly formatted.
-func deriveAddress(w accounts.Wallet, path string) common.Address {
-	return deriveAccount(w, path).Address
-}
-
-// deriveAccount returns the account associated derivation path for the wallet.
-// It will panic if the derivation path is not correctly formatted.
-func deriveAccount(w accounts.Wallet, path string) accounts.Account {
-	derivPath := hdwallet.MustParseDerivationPath(path)
-	account, err := w.Derive(derivPath, true)
-	if err != nil {
-		panic(err)
-	}
-	return account
-}
-
 func DefaultSystemConfig(t *testing.T) SystemConfig {
-	secrets, err := DefaultMnemonicConfig.Secrets()
+	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
 	addresses := secrets.Addresses()
 
@@ -182,7 +164,7 @@ type DepositContractConfig struct {
 }
 
 type SystemConfig struct {
-	Secrets                *Secrets
+	Secrets                *e2eutils.Secrets
 	L1InfoPredeployAddress common.Address
 
 	DeployConfig *genesis.DeployConfig
@@ -215,32 +197,6 @@ type System struct {
 	l2OutputSubmitter *l2os.L2OutputSubmitter
 	batchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
-}
-
-func precompileAlloc() core.GenesisAlloc {
-	alloc := make(map[common.Address]core.GenesisAccount)
-	var addr [common.AddressLength]byte
-	for i := 0; i < 256; i++ {
-		addr[common.AddressLength-1] = byte(i)
-		alloc[addr] = core.GenesisAccount{Balance: common.Big1}
-	}
-	return alloc
-}
-
-func cliqueExtraData(w accounts.Wallet, signers []string) []byte {
-	// 32 Empty bytes
-	ret := make([]byte, 32)
-	// Signer addresses
-	for _, signer := range signers {
-		address := deriveAddress(w, signer)
-		// Was not able to automatically do this
-		for i := 0; i < len(address); i++ {
-			ret = append(ret, address[i])
-		}
-	}
-	// 65 Empty bytes
-	t := make([]byte, 65)
-	return append(ret, t...)
 }
 
 func (sys *System) Close() {
@@ -597,6 +553,6 @@ func uint642big(in uint64) *hexutil.Big {
 }
 
 func hexPriv(in *ecdsa.PrivateKey) string {
-	b := EncodePrivKey(in)
+	b := e2eutils.EncodePrivKey(in)
 	return hexutil.Encode(b)
 }

@@ -15,9 +15,9 @@ import (
 // We prefer a mnemonic rather than direct private keys to make it easier
 // to export all testing keys in external tooling for use during debugging.
 var DefaultMnemonicConfig = &MnemonicConfig{
-	Mnemonic: "test test test test test test test test test test test junk",
-	Deployer: "m/44'/60'/0'/0/1",
-	// clique signer: removed, use engine API instead
+	Mnemonic:     "test test test test test test test test test test test junk",
+	Deployer:     "m/44'/60'/0'/0/1",
+	CliqueSigner: "m/44'/60'/0'/0/2",
 	Proposer:     "m/44'/60'/0'/0/3",
 	Batcher:      "m/44'/60'/0'/0/4",
 	SequencerP2P: "m/44'/60'/0'/0/5",
@@ -26,11 +26,13 @@ var DefaultMnemonicConfig = &MnemonicConfig{
 	Mallory:      "m/44'/60'/0'/0/8",
 }
 
-// MnemonicConfig configures the private keys for testing purposes.
+// MnemonicConfig configures the private keys for the hive testnet.
+// It's json-serializable, so we can ship it to e.g. the hardhat script client.
 type MnemonicConfig struct {
 	Mnemonic string
 
-	Deployer string
+	Deployer     string
+	CliqueSigner string
 
 	// rollup actors
 	Proposer     string
@@ -43,8 +45,6 @@ type MnemonicConfig struct {
 	Mallory string
 }
 
-// Secrets computes the private keys for all mnemonic paths,
-// which can then be kept around for fast precomputed private key access.
 func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	wallet, err := hdwallet.NewFromMnemonic(m.Mnemonic)
 	if err != nil {
@@ -55,6 +55,10 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	}
 
 	deployer, err := wallet.PrivateKey(account(m.Deployer))
+	if err != nil {
+		return nil, err
+	}
+	cliqueSigner, err := wallet.PrivateKey(account(m.CliqueSigner))
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +89,7 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 
 	return &Secrets{
 		Deployer:     deployer,
+		CliqueSigner: cliqueSigner,
 		Proposer:     proposer,
 		Batcher:      batcher,
 		SequencerP2P: sequencerP2P,
@@ -94,9 +99,18 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	}, nil
 }
 
-// Secrets bundles secp256k1 private keys for all common rollup actors for testing purposes.
+func (m *MnemonicConfig) P2PKeyFor(i int) (*ecdsa.PrivateKey, error) {
+	wallet, err := hdwallet.NewFromMnemonic(m.Mnemonic)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wallet: %w", err)
+	}
+	path := fmt.Sprintf("m/44'/60'/0'/1/%d", i)
+	return wallet.PrivateKey(accounts.Account{URL: accounts.URL{Path: path}})
+}
+
 type Secrets struct {
-	Deployer *ecdsa.PrivateKey
+	Deployer     *ecdsa.PrivateKey
+	CliqueSigner *ecdsa.PrivateKey
 
 	// rollup actors
 	Proposer     *ecdsa.PrivateKey
@@ -122,6 +136,7 @@ func EncodePrivKey(priv *ecdsa.PrivateKey) hexutil.Bytes {
 func (s *Secrets) Addresses() *Addresses {
 	return &Addresses{
 		Deployer:     crypto.PubkeyToAddress(s.Deployer.PublicKey),
+		CliqueSigner: crypto.PubkeyToAddress(s.CliqueSigner.PublicKey),
 		Proposer:     crypto.PubkeyToAddress(s.Proposer.PublicKey),
 		Batcher:      crypto.PubkeyToAddress(s.Batcher.PublicKey),
 		SequencerP2P: crypto.PubkeyToAddress(s.SequencerP2P.PublicKey),
@@ -131,9 +146,9 @@ func (s *Secrets) Addresses() *Addresses {
 	}
 }
 
-// Addresses bundles the addresses for all common rollup addresses for testing purposes.
 type Addresses struct {
-	Deployer common.Address
+	Deployer     common.Address
+	CliqueSigner common.Address
 
 	// rollup actors
 	Proposer     common.Address
@@ -148,8 +163,8 @@ type Addresses struct {
 
 func (a *Addresses) All() []common.Address {
 	return []common.Address{
-		a.Batcher,
 		a.Deployer,
+		a.CliqueSigner,
 		a.Proposer,
 		a.Batcher,
 		a.SequencerP2P,
