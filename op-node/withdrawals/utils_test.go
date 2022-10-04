@@ -15,16 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestParseWithdrawalInitiated(t *testing.T) {
+func TestParseMessagePassed(t *testing.T) {
 	tests := []struct {
 		name     string
 		file     string
-		expected *bindings.L2ToL1MessagePasserWithdrawalInitiated
+		expected *bindings.L2ToL1MessagePasserMessagePassed
 	}{
 		{
 			"withdrawal through bridge",
 			"bridge-withdrawal.json",
-			&bindings.L2ToL1MessagePasserWithdrawalInitiated{
+			&bindings.L2ToL1MessagePasserMessagePassed{
 				Nonce:    new(big.Int),
 				Sender:   common.HexToAddress("0x4200000000000000000000000000000000000007"),
 				Target:   common.HexToAddress("0x6900000000000000000000000000000000000002"),
@@ -95,7 +95,7 @@ func TestParseWithdrawalInitiated(t *testing.T) {
 			dec := json.NewDecoder(f)
 			receipt := new(types.Receipt)
 			require.NoError(t, dec.Decode(receipt))
-			parsed, err := ParseWithdrawalInitiated(receipt)
+			parsed, err := ParseMessagePassed(receipt)
 			require.NoError(t, err)
 
 			// Have to do this weird thing to compare zero bigints.
@@ -117,16 +117,16 @@ func TestParseWithdrawalInitiated(t *testing.T) {
 	}
 }
 
-func TestParseWithdrawalInitiatedExtension1(t *testing.T) {
+func TestParseMessagePassedExtension1(t *testing.T) {
 	tests := []struct {
 		name     string
 		file     string
-		expected *bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1
+		expected *bindings.L2ToL1MessagePasserMessagePassedExtension1
 	}{
 		{
 			"withdrawal through bridge",
 			"bridge-withdrawal.json",
-			&bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1{
+			&bindings.L2ToL1MessagePasserMessagePassedExtension1{
 				Hash: common.HexToHash("0x0d827f8148288e3a2466018f71b968ece4ea9f9e2a81c30da9bd46cce2868285"),
 				Raw: types.Log{
 					Address: common.HexToAddress("0x4200000000000000000000000000000000000016"),
@@ -152,7 +152,7 @@ func TestParseWithdrawalInitiatedExtension1(t *testing.T) {
 			dec := json.NewDecoder(f)
 			receipt := new(types.Receipt)
 			require.NoError(t, dec.Decode(receipt))
-			parsed, err := ParseWithdrawalInitiatedExtension1(receipt)
+			parsed, err := ParseMessagePassedExtension1(receipt)
 			require.NoError(t, err)
 			require.EqualValues(t, test.expected, parsed)
 		})
