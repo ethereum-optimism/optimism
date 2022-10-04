@@ -99,15 +99,6 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	}, nil
 }
 
-func (m *MnemonicConfig) P2PKeyFor(i int) (*ecdsa.PrivateKey, error) {
-	wallet, err := hdwallet.NewFromMnemonic(m.Mnemonic)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create wallet: %w", err)
-	}
-	path := fmt.Sprintf("m/44'/60'/0'/1/%d", i)
-	return wallet.PrivateKey(accounts.Account{URL: accounts.URL{Path: path}})
-}
-
 type Secrets struct {
 	Deployer     *ecdsa.PrivateKey
 	CliqueSigner *ecdsa.PrivateKey
