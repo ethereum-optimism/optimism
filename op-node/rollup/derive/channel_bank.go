@@ -38,7 +38,7 @@ type ChannelBank struct {
 	fetcher L1Fetcher
 }
 
-var _ PullStage = (*ChannelBank)(nil)
+var _ ResetableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
 func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextDataProvider, fetcher L1Fetcher) *ChannelBank {
