@@ -47,7 +47,7 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
-		CurrentL1:   s.derivation.Progress().Origin,
+		CurrentL1:   s.derivation.Origin(),
 		HeadL1:      s.l1Head,
 		SafeL1:      s.l1Safe,
 		FinalizedL1: s.l1Finalized,
