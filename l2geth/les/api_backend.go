@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/l2geth/accounts"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
@@ -314,6 +315,10 @@ func (b *LesApiBackend) ExtRPCEnabled() bool {
 
 func (b *LesApiBackend) RPCGasCap() *big.Int {
 	return b.eth.config.RPCGasCap
+}
+
+func (b *LesApiBackend) RPCEVMTimeout() time.Duration {
+	return b.eth.config.RPCEVMTimeout
 }
 
 func (b *LesApiBackend) BloomStatus() (uint64, uint64) {
