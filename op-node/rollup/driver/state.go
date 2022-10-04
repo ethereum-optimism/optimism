@@ -416,13 +416,13 @@ func (s *state) eventLoop() {
 		case <-stepReqCh:
 			s.metrics.SetDerivationIdle(false)
 			s.idleDerivation = false
-			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed, "attempts", stepAttempts)
+			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
 			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
-				s.log.Debug("Derivation process went idle", "progress", s.derivation.Progress().Origin)
+				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
 				s.idleDerivation = true
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
@@ -454,7 +454,7 @@ func (s *state) eventLoop() {
 			}
 		case respCh := <-s.syncStatusReq:
 			respCh <- eth.SyncStatus{
-				CurrentL1:   s.derivation.Progress().Origin,
+				CurrentL1:   s.derivation.Origin(),
 				HeadL1:      s.l1Head,
 				SafeL1:      s.l1Safe,
 				FinalizedL1: s.l1Finalized,
@@ -520,7 +520,7 @@ func (s *state) snapshot(event string) {
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
 		"l1Head", deferJSONString{s.l1Head},
-		"l1Current", deferJSONString{s.derivation.Progress().Origin},
+		"l1Current", deferJSONString{s.derivation.Origin()},
 		"l2Head", deferJSONString{s.derivation.UnsafeL2Head()},
 		"l2Safe", deferJSONString{s.derivation.SafeL2Head()},
 		"l2FinalizedHead", deferJSONString{s.derivation.Finalized()})
