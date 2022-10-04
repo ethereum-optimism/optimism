@@ -25,6 +25,10 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
+    goerli: {
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+    },
   },
   external: {
     contracts: [
@@ -35,7 +39,10 @@ const config: HardhatUserConfig = {
     deployments: {
       hivenet: ['../contracts-bedrock/deployments/hivenet'],
       devnetL1: ['../contracts-bedrock/deployments/devnetL1'],
-      goerli: ['../contracts-bedrock/deployments/goerli'],
+      goerli: [
+        '../contracts-bedrock/deployments/goerli',
+        '../contracts/deployments/goerli',
+      ],
     },
   },
 }
