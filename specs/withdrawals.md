@@ -78,7 +78,7 @@ which stores messages to be withdrawn.
 
 ```js
 interface L2ToL1MessagePasser {
-    event WithdrawalInitiated(
+    event MessagePassed(
         uint256 indexed nonce, // this is a global nonce value for all withdrawal messages
         address indexed sender,
         address indexed target,
@@ -87,7 +87,7 @@ interface L2ToL1MessagePasser {
         bytes data
     );
 
-    event WithdrawalInitiatedExtension1(bytes32 indexed hash);
+    event MessagePassedExtension1(bytes32 indexed hash);
 
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
@@ -102,8 +102,8 @@ interface L2ToL1MessagePasser {
 
 ```
 
-The `WithdrawalInitiated` event includes all of the data that is hashed and
-stored in the `sentMessages` mapping. The `WithdrawalInitiatedExtension1` emits
+The `MessagePassed` event includes all of the data that is hashed and
+stored in the `sentMessages` mapping. The `MessagePassedExtension1` emits
 the hash that was computed and used as part of the storage proof used to
 finalize the withdrawal on L1.
 

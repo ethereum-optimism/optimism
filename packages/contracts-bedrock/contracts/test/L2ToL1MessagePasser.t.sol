@@ -9,7 +9,7 @@ import { Hashing } from "../libraries/Hashing.sol";
 contract L2ToL1MessagePasserTest is CommonTest {
     L2ToL1MessagePasser messagePasser;
 
-    event WithdrawalInitiated(
+    event MessagePassed(
         uint256 indexed nonce,
         address indexed sender,
         address indexed target,
@@ -18,7 +18,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         bytes data
     );
 
-    event WithdrawalInitiatedExtension1(bytes32 indexed hash);
+    event MessagePassedExtension1(bytes32 indexed hash);
 
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
@@ -36,7 +36,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         uint256 nonce = messagePasser.nonce();
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
+        emit MessagePassed(
             nonce,
             _sender,
             _target,
@@ -57,7 +57,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiatedExtension1(withdrawalHash);
+        emit MessagePassedExtension1(withdrawalHash);
 
         vm.deal(_sender, _value);
         vm.prank(_sender);
@@ -86,7 +86,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
     // Test: initiateWithdrawal should emit the correct log when called by a contract
     function test_initiateWithdrawal_fromContract() external {
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
+        emit MessagePassed(
             messagePasser.nonce(),
             address(this),
             address(4),
@@ -107,7 +107,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiatedExtension1(withdrawalHash);
+        emit MessagePassedExtension1(withdrawalHash);
 
         vm.deal(address(this), 2**64);
         messagePasser.initiateWithdrawal{ value: 100 }(
@@ -129,7 +129,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         vm.prank(alice, alice);
         vm.deal(alice, 2**64);
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
+        emit MessagePassed(
             nonce,
             alice,
             target,
