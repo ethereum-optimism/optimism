@@ -190,27 +190,27 @@ type System struct {
 	RollupConfig *rollup.Config
 
 	// Connections to running nodes
-	nodes             map[string]*node.Node
-	backends          map[string]*geth_eth.Ethereum
+	Nodes             map[string]*node.Node
+	Backends          map[string]*geth_eth.Ethereum
 	Clients           map[string]*ethclient.Client
-	rollupNodes       map[string]*rollupNode.OpNode
-	l2OutputSubmitter *l2os.L2OutputSubmitter
-	batchSubmitter    *bss.BatchSubmitter
+	RollupNodes       map[string]*rollupNode.OpNode
+	L2OutputSubmitter *l2os.L2OutputSubmitter
+	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
 }
 
 func (sys *System) Close() {
-	if sys.l2OutputSubmitter != nil {
-		sys.l2OutputSubmitter.Stop()
+	if sys.L2OutputSubmitter != nil {
+		sys.L2OutputSubmitter.Stop()
 	}
-	if sys.batchSubmitter != nil {
-		sys.batchSubmitter.Stop()
+	if sys.BatchSubmitter != nil {
+		sys.BatchSubmitter.Stop()
 	}
 
-	for _, node := range sys.rollupNodes {
+	for _, node := range sys.RollupNodes {
 		node.Close()
 	}
-	for _, node := range sys.nodes {
+	for _, node := range sys.Nodes {
 		node.Close()
 	}
 	sys.Mocknet.Close()
@@ -219,18 +219,18 @@ func (sys *System) Close() {
 func (cfg SystemConfig) Start() (*System, error) {
 	sys := &System{
 		cfg:         cfg,
-		nodes:       make(map[string]*node.Node),
-		backends:    make(map[string]*geth_eth.Ethereum),
+		Nodes:       make(map[string]*node.Node),
+		Backends:    make(map[string]*geth_eth.Ethereum),
 		Clients:     make(map[string]*ethclient.Client),
-		rollupNodes: make(map[string]*rollupNode.OpNode),
+		RollupNodes: make(map[string]*rollupNode.OpNode),
 	}
 	didErrAfterStart := false
 	defer func() {
 		if didErrAfterStart {
-			for _, node := range sys.rollupNodes {
+			for _, node := range sys.RollupNodes {
 				node.Close()
 			}
-			for _, node := range sys.nodes {
+			for _, node := range sys.Nodes {
 				node.Close()
 			}
 		}
@@ -302,16 +302,16 @@ func (cfg SystemConfig) Start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
-	sys.nodes["l1"] = l1Node
-	sys.backends["l1"] = l1Backend
+	sys.Nodes["l1"] = l1Node
+	sys.Backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
 		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 		if err != nil {
 			return nil, err
 		}
-		sys.nodes[name] = node
-		sys.backends[name] = backend
+		sys.Nodes[name] = node
+		sys.Backends[name] = backend
 	}
 
 	// Start
@@ -325,7 +325,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 		didErrAfterStart = true
 		return nil, err
 	}
-	for name, node := range sys.nodes {
+	for name, node := range sys.Nodes {
 		if name == "l1" {
 			continue
 		}
@@ -347,9 +347,9 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	for name, rollupCfg := range cfg.Nodes {
-		l2EndpointConfig := sys.nodes[name].WSAuthEndpoint()
+		l2EndpointConfig := sys.Nodes[name].WSAuthEndpoint()
 		if useHTTP {
-			l2EndpointConfig = sys.nodes[name].HTTPAuthEndpoint()
+			l2EndpointConfig = sys.Nodes[name].HTTPAuthEndpoint()
 		}
 		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
 			L1NodeAddr: l1EndpointConfig,
@@ -371,7 +371,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 	l1Client := ethclient.NewClient(rpc.DialInProc(l1Srv))
 	sys.Clients["l1"] = l1Client
-	for name, node := range sys.nodes {
+	for name, node := range sys.Nodes {
 		client, err := ethclient.DialContext(ctx, node.WSEndpoint())
 		if err != nil {
 			didErrAfterStart = true
@@ -459,7 +459,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			didErrAfterStart = true
 			return nil, err
 		}
-		sys.rollupNodes[name] = node
+		sys.RollupNodes[name] = node
 	}
 
 	if cfg.P2PTopology != nil {
@@ -484,10 +484,10 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// L2Output Submitter
-	sys.l2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
-		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                 sys.rollupNodes["sequencer"].HTTPEndpoint(),
+	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
+		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
@@ -503,15 +503,15 @@ func (cfg SystemConfig) Start() (*System, error) {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
 
-	if err := sys.l2OutputSubmitter.Start(); err != nil {
+	if err := sys.L2OutputSubmitter.Start(); err != nil {
 		return nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
 	}
 
 	// Batch Submitter
-	sys.batchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
-		L1EthRpc:                  sys.nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                 sys.rollupNodes["sequencer"].HTTPEndpoint(),
+	sys.BatchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
+		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MinL1TxSize:               1,
 		MaxL1TxSize:               120000,
 		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
@@ -530,7 +530,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
 
-	if err := sys.batchSubmitter.Start(); err != nil {
+	if err := sys.BatchSubmitter.Start(); err != nil {
 		return nil, fmt.Errorf("unable to start batch submitter: %w", err)
 	}
 
