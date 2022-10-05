@@ -298,12 +298,11 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 
 		block := &db.IndexedL1Block{
-			Hash:        blockHash,
-			ParentHash:  header.ParentHash,
-			Number:      number,
-			Timestamp:   header.Time,
-			Deposits:    deposits,
-			Withdrawals: withdrawals,
+			Hash:       blockHash,
+			ParentHash: header.ParentHash,
+			Number:     number,
+			Timestamp:  header.Time,
+			Deposits:   deposits,
 		}
 
 		err := s.cfg.DB.AddIndexedL1Block(block)
