@@ -36,6 +36,7 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block, l2
 			ProxyAdmin:                  predeploys.DevProxyAdminAddr,
 			L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 			L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
+			L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,
 		}
 	}
 
