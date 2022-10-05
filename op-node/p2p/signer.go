@@ -23,19 +23,22 @@ type Signer interface {
 	io.Closer
 }
 
-func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) common.Hash {
+func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error) {
 	var msgInput [32 + 32 + 32]byte
 	// domain: first 32 bytes
 	copy(msgInput[:32], domain[:])
 	// chain_id: second 32 bytes
+	if chainID.BitLen() > 256 {
+		return common.Hash{}, errors.New("chain_id is too large")
+	}
 	chainID.FillBytes(msgInput[32:64])
 	// payload_hash: third 32 bytes, hash of encoded payload
 	copy(msgInput[32:], crypto.Keccak256(payloadBytes))
 
-	return crypto.Keccak256Hash(msgInput[:])
+	return crypto.Keccak256Hash(msgInput[:]), nil
 }
 
-func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) common.Hash {
+func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) (common.Hash, error) {
 	return SigningHash(SigningDomainBlocksV1, cfg.L2ChainID, payloadBytes)
 }
 
@@ -52,7 +55,10 @@ func (s *LocalSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.In
 	if s.priv == nil {
 		return nil, errors.New("signer is closed")
 	}
-	signingHash := SigningHash(domain, chainID, encodedMsg)
+	signingHash, err := SigningHash(domain, chainID, encodedMsg)
+	if err != nil {
+		return nil, err
+	}
 	signature, err := crypto.Sign(signingHash[:], s.priv)
 	if err != nil {
 		return nil, err

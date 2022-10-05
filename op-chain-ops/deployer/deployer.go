@@ -113,7 +113,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 		backend.Commit()
 		addr, err := bind.WaitDeployed(ctx, backend, tx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%s: %w", deployment.Name, err)
 		}
 
 		if addr == (common.Address{}) {

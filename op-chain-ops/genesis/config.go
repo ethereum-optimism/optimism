@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -119,6 +120,13 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1Stand
 // Hardhat and a DeployConfig.
 func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
+
+	if block.Number() == nil {
+		return storage, errors.New("block number not set")
+	}
+	if block.BaseFee() == nil {
+		return storage, errors.New("block base fee not set")
+	}
 
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
 		"nonce": 0,

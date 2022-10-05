@@ -48,11 +48,18 @@ RUN apt-get update && \
   apt-get install -y nodejs && \
   npm i -g yarn && \
   npm i -g depcheck && \
-  pip install slither-analyzer && \
   go install gotest.tools/gotestsum@latest && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash && \
   chmod +x /usr/local/bin/check-changed
+
+# Install a specific version of slither. The current release does not work with our
+# forge test contracts.
+WORKDIR /opt
+RUN git clone https://github.com/crytic/slither && \
+    cd slither && \
+    git checkout 90d13cd3883404a86ef4b3dd6af4d5c234e69a54 && \
+    python3 setup.py install
 
 RUN echo "downloading solidity compilers" && \
   curl -o solc-linux-amd64-v0.5.17+commit.d19bba13 -sL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.5.17+commit.d19bba13 && \

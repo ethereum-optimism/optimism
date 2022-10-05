@@ -97,11 +97,11 @@
 |----------------------+----------------------------------------+------+--------+-------+------------------------------------------------|
 | params               | struct ResourceMetering.ResourceParams | 1    | 0      | 32    | contracts/L1/OptimismPortal.sol:OptimismPortal |
 |----------------------+----------------------------------------+------+--------+-------+------------------------------------------------|
-| __gap                | uint256[49]                            | 2    | 0      | 1568  | contracts/L1/OptimismPortal.sol:OptimismPortal |
+| __gap                | uint256[48]                            | 2    | 0      | 1536  | contracts/L1/OptimismPortal.sol:OptimismPortal |
 |----------------------+----------------------------------------+------+--------+-------+------------------------------------------------|
-| l2Sender             | address                                | 51   | 0      | 20    | contracts/L1/OptimismPortal.sol:OptimismPortal |
+| l2Sender             | address                                | 50   | 0      | 20    | contracts/L1/OptimismPortal.sol:OptimismPortal |
 |----------------------+----------------------------------------+------+--------+-------+------------------------------------------------|
-| finalizedWithdrawals | mapping(bytes32 => bool)               | 52   | 0      | 32    | contracts/L1/OptimismPortal.sol:OptimismPortal |
+| finalizedWithdrawals | mapping(bytes32 => bool)               | 51   | 0      | 32    | contracts/L1/OptimismPortal.sol:OptimismPortal |
 +----------------------+----------------------------------------+------+--------+-------+------------------------------------------------+
 
 =======================

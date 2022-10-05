@@ -2,7 +2,6 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -246,53 +245,6 @@ func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.Block
 	r := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
 	s.receiptsCache.Add(blockHash, r)
 	return info, txs, r, nil
-}
-
-// BlockIDRange returns a range of block IDs from the provided begin up to max blocks after the begin.
-// This batch-requests all blocks by number in the range at once, and then verifies the consistency
-func (s *EthClient) BlockIDRange(ctx context.Context, begin eth.BlockID, max uint64) ([]eth.BlockID, error) {
-	headerRequests := make([]rpc.BatchElem, max)
-	for i := uint64(0); i < max; i++ {
-		headerRequests[i] = rpc.BatchElem{
-			Method: "eth_getBlockByNumber",
-			Args:   []interface{}{hexutil.EncodeUint64(begin.Number + 1 + i), false},
-			Result: new(*rpcHeader),
-			Error:  nil,
-		}
-	}
-	if err := s.client.BatchCallContext(ctx, headerRequests); err != nil {
-		return nil, err
-	}
-
-	out := make([]eth.BlockID, 0, max)
-
-	// try to cache everything we have before halting on the results with errors
-	for i := 0; i < len(headerRequests); i++ {
-		result := *headerRequests[i].Result.(**rpcHeader)
-		if headerRequests[i].Error == nil {
-			if result == nil {
-				break // no more headers from here
-			}
-			info, err := result.Info(s.trustRPC, s.mustBePostMerge)
-			if err != nil {
-				return nil, fmt.Errorf("bad header data for block %s: %w", headerRequests[i].Args[0], err)
-			}
-			s.headersCache.Add(info.Hash(), info)
-			out = append(out, info.ID())
-			prev := begin
-			if i > 0 {
-				prev = out[i-1]
-			}
-			if prev.Hash != info.ParentHash() {
-				return nil, fmt.Errorf("inconsistent results from L1 chain range request, block %s not expected parent %s of %s", prev, info.ParentHash(), info.ID())
-			}
-		} else if errors.Is(headerRequests[i].Error, ethereum.NotFound) {
-			break // no more headers from here
-		} else {
-			return nil, fmt.Errorf("failed to retrieve block: %s: %w", headerRequests[i].Args[0], headerRequests[i].Error)
-		}
-	}
-	return out, nil
 }
 
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {

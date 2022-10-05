@@ -3,6 +3,7 @@ package testutils
 import (
 	"context"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
@@ -39,7 +40,7 @@ func (r RPCErrFaker) BatchCallContext(ctx context.Context, b []rpc.BatchElem) er
 	return r.RPC.BatchCallContext(ctx, b)
 }
 
-func (r RPCErrFaker) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (*rpc.ClientSubscription, error) {
+func (r RPCErrFaker) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
 	if r.ErrFn != nil {
 		if err := r.ErrFn(); err != nil {
 			return nil, err
