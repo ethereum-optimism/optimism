@@ -56,9 +56,9 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             )
         );
 
-        // WithdrawalInitiated event
+        // MessagePassed event
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
+        emit MessagePassed(
             messagePasser.nonce(),
             address(L2Messenger),
             address(L1Messenger),
