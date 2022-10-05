@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -230,21 +231,36 @@ func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*
 	return s.payloadCall(ctx, "eth_getBlockByNumber", string(label))
 }
 
-func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error) {
+// Fetch returns a block info and all of the receipts associated with transactions in the block.
+// It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
+// to ensure that the execution engine did not fail to return any receipts.
+func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	info, txs, err := s.InfoAndTxsByHash(ctx, blockHash)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		return info, txs, v.(eth.ReceiptsFetcher), nil
+		return info, v.(types.Receipts), nil
 	}
 	txHashes := make([]common.Hash, len(txs))
 	for i := 0; i < len(txs); i++ {
 		txHashes[i] = txs[i].Hash()
 	}
-	r := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-	s.receiptsCache.Add(blockHash, r)
-	return info, txs, r, nil
+	rf := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
+	for {
+		if err := rf.Fetch(ctx); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, nil, err
+		}
+	}
+	receipts, err := rf.Result()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	s.receiptsCache.Add(blockHash, receipts)
+	return info, receipts, nil
 }
 
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {

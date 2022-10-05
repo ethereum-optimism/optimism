@@ -3,7 +3,6 @@ package derive
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -15,7 +14,7 @@ import (
 // L1ReceiptsFetcher fetches L1 header info and receipts for the payload attributes derivation (the info tx and deposits)
 type L1ReceiptsFetcher interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error)
+	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
 // PreparePayloadAttributes prepares a PayloadAttributes template that is ready to build a L2 block with deposits only, on top of the given l2Parent, with the given epoch as L1 origin.
@@ -32,7 +31,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 	// case we need to fetch all transaction receipts from the L1 origin block so we can scan for
 	// user deposits.
 	if l2Parent.L1Origin.Number != epoch.Number {
-		info, _, receiptsFetcher, err := dl.Fetch(ctx, epoch.Hash)
+		info, receipts, err := dl.Fetch(ctx, epoch.Hash)
 		if err != nil {
 			return nil, NewTemporaryError(fmt.Errorf("failed to fetch L1 block info and receipts: %w", err))
 		}
@@ -41,17 +40,7 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 				fmt.Errorf("cannot create new block with L1 origin %s (parent %s) on top of L1 origin %s",
 					epoch, info.ParentHash(), l2Parent.L1Origin))
 		}
-		for {
-			if err := receiptsFetcher.Fetch(ctx); err == io.EOF {
-				break
-			} else if err != nil {
-				return nil, NewTemporaryError(fmt.Errorf("failed to fetch more receipts: %w", err))
-			}
-		}
-		receipts, err := receiptsFetcher.Result()
-		if err != nil {
-			return nil, NewResetError(fmt.Errorf("fetched bad receipt data: %w", err))
-		}
+
 		deposits, err := DeriveDeposits(receipts, cfg.DepositContractAddress)
 		if err != nil {
 			// deposits may never be ignored. Failing to process them is a critical error.
