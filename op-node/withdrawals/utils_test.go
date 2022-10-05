@@ -51,7 +51,7 @@ func TestParseMessagePassed(t *testing.T) {
 				Raw: types.Log{
 					Address: common.HexToAddress("0x4200000000000000000000000000000000000016"),
 					Topics: []common.Hash{
-						common.HexToHash("0x87bf7b546c8de873abb0db5b579ec131f8d0cf5b14f39933551cf9ced23a6136"),
+						common.HexToHash("0x7744840cae4793a72467311120512aa98e4398bcd2b9d379b2b9c3b60fa03d72"),
 						common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000000"),
 						common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000007"),
 						common.HexToHash("0x0000000000000000000000006900000000000000000000000000000000000002"),
@@ -131,7 +131,7 @@ func TestParseMessagePassedExtension1(t *testing.T) {
 				Raw: types.Log{
 					Address: common.HexToAddress("0x4200000000000000000000000000000000000016"),
 					Topics: []common.Hash{
-						common.HexToHash("0x2ef6ceb1668fdd882b1f89ddd53a666b0c1113d14cf90c0fbf97c7b1ad880fbb"),
+						common.HexToHash("0xedd348f9c36ef1a5b0747bb5039752707059f0b934c8e508b3271e08fbd0122c"),
 						common.HexToHash("0x0d827f8148288e3a2466018f71b968ece4ea9f9e2a81c30da9bd46cce2868285"),
 					},
 					Data:        []byte{},
