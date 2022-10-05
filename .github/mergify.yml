@@ -108,8 +108,7 @@ pull_request_rules:
 
   - name: Add indexer tag and ecopod reviewers
     conditions:
-      - and:
-        - 'files~=^indexer/'
+      - 'files~=^indexer/'
     actions:
       label:
         add:
@@ -121,8 +120,7 @@ pull_request_rules:
 
   - name: Add sdk tag and ecopod reviewers
     conditions:
-      - and:
-        - 'files~=^packages/sdk/'
+      - 'files~=^packages/sdk/'
     actions:
       label:
         add:
@@ -134,8 +132,7 @@ pull_request_rules:
 
   - name: Add common-ts tag and ecopod reviewers
     conditions:
-      - and:
-        - 'files~=^packages/common-ts/'
+      - 'files~=^packages/common-ts/'
     actions:
       label:
         add:
