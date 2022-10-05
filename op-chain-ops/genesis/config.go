@@ -107,6 +107,10 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge, proxyL1CrossDomainMessenger, proxyL1ERC721Bridge common.Address) (immutables.ImmutableConfig, error) {
 	immutable := make(immutables.ImmutableConfig)
 
+	if proxyL1ERC721Bridge == (common.Address{}) {
+		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
+	}
+
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": proxyL1StandardBridge,
 	}
