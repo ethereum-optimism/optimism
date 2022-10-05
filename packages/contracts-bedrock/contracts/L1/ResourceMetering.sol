@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { SignedMath } from "@openzeppelin/contracts/utils/math/SignedMath.sol";
 import { FixedPointMathLib } from "@rari-capital/solmate/src/utils/FixedPointMathLib.sol";
@@ -62,7 +62,7 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
      */
-    uint256[49] private __gap;
+    uint256[48] private __gap;
 
     /**
      * @notice Meters access to a function based an amount of a requested resource.
