@@ -4,6 +4,9 @@ import (
 	"errors"
 	"io"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -22,9 +25,8 @@ type L2Verifier struct {
 	// L2 rollup
 	derivation *derive.DerivationPipeline
 
-	l1Head      eth.L1BlockRef
-	l1Safe      eth.L1BlockRef
-	l1Finalized eth.L1BlockRef
+	l1      derive.L1Fetcher
+	l1State *driver.L1State
 
 	l2PipelineIdle bool
 	l2Building     bool
@@ -33,12 +35,15 @@ type L2Verifier struct {
 }
 
 func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *rollup.Config) *L2Verifier {
-	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, &testutils.TestDerivationMetrics{})
+	metrics := &testutils.TestDerivationMetrics{}
+	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics)
 	pipeline.Reset()
 	return &L2Verifier{
 		log:            log,
 		eng:            eng,
 		derivation:     pipeline,
+		l1:             l1,
+		l1State:        driver.NewL1State(log, metrics),
 		l2PipelineIdle: true,
 		l2Building:     false,
 		rollupCfg:      cfg,
@@ -48,16 +53,32 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
 		CurrentL1:   s.derivation.Origin(),
-		HeadL1:      s.l1Head,
-		SafeL1:      s.l1Safe,
-		FinalizedL1: s.l1Finalized,
+		HeadL1:      s.l1State.L1Head(),
+		SafeL1:      s.l1State.L1Safe(),
+		FinalizedL1: s.l1State.L1Finalized(),
 		UnsafeL2:    s.derivation.UnsafeL2Head(),
 		SafeL2:      s.derivation.SafeL2Head(),
 		FinalizedL2: s.derivation.Finalized(),
 	}
 }
 
-// TODO: actions to change L1 head/safe/finalized state. Depends on driver refactor work.
+func (s *L2Verifier) ActL1HeadSignal(t Testing) {
+	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	s.l1State.HandleNewL1HeadBlock(head)
+}
+
+func (s *L2Verifier) ActL1SafeSignal(t Testing) {
+	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	s.l1State.HandleNewL1SafeBlock(head)
+}
+
+func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
+	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
+	require.NoError(t, err)
+	s.l1State.HandleNewL1FinalizedBlock(head)
+}
 
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline
 func (s *L2Verifier) ActL2PipelineStep(t Testing) {
