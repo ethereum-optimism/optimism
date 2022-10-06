@@ -21,8 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var WithdrawalInitiatedTopic = crypto.Keccak256Hash([]byte("WithdrawalInitiated(uint256,address,address,uint256,uint256,bytes)"))
-var WithdrawalInitiatedExtension1Topic = crypto.Keccak256Hash([]byte("WithdrawalInitiatedExtension1(bytes32)"))
+var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes)"))
+var MessagePassedExtension1Topic = crypto.Keccak256Hash([]byte("MessagePassedExtension1(bytes32)"))
 
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
@@ -172,11 +172,11 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		return FinalizedWithdrawalParameters{}, err
 	}
 	// Parse the receipt
-	ev, err := ParseWithdrawalInitiated(receipt)
+	ev, err := ParseMessagePassed(receipt)
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}
-	ev1, err := ParseWithdrawalInitiatedExtension1(receipt)
+	ev1, err := ParseMessagePassedExtension1(receipt)
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}
@@ -244,7 +244,7 @@ var (
 //   - I don't like having to use the ABI Generated struct
 //   - There should be a better way to run the ABI encoding
 //   - These needs to be fuzzed against the solidity
-func WithdrawalHash(ev *bindings.L2ToL1MessagePasserWithdrawalInitiated) (common.Hash, error) {
+func WithdrawalHash(ev *bindings.L2ToL1MessagePasserMessagePassed) (common.Hash, error) {
 	//  abi.encode(nonce, msg.sender, _target, msg.value, _gasLimit, _data)
 	args := abi.Arguments{
 		{Name: "nonce", Type: Uint256Type},
@@ -261,50 +261,50 @@ func WithdrawalHash(ev *bindings.L2ToL1MessagePasserWithdrawalInitiated) (common
 	return crypto.Keccak256Hash(enc), nil
 }
 
-// ParseWithdrawalInitiated parses WithdrawalInitiated events from
+// ParseMessagePassed parses MessagePassed events from
 // a transaction receipt. It does not support multiple withdrawals
 // per receipt.
-func ParseWithdrawalInitiated(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiated, error) {
+func ParseMessagePassed(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMessagePassed, error) {
 	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, log := range receipt.Logs {
-		if len(log.Topics) == 0 || log.Topics[0] != WithdrawalInitiatedTopic {
+		if len(log.Topics) == 0 || log.Topics[0] != MessagePassedTopic {
 			continue
 		}
 
-		ev, err := contract.ParseWithdrawalInitiated(*log)
+		ev, err := contract.ParseMessagePassed(*log)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse log: %w", err)
 		}
 		return ev, nil
 	}
-	return nil, errors.New("Unable to find WithdrawalInitiated event")
+	return nil, errors.New("Unable to find MessagePassed event")
 }
 
-// ParseWithdrawalInitiatedExtension1 parses WithdrawalInitiatedExtension1 events
+// ParseMessagePassedExtension1 parses MessagePassedExtension1 events
 // from a transaction receipt. It does not support multiple withdrawals per
 // receipt.
-func ParseWithdrawalInitiatedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserWithdrawalInitiatedExtension1, error) {
+func ParseMessagePassedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMessagePassedExtension1, error) {
 	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, log := range receipt.Logs {
-		if len(log.Topics) == 0 || log.Topics[0] != WithdrawalInitiatedExtension1Topic {
+		if len(log.Topics) == 0 || log.Topics[0] != MessagePassedExtension1Topic {
 			continue
 		}
 
-		ev, err := contract.ParseWithdrawalInitiatedExtension1(*log)
+		ev, err := contract.ParseMessagePassedExtension1(*log)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse log: %w", err)
 		}
 		return ev, nil
 	}
-	return nil, errors.New("Unable to find WithdrawalInitiatedExtension1 event")
+	return nil, errors.New("Unable to find MessagePassedExtension1 event")
 }
 
 // StorageSlotOfWithdrawalHash determines the storage slot of the Withdrawer contract to look at

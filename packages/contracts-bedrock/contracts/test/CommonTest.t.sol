@@ -190,7 +190,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         uint256 value
     );
 
-    event WithdrawalInitiated(
+    event MessagePassed(
         uint256 indexed nonce,
         address indexed sender,
         address indexed target,

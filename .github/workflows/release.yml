@@ -29,6 +29,7 @@ jobs:
       teleportr: ${{ steps.packages.outputs.teleportr }}
       ci-builder: ${{ steps.packages.outputs.ci-builder }}
       foundry: ${{ steps.packages.outputs.foundry }}
+      endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
 
     steps:
       - name: Checkout Repo
@@ -631,6 +632,43 @@ jobs:
           file: ./teleportr/Dockerfile
           push: true
           tags: ethereumoptimism/teleportr:${{ needs.release.outputs.teleportr }},ethereumoptimism/teleportr:latest
+          build-args: |
+            GITDATE=${{ steps.build_args.outputs.GITDATE }}
+            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
+            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
+
+  endpoint-monitor:
+    name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}
+    needs: release
+    if: needs.release.outputs.endpoint-monitor != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Set build args
+        id: build_args
+        run: |
+          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
+          echo ::set-output name=GITVERSION::$(jq -r .version ./endpoint-monitor/package.json)
+          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./endpoint-monitor/Dockerfile
+          push: true
+          tags: ethereumoptimism/endpoint-monitor:${{ needs.release.outputs.endpoint-monitor }},ethereumoptimism/endpoint-monitor:latest
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}

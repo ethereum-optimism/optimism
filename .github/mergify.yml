@@ -26,7 +26,7 @@ pull_request_rules:
     actions:
       queue:
         name: default
-        method: squash
+        method: merge
   - name: Add merge train label
     conditions:
       - "queue-position >= 0"
