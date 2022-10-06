@@ -30,10 +30,9 @@ contract Proxy_Test is Test {
     address alice = address(64);
 
     bytes32 internal constant IMPLEMENTATION_KEY =
-        bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1);
+        bytes32(uint256(keccak256("eip1967.proxy.implementation")) - 1);
 
-    bytes32 internal constant OWNER_KEY =
-        bytes32(uint256(keccak256('eip1967.proxy.admin')) - 1);
+    bytes32 internal constant OWNER_KEY = bytes32(uint256(keccak256("eip1967.proxy.admin")) - 1);
 
     Proxy proxy;
     SimpleStorage simpleStorage;
@@ -54,10 +53,7 @@ contract Proxy_Test is Test {
         proxy.upgradeTo(address(6));
 
         bytes32 key = vm.load(address(proxy), IMPLEMENTATION_KEY);
-        assertEq(
-            address(6),
-            Bytes32AddressLib.fromLast20Bytes(key)
-        );
+        assertEq(address(6), Bytes32AddressLib.fromLast20Bytes(key));
 
         vm.prank(alice);
         address impl = proxy.implementation();
@@ -70,10 +66,7 @@ contract Proxy_Test is Test {
         proxy.changeAdmin(address(6));
 
         bytes32 key = vm.load(address(proxy), OWNER_KEY);
-        assertEq(
-            address(6),
-            Bytes32AddressLib.fromLast20Bytes(key)
-        );
+        assertEq(address(6), Bytes32AddressLib.fromLast20Bytes(key));
 
         vm.prank(address(6));
         address owner = proxy.admin();
@@ -186,10 +179,7 @@ contract Proxy_Test is Test {
         // match a function on the implementation.
         vm.expectRevert("Proxy: delegatecall to new implementation contract failed");
         vm.prank(alice);
-        proxy.upgradeToAndCall(
-            address(simpleStorage),
-            hex""
-        );
+        proxy.upgradeToAndCall(address(simpleStorage), hex"");
 
         // The implementation address should have not
         // updated because the call to `upgradeToAndCall`

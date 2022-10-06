@@ -27,10 +27,7 @@ contract Semver_Test is CommonTest {
      * @notice Test the version getter
      */
     function test_version() external {
-        assertEq(
-            semver.version(),
-            "7.8.0"
-        );
+        assertEq(semver.version(), "7.8.0");
     }
 
     /**
@@ -43,9 +40,6 @@ contract Semver_Test is CommonTest {
         vm.prank(alice);
         proxy.upgradeTo(address(semver));
 
-        assertEq(
-            Semver(address(proxy)).version(),
-            "7.8.0"
-        );
+        assertEq(Semver(address(proxy)).version(), "7.8.0");
     }
 }
