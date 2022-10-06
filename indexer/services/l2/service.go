@@ -286,7 +286,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 	for i, header := range headers {
 		blockHash := header.Hash()
 		number := header.Number.Uint64()
-		deposits := depositsByBlockHash[blockHash]
 		withdrawals := withdrawalsByBlockHash[blockHash]
 
 		if len(withdrawals) == 0 && i != len(headers)-1 {
@@ -298,7 +297,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 			ParentHash:  header.ParentHash,
 			Number:      number,
 			Timestamp:   header.Time,
-			Deposits:    deposits,
 			Withdrawals: withdrawals,
 		}
 
@@ -359,15 +357,7 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) GetWithdrawalStatus(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-
-	withdrawal, err := s.cfg.DB.GetWithdrawalStatus(common.HexToHash(vars["hash"]))
-	if err != nil {
-		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-
-	server.RespondWithJSON(w, http.StatusOK, withdrawal)
+	// Temporary stub until rest of indexer is landed
 }
 
 func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {

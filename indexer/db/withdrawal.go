@@ -17,6 +17,7 @@ type Withdrawal struct {
 	Amount      *big.Int
 	Data        []byte
 	LogIndex    uint
+	BedrockHash *common.Hash
 }
 
 // String returns the tx hash for the withdrawal.
@@ -26,17 +27,54 @@ func (w Withdrawal) String() string {
 
 // WithdrawalJSON contains Withdrawal data suitable for JSON serialization.
 type WithdrawalJSON struct {
-	GUID             string `json:"guid"`
-	FromAddress      string `json:"from"`
-	ToAddress        string `json:"to"`
-	L1Token          string `json:"l1Token"`
-	L2Token          *Token `json:"l2Token"`
-	Amount           string `json:"amount"`
-	Data             []byte `json:"data"`
-	LogIndex         uint64 `json:"logIndex"`
-	L1BlockNumber    uint64 `json:"l1BlockNumber"`
-	L1BlockTimestamp string `json:"l1BlockTimestamp"`
-	L2BlockNumber    uint64 `json:"l2BlockNumber"`
-	L2BlockTimestamp string `json:"l2BlockTimestamp"`
-	TxHash           string `json:"transactionHash"`
+	GUID                  string          `json:"guid"`
+	FromAddress           string          `json:"from"`
+	ToAddress             string          `json:"to"`
+	L1Token               string          `json:"l1Token"`
+	L2Token               *Token          `json:"l2Token"`
+	Amount                string          `json:"amount"`
+	Data                  []byte          `json:"data"`
+	LogIndex              uint64          `json:"logIndex"`
+	BlockNumber           uint64          `json:"blockNumber"`
+	BlockTimestamp        string          `json:"blockTimestamp"`
+	TxHash                string          `json:"transactionHash"`
+	Batch                 *StateBatchJSON `json:"batch"`
+	BedrockWithdrawalHash *string         `json:"bedrockWithdrawalHash"`
+}
+
+type FinalizationState int
+
+const (
+	FinalizationStateAny FinalizationState = iota
+	FinalizationStateFinalized
+	FinalizationStateUnfinalized
+)
+
+func ParseFinalizationState(in string) FinalizationState {
+	switch in {
+	case "true":
+		return FinalizationStateFinalized
+	case "false":
+		return FinalizationStateUnfinalized
+	default:
+		return FinalizationStateAny
+	}
+}
+
+func (f FinalizationState) SQL() string {
+	switch f {
+	case FinalizationStateFinalized:
+		return "AND withdrawals.l1_block_hash IS NOT NULL"
+	case FinalizationStateUnfinalized:
+		return "AND withdrawals.l2_block_hash IS NULL"
+	}
+
+	return ""
+}
+
+type FinalizedWithdrawal struct {
+	WithdrawalHash common.Hash
+	TxHash         common.Hash
+	Success        bool
+	LogIndex       uint
 }

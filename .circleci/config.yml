@@ -145,7 +145,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: upload coverage
-          command: codecov --verbose --clean --flag contracts-bedrock-forge
+          command: codecov --verbose --clean --flag contracts-bedrock-tests
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -190,6 +190,9 @@ jobs:
         description: Regex matching dependent packages
         type: string
         default: this-package-does-not-exist
+      coverage_flag:
+        description: Coverage flag name
+        type: string
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -214,9 +217,7 @@ jobs:
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Upload coverage
-          command: |
-            echo <<parameters.package_name>> # TEMP for debugging
-            codecov --verbose --clean --flag <<parameters.package_name>>
+          command: codecov --verbose --clean --flag <<parameters.coverage_flag>>
 
   bedrock-go-tests:
     docker:
@@ -637,17 +638,20 @@ workflows:
       - yarn-monorepo
       - js-lint-test:
           name: common-ts-tests
+          coverage_flag: common-ts-tests
           package_name: common-ts
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: contracts-tests
+          coverage_flag: contracts-tests
           package_name: contracts
           dependencies: hardhat-deploy-config
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: core-utils-tests
+          coverage_flag: core-utils-tests
           package_name: core-utils
           requires:
             - yarn-monorepo
@@ -659,54 +663,63 @@ workflows:
             - yarn-monorepo
       - js-lint-test:
           name: actor-tests-tests
+          coverage_flag: actor-tests-tests
           package_name: actor-tests
           dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: contracts-governance-tests
+          coverage_flag: contracts-governance-tests
           package_name: contracts-governance
           dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: contracts-periphery-tests
+          coverage_flag: contracts-periphery-tests
           package_name: contracts-periphery
           dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: dtl-tests
+          coverage_flag: dtl-tests
           package_name: data-transport-layer
           dependencies: "(common-ts|contracts|core-utils)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: drippie-mon-tests
+          coverage_flag: drippie-mon-tests
           package_name: drippie-mon
           dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: fault-detector-tests
+          coverage_flag: fault-detector-tests
           package_name: fault-detector
           dependencies: "(common-ts|contracts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: message-relayer-tests
+          coverage_flag: message-relayer-tests
           package_name: message-relayer
           dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: replica-healthcheck-tests
+          coverage_flag: replica-healthcheck-tests
           package_name: replica-healthcheck
           dependencies: "(common-ts|core-utils)"
           requires:
             - yarn-monorepo
       - js-lint-test:
           name: sdk-tests
+          coverage_flag: sdk-tests
           package_name: sdk
           dependencies: "(contracts|core-utils)"
           requires:
