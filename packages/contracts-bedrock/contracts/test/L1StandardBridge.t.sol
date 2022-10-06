@@ -10,7 +10,7 @@ import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 
-contract L1StandardBridge_Getter_Test is Bridge_Initializer {
+contract L1StandardBridge_Getters_Test is Bridge_Initializer {
     function test_getters_success() external {
         assert(L1Bridge.l2TokenBridge() == address(L2Bridge));
         assert(L1Bridge.otherBridge() == L2Bridge);
