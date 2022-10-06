@@ -23,7 +23,7 @@ contract CrossDomainOwnable_TestInit is CommonTest {
     }
 }
 
-contract CrossDomainOwnable_Test is CrossDomainOwnable_TestInit {
+contract CrossDomainOwnable_OnlyOwner_Test is CrossDomainOwnable_TestInit {
     // Check that making a call can set the value properly
     function test_onlyOwner_succeeds() external {
         assertEq(setter.value(), 0);
@@ -34,7 +34,7 @@ contract CrossDomainOwnable_Test is CrossDomainOwnable_TestInit {
     }
 }
 
-contract CrossDomainOwnable_TestFail is CrossDomainOwnable_TestInit {
+contract CrossDomainOwnable_OnlyOwner_TestFail is CrossDomainOwnable_TestInit {
     // Check that the revert message is correct
     function test_onlyOwner_callerIsNotOwner_revert() external {
         vm.expectRevert("CrossDomainOwnable: caller is not the owner");
