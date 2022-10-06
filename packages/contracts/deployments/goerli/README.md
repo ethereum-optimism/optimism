@@ -90,8 +90,8 @@ Proxy__OVM_L1StandardBridge
 StateCommitmentChain
 </td>
 <td align="center">
-<a href="https://goerli.etherscan.io/address/0x72281826E90dD8A65Ab686fF254eb45Be426DD22">
-<code>0x72281826E90dD8A65Ab686fF254eb45Be426DD22</code>
+<a href="https://goerli.etherscan.io/address/0x9c945aC97Baf48cB784AbBB61399beB71aF7A378">
+<code>0x9c945aC97Baf48cB784AbBB61399beB71aF7A378</code>
 </a>
 </td>
 </tr>
@@ -190,4 +190,3 @@ WETH9
 </td>
 </tr>
 </table>
-
