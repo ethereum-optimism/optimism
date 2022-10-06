@@ -16,7 +16,7 @@ import (
 
 type Downloader interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
-	Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.

@@ -1,5 +1,11 @@
 package e2eutils
 
+import (
+	"context"
+	"testing"
+	"time"
+)
+
 // TestingBase is an interface used for standard Go testing.
 // This interface is used for unit tests, benchmarks, and fuzz tests and also emulated in Hive.
 //
@@ -23,4 +29,10 @@ type TestingBase interface {
 	Skipf(format string, args ...any)
 	Skipped() bool
 	TempDir() string
+}
+
+func TimeoutCtx(t *testing.T, timeout time.Duration) context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	return ctx
 }

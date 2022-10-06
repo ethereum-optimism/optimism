@@ -55,7 +55,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	l1Client := sys.Clients["l1"]
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.rollupNodes["sequencer"].HTTPEndpoint())
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
 	require.Nil(t, err)
 	rollupClient := sources.NewRollupClient(rollupRPCClient)
 
@@ -210,7 +210,7 @@ func TestSystemE2E(t *testing.T) {
 	require.Equal(t, verifBlock.ParentHash(), seqBlock.ParentHash(), "Verifier and sequencer blocks parent hashes not the same after including a batch tx")
 	require.Equal(t, verifBlock.Hash(), seqBlock.Hash(), "Verifier and sequencer blocks not the same after including a batch tx")
 
-	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.rollupNodes["sequencer"].HTTPEndpoint())
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
 	require.Nil(t, err)
 	rollupClient := sources.NewRollupClient(rollupRPCClient)
 	// basic check that sync status works
@@ -317,7 +317,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	// Find deposit contract
 	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
-	l1Node := sys.nodes["l1"]
+	l1Node := sys.Nodes["l1"]
 
 	// create signer
 	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -790,7 +790,7 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	rpc, err := rpc.Dial(sys.nodes["verifier"].WSEndpoint())
+	rpc, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
 	require.Nil(t, err)
 	l2client := withdrawals.NewClient(rpc)
 

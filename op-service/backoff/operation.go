@@ -1,6 +1,7 @@
 package backoff
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -24,21 +25,37 @@ func (e *ErrFailedPermanently) Error() string {
 // with delays in between each retry according to the provided
 // Strategy.
 func Do(maxAttempts int, strategy Strategy, op Operation) error {
+	return DoCtx(context.Background(), maxAttempts, strategy, op)
+}
+
+func DoCtx(ctx context.Context, maxAttempts int, strategy Strategy, op Operation) error {
 	var attempt int
 
+	reattemptCh := make(chan struct{}, 1)
+	doReattempt := func() {
+		reattemptCh <- struct{}{}
+	}
+	doReattempt()
+
 	for {
-		attempt++
-		err := op()
-		if err == nil {
-			return nil
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-reattemptCh:
+			attempt++
+			err := op()
+			if err == nil {
+				return nil
+			}
+
+			if attempt == maxAttempts {
+				return &ErrFailedPermanently{
+					attempts: maxAttempts,
+					LastErr:  err,
+				}
+			}
+			time.AfterFunc(strategy.Duration(attempt-1), doReattempt)
 		}
 
-		if attempt == maxAttempts {
-			return &ErrFailedPermanently{
-				attempts: maxAttempts,
-				LastErr:  err,
-			}
-		}
-		time.Sleep(strategy.Duration(attempt - 1))
 	}
 }

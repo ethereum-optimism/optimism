@@ -155,6 +155,8 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 		WSPort:      0,
 		AuthAddr:    "127.0.0.1",
 		AuthPort:    0,
+		HTTPHost:    "127.0.0.1",
+		HTTPPort:    0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		JWTSecret:   jwtPath,
