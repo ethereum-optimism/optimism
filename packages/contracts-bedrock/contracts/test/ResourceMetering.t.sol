@@ -97,7 +97,7 @@ contract ResourceMetering_Test is CommonTest {
 
         vm.roll(initialBlockNum + 1);
         meter.use(0);
-        (uint128 postBaseFee,,) = meter.params();
+        (uint128 postBaseFee, , ) = meter.params();
         // Base fee increases by 1/8 the difference
         assertEq(postBaseFee, 1375000000);
     }

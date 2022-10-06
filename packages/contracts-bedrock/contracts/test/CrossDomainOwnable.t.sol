@@ -30,17 +30,11 @@ contract CrossDomainOwnable_Test is CommonTest {
 
     // Check that making a call can set the value properly
     function test_onlyOwner() external {
-        assertEq(
-            setter.value(),
-            0
-        );
+        assertEq(setter.value(), 0);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(setter.owner()));
         setter.set(1);
-        assertEq(
-            setter.value(),
-            1
-        );
+        assertEq(setter.value(), 1);
     }
 }
 
@@ -63,10 +57,7 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
             0,
             10000,
             false,
-            abi.encodeWithSelector(
-                XDomainSetter.set.selector,
-                1
-            )
+            abi.encodeWithSelector(XDomainSetter.set.selector, 1)
         );
 
         // Simulate the operation of the `op-node` by parsing data
@@ -79,19 +70,13 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
 
         // It is the expected topic
         bytes32 topic = log.topics[0];
-        assertEq(
-            topic,
-            keccak256("TransactionDeposited(address,address,uint256,bytes)")
-        );
+        assertEq(topic, keccak256("TransactionDeposited(address,address,uint256,bytes)"));
 
         // from is indexed and the first argument to the event.
         bytes32 _from = log.topics[1];
         address from = Bytes32AddressLib.fromLast20Bytes(_from);
 
-        assertEq(
-              AddressAliasHelper.undoL1ToL2Alias(from),
-              alice
-        );
+        assertEq(AddressAliasHelper.undoL1ToL2Alias(from), alice);
 
         // Make a call from the "from" value received from the log.
         // In theory the opaque data could be parsed from the log
@@ -99,9 +84,6 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         // directly on the setter is good enough.
         vm.prank(from);
         setter.set(1);
-        assertEq(
-            setter.value(),
-            1
-        );
+        assertEq(setter.value(), 1);
     }
 }

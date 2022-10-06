@@ -21,9 +21,6 @@ contract DeployerWhitelist_Test is CommonTest {
         vm.prank(list.owner());
         list.setOwner(address(1));
 
-        assertEq(
-            bytes32(uint256(1)),
-            vm.load(address(list), bytes32(uint256(0)))
-        );
+        assertEq(bytes32(uint256(1)), vm.load(address(list), bytes32(uint256(0))));
     }
 }

@@ -29,9 +29,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     function testCannot_constructWithBadTimestamp() external {
-        vm.expectRevert(
-            "L2OutputOracle: starting L2 timestamp must be less than current time"
-        );
+        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
 
         new L2OutputOracle(
             submissionInterval,
@@ -78,7 +76,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(proposal.timestamp, block.timestamp);
 
         // The block number is too low:
-        vm.expectRevert("L2OutputOracle: block number cannot be less than the starting block number.");
+        vm.expectRevert(
+            "L2OutputOracle: block number cannot be less than the starting block number."
+        );
         oracle.getL2Output(0);
 
         // The block number is larger than the latest proposed output:
@@ -292,9 +292,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(
-            latestBlockNumber
-        );
+        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(latestBlockNumber);
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
             latestBlockNumber - submissionInterval
         );
@@ -334,9 +332,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 previousBlockNumber = oracle.latestBlockNumber() - submissionInterval;
-        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(
-            previousBlockNumber
-        );
+        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(previousBlockNumber);
 
         vm.prank(owner);
         vm.expectRevert(
@@ -349,9 +345,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(
-            latestBlockNumber
-        );
+        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(latestBlockNumber);
 
         // Modify the timestamp so that it does not match.
         proposalToDelete.timestamp -= 1;
@@ -378,9 +372,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(startingTimestamp, oracleImpl.STARTING_TIMESTAMP());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
 
-        Types.OutputProposal memory initOutput = oracleImpl.getL2Output(
-            startingBlockNumber
-        );
+        Types.OutputProposal memory initOutput = oracleImpl.getL2Output(startingBlockNumber);
         assertEq(genesisL2Output, initOutput.outputRoot);
         assertEq(initL1Time, initOutput.timestamp);
 

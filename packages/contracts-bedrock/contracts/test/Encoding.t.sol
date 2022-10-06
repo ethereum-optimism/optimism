@@ -22,15 +22,9 @@ contract Encoding_Test is CommonTest {
         uint256 nonce = uint256(Encoding.encodeVersionedNonce(_nonce, _version));
         (uint256 decodedNonce, uint256 decodedVersion) = ffi.decodeVersionedNonce(nonce);
 
-        assertEq(
-            _version,
-            uint16(decodedVersion)
-        );
+        assertEq(_version, uint16(decodedVersion));
 
-        assertEq(
-            _nonce,
-            uint240(decodedNonce)
-        );
+        assertEq(_nonce, uint240(decodedNonce));
     }
 
     function test_encodeCrossDomainMessage_differential(
@@ -91,9 +85,6 @@ contract Encoding_Test is CommonTest {
         bytes memory txn = Encoding.encodeDepositTransaction(t);
         bytes memory _txn = ffi.encodeDepositTransaction(t);
 
-        assertEq(
-            txn,
-            _txn
-        );
+        assertEq(txn, _txn);
     }
 }

@@ -19,7 +19,7 @@ contract XDomainSetter2 is CrossDomainOwnable2 {
 contract CrossDomainOwnable2_Test is Messenger_Initializer {
     XDomainSetter2 setter;
 
-    function setUp() override public {
+    function setUp() public override {
         super.setUp();
         vm.prank(alice);
         setter = new XDomainSetter2();
@@ -47,10 +47,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         address target = address(setter);
         uint256 value = 0;
         uint256 minGasLimit = 0;
-        bytes memory message = abi.encodeWithSelector(
-            XDomainSetter2.set.selector,
-            1
-        );
+        bytes memory message = abi.encodeWithSelector(XDomainSetter2.set.selector, 1);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
             Encoding.encodeVersionedNonce(nonce, 1),
@@ -76,10 +73,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
             message
         );
 
-        assertEq(
-            setter.value(),
-            0
-        );
+        assertEq(setter.value(), 0);
     }
 
     function test_onlyOwner() external {
@@ -94,15 +88,9 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
             address(setter),
             0,
             0,
-            abi.encodeWithSelector(
-                XDomainSetter2.set.selector,
-                2
-            )
+            abi.encodeWithSelector(XDomainSetter2.set.selector, 2)
         );
 
-        assertEq(
-            setter.value(),
-            2
-        );
+        assertEq(setter.value(), 2);
     }
 }
