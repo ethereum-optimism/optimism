@@ -20,7 +20,8 @@
       "ops/docker/ci-builder",
       "ops/docker/foundry",
       "proxyd",
-      "teleportr"
+      "teleportr",
+      "endpoint-monitor"
     ],
     "nohoist": [
       "**/typechain/*",

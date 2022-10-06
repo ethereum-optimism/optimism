@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
 
-	rollupEth "github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,8 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/node"
-
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
 
 func waitForTransaction(hash common.Hash, client *ethclient.Client, timeout time.Duration) (*types.Receipt, error) {
@@ -75,25 +72,9 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 	}
 }
 
-func getGenesisInfo(client *ethclient.Client) (id rollupEth.BlockID, timestamp uint64) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
-	defer cancel()
-	block, err := client.BlockByNumber(ctx, common.Big0)
-	if err != nil {
-		panic(err)
-	}
-	return rollupEth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}, block.Time()
-}
-
-func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
-	signer := deriveAccount(wallet, cfg.CliqueSignerDerivationPath)
-	pk, err := wallet.PrivateKey(signer)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to locate private key in wallet: %w", err)
-	}
-
+func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
-		NetworkId: cfg.L1ChainID.Uint64(),
+		NetworkId: cfg.DeployConfig.L1ChainID,
 		Genesis:   genesis,
 	}
 	nodeConfig := &node.Config{
@@ -106,7 +87,7 @@ func initL1Geth(cfg *SystemConfig, wallet *hdwallet.Wallet, genesis *core.Genesi
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
-	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{pk})
+	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -174,6 +155,8 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 		WSPort:      0,
 		AuthAddr:    "127.0.0.1",
 		AuthPort:    0,
+		HTTPHost:    "127.0.0.1",
+		HTTPPort:    0,
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		JWTSecret:   jwtPath,
