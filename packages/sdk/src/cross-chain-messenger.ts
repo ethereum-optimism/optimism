@@ -1212,30 +1212,30 @@ export class CrossChainMessenger {
     )
 
     interface WithdrawalEntry {
-      withdrawalInitiated: any
-      withdrawalInitiatedExtension1: any
+      MessagePassed: any
+      MessagePassedExtension1: any
     }
 
     // Handle multiple withdrawals in the same tx and be backwards
-    // compatible without WithdrawalInitiatedExtension1
+    // compatible without MessagePassedExtension1
     const logs: Partial<{ number: WithdrawalEntry }> = {}
     for (const [i, log] of Object.entries(receipt.logs)) {
       if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
         const decoded =
           this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
         // Find the withdrawal initiated events
-        if (decoded.name === 'WithdrawalInitiated') {
+        if (decoded.name === 'MessagePassed') {
           logs[log.logIndex] = {
-            withdrawalInitiated: decoded.args,
-            withdrawalInitiatedExtension1: null,
+            MessagePassed: decoded.args,
+            MessagePassedExtension1: null,
           }
           if (receipt.logs[i + 1]) {
             const next =
               this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(
                 receipt.logs[i + 1]
               )
-            if (next.name === 'WithdrawalInitiatedExtension1') {
-              logs[log.logIndex].withdrawalInitiatedExtension1 = next.args
+            if (next.name === 'MessagePassedExtension1') {
+              logs[log.logIndex].MessagePassedExtension1 = next.args
             }
           }
         }
@@ -1252,17 +1252,17 @@ export class CrossChainMessenger {
     }
 
     const withdrawalHash = hashWithdrawal(
-      withdrawal.withdrawalInitiated.nonce,
-      withdrawal.withdrawalInitiated.sender,
-      withdrawal.withdrawalInitiated.target,
-      withdrawal.withdrawalInitiated.value,
-      withdrawal.withdrawalInitiated.gasLimit,
-      withdrawal.withdrawalInitiated.data
+      withdrawal.MessagePassed.nonce,
+      withdrawal.MessagePassed.sender,
+      withdrawal.MessagePassed.target,
+      withdrawal.MessagePassed.value,
+      withdrawal.MessagePassed.gasLimit,
+      withdrawal.MessagePassed.data
     )
 
     // Sanity check
-    if (withdrawal.withdrawalInitiatedExtension1) {
-      if (withdrawal.withdrawalInitiatedExtension1.hash !== withdrawalHash) {
+    if (withdrawal.MessagePassedExtension1) {
+      if (withdrawal.MessagePassedExtension1.hash !== withdrawalHash) {
         throw new Error(`Mismatched withdrawal hashes`)
       }
     }
@@ -1314,12 +1314,12 @@ export class CrossChainMessenger {
       output,
       // TODO(tynes): use better type, typechain?
       {
-        messageNonce: withdrawal.withdrawalInitiated.nonce,
-        sender: withdrawal.withdrawalInitiated.sender,
-        target: withdrawal.withdrawalInitiated.target,
-        value: withdrawal.withdrawalInitiated.value,
-        minGasLimit: withdrawal.withdrawalInitiated.gasLimit,
-        message: withdrawal.withdrawalInitiated.data,
+        messageNonce: withdrawal.MessagePassed.nonce,
+        sender: withdrawal.MessagePassed.sender,
+        target: withdrawal.MessagePassed.target,
+        value: withdrawal.MessagePassed.value,
+        minGasLimit: withdrawal.MessagePassed.gasLimit,
+        message: withdrawal.MessagePassed.data,
       },
     ]
   }

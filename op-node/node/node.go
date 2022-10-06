@@ -8,15 +8,16 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p-core/peer"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/event"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type OpNode struct {
@@ -220,11 +221,8 @@ func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) Start(ctx context.Context) error {
 	n.log.Info("Starting execution engine driver")
-	// Request initial head update, default to genesis otherwise
-	reqCtx, reqCancel := context.WithTimeout(ctx, time.Second*10)
 	// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-	err := n.l2Driver.Start(reqCtx)
-	reqCancel()
+	err := n.l2Driver.Start()
 	if err != nil {
 		n.log.Error("Could not start a rollup node", "err", err)
 		return err

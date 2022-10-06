@@ -22,6 +22,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // Receiver address for testing
     address recipient = address(0xabbaacdc);
 
+    // Storage slot of the l2Sender
+    uint256 constant senderSlotIndex = 50;
+
     function setUp() public override {
         super.setUp();
     }
@@ -138,7 +141,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
         // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        uint256 senderSlotIndex = 51;
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
 
@@ -161,7 +163,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectCall(target, hex"1111");
 
         // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
-        uint256 senderSlotIndex = 51;
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
 
@@ -221,8 +222,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        uint256 senderSlotIndex = 51;
-
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.prank(address(op));
         L1Messenger.relayMessage(Encoding.encodeVersionedNonce(0, 1), address(0), address(0), 0, 0, hex"");
@@ -251,7 +250,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         bytes32 hash = Hashing.hashCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, value, 0, hex"1111");
 
-        uint256 senderSlotIndex = 51;
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.etch(target, address(new Reverter()).code);
         vm.deal(address(op), value);
@@ -307,7 +305,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         bytes32 hash = Hashing.hashCrossDomainMessage(Encoding.encodeVersionedNonce(0, 1), sender, target, 0, 0, message);
 
-        uint256 senderSlotIndex = 51;
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
         vm.etch(target, address(new CallerCaller()).code);
 

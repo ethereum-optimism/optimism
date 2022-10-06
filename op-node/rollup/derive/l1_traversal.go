@@ -24,7 +24,7 @@ type L1Traversal struct {
 	log      log.Logger
 }
 
-var _ PullStage = (*L1Traversal)(nil)
+var _ ResetableStage = (*L1Traversal)(nil)
 
 func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
 	return &L1Traversal{
