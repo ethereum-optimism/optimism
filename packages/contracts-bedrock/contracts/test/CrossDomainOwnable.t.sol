@@ -15,21 +15,17 @@ contract XDomainSetter is CrossDomainOwnable {
     }
 }
 
-contract CrossDomainOwnable_Test is CommonTest {
+contract CrossDomainOwnable_TestInit is CommonTest {
     XDomainSetter setter;
 
-    function setUp() external {
+    function setUp() public virtual {
         setter = new XDomainSetter();
     }
+}
 
-    // Check that the revert message is correct
-    function test_revertOnlyOwner() external {
-        vm.expectRevert("CrossDomainOwnable: caller is not the owner");
-        setter.set(1);
-    }
-
+contract CrossDomainOwnable_Test is CrossDomainOwnable_TestInit {
     // Check that making a call can set the value properly
-    function test_onlyOwner() external {
+    function test_onlyOwner_succeeds() external {
         assertEq(setter.value(), 0);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(setter.owner()));
@@ -38,7 +34,15 @@ contract CrossDomainOwnable_Test is CommonTest {
     }
 }
 
-contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
+contract CrossDomainOwnable_TestFail is CrossDomainOwnable_TestInit {
+    // Check that the revert message is correct
+    function test_onlyOwner_callerIsNotOwner_revert() external {
+        vm.expectRevert("CrossDomainOwnable: caller is not the owner");
+        setter.set(1);
+    }
+}
+
+contract CrossDomainOwnable_ThroughPortal_Test is Portal_Initializer {
     XDomainSetter setter;
 
     function setUp() public override {
@@ -48,7 +52,7 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         setter = new XDomainSetter();
     }
 
-    function test_depositTransaction_crossDomainOwner() external {
+    function test_checkOwner_isOwner_succeeds() external {
         vm.recordLogs();
 
         vm.prank(alice);
