@@ -432,7 +432,7 @@ jobs:
           name: Test
           command: |
             mkdir -p /test-results
-            gotestsum --junitfile /test-results/tests.xml
+            DB_USER=postgres gotestsum --junitfile /test-results/tests.xml
           working_directory: <<parameters.working_directory>>
       - when:
           condition:
