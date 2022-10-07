@@ -22,7 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	sentry "github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go"
 	"github.com/gorilla/mux"
 	"github.com/urfave/cli"
 )
@@ -169,7 +169,6 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   cfg.StartBlockNumber,
-		StartBlockHash:     cfg.StartBlockHash,
 	})
 	if err != nil {
 		return nil, err

@@ -16,13 +16,17 @@ import (
 // DepositsMap is a collection of deposit objects keyed
 // on block hashes.
 type DepositsMap map[common.Hash][]db.Deposit
+<<<<<<< HEAD
 
 // WithdrawalsMap is a collection of withdrawal objects keyed
 // on block hashes.
-type InitiatedWithdrawalMap map[common.Hash][]db.Withdrawal
+type WithdrawalsMap map[common.Hash][]db.Withdrawal
 
 // FinalizedWithdrawalsMap is a collection of finalized withdrawal
 // objected keyed on block hashes.
+=======
+type InitiatedWithdrawalMap map[common.Hash][]db.Withdrawal
+>>>>>>> 22c039efc (indexer: Upgrade L1 services)
 type FinalizedWithdrawalsMap map[common.Hash][]db.FinalizedWithdrawal
 
 type Bridge interface {
