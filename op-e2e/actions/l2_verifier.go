@@ -1,18 +1,23 @@
 package actions
 
 import (
+	"context"
 	"errors"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum/go-ethereum/log"
-
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	gnode "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
 )
 
 // L2Verifier is an actor that functions like a rollup node,
@@ -32,13 +37,25 @@ type L2Verifier struct {
 	l2Building     bool
 
 	rollupCfg *rollup.Config
+
+	rpc *rpc.Server
+
+	failRPC error // mock error
 }
 
-func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *rollup.Config) *L2Verifier {
+type L2API interface {
+	derive.Engine
+	InfoByRpcNumber(ctx context.Context, num rpc.BlockNumber) (eth.BlockInfo, error)
+	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
+	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
+}
+
+func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics)
 	pipeline.Reset()
-	return &L2Verifier{
+
+	rollupNode := &L2Verifier{
 		log:            log,
 		eng:            eng,
 		derivation:     pipeline,
@@ -47,7 +64,44 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *
 		l2PipelineIdle: true,
 		l2Building:     false,
 		rollupCfg:      cfg,
+		rpc:            rpc.NewServer(),
 	}
+
+	// setup RPC server for rollup node, hooked to the actor as backend
+	m := &testutils.TestRPCMetrics{}
+	backend := &l2VerifierBackend{verifier: rollupNode}
+	apis := []rpc.API{
+		{
+			Namespace:     "optimism",
+			Service:       node.NewNodeAPI(cfg, eng, backend, log, m),
+			Public:        true,
+			Authenticated: false,
+		},
+		{
+			Namespace:     "admin",
+			Version:       "",
+			Service:       node.NewAdminAPI(backend, m),
+			Public:        true, // TODO: this field is deprecated. Do we even need this anymore?
+			Authenticated: false,
+		},
+	}
+	if err := gnode.RegisterApis(apis, nil, rollupNode.rpc); err != nil {
+		panic(err)
+	}
+	return rollupNode
+}
+
+type l2VerifierBackend struct {
+	verifier *L2Verifier
+}
+
+func (s *l2VerifierBackend) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
+	return s.verifier.SyncStatus(), nil
+}
+
+func (s *l2VerifierBackend) ResetDerivationPipeline(ctx context.Context) error {
+	s.verifier.derivation.Reset()
+	return nil
 }
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
@@ -60,6 +114,31 @@ func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 		SafeL2:      s.derivation.SafeL2Head(),
 		FinalizedL2: s.derivation.Finalized(),
 	}
+}
+
+func (s *L2Verifier) RollupClient() *sources.RollupClient {
+	return sources.NewRollupClient(s.RPCClient())
+}
+
+func (s *L2Verifier) RPCClient() client.RPC {
+	cl := rpc.DialInProc(s.rpc)
+	return testutils.RPCErrFaker{
+		RPC: client.NewBaseRPCClient(cl),
+		ErrFn: func() error {
+			err := s.failRPC
+			s.failRPC = nil // reset back, only error once.
+			return err
+		},
+	}
+}
+
+// ActRPCFail makes the next L2 RPC request fail
+func (s *L2Verifier) ActRPCFail(t Testing) {
+	if s.failRPC != nil { // already set to fail?
+		t.InvalidAction("already set a mock rpc error")
+		return
+	}
+	s.failRPC = errors.New("mock RPC error")
 }
 
 func (s *L2Verifier) ActL1HeadSignal(t Testing) {
