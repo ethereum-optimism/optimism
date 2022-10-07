@@ -385,7 +385,7 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 		Offset: uint64(offset),
 	}
 
-	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page)
+	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page, db.FinalizationStateAny)
 	if err != nil {
 		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
