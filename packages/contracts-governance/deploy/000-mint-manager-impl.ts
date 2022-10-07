@@ -83,8 +83,8 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
         `GovernanceToken.owner() upgraded to unknown address ${owner}`
       )
     }
+    await sleep(5000)
   }
-  await sleep(5000)
 }
 
 deployFn.tags = ['MintManager']
