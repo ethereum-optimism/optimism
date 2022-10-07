@@ -183,7 +183,6 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   uint64(0),
-		StartBlockHash:     cfg.L2GenesisBlockHash,
 	})
 	if err != nil {
 		return nil, err
@@ -211,7 +210,6 @@ func (b *Indexer) Serve() error {
 	b.router.HandleFunc("/v1/l1/status", b.l1IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/l2/status", b.l2IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
-	b.router.HandleFunc("/v1/withdrawal/0x{hash:[a-fA-F0-9]{64}}", b.l2IndexingService.GetWithdrawalStatus).Methods("GET")
 	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
 	b.router.HandleFunc("/v1/airdrops/0x{address:[a-fA-F0-9]{40}}", b.airdropService.GetAirdrop)
 	b.router.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
