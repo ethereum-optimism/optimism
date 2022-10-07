@@ -14,7 +14,8 @@ import (
 )
 
 type DepositsMap map[common.Hash][]db.Deposit
-type WithdrawalsMap map[common.Hash][]db.Withdrawal // Finalizations
+type WithdrawalsMap map[common.Hash][]db.Withdrawal
+type FinalizedWithdrawalsMap map[common.Hash][]db.FinalizedWithdrawal
 
 type Bridge interface {
 	Address() common.Address
