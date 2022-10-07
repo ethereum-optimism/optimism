@@ -3,27 +3,26 @@ package actions
 import (
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
-func setupVerifierTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Verifier) {
+func setupVerifier(t Testing, sd *e2eutils.SetupData, log log.Logger, l1F derive.L1Fetcher) (*L2Engine, *L2Verifier) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
-
-	miner := NewL1Miner(log, sd.L1Cfg)
-
-	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false))
-	require.NoError(t, err)
 	engine := NewL2Engine(log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
-	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
-	require.NoError(t, err)
+	engCl := engine.EngineClient(t, sd.RollupCfg)
+	verifier := NewL2Verifier(log, l1F, engCl, sd.RollupCfg)
+	return engine, verifier
+}
 
-	verifier := NewL2Verifier(log, l1F, l2Cl, sd.RollupCfg)
+func setupVerifierOnlyTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Verifier) {
+	miner := NewL1Miner(log, sd.L1Cfg)
+	l1Cl := miner.L1Client(t, sd.RollupCfg)
+	engine, verifier := setupVerifier(t, sd, log, l1Cl)
 	return miner, engine, verifier
 }
 
@@ -37,7 +36,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, p)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	miner, engine, verifier := setupVerifierTest(t, sd, log)
+	miner, engine, verifier := setupVerifierOnlyTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
 	// Make two sequence windows worth of empty L1 blocks. After we pass the first sequence window, the L2 chain should get blocks
