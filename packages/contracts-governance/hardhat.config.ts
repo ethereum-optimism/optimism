@@ -5,6 +5,7 @@ import '@nomiclabs/hardhat-etherscan'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
 import 'solidity-coverage'
+import '@eth-optimism/hardhat-deploy-config'
 
 import './scripts/deploy-token'
 import './scripts/multi-send'
@@ -58,6 +59,14 @@ const config: HardhatUserConfig = {
     },
     'hardhat-node': {
       url: 'http://localhost:8545',
+    },
+  },
+  paths: {
+    deployConfig: 'deploy-config',
+  },
+  deployConfigSpec: {
+    upgrader: {
+      type: 'address',
     },
   },
   gasReporter: {
