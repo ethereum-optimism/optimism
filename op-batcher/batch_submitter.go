@@ -16,18 +16,16 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
-
-	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -36,6 +34,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
 )
 
 const (
@@ -495,12 +495,12 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.Roll
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	client, err := rpc.DialContext(ctxt, url)
+	rpcCl, err := rpc.DialContext(ctxt, url)
 	if err != nil {
 		return nil, err
 	}
 
-	return sources.NewRollupClient(client), nil
+	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if

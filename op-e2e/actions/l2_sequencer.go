@@ -22,7 +22,7 @@ type L2Sequencer struct {
 	failL2GossipUnsafeBlock error // mock error
 }
 
-func NewL2Sequencer(log log.Logger, l1 derive.L1Fetcher, eng derive.Engine, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
+func NewL2Sequencer(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
 	ver := NewL2Verifier(log, l1, eng, cfg)
 	return &L2Sequencer{
 		L2Verifier:              *ver,
