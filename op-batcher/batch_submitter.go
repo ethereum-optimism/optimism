@@ -94,6 +94,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 					l.Error("error starting metrics server", err)
 				}
 			}()
+			opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", batchSubmitter.cfg.L1Client, batchSubmitter.addr)
 		}
 
 		rpcCfg := cfg.RPCConfig
@@ -125,6 +126,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 // batches to L1 for availability.
 type BatchSubmitter struct {
 	txMgr txmgr.TxManager
+	addr  common.Address
 	cfg   sequencer.Config
 	wg    sync.WaitGroup
 	done  chan struct{}
@@ -244,6 +246,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
+		addr:  addr,
 		txMgr: txmgr.NewSimpleTxManager("batcher", txManagerConfig, l1Client),
 		done:  make(chan struct{}),
 		log:   l,

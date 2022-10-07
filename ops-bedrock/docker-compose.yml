@@ -86,6 +86,7 @@ services:
       dockerfile: ./op-proposer/Dockerfile
     ports:
       - "6062:6060"
+      - "7302:7300"
     environment:
       OP_PROPOSER_L1_ETH_RPC: http://l1:8545
       OP_PROPOSER_L2_ETH_RPC: http://l2:8545
@@ -99,6 +100,7 @@ services:
       OP_PROPOSER_LOG_TERMINAL: "true"
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
       OP_PROPOSER_PPROF_ENABLED: "true"
+      OP_PROPOSER_METRICS_ENABLED: "true"
 
   op-batcher:
     depends_on:
@@ -110,6 +112,7 @@ services:
       dockerfile: ./op-batcher/Dockerfile
     ports:
       - "6061:6060"
+      - "7301:7300"
     environment:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
@@ -127,6 +130,7 @@ services:
       OP_BATCHER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
       OP_BATCHER_LOG_TERMINAL: "true"
       OP_BATCHER_PPROF_ENABLED: "true"
+      OP_BATCHER_METRICS_ENABLED: "true"
 
   stateviz:
     build:
