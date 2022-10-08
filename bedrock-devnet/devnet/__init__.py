@@ -75,11 +75,11 @@ def main():
             addresses[c.replace('.json', '')] = data['address']
         sdk_addresses = {}
         sdk_addresses.update({
+            'AddressManager': '0x0000000000000000000000000000000000000000',
             'StateCommitmentChain': '0x0000000000000000000000000000000000000000',
             'CanonicalTransactionChain': '0x0000000000000000000000000000000000000000',
             'BondManager': '0x0000000000000000000000000000000000000000',
         })
-        sdk_addresses['AddressManager'] = addresses['AddressManager']
         sdk_addresses['L1CrossDomainMessenger'] = addresses['L1CrossDomainMessengerProxy']
         sdk_addresses['L1StandardBridge'] = addresses['L1StandardBridgeProxy']
         sdk_addresses['OptimismPortal'] = addresses['OptimismPortalProxy']

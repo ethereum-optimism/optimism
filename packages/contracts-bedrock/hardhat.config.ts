@@ -13,6 +13,7 @@ import './tasks'
 const config: HardhatUserConfig = {
   networks: {
     devnetL1: {
+      live: false,
       url: 'http://localhost:8545',
       accounts: [
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
@@ -53,6 +54,12 @@ const config: HardhatUserConfig = {
     },
   },
   deployConfigSpec: {
+    // Address of the L1 proxy admin owner.
+    proxyAdminOwner: {
+      type: 'address',
+      default: ethers.constants.AddressZero,
+    },
+
     // To anchor the rollup at for L1 genesis.
     // The L2 genesis script uses this to fill the storage of the L1Block info predeploy.
     // The rollup config script uses this to fill the L1 genesis info for the rollup.
@@ -68,6 +75,7 @@ const config: HardhatUserConfig = {
     l1ChainID: {
       type: 'number',
     },
+
     // Required to identify the L2 network and create p2p signatures unique for this chain.
     // Part of L2 genesis config.
     // "l2_chain_id" in rollup config.
@@ -182,6 +190,12 @@ const config: HardhatUserConfig = {
       type: 'address',
     },
 
+    // uint256 - Finalization period in seconds.
+    finalizationPeriodSeconds: {
+      type: 'number',
+      default: 2,
+    },
+
     // Optional L1 genesis block values. These must ONLY be used by the L1 genesis config script.
     // Not all deployments may create a new L1 chain, but instead attach to an existing L1 chain, like Goerli.
     // -------------------------------------------------
@@ -292,10 +306,6 @@ const config: HardhatUserConfig = {
       type: 'address',
       default: ethers.constants.AddressZero,
     },
-    proxyAdminOwner: {
-      type: 'address',
-      default: ethers.constants.AddressZero,
-    },
     gasPriceOracleOwner: {
       type: 'address',
       default: ethers.constants.AddressZero,
@@ -312,7 +322,7 @@ const config: HardhatUserConfig = {
       type: 'number',
       default: 6,
     },
-    deploymentWaitConfirmations: {
+    numDeployConfirmations: {
       type: 'number',
       default: 1,
     },
