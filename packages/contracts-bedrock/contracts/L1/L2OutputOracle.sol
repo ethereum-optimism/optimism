@@ -138,7 +138,27 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        initialize(_genesisL2Output, _startingBlockNumber, _proposer, _owner);
+        initialize(_genesisL2Output, _proposer, _owner);
+    }
+
+    /**
+     * @notice Initializer.
+     *
+     * @param _genesisL2Output     The initial L2 output of the L2 chain.
+     * @param _proposer            The address of the proposer.
+     * @param _owner               The address of the owner.
+     */
+    function initialize(
+        bytes32 _genesisL2Output,
+        address _proposer,
+        address _owner
+    ) public initializer {
+        require(_proposer != _owner, "L2OutputOracle: proposer cannot be the same as the owner");
+        l2Outputs[STARTING_BLOCK_NUMBER] = Types.OutputProposal(_genesisL2Output, block.timestamp);
+        latestBlockNumber = STARTING_BLOCK_NUMBER;
+        __Ownable_init();
+        changeProposer(_proposer);
+        _transferOwnership(_owner);
     }
 
     /**
@@ -255,28 +275,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             "L2OutputOracle: No output found for that block number."
         );
         return output;
-    }
-
-    /**
-     * @notice Initializer.
-     *
-     * @param _genesisL2Output     The initial L2 output of the L2 chain.
-     * @param _startingBlockNumber The timestamp to start L2 block at.
-     * @param _proposer            The address of the proposer.
-     * @param _owner               The address of the owner.
-     */
-    function initialize(
-        bytes32 _genesisL2Output,
-        uint256 _startingBlockNumber,
-        address _proposer,
-        address _owner
-    ) public initializer {
-        require(_proposer != _owner, "L2OutputOracle: proposer cannot be the same as the owner");
-        l2Outputs[_startingBlockNumber] = Types.OutputProposal(_genesisL2Output, block.timestamp);
-        latestBlockNumber = _startingBlockNumber;
-        __Ownable_init();
-        changeProposer(_proposer);
-        _transferOwnership(_owner);
     }
 
     /**

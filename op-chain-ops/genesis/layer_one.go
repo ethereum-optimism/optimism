@@ -73,7 +73,6 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	data, err := l2ooABI.Pack(
 		"initialize",
 		config.L2OutputOracleGenesisL2Output,
-		big.NewInt(0),
 		config.L2OutputOracleProposer,
 		config.L2OutputOracleOwner,
 	)
