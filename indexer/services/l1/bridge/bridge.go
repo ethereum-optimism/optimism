@@ -13,8 +13,17 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// DepositsMap is a collection of deposit objects keyed
+// on block hashes.
 type DepositsMap map[common.Hash][]db.Deposit
-type WithdrawalsMap map[common.Hash][]db.Withdrawal // Finalizations
+
+// WithdrawalsMap is a collection of withdrawal objects keyed
+// on block hashes.
+type WithdrawalsMap map[common.Hash][]db.Withdrawal
+
+// FinalizedWithdrawalsMap is a collection of finalized withdrawal
+// objected keyed on block hashes.
+type FinalizedWithdrawalsMap map[common.Hash][]db.FinalizedWithdrawal
 
 type Bridge interface {
 	Address() common.Address
