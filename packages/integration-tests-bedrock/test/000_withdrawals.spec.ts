@@ -228,15 +228,16 @@ describe('Withdrawals', () => {
         setTimeout(resolve, finalizationPeriod * 1000)
       )
 
-      logger.info('Finalizing withdrawal')
-      const initialBal = await recipient.getBalance()
-      const tx = await portal.finalizeWithdrawalTransaction(
-        nonce,
-        recipient.address,
-        recipient.address,
-        value,
-        gasLimit,
-        '0x',
+      logger.info('Proving withdrawal')
+      const tx1 = await portal.proveWithdrawalTransaction(
+        {
+          nonce,
+          sender: recipient.address,
+          target: recipient.address,
+          value,
+          gasLimit,
+          data: '0x',
+        },
         targetOutputTimestamp,
         {
           version: constants.HashZero,
@@ -249,7 +250,19 @@ describe('Withdrawals', () => {
           gasLimit,
         }
       )
-      await tx.wait()
+      await tx1.wait()
+
+      logger.info('Finalizing withdrawal')
+      const initialBal = await recipient.getBalance()
+      const tx2 = await portal.finalizeWithdrawalTransaction({
+        nonce,
+        sender: recipient.address,
+        target: recipient.address,
+        value,
+        gasLimit,
+        data: '0x',
+      })
+      await tx2.wait()
       const finalBal = await recipient.getBalance()
       expect(finalBal.gte(initialBal)).to.be.true
     }).timeout(180_000)

@@ -424,7 +424,7 @@ contract Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FFIInterface is Test {
-    function getFinalizeWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
+    function getProveWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
         external
         returns (
             bytes32,
@@ -437,7 +437,7 @@ contract FFIInterface is Test {
         string[] memory cmds = new string[](9);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
-        cmds[2] = "getFinalizeWithdrawalTransactionInputs";
+        cmds[2] = "getProveWithdrawalTransactionInputs";
         cmds[3] = vm.toString(_tx.nonce);
         cmds[4] = vm.toString(_tx.sender);
         cmds[5] = vm.toString(_tx.target);

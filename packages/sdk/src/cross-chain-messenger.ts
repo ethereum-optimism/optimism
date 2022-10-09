@@ -1380,6 +1380,28 @@ export class CrossChainMessenger {
   }
 
   /**
+   * Proves a cross chain message that was sent from L2 to L1. Only applicable for L2 to L1
+   * messages. Will throw an error if the message has not completed its challenge period yet.
+   *
+   * @param message Message to finalize.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the finalization transaction.
+   */
+  public async proveMessage(
+    message: MessageLike,
+    opts?: {
+      signer?: Signer
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return (opts?.signer || this.l2Signer).sendTransaction(
+      await this.populateTransaction.proveMessage(message, opts)
+    )
+  }
+
+  /**
    * Finalizes a cross chain message that was sent from L2 to L1. Only applicable for L2 to L1
    * messages. Will throw an error if the message has not completed its challenge period yet.
    *
@@ -1653,6 +1675,56 @@ export class CrossChainMessenger {
     },
 
     /**
+     * Generates a message proving transaction that can be signed and executed. Only
+     * applicable for L2 to L1 messages. Will throw an error if the message has not completed
+     * its challenge period yet.
+     *
+     * @param message Message to generate the proving transaction for.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to prove the message.
+     */
+    proveMessage: async (
+      message: MessageLike,
+      opts?: {
+        overrides?: PayableOverrides
+      }
+    ): Promise<TransactionRequest> => {
+      const resolved = await this.toCrossChainMessage(message)
+      if (resolved.direction === MessageDirection.L1_TO_L2) {
+        throw new Error(`cannot finalize L1 to L2 message`)
+      }
+
+      if (!this.bedrock) {
+        throw new Error(`message proving only applies after bedrock`)
+      }
+
+      const [proof, output, withdrawalTx] = await this.getBedrockMessageProof(
+        message
+      )
+
+      return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
+        [
+          withdrawalTx.messageNonce,
+          withdrawalTx.sender,
+          withdrawalTx.target,
+          withdrawalTx.value,
+          withdrawalTx.minGasLimit,
+          withdrawalTx.message,
+        ],
+        output.l2BlockNumber,
+        [
+          proof.outputRootProof.version,
+          proof.outputRootProof.stateRoot,
+          proof.outputRootProof.messagePasserStorageRoot,
+          proof.outputRootProof.latestBlockhash,
+        ],
+        proof.withdrawalProof,
+        opts?.overrides || {}
+      )
+    },
+
+    /**
      * Generates a message finalization transaction that can be signed and executed. Only
      * applicable for L2 to L1 messages. Will throw an error if the message has not completed
      * its challenge period yet.
@@ -1674,10 +1746,7 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
-        const [proof, output, withdrawalTx] = await this.getBedrockMessageProof(
-          message
-        )
-
+        const [, , withdrawalTx] = await this.getBedrockMessageProof(message)
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
             withdrawalTx.messageNonce,
@@ -1686,16 +1755,7 @@ export class CrossChainMessenger {
             withdrawalTx.value,
             withdrawalTx.minGasLimit,
             withdrawalTx.message,
-          ],
-          output.l2BlockNumber,
-          [
-            proof.outputRootProof.version,
-            proof.outputRootProof.stateRoot,
-            proof.outputRootProof.messagePasserStorageRoot,
-            proof.outputRootProof.latestBlockhash,
-          ],
-          proof.withdrawalProof,
-          opts?.overrides || {}
+          ]
         )
       } else {
         // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards
@@ -1892,6 +1952,25 @@ export class CrossChainMessenger {
           messageGasLimit,
           opts
         )
+      )
+    },
+
+    /**
+     * Estimates gas required to prove a cross chain message. Only applies to L2 to L1 messages.
+     *
+     * @param message Message to generate the proving transaction for.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
+    proveMessage: async (
+      message: MessageLike,
+      opts?: {
+        overrides?: CallOverrides
+      }
+    ): Promise<BigNumber> => {
+      return this.l1Provider.estimateGas(
+        await this.populateTransaction.proveMessage(message, opts)
       )
     },
 

@@ -20,6 +20,15 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
+     * @notice Data stored for proven withdrawals.
+     */
+    struct ProvenWithdrawal {
+        uint256 timestamp;
+        uint256 l2BlockNumber;
+        bytes32 outputRoot;
+    }
+
+    /**
      * @notice Version of the deposit event.
      */
     uint256 internal constant DEPOSIT_VERSION = 0;
@@ -59,6 +68,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
     /**
+     * @notice A list of withdrawal hashes which have been proven.
+     */
+    mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
+
+    /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
@@ -78,6 +92,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 indexed version,
         bytes opaqueData
     );
+
+    /**
+     * @notice Emitted when a withdrawal transaction is proven.
+     *
+     * @param withdrawalHash Hash of the withdrawal transaction.
+     */
+    event WithdrawalProven(bytes32 indexed withdrawalHash);
 
     /**
      * @notice Emitted when a withdrawal transaction is finalized.
@@ -110,43 +131,29 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Finalizes a withdrawal transaction.
+     * @notice Proves a withdrawal transaction.
      *
      * @param _tx              Withdrawal transaction to finalize.
      * @param _l2BlockNumber   L2 block number of the outputRoot.
      * @param _outputRootProof Inclusion proof of the L2ToL1MessagePasser contract's storage root.
      * @param _withdrawalProof Inclusion proof of the withdrawal in L2ToL1MessagePasser contract.
      */
-    function finalizeWithdrawalTransaction(
+    function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
         bytes calldata _withdrawalProof
     ) external {
-        // Prevent nested withdrawals within withdrawals.
-        require(
-            l2Sender == DEFAULT_L2_SENDER,
-            "OptimismPortal: can only trigger one withdrawal per transaction"
-        );
-
         // Prevent users from creating a deposit transaction where this address is the message
-        // sender on L2.
-        // In the context of the proxy delegate calling to this implementation,
+        // sender on L2. In the context of the proxy delegate calling to this implementation,
         // address(this) will return the address of the proxy.
         require(
             _tx.target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"
         );
 
-        // Get the output root. This will fail if there is no
-        // output root for the given block number.
+        // Get the output root. This will fail if there is no output root for the given block.
         Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-
-        // Ensure that enough time has passed since the proposal was submitted before allowing a
-        // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
-        // we can infer that any withdrawal that has passed the finalization period must be valid
-        // and can therefore be operated on.
-        require(_isOutputFinalized(proposal), "OptimismPortal: proposal is not yet finalized");
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
@@ -159,8 +166,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
         // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract on
-        //  L2. If this is true, then we know that this withdrawal was actually triggered on L2
-        // and can therefore be relayed on L1.
+        // L2. If this is true, then we know that this withdrawal was actually triggered on L2 and
+        // can therefore be relayed on L1.
         require(
             _verifyWithdrawalInclusion(
                 withdrawalHash,
@@ -168,6 +175,69 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
                 _withdrawalProof
             ),
             "OptimismPortal: invalid withdrawal inclusion proof"
+        );
+
+        // Mark the withdrawal as proven and mark the timestamp at which the proof happened along
+        // with the outputRoot that was used to prove the withdrawal. It's fine for the same
+        // withdrawal to be proven twice, since we prevent replay attacks using the
+        // finalizedWithdrawals mapping and not the provenWithdrawals mapping. In some cases we
+        // need to prove the same withdrawal multiple times, for example if the original output
+        // root that was proven against was replaced with a different output root.
+        provenWithdrawals[withdrawalHash] = ProvenWithdrawal({
+            timestamp: block.timestamp,
+            l2BlockNumber: _l2BlockNumber,
+            outputRoot: proposal.outputRoot
+        });
+
+        // Tell the world that the withdrawal was proven.
+        emit WithdrawalProven(withdrawalHash);
+    }
+
+    /**
+     * @notice Finalizes a withdrawal transaction.
+     *
+     * @param _tx Withdrawal transaction to finalize.
+     */
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
+        // Prevent nested withdrawals within withdrawals.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
+
+        // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
+        // and to prevent replay attacks.
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
+
+        // Load up the withdrawal and check that it's been proven.
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash];
+        require(
+            provenWithdrawal.timestamp != 0,
+            "OptimismPortal: withdrawal hash has not been proven"
+        );
+
+        // Check that the withdrawal has passed the finalization period.
+        require(
+            block.timestamp >= provenWithdrawal.timestamp + FINALIZATION_PERIOD_SECONDS,
+            "OptimismPortal: withdrawal finalization period has not elapsed"
+        );
+
+        // Check that the output proposal hasn't been updated.
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(
+            provenWithdrawal.l2BlockNumber
+        );
+        require(
+            proposal.outputRoot == provenWithdrawal.outputRoot,
+            "OptimismPortal: output root proven is not the same as current output root"
+        );
+
+        // Ensure that enough time has passed since the proposal was submitted before allowing a
+        // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
+        // we can infer that any withdrawal that has passed the finalization period must be valid
+        // and can therefore be operated on.
+        require(
+            _isOutputFinalized(proposal),
+            "OptimismPortal: proposal finalization period has not elapsed"
         );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
