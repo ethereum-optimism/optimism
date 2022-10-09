@@ -46,16 +46,8 @@ type redisCache struct {
 	rdb *redis.Client
 }
 
-func newRedisCache(url string) (*redisCache, error) {
-	opts, err := redis.ParseURL(url)
-	if err != nil {
-		return nil, err
-	}
-	rdb := redis.NewClient(opts)
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		return nil, wrapErr(err, "error connecting to redis")
-	}
-	return &redisCache{rdb}, nil
+func newRedisCache(rdb *redis.Client) *redisCache {
+	return &redisCache{rdb}
 }
 
 func (c *redisCache) Get(ctx context.Context, key string) (string, error) {

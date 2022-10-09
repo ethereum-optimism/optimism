@@ -17,7 +17,7 @@ type FrontendRateLimiter interface {
 	//
 	// No error will be returned if the limit could not be taken
 	// as a result of the requestor being over the limit.
-	Take(ctx context.Context, key string, max int) (bool, error)
+	Take(ctx context.Context, key string) (bool, error)
 }
 
 // limitedKeys is a wrapper around a map that stores a truncated
@@ -58,16 +58,18 @@ func (l *limitedKeys) Take(key string, max int) bool {
 type MemoryFrontendRateLimiter struct {
 	currGeneration *limitedKeys
 	dur            time.Duration
+	max            int
 	mtx            sync.Mutex
 }
 
-func NewMemoryFrontendRateLimit(dur time.Duration) FrontendRateLimiter {
+func NewMemoryFrontendRateLimit(dur time.Duration, max int) FrontendRateLimiter {
 	return &MemoryFrontendRateLimiter{
 		dur: dur,
+		max: max,
 	}
 }
 
-func (m *MemoryFrontendRateLimiter) Take(ctx context.Context, key string, max int) (bool, error) {
+func (m *MemoryFrontendRateLimiter) Take(ctx context.Context, key string) (bool, error) {
 	m.mtx.Lock()
 	// Create truncated timestamp
 	truncTS := truncateNow(m.dur)
@@ -83,35 +85,51 @@ func (m *MemoryFrontendRateLimiter) Take(ctx context.Context, key string, max in
 
 	m.mtx.Unlock()
 
-	return limiter.Take(key, max), nil
+	return limiter.Take(key, m.max), nil
 }
 
 // RedisFrontendRateLimiter is a rate limiter that stores data in Redis.
 // It uses the basic rate limiter pattern described on the Redis best
 // practices website: https://redis.com/redis-best-practices/basic-rate-limiting/.
 type RedisFrontendRateLimiter struct {
-	r   *redis.Client
-	dur time.Duration
+	r      *redis.Client
+	dur    time.Duration
+	max    int
+	prefix string
 }
 
-func NewRedisFrontendRateLimiter(r *redis.Client, dur time.Duration) FrontendRateLimiter {
-	return &RedisFrontendRateLimiter{r: r, dur: dur}
+func NewRedisFrontendRateLimiter(r *redis.Client, dur time.Duration, max int, prefix string) FrontendRateLimiter {
+	return &RedisFrontendRateLimiter{
+		r:      r,
+		dur:    dur,
+		max:    max,
+		prefix: prefix,
+	}
 }
 
-func (r *RedisFrontendRateLimiter) Take(ctx context.Context, key string, max int) (bool, error) {
+func (r *RedisFrontendRateLimiter) Take(ctx context.Context, key string) (bool, error) {
 	var incr *redis.IntCmd
 	truncTS := truncateNow(r.dur)
-	fullKey := fmt.Sprintf("%s:%d", key, truncTS)
+	fullKey := fmt.Sprintf("rate_limit:%s:%s:%d", r.prefix, key, truncTS)
 	_, err := r.r.Pipelined(ctx, func(pipe redis.Pipeliner) error {
 		incr = pipe.Incr(ctx, fullKey)
-		pipe.Expire(ctx, fullKey, r.dur-time.Second)
+		pipe.PExpire(ctx, fullKey, r.dur-time.Millisecond)
 		return nil
 	})
 	if err != nil {
+		frontendRateLimitTakeErrors.Inc()
 		return false, err
 	}
 
-	return incr.Val()-1 < int64(max), nil
+	return incr.Val()-1 < int64(r.max), nil
+}
+
+type noopFrontendRateLimiter struct{}
+
+var NoopFrontendRateLimiter = &noopFrontendRateLimiter{}
+
+func (n *noopFrontendRateLimiter) Take(ctx context.Context, key string) (bool, error) {
+	return true, nil
 }
 
 // truncateNow truncates the current timestamp
