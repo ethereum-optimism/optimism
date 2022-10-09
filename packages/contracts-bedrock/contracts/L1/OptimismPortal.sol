@@ -100,6 +100,14 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
+     * @notice Initializer;
+     */
+    function initialize() public initializer {
+        l2Sender = DEFAULT_L2_SENDER;
+        __ResourceMetering_init();
+    }
+
+    /**
      * @notice Accepts value so that users can send ETH directly to this contract and have the
      *         funds be deposited to their address on L2. This is intended as a convenience
      *         function for EOAs. Contracts should call the depositTransaction() function directly
@@ -212,14 +220,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
         Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
         return _isOutputFinalized(proposal);
-    }
-
-    /**
-     * @notice Initializer;
-     */
-    function initialize() public initializer {
-        l2Sender = DEFAULT_L2_SENDER;
-        __ResourceMetering_init();
     }
 
     /**
