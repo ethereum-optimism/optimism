@@ -147,8 +147,7 @@ func (f *ConfirmedHeaderSelector) NewHead(
 	return headers, nil
 }
 
-func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) (*ConfirmedHeaderSelector,
-	error) {
+func NewConfirmedHeaderSelector(cfg HeaderSelectorConfig) (*ConfirmedHeaderSelector, error) {
 	if cfg.ConfDepth == 0 {
 		return nil, errors.New("ConfDepth must be greater than zero")
 	}
