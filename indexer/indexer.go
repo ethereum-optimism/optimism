@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/indexer/services"
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/server"
@@ -22,7 +23,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	sentry "github.com/getsentry/sentry-go"
 	"github.com/gorilla/mux"
 	"github.com/urfave/cli"
 )
@@ -44,15 +44,9 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 			return err
 		}
 
-		// The call to defer is done here so that any errors logged from
-		// this point on are posted to Sentry before exiting.
-		if cfg.SentryEnable {
-			defer sentry.Flush(2 * time.Second)
-		}
-
 		log.Info("Initializing indexer")
 
-		indexer, err := NewIndexer(cfg, gitVersion)
+		indexer, err := NewIndexer(cfg)
 		if err != nil {
 			log.Error("Unable to create indexer", "error", err)
 			return err
@@ -87,32 +81,18 @@ type Indexer struct {
 
 	router  *mux.Router
 	metrics *metrics.Metrics
+	db      *database.Database
+	server  *http.Server
 }
 
 // NewIndexer initializes the Indexer, gathering any resources
 // that will be needed by the TxIndexer and StateIndexer
 // sub-services.
-func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
+func NewIndexer(cfg Config) (*Indexer, error) {
 	ctx := context.Background()
 
-	// Set up our logging. If Sentry is enabled, we will use our custom
-	// log handler that logs to stdout and forwards any error messages to
-	// Sentry for collection. Otherwise, logs will only be posted to stdout.
 	var logHandler log.Handler
-	if cfg.SentryEnable {
-		err := sentry.Init(sentry.ClientOptions{
-			Dsn:              cfg.SentryDsn,
-			Environment:      cfg.EthNetworkName,
-			Release:          "indexer@" + gitVersion,
-			TracesSampleRate: traceRateToFloat64(cfg.SentryTraceRate),
-			Debug:            false,
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		logHandler = SentryStreamHandler(os.Stdout, log.JSONFormat())
-	} else if cfg.LogTerminal {
+	if cfg.LogTerminal {
 		logHandler = log.StreamHandler(os.Stdout, log.TerminalFormat(true))
 	} else {
 		logHandler = log.StreamHandler(os.Stdout, log.JSONFormat())
@@ -149,12 +129,29 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		log.Info("metrics server enabled", "host", cfg.MetricsHostname, "port", cfg.MetricsPort)
 	}
 
-	dsn := fmt.Sprintf("host=%s port=%d user=%s dbname=%s sslmode=disable",
-		cfg.DBHost, cfg.DBPort, cfg.DBUser, cfg.DBName)
+	dsn := fmt.Sprintf("host=%s port=%d dbname=%s sslmode=disable",
+		cfg.DBHost, cfg.DBPort, cfg.DBName)
+	if cfg.DBUser != "" {
+		dsn += fmt.Sprintf(" user=%s", cfg.DBUser)
+	}
 	if cfg.DBPassword != "" {
 		dsn += fmt.Sprintf(" password=%s", cfg.DBPassword)
 	}
 	db, err := database.NewDatabase(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	var addrManager services.AddressManager
+	if cfg.Bedrock {
+		addrManager, err = services.NewBedrockAddresses(
+			l1Client,
+			cfg.BedrockL1StandardBridgeAddress,
+			cfg.BedrockOptimismPortalAddress,
+		)
+	} else {
+		addrManager, err = services.NewLegacyAddresses(l1Client, common.HexToAddress(cfg.L1AddressManagerAddress))
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -164,12 +161,13 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		Metrics:            m,
 		L1Client:           l1Client,
 		RawL1Client:        rawl1Client,
-		ChainID:            big.NewInt(cfg.ChainID),
+		ChainID:            new(big.Int).SetUint64(cfg.ChainID),
+		AddressManager:     addrManager,
 		DB:                 db,
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
-		StartBlockNumber:   cfg.StartBlockNumber,
-		StartBlockHash:     cfg.StartBlockHash,
+		StartBlockNumber:   cfg.L1StartBlockNumber,
+		Bedrock:            cfg.Bedrock,
 	})
 	if err != nil {
 		return nil, err
@@ -184,7 +182,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		ConfDepth:          cfg.ConfDepth,
 		MaxHeaderBatchSize: cfg.MaxHeaderBatchSize,
 		StartBlockNumber:   uint64(0),
-		StartBlockHash:     cfg.L2GenesisBlockHash,
+		Bedrock:            cfg.Bedrock,
 	})
 	if err != nil {
 		return nil, err
@@ -200,6 +198,7 @@ func NewIndexer(cfg Config, gitVersion string) (*Indexer, error) {
 		airdropService:    services.NewAirdrop(db, m),
 		router:            mux.NewRouter(),
 		metrics:           m,
+		db:                db,
 	}, nil
 }
 
@@ -212,7 +211,7 @@ func (b *Indexer) Serve() error {
 	b.router.HandleFunc("/v1/l1/status", b.l1IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/l2/status", b.l2IndexingService.GetIndexerStatus).Methods("GET")
 	b.router.HandleFunc("/v1/deposits/0x{address:[a-fA-F0-9]{40}}", b.l1IndexingService.GetDeposits).Methods("GET")
-	b.router.HandleFunc("/v1/withdrawal/0x{hash:[a-fA-F0-9]{64}}", b.l2IndexingService.GetWithdrawalStatus).Methods("GET")
+	b.router.HandleFunc("/v1/withdrawal/0x{hash:[a-fA-F0-9]{64}}", b.l2IndexingService.GetWithdrawalBatch).Methods("GET")
 	b.router.HandleFunc("/v1/withdrawals/0x{address:[a-fA-F0-9]{40}}", b.l2IndexingService.GetWithdrawals).Methods("GET")
 	b.router.HandleFunc("/v1/airdrops/0x{address:[a-fA-F0-9]{40}}", b.airdropService.GetAirdrop)
 	b.router.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -228,8 +227,27 @@ func (b *Indexer) Serve() error {
 	port := strconv.FormatUint(b.cfg.RESTPort, 10)
 	addr := net.JoinHostPort(b.cfg.RESTHostname, port)
 
-	log.Info("indexer REST server listening on", "addr", addr)
-	return http.ListenAndServe(addr, middleware(c.Handler(b.router)))
+	b.server = &http.Server{
+		Addr:    addr,
+		Handler: middleware(c.Handler(b.router)),
+	}
+
+	errCh := make(chan error, 1)
+
+	go func() {
+		errCh <- b.server.ListenAndServe()
+	}()
+
+	// Capture server startup errors
+	<-time.After(10 * time.Millisecond)
+
+	select {
+	case err := <-errCh:
+		return err
+	default:
+		log.Info("indexer REST server listening on", "addr", addr)
+		return nil
+	}
 }
 
 // Start starts the starts the indexing service on L1 and L2 chains and also
@@ -253,6 +271,14 @@ func (b *Indexer) Start() error {
 
 // Stop stops the indexing service on L1 and L2 chains.
 func (b *Indexer) Stop() {
+	b.db.Close()
+
+	if b.server != nil {
+		// background context here so it waits for
+		// conns to close
+		_ = b.server.Shutdown(context.Background())
+	}
+
 	if !b.cfg.DisableIndexer {
 		b.l1IndexingService.Stop()
 		b.l2IndexingService.Stop()
@@ -273,15 +299,4 @@ func dialEthClientWithTimeout(ctx context.Context, url string) (
 		return nil, nil, err
 	}
 	return ethclient.NewClient(c), c, nil
-}
-
-// traceRateToFloat64 converts a time.Duration into a valid float64 for the
-// Sentry client. The client only accepts values between 0.0 and 1.0, so this
-// method clamps anything greater than 1 second to 1.0.
-func traceRateToFloat64(rate time.Duration) float64 {
-	rate64 := float64(rate) / float64(time.Second)
-	if rate64 > 1.0 {
-		rate64 = 1.0
-	}
-	return rate64
 }

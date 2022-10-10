@@ -21,6 +21,8 @@ type Metrics struct {
 
 	WithdrawalsCount *prometheus.CounterVec
 
+	StateBatchesCount prometheus.Counter
+
 	L1CatchingUp prometheus.Gauge
 
 	L2CatchingUp prometheus.Gauge
@@ -70,6 +72,12 @@ func NewMetrics(monitoredTokens map[string]string) *Metrics {
 			Namespace: metricsNamespace,
 		}, []string{
 			"symbol",
+		}),
+
+		StateBatchesCount: promauto.NewCounter(prometheus.CounterOpts{
+			Name:      "state_batches_count",
+			Help:      "The number of state batches indexed.",
+			Namespace: metricsNamespace,
 		}),
 
 		L1CatchingUp: promauto.NewGauge(prometheus.GaugeOpts{
@@ -158,6 +166,10 @@ func (m *Metrics) RecordWithdrawal(addr common.Address) {
 	}
 
 	m.WithdrawalsCount.WithLabelValues(sym).Inc()
+}
+
+func (m *Metrics) RecordStateBatches(count int) {
+	m.StateBatchesCount.Add(float64(count))
 }
 
 func (m *Metrics) SetL1CatchingUp(state bool) {
