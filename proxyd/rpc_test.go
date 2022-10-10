@@ -63,7 +63,7 @@ func TestRPCResJSON(t *testing.T) {
 				Error: &RPCErr{
 					Code:    1234,
 					Message: "test err",
-					Data: "revert",
+					Data:    "revert",
 				},
 				ID: []byte("123"),
 			},
