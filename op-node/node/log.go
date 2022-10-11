@@ -44,7 +44,7 @@ func (cfg *LogConfig) Check() error {
 func (cfg *LogConfig) NewLogger() log.Logger {
 	handler := log.StreamHandler(os.Stdout, format(cfg.Format, cfg.Color))
 	handler = log.SyncHandler(handler)
-	log.LvlFilterHandler(level(cfg.Level), handler)
+	handler = log.LvlFilterHandler(level(cfg.Level), handler)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger
