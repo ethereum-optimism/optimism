@@ -6,6 +6,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var layouts = make(map[string]*solc.StorageLayout)
@@ -15,6 +16,8 @@ var deployedBytecodes = make(map[string]string)
 func GetStorageLayout(name string) (*solc.StorageLayout, error) {
 	layout := layouts[name]
 	if layout == nil {
+		log.Warn("MMDBG GSL", "layouts", layouts)
+		panic("foo")
 		return nil, errors.New("storage layout not found")
 	}
 	return layout, nil

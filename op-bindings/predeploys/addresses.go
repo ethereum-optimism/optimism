@@ -15,6 +15,9 @@ const (
 	GasPriceOracle               = "0x420000000000000000000000000000000000000F"
 	L1Block                      = "0x4200000000000000000000000000000000000015"
 	GovernanceToken              = "0x4200000000000000000000000000000000000042"
+	// -----
+	BobaTuringCredit             = "0x42000000000000000000000000000000000000ff"
+	BobaL2                       = "0x42000000000000000000000000000000000000fe"
 )
 
 var (
@@ -30,6 +33,9 @@ var (
 	GasPriceOracleAddr               = common.HexToAddress(GasPriceOracle)
 	L1BlockAddr                      = common.HexToAddress(L1Block)
 	GovernanceTokenAddr              = common.HexToAddress(GovernanceToken)
+	// -----
+	BobaTuringCreditAddr             = common.HexToAddress(BobaTuringCredit)
+	BobaL2Addr                       = common.HexToAddress(BobaL2)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -47,4 +53,7 @@ func init() {
 	Predeploys["GasPriceOracle"] = &GasPriceOracleAddr
 	Predeploys["L1Block"] = &L1BlockAddr
 	Predeploys["GovernanceToken"] = &GovernanceTokenAddr
+	// -----
+	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
+	Predeploys["BobaL2"] = &BobaL2Addr
 }

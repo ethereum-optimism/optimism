@@ -17,6 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var proxies = []string{
@@ -30,6 +32,7 @@ var proxies = []string{
 var portalMeteringSlot = common.Hash{31: 0x01}
 
 var zeroHash common.Hash
+var bobaAddr common.Address
 
 func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if config.L2OutputOracleStartingTimestamp != -1 {
@@ -143,6 +146,27 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
+	// Boba dev account funded with ETH and BOBA
+	// key: "c9776e5eb09b348dfde140019e21142503d3c2a5c6d2019d0b30f5099ff2c8dd"
+	bobaDev := common.HexToAddress("0xb0bA04c08d8f1471bcA20C12a64DcCa17B01d96f")
+	bobaFund := hexutil.MustDecodeBig("0xD3C21BCECCEDA1000000")
+
+	nb, err := bindings.NewBOBATransactor(bobaAddr, backend)
+	if err != nil {
+		return nil, err
+	}
+	for _, account := range DevAccounts {
+		_, err := nb.Transfer(opts, account, hexutil.MustDecodeBig("0x1000000000000000000"))
+		if err != nil {
+			log.Error("MMDBG Transfer error", "err", err)
+			return nil, err
+		}
+	}
+	_, err = nb.Transfer(opts, bobaDev, bobaFund)
+	if err != nil {
+		log.Error("MMDBG bobaDev Transfer error", "err", err)
+		return nil, err
+	}
 	backend.Commit()
 
 	memDB := state.NewMemoryStateDB(genesis)
@@ -151,6 +175,10 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	FundDevAccounts(memDB)
 	SetPrecompileBalances(memDB)
+
+	log.Info("Funding Boba dev account", "addr", bobaDev, "amount", bobaFund)
+	memDB.CreateAccount(bobaDev)
+	memDB.AddBalance(bobaDev, bobaFund)
 
 	for name, proxyAddr := range predeploys.DevPredeploys {
 		memDB.SetState(*proxyAddr, ImplementationSlot, depsByName[name].Address.Hash())
@@ -239,6 +267,9 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				common.Address{19: 0x01},
 			},
 		},
+		{
+			Name: "BobaL1",
+		},
 	}...)
 	return deployer.Deploy(backend, constructors, l1Deployer)
 }
@@ -280,6 +311,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
 		)
+		log.Info("MMDBG L1StandardBridge", "addr", addr)
 	case "OptimismMintableERC20Factory":
 		addr, _, _, err = bindings.DeployOptimismMintableERC20Factory(
 			opts,
@@ -297,6 +329,13 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			common.Address{},
 		)
+	case "BobaL1":
+		addr, _, _, err = bindings.DeployBOBA(
+			opts,
+			backend,
+		)
+		log.Info("MMDBG BobaL1", "addr", addr)
+		bobaAddr = addr
 	default:
 		if strings.HasSuffix(deployment.Name, "Proxy") {
 			addr, _, _, err = bindings.DeployProxy(opts, backend, deployer.TestAddress)

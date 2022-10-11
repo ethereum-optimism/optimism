@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -48,6 +49,10 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 // SetStorage will set the storage values in a db given a contract name,
 // address and the storage values
 func SetStorage(name string, address common.Address, values StorageValues, db vm.StateDB) error {
+	log.Warn("MMDBG SetStorage", "name", name, "address", address)
+	if name == "BobaL2" {
+		name = "OptimismMintableERC20"
+	}
 	layout, err := bindings.GetStorageLayout(name)
 	if err != nil {
 		return err

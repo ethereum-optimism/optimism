@@ -166,5 +166,13 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 		// TODO: this should be set to the MintManager
 		"_owner": common.Address{},
 	}
+	//storage["BobaTuringCredit"] = state.StorageValues{}
+	storage["BobaL2"] = state.StorageValues{
+		"_name":       "Boba L2",
+		"_symbol":     "BOBA",
+		"remoteToken": common.HexToAddress("0xBcDfc870Ea0C6463C6EBb2B2217a4b32B93BCFB7"),
+		"bridge":      predeploys.L2StandardBridge,
+	}
+	
 	return storage, nil
 }

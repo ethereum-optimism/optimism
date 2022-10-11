@@ -2,6 +2,7 @@ package immutables
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -10,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // ImmutableValues represents the values to be set in immutable code.
@@ -61,6 +63,12 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		},
 		{
 			Name: "L1BlockNumber",
+		},
+		{
+			Name: "BobaL2",
+		},
+		{
+			Name: "BobaTuringCredit",
 		},
 	}
 	return BuildL2(deployments)
@@ -117,6 +125,20 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		addr, _, _, err = bindings.DeployDeployerWhitelist(opts, backend)
 	case "L1BlockNumber":
 		addr, _, _, err = bindings.DeployL1BlockNumber(opts, backend)
+	case "BobaTuringCredit":
+		addr, _, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+		log.Info("MMDBG BobaTuringCredit", "addr", addr)
+	case "BobaL2":
+		// Storage slots are populated in genesis/config.go
+		addr, _, _, err = bindings.DeployOptimismMintableERC20(
+			opts,
+			backend,
+			common.Address{}, //HexToAddress("0x4200000000000000000000000000000000000010"),
+			common.Address{}, //HexToAddress("0xBcDfc870Ea0C6463C6EBb2B2217a4b32B93BCFB7"),
+			"Boba L2",
+			"BOBA",
+		)
+		log.Info("MMDBG BobaL2", "addr", addr)
 	default:
 		return addr, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // FundDevAccounts will fund each of the development accounts.
@@ -69,6 +70,7 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	}
 
 	for name, address := range predeploys.Predeploys {
+		log.Info("MMDBG SetImplementations", "name", name, "addr", address)
 		// Convert the address to the code address
 		var addr common.Address
 		switch *address {
@@ -76,6 +78,8 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 			addr = predeploys.GovernanceTokenAddr
 		case predeploys.LegacyERC20ETHAddr:
 			addr = predeploys.LegacyERC20ETHAddr
+		case predeploys.BobaL2Addr:
+			addr = predeploys.BobaL2Addr
 		default:
 			addr, err = AddressToCodeNamespace(*address)
 			if err != nil {
