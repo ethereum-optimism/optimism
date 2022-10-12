@@ -187,7 +187,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         address indexed target,
         uint256 value,
         uint256 gasLimit,
-        bytes data
+        bytes data,
+        bytes32 withdrawalHash
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
