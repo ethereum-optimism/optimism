@@ -10,6 +10,9 @@ import prometheus, { Registry } from 'prom-client'
 import promBundle from 'express-prom-bundle'
 import bodyParser from 'body-parser'
 import morgan from 'morgan'
+import * as trpc from '@trpc/server'
+import * as trpcExpress from '@trpc/server/adapters/express'
+import cors from 'cors'
 
 import { Logger } from '../common/logger'
 import { Metric, Gauge, Counter } from './metrics'
@@ -18,7 +21,6 @@ import { validators } from './validators'
 export type Options = {
   [key: string]: any
 }
-
 export type StandardOptions = {
   loopIntervalMs?: number
   port?: number
@@ -59,6 +61,8 @@ export abstract class BaseServiceV2<
   TMetrics extends MetricsV2,
   TServiceState
 > {
+  public static readonly createApi = () => trpc.router()
+
   /**
    * The timeout that controls the polling interval
    * If clearTimeout(this.pollingTimeout) is called the timeout will stop
@@ -155,6 +159,10 @@ export abstract class BaseServiceV2<
       loopIntervalMs?: number
       port?: number
       hostname?: string
+      api?: {
+        cors?: Array<RegExp | string>
+        trpc: ReturnType<typeof BaseServiceV2.createApi>
+      }
     }
   ) {
     this.loop = params.loop !== undefined ? params.loop : true
@@ -420,8 +428,39 @@ export abstract class BaseServiceV2<
 
       // Register user routes.
       const router = express.Router()
-      if (this.routes) {
-        this.routes(router)
+      if (this.params.api) {
+        if (this.params.api.cors) {
+          router.use(
+            cors({
+              origin: (origin, callback) => {
+                const isAllowed =
+                  !origin ||
+                  this.params.api.cors.some((value) => {
+                    if (value instanceof RegExp) {
+                      return value.test(origin)
+                    } else {
+                      return value.includes(origin)
+                    }
+                  })
+                if (isAllowed) {
+                  callback(null, true)
+                  // allow staging
+                } else {
+                  const message = 'Not allowed by CORS: ' + origin
+                  this.logger.info(message)
+                  callback(new Error(message))
+                }
+              },
+            })
+          )
+        }
+
+        router.use(
+          '/',
+          trpcExpress.createExpressMiddleware({
+            router: this.params.api.trpc,
+          })
+        )
       }
 
       // Metrics.
@@ -524,13 +563,6 @@ export abstract class BaseServiceV2<
    * Initialization function. Runs once before the main function.
    */
   protected init?(): Promise<void>
-
-  /**
-   * Initialization function for router.
-   *
-   * @param router Express router.
-   */
-  protected routes?(router: ExpressRouter): Promise<void>
 
   /**
    * Main function. Runs repeatedly when run() is called.
