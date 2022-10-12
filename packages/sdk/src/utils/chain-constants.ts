@@ -30,7 +30,7 @@ export const CHAIN_BLOCK_TIMES: {
   [ChainID in L1ChainID]: number
 } = {
   [L1ChainID.MAINNET]: 13 as const,
-  [L1ChainID.GOERLI]: 15 as const,
+  [L1ChainID.GOERLI]: 150 as const,
   [L1ChainID.KOVAN]: 4 as const,
   [L1ChainID.HARDHAT_LOCAL]: 1 as const,
   [L1ChainID.BEDROCK_LOCAL_DEVNET]: 15 as const,

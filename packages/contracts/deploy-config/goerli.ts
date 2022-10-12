@@ -1,8 +1,8 @@
 const config = {
   numDeployConfirmations: 1,
-  l1BlockTimeSeconds: 15,
+  l1BlockTimeSeconds: 150,
   l2BlockGasLimit: 15_000_000,
-  l2ChainId: 420,
+  l2ChainId: 57000,
   ctcL2GasDiscountDivisor: 32,
   ctcEnqueueGasCost: 60_000,
   sccFaultProofWindowSeconds: 10,
