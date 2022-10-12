@@ -417,7 +417,7 @@ func (s *state) eventLoop() {
 			s.metrics.SetDerivationIdle(false)
 			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Progress().Origin, "onto_closed", s.derivation.Progress().Closed, "attempts", stepAttempts)
-			stepCtx, cancel := context.WithTimeout(ctx, time.Minute) // TODO pick a timeout for executing a single step
+			stepCtx, cancel := context.WithTimeout(ctx, 5*time.Minute) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
