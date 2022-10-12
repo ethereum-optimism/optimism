@@ -42,7 +42,8 @@ type MetricsConfig struct {
 
 type RateLimitConfig struct {
 	UseRedis         bool                                `toml:"use_redis"`
-	RatePerSecond    int                                 `toml:"rate_per_second"`
+	BaseRate         int                                 `toml:"base_rate"`
+	BaseInterval     TOMLDuration                        `toml:"base_interval"`
 	ExemptOrigins    []string                            `toml:"exempt_origins"`
 	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
 	ErrorMessage     string                              `toml:"error_message"`
