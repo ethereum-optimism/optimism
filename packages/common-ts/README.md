@@ -79,4 +79,10 @@ const trpcClient = createTRPCClient<MyServiceAPI>({
 const user = await trpcClient.query('user', { id: '1' })``
 ```
 
-see https://trpc.io/ version 9 for more info
+You can also use it in react with react-query! Your params and the endpoint will be the query-key
+
+```typescript
+return trpcReact.useQuery(['delegates', { sortBy: SortBy.ALPHABETICAL }])
+```
+
+see https://trpc.io/ version 9 for more info on trpc
