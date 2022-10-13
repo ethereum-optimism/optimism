@@ -59,6 +59,8 @@ func NewL2Bindings(t Testing, l2Cl *ethclient.Client, withdrawalsCl *withdrawals
 	}
 }
 
+// BasicUserEnv provides access to the eth RPC, signer, and contract bindings for a single ethereum layer.
+// This environment can be shared between different BasicUser instances.
 type BasicUserEnv[B any] struct {
 	EthCl  *ethclient.Client
 	Signer types.Signer
@@ -68,6 +70,10 @@ type BasicUserEnv[B any] struct {
 	Bindings B
 }
 
+// BasicUser is an actor on a single ethereum layer, with one account key.
+// The user maintains a set of standard txOpts to build its transactions with,
+// along with configurable txToAddr and txCallData.
+// The user has an RNG source with actions to randomize its transaction building.
 type BasicUser[B any] struct {
 	log log.Logger
 	rng *rand.Rand
@@ -81,6 +87,9 @@ type BasicUser[B any] struct {
 	txToAddr   *common.Address
 	txCallData []byte
 
+	// lastTxHash persists the last transaction,
+	// so we can chain together tx sending and tx checking easily.
+	// Sending and checking are detached, since txs may not be instantly confirmed.
 	lastTxHash common.Hash
 }
 
@@ -111,6 +120,7 @@ func (s *BasicUser[B]) signerFn(address common.Address, tx *types.Transaction) (
 	return tx.WithSignature(s.env.Signer, signature)
 }
 
+// ActResetTxOpts prepares the tx options to default values, based on the current pending block header.
 func (s *BasicUser[B]) ActResetTxOpts(t Testing) {
 	pendingHeader, err := s.env.EthCl.HeaderByNumber(t.Ctx(), big.NewInt(-1))
 	require.NoError(t, err, "need l2 pending header for accurate basefee info")
@@ -237,10 +247,13 @@ type L2User struct {
 	BasicUser[*L2Bindings]
 }
 
+// CrossLayerUser represents the same user account on L1 and L2,
+// and provides actions to make cross-layer transactions.
 type CrossLayerUser struct {
 	L1 L1User
 	L2 L2User
 
+	// track the last deposit, to easily chain together deposit actions
 	lastL1DepositTxHash common.Hash
 }
 
@@ -310,6 +323,7 @@ func (s *CrossLayerUser) CheckDepositTx(t Testing, l1TxHash common.Hash, index i
 		require.False(t, l1Success)
 		require.False(t, l2Success)
 	} else {
+		require.Less(t, index, len(depositReceipt.Logs), "must have enough logs in receipt")
 		reconstructedDep, err := derive.UnmarshalDepositLogEvent(depositReceipt.Logs[index])
 		require.NoError(t, err, "Could not reconstruct L2 Deposit")
 		l2Tx := types.NewTx(reconstructedDep)
