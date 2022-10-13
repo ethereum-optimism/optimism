@@ -3,6 +3,7 @@ module github.com/ethereum-optimism/optimism/op-e2e
 go 1.18
 
 require (
+	github.com/ethereum-optimism/optimism/gas-oracle v0.0.0-20221013175259-1108348a742a
 	github.com/ethereum-optimism/optimism/op-batcher v0.8.10
 	github.com/ethereum-optimism/optimism/op-bindings v0.8.10
 	github.com/ethereum-optimism/optimism/op-chain-ops v0.8.10
