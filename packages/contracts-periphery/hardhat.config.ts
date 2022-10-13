@@ -51,6 +51,9 @@ const config: HardhatUserConfig = {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
         },
       },
+      companionNetworks: {
+        l1: 'ethereum',
+      },
     },
     'optimism-kovan': {
       chainId: 69,
@@ -60,6 +63,9 @@ const config: HardhatUserConfig = {
         etherscan: {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
         },
+      },
+      companionNetworks: {
+        l1: 'kovan',
       },
     },
     'optimism-goerli': {
@@ -71,6 +77,9 @@ const config: HardhatUserConfig = {
           apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
         },
       },
+      companionNetworks: {
+        l1: 'goerli',
+      },
     },
     ethereum: {
       chainId: 1,
@@ -81,6 +90,9 @@ const config: HardhatUserConfig = {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
         },
       },
+      companionNetworks: {
+        l2: 'optimism',
+      },
     },
     goerli: {
       chainId: 5,
@@ -90,6 +102,9 @@ const config: HardhatUserConfig = {
         etherscan: {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
         },
+      },
+      companionNetworks: {
+        l2: 'optimism-goerli',
       },
     },
     ropsten: {
@@ -111,6 +126,9 @@ const config: HardhatUserConfig = {
           apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
         },
       },
+      companionNetworks: {
+        l2: 'optimism-kovan',
+      },
     },
     'ops-l2': {
       chainId: 17,
@@ -119,6 +137,9 @@ const config: HardhatUserConfig = {
         '0xa6aecc98b63bafb0de3b29ae9964b14acb4086057808be29f90150214ebd4a0f',
       ],
       url: 'http://127.0.0.1:8545',
+      companionNetworks: {
+        l1: 'ops-l1',
+      },
     },
     'ops-l1': {
       chainId: 31337,
@@ -126,10 +147,25 @@ const config: HardhatUserConfig = {
         '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       ],
       url: 'http://127.0.0.1:9545',
+      companionNetworks: {
+        l2: 'ops-l2',
+      },
     },
   },
   paths: {
     deployConfig: './config/deploy',
+  },
+  external: {
+    contracts: [
+      {
+        artifacts: '../contracts/artifacts',
+      },
+    ],
+    deployments: {
+      goerli: ['../contracts/deployments/goerli'],
+      kovan: ['../contracts/deployments/kovan'],
+      ethereum: ['../contracts/deployments/mainnet'],
+    },
   },
   deployConfigSpec: configSpec,
   mocha: {

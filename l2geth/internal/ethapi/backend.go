@@ -20,6 +20,7 @@ package ethapi
 import (
 	"context"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/l2geth/accounts"
 	"github.com/ethereum-optimism/optimism/l2geth/common"
@@ -45,7 +46,8 @@ type Backend interface {
 	ChainDb() ethdb.Database
 	AccountManager() *accounts.Manager
 	ExtRPCEnabled() bool
-	RPCGasCap() *big.Int // global gas cap for eth_call over rpc: DoS protection
+	RPCGasCap() *big.Int          // global gas cap for eth_call over rpc: DoS protection
+	RPCEVMTimeout() time.Duration // global timeout (0=infinite) for eth_call over rpc: DoS protection
 
 	// Blockchain API
 	SetHead(number uint64)

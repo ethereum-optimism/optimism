@@ -2,8 +2,8 @@ package sources
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -81,7 +81,8 @@ type EthClient struct {
 	log log.Logger
 
 	// cache receipts in bundles per block hash
-	// common.Hash -> types.Receipts
+	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
+	// common.Hash -> eth.ReceiptsFetcher
 	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
@@ -231,68 +232,42 @@ func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*
 	return s.payloadCall(ctx, "eth_getBlockByNumber", string(label))
 }
 
-func (s *EthClient) Fetch(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Transactions, eth.ReceiptsFetcher, error) {
+// FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
+// It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
+// to ensure that the execution engine did not fail to return any receipts.
+func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
 	info, txs, err := s.InfoAndTxsByHash(ctx, blockHash)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
+	// Try to reuse the receipts fetcher because is caches the results of intermediate calls. This means
+	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
+	// The underlying fetcher uses the receipts hash to verify receipt integrity.
+	var fetcher eth.ReceiptsFetcher
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		return info, txs, v.(eth.ReceiptsFetcher), nil
+		fetcher = v.(eth.ReceiptsFetcher)
+	} else {
+		txHashes := make([]common.Hash, len(txs))
+		for i := 0; i < len(txs); i++ {
+			txHashes[i] = txs[i].Hash()
+		}
+		fetcher = NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
+		s.receiptsCache.Add(blockHash, fetcher)
 	}
-	txHashes := make([]common.Hash, len(txs))
-	for i := 0; i < len(txs); i++ {
-		txHashes[i] = txs[i].Hash()
-	}
-	r := NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-	s.receiptsCache.Add(blockHash, r)
-	return info, txs, r, nil
-}
-
-// BlockIDRange returns a range of block IDs from the provided begin up to max blocks after the begin.
-// This batch-requests all blocks by number in the range at once, and then verifies the consistency
-func (s *EthClient) BlockIDRange(ctx context.Context, begin eth.BlockID, max uint64) ([]eth.BlockID, error) {
-	headerRequests := make([]rpc.BatchElem, max)
-	for i := uint64(0); i < max; i++ {
-		headerRequests[i] = rpc.BatchElem{
-			Method: "eth_getBlockByNumber",
-			Args:   []interface{}{hexutil.EncodeUint64(begin.Number + 1 + i), false},
-			Result: new(*rpcHeader),
-			Error:  nil,
+	// Fetch all receipts
+	for {
+		if err := fetcher.Fetch(ctx); err == io.EOF {
+			break
+		} else if err != nil {
+			return nil, nil, err
 		}
 	}
-	if err := s.client.BatchCallContext(ctx, headerRequests); err != nil {
-		return nil, err
+	receipts, err := fetcher.Result()
+	if err != nil {
+		return nil, nil, err
 	}
 
-	out := make([]eth.BlockID, 0, max)
-
-	// try to cache everything we have before halting on the results with errors
-	for i := 0; i < len(headerRequests); i++ {
-		result := *headerRequests[i].Result.(**rpcHeader)
-		if headerRequests[i].Error == nil {
-			if result == nil {
-				break // no more headers from here
-			}
-			info, err := result.Info(s.trustRPC, s.mustBePostMerge)
-			if err != nil {
-				return nil, fmt.Errorf("bad header data for block %s: %w", headerRequests[i].Args[0], err)
-			}
-			s.headersCache.Add(info.Hash(), info)
-			out = append(out, info.ID())
-			prev := begin
-			if i > 0 {
-				prev = out[i-1]
-			}
-			if prev.Hash != info.ParentHash() {
-				return nil, fmt.Errorf("inconsistent results from L1 chain range request, block %s not expected parent %s of %s", prev, info.ParentHash(), info.ID())
-			}
-		} else if errors.Is(headerRequests[i].Error, ethereum.NotFound) {
-			break // no more headers from here
-		} else {
-			return nil, fmt.Errorf("failed to retrieve block: %s: %w", headerRequests[i].Args[0], headerRequests[i].Error)
-		}
-	}
-	return out, nil
+	return info, receipts, nil
 }
 
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {

@@ -25,17 +25,10 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         address local = LibRLP.computeAddress(address(L2TokenFactory), 2);
 
         vm.expectEmit(true, true, true, true);
-        emit StandardL2TokenCreated(
-            remote,
-            local
-        );
+        emit StandardL2TokenCreated(remote, local);
 
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableERC20Created(
-            local,
-            remote,
-            alice
-        );
+        emit OptimismMintableERC20Created(local, remote, alice);
 
         vm.prank(alice);
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
@@ -50,17 +43,10 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         address local = LibRLP.computeAddress(address(L2TokenFactory), 3);
 
         vm.expectEmit(true, true, true, true);
-        emit StandardL2TokenCreated(
-            remote,
-            local
-        );
+        emit StandardL2TokenCreated(remote, local);
 
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableERC20Created(
-            local,
-            remote,
-            alice
-        );
+        emit OptimismMintableERC20Created(local, remote, alice);
 
         vm.prank(alice);
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");

@@ -3,3 +3,21 @@ ignore:
   - "l2geth"
   - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+flag_management:
+  # Note: flags should have the same name as the circleci job in which they
+  # are uploaded.
+  individual_flags:
+    - name: bedrock-go-tests
+    - name: contracts-bedrock-tests
+    - name: common-ts-tests
+    - name: contracts-tests
+    - name: core-utils-tests
+    - name: actor-tests-tests
+    - name: contracts-governance-tests
+    - name: contracts-periphery-tests
+    - name: dtl-tests
+    - name: drippie-mon-tests
+    - name: fault-detector-tests
+    - name: message-relayer-tests
+    - name: replica-healthcheck-tests
+    - name: sdk-tests

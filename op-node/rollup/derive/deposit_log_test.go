@@ -23,7 +23,10 @@ func TestUnmarshalLogEvent(t *testing.T) {
 				LogIndex:    uint64(rng.Intn(10000)),
 			}
 			depInput := testutils.GenerateDeposit(source.SourceHash(), rng)
-			log := MarshalDepositLogEvent(MockDepositContractAddr, depInput)
+			log, err := MarshalDepositLogEvent(MockDepositContractAddr, depInput)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			log.TxIndex = uint(rng.Intn(10000))
 			log.Index = uint(source.LogIndex)
@@ -47,8 +50,10 @@ type receiptData struct {
 	DepositLogs []bool
 }
 
-func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr common.Address, testReceipts []receiptData) (receipts []*types.Receipt, expectedDeposits []*types.DepositTx) {
+func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr common.Address, testReceipts []receiptData) ([]*types.Receipt, []*types.DepositTx, error) {
 	logIndex := uint(0)
+	receipts := []*types.Receipt{}
+	expectedDeposits := []*types.DepositTx{}
 	for txIndex, rData := range testReceipts {
 		var logs []*types.Log
 		status := types.ReceiptStatusSuccessful
@@ -57,13 +62,17 @@ func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr com
 		}
 		for _, isDeposit := range rData.DepositLogs {
 			var ev *types.Log
+			var err error
 			if isDeposit {
 				source := UserDepositSource{L1BlockHash: blockHash, LogIndex: uint64(logIndex)}
 				dep := testutils.GenerateDeposit(source.SourceHash(), rng)
 				if status == types.ReceiptStatusSuccessful {
 					expectedDeposits = append(expectedDeposits, dep)
 				}
-				ev = MarshalDepositLogEvent(depositContractAddr, dep)
+				ev, err = MarshalDepositLogEvent(depositContractAddr, dep)
+				if err != nil {
+					return []*types.Receipt{}, []*types.DepositTx{}, err
+				}
 			} else {
 				ev = testutils.GenerateLog(testutils.RandomAddress(rng), nil, nil)
 			}
@@ -82,7 +91,7 @@ func makeReceipts(rng *rand.Rand, blockHash common.Hash, depositContractAddr com
 			TransactionIndex: uint(txIndex),
 		})
 	}
-	return
+	return receipts, expectedDeposits, nil
 }
 
 type DeriveUserDepositsTestCase struct {
@@ -108,7 +117,10 @@ func TestDeriveUserDeposits(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			rng := rand.New(rand.NewSource(1234 + int64(i)))
 			blockHash := testutils.RandomHash(rng)
-			receipts, expectedDeposits := makeReceipts(rng, blockHash, MockDepositContractAddr, testCase.receipts)
+			receipts, expectedDeposits, err := makeReceipts(rng, blockHash, MockDepositContractAddr, testCase.receipts)
+			if err != nil {
+				t.Fatal(err)
+			}
 			got, err := UserDeposits(receipts, MockDepositContractAddr)
 			require.NoError(t, err)
 			require.Equal(t, len(got), len(expectedDeposits))

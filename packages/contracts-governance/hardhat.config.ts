@@ -1,10 +1,13 @@
 import dotenv from 'dotenv'
 import { HardhatUserConfig } from 'hardhat/config'
+import { getenv } from '@eth-optimism/core-utils'
 import '@nomiclabs/hardhat-ethers'
 import '@nomiclabs/hardhat-etherscan'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-gas-reporter'
 import 'solidity-coverage'
+import '@eth-optimism/hardhat-deploy-config'
+import 'hardhat-deploy'
 
 import './scripts/deploy-token'
 import './scripts/multi-send'
@@ -60,12 +63,28 @@ const config: HardhatUserConfig = {
       url: 'http://localhost:8545',
     },
   },
+  paths: {
+    deployConfig: 'deploy-config',
+  },
+  deployConfigSpec: {
+    upgrader: {
+      type: 'address',
+    },
+  },
   gasReporter: {
     enabled: process.env.REPORT_GAS !== undefined,
     currency: 'USD',
   },
   etherscan: {
     apiKey: process.env.ETHERSCAN_API_KEY,
+  },
+  namedAccounts: {
+    deployer: {
+      default: getenv('LEDGER_ADDRESS')
+        ? `ledger://${getenv('LEDGER_ADDRESS')}`
+        : 0,
+      hardhat: 0,
+    },
   },
 }
 

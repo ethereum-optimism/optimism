@@ -15,15 +15,9 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     }
 
     function test_initialize() external {
-        assertEq(
-            address(L2Bridge.messenger()),
-            address(L2Messenger)
-        );
+        assertEq(address(L2Bridge.messenger()), address(L2Messenger));
 
-        assertEq(
-            address(L2Bridge.otherBridge()),
-            address(L1Bridge)
-        );
+        assertEq(address(L2Bridge.otherBridge()), address(L1Bridge));
     }
 
     // receive
@@ -40,7 +34,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // TODO: events from each contract
 
         vm.prank(alice, alice);
-        (bool success,) = address(L2Bridge).call{ value: 100 }(hex"");
+        (bool success, ) = address(L2Bridge).call{ value: 100 }(hex"");
         assertEq(success, true);
         assertEq(address(messagePasser).balance, 100);
     }
@@ -52,12 +46,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
         vm.expectRevert("StandardBridge: bridging ETH must include sufficient ETH value");
         vm.prank(alice, alice);
-        L2Bridge.withdraw(
-            address(Predeploys.LEGACY_ERC20_ETH),
-            100,
-            1000,
-            hex""
-        );
+        L2Bridge.withdraw(address(Predeploys.LEGACY_ERC20_ETH), 100, 1000, hex"");
     }
 
     // withdraw
@@ -70,12 +59,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(L2Token.balanceOf(alice), 100);
 
         vm.prank(alice, alice);
-        L2Bridge.withdraw(
-            address(L2Token),
-            100,
-            1000,
-            hex""
-        );
+        L2Bridge.withdraw(address(L2Token), 100, 1000, hex"");
 
         // TODO: events and calls
 
@@ -87,12 +71,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         deal(address(L2Token), address(this), 100, true);
 
         vm.expectRevert("StandardBridge: function can only be called from an EOA");
-        L2Bridge.withdraw(
-            address(L2Token),
-            100,
-            1000,
-            hex""
-        );
+        L2Bridge.withdraw(address(L2Token), 100, 1000, hex"");
     }
 
     // withdrawTo
@@ -103,13 +82,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         deal(address(L2Token), alice, 100, true);
 
         vm.prank(alice, alice);
-        L2Bridge.withdrawTo(
-            address(L2Token),
-            bob,
-            100,
-            1000,
-            hex""
-        );
+        L2Bridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
 
         // TODO: events and calls
 
@@ -138,23 +111,9 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             hex""
         );
         vm.expectEmit(true, true, true, true, address(L2Bridge));
-        emit DepositFinalized(
-            address(L1Token),
-            address(L2Token),
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        emit DepositFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
         vm.prank(address(L2Messenger));
-        L2Bridge.finalizeDeposit(
-            address(L1Token),
-            address(L2Token),
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        L2Bridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
 
     function test_finalizeBridgeETH_incorrectValueReverts() external {
@@ -166,12 +125,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
         vm.expectRevert("StandardBridge: amount sent does not match amount required");
-        L2Bridge.finalizeBridgeETH{value: 50}(
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        L2Bridge.finalizeBridgeETH{ value: 50 }(alice, alice, 100, hex"");
     }
 
     function test_finalizeBridgeETH_sendToSelfReverts() external {
@@ -183,12 +137,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
         vm.expectRevert("StandardBridge: cannot send to self");
-        L2Bridge.finalizeBridgeETH{value: 100}(
-            alice,
-            address(L2Bridge),
-            100,
-            hex""
-        );
+        L2Bridge.finalizeBridgeETH{ value: 100 }(alice, address(L2Bridge), 100, hex"");
     }
 
     function test_finalizeBridgeETH_sendToMessengerReverts() external {
@@ -200,11 +149,6 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
         vm.expectRevert("StandardBridge: cannot send to messenger");
-        L2Bridge.finalizeBridgeETH{value: 100}(
-            alice,
-            address(L2Messenger),
-            100,
-            hex""
-        );
+        L2Bridge.finalizeBridgeETH{ value: 100 }(alice, address(L2Messenger), 100, hex"");
     }
 }

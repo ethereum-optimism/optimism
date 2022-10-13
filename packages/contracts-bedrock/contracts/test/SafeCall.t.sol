@@ -20,13 +20,9 @@ contract SafeCall_Test is CommonTest {
         vm.assume(to != address(vm));
         vm.assume(from != address(vm));
         // don't call the console
-        vm.assume(
-            to != address(0x000000000000000000636F6e736F6c652e6c6f67)
-        );
+        vm.assume(to != address(0x000000000000000000636F6e736F6c652e6c6f67));
         // don't call the create2 deployer
-        vm.assume(
-            to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C)
-        );
+        vm.assume(to != address(0x4e59b44847b379578588920cA78FbF26c0B4956C));
         // don't send funds to self
         vm.assume(from != to);
 
@@ -34,19 +30,10 @@ contract SafeCall_Test is CommonTest {
         vm.deal(from, value);
         assertEq(from.balance, value, "from balance not dealt");
 
-        vm.expectCall(
-            to,
-            value,
-            data
-        );
+        vm.expectCall(to, value, data);
 
         vm.prank(from);
-        bool success = SafeCall.call(
-            to,
-            gas,
-            value,
-            data
-        );
+        bool success = SafeCall.call(to, gas, value, data);
 
         assertEq(success, true, "call not successful");
         assertEq(to.balance, value, "to balance received");

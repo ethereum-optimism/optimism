@@ -17,10 +17,7 @@ contract Hashing_Test is CommonTest {
             0x1
         );
 
-        assertEq(
-            sourceHash,
-            0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
-        );
+        assertEq(sourceHash, 0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc);
     }
 
     function test_hashCrossDomainMessage_differential(
@@ -65,24 +62,10 @@ contract Hashing_Test is CommonTest {
         bytes memory _data
     ) external {
         bytes32 hash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction(
-                _nonce,
-                _sender,
-                _target,
-                _value,
-                _gasLimit,
-                _data
-            )
+            Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
         );
 
-        bytes32 _hash = ffi.hashWithdrawal(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
+        bytes32 _hash = ffi.hashWithdrawal(_nonce, _sender, _target, _value, _gasLimit, _data);
 
         assertEq(hash, _hash);
     }

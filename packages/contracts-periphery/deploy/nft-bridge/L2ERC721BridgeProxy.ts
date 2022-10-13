@@ -27,6 +27,7 @@ const deployFn: DeployFunction = async (hre) => {
   const goerliDeployer = getAddress(
     '0x5c679a57e018f5f146838138d3e032ef4913d551'
   )
+  const kovanDeployer = getAddress('0xa81224490b9fa4930a2e920550cd1c9106bb6d9e')
   const localDeployer = getAddress('0xdfc82d475833a50de90c642770f34a9db7deb725')
 
   // Deploy the L2ERC721BridgeProxy as a predeploy address
@@ -40,6 +41,10 @@ const deployFn: DeployFunction = async (hre) => {
     }
   } else if (hre.network.name === 'ops-l2') {
     if (getAddress(deployer) !== localDeployer) {
+      throw new Error(`Incorrect deployer: ${deployer}`)
+    }
+  } else if (hre.network.name === 'optimism-kovan') {
+    if (getAddress(deployer) !== kovanDeployer) {
       throw new Error(`Incorrect deployer: ${deployer}`)
     }
   } else {

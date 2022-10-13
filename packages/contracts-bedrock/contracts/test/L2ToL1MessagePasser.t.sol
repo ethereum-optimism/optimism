@@ -9,7 +9,7 @@ import { Hashing } from "../libraries/Hashing.sol";
 contract L2ToL1MessagePasserTest is CommonTest {
     L2ToL1MessagePasser messagePasser;
 
-    event WithdrawalInitiated(
+    event MessagePassed(
         uint256 indexed nonce,
         address indexed sender,
         address indexed target,
@@ -18,11 +18,11 @@ contract L2ToL1MessagePasserTest is CommonTest {
         bytes data
     );
 
-    event WithdrawalInitiatedExtension1(bytes32 indexed hash);
+    event MessagePassedExtension1(bytes32 indexed hash);
 
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
-    function setUp() virtual public {
+    function setUp() public virtual {
         messagePasser = new L2ToL1MessagePasser();
     }
 
@@ -36,14 +36,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         uint256 nonce = messagePasser.nonce();
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
-            nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
+        emit MessagePassed(nonce, _sender, _target, _value, _gasLimit, _data);
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -57,43 +50,23 @@ contract L2ToL1MessagePasserTest is CommonTest {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiatedExtension1(withdrawalHash);
+        emit MessagePassedExtension1(withdrawalHash);
 
         vm.deal(_sender, _value);
         vm.prank(_sender);
-        messagePasser.initiateWithdrawal{ value: _value }(
-            _target,
-            _gasLimit,
-            _data
-        );
+        messagePasser.initiateWithdrawal{ value: _value }(_target, _gasLimit, _data);
 
-        assertEq(
-            messagePasser.sentMessages(withdrawalHash),
-            true
-        );
+        assertEq(messagePasser.sentMessages(withdrawalHash), true);
 
-        bytes32 slot = keccak256(bytes.concat(
-            withdrawalHash,
-            bytes32(0)
-        ));
+        bytes32 slot = keccak256(bytes.concat(withdrawalHash, bytes32(0)));
 
-        assertEq(
-            vm.load(address(messagePasser), slot),
-            bytes32(uint256(1))
-        );
+        assertEq(vm.load(address(messagePasser), slot), bytes32(uint256(1)));
     }
 
     // Test: initiateWithdrawal should emit the correct log when called by a contract
     function test_initiateWithdrawal_fromContract() external {
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
-            messagePasser.nonce(),
-            address(this),
-            address(4),
-            100,
-            64000,
-            hex""
-        );
+        emit MessagePassed(messagePasser.nonce(), address(this), address(4), 100, 64000, hex"");
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction(
@@ -107,14 +80,10 @@ contract L2ToL1MessagePasserTest is CommonTest {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiatedExtension1(withdrawalHash);
+        emit MessagePassedExtension1(withdrawalHash);
 
         vm.deal(address(this), 2**64);
-        messagePasser.initiateWithdrawal{ value: 100 }(
-            address(4),
-            64000,
-            hex""
-        );
+        messagePasser.initiateWithdrawal{ value: 100 }(address(4), 64000, hex"");
     }
 
     // Test: initiateWithdrawal should emit the correct log when called by an EOA
@@ -129,31 +98,13 @@ contract L2ToL1MessagePasserTest is CommonTest {
         vm.prank(alice, alice);
         vm.deal(alice, 2**64);
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(
-            nonce,
-            alice,
-            target,
-            value,
-            gasLimit,
-            data
-        );
+        emit MessagePassed(nonce, alice, target, value, gasLimit, data);
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
-            Types.WithdrawalTransaction(
-                nonce,
-                alice,
-                target,
-                value,
-                gasLimit,
-                data
-            )
+            Types.WithdrawalTransaction(nonce, alice, target, value, gasLimit, data)
         );
 
-        messagePasser.initiateWithdrawal{ value: value }(
-            target,
-            gasLimit,
-            data
-        );
+        messagePasser.initiateWithdrawal{ value: value }(target, gasLimit, data);
 
         // the sent messages mapping is filled
         assertEq(messagePasser.sentMessages(withdrawalHash), true);

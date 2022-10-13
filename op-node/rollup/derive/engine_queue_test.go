@@ -8,12 +8,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type fakeAttributesQueue struct {
@@ -193,7 +194,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	t.Log("refF0", refF0.Hash)
 	t.Log("refF1", refF1.Hash)
 
-	metrics := &TestMetrics{}
+	metrics := &testutils.TestDerivationMetrics{}
 	eng := &testutils.MockEngine{}
 	// we find the common point to initialize to by comparing the L1 origins in the L2 chain with the L1 chain
 	l1F := &testutils.MockL1Source{}
@@ -229,21 +230,21 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	prev := &fakeAttributesQueue{}
 
-	eq := NewEngineQueue(logger, cfg, eng, metrics, prev)
-	require.ErrorIs(t, eq.ResetStep(context.Background(), l1F), io.EOF)
+	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F)
+	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}), io.EOF)
 
 	require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
-	require.Equal(t, refB, eq.Progress().Origin, "Expecting to be set back derivation L1 progress to B")
+	require.Equal(t, refB, eq.Origin(), "Expecting to be set back derivation L1 progress to B")
 	require.Equal(t, refA1, eq.Finalized(), "A1 is recognized as finalized before we run any steps")
 
 	// now say C1 was included in D and became the new safe head
-	eq.progress.Origin = refD
+	eq.origin = refD
 	prev.origin = refD
 	eq.safeHead = refC1
 	eq.postProcessSafeL2()
 
 	// now say D0 was included in E and became the new safe head
-	eq.progress.Origin = refE
+	eq.origin = refE
 	prev.origin = refE
 	eq.safeHead = refD0
 	eq.postProcessSafeL2()

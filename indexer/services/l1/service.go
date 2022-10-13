@@ -11,7 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/indexer/bindings/legacy/scc"
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
+	"github.com/ethereum-optimism/optimism/indexer/services"
+	"github.com/ethereum-optimism/optimism/indexer/services/query"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/server"
@@ -36,27 +39,7 @@ var errNoChainID = errors.New("no chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
 
-// clientRetryInterval is the interval to wait between retrying client API
-// calls.
-var clientRetryInterval = 5 * time.Second
-
 var ZeroAddress common.Address
-
-// HeaderByNumberWithRetry retries the given func until it succeeds, waiting
-// for clientRetryInterval duration after every call.
-func HeaderByNumberWithRetry(ctx context.Context,
-	client *ethclient.Client) (*types.Header, error) {
-	for {
-		res, err := client.HeaderByNumber(ctx, nil)
-		switch err {
-		case nil:
-			return res, err
-		default:
-			log.Error("Error fetching header", "err", err)
-		}
-		time.Sleep(clientRetryInterval)
-	}
-}
 
 // Driver is an interface for indexing deposits from l1.
 type Driver interface {
@@ -70,11 +53,12 @@ type ServiceConfig struct {
 	L1Client           *ethclient.Client
 	RawL1Client        *rpc.Client
 	ChainID            *big.Int
+	AddressManager     services.AddressManager
 	ConfDepth          uint64
 	MaxHeaderBatchSize uint64
 	StartBlockNumber   uint64
-	StartBlockHash     string
 	DB                 *db.Database
+	Bedrock            bool
 }
 
 type Service struct {
@@ -83,11 +67,14 @@ type Service struct {
 	cancel func()
 
 	bridges        map[string]bridge.Bridge
+	portal         *bridge.Portal
+	batchScanner   *scc.StateCommitmentChainFilterer
 	latestHeader   uint64
 	headerSelector *ConfirmedHeaderSelector
 
 	metrics    *metrics.Metrics
 	tokenCache map[common.Address]*db.Token
+	isBedrock  bool
 	wg         sync.WaitGroup
 }
 
@@ -113,11 +100,24 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, fmt.Errorf("chain ID configured with %d but got %d", cfg.ChainID, chainID)
 	}
 
-	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, ctx)
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L1Client, cfg.AddressManager)
 	if err != nil {
 		cancel()
 		return nil, err
 	}
+
+	var portal *bridge.Portal
+	var batchScanner *scc.StateCommitmentChainFilterer
+	if cfg.Bedrock {
+		portal = bridge.NewPortal(cfg.AddressManager)
+	} else {
+		batchScanner, err = bridge.StateCommitmentChainScanner(cfg.L1Client, cfg.AddressManager)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+	}
+
 	logger.Info("Scanning bridges for deposits", "bridges", bridges)
 
 	confirmedHeaderSelector, err := NewConfirmedHeaderSelector(HeaderSelectorConfig{
@@ -130,22 +130,29 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{
+	service := &Service{
 		cfg:            cfg,
 		ctx:            ctx,
 		cancel:         cancel,
+		portal:         portal,
 		bridges:        bridges,
+		batchScanner:   batchScanner,
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
 			ZeroAddress: db.ETHL1Token,
 		},
-	}, nil
+		isBedrock: cfg.Bedrock,
+	}
+	service.wg.Add(1)
+	return service, nil
 }
 
-func (s *Service) Loop(ctx context.Context) {
+func (s *Service) loop() {
+	defer s.wg.Done()
+
 	for {
-		err := s.catchUp(ctx)
+		err := s.catchUp()
 		if err == nil {
 			break
 		}
@@ -159,10 +166,18 @@ func (s *Service) Loop(ctx context.Context) {
 	}
 
 	newHeads := make(chan *types.Header, 1000)
-	go s.subscribeNewHeads(ctx, newHeads)
+	tick := time.NewTicker(5 * time.Second)
+	defer tick.Stop()
 
 	for {
 		select {
+		case <-tick.C:
+			header, err := query.HeaderByNumberWithRetry(s.ctx, s.cfg.L1Client)
+			if err != nil {
+				logger.Error("error fetching header by number", "err", err)
+				continue
+			}
+			newHeads <- header
 		case header := <-newHeads:
 			if header == nil {
 				break
@@ -180,6 +195,7 @@ func (s *Service) Loop(ctx context.Context) {
 				}
 			}
 		case <-s.ctx.Done():
+			logger.Info("service stopped")
 			return
 		}
 	}
@@ -188,7 +204,6 @@ func (s *Service) Loop(ctx context.Context) {
 func (s *Service) Update(newHeader *types.Header) error {
 	var lowest = db.BlockLocator{
 		Number: s.cfg.StartBlockNumber,
-		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
 	highestConfirmed, err := s.cfg.DB.GetHighestL1Block()
 	if err != nil {
@@ -213,7 +228,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		return nil
 	}
 
-	if lowest.Hash != headers[0].ParentHash {
+	if lowest.Number > 0 && lowest.Hash != headers[0].ParentHash {
 		logger.Error("Parent hash does not connect to ",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash,
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
@@ -223,7 +238,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
 	depositsByBlockHash := make(map[common.Hash][]db.Deposit)
-	withdrawalsByBlockHash := make(map[common.Hash][]db.Withdrawal)
 
 	start := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l1"))
 	defer func() {
@@ -232,27 +246,27 @@ func (s *Service) Update(newHeader *types.Header) error {
 	}()
 
 	bridgeDepositsCh := make(chan bridge.DepositsMap, len(s.bridges))
-	bridgeWdsCh := make(chan bridge.WithdrawalsMap, len(s.bridges))
-	errCh := make(chan error, len(s.bridges))
+	finalizedWithdrawalsCh := make(chan bridge.FinalizedWithdrawalsMap, 1)
+	errCh := make(chan error, len(s.bridges)+1)
 
 	for _, bridgeImpl := range s.bridges {
 		go func(b bridge.Bridge) {
-			deposits, err := b.GetDepositsByBlockRange(startHeight, endHeight)
+			deposits, err := b.GetDepositsByBlockRange(s.ctx, startHeight, endHeight)
 			if err != nil {
 				errCh <- err
 				return
 			}
 			bridgeDepositsCh <- deposits
 		}(bridgeImpl)
-		go func(b bridge.Bridge) {
-			withdrawals, err := b.GetWithdrawalsByBlockRange(startHeight, endHeight)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			bridgeWdsCh <- withdrawals
-		}(bridgeImpl)
 	}
+	go func() {
+		finalizedWithdrawals, err := s.portal.GetFinalizedWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		finalizedWithdrawalsCh <- finalizedWithdrawals
+	}()
 
 	var receives int
 	for {
@@ -260,30 +274,31 @@ func (s *Service) Update(newHeader *types.Header) error {
 		case bridgeDeposits := <-bridgeDepositsCh:
 			for blockHash, deposits := range bridgeDeposits {
 				for _, deposit := range deposits {
-					if err := s.cacheToken(deposit.L1Token); err != nil {
+					if err := s.cacheToken(deposit); err != nil {
 						logger.Warn("error caching token", "err", err)
 					}
 				}
 
 				depositsByBlockHash[blockHash] = append(depositsByBlockHash[blockHash], deposits...)
 			}
-		case bridgeWithdrawals := <-bridgeWdsCh:
-			for blockHash, withdrawals := range bridgeWithdrawals {
-				for _, withdrawal := range withdrawals {
-					if err := s.cacheToken(withdrawal.L1Token); err != nil {
-						logger.Warn("error caching token", "err", err)
-					}
-				}
-
-				withdrawalsByBlockHash[blockHash] = append(withdrawalsByBlockHash[blockHash], withdrawals...)
-			}
 		case err := <-errCh:
 			return err
 		}
 
 		receives++
-		if receives == 2*len(s.bridges) {
+		if receives == len(s.bridges) {
 			break
+		}
+	}
+
+	finalizedWithdrawalsByBlockHash := <-finalizedWithdrawalsCh
+
+	var stateBatches map[common.Hash][]db.StateBatch
+	if !s.isBedrock {
+		stateBatches, err = QueryStateBatches(s.batchScanner, startHeight, endHeight, s.ctx)
+		if err != nil {
+			logger.Error("Error querying state batches", "err", err)
+			return err
 		}
 	}
 
@@ -291,19 +306,22 @@ func (s *Service) Update(newHeader *types.Header) error {
 		blockHash := header.Hash
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
-		withdrawals := withdrawalsByBlockHash[blockHash]
+		batches := stateBatches[blockHash]
+		finalizedWds := finalizedWithdrawalsByBlockHash[blockHash]
 
-		if len(deposits) == 0 && len(withdrawals) == 0 && i != len(headers)-1 {
+		// Always record block data in the last block
+		// in the list of headers
+		if len(deposits) == 0 && len(batches) == 0 && len(finalizedWds) == 0 && i != len(headers)-1 {
 			continue
 		}
 
 		block := &db.IndexedL1Block{
-			Hash:        blockHash,
-			ParentHash:  header.ParentHash,
-			Number:      number,
-			Timestamp:   header.Time,
-			Deposits:    deposits,
-			Withdrawals: withdrawals,
+			Hash:                 blockHash,
+			ParentHash:           header.ParentHash,
+			Number:               number,
+			Timestamp:            header.Time,
+			Deposits:             deposits,
+			FinalizedWithdrawals: finalizedWds,
 		}
 
 		err := s.cfg.DB.AddIndexedL1Block(block)
@@ -311,24 +329,35 @@ func (s *Service) Update(newHeader *types.Header) error {
 			logger.Error(
 				"Unable to import ",
 				"block", number,
-				"hash", blockHash,
-				"err", err,
+				"hash", blockHash, "err", err,
 				"block", block,
 			)
 			return err
 		}
 
+		err = s.cfg.DB.AddStateBatch(batches)
+		if err != nil {
+			logger.Error(
+				"Unable to import state append batch",
+				"block", number,
+				"hash", blockHash, "err", err,
+				"block", block,
+			)
+			return err
+		}
+		s.metrics.RecordStateBatches(len(batches))
+
 		logger.Debug("Imported ",
 			"block", number, "hash", blockHash, "deposits", len(block.Deposits))
 		for _, deposit := range block.Deposits {
-			token := s.tokenCache[deposit.L2Token]
+			token := s.tokenCache[deposit.L1Token]
 			logger.Info(
-				"indexed deposit ",
+				"indexed deposit",
 				"tx_hash", deposit.TxHash,
 				"symbol", token.Symbol,
 				"amount", deposit.Amount,
 			)
-			s.metrics.RecordDeposit(deposit.L2Token)
+			s.metrics.RecordDeposit(deposit.L1Token)
 		}
 	}
 
@@ -383,8 +412,8 @@ func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	}
 
 	page := db.PaginationParam{
-		Limit:  uint64(limit),
-		Offset: uint64(offset),
+		Limit:  limit,
+		Offset: offset,
 	}
 
 	deposits, err := s.cfg.DB.GetDepositsByAddress(common.HexToAddress(vars["address"]), page)
@@ -396,25 +425,8 @@ func (s *Service) GetDeposits(w http.ResponseWriter, r *http.Request) {
 	server.RespondWithJSON(w, http.StatusOK, deposits)
 }
 
-func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Header) {
-	tick := time.NewTicker(5 * time.Second)
-
-	for {
-		select {
-		case <-tick.C:
-			header, err := HeaderByNumberWithRetry(ctx, s.cfg.L1Client)
-			if err != nil {
-				logger.Error("error fetching header by number", "err", err)
-			}
-			heads <- header
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *Service) catchUp(ctx context.Context) error {
-	realHead, err := HeaderByNumberWithRetry(ctx, s.cfg.L1Client)
+func (s *Service) catchUp() error {
+	realHead, err := query.HeaderByNumberWithRetry(s.ctx, s.cfg.L1Client)
 	if err != nil {
 		return err
 	}
@@ -438,8 +450,8 @@ func (s *Service) catchUp(ctx context.Context) error {
 
 	for realHeadNum-s.cfg.ConfDepth > currHeadNum+s.cfg.MaxHeaderBatchSize {
 		select {
-		case <-ctx.Done():
-			return context.Canceled
+		case <-s.ctx.Done():
+			return s.ctx.Err()
 		default:
 			if err := s.Update(realHead); err != nil && err != errNoNewBlocks {
 				return err
@@ -457,33 +469,33 @@ func (s *Service) catchUp(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) cacheToken(address common.Address) error {
-	if s.tokenCache[address] != nil {
+func (s *Service) cacheToken(deposit db.Deposit) error {
+	if s.tokenCache[deposit.L1Token] != nil {
 		return nil
 	}
 
-	token, err := s.cfg.DB.GetL1TokenByAddress(address.String())
+	token, err := s.cfg.DB.GetL1TokenByAddress(deposit.L1Token.String())
 	if err != nil {
 		return err
 	}
 	if token != nil {
 		s.metrics.IncL1CachedTokensCount()
-		s.tokenCache[address] = token
+		s.tokenCache[deposit.L1Token] = token
 		return nil
 	}
 
-	token, err = QueryERC20(address, s.cfg.L1Client)
+	token, err = query.NewERC20(deposit.L1Token, s.cfg.L1Client)
 	if err != nil {
 		logger.Error("Error querying ERC20 token details",
-			"l1_token", address.String(), "err", err)
+			"l1_token", deposit.L1Token.String(), "err", err)
 		token = &db.Token{
-			Address: address.String(),
+			Address: deposit.L1Token.String(),
 		}
 	}
-	if err := s.cfg.DB.AddL1Token(address.String(), token); err != nil {
+	if err := s.cfg.DB.AddL1Token(deposit.L1Token.String(), token); err != nil {
 		return err
 	}
-	s.tokenCache[address] = token
+	s.tokenCache[deposit.L1Token] = token
 	s.metrics.IncL1CachedTokensCount()
 	return nil
 }
@@ -492,16 +504,11 @@ func (s *Service) Start() error {
 	if s.cfg.ChainID == nil {
 		return errNoChainID
 	}
-	s.wg.Add(1)
-	go s.Loop(s.ctx)
+	go s.loop()
 	return nil
 }
 
 func (s *Service) Stop() {
 	s.cancel()
 	s.wg.Wait()
-	err := s.cfg.DB.Close()
-	if err != nil {
-		logger.Error("Error closing db", "err", err)
-	}
 }

@@ -26,12 +26,6 @@ import (
 // It is internally responsible for making sure that batches with L1 inclusions block outside it's
 // working range are not considered or pruned.
 
-type BatchQueueOutput interface {
-	StageProgress
-	AddBatch(batch *BatchData)
-	SafeL2Head() eth.L2BlockRef
-}
-
 type NextBatchProvider interface {
 	Origin() eth.L1BlockRef
 	NextBatch(ctx context.Context) (*BatchData, error)
@@ -154,7 +148,7 @@ func (bq *BatchQueue) deriveNextBatch(ctx context.Context, outOfData bool, l2Saf
 	epoch := bq.l1Blocks[0]
 
 	if l2SafeHead.L1Origin != epoch.ID() {
-		return nil, NewResetError(fmt.Errorf("buffered L1 chain epoch %s in batch queue does not match safe head %s", epoch, l2SafeHead))
+		return nil, NewResetError(fmt.Errorf("buffered L1 chain epoch %s in batch queue does not match safe head origin %s", epoch, l2SafeHead.L1Origin))
 	}
 
 	// Find the first-seen batch that matches all validity conditions.

@@ -3,9 +3,9 @@ module github.com/ethereum-optimism/optimism/op-proposer
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.8.8
-	github.com/ethereum-optimism/optimism/op-node v0.8.8
-	github.com/ethereum-optimism/optimism/op-service v0.8.8
+	github.com/ethereum-optimism/optimism/op-bindings v0.8.10
+	github.com/ethereum-optimism/optimism/op-node v0.8.10
+	github.com/ethereum-optimism/optimism/op-service v0.8.10
 	github.com/ethereum/go-ethereum v1.10.23
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.8.0

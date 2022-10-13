@@ -130,22 +130,20 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeWithSelector(
-                L2OutputOracle.initialize.selector,
-                genesisL2Output,
-                startingBlockNumber,
-                proposer,
-                owner
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (
+                    genesisL2Output,
+                    proposer,
+                    owner
+                )
             )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
 
         // Set the L2ToL1MessagePasser at the correct address
-        vm.etch(
-            Predeploys.L2_TO_L1_MESSAGE_PASSER,
-            address(new L2ToL1MessagePasser()).code
-        );
+        vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
 
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
     }
@@ -185,12 +183,9 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         uint256 gasLimit
     );
 
-    event SentMessageExtension1(
-        address indexed sender,
-        uint256 value
-    );
+    event SentMessageExtension1(address indexed sender, uint256 value);
 
-    event WithdrawalInitiated(
+    event MessagePassed(
         uint256 indexed nonce,
         address indexed sender,
         address indexed target,
@@ -273,12 +268,7 @@ contract Bridge_Initializer is Messenger_Initializer {
     ERC20 BadL2Token;
     OptimismMintableERC20 RemoteL1Token;
 
-    event ETHDepositInitiated(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data
-    );
+    event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes data);
 
     event ETHWithdrawalFinalized(
         address indexed from,
@@ -332,19 +322,9 @@ contract Bridge_Initializer is Messenger_Initializer {
         bytes data
     );
 
-    event ETHBridgeInitiated(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data
-    );
+    event ETHBridgeInitiated(address indexed from, address indexed to, uint256 amount, bytes data);
 
-    event ETHBridgeFinalized(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data
-    );
+    event ETHBridgeFinalized(address indexed from, address indexed to, uint256 amount, bytes data);
 
     event ERC20BridgeInitiated(
         address indexed localToken,
@@ -356,15 +336,6 @@ contract Bridge_Initializer is Messenger_Initializer {
     );
 
     event ERC20BridgeFinalized(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
-    );
-
-    event ERC20BridgeFailed(
         address indexed localToken,
         address indexed remoteToken,
         address indexed from,
@@ -409,9 +380,7 @@ contract Bridge_Initializer is Messenger_Initializer {
             Predeploys.L2_STANDARD_BRIDGE
         );
         vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY, address(factory).code);
-        L2TokenFactory = OptimismMintableERC20Factory(
-            Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY
-        );
+        L2TokenFactory = OptimismMintableERC20Factory(Predeploys.OPTIMISM_MINTABLE_ERC20_FACTORY);
 
         vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
@@ -580,9 +549,10 @@ contract FFIInterface is Test {
         return abi.decode(result, (bytes32));
     }
 
-    function encodeDepositTransaction(
-        Types.UserDepositTransaction calldata txn
-    ) external returns (bytes memory) {
+    function encodeDepositTransaction(Types.UserDepositTransaction calldata txn)
+        external
+        returns (bytes memory)
+    {
         string[] memory cmds = new string[](12);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
@@ -660,18 +630,19 @@ contract Reverter {
 
 // Useful for testing reentrancy guards
 contract CallerCaller {
-    event WhatHappened(
-        bool success,
-        bytes returndata
-    );
+    event WhatHappened(bool success, bytes returndata);
 
     fallback() external {
         (bool success, bytes memory returndata) = msg.sender.call(msg.data);
         emit WhatHappened(success, returndata);
         assembly {
             switch success
-            case 0 { revert(add(returndata, 0x20), mload(returndata)) }
-            default { return(add(returndata, 0x20), mload(returndata)) }
+            case 0 {
+                revert(add(returndata, 0x20), mload(returndata))
+            }
+            default {
+                return(add(returndata, 0x20), mload(returndata))
+            }
         }
     }
 }

@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 // isDepositTx checks an opaqueTx to determine if it is a Deposit Transaction
@@ -68,9 +69,13 @@ func sanityCheckPayload(payload *eth.ExecutionPayload) error {
 type BlockInsertionErrType uint
 
 const (
+	// BlockInsertOK indicates that the payload was successfully executed and appended to the canonical chain.
 	BlockInsertOK BlockInsertionErrType = iota
+	// BlockInsertTemporaryErr indicates that the insertion failed but may succeed at a later time without changes to the payload.
 	BlockInsertTemporaryErr
+	// BlockInsertPrestateErr indicates that the pre-state to insert the payload could not be prepared, e.g. due to missing chain data.
 	BlockInsertPrestateErr
+	// BlockInsertPayloadErr indicates that the payload was invalid and cannot become canonical.
 	BlockInsertPayloadErr
 )
 
@@ -80,37 +85,53 @@ const (
 // If updateSafe is true, the head block is considered to be the safe head as well as the head.
 // It returns the payload, an RPC error (if the payload might still be valid), and a payload error (if the payload was not valid)
 func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+	id, errTyp, err := StartPayload(ctx, eng, fc, attrs)
+	if err != nil {
+		return nil, errTyp, err
+	}
+	return ConfirmPayload(ctx, log, eng, fc, id, updateSafe)
+}
+
+// StartPayload starts an execution payload building process in the provided Engine, with the given attributes.
+// The severity of the error is distinguished to determine whether the same payload attributes may be re-attempted later.
+func StartPayload(ctx context.Context, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes) (id eth.PayloadID, errType BlockInsertionErrType, err error) {
 	fcRes, err := eng.ForkchoiceUpdate(ctx, &fc, attrs)
 	if err != nil {
 		var inputErr eth.InputError
 		if errors.As(err, &inputErr) {
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
-				return nil, BlockInsertPrestateErr, fmt.Errorf("pre-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
+				return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("pre-block-creation forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap())
 			case eth.InvalidPayloadAttributes:
-				return nil, BlockInsertPayloadErr, fmt.Errorf("payload attributes are not valid, cannot build block: %w", inputErr.Unwrap())
+				return eth.PayloadID{}, BlockInsertPayloadErr, fmt.Errorf("payload attributes are not valid, cannot build block: %w", inputErr.Unwrap())
 			default:
-				return nil, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
+				return eth.PayloadID{}, BlockInsertPrestateErr, fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err)
 			}
 		} else {
-			return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to create new block via forkchoice: %w", err)
+			return eth.PayloadID{}, BlockInsertTemporaryErr, fmt.Errorf("failed to create new block via forkchoice: %w", err)
 		}
 	}
 
 	switch fcRes.PayloadStatus.Status {
 	// TODO(proto): snap sync - specify explicit different error type if node is syncing
 	case eth.ExecutionInvalid, eth.ExecutionInvalidBlockHash:
-		return nil, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+		return eth.PayloadID{}, BlockInsertPayloadErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	case eth.ExecutionValid:
-		break
+		id := fcRes.PayloadID
+		if id == nil {
+			return eth.PayloadID{}, BlockInsertTemporaryErr, errors.New("nil id in forkchoice result when expecting a valid ID")
+		}
+		return *id, BlockInsertOK, nil
 	default:
-		return nil, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
+		return eth.PayloadID{}, BlockInsertTemporaryErr, eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)
 	}
-	id := fcRes.PayloadID
-	if id == nil {
-		return nil, BlockInsertTemporaryErr, errors.New("nil id in forkchoice result when expecting a valid ID")
-	}
-	payload, err := eng.GetPayload(ctx, *id)
+}
+
+// ConfirmPayload ends an execution payload building process in the provided Engine, and persists the payload as the canonical head.
+// If updateSafe is true, then the payload will also be recognized as safe-head at the same time.
+// The severity of the error is distinguished to determine whether the payload was valid and can become canonical.
+func ConfirmPayload(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, id eth.PayloadID, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+	payload, err := eng.GetPayload(ctx, id)
 	if err != nil {
 		// even if it is an input-error (unknown payload ID), it is temporary, since we will re-attempt the full payload building, not just the retrieval of the payload.
 		return nil, BlockInsertTemporaryErr, fmt.Errorf("failed to get execution payload: %w", err)
@@ -134,7 +155,7 @@ func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.For
 	if updateSafe {
 		fc.SafeBlockHash = payload.BlockHash
 	}
-	fcRes, err = eng.ForkchoiceUpdate(ctx, &fc, nil)
+	fcRes, err := eng.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		var inputErr eth.InputError
 		if errors.As(err, &inputErr) {
