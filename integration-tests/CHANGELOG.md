@@ -1,5 +1,11 @@
 # @eth-optimism/integration-tests
 
+## 0.5.21
+
+### Patch Changes
+
+- a3242d4f: Fix erc721 factory to match erc21 factory
+
 ## 0.5.20
 
 ### Patch Changes
