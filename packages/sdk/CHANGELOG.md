@@ -1,5 +1,16 @@
 # @eth-optimism/sdk
 
+## 1.6.7
+
+### Patch Changes
+
+- b40913b1: Adds contract addresses for the Bedrock Alpha testnet
+- a5e715c3: Rename the event emitted in the L2ToL1MessagePasser
+- Updated dependencies [35a7bb5e]
+- Updated dependencies [a5e715c3]
+- Updated dependencies [d18b8aa3]
+  - @eth-optimism/contracts-bedrock@0.8.1
+
 ## 1.6.6
 
 ### Patch Changes

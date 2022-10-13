@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.11.0
+
+### Minor Changes
+
+- b3c5eeec: Fixed JSON-RPC 2.0 specification compliance by adding the optional data field on an RPCError
+- 01ae6625: Adds new Redis rate limiter
+
 ## 3.10.2
 
 ### Patch Changes
