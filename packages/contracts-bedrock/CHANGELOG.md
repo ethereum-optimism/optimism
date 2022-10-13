@@ -1,5 +1,13 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.8.1
+
+### Patch Changes
+
+- 35a7bb5e: Use uint64 for arithmetic in XDM's baseGas
+- a5e715c3: Rename the event emitted in the L2ToL1MessagePasser
+- d18b8aa3: Removes an unnecessary initializer parameter in the L200
+
 ## 0.8.0
 
 ### Minor Changes

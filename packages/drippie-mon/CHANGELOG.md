@@ -1,5 +1,17 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.18
+
+### Patch Changes
+
+- Updated dependencies [b40913b1]
+- Updated dependencies [a5e715c3]
+- Updated dependencies [e81a6ff5]
+- Updated dependencies [a3242d4f]
+- Updated dependencies [ffa5297e]
+  - @eth-optimism/sdk@1.6.7
+  - @eth-optimism/contracts-periphery@1.0.2
+
 ## 0.3.17
 
 ### Patch Changes
