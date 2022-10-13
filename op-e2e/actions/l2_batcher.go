@@ -127,14 +127,22 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 	}
 }
 
-// ActL2BatchSubmit constructs a batch tx from previous buffered L2 blocks, and submits it to L1
-func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
+func (s *L2Batcher) ActL2ChannelClose(t Testing) {
 	// Don't run this action if there's no data to submit
-	if s.l2ChannelOut == nil || s.l2ChannelOut.ReadyBytes() == 0 {
+	if s.l2ChannelOut == nil {
 		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
 		return
 	}
 	require.NoError(t, s.l2ChannelOut.Close(), "must close channel before submitting it")
+}
+
+// ActL2BatchSubmit constructs a batch tx from previous buffered L2 blocks, and submits it to L1
+func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
+	// Don't run this action if there's no data to submit
+	if s.l2ChannelOut == nil {
+		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
+		return
+	}
 	// Collect the output frame
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)

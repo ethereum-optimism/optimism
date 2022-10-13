@@ -58,6 +58,7 @@ func TestBatcher(gt *testing.T) {
 
 	// batch submit to L1
 	batcher.ActL2BatchBuffer(t)
+	batcher.ActL2ChannelClose(t)
 	batcher.ActL2BatchSubmit(t)
 
 	// confirm batch on L1
