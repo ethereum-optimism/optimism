@@ -17,8 +17,8 @@ var (
 	errLegacyStorageSlotNotFound = errors.New("cannot find storage slot")
 )
 
-// This takes a state db and a list of withdrawals
-func MigrateWithdrawals(withdrawals []*PendingWithdrawal, db vm.StateDB) error {
+// MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
+func MigrateWithdrawals(withdrawals []*PendingWithdrawal, db vm.StateDB, l1CrossDomainMessenger, l1StandardBridge *common.Address) error {
 	for _, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
@@ -30,8 +30,7 @@ func MigrateWithdrawals(withdrawals []*PendingWithdrawal, db vm.StateDB) error {
 			return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacyValue)
 		}
 
-		// TODO: pass in args
-		withdrawal, err := MigrateWithdrawal(&legacy.LegacyWithdrawal, &common.Address{}, &common.Address{})
+		withdrawal, err := MigrateWithdrawal(&legacy.LegacyWithdrawal, l1CrossDomainMessenger, l1StandardBridge)
 		if err != nil {
 			return err
 		}
@@ -52,6 +51,11 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger, l1S
 	value := new(big.Int)
 
 	isFromL2StandardBridge := *withdrawal.Sender == predeploys.L2StandardBridgeAddr
+
+	if withdrawal.Target == nil {
+		return nil, errors.New("withdrawal target cannot be nil")
+	}
+
 	isToL1StandardBridge := *withdrawal.Target == *l1StandardBridge
 
 	if isFromL2StandardBridge && isToL1StandardBridge {
