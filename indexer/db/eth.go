@@ -1,6 +1,9 @@
 package db
 
-import "github.com/ethereum/go-ethereum/common"
+import (
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum/go-ethereum/common"
+)
 
 var ETHL1Address common.Address
 
@@ -13,14 +16,10 @@ var ETHL1Token = &Token{
 	Decimals: 18,
 }
 
-// ETHL2Address is a placeholder address for differentiating ETH transactions
-// from ERC20 transactions on L2.
-var ETHL2Address = common.HexToAddress("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000")
-
 // ETHL2Token is a placeholder token for differentiating ETH transactions from
 // ERC20 transactions on L2.
 var ETHL2Token = &Token{
-	Address:  ETHL2Address.String(),
+	Address:  predeploys.LegacyERC20ETH,
 	Name:     "Ethereum",
 	Symbol:   "ETH",
 	Decimals: 18,

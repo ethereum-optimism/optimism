@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.3.3
+
+### Patch Changes
+
+- 3f485627: Pin slither version to 0.9.0
+
 ## 0.3.2
 
 ### Patch Changes

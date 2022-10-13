@@ -114,12 +114,13 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 
-		receipts, depositTxs := makeReceipts(rng, l1Info.InfoHash, cfg.DepositContractAddress, []receiptData{
+		receipts, depositTxs, err := makeReceipts(rng, l1Info.InfoHash, cfg.DepositContractAddress, []receiptData{
 			{goodReceipt: true, DepositLogs: []bool{true, false}},
 			{goodReceipt: true, DepositLogs: []bool{true}},
 			{goodReceipt: false, DepositLogs: []bool{true}},
 			{goodReceipt: false, DepositLogs: []bool{false}},
 		})
+		require.NoError(t, err)
 		usedDepositTxs, err := encodeDeposits(depositTxs)
 		require.NoError(t, err)
 

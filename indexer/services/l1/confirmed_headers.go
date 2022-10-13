@@ -17,9 +17,8 @@ import (
 )
 
 const (
-	DefaultConnectionTimeout        = 30 * time.Second
-	DefaultConfDepth         uint64 = 20
-	DefaultMaxBatchSize             = 100
+	DefaultConnectionTimeout = 30 * time.Second
+	DefaultMaxBatchSize      = 100
 )
 
 type NewHeader struct {

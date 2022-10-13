@@ -57,22 +57,14 @@ type RedisBackendRateLimiter struct {
 	tkMtx     sync.Mutex
 }
 
-func NewRedisRateLimiter(url string) (BackendRateLimiter, error) {
-	opts, err := redis.ParseURL(url)
-	if err != nil {
-		return nil, err
-	}
-	rdb := redis.NewClient(opts)
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		return nil, wrapErr(err, "error connecting to redis")
-	}
+func NewRedisRateLimiter(rdb *redis.Client) BackendRateLimiter {
 	out := &RedisBackendRateLimiter{
 		rdb:       rdb,
 		randID:    randStr(20),
 		touchKeys: make(map[string]time.Duration),
 	}
 	go out.touch()
-	return out, nil
+	return out
 }
 
 func (r *RedisBackendRateLimiter) IsBackendOnline(name string) (bool, error) {

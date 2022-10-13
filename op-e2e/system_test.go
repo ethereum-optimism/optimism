@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -57,7 +58,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
 	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 
 	//  OutputOracle is already deployed
 	l2OutputOracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
@@ -212,7 +213,7 @@ func TestSystemE2E(t *testing.T) {
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["sequencer"].HTTPEndpoint())
 	require.Nil(t, err)
-	rollupClient := sources.NewRollupClient(rollupRPCClient)
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
 	// basic check that sync status works
 	seqStatus, err := rollupClient.SyncStatus(context.Background())
 	require.Nil(t, err)

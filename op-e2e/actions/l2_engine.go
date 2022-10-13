@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/beacon"
@@ -21,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
@@ -128,6 +131,12 @@ func (e *L2Engine) RPCClient() client.RPC {
 			return err
 		},
 	}
+}
+
+func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
+	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
+	require.NoError(t, err)
+	return l2Cl
 }
 
 // ActL2RPCFail makes the next L2 RPC request fail

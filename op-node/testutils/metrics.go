@@ -34,3 +34,9 @@ func (t *TestDerivationMetrics) RecordUnsafePayloadsBuffer(length uint64, memSiz
 		t.FnRecordUnsafePayloads(length, memSize, next)
 	}
 }
+
+type TestRPCMetrics struct{}
+
+func (n *TestRPCMetrics) RecordRPCServerRequest(method string) func() {
+	return func() {}
+}

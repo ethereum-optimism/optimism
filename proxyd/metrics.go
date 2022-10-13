@@ -236,6 +236,12 @@ var (
 			100,
 		},
 	})
+
+	frontendRateLimitTakeErrors = promauto.NewCounter(prometheus.CounterOpts{
+		Namespace: MetricsNamespace,
+		Name:      "rate_limit_take_errors",
+		Help:      "Count of errors taking frontend rate limits",
+	})
 )
 
 func RecordRedisError(source string) {
