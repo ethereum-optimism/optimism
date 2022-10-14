@@ -71,9 +71,9 @@ library Hashing {
             return hashCrossDomainMessageV0(_target, _sender, _data, _nonce);
         } else if (version == 1) {
             return hashCrossDomainMessageV1(_nonce, _sender, _target, _value, _gasLimit, _data);
-        } else {
-            revert("Hashing: unknown cross domain message version");
         }
+        // Should be unreachable as the version number is hardcoded into the CrossDomainMessenger.
+        assert(false);
     }
 
     /**
