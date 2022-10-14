@@ -5,19 +5,31 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { Types } from "../libraries/Types.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
-contract Encoding_Test is CommonTest {
+contract Encoding_TestInit is CommonTest {
     function setUp() external {
         _setUp();
     }
+}
 
-    function test_nonceVersioning(uint240 _nonce, uint16 _version) external {
+contract Encoding_EncodeVersionedNonce_TestFail is Encoding_TestInit {
+    // none
+}
+
+contract Encoding_EncodeVersionedNonce_Test is Encoding_TestInit {
+    function test_encodeVersionedNonce_succeeds(uint240 _nonce, uint16 _version) external {
         (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(
             Encoding.encodeVersionedNonce(_nonce, _version)
         );
         assertEq(version, _version);
         assertEq(nonce, _nonce);
     }
+}
 
+contract Encoding_DecodeVersionedNonce_TestFail is Encoding_TestInit {
+    // none
+}
+
+contract Encoding_DecodeVersionedNonce_Test is Encoding_TestInit {
     function test_decodeVersionedNonce_differential(uint240 _nonce, uint16 _version) external {
         uint256 nonce = uint256(Encoding.encodeVersionedNonce(_nonce, _version));
         (uint256 decodedNonce, uint256 decodedVersion) = ffi.decodeVersionedNonce(nonce);
@@ -26,7 +38,25 @@ contract Encoding_Test is CommonTest {
 
         assertEq(_nonce, uint240(decodedNonce));
     }
+}
 
+contract Encoding_EncodeCrossDomainMessage_TestFail is Encoding_TestInit {
+    function test_encodeCrossDomainMessage_invalidVersion_reverts() external {
+        uint8 version = 3;
+        uint256 nonce = Encoding.encodeVersionedNonce(101, version);
+        vm.expectRevert("Encoding: unknown cross domain message version");
+        Encoding.encodeCrossDomainMessage(
+            nonce,
+            alice,
+            bob,
+            NON_ZERO_VALUE,
+            NON_ZERO_GASLIMIT,
+            NON_ZERO_DATA
+        );
+    }
+}
+
+contract Encoding_EncodeCrossDomainMessage_Test is Encoding_TestInit {
     function test_encodeCrossDomainMessage_differential(
         uint240 _nonce,
         uint8 _version,
@@ -59,7 +89,13 @@ contract Encoding_Test is CommonTest {
 
         assertEq(encoding, _encoding);
     }
+}
 
+contract Encoding_EncodeDepositTransaction_TestFail is Encoding_TestInit {
+    // none
+}
+
+contract Encoding_EncodeDepositTransaction_Test is Encoding_TestInit {
     function test_encodeDepositTransaction_differential(
         address _from,
         address _to,
