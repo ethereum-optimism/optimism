@@ -59,8 +59,7 @@ func (bq *BatchQueue) Origin() eth.L1BlockRef {
 }
 
 func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) (*BatchData, error) {
-	originBehind := bq.origin.Number < safeL2Head.L1Origin.Number
-
+	originBehind := bq.origin.Number < (safeL2Head.L1Origin.Number - 1)
 	// Advance origin if needed
 	// Note: The entire pipeline has the same origin
 	// We just don't accept batches prior to the L1 origin of the L2 safe head
