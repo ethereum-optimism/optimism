@@ -6,7 +6,8 @@ import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 import { L1Block } from "../L2/L1Block.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 
-contract GasPriceOracle_Test is CommonTest {
+contract GasPriceOracle_TestInit is CommonTest {
+
     event OverheadUpdated(uint256);
     event ScalarUpdated(uint256);
     event DecimalsUpdated(uint256);
@@ -37,27 +38,12 @@ contract GasPriceOracle_Test is CommonTest {
         vm.prank(depositor);
         l1Block.setL1BlockValues(number, timestamp, basefee, hash, sequenceNumber);
     }
+}
 
+contract GasPriceOracle_Getters_Test is GasPriceOracle_TestInit {
     function test_owner() external {
         // alice is passed into the constructor of the gasOracle
         assertEq(gasOracle.owner(), alice);
-    }
-
-    function test_storageLayout() external {
-        // the overhead is at slot 3
-        vm.prank(gasOracle.owner());
-        gasOracle.setOverhead(456);
-        assertEq(456, uint256(vm.load(address(gasOracle), bytes32(uint256(3)))));
-
-        // scalar is at slot 4
-        vm.prank(gasOracle.owner());
-        gasOracle.setScalar(333);
-        assertEq(333, uint256(vm.load(address(gasOracle), bytes32(uint256(4)))));
-
-        // decimals is at slot 5
-        vm.prank(gasOracle.owner());
-        gasOracle.setDecimals(222);
-        assertEq(222, uint256(vm.load(address(gasOracle), bytes32(uint256(5)))));
     }
 
     function test_l1BaseFee() external {
@@ -76,8 +62,42 @@ contract GasPriceOracle_Test is CommonTest {
         uint256 gasPrice = gasOracle.baseFee();
         assertEq(gasPrice, 64);
     }
+}
 
-    function test_setGasPriceReverts() external {
+contract GasPriceOracle_Layout_Test is GasPriceOracle_TestInit {
+    function test_setOverhead_layout_succeeds() external {
+        // the overhead is at slot 3
+        vm.prank(gasOracle.owner());
+        gasOracle.setOverhead(456);
+        assertEq(
+            456,
+            uint256(vm.load(address(gasOracle), bytes32(uint256(3))))
+        );
+    }
+
+    function test_setScalar_layout_succeeds() external {
+        // scalar is at slot 4
+        vm.prank(gasOracle.owner());
+        gasOracle.setScalar(333);
+        assertEq(
+            333,
+            uint256(vm.load(address(gasOracle), bytes32(uint256(4))))
+        );
+    }
+
+    function test_setDecimals_layout_succeeds() external {
+        // decimals is at slot 5
+        vm.prank(gasOracle.owner());
+        gasOracle.setDecimals(222);
+        assertEq(
+            222,
+            uint256(vm.load(address(gasOracle), bytes32(uint256(5))))
+        );
+    }
+}
+
+contract GasPriceOracle_Setters_TestFail is GasPriceOracle_TestInit {
+    function test_setGasPrice_reverts() external {
         vm.prank(gasOracle.owner());
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature("setGasPrice(uint256)", 1)
@@ -87,7 +107,7 @@ contract GasPriceOracle_Test is CommonTest {
         assertEq(returndata, hex"");
     }
 
-    function test_setL1BaseFeeReverts() external {
+    function test_setL1BaseFee_reverts() external {
         vm.prank(gasOracle.owner());
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature("setL1BaseFee(uint256)", 1)
@@ -97,6 +117,23 @@ contract GasPriceOracle_Test is CommonTest {
         assertEq(returndata, hex"");
     }
 
+    function test_setOverhead_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        gasOracle.setOverhead(0);
+    }
+
+    function test_setScalar_nowOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        gasOracle.setScalar(0);
+    }
+
+    function test_setDecimals_nowOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        gasOracle.setDecimals(0);
+    }
+}
+
+contract GasPriceOracle_Setters_Test is GasPriceOracle_TestInit {
     function test_setOverhead() external {
         vm.expectEmit(true, true, true, true);
         emit OverheadUpdated(1234);
@@ -104,11 +141,6 @@ contract GasPriceOracle_Test is CommonTest {
         vm.prank(gasOracle.owner());
         gasOracle.setOverhead(1234);
         assertEq(gasOracle.overhead(), 1234);
-    }
-
-    function test_onlyOwnerSetOverhead() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        gasOracle.setOverhead(0);
     }
 
     function test_setScalar() external {
@@ -120,11 +152,6 @@ contract GasPriceOracle_Test is CommonTest {
         assertEq(gasOracle.scalar(), 666);
     }
 
-    function test_onlyOwnerSetScalar() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        gasOracle.setScalar(0);
-    }
-
     function test_setDecimals() external {
         vm.expectEmit(true, true, true, true);
         emit DecimalsUpdated(18);
@@ -133,9 +160,10 @@ contract GasPriceOracle_Test is CommonTest {
         gasOracle.setDecimals(18);
         assertEq(gasOracle.decimals(), 18);
     }
+}
 
-    function test_onlyOwnerSetDecimals() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        gasOracle.setDecimals(0);
+contract GasPriceOracle_GetL1GasUsed_Test is GasPriceOracle_TestInit {
+    function test_getL1GasUsed_succeeds() external {
+        gasOracle.getL1GasUsed(NON_ZERO_DATA);
     }
 }
