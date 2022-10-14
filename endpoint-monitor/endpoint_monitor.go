@@ -46,7 +46,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-			l.Error("error starting metrics server", err)
+			l.Error("error starting metrics server", "err", err)
 			return err
 		}
 

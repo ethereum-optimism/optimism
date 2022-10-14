@@ -91,7 +91,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 			go func() {
 				if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-					l.Error("error starting metrics server", err)
+					l.Error("error starting metrics server", "err", err)
 				}
 			}()
 			opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", batchSubmitter.cfg.L1Client, batchSubmitter.addr)
