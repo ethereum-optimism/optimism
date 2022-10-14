@@ -19,6 +19,8 @@ ws_port = 8085
 # Maximum client body size, in bytes, that the server will accept.
 max_body_size_bytes = 10485760
 max_concurrent_rpcs = 1000
+# Server log level
+log_level = "info"
 
 [redis]
 # URL to a Redis instance.
