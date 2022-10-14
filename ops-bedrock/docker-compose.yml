@@ -18,7 +18,7 @@ services:
       - "9545:8545"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.tanenbaum/genesis-l2.json:/genesis.json"
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
@@ -61,7 +61,7 @@ services:
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
       - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-      - "${PWD}/../.tanenbaum/rollup.json:/rollup.json"
+      - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
 
   op-proposer:

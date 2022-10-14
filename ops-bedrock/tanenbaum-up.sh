@@ -21,11 +21,11 @@
 # a perceived infinite loop. To get around this, we set the timestamp to the current
 # time in this script.
 #
-# This script is safe to run multiple times. It stores state in `.tanenbaum`, and
-# contracts-bedrock/deployments/tanenbaum.
+# This script is safe to run multiple times. It stores state in `.devnet`, and
+# contracts-bedrock/deployments/devnet.
 #
 # Don't run this script directly. Run it using the makefile, e.g. `make tanenbaum-up`.
-# To clean up your tanenbaum, run `make tanenbaum-clean`.
+# To clean up your devnet, run `make tanenbaum-clean`.
 
 set -eu
 
@@ -37,7 +37,7 @@ OP_NODE="$PWD/op-node"
 CONTRACTS_BEDROCK="$PWD/packages/contracts-bedrock"
 CONTRACTS_GOVERNANCE="$PWD/packages/contracts-governance"
 NETWORK=tanenbaum
-TANENBAUM="$PWD/.tanenbaum"
+DEVNET="$PWD/.devnet"
 
 # Helper method that waits for a given URL to be up. Can't use
 # cURL's built-in retry logic because connection reset errors
@@ -59,11 +59,11 @@ function wait_up {
   echo "Done!"
 }
 
-mkdir -p ./.tanenbaum
+mkdir -p ./.devnet
 
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
-# file is used to determine if we need to recreate the tanenbaum's state folder.
-if [ ! -f "$TANENBAUM/done" ]; then
+# file is used to determine if we need to recreate the devnet's state folder.
+if [ ! -f "$DEVNET/done" ]; then
   echo "Regenerating genesis files"
   (
     cd "$OP_NODE"
@@ -71,9 +71,9 @@ if [ ! -f "$TANENBAUM/done" ]; then
         --l1-rpc $L1_URL \
         --deployment-dir $CONTRACTS_BEDROCK/deployments/goerli \
         --deploy-config $CONTRACTS_BEDROCK/deploy-config/goerli.json \
-        --outfile.l2 $TANENBAUM/genesis-l2.json \
-        --outfile.rollup $TANENBAUM/rollup.json
-    touch "$TANENBAUM/done"
+        --outfile.l2 $DEVNET/genesis-l2.json \
+        --outfile.rollup $DEVNET/rollup.json
+    touch "$DEVNET/done"
   )
 fi
 
@@ -87,8 +87,8 @@ fi
 )
 
 L2OO_ADDRESS="0x03DEe007266B9776e49aDF4E0cDE1CfccD64EFD2"
-SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < $TANENBAUM/rollup.json)"
-SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $TANENBAUM/rollup.json | jq -r '.batch_inbox_address')"
+SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < $DEVNET/rollup.json)"
+SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_address')"
 
 # Bring up everything else.
 (
