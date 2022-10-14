@@ -24,19 +24,20 @@
 # This script is safe to run multiple times. It stores state in `.tanenbaum`, and
 # contracts-bedrock/deployments/tanenbaum.
 #
-# Don't run this script directly. Run it using the makefile, e.g. `make devnet-up`.
-# To clean up your devnet, run `make devnet-clean`.
+# Don't run this script directly. Run it using the makefile, e.g. `make tanenbaum-up`.
+# To clean up your tanenbaum, run `make tanenbaum-clean`.
 
 set -eu
 
-L1_URL="http://localhost:8545"
+L1_URL="https://rpc.tanenbaum.io"
+L1_URLWS="wss://rpc.tanenbaum.io/wss"
 L2_URL="http://localhost:9545"
 
 OP_NODE="$PWD/op-node"
 CONTRACTS_BEDROCK="$PWD/packages/contracts-bedrock"
 CONTRACTS_GOVERNANCE="$PWD/packages/contracts-governance"
 NETWORK=tanenbaum
-DEVNET="$PWD/.devnet"
+TANENBAUM="$PWD/.tanenbaum"
 
 # Helper method that waits for a given URL to be up. Can't use
 # cURL's built-in retry logic because connection reset errors
@@ -58,36 +59,24 @@ function wait_up {
   echo "Done!"
 }
 
-mkdir -p ./.devnet
+mkdir -p ./.tanenbaum
 
 # Regenerate the L1 genesis file if necessary. The existence of the genesis
-# file is used to determine if we need to recreate the devnet's state folder.
-if [ ! -f "$DEVNET/done" ]; then
+# file is used to determine if we need to recreate the tanenbaum's state folder.
+if [ ! -f "$TANENBAUM/done" ]; then
   echo "Regenerating genesis files"
-
-  TIMESTAMP=$(date +%s | xargs printf '0x%x')
-  cat "$CONTRACTS_BEDROCK/deploy-config/goerli.json" | jq -r ".l1GenesisBlockTimestamp = \"$TIMESTAMP\"" > /tmp/bedrock-tanenbaum-deploy-config.json
-
   (
     cd "$OP_NODE"
     go run cmd/main.go genesis l2 \
-        --l1-rpc https://rpc.tanenbaum.io \
+        --l1-rpc $L1_URL \
         --deployment-dir $CONTRACTS_BEDROCK/deployments/goerli \
-        --deploy-config /tmp/bedrock-tanenbaum-deploy-config.json \
-        --outfile.l2 $DEVNET/genesis-l2.json \
-        --outfile.rollup $DEVNET/rollup.json
-    touch "$DEVNET/done"
+        --deploy-config $CONTRACTS_BEDROCK/deploy-config/goerli.json \
+        --outfile.l2 $TANENBAUM/genesis-l2.json \
+        --outfile.rollup $TANENBAUM/rollup.json
+    touch "$TANENBAUM/done"
   )
 fi
 
-# Bring up L1.
-(
-  cd ops-bedrock
-  echo "Bringing up L1..."
-  DOCKER_BUILDKIT=1 docker-compose build --progress plain
-  docker-compose up -d l1
-  wait_up $L1_URL
-)
 
 # Bring up L2.
 (
@@ -97,14 +86,16 @@ fi
   wait_up $L2_URL
 )
 
-L2OO_ADDRESS="0x6900000000000000000000000000000000000000"
-SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < $DEVNET/rollup.json)"
-SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_address')"
+L2OO_ADDRESS="0x03DEe007266B9776e49aDF4E0cDE1CfccD64EFD2"
+SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < $TANENBAUM/rollup.json)"
+SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $TANENBAUM/rollup.json | jq -r '.batch_inbox_address')"
 
 # Bring up everything else.
 (
   cd ops-bedrock
-  echo "Bringing up devnet..."
+  echo "Bringing up L2 services..."
+  L1_URL="$L1_URL" \
+  L1_URLWS="$L1_URLWS" \
   L2OO_ADDRESS="$L2OO_ADDRESS" \
       SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
       SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \
@@ -114,4 +105,4 @@ SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_a
   docker-compose up -d stateviz
 )
 
-echo "Devnet ready."
+echo "L2 ready."

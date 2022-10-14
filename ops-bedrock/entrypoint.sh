@@ -35,7 +35,7 @@ else
 fi
 
 # Warning: Archive mode is required, otherwise old trie nodes will be
-# pruned within minutes of starting the devnet.
+# pruned within minutes of starting the tanenbaum.
 
 exec geth \
 	--datadir="$GETH_DATA_DIR" \
