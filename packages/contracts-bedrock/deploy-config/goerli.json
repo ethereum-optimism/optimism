@@ -1,8 +1,8 @@
 {
-  "l1StartingBlockTag": "0x7841ef364f69c83c97d382a1e8421723a8765087b33d07766ebaad80bccfc78e",
+  "l1StartingBlockTag": "0x57498df824c0e9a5842830330120a960c5f635730489918ec6f5c951e12b9e98",
   "l1ChainID": 5700,
   "l2ChainID": 57000,
-  "l2BlockTime": 2,
+  "l2BlockTime": 5,
 
   "maxSequencerDrift": 1000,
   "sequencerWindowSize": 12,
@@ -15,11 +15,12 @@
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  "l2OutputOracleOwner": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "l2OutputOracleOwner": "0x3071b919a37d3217fa19d54f8e1a08aec4d8eb4e",
 
   "optimismBaseFeeRecipient": "0x71b2e590ce66c94a3c2ad5e889adc75c11728889",
   "optimismL1FeeRecipient": "0x749058367c48a10c728073dcc4613560d69e730d",
 
   "deploymentWaitConfirmations": 1,
   "fundDevAccounts": true
+
 }
