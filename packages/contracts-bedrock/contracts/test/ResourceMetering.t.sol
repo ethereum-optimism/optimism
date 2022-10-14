@@ -17,7 +17,7 @@ contract MeterUser is ResourceMetering {
     function use(uint64 _amount) public metered(_amount) {}
 }
 
-contract ResourceMetering_Test is CommonTest {
+contract ResourceMetering_TestInit is CommonTest {
     MeterUser internal meter;
     uint64 initialBlockNum;
 
@@ -26,16 +26,20 @@ contract ResourceMetering_Test is CommonTest {
         meter = new MeterUser();
         initialBlockNum = uint64(block.number);
     }
+}
 
-    function test_initialResourceParams() external {
+contract ResourceMetering_Getters_Test is ResourceMetering_TestInit {
+    function test_initialResourceParams_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
         assertEq(prevBaseFee, meter.INITIAL_BASE_FEE());
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);
     }
+}
 
-    function test_updateParamsNoChange() external {
+contract ResourceMetering_Use_Test is ResourceMetering_TestInit {
+    function test_metered_updateParamsNoChange_succeeds() external {
         meter.use(0); // equivalent to just updating the base fee and block number
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
         meter.use(0);
@@ -46,7 +50,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(postBlockNum, prevBlockNum);
     }
 
-    function test_updateOneEmptyBlock() external {
+    function test_metered_updateOneEmptyBlock_succeeds() external {
         vm.roll(initialBlockNum + 1);
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -57,7 +61,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum + 1);
     }
 
-    function test_updateTwoEmptyBlocks() external {
+    function test_metered_updateTwoEmptyBlocks_succeeds() external {
         vm.roll(initialBlockNum + 2);
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -67,7 +71,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum + 2);
     }
 
-    function test_updateTenEmptyBlocks() external {
+    function test_metered_updateTenEmptyBlocks_succeeds() external {
         vm.roll(initialBlockNum + 10);
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -77,7 +81,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum + 10);
     }
 
-    function test_updateNoGasDelta() external {
+    function test_metered_updateNoGasDelta_succeeds() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         meter.use(target);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -87,7 +91,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum);
     }
 
-    function test_useMaxSucceeds() external {
+    function test_metered_useMaxSucceeds_succeeds() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         meter.use(target * elasticity);
@@ -102,7 +106,18 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(postBaseFee, 1375000000);
     }
 
-    function test_useMoreThanMaxReverts() external {
+    function testFuzz_metered_usingLessThanMax_succeeds(uint64 amount) external {
+        uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
+        uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
+        // todo: upgrade forge-std then use vm.bound.
+        // vm.bound(amount, target * elasticity);
+        vm.assume(amount <= target * elasticity);
+        meter.use(amount);
+    }
+}
+
+contract ResourceMetering_Use_TestFail is ResourceMetering_TestInit {
+    function test_metered_usingMoreThanMax_reverts() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
