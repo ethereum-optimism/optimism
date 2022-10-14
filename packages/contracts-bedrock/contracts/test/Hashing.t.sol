@@ -6,12 +6,18 @@ import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
-contract Hashing_Test is CommonTest {
+contract Hashing_TestInit is CommonTest {
     function setUp() external {
         _setUp();
     }
+}
 
-    function test_hashDepositSource() external {
+contract Hashing_HashDepositSource_TestFail is Hashing_TestInit {
+    // none
+}
+
+contract Hashing_HashDepositSource_Test is Hashing_TestInit {
+    function test_hashDepositSource_succeeds() external {
         bytes32 sourceHash = Hashing.hashDepositSource(
             0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959,
             0x1
@@ -19,7 +25,25 @@ contract Hashing_Test is CommonTest {
 
         assertEq(sourceHash, 0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc);
     }
+}
 
+contract Hashing_HashCrossDomainMessage_TestFail is Hashing_TestInit {
+    function test_hashCrossDomainMessage_invalidVersion_reverts() external {
+        uint8 version = 3;
+        uint256 nonce = Encoding.encodeVersionedNonce(101, version);
+        vm.expectRevert("Hashing: unknown cross domain message version");
+        Hashing.hashCrossDomainMessage(
+            nonce,
+            alice,
+            bob,
+            NON_ZERO_VALUE,
+            NON_ZERO_GASLIMIT,
+            NON_ZERO_DATA
+        );
+    }
+}
+
+contract Hashing_HashCrossDomainMessage_Test is Hashing_TestInit {
     function test_hashCrossDomainMessage_differential(
         uint256 _nonce,
         address _sender,
@@ -52,7 +76,13 @@ contract Hashing_Test is CommonTest {
 
         assertEq(hash, _hash);
     }
+}
 
+contract Hashing_HashWithdrawal_TestFail is Hashing_TestInit {
+    // none
+}
+
+contract Hashing_HashWithdrawal_Test is Hashing_TestInit {
     function test_hashWithdrawal_differential(
         uint256 _nonce,
         address _sender,
@@ -69,7 +99,13 @@ contract Hashing_Test is CommonTest {
 
         assertEq(hash, _hash);
     }
+}
 
+contract Test_HashOutputRootProof_TestFail is Hashing_TestInit {
+    // none
+}
+
+contract Test_HashOutputRootProof_Test is Hashing_TestInit {
     function test_hashOutputRootProof_differential(
         bytes32 _version,
         bytes32 _stateRoot,
@@ -94,7 +130,13 @@ contract Hashing_Test is CommonTest {
 
         assertEq(hash, _hash);
     }
+}
 
+contract Test_HashDepositTransaction_TestFail is Hashing_TestInit {
+    // none
+}
+
+contract Test_HashDepositTransaction_Test is Hashing_TestInit {
     // TODO(tynes): foundry bug cannot serialize
     // bytes32 as strings with vm.toString
     function test_hashDepositTransaction_differential(
