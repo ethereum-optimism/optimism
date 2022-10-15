@@ -86,7 +86,7 @@ fi
   wait_up $L2_URL
 )
 
-L2OO_ADDRESS="0x03DEe007266B9776e49aDF4E0cDE1CfccD64EFD2"
+L2OO_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.output_oracle_address')"
 SEQUENCER_GENESIS_HASH="$(jq -r '.l2.hash' < $DEVNET/rollup.json)"
 SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_address')"
 

@@ -66,7 +66,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr, predeploys.DevL2OutputOracleAddr)
 
 			if err := writeGenesisFile(ctx.String("outfile.l1"), l1Genesis); err != nil {
 				return err
@@ -150,6 +150,10 @@ var Subcommands = cli.Commands{
 			if err != nil {
 				return err
 			}
+			outputOracle, err := hh.GetDeployment("L2OutputOracle")
+			if err != nil {
+				return err
+			}
 			l2Addrs := &genesis.L2Addresses{
 				ProxyAdmin:                  proxyAdmin.Address,
 				L1StandardBridgeProxy:       l1SBP.Address,
@@ -160,7 +164,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, outputOracle.Address)
 
 			if err := writeGenesisFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err
@@ -175,6 +179,7 @@ func makeRollupConfig(
 	l1StartBlock *types.Block,
 	l2Genesis *core.Genesis,
 	portalAddr common.Address,
+	outputOracleAddr common.Address,
 ) *rollup.Config {
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -199,6 +204,7 @@ func makeRollupConfig(
 		BatchInboxAddress:      config.BatchInboxAddress,
 		BatchSenderAddress:     config.BatchSenderAddress,
 		DepositContractAddress: portalAddr,
+		L2OutputOracleAddress:  outputOracleAddr,
 	}
 }
 

@@ -53,6 +53,8 @@ type Config struct {
 	BatchSenderAddress common.Address `json:"batch_sender_address"`
 	// L1 Deposit Contract Address
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
+	// L2 Output Oracle Address
+	L2OutputOracleAddress common.Address `json:"output_oracle_address"`
 }
 
 // Check verifies that the given configuration makes sense
@@ -92,6 +94,9 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.DepositContractAddress == (common.Address{}) {
 		return errors.New("missing deposit contract address")
+	}
+	if cfg.L2OutputOracleAddress == (common.Address{}) {
+		return errors.New("missing output oracle contract address")
 	}
 	if cfg.L1ChainID == nil {
 		return errors.New("l1 chain ID must not be nil")
