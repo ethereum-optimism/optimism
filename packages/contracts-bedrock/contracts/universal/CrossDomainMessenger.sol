@@ -288,9 +288,10 @@ abstract contract CrossDomainMessenger is
         );
 
         if (_isOtherMessenger()) {
-            // This property should always hold when the message is first submitted (as opposed to
-            // being replayed).
+            // These properties should always hold when the message is first submitted (as
+            // opposed to being replayed).
             assert(msg.value == _value);
+            assert(!receivedMessages[versionedHash]);
         } else {
             require(
                 msg.value == 0,
