@@ -354,7 +354,7 @@ mainLoop:
 				// Query for the submitter's current nonce.
 				walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
 				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-				nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
+				nonce, err := l.cfg.L1Client.PendingNonceAt(ctx, walletAddr)
 				cancel()
 				if err != nil {
 					l.log.Error("unable to get current nonce", "err", err)
@@ -376,20 +376,23 @@ mainLoop:
 					return l.UpdateGasPrice(ctx, tx)
 				}
 
-				// Wait until one of our submitted transactions confirms. If no
-				// receipt is received it's likely our gas price was too low.
-				// TODO: does the tx manager nicely replace the tx?
-				//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
-				receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
-				cancel()
-				if err != nil {
-					l.log.Warn("unable to publish tx", "err", err)
-					continue mainLoop
-				}
+				// Fire off a go routine to concurrently submit transactions. This works because we use the pending nonce.
+				// TODO: Add a little bit of sleep if this is over eager
+				l.wg.Add(1)
+				go func() {
+					ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
+					receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
+					cancel()
+					if err != nil {
+						l.log.Error("unable to publish tx", "err", err)
+					} else {
+						l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID(), "nonce", tx.Nonce())
+					}
+					l.wg.Done()
 
-				// The transaction was successfully submitted.
-				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
+				}()
+
+				l.log.Debug("publishing tx async", "tx_hash", tx.Hash(), "nonce", tx.Nonce())
 
 				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
 				if done {
