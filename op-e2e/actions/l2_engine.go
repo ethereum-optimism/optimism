@@ -174,6 +174,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 		e.pendingIndices[from] = i + 1 // won't retry the tx
+		e.l2BuildingState.Prepare(tx.Hash(), len(e.l2Transactions))
 		receipt, err := core.ApplyTransaction(e.l2Cfg.Config, e.l2Chain, &e.l2BuildingHeader.Coinbase,
 			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {

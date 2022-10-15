@@ -86,6 +86,8 @@ func Main(version string) func(ctx *cli.Context) error {
 					l.Error("error starting metrics server", err)
 				}
 			}()
+			addr := l2OutputSubmitter.l2OutputService.cfg.Driver.WalletAddr()
+			opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l2OutputService.cfg.L1Client, addr)
 		}
 
 		rpcCfg := cfg.RPCConfig

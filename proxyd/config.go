@@ -14,6 +14,7 @@ type ServerConfig struct {
 	WSPort            int    `toml:"ws_port"`
 	MaxBodySizeBytes  int64  `toml:"max_body_size_bytes"`
 	MaxConcurrentRPCs int64  `toml:"max_concurrent_rpcs"`
+	LogLevel          string `toml:"log_level"`
 
 	// TimeoutSeconds specifies the maximum time spent serving an HTTP request. Note that isn't used for websocket connections
 	TimeoutSeconds int `toml:"timeout_seconds"`
@@ -41,7 +42,9 @@ type MetricsConfig struct {
 }
 
 type RateLimitConfig struct {
-	RatePerSecond    int                                 `toml:"rate_per_second"`
+	UseRedis         bool                                `toml:"use_redis"`
+	BaseRate         int                                 `toml:"base_rate"`
+	BaseInterval     TOMLDuration                        `toml:"base_interval"`
 	ExemptOrigins    []string                            `toml:"exempt_origins"`
 	ExemptUserAgents []string                            `toml:"exempt_user_agents"`
 	ErrorMessage     string                              `toml:"error_message"`

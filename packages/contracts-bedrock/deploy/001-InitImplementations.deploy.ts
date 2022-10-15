@@ -10,7 +10,6 @@ const upgradeABIs = {
     'initialize(bytes32,uint256,address,address)',
     [
       deployConfig.l2OutputOracleGenesisL2Output,
-      deployConfig.l2OutputOracleStartingBlockNumber,
       deployConfig.l2OutputOracleProposer,
       deployConfig.l2OutputOracleOwner,
     ],

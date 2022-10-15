@@ -106,6 +106,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			return
 		}
 		s.pendingIndices[from] = i + 1 // won't retry the tx
+		s.l1BuildingState.Prepare(tx.Hash(), len(s.l1Transactions))
 		receipt, err := core.ApplyTransaction(s.l1Cfg.Config, s.l1Chain, &s.l1BuildingHeader.Coinbase,
 			s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx, &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
 		if err != nil {
