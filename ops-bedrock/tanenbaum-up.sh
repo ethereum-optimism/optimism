@@ -29,8 +29,7 @@
 
 set -eu
 
-L1_URL="https://rpc.tanenbaum.io"
-L1_URLWS="wss://rpc.tanenbaum.io/wss"
+L1_URL="http://localhost:8545"
 L2_URL="http://localhost:9545"
 
 OP_NODE="$PWD/op-node"
@@ -68,7 +67,7 @@ if [ ! -f "$DEVNET/done" ]; then
   (
     cd "$OP_NODE"
     go run cmd/main.go genesis l2 \
-        --l1-rpc $L1_URL \
+        --l1-rpc https://rpc.tanenbaum.io \
         --deployment-dir $CONTRACTS_BEDROCK/deployments/goerli \
         --deploy-config $CONTRACTS_BEDROCK/deploy-config/goerli.json \
         --outfile.l2 $DEVNET/genesis-l2.json \
@@ -77,6 +76,14 @@ if [ ! -f "$DEVNET/done" ]; then
   )
 fi
 
+# Bring up L1.
+(
+  cd ops-bedrock
+  echo "Bringing up L1..."
+  DOCKER_BUILDKIT=1 docker-compose build --progress plain
+  docker-compose up -d l1
+  wait_up $L1_URL
+)
 
 # Bring up L2.
 (
@@ -94,8 +101,6 @@ SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_a
 (
   cd ops-bedrock
   echo "Bringing up L2 services..."
-  L1_URL="$L1_URL" \
-  L1_URLWS="$L1_URLWS" \
   L2OO_ADDRESS="$L2OO_ADDRESS" \
       SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
       SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \

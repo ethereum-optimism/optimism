@@ -5,11 +5,21 @@ version: '3.4'
 # service.
 
 volumes:
+  l1_data:
   l2_data:
   op_log:
 
 
 services:
+  l1:
+    build:
+      context: .
+      dockerfile: Dockerfile.l1
+    ports:
+      - "8545:8545"
+    volumes:
+      - "l1_data:/db"
+      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
   l2:
     build:
       context: .
@@ -27,13 +37,14 @@ services:
 
   op-node:
     depends_on:
+      - l1
       - l2
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
     command: >
       op-node
-      --l1="${L1_URLWS}"
+      --l1=ws://l1:8546
       --l2=ws://l2:8546
       --l2.jwt-secret=/config/test-jwt-secret.txt
       --sequencer.enabled
@@ -66,6 +77,7 @@ services:
 
   op-proposer:
     depends_on:
+      - l1
       - l2
       - op-node
     build:
@@ -75,7 +87,7 @@ services:
       - "6062:6060"
       - "7302:7300"
     environment:
-      OP_PROPOSER_L1_ETH_RPC: "${L1_URL}"
+      OP_PROPOSER_L1_ETH_RPC: http://l1:8545
       OP_PROPOSER_L2_ETH_RPC: http://l2:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
       OP_PROPOSER_POLL_INTERVAL: 5s
@@ -91,6 +103,7 @@ services:
 
   op-batcher:
     depends_on:
+      - l1
       - l2
       - op-node
     build:
@@ -100,7 +113,7 @@ services:
       - "6061:6060"
       - "7301:7300"
     environment:
-      OP_BATCHER_L1_ETH_RPC: "${L1_URL}"
+      OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
       OP_BATCHER_MIN_L1_TX_SIZE_BYTES: 1
