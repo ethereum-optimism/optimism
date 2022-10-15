@@ -37,6 +37,21 @@ func main() {
 		log.Crit("error reading config file", "err", err)
 	}
 
+	// update log level from config
+	logLevel, err := log.LvlFromString(config.Server.LogLevel)
+	if err != nil {
+		logLevel = log.LvlInfo
+		if config.Server.LogLevel != "" {
+			log.Warn("invalid server.log_level set: " + config.Server.LogLevel)
+		}
+	}
+	log.Root().SetHandler(
+		log.LvlFilterHandler(
+			logLevel,
+			log.StreamHandler(os.Stdout, log.JSONFormat()),
+		),
+	)
+
 	shutdown, err := proxyd.Start(config)
 	if err != nil {
 		log.Crit("error starting proxyd", "err", err)
