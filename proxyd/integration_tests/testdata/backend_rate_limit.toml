@@ -18,4 +18,4 @@ backends = ["good"]
 eth_chainId = "main"
 
 [rate_limit]
-enable_backend_limiter = true
+enable_backend_rate_limiter = true
