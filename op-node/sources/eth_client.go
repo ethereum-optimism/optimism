@@ -251,7 +251,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		for i := 0; i < len(txs); i++ {
 			txHashes[i] = txs[i].Hash()
 		}
-		fetcher = NewReceiptsFetcher(info.ID(), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
+		fetcher = NewReceiptsFetcher(eth.ToBlockID(info), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
 		s.receiptsCache.Add(blockHash, fetcher)
 	}
 	// Fetch all receipts
