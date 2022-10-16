@@ -4,7 +4,10 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
+
+var _ BlockInfo = (&types.Block{})
 
 type BlockInfo interface {
 	Hash() common.Hash
@@ -16,7 +19,6 @@ type BlockInfo interface {
 	// MixDigest field, reused for randomness after The Merge (Bellatrix hardfork)
 	MixDigest() common.Hash
 	BaseFee() *big.Int
-	ID() BlockID
 	ReceiptHash() common.Hash
 }
 
@@ -26,5 +28,17 @@ func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
 		Number:     info.NumberU64(),
 		ParentHash: info.ParentHash(),
 		Time:       info.Time(),
+	}
+}
+
+type NumberAndHash interface {
+	Hash() common.Hash
+	NumberU64() uint64
+}
+
+func ToBlockID(b NumberAndHash) BlockID {
+	return BlockID{
+		Hash:   b.Hash(),
+		Number: b.NumberU64(),
 	}
 }
