@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -115,7 +116,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, metrics *metrics.Metrics) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -132,6 +133,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config) (*pub
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),
+		pubsub.WithEventTracer(&gossipTracer{m: metrics}),
 	)
 	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
 }
@@ -440,4 +442,12 @@ func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.Topic
 			log.Warn("unrecognized topic event", "ev", ev)
 		}
 	}
+}
+
+type gossipTracer struct {
+	m *metrics.Metrics
+}
+
+func (g *gossipTracer) Trace(evt *pb.TraceEvent) {
+	g.m.RecordGossipEvent(int32(*evt.Type))
 }

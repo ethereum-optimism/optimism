@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/libp2p/go-libp2p-core/metrics"
+	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -66,6 +68,12 @@ type Metrics struct {
 	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
+
+	// P2P Metrics
+	PeerCount         prometheus.Gauge
+	StreamCount       prometheus.Gauge
+	GossipEventsTotal *prometheus.CounterVec
+	BandwidthTotal    *prometheus.GaugeVec
 
 	registry *prometheus.Registry
 }
@@ -217,6 +225,35 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Count of total transactions sequenced",
 		}),
 
+		PeerCount: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_count",
+			Help:      "Count of currently connected p2p peers",
+		}),
+		StreamCount: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "stream_count",
+			Help:      "Count of currently connected p2p streams",
+		}),
+		GossipEventsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "gossip_events_total",
+			Help:      "Count of gossip events by type",
+		}, []string{
+			"type",
+		}),
+		BandwidthTotal: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "bandwidth_bytes_total",
+			Help:      "P2P bandwidth by direction",
+		}, []string{
+			"direction",
+		}),
+
 		registry: registry,
 	}
 }
@@ -346,6 +383,26 @@ func (m *Metrics) CountSequencedTxs(count int) {
 
 func (m *Metrics) RecordL1ReorgDepth(d uint64) {
 	m.L1ReorgDepth.Observe(float64(d))
+}
+
+func (m *Metrics) RecordGossipEvent(evType int32) {
+	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
+}
+
+func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *metrics.BandwidthCounter) {
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-tick.C:
+			bwTotals := bwc.GetBandwidthTotals()
+			m.BandwidthTotal.WithLabelValues("in").Set(float64(bwTotals.TotalIn))
+			m.BandwidthTotal.WithLabelValues("out").Set(float64(bwTotals.TotalOut))
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // Serve starts the metrics server on the given hostname and port.
