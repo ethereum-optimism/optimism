@@ -75,6 +75,26 @@ type Driver struct {
 func (s *Driver) Start() error {
 	s.derivation.Reset()
 
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	l1Head, err := s.l1.L1BlockRefByLabel(ctx, eth.Unsafe)
+	if err != nil {
+		return err
+	}
+	s.l1State.HandleNewL1HeadBlock(l1Head)
+
+	l1Safe, err := s.l1.L1BlockRefByLabel(ctx, eth.Safe)
+	if err != nil {
+		return err
+	}
+	s.l1State.HandleNewL1SafeBlock(l1Safe)
+
+	l1Finalized, err := s.l1.L1BlockRefByLabel(ctx, eth.Finalized)
+	if err != nil {
+		return err
+	}
+	s.l1State.HandleNewL1FinalizedBlock(l1Finalized)
+
 	s.wg.Add(1)
 	go s.eventLoop()
 
