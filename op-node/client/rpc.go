@@ -43,7 +43,7 @@ func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...rpc.Client
 func DialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
 	var ret *rpc.Client
-	err := backoff.Do(10, bOff, func() error {
+	err := backoff.DoCtx(ctx, 10, bOff, func() error {
 		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
 			if client == nil {
