@@ -317,7 +317,7 @@ mainLoop:
 			if l.lastSubmittedBlock.Number+1+maxBlocksPerChannel < upToBlockNumber {
 				upToBlockNumber = l.lastSubmittedBlock.Number + 1 + maxBlocksPerChannel
 			}
-			for i := l.lastSubmittedBlock.Number + 1; i <= syncStatus.UnsafeL2.Number; i++ {
+			for i := l.lastSubmittedBlock.Number + 1; i <= upToBlockNumber; i++ {
 				ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
 				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
 				cancel()
