@@ -149,6 +149,13 @@ func (s *BasicUser[B]) ActRandomTxToAddr(t Testing) {
 	s.txToAddr = to
 }
 
+func (s *BasicUser[B]) ActSetTxCalldata(calldata []byte) Action {
+	return func(t Testing) {
+		require.NotNil(t, calldata)
+		s.txCallData = calldata
+	}
+}
+
 func (s *BasicUser[B]) ActSetTxToAddr(to *common.Address) Action {
 	return func(t Testing) {
 		s.txToAddr = to
