@@ -165,6 +165,12 @@ func (s *BasicUser[B]) ActRandomTxValue(t Testing) {
 	s.txOpts.Value = big.NewInt(s.rng.Int63())
 }
 
+func (s *BasicUser[B]) ActSetTxValue(value *big.Int) Action {
+	return func(t Testing) {
+		s.txOpts.Value = value
+	}
+}
+
 func (s *BasicUser[B]) ActRandomTxData(t Testing) {
 	dataLen := s.rng.Intn(128_000)
 	out := make([]byte, dataLen)
