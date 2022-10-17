@@ -9504,6 +9504,10 @@ forwarded@0.2.0:
   resolved "https://registry.yarnpkg.com/forwarded/-/forwarded-0.2.0.tgz#2269936428aad4c15c7ebe9779a84bf0b2a81811"
   integrity sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==
 
+"foundry-huff@https://github.com/huff-language/foundry-huff.git#eb9ea316389e8bd580f92908b8454399401d0316":
+  version "0.0.0"
+  resolved "https://github.com/huff-language/foundry-huff.git#eb9ea316389e8bd580f92908b8454399401d0316"
+
 fp-ts@1.19.3:
   version "1.19.3"
   resolved "https://registry.yarnpkg.com/fp-ts/-/fp-ts-1.19.3.tgz#261a60d1088fbff01f91256f91d21d0caaaaa96f"

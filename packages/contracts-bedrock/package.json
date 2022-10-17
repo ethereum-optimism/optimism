@@ -56,6 +56,8 @@
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-waffle": "^2.0.0",
     "@rari-capital/solmate": "https://github.com/rari-capital/solmate.git#8f9b23f8838670afda0fd8983f2c41e8037ae6bc",
+    "foundry-huff": "https://github.com/huff-language/foundry-huff.git#eb9ea316389e8bd580f92908b8454399401d0316",
+    "solidity-stringutils": "https://github.com/Arachnid/solidity-stringutils.git#46983c6d9462a80229cf0d5bab8ea3b3ee31066c",
     "@typechain/ethers-v5": "^10.1.0",
     "@typescript-eslint/eslint-plugin": "^5.26.0",
     "@typescript-eslint/parser": "^4.29.1",

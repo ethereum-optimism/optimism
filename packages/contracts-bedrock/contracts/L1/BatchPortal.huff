@@ -1,0 +1,57 @@
+/// @title BatchPortal
+/// @notice SPDX-License-Identifier: MIT
+
+// Interface
+#define function transferOwnership(address) nonpayable returns ()
+
+// Events
+#define event OwnershipTransferred(address indexed previousOwner, address indexed newOwner)
+
+// Storage Slots
+#define constant OWNER = FREE_STORAGE_POINTER()
+
+/// @notice Only Owner Modifier
+#define macro IS_OWNER() = takes (0) returns (0) {
+  caller                      // [msg.sender]
+  [OWNER] sload               // [owner, msg.sender]
+  eq authed jumpi             // [authed]
+
+  // Revert otherwise
+  0x00 0x00 revert
+
+  authed:
+}
+
+/// @notice Set the Owner
+/// @param {owner} [address] - The new owner
+#define macro TRANSFER_OWNERSHIP() = takes (0) returns (0) {
+  // Check that the caller is authorized
+  IS_OWNER()
+
+  // Set the new owner
+  0x04 calldataload           // [newOwner]
+  dup1                        // [newOwner, newOwner]
+  [OWNER] sstore              // [newOwner]
+
+  // Emit the owner updated event
+  caller                      // [from, newOwner]
+  __EVENT_HASH(OwnerUpdated)  // [sig, from, newOwner]
+  0x00 0x00                   // [0, 32, sig, from, newOwner]
+  log3                        // []
+
+  stop
+}
+
+#define macro FALLBACK() = takes (0) returns (0) {
+  IS_OWNER()
+}
+
+// Function Dispatching
+#define macro MAIN() = takes (1) returns (1) {
+    dup1 __FUNC_SIG(transferOwnership)    eq transferOwnershipJump    jumpi
+
+    transferOwnershipJump:
+        TRANSFER_OWNERSHIP()
+
+    FALLBACK()
+}
