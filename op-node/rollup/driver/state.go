@@ -266,7 +266,7 @@ func (s *Driver) eventLoop() {
 				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", l1Head)
 				break
 			}
-			ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
 			err := s.createNewL2Block(ctx)
 			cancel()
 			if err != nil {
@@ -309,7 +309,7 @@ func (s *Driver) eventLoop() {
 			s.metrics.SetDerivationIdle(false)
 			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
-			stepCtx, cancel := context.WithTimeout(ctx, time.Second*10) // TODO pick a timeout for executing a single step
+			stepCtx, cancel := context.WithTimeout(ctx, 20*time.Minute) // TODO pick a timeout for executing a single step
 			err := s.derivation.Step(stepCtx)
 			cancel()
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
