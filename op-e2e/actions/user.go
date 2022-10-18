@@ -222,6 +222,8 @@ func (s *BasicUser[B]) ActMakeTx(t Testing) {
 	err = s.env.EthCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "must send tx")
 	s.lastTxHash = tx.Hash()
+	// reset the calldata
+	s.txCallData = []byte{}
 }
 
 func (s *BasicUser[B]) ActCheckReceiptStatusOfLastTx(success bool) func(t Testing) {
