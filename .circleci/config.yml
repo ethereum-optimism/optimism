@@ -188,7 +188,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: upload coverage
-          command: codecov --verbose --clean --flag contracts-bedrock-tests
+          command: codecov --verbose --clean --flags contracts-bedrock-tests
           environment:
             FOUNDRY_PROFILE: ci
       - run:
@@ -260,7 +260,7 @@ jobs:
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Upload coverage
-          command: codecov --verbose --clean --flag <<parameters.coverage_flag>>
+          command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
   bedrock-go-tests:
     docker:
@@ -351,7 +351,7 @@ jobs:
           working_directory: op-chain-ops
       - run:
           name: upload coverage
-          command: codecov --verbose --clean --flag bedrock-go-tests
+          command: codecov --verbose --clean --flags bedrock-go-tests
       - store_test_results:
           path: /test-results
       - run:
