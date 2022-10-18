@@ -217,6 +217,7 @@ func (s *BasicUser[B]) ActMakeTx(t Testing) {
 		ChainID:   s.env.Signer.ChainID(),
 		Nonce:     s.PendingNonce(t),
 		Gas:       gas,
+		Data:      s.txCallData,
 	})
 	err = s.env.EthCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "must send tx")
