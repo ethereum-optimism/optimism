@@ -196,6 +196,13 @@ func (s *BasicUser[B]) TxValue() *big.Int {
 	return big.NewInt(0)
 }
 
+func (s *BasicUser[B]) LastTxReceipt(t Testing) *types.Receipt {
+	require.NotEqual(t, s.lastTxHash, common.Hash{}, "must send tx before getting last receipt")
+	receipt, err := s.env.EthCl.TransactionReceipt(t.Ctx(), s.lastTxHash)
+	require.NoError(t, err)
+	return receipt
+}
+
 // ActMakeTx makes a tx with the predetermined contents (see randomization and other actions)
 // and sends it to the tx pool
 func (s *BasicUser[B]) ActMakeTx(t Testing) {
