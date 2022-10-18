@@ -152,6 +152,11 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	}
 }
 
+func (s *L1Miner) ActEmptyBlock(t Testing) {
+	s.ActL1StartBlock(12)(t)
+	s.ActL1EndBlock(t)
+}
+
 func (s *L1Miner) Close() error {
 	return s.L1Replica.Close()
 }
