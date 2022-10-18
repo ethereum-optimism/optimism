@@ -104,15 +104,27 @@ func (s *l2VerifierBackend) ResetDerivationPipeline(ctx context.Context) error {
 	return nil
 }
 
+func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
+	return s.derivation.Finalized()
+}
+
+func (s *L2Verifier) L2Safe() eth.L2BlockRef {
+	return s.derivation.SafeL2Head()
+}
+
+func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
+	return s.derivation.UnsafeL2Head()
+}
+
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
 		CurrentL1:   s.derivation.Origin(),
 		HeadL1:      s.l1State.L1Head(),
 		SafeL1:      s.l1State.L1Safe(),
 		FinalizedL1: s.l1State.L1Finalized(),
-		UnsafeL2:    s.derivation.UnsafeL2Head(),
-		SafeL2:      s.derivation.SafeL2Head(),
-		FinalizedL2: s.derivation.Finalized(),
+		UnsafeL2:    s.L2Unsafe(),
+		SafeL2:      s.L2Safe(),
+		FinalizedL2: s.L2Finalized(),
 	}
 }
 

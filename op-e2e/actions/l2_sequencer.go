@@ -92,3 +92,12 @@ func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 	}
 	s.seqOldOrigin = true
 }
+
+// ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
+func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
+	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+		s.ActL2PipelineFull(t)
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
