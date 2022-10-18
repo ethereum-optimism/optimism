@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.25
+
+### Patch Changes
+
+- 89f1abfa: add --rpc.evmtimeout flag to configure timeout for eth_call
+
 ## 0.5.24
 
 ### Patch Changes
