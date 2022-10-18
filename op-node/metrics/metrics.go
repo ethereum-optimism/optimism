@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"time"
 
+	libp2pmetrics "github.com/libp2p/go-libp2p-core/metrics"
+	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -29,6 +31,32 @@ const (
 
 	BatchMethod = "<batch>"
 )
+
+type Metricer interface {
+	RecordInfo(version string)
+	RecordUp()
+	RecordRPCServerRequest(method string) func()
+	RecordRPCClientRequest(method string) func(err error)
+	RecordRPCClientResponse(method string, err error)
+	SetDerivationIdle(status bool)
+	RecordPipelineReset()
+	RecordSequencingError()
+	RecordPublishingError()
+	RecordDerivationError()
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+	recordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
+	RecordL1Ref(name string, ref eth.L1BlockRef)
+	RecordL2Ref(name string, ref eth.L2BlockRef)
+	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+	CountSequencedTxs(count int)
+	RecordL1ReorgDepth(d uint64)
+	RecordGossipEvent(evType int32)
+	IncPeerCount()
+	DecPeerCount()
+	IncStreamCount()
+	DecStreamCount()
+	RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter)
+}
 
 type Metrics struct {
 	Info *prometheus.GaugeVec
@@ -66,6 +94,12 @@ type Metrics struct {
 	L1ReorgDepth prometheus.Histogram
 
 	TransactionsSequencedTotal prometheus.Counter
+
+	// P2P Metrics
+	PeerCount         prometheus.Gauge
+	StreamCount       prometheus.Gauge
+	GossipEventsTotal *prometheus.CounterVec
+	BandwidthTotal    *prometheus.GaugeVec
 
 	registry *prometheus.Registry
 }
@@ -217,6 +251,35 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "Count of total transactions sequenced",
 		}),
 
+		PeerCount: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_count",
+			Help:      "Count of currently connected p2p peers",
+		}),
+		StreamCount: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "stream_count",
+			Help:      "Count of currently connected p2p streams",
+		}),
+		GossipEventsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "gossip_events_total",
+			Help:      "Count of gossip events by type",
+		}, []string{
+			"type",
+		}),
+		BandwidthTotal: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "bandwidth_bytes_total",
+			Help:      "P2P bandwidth by direction",
+		}, []string{
+			"direction",
+		}),
+
 		registry: registry,
 	}
 }
@@ -348,6 +411,42 @@ func (m *Metrics) RecordL1ReorgDepth(d uint64) {
 	m.L1ReorgDepth.Observe(float64(d))
 }
 
+func (m *Metrics) RecordGossipEvent(evType int32) {
+	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
+}
+
+func (m *Metrics) IncPeerCount() {
+	m.PeerCount.Inc()
+}
+
+func (m *Metrics) DecPeerCount() {
+	m.PeerCount.Dec()
+}
+
+func (m *Metrics) IncStreamCount() {
+	m.StreamCount.Inc()
+}
+
+func (m *Metrics) DecStreamCount() {
+	m.StreamCount.Dec()
+}
+
+func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter) {
+	tick := time.NewTicker(10 * time.Second)
+	defer tick.Stop()
+
+	for {
+		select {
+		case <-tick.C:
+			bwTotals := bwc.GetBandwidthTotals()
+			m.BandwidthTotal.WithLabelValues("in").Set(float64(bwTotals.TotalIn))
+			m.BandwidthTotal.WithLabelValues("out").Set(float64(bwTotals.TotalOut))
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 // Serve starts the metrics server on the given hostname and port.
 // The server will be closed when the passed-in context is cancelled.
 func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
@@ -363,4 +462,79 @@ func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 		server.Close()
 	}()
 	return server.ListenAndServe()
+}
+
+type noopMetricer struct{}
+
+var NoopMetrics = new(noopMetricer)
+
+func (n *noopMetricer) RecordInfo(version string) {
+}
+
+func (n *noopMetricer) RecordUp() {
+}
+
+func (n *noopMetricer) RecordRPCServerRequest(method string) func() {
+	return func() {}
+}
+
+func (n *noopMetricer) RecordRPCClientRequest(method string) func(err error) {
+	return func(err error) {}
+}
+
+func (n *noopMetricer) RecordRPCClientResponse(method string, err error) {
+}
+
+func (n *noopMetricer) SetDerivationIdle(status bool) {
+}
+
+func (n *noopMetricer) RecordPipelineReset() {
+}
+
+func (n *noopMetricer) RecordSequencingError() {
+}
+
+func (n *noopMetricer) RecordPublishingError() {
+}
+
+func (n *noopMetricer) RecordDerivationError() {
+}
+
+func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+}
+
+func (n *noopMetricer) recordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash) {
+}
+
+func (n *noopMetricer) RecordL1Ref(name string, ref eth.L1BlockRef) {
+}
+
+func (n *noopMetricer) RecordL2Ref(name string, ref eth.L2BlockRef) {
+}
+
+func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+}
+
+func (n *noopMetricer) CountSequencedTxs(count int) {
+}
+
+func (n *noopMetricer) RecordL1ReorgDepth(d uint64) {
+}
+
+func (n *noopMetricer) RecordGossipEvent(evType int32) {
+}
+
+func (n *noopMetricer) IncPeerCount() {
+}
+
+func (n *noopMetricer) DecPeerCount() {
+}
+
+func (n *noopMetricer) IncStreamCount() {
+}
+
+func (n *noopMetricer) DecStreamCount() {
+}
+
+func (n *noopMetricer) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter) {
 }

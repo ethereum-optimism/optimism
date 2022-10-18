@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/libp2p/go-libp2p-core/host"
+	"github.com/libp2p/go-libp2p-core/metrics"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,7 +39,7 @@ func (p *Prepared) Check() error {
 }
 
 // Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
-func (p *Prepared) Host(log log.Logger) (host.Host, error) {
+func (p *Prepared) Host(log log.Logger, reporter metrics.Reporter) (host.Host, error) {
 	return p.HostP2P, nil
 }
 
