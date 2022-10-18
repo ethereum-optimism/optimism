@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/log"
 
@@ -64,6 +65,10 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1Bloc
 	if err != nil {
 		log.Error("Failed to get next origin. Falling back to current origin", "err", err)
 		return currentOrigin, nil
+	}
+
+	if nextOrigin.ParentHash != currentOrigin.Hash {
+		return eth.L1BlockRef{}, fmt.Errorf("next L1 origin %s builds on parent %s and not on top of previous L1 origin %s", nextOrigin, nextOrigin.ParentID(), currentOrigin)
 	}
 
 	// If the next L2 block time is greater than the next origin block's time, we can choose to
