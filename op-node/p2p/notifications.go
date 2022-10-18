@@ -8,11 +8,16 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// TODO: add metrics here as well
+type NotificationsMetricer interface {
+	IncPeerCount()
+	DecPeerCount()
+	IncStreamCount()
+	DecStreamCount()
+}
 
 type notifications struct {
 	log log.Logger
-	m   *metrics.Metrics
+	m   NotificationsMetricer
 }
 
 func (notif *notifications) Listen(n network.Network, a ma.Multiaddr) {
@@ -22,20 +27,28 @@ func (notif *notifications) ListenClose(n network.Network, a ma.Multiaddr) {
 	notif.log.Info("stopped listening network address", "addr", a)
 }
 func (notif *notifications) Connected(n network.Network, v network.Conn) {
-	notif.m.PeerCount.Inc()
+	if notif.m != nil {
+		notif.m.IncPeerCount()
+	}
 	notif.log.Info("connected to peer", "peer", v.RemotePeer(), "addr", v.RemoteMultiaddr())
 }
 func (notif *notifications) Disconnected(n network.Network, v network.Conn) {
-	notif.m.PeerCount.Dec()
+	if notif.m != nil {
+		notif.m.DecPeerCount()
+	}
 	notif.log.Info("disconnected from peer", "peer", v.RemotePeer(), "addr", v.RemoteMultiaddr())
 }
 func (notif *notifications) OpenedStream(n network.Network, v network.Stream) {
-	notif.m.StreamCount.Inc()
+	if notif.m != nil {
+		notif.m.IncStreamCount()
+	}
 	c := v.Conn()
 	notif.log.Trace("opened stream", "protocol", v.Protocol(), "peer", c.RemotePeer(), "addr", c.RemoteMultiaddr())
 }
 func (notif *notifications) ClosedStream(n network.Network, v network.Stream) {
-	notif.m.StreamCount.Dec()
+	if notif.m != nil {
+		notif.m.DecStreamCount()
+	}
 	c := v.Conn()
 	notif.log.Trace("opened stream", "protocol", v.Protocol(), "peer", c.RemotePeer(), "addr", c.RemoteMultiaddr())
 }

@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/libp2p/go-libp2p-core/metrics"
+	libp2pmetrics "github.com/libp2p/go-libp2p-core/metrics"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
@@ -389,7 +389,23 @@ func (m *Metrics) RecordGossipEvent(evType int32) {
 	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
 }
 
-func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *metrics.BandwidthCounter) {
+func (m *Metrics) IncPeerCount() {
+	m.PeerCount.Inc()
+}
+
+func (m *Metrics) DecPeerCount() {
+	m.PeerCount.Dec()
+}
+
+func (m *Metrics) IncStreamCount() {
+	m.StreamCount.Inc()
+}
+
+func (m *Metrics) DecStreamCount() {
+	m.StreamCount.Dec()
+}
+
+func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter) {
 	tick := time.NewTicker(10 * time.Second)
 	defer tick.Stop()
 

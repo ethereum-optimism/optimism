@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
 	"github.com/libp2p/go-libp2p-core/host"
@@ -46,6 +45,10 @@ var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
 const MaxGossipSize = 1 << 20
+
+type GossipMetricer interface {
+	RecordGossipEvent(evType int32)
+}
 
 func blocksTopicV1(cfg *rollup.Config) string {
 	return fmt.Sprintf("/optimism/%s/0/blocks", cfg.L2ChainID.String())
@@ -116,7 +119,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, metrics *metrics.Metrics) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, r gossipMetrics) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -133,7 +136,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, metri
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),
-		pubsub.WithEventTracer(&gossipTracer{m: metrics}),
+		pubsub.WithEventTracer(&gossipTracer{r: r}),
 	)
 	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
 }
@@ -445,9 +448,11 @@ func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.Topic
 }
 
 type gossipTracer struct {
-	m *metrics.Metrics
+	r GossipMetricer
 }
 
 func (g *gossipTracer) Trace(evt *pb.TraceEvent) {
-	g.m.RecordGossipEvent(int32(*evt.Type))
+	if g.r != nil {
+		g.r.RecordGossipEvent(int32(*evt.Type))
+	}
 }
