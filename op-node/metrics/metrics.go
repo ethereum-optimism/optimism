@@ -32,6 +32,32 @@ const (
 	BatchMethod = "<batch>"
 )
 
+type Metricer interface {
+	RecordInfo(version string)
+	RecordUp()
+	RecordRPCServerRequest(method string) func()
+	RecordRPCClientRequest(method string) func(err error)
+	RecordRPCClientResponse(method string, err error)
+	SetDerivationIdle(status bool)
+	RecordPipelineReset()
+	RecordSequencingError()
+	RecordPublishingError()
+	RecordDerivationError()
+	RecordReceivedUnsafePayload(payload *eth.ExecutionPayload)
+	recordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash)
+	RecordL1Ref(name string, ref eth.L1BlockRef)
+	RecordL2Ref(name string, ref eth.L2BlockRef)
+	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
+	CountSequencedTxs(count int)
+	RecordL1ReorgDepth(d uint64)
+	RecordGossipEvent(evType int32)
+	IncPeerCount()
+	DecPeerCount()
+	IncStreamCount()
+	DecStreamCount()
+	RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter)
+}
+
 type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
@@ -436,4 +462,79 @@ func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 		server.Close()
 	}()
 	return server.ListenAndServe()
+}
+
+type noopMetricer struct{}
+
+var NoopMetrics = new(noopMetricer)
+
+func (n *noopMetricer) RecordInfo(version string) {
+}
+
+func (n *noopMetricer) RecordUp() {
+}
+
+func (n *noopMetricer) RecordRPCServerRequest(method string) func() {
+	return func() {}
+}
+
+func (n *noopMetricer) RecordRPCClientRequest(method string) func(err error) {
+	return func(err error) {}
+}
+
+func (n *noopMetricer) RecordRPCClientResponse(method string, err error) {
+}
+
+func (n *noopMetricer) SetDerivationIdle(status bool) {
+}
+
+func (n *noopMetricer) RecordPipelineReset() {
+}
+
+func (n *noopMetricer) RecordSequencingError() {
+}
+
+func (n *noopMetricer) RecordPublishingError() {
+}
+
+func (n *noopMetricer) RecordDerivationError() {
+}
+
+func (n *noopMetricer) RecordReceivedUnsafePayload(payload *eth.ExecutionPayload) {
+}
+
+func (n *noopMetricer) recordRef(layer string, name string, num uint64, timestamp uint64, h common.Hash) {
+}
+
+func (n *noopMetricer) RecordL1Ref(name string, ref eth.L1BlockRef) {
+}
+
+func (n *noopMetricer) RecordL2Ref(name string, ref eth.L2BlockRef) {
+}
+
+func (n *noopMetricer) RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID) {
+}
+
+func (n *noopMetricer) CountSequencedTxs(count int) {
+}
+
+func (n *noopMetricer) RecordL1ReorgDepth(d uint64) {
+}
+
+func (n *noopMetricer) RecordGossipEvent(evType int32) {
+}
+
+func (n *noopMetricer) IncPeerCount() {
+}
+
+func (n *noopMetricer) DecPeerCount() {
+}
+
+func (n *noopMetricer) IncStreamCount() {
+}
+
+func (n *noopMetricer) DecStreamCount() {
+}
+
+func (n *noopMetricer) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter) {
 }

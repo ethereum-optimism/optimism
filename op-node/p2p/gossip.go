@@ -119,7 +119,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, r gossipMetrics) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, m GossipMetricer) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, r gos
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),
-		pubsub.WithEventTracer(&gossipTracer{r: r}),
+		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	)
 	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
 }
@@ -448,11 +448,11 @@ func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.Topic
 }
 
 type gossipTracer struct {
-	r GossipMetricer
+	m GossipMetricer
 }
 
 func (g *gossipTracer) Trace(evt *pb.TraceEvent) {
-	if g.r != nil {
-		g.r.RecordGossipEvent(int32(*evt.Type))
+	if g.m != nil {
+		g.m.RecordGossipEvent(int32(*evt.Type))
 	}
 }

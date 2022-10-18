@@ -32,7 +32,7 @@ type NodeP2P struct {
 	gsOut    GossipOut        // p2p gossip application interface for publishing
 }
 
-func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, metrics *metrics.Metrics) (*NodeP2P, error) {
+func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, metrics metrics.Metricer) (*NodeP2P, error) {
 	if setup == nil {
 		return nil, errors.New("p2p node cannot be created without setup")
 	}
@@ -50,7 +50,7 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 	return &n, nil
 }
 
-func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, metrics *metrics.Metrics) error {
+func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, metrics metrics.Metricer) error {
 	bwc := p2pmetrics.NewBandwidthCounter()
 
 	var err error
@@ -95,7 +95,9 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			return fmt.Errorf("failed to start discv5: %w", err)
 		}
 
-		go metrics.RecordBandwidth(resourcesCtx, bwc)
+		if metrics != nil {
+			go metrics.RecordBandwidth(resourcesCtx, bwc)
+		}
 	}
 	return nil
 }
