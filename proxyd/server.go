@@ -8,16 +8,14 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/sethvargo/go-limiter"
-	"github.com/sethvargo/go-limiter/memorystore"
-	"github.com/sethvargo/go-limiter/noopstore"
-
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/go-redis/redis/v8"
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,11 +48,10 @@ type Server struct {
 	maxUpstreamBatchSize int
 	maxBatchSize         int
 	upgrader             *websocket.Upgrader
-	mainLim              limiter.Store
-	overrideLims         map[string]limiter.Store
-	limConfig            RateLimitConfig
-	limExemptOrigins     map[string]bool
-	limExemptUserAgents  map[string]bool
+	mainLim              FrontendRateLimiter
+	overrideLims         map[string]FrontendRateLimiter
+	limExemptOrigins     []*regexp.Regexp
+	limExemptUserAgents  []*regexp.Regexp
 	rpcServer            *http.Server
 	wsServer             *http.Server
 	cache                RPCCache
@@ -77,6 +74,7 @@ func NewServer(
 	enableRequestLog bool,
 	maxRequestBodyLogLen int,
 	maxBatchSize int,
+	redisClient *redis.Client,
 ) (*Server, error) {
 	if cache == nil {
 		cache = &NoopRPCCache{}
@@ -98,36 +96,41 @@ func NewServer(
 		maxBatchSize = MaxBatchRPCCallsHardLimit
 	}
 
-	var mainLim limiter.Store
-	limExemptOrigins := make(map[string]bool)
-	limExemptUserAgents := make(map[string]bool)
-	if rateLimitConfig.RatePerSecond > 0 {
-		var err error
-		mainLim, err = memorystore.New(&memorystore.Config{
-			Tokens:   uint64(rateLimitConfig.RatePerSecond),
-			Interval: time.Second,
-		})
-		if err != nil {
-			return nil, err
+	limiterFactory := func(dur time.Duration, max int, prefix string) FrontendRateLimiter {
+		if rateLimitConfig.UseRedis {
+			return NewRedisFrontendRateLimiter(redisClient, dur, max, prefix)
 		}
 
-		for _, origin := range rateLimitConfig.ExemptOrigins {
-			limExemptOrigins[strings.ToLower(origin)] = true
-		}
-		for _, agent := range rateLimitConfig.ExemptUserAgents {
-			limExemptUserAgents[strings.ToLower(agent)] = true
-		}
-	} else {
-		mainLim, _ = noopstore.New()
+		return NewMemoryFrontendRateLimit(dur, max)
 	}
 
-	overrideLims := make(map[string]limiter.Store)
+	var mainLim FrontendRateLimiter
+	limExemptOrigins := make([]*regexp.Regexp, 0)
+	limExemptUserAgents := make([]*regexp.Regexp, 0)
+	if rateLimitConfig.BaseRate > 0 {
+		mainLim = limiterFactory(time.Duration(rateLimitConfig.BaseInterval), rateLimitConfig.BaseRate, "main")
+		for _, origin := range rateLimitConfig.ExemptOrigins {
+			pattern, err := regexp.Compile(origin)
+			if err != nil {
+				return nil, err
+			}
+			limExemptOrigins = append(limExemptOrigins, pattern)
+		}
+		for _, agent := range rateLimitConfig.ExemptUserAgents {
+			pattern, err := regexp.Compile(agent)
+			if err != nil {
+				return nil, err
+			}
+			limExemptUserAgents = append(limExemptUserAgents, pattern)
+		}
+	} else {
+		mainLim = NoopFrontendRateLimiter
+	}
+
+	overrideLims := make(map[string]FrontendRateLimiter)
 	for method, override := range rateLimitConfig.MethodOverrides {
 		var err error
-		overrideLims[method], err = memorystore.New(&memorystore.Config{
-			Tokens:   uint64(override.Limit),
-			Interval: time.Duration(override.Interval),
-		})
+		overrideLims[method] = limiterFactory(time.Duration(override.Interval), override.Limit, method)
 		if err != nil {
 			return nil, err
 		}
@@ -151,7 +154,6 @@ func NewServer(
 		},
 		mainLim:             mainLim,
 		overrideLims:        overrideLims,
-		limConfig:           rateLimitConfig,
 		limExemptOrigins:    limExemptOrigins,
 		limExemptUserAgents: limExemptUserAgents,
 	}, nil
@@ -235,7 +237,7 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return false
 		}
 
-		var lim limiter.Store
+		var lim FrontendRateLimiter
 		if method == "" {
 			lim = s.mainLim
 		} else {
@@ -246,7 +248,11 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 			return false
 		}
 
-		_, _, _, ok, _ := lim.Take(ctx, xff)
+		ok, err := lim.Take(ctx, xff)
+		if err != nil {
+			log.Warn("error taking rate limit", "err", err)
+			return true
+		}
 		return !ok
 	}
 
@@ -551,11 +557,22 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 }
 
 func (s *Server) isUnlimitedOrigin(origin string) bool {
-	return s.limExemptOrigins[strings.ToLower(origin)]
+	for _, pat := range s.limExemptOrigins {
+		if pat.MatchString(origin) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Server) isUnlimitedUserAgent(origin string) bool {
-	return s.limExemptUserAgents[strings.ToLower(origin)]
+	for _, pat := range s.limExemptUserAgents {
+		if pat.MatchString(origin) {
+			return true
+		}
+	}
+	return false
 }
 
 func setCacheHeader(w http.ResponseWriter, cached bool) {

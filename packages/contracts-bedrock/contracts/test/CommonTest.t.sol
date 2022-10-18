@@ -130,12 +130,13 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeWithSelector(
-                L2OutputOracle.initialize.selector,
-                genesisL2Output,
-                startingBlockNumber,
-                proposer,
-                owner
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (
+                    genesisL2Output,
+                    proposer,
+                    owner
+                )
             )
         );
         oracle = L2OutputOracle(address(proxy));
