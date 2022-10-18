@@ -259,7 +259,7 @@ func TestFCUVSNewPayloadDiscrepency(t *testing.T) {
 
 	status, err := client.NewPayload(ctx, payload)
 	require.Nil(t, err)
-	require.Equal(t, eth.ExecutionInvalid, status.Status)
+	require.Equal(t, eth.ExecutionValid, status.Status)
 
 	// fc.HeadBlockHash = payload.BlockHash
 	// res, err = client.ForkchoiceUpdate(ctx, &fc, nil)
