@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -256,5 +257,30 @@ func randStr(l int) string {
 	return hex.EncodeToString(b)
 }
 
-type ServerRateLimiter struct {
+type NoopBackendRateLimiter struct{}
+
+var noopBackendRateLimiter = &NoopBackendRateLimiter{}
+
+func (n *NoopBackendRateLimiter) IsBackendOnline(name string) (bool, error) {
+	return true, nil
+}
+
+func (n *NoopBackendRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
+	return nil
+}
+
+func (n *NoopBackendRateLimiter) IncBackendRPS(name string) (int, error) {
+	return math.MaxInt, nil
+}
+
+func (n *NoopBackendRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
+	return true, nil
+}
+
+func (n *NoopBackendRateLimiter) DecBackendWSConns(name string) error {
+	return nil
+}
+
+func (n *NoopBackendRateLimiter) FlushBackendWSConns(names []string) error {
+	return nil
 }

@@ -59,7 +59,12 @@ func (bq *BatchQueue) Origin() eth.L1BlockRef {
 }
 
 func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) (*BatchData, error) {
-	originBehind := bq.origin.Number < (safeL2Head.L1Origin.Number - 1)
+	// Note: We use the origin that we will have to determine if it's behind. This is important
+	// because it's the future origin that gets saved into the l1Blocks array.
+	// We always update the origin of this stage if it is not the same so after the update code
+	// runs, this is consistent.
+	originBehind := bq.prev.Origin().Number < safeL2Head.L1Origin.Number
+
 	// Advance origin if needed
 	// Note: The entire pipeline has the same origin
 	// We just don't accept batches prior to the L1 origin of the L2 safe head
@@ -69,7 +74,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 			bq.l1Blocks = append(bq.l1Blocks, bq.origin)
 		} else {
 			// This is to handle the special case of startup. At startup we call Reset & include
-			// the L1 origin. That is the only time where immediately after `Reset` is called
+			// the L1 origin. That Fy time where immediately after `Reset` is called
 			// originBehind is false.
 			bq.l1Blocks = bq.l1Blocks[:0]
 		}

@@ -46,6 +46,10 @@ var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
 const MaxGossipSize = 1 << 20
 
+type GossipMetricer interface {
+	RecordGossipEvent(evType int32)
+}
+
 func blocksTopicV1(cfg *rollup.Config) string {
 	return fmt.Sprintf("/optimism/%s/0/blocks", cfg.L2ChainID.String())
 }
@@ -115,7 +119,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, m GossipMetricer) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -132,6 +136,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config) (*pub
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),
+		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	)
 	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
 }
@@ -439,5 +444,15 @@ func LogTopicEvents(ctx context.Context, log log.Logger, evHandler *pubsub.Topic
 		default:
 			log.Warn("unrecognized topic event", "ev", ev)
 		}
+	}
+}
+
+type gossipTracer struct {
+	m GossipMetricer
+}
+
+func (g *gossipTracer) Trace(evt *pb.TraceEvent) {
+	if g.m != nil {
+		g.m.RecordGossipEvent(int32(*evt.Type))
 	}
 }

@@ -53,11 +53,15 @@ func Start(config *Config) (func(), error) {
 
 	var lim BackendRateLimiter
 	var err error
-	if redisClient == nil {
-		log.Warn("redis is not configured, using local rate limiter")
-		lim = NewLocalBackendRateLimiter()
+	if config.RateLimit.EnableBackendRateLimiter {
+		if redisClient != nil {
+			lim = NewRedisRateLimiter(redisClient)
+		} else {
+			log.Warn("redis is not configured, using local rate limiter")
+			lim = NewLocalBackendRateLimiter()
+		}
 	} else {
-		lim = NewRedisRateLimiter(redisClient)
+		lim = noopBackendRateLimiter
 	}
 
 	// While modifying shared globals is a bad practice, the alternative

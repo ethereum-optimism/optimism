@@ -8,6 +8,7 @@ import (
 	"io"
 	"math"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -49,8 +50,8 @@ type Server struct {
 	upgrader             *websocket.Upgrader
 	mainLim              FrontendRateLimiter
 	overrideLims         map[string]FrontendRateLimiter
-	limExemptOrigins     map[string]bool
-	limExemptUserAgents  map[string]bool
+	limExemptOrigins     []*regexp.Regexp
+	limExemptUserAgents  []*regexp.Regexp
 	rpcServer            *http.Server
 	wsServer             *http.Server
 	cache                RPCCache
@@ -104,15 +105,23 @@ func NewServer(
 	}
 
 	var mainLim FrontendRateLimiter
-	limExemptOrigins := make(map[string]bool)
-	limExemptUserAgents := make(map[string]bool)
+	limExemptOrigins := make([]*regexp.Regexp, 0)
+	limExemptUserAgents := make([]*regexp.Regexp, 0)
 	if rateLimitConfig.BaseRate > 0 {
 		mainLim = limiterFactory(time.Duration(rateLimitConfig.BaseInterval), rateLimitConfig.BaseRate, "main")
 		for _, origin := range rateLimitConfig.ExemptOrigins {
-			limExemptOrigins[strings.ToLower(origin)] = true
+			pattern, err := regexp.Compile(origin)
+			if err != nil {
+				return nil, err
+			}
+			limExemptOrigins = append(limExemptOrigins, pattern)
 		}
 		for _, agent := range rateLimitConfig.ExemptUserAgents {
-			limExemptUserAgents[strings.ToLower(agent)] = true
+			pattern, err := regexp.Compile(agent)
+			if err != nil {
+				return nil, err
+			}
+			limExemptUserAgents = append(limExemptUserAgents, pattern)
 		}
 	} else {
 		mainLim = NoopFrontendRateLimiter
@@ -548,11 +557,22 @@ func (s *Server) populateContext(w http.ResponseWriter, r *http.Request) context
 }
 
 func (s *Server) isUnlimitedOrigin(origin string) bool {
-	return s.limExemptOrigins[strings.ToLower(origin)]
+	for _, pat := range s.limExemptOrigins {
+		if pat.MatchString(origin) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *Server) isUnlimitedUserAgent(origin string) bool {
-	return s.limExemptUserAgents[strings.ToLower(origin)]
+	for _, pat := range s.limExemptUserAgents {
+		if pat.MatchString(origin) {
+			return true
+		}
+	}
+	return false
 }
 
 func setCacheHeader(w http.ResponseWriter, cached bool) {

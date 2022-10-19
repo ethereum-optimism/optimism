@@ -20,3 +20,6 @@ backends = ["bad", "good"]
 
 [rpc_method_mappings]
 eth_chainId = "main"
+
+[rate_limit]
+enable_backend_rate_limiter = true
