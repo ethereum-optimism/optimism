@@ -54,12 +54,16 @@ type Node interface {
 type APIBackend struct {
 	node Node
 	log  log.Logger
-	m    *metrics.Metrics
+	m    metrics.Metricer
 }
 
 var _ API = (*APIBackend)(nil)
 
-func NewP2PAPIBackend(node Node, log log.Logger, m *metrics.Metrics) *APIBackend {
+func NewP2PAPIBackend(node Node, log log.Logger, m metrics.Metricer) *APIBackend {
+	if m == nil {
+		m = metrics.NoopMetrics
+	}
+
 	return &APIBackend{
 		node: node,
 		log:  log,

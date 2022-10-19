@@ -41,3 +41,5 @@ require (
 )
 
 replace github.com/ethereum/go-ethereum v1.10.23 => ./op-geth
+// github.com/ethereum-optimism/op-geth v0.0.0-20220909213840-e6575c0168f1
+

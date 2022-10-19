@@ -1,5 +1,24 @@
 # @eth-optimism/ci-builder
 
+## 0.3.3
+
+### Patch Changes
+
+- 3f485627: Pin slither version to 0.9.0
+
+## 0.3.2
+
+### Patch Changes
+
+- fcfcf6e7: Remove ugly shell hack
+- 009939e0: Fix codecov download step
+
+## 0.3.1
+
+### Patch Changes
+
+- 7375a949: Download and verify codecov uploader binary in the ci-builder image
+
 ## 0.3.0
 
 ### Minor Changes

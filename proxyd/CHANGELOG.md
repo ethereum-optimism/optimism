@@ -1,5 +1,34 @@
 # @eth-optimism/proxyd
 
+## 3.12.0
+
+### Minor Changes
+
+- e9f2c701: Allow disabling backend rate limiter
+- ca45a85e: Support pattern matching in exempt origins/user agents
+- f4faa44c: adds server.log_level config
+
+## 3.11.0
+
+### Minor Changes
+
+- b3c5eeec: Fixed JSON-RPC 2.0 specification compliance by adding the optional data field on an RPCError
+- 01ae6625: Adds new Redis rate limiter
+
+## 3.10.2
+
+### Patch Changes
+
+- 6bb35fd8: Add customizable whitelist error
+- 7121648c: Batch metrics and max batch size
+
+## 3.10.1
+
+### Patch Changes
+
+- b82a8f48: Add logging for origin and remote IP'
+- 1bf9559c: Carry over custom limit message in batches
+
 ## 3.10.0
 
 ### Minor Changes

@@ -13,9 +13,8 @@ import ICrossDomainMessenger from '@eth-optimism/contracts/artifacts/contracts/l
 import { NON_NULL_BYTES32, NON_ZERO_ADDRESS } from '../../helpers'
 import { expect } from '../../setup'
 
-const ERR_INVALID_MESSENGER = 'OVM_XCHAIN: messenger contract unauthenticated'
-const ERR_INVALID_X_DOMAIN_MSG_SENDER =
-  'OVM_XCHAIN: wrong sender of cross-domain message'
+const ERR_INVALID_X_DOMAIN_MESSAGE =
+  'ERC721Bridge: function can only be called from the other bridge'
 const DUMMY_L2_ERC721_ADDRESS = ethers.utils.getAddress(
   '0x' + 'abba'.repeat(10)
 )
@@ -23,7 +22,7 @@ const DUMMY_L2_BRIDGE_ADDRESS = ethers.utils.getAddress(
   '0x' + 'acdc'.repeat(10)
 )
 
-const FINALIZATION_GAS = 1_200_000
+const FINALIZATION_GAS = 600_000
 
 describe('L1ERC721Bridge', () => {
   // init signers
@@ -59,6 +58,7 @@ describe('L1ERC721Bridge', () => {
   let L1ERC721: MockContract<Contract>
   let L1ERC721Bridge: Contract
   let Fake__L1CrossDomainMessenger: FakeContract
+  let Factory__L1ERC721Bridge: ContractFactory
   beforeEach(async () => {
     // Get a new mock L1 messenger
     Fake__L1CrossDomainMessenger = await smock.fake<Contract>(
@@ -67,9 +67,11 @@ describe('L1ERC721Bridge', () => {
     )
 
     // Deploy the contract under test
-    L1ERC721Bridge = await (
-      await ethers.getContractFactory('L1ERC721Bridge')
-    ).deploy(Fake__L1CrossDomainMessenger.address, DUMMY_L2_BRIDGE_ADDRESS)
+    Factory__L1ERC721Bridge = await ethers.getContractFactory('L1ERC721Bridge')
+    L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy(
+      Fake__L1CrossDomainMessenger.address,
+      DUMMY_L2_BRIDGE_ADDRESS
+    )
 
     L1ERC721 = await Factory__L1ERC721.deploy('L1ERC721', 'ERC')
 
@@ -81,9 +83,48 @@ describe('L1ERC721Bridge', () => {
     })
   })
 
+  describe('constructor', async () => {
+    it('initializes correctly', async () => {
+      it('reverts if cross domain messenger is address(0)', async () => {
+        await expect(
+          Factory__L1ERC721Bridge.deploy(
+            constants.AddressZero,
+            DUMMY_L2_BRIDGE_ADDRESS
+          )
+        ).to.be.revertedWith('ERC721Bridge: messenger cannot be address(0)')
+      })
+
+      it('reverts if other bridge is address(0)', async () => {
+        await expect(
+          Factory__L1ERC721Bridge.deploy(
+            Fake__L1CrossDomainMessenger.address,
+            constants.AddressZero
+          )
+        ).to.be.revertedWith('ERC721Bridge: other bridge cannot be address(0)')
+      })
+
+      expect(await L1ERC721Bridge.messenger()).equals(
+        Fake__L1CrossDomainMessenger.address
+      )
+      expect(await L1ERC721Bridge.otherBridge()).equals(DUMMY_L2_BRIDGE_ADDRESS)
+    })
+  })
+
   describe('ERC721 deposits', () => {
     beforeEach(async () => {
       await L1ERC721.connect(alice).approve(L1ERC721Bridge.address, tokenId)
+    })
+
+    it('bridgeERC721() reverts if remote token is address(0)', async () => {
+      await expect(
+        L1ERC721Bridge.connect(alice).bridgeERC721(
+          L1ERC721.address,
+          constants.AddressZero,
+          tokenId,
+          FINALIZATION_GAS,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('ERC721Bridge: remote token cannot be address(0)')
     })
 
     it('bridgeERC721() escrows the deposit and sends the correct deposit message', async () => {
@@ -145,6 +186,19 @@ describe('L1ERC721Bridge', () => {
           tokenId
         )
       ).to.equal(true)
+    })
+
+    it('bridgeERC721To() reverts if NFT receiver is address(0)', async () => {
+      await expect(
+        L1ERC721Bridge.connect(alice).bridgeERC721To(
+          L1ERC721.address,
+          DUMMY_L2_ERC721_ADDRESS,
+          constants.AddressZero,
+          tokenId,
+          FINALIZATION_GAS,
+          NON_NULL_BYTES32
+        )
+      ).to.be.revertedWith('ERC721Bridge: nft recipient cannot be address(0)')
     })
 
     it('bridgeERC721To() escrows the deposited NFT and sends the correct deposit message', async () => {
@@ -222,7 +276,7 @@ describe('L1ERC721Bridge', () => {
           FINALIZATION_GAS,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith('L1ERC721Bridge: account is not externally owned')
+      ).to.be.revertedWith('ERC721Bridge: account is not externally owned')
     })
 
     describe('Handling ERC721.transferFrom() failures that revert', () => {
@@ -291,7 +345,7 @@ describe('L1ERC721Bridge', () => {
           tokenId,
           NON_NULL_BYTES32
         )
-      ).to.be.revertedWith(ERR_INVALID_MESSENGER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     it('onlyFromCrossDomainAccount: should revert on calls from the right crossDomainMessenger, but wrong xDomainMessageSender (ie. not the L2DepositedERC721)', async () => {
@@ -307,7 +361,7 @@ describe('L1ERC721Bridge', () => {
             from: Fake__L1CrossDomainMessenger.address,
           }
         )
-      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MSG_SENDER)
+      ).to.be.revertedWith(ERR_INVALID_X_DOMAIN_MESSAGE)
     })
 
     describe('withdrawal attempts that pass the onlyFromCrossDomainAccount check', () => {
@@ -331,23 +385,7 @@ describe('L1ERC721Bridge', () => {
         )
       })
 
-      it('should revert if the l1/l2 token pair has a token ID that has not been escrowed in the l1 bridge', async () => {
-        await expect(
-          L1ERC721Bridge.finalizeBridgeERC721(
-            L1ERC721.address,
-            DUMMY_L2_BRIDGE_ADDRESS, // incorrect l2 token address
-            constants.AddressZero,
-            constants.AddressZero,
-            tokenId,
-            NON_NULL_BYTES32,
-            {
-              from: Fake__L1CrossDomainMessenger.address,
-            }
-          )
-        ).to.be.revertedWith('Token ID is not escrowed in the L1 Bridge')
-      })
-
-      it('should credit funds to the withdrawer and not use too much gas', async () => {
+      it('should credit funds to the withdrawer to finalize withdrawal', async () => {
         // finalizing the withdrawal emits an ERC721BridgeFinalized event with the correct arguments.
         await expect(
           L1ERC721Bridge.finalizeBridgeERC721(

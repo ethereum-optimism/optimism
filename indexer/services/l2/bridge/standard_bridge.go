@@ -5,83 +5,112 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 )
 
 type StandardBridge struct {
-	name     string
-	ctx      context.Context
-	address  common.Address
-	client   bind.ContractFilterer
-	filterer *bindings.L2StandardBridgeFilterer
+	name      string
+	address   common.Address
+	client    *ethclient.Client
+	l2SB      *bindings.L2StandardBridge
+	l2L1MP    *bindings.L2ToL1MessagePasser
+	isBedrock bool
 }
 
 func (s *StandardBridge) Address() common.Address {
 	return s.address
 }
 
-func (s *StandardBridge) GetDepositsByBlockRange(start, end uint64) (DepositsMap, error) {
-	depositsByBlockhash := make(DepositsMap)
-
-	iter, err := FilterDepositFinalizedWithRetry(s.ctx, s.filterer, &bind.FilterOpts{
-		Start: start,
-		End:   &end,
-	})
-	if err != nil {
-		logger.Error("Error fetching filter", "err", err)
-	}
-
-	for iter.Next() {
-		depositsByBlockhash[iter.Event.Raw.BlockHash] = append(
-			depositsByBlockhash[iter.Event.Raw.BlockHash], db.Deposit{
-				TxHash:      iter.Event.Raw.TxHash,
-				L1Token:     iter.Event.L1Token,
-				L2Token:     iter.Event.L2Token,
-				FromAddress: iter.Event.From,
-				ToAddress:   iter.Event.To,
-				Amount:      iter.Event.Amount,
-				Data:        iter.Event.ExtraData,
-				LogIndex:    iter.Event.Raw.Index,
-			})
-	}
-	if err := iter.Error(); err != nil {
-		return nil, err
-	}
-
-	return depositsByBlockhash, nil
-}
-
-func (s *StandardBridge) GetWithdrawalsByBlockRange(start, end uint64) (WithdrawalsMap, error) {
+func (s *StandardBridge) GetWithdrawalsByBlockRange(ctx context.Context, start, end uint64) (WithdrawalsMap, error) {
 	withdrawalsByBlockhash := make(map[common.Hash][]db.Withdrawal)
+	opts := &bind.FilterOpts{
+		Context: ctx,
+		Start:   start,
+		End:     &end,
+	}
 
-	iter, err := FilterWithdrawalInitiatedWithRetry(s.ctx, s.filterer, &bind.FilterOpts{
-		Start: start,
-		End:   &end,
+	var iter *bindings.L2StandardBridgeWithdrawalInitiatedIterator
+	err := backoff.Do(3, backoff.Exponential(), func() error {
+		var err error
+		iter, err = s.l2SB.FilterWithdrawalInitiated(opts, nil, nil, nil)
+		return err
 	})
 	if err != nil {
-		logger.Error("Error fetching filter", "err", err)
-	}
-
-	for iter.Next() {
-		withdrawalsByBlockhash[iter.Event.Raw.BlockHash] = append(
-			withdrawalsByBlockhash[iter.Event.Raw.BlockHash], db.Withdrawal{
-				TxHash:      iter.Event.Raw.TxHash,
-				L1Token:     iter.Event.L1Token,
-				L2Token:     iter.Event.L2Token,
-				FromAddress: iter.Event.From,
-				ToAddress:   iter.Event.To,
-				Amount:      iter.Event.Amount,
-				Data:        iter.Event.ExtraData,
-				LogIndex:    iter.Event.Raw.Index,
-			})
-	}
-	if err := iter.Error(); err != nil {
 		return nil, err
 	}
 
-	return withdrawalsByBlockhash, nil
+	receipts := make(map[common.Hash]*types.Receipt)
+	defer iter.Close()
+	for iter.Next() {
+		ev := iter.Event
+		if s.isBedrock {
+			receipt := receipts[ev.Raw.TxHash]
+			if receipt == nil {
+				receipt, err = s.client.TransactionReceipt(ctx, ev.Raw.TxHash)
+				if err != nil {
+					return nil, err
+				}
+				receipts[ev.Raw.TxHash] = receipt
+			}
+
+			var withdrawalInitiated *bindings.L2ToL1MessagePasserMessagePassed
+			for _, eLog := range receipt.Logs {
+				if len(eLog.Topics) == 0 || eLog.Topics[0] != withdrawals.MessagePassedTopic {
+					continue
+				}
+
+				if withdrawalInitiated != nil {
+					logger.Warn("detected multiple withdrawal initiated events! ignoring", "tx_hash", ev.Raw.TxHash)
+					continue
+				}
+
+				withdrawalInitiated, err = s.l2L1MP.ParseMessagePassed(*eLog)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			hash, err := withdrawals.WithdrawalHash(withdrawalInitiated)
+			if err != nil {
+				return nil, err
+			}
+
+			withdrawalsByBlockhash[ev.Raw.BlockHash] = append(
+				withdrawalsByBlockhash[ev.Raw.BlockHash], db.Withdrawal{
+					TxHash:      ev.Raw.TxHash,
+					L1Token:     ev.L1Token,
+					L2Token:     ev.L2Token,
+					FromAddress: ev.From,
+					ToAddress:   ev.To,
+					Amount:      ev.Amount,
+					Data:        ev.ExtraData,
+					LogIndex:    ev.Raw.Index,
+					BedrockHash: &hash,
+				},
+			)
+		} else {
+			withdrawalsByBlockhash[ev.Raw.BlockHash] = append(
+				withdrawalsByBlockhash[ev.Raw.BlockHash], db.Withdrawal{
+					TxHash:      ev.Raw.TxHash,
+					L1Token:     ev.L1Token,
+					L2Token:     ev.L2Token,
+					FromAddress: ev.From,
+					ToAddress:   ev.To,
+					Amount:      ev.Amount,
+					Data:        ev.ExtraData,
+					LogIndex:    ev.Raw.Index,
+				},
+			)
+		}
+	}
+
+	return withdrawalsByBlockhash, iter.Error()
 }
 
 func (s *StandardBridge) String() string {

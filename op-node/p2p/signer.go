@@ -23,19 +23,22 @@ type Signer interface {
 	io.Closer
 }
 
-func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) common.Hash {
+func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error) {
 	var msgInput [32 + 32 + 32]byte
 	// domain: first 32 bytes
 	copy(msgInput[:32], domain[:])
 	// chain_id: second 32 bytes
+	if chainID.BitLen() > 256 {
+		return common.Hash{}, errors.New("chain_id is too large")
+	}
 	chainID.FillBytes(msgInput[32:64])
 	// payload_hash: third 32 bytes, hash of encoded payload
 	copy(msgInput[32:], crypto.Keccak256(payloadBytes))
 
-	return crypto.Keccak256Hash(msgInput[:])
+	return crypto.Keccak256Hash(msgInput[:]), nil
 }
 
-func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) common.Hash {
+func BlockSigningHash(cfg *rollup.Config, payloadBytes []byte) (common.Hash, error) {
 	return SigningHash(SigningDomainBlocksV1, cfg.L2ChainID, payloadBytes)
 }
 
@@ -52,7 +55,10 @@ func (s *LocalSigner) Sign(ctx context.Context, domain [32]byte, chainID *big.In
 	if s.priv == nil {
 		return nil, errors.New("signer is closed")
 	}
-	signingHash := SigningHash(domain, chainID, encodedMsg)
+	signingHash, err := SigningHash(domain, chainID, encodedMsg)
+	if err != nil {
+		return nil, err
+	}
 	signature, err := crypto.Sign(signingHash[:], s.priv)
 	if err != nil {
 		return nil, err
@@ -82,12 +88,11 @@ type SignerSetup interface {
 
 // LoadSignerSetup loads a configuration for a Signer to be set up later
 func LoadSignerSetup(ctx *cli.Context) (SignerSetup, error) {
-	keyFile := ctx.GlobalString(flags.SequencerP2PKeyFlag.Name)
-	if keyFile != "" {
+	key := ctx.GlobalString(flags.SequencerP2PKeyFlag.Name)
+	if key != "" {
 		// Mnemonics are bad because they leak *all* keys when they leak.
 		// Unencrypted keys from file are bad because they are easy to leak (and we are not checking file permissions).
-		// TODO: load from encrypted keystore
-		priv, err := crypto.LoadECDSA(keyFile)
+		priv, err := crypto.HexToECDSA(key)
 		if err != nil {
 			return nil, fmt.Errorf("failed to read batch submitter key: %w", err)
 		}

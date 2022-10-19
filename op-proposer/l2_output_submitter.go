@@ -12,9 +12,7 @@ import (
 	"syscall"
 	"time"
 
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
-	"github.com/urfave/cli"
-
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
@@ -28,6 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	"github.com/urfave/cli"
 )
 
 const (
@@ -86,6 +86,8 @@ func Main(version string) func(ctx *cli.Context) error {
 					l.Error("error starting metrics server", err)
 				}
 			}()
+			addr := l2OutputSubmitter.l2OutputService.cfg.Driver.WalletAddr()
+			opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l2OutputService.cfg.L1Client, addr)
 		}
 
 		rpcCfg := cfg.RPCConfig
@@ -250,12 +252,12 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.Roll
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
-	client, err := rpc.DialContext(ctxt, url)
+	rpcCl, err := rpc.DialContext(ctxt, url)
 	if err != nil {
 		return nil, err
 	}
 
-	return sources.NewRollupClient(client), nil
+	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 }
 
 // parseAddress parses an ETH address from a hex string. This method will fail if

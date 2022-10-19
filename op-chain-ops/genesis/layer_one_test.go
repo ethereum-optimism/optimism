@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,7 +26,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	dec := json.NewDecoder(bytes.NewReader(b))
 	config := new(DeployConfig)
 	require.NoError(t, dec.Decode(config))
-	config.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix())
+	config.L1GenesisBlockTimestamp = hexutil.Uint64(time.Now().Unix() - 100)
 
 	genesis, err := BuildL1DeveloperGenesis(config)
 	require.NoError(t, err)
@@ -91,6 +91,18 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	bridgeAddr, err := factory.Bridge(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevL1StandardBridgeAddr, bridgeAddr)
+
+	weth9, err := bindings.NewWETH9(predeploys.DevWETH9Addr, sim)
+	require.NoError(t, err)
+	decimals, err := weth9.Decimals(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, uint8(18), decimals)
+	symbol, err := weth9.Symbol(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, "WETH", symbol)
+	name, err := weth9.Name(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, "Wrapped Ether", name)
 
 	// test that we can do deposits, etc.
 	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")

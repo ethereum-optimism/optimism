@@ -16,7 +16,13 @@ contract L1BlockTest is CommonTest {
         lb.setL1BlockValues(uint64(1), uint64(2), 3, NON_ZERO_HASH, uint64(4));
     }
 
-    function test_updatesValues(uint64 n, uint64 t, uint256 b, bytes32 h, uint64 s) external {
+    function test_updatesValues(
+        uint64 n,
+        uint64 t,
+        uint256 b,
+        bytes32 h,
+        uint64 s
+    ) external {
         vm.prank(depositor);
         lb.setL1BlockValues(n, t, b, h, s);
         assertEq(lb.number(), n);
@@ -48,6 +54,12 @@ contract L1BlockTest is CommonTest {
 
     function test_updateValues() external {
         vm.prank(depositor);
-        lb.setL1BlockValues(type(uint64).max, type(uint64).max, type(uint256).max, keccak256(abi.encode(1)), type(uint64).max);
+        lb.setL1BlockValues(
+            type(uint64).max,
+            type(uint64).max,
+            type(uint256).max,
+            keccak256(abi.encode(1)),
+            type(uint64).max
+        );
     }
 }

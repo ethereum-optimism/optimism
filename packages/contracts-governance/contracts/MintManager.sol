@@ -15,7 +15,7 @@ contract MintManager is Ownable {
     /**
      * @notice The GovernanceToken that the MintManager can mint tokens
      */
-    GovernanceToken public governanceToken;
+    GovernanceToken public immutable governanceToken;
 
     /**
      * @notice The amount of tokens that can be minted per year. The value is a fixed

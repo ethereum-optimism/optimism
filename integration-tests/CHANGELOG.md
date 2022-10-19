@@ -1,5 +1,29 @@
 # @eth-optimism/integration-tests
 
+## 0.5.21
+
+### Patch Changes
+
+- a3242d4f: Fix erc721 factory to match erc21 factory
+
+## 0.5.20
+
+### Patch Changes
+
+- 02c457a5: Removes NFT refund logic if withdrawals fail.
+
+## 0.5.19
+
+### Patch Changes
+
+- 5c3f2b1f: Fixes NFT bridge related contracts in response to the OpenZeppelin audit. Updates tests to support these changes, including integration tests.
+
+## 0.5.18
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+
 ## 0.5.17
 
 ### Patch Changes

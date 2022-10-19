@@ -1,5 +1,51 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.2
+
+### Patch Changes
+
+- e81a6ff5: Goerli nft bridge deployment
+- a3242d4f: Fix erc721 factory to match erc21 factory
+- ffa5297e: mainnet nft bridge deployments
+
+## 1.0.1
+
+### Patch Changes
+
+- 02c457a5: Removes NFT refund logic if withdrawals fail.
+- d3fe9b6d: Adds input validation to the ERC721Bridge constructor, fixes a typo in the L1ERC721Bridge, and removes the ERC721Refunded event declaration.
+- 220ad4ef: Remove ownable upgradable from erc721 factory
+- 5d86ff0e: Increased solc version on drip checks to 0.8.16.
+
+## 1.0.0
+
+### Major Changes
+
+- 5c3f2b1f: Fixes NFT bridge related contracts in response to the OpenZeppelin audit. Updates tests to support these changes, including integration tests.
+
+### Patch Changes
+
+- 3883f34b: Remove ERC721Refunded events
+
+## 0.2.4
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 0ceff8b8: Drippie Spearbit audit fix for issues #32 and #33, clarify behavior of executable function
+- 0ceff8b8: Drippie Spearbit audit fix for issue #25, reorder DripStatus enum for clarity
+- 0ceff8b8: Drippie Spearbit audit fix for issue #44, document drip count and increment before external calls
+- 0ceff8b8: Drippie Spearbit audit fix for issue 24, use call over transfer for withdrawETH
+- 0ceff8b8: Drippie Spearbit audit fix for issue 22, remove unnecessary gas parameter
+- 0ceff8b8: Drippie Spearbit audit fix for issue #34, missing natspec
+- 0ceff8b8: Drippie Spearbit audit fix for issue #28, document dripcheck behavior in drip function
+- 0ceff8b8: Drippie Spearbit audit fix #42, remove unnecessary SLOADs in the status function
+- 0ceff8b8: Drippie Spearbit audit fix for issue #39, update to latest version of Solidity
+- 0ceff8b8: Drippie Spearbit audit fix for issue #21, use correct version of Solmate
+- 0ceff8b8: Drippie Spearbit audit fix for issue #31, require explicit opt-in for reentrant drips
+- 0ceff8b8: Drippie Spearbit audit fix for issue #45, calldata over memory to save gas
+- 0ceff8b8: Drippie Spearbit audit fix for issue #35, correct contract layout ordering
+
 ## 0.2.3
 
 ### Patch Changes

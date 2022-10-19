@@ -24,10 +24,10 @@ import { Encoding } from "../libraries/Encoding.sol";
 contract CrossDomainMessengerLegacySpacer {
     /**
      * @custom:legacy
-     * @custom:spacer address libAddressManager
+     * @custom:spacer libAddressManager
      * @notice Spacer for backwards compatibility.
      */
-    bytes20 private spacer_0_0_20;
+    address private spacer_0_0_20;
 }
 
 /**
@@ -53,22 +53,22 @@ abstract contract CrossDomainMessenger is
     /**
      * @notice Constant overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
+    uint64 public constant MIN_GAS_CONSTANT_OVERHEAD = 200_000;
 
     /**
      * @notice Numerator for dynamic overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR = 1016;
 
     /**
      * @notice Denominator for dynamic overhead added to the base gas for a message.
      */
-    uint32 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
+    uint64 public constant MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR = 1000;
 
     /**
      * @notice Extra gas added to base gas for each byte of calldata in a message.
      */
-    uint32 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
+    uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     /**
      * @notice Minimum amount of gas required to relay a message.
@@ -94,17 +94,17 @@ abstract contract CrossDomainMessenger is
 
     /**
      * @custom:legacy
-     * @custom:spacer mapping(bytes32=>bool) blockedMessages
+     * @custom:spacer blockedMessages
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_201_0_32;
+    mapping(bytes32 => bool) private spacer_201_0_32;
 
     /**
      * @custom:legacy
-     * @custom:spacer mapping(bytes32=>bool) relayedMessages
+     * @custom:spacer relayedMessages
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_202_0_32;
+    mapping(bytes32 => bool) private spacer_202_0_32;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
@@ -369,13 +369,16 @@ abstract contract CrossDomainMessenger is
      *
      * @return Amount of gas required to guarantee message receipt.
      */
-    function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint32) {
+    function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
+        // We peform the following math on uint64s to avoid overflow errors. Multiplying the
+        //  by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _mingasLimit to
+        // approximately 4.2 MM.
         return
             // Dynamic overhead
-            ((_minGasLimit * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
+            ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
                 MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
             // Calldata overhead
-            (uint32(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
+            (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
             // Constant overhead
             MIN_GAS_CONSTANT_OVERHEAD;
     }

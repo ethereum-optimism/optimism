@@ -261,6 +261,8 @@ func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
 	config.BackendOptions.MaxRetries = 2
 	// Setup redis to detect offline backends
 	config.Redis.URL = fmt.Sprintf("redis://127.0.0.1:%s", redis.Port())
+	redisClient, err := proxyd.NewRedisClient(config.Redis.URL)
+	require.NoError(t, err)
 
 	goodBackend := NewMockBackend(BatchedResponseHandler(200, goodResponse, goodResponse))
 	defer goodBackend.Close()
@@ -285,7 +287,7 @@ func TestInfuraFailoverOnUnexpectedResponse(t *testing.T) {
 	require.Equal(t, 1, len(badBackend.Requests()))
 	require.Equal(t, 1, len(goodBackend.Requests()))
 
-	rr, err := proxyd.NewRedisRateLimiter(config.Redis.URL)
+	rr := proxyd.NewRedisRateLimiter(redisClient)
 	require.NoError(t, err)
 	online, err := rr.IsBackendOnline("bad")
 	require.NoError(t, err)

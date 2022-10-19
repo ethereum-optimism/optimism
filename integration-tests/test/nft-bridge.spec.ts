@@ -15,7 +15,7 @@ import { OptimismEnv } from './shared/env'
 import { withdrawalTest } from './shared/utils'
 
 const TOKEN_ID: number = 1
-const FINALIZATION_GAS: number = 1_200_000
+const FINALIZATION_GAS: number = 600_000
 const NON_NULL_BYTES: string = '0x1111'
 
 describe('ERC721 Bridge', () => {
@@ -113,12 +113,11 @@ describe('ERC721 Bridge', () => {
     )
 
     // Create a L2 Standard ERC721 with the Standard ERC721 Factory
-    const tx =
-      await OptimismMintableERC721Factory.createStandardOptimismMintableERC721(
-        L1ERC721.address,
-        'L2ERC721',
-        'L2'
-      )
+    const tx = await OptimismMintableERC721Factory.createOptimismMintableERC721(
+      L1ERC721.address,
+      'L2ERC721',
+      'L2'
+    )
     const receipt = await tx.wait()
 
     // Get the OptimismMintableERC721Created event
@@ -129,7 +128,6 @@ describe('ERC721 Bridge', () => {
       Artifact__OptimismMintableERC721.abi,
       erc721CreatedEvent.args.localToken
     )
-    await OptimismMintableERC721.deployed()
 
     // Mint an L1 ERC721 to Bob on L1
     const tx2 = await L1ERC721.mint(bobAddress, TOKEN_ID)
@@ -274,11 +272,18 @@ describe('ERC721 Bridge', () => {
           'FakeOptimismMintableERC721',
           bobWalletL2
         )
-      ).deploy(L1ERC721.address, L2ERC721Bridge.address)
+      ).deploy(
+        L2ERC721Bridge.address,
+        L1ERC721.address,
+        await getChainId(env.l1Wallet.provider)
+      )
       await FakeOptimismMintableERC721.deployed()
 
       // Use the fake contract to mint Alice an NFT with the same token ID
-      const tx = await FakeOptimismMintableERC721.mint(aliceAddress, TOKEN_ID)
+      const tx = await FakeOptimismMintableERC721.safeMint(
+        aliceAddress,
+        TOKEN_ID
+      )
       await tx.wait()
 
       // Check that Alice owns the NFT from the fake ERC721 contract

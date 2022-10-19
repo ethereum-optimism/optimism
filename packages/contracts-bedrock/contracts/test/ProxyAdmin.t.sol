@@ -62,10 +62,7 @@ contract ProxyAdmin_Test is Test {
     function test_setImplementationName() external {
         vm.prank(alice);
         admin.setImplementationName(address(1), "foo");
-        assertEq(
-            admin.implementationName(address(1)),
-            "foo"
-        );
+        assertEq(admin.implementationName(address(1)), "foo");
     }
 
     function test_onlyOwnerSetAddressManager() external {
@@ -88,10 +85,7 @@ contract ProxyAdmin_Test is Test {
     }
 
     function test_proxyType() external {
-        assertEq(
-            uint256(admin.proxyType(address(proxy))),
-            uint256(ProxyAdmin.ProxyType.ERC1967)
-        );
+        assertEq(uint256(admin.proxyType(address(proxy))), uint256(ProxyAdmin.ProxyType.ERC1967));
         assertEq(
             uint256(admin.proxyType(address(chugsplash))),
             uint256(ProxyAdmin.ProxyType.CHUGSPLASH)
@@ -186,15 +180,9 @@ contract ProxyAdmin_Test is Test {
         if (proxyType == ProxyAdmin.ProxyType.ERC1967) {
             assertEq(Proxy(payable(_proxy)).admin(), address(128));
         } else if (proxyType == ProxyAdmin.ProxyType.CHUGSPLASH) {
-            assertEq(
-                L1ChugSplashProxy(payable(_proxy)).getOwner(),
-                address(128)
-            );
+            assertEq(L1ChugSplashProxy(payable(_proxy)).getOwner(), address(128));
         } else if (proxyType == ProxyAdmin.ProxyType.RESOLVED) {
-            assertEq(
-                addressManager.owner(),
-                address(128)
-            );
+            assertEq(addressManager.owner(), address(128));
         } else {
             assert(false);
         }

@@ -24,40 +24,22 @@ type L1Fetcher interface {
 	L1TransactionFetcher
 }
 
-type StageProgress interface {
-	Progress() Progress
-}
-
-type Stage interface {
-	StageProgress
-
-	// Step tries to progress the state.
-	// The outer stage progress informs the step what to do.
-	//
-	// If the stage:
-	// - returns EOF: the stage will be skipped
-	// - returns another error: the stage will make the pipeline error.
-	// - returns nil: the stage will be repeated next Step
-	Step(ctx context.Context, outer Progress) error
-
-	// ResetStep prepares the state for usage in regular steps.
-	// Similar to Step(ctx) it returns:
-	// - EOF if the next stage should be reset
-	// - error if the reset should start all over again
-	// - nil if the reset should continue resetting this stage.
-	ResetStep(ctx context.Context, l1Fetcher L1Fetcher) error
+type ResetableStage interface {
+	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to.
+	Reset(ctx context.Context, base eth.L1BlockRef) error
 }
 
 type EngineQueueStage interface {
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
-	Progress() Progress
+	Origin() eth.L1BlockRef
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.BlockID)
 	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	Step(context.Context) error
 }
 
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
@@ -69,39 +51,44 @@ type DerivationPipeline struct {
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
 	resetting int
+	stages    []ResetableStage
 
-	// Index of the stage that is currently being processed.
-	active int
-
-	// stages in execution order. A stage Step that:
-	stages []Stage
-
-	eng EngineQueueStage
+	// Special stages to keep track of
+	traversal *L1Traversal
+	eng       EngineQueueStage
 
 	metrics Metrics
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
-	eng := NewEngineQueue(log, cfg, engine, metrics)
-	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, eng)
-	batchQueue := NewBatchQueue(log, cfg, attributesQueue)
-	chInReader := NewChannelInReader(log, batchQueue)
-	bank := NewChannelBank(log, cfg, chInReader)
-	dataSrc := NewCalldataSource(log, cfg, l1Fetcher)
-	l1Src := NewL1Retrieval(log, dataSrc, bank)
-	l1Traversal := NewL1Traversal(log, l1Fetcher, l1Src)
-	stages := []Stage{eng, attributesQueue, batchQueue, chInReader, bank, l1Src, l1Traversal}
+
+	// Pull stages
+	l1Traversal := NewL1Traversal(log, l1Fetcher)
+	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
+	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
+	bank := NewChannelBank(log, cfg, l1Src, l1Fetcher)
+	chInReader := NewChannelInReader(log, bank)
+	batchQueue := NewBatchQueue(log, cfg, chInReader)
+	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, batchQueue)
+
+	// Step stages
+	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher)
+
+	// Reset from engine queue then up from L1 Traversal. The stages do not talk to each other during
+	// the reset, but after the engine queue, this is the order in which the stages could talk to each other.
+	// Note: The engine queue stage is the only reset that can fail.
+	stages := []ResetableStage{eng, l1Traversal, l1Src, bank, chInReader, batchQueue, attributesQueue}
 
 	return &DerivationPipeline{
 		log:       log,
 		cfg:       cfg,
 		l1Fetcher: l1Fetcher,
 		resetting: 0,
-		active:    0,
 		stages:    stages,
 		eng:       eng,
 		metrics:   metrics,
+		traversal: l1Traversal,
 	}
 }
 
@@ -109,8 +96,8 @@ func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
 
-func (dp *DerivationPipeline) Progress() Progress {
-	return dp.eng.Progress()
+func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
+	return dp.eng.Origin()
 }
 
 func (dp *DerivationPipeline) Finalize(l1Origin eth.BlockID) {
@@ -146,15 +133,15 @@ func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 // An error is expected when the underlying source closes.
 // When Step returns nil, it should be called again, to continue the derivation process.
 func (dp *DerivationPipeline) Step(ctx context.Context) error {
-	defer dp.metrics.RecordL1Ref("l1_derived", dp.Progress().Origin)
+	defer dp.metrics.RecordL1Ref("l1_derived", dp.Origin())
 
 	// if any stages need to be reset, do that first.
 	//log.Debug("MMDBG pipeline.go Step", "dp.resetting", dp.resetting, "stages", dp.stages)
 	log.Debug("MMDBG pipeline.go Step", "dp", dp)
 	
 	if dp.resetting < len(dp.stages) {
-		if err := dp.stages[dp.resetting].ResetStep(ctx, dp.l1Fetcher); err == io.EOF {
-			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.stages[dp.resetting].Progress().Origin)
+		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin()); err == io.EOF {
+			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Origin())
 			dp.resetting += 1
 			return nil
 		} else if err != nil {
@@ -164,18 +151,13 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 		}
 	}
 
-	for i, stage := range dp.stages {
-		var outer Progress
-		if i+1 < len(dp.stages) {
-			outer = dp.stages[i+1].Progress()
-		}
-		if err := stage.Step(ctx, outer); err == io.EOF {
-			continue
-		} else if err != nil {
-			return fmt.Errorf("stage %d failed: %w", i, err)
-		} else {
-			return nil
-		}
+	// Now step the engine queue. It will pull earlier data as needed.
+	if err := dp.eng.Step(ctx); err == io.EOF {
+		// If every stage has returned io.EOF, try to advance the L1 Origin
+		return dp.traversal.AdvanceL1Block(ctx)
+	} else if err != nil {
+		return fmt.Errorf("engine stage failed: %w", err)
+	} else {
+		return nil
 	}
-	return io.EOF
 }

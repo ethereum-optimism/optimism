@@ -1,5 +1,17 @@
 # @eth-optimism/hardhat-deploy-config
 
+## 0.2.4
+
+### Patch Changes
+
+- dd5ab8c0: Allow `paths` to be unset in hardhat config
+
+## 0.2.3
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+
 ## 0.2.2
 
 ### Patch Changes

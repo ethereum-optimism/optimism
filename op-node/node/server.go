@@ -29,7 +29,7 @@ type rpcServer struct {
 }
 
 func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, appVersion string, m *metrics.Metrics) (*rpcServer, error) {
-	api := newNodeAPI(rollupCfg, l2Client, dr, log.New("rpc", "node"), m)
+	api := NewNodeAPI(rollupCfg, l2Client, dr, log.New("rpc", "node"), m)
 	// TODO: extend RPC config with options for WS, IPC and HTTP RPC connections
 	endpoint := net.JoinHostPort(rpcCfg.ListenAddr, strconv.Itoa(rpcCfg.ListenPort))
 	r := &rpcServer{

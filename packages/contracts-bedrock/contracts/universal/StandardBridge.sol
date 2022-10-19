@@ -6,7 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
-import { IRemoteToken, IL1Token } from "./SupportedInterfaces.sol";
+import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./SupportedInterfaces.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
@@ -35,17 +35,17 @@ abstract contract StandardBridge {
 
     /**
      * @custom:legacy
-     * @custom:spacer address messenger
+     * @custom:spacer messenger
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_0_0_32;
+    address private spacer_0_0_20;
 
     /**
      * @custom:legacy
-     * @custom:spacer address l2TokenBridge
+     * @custom:spacer l2TokenBridge
      * @notice Spacer for backwards compatibility.
      */
-    bytes32 private spacer_1_0_32;
+    address private spacer_1_0_20;
 
     /**
      * @notice Mapping that stores deposits for a given pair of local and remote tokens.
@@ -96,7 +96,7 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeInitiated(
@@ -115,29 +115,10 @@ abstract contract StandardBridge {
      * @param remoteToken Address of the ERC20 on the remote chain.
      * @param from        Address of the sender.
      * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
+     * @param amount      Amount of the ERC20 sent.
      * @param extraData   Extra data sent with the transaction.
      */
     event ERC20BridgeFinalized(
-        address indexed localToken,
-        address indexed remoteToken,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes extraData
-    );
-
-    /**
-     * @notice Emitted when an ERC20 bridge to this chain fails.
-     *
-     * @param localToken  Address of the ERC20 on this chain.
-     * @param remoteToken Address of the ERC20 on the remote chain.
-     * @param from        Address of the sender.
-     * @param to          Address of the receiver.
-     * @param amount      Amount of ETH sent.
-     * @param extraData   Extra data sent with the transaction.
-     */
-    event ERC20BridgeFailed(
         address indexed localToken,
         address indexed remoteToken,
         address indexed from,
@@ -168,14 +149,6 @@ abstract contract StandardBridge {
                 messenger.xDomainMessageSender() == address(otherBridge),
             "StandardBridge: function can only be called from the other bridge"
         );
-        _;
-    }
-
-    /**
-     * @notice Ensures that the caller is this contract.
-     */
-    modifier onlySelf() {
-        require(msg.sender == address(this), "StandardBridge: function can only be called by self");
         _;
     }
 
@@ -315,8 +288,10 @@ abstract contract StandardBridge {
     ) public payable onlyOtherBridge {
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
+        require(_to != address(messenger), "StandardBridge: cannot send to messenger");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+
         bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
         require(success, "StandardBridge: ETH transfer failed");
     }
@@ -325,12 +300,11 @@ abstract contract StandardBridge {
      * @notice Finalizes an ERC20 bridge on this chain. Can only be triggered by the other
      *         StandardBridge contract on the remote chain.
      *
-     *
      * @param _localToken  Address of the ERC20 on this chain.
      * @param _remoteToken Address of the corresponding token on the remote chain.
      * @param _from        Address of the sender.
      * @param _to          Address of the receiver.
-     * @param _amount      Amount of ETH being bridged.
+     * @param _amount      Amount of the ERC20 being bridged.
      * @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
      *                     not be triggered with this data, but it will be emitted and can be used
      *                     to identify the transaction.
@@ -342,52 +316,7 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) public onlyOtherBridge returns (bool) {
-        try this.completeOutboundTransfer(_localToken, _remoteToken, _to, _amount) {
-            emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-            return true;
-        } catch {
-            // Something went wrong during the bridging process, return to sender.
-            // Can happen if a bridge UI specifies the wrong L2 token.
-            // We reverse the to and from addresses to make sure the tokens are returned to the
-            // sender on the other chain and preserve the accuracy of accounting based on emitted
-            // events.
-            _initiateBridgeERC20Unchecked(
-                _localToken,
-                _remoteToken,
-                _to,
-                _from,
-                _amount,
-                0, // _minGasLimit, 0 is fine here
-                _extraData
-            );
-            emit ERC20BridgeFailed(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-            return false;
-        }
-    }
-
-    /**
-     * @notice Completes an outbound token transfer. Public function, but can only be called by
-     *         this contract. It's security critical that there be absolutely no way for anyone to
-     *         trigger this function, except by explicit trigger within this contract. Used as a
-     *         simple way to be able to try/catch any type of revert that could occur during an
-     *         ERC20 mint/transfer.
-     *
-     * @param _localToken  Address of the ERC20 on this chain.
-     * @param _remoteToken Address of the corresponding token on the remote chain.
-     * @param _to          Address of the receiver.
-     * @param _amount      Amount of ETH being bridged.
-     */
-    function completeOutboundTransfer(
-        address _localToken,
-        address _remoteToken,
-        address _to,
-        uint256 _amount
-    ) public onlySelf {
-        // Make sure external function calls can't be used to trigger calls to
-        // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "StandardBridge: local token cannot be self");
-
+    ) public onlyOtherBridge {
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
@@ -399,6 +328,8 @@ abstract contract StandardBridge {
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] - _amount;
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
+
+        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -419,6 +350,11 @@ abstract contract StandardBridge {
         uint32 _minGasLimit,
         bytes memory _extraData
     ) internal {
+        require(
+            msg.value == _amount,
+            "StandardBridge: bridging ETH must include sufficient ETH value"
+        );
+
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         messenger.sendMessage{ value: _amount }(
@@ -455,10 +391,6 @@ abstract contract StandardBridge {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal {
-        // Make sure external function calls can't be used to trigger calls to
-        // completeOutboundTransfer. We only make external (write) calls to _localToken.
-        require(_localToken != address(this), "StandardBridge: local token cannot be self");
-
         if (_isOptimismMintableERC20(_localToken)) {
             require(
                 _isCorrectTokenPair(_localToken, _remoteToken),
@@ -471,39 +403,8 @@ abstract contract StandardBridge {
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
         }
 
-        _initiateBridgeERC20Unchecked(
-            _localToken,
-            _remoteToken,
-            _from,
-            _to,
-            _amount,
-            _minGasLimit,
-            _extraData
-        );
-    }
+        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
-    /**
-     * @notice Sends ERC20 tokens to a receiver's address on the other chain WITHOUT doing any
-     *         validation. Be EXTREMELY careful when using this function.
-     *
-     * @param _localToken  Address of the ERC20 on this chain.
-     * @param _remoteToken Address of the corresponding token on the remote chain.
-     * @param _to          Address of the receiver.
-     * @param _amount      Amount of local tokens to deposit.
-     * @param _minGasLimit Minimum amount of gas that the bridge can be relayed with.
-     * @param _extraData   Extra data to be sent with the transaction. Note that the recipient will
-     *                     not be triggered with this data, but it will be emitted and can be used
-     *                     to identify the transaction.
-     */
-    function _initiateBridgeERC20Unchecked(
-        address _localToken,
-        address _remoteToken,
-        address _from,
-        address _to,
-        uint256 _amount,
-        uint32 _minGasLimit,
-        bytes calldata _extraData
-    ) internal {
         messenger.sendMessage(
             address(otherBridge),
             abi.encodeWithSelector(
@@ -520,8 +421,6 @@ abstract contract StandardBridge {
             ),
             _minGasLimit
         );
-
-        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -533,7 +432,9 @@ abstract contract StandardBridge {
      * @return True if the token is an OptimismMintableERC20.
      */
     function _isOptimismMintableERC20(address _token) internal view returns (bool) {
-        return ERC165Checker.supportsInterface(_token, type(IL1Token).interfaceId);
+        return
+            ERC165Checker.supportsInterface(_token, type(ILegacyMintableERC20).interfaceId) ||
+            ERC165Checker.supportsInterface(_token, type(IOptimismMintableERC20).interfaceId);
     }
 
     /**

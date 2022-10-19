@@ -1,5 +1,64 @@
 # @eth-optimism/sdk
 
+## 1.6.7
+
+### Patch Changes
+
+- b40913b1: Adds contract addresses for the Bedrock Alpha testnet
+- a5e715c3: Rename the event emitted in the L2ToL1MessagePasser
+- Updated dependencies [35a7bb5e]
+- Updated dependencies [a5e715c3]
+- Updated dependencies [d18b8aa3]
+  - @eth-optimism/contracts-bedrock@0.8.1
+
+## 1.6.6
+
+### Patch Changes
+
+- Updated dependencies [6ed68fa3]
+- Updated dependencies [628affc7]
+- Updated dependencies [3d4e8529]
+- Updated dependencies [caf5dd3e]
+- Updated dependencies [740e1bcc]
+- Updated dependencies [a6cbfee2]
+- Updated dependencies [394a26ec]
+  - @eth-optimism/contracts-bedrock@0.8.0
+  - @eth-optimism/contracts@0.5.37
+
+## 1.6.5
+
+### Patch Changes
+
+- e2faaa8b: Update for new BedrockMessagePasser contract
+- Updated dependencies [cb5fed67]
+- Updated dependencies [c427f0c0]
+- Updated dependencies [e2faaa8b]
+- Updated dependencies [d28ad592]
+- Updated dependencies [76c8ee2d]
+  - @eth-optimism/contracts-bedrock@0.7.0
+
+## 1.6.4
+
+### Patch Changes
+
+- 7215f4ce: Bump ethers to 5.7.0 globally
+- 206f6033: Fix outdated references to 'withdrawal contract'
+- d7679ca4: Add source maps
+- Updated dependencies [88dde7c8]
+- Updated dependencies [7215f4ce]
+- Updated dependencies [249a8ed6]
+- Updated dependencies [7d7c4fdf]
+- Updated dependencies [e164e22e]
+- Updated dependencies [0bc1be45]
+- Updated dependencies [af3e56b1]
+- Updated dependencies [206f6033]
+- Updated dependencies [88dde7c8]
+- Updated dependencies [8790156c]
+- Updated dependencies [515685f4]
+  - @eth-optimism/contracts-bedrock@0.6.3
+  - @eth-optimism/contracts@0.5.36
+  - @eth-optimism/core-utils@0.10.1
+
 ## 1.6.3
 
 ### Patch Changes

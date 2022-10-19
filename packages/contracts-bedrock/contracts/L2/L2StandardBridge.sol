@@ -60,26 +60,6 @@ contract L2StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:legacy
-     * @notice Emitted whenever a deposit fails.
-     *
-     * @param l1Token   Address of the token on L1.
-     * @param l2Token   Address of the corresponding token on L2.
-     * @param from      Address of the depositor.
-     * @param to        Address of the recipient on L2.
-     * @param amount    Amount of the ERC20 deposited.
-     * @param extraData Extra data attached to the deposit.
-     */
-    event DepositFailed(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes extraData
-    );
-
-    /**
      * @custom:semver 0.0.2
      *
      * @param _otherBridge Address of the L1StandardBridge.
@@ -152,22 +132,11 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) external payable virtual {
         if (_l1Token == address(0) && _l2Token == Predeploys.LEGACY_ERC20_ETH) {
             finalizeBridgeETH(_from, _to, _amount, _extraData);
-            emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         } else {
-            bool finalized = finalizeBridgeERC20(
-                _l2Token,
-                _l1Token,
-                _from,
-                _to,
-                _amount,
-                _extraData
-            );
-            if (finalized) {
-                emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
-            } else {
-                emit DepositFailed(_l1Token, _l2Token, _from, _to, _amount, _extraData);
-            }
+            finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
         }
+
+        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -191,15 +160,11 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
-            require(
-                msg.value == _amount,
-                "L2StandardBridge: ETH withdrawals must include sufficient ETH value"
-            );
-
             _initiateBridgeETH(_from, _to, _amount, _minGasLimit, _extraData);
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
         }
+
         emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 }

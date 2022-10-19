@@ -140,7 +140,7 @@ func unmarshalDepositVersion0(dep *types.DepositTx, to common.Address, opaqueDat
 
 // MarshalDepositLogEvent returns an EVM log entry that encodes a TransactionDeposited event from the deposit contract.
 // This is the reverse of the deposit transaction derivation.
-func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.DepositTx) *types.Log {
+func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.DepositTx) (*types.Log, error) {
 	toBytes := common.Hash{}
 	if deposit.To != nil {
 		toBytes = deposit.To.Hash()
@@ -157,7 +157,10 @@ func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.D
 	// opaqueData slice content offset: value will always be 0x20.
 	binary.BigEndian.PutUint64(data[32-8:32], 32)
 
-	opaqueData := marshalDepositVersion0(deposit)
+	opaqueData, err := marshalDepositVersion0(deposit)
+	if err != nil {
+		return &types.Log{}, err
+	}
 
 	// opaqueData slice length
 	binary.BigEndian.PutUint64(data[64-8:64], uint64(len(opaqueData)))
@@ -182,20 +185,26 @@ func MarshalDepositLogEvent(depositContractAddr common.Address, deposit *types.D
 		TxIndex:     0,
 		BlockHash:   common.Hash{},
 		Index:       0,
-	}
+	}, nil
 }
 
-func marshalDepositVersion0(deposit *types.DepositTx) (opaqueData []byte) {
-	opaqueData = make([]byte, 32+32+8+1, 32+32+8+1+len(deposit.Data))
+func marshalDepositVersion0(deposit *types.DepositTx) ([]byte, error) {
+	opaqueData := make([]byte, 32+32+8+1, 32+32+8+1+len(deposit.Data))
 	offset := 0
 
 	// uint256 mint
 	if deposit.Mint != nil {
+		if deposit.Mint.BitLen() > 256 {
+			return nil, fmt.Errorf("mint value exceeds 256 bits: %d", deposit.Mint)
+		}
 		deposit.Mint.FillBytes(opaqueData[offset : offset+32])
 	}
 	offset += 32
 
 	// uint256 value
+	if deposit.Value.BitLen() > 256 {
+		return nil, fmt.Errorf("value value exceeds 256 bits: %d", deposit.Value)
+	}
 	deposit.Value.FillBytes(opaqueData[offset : offset+32])
 	offset += 32
 
@@ -211,5 +220,5 @@ func marshalDepositVersion0(deposit *types.DepositTx) (opaqueData []byte) {
 	// Deposit data then fills the remaining event data
 	opaqueData = append(opaqueData, deposit.Data...)
 
-	return opaqueData
+	return opaqueData, nil
 }

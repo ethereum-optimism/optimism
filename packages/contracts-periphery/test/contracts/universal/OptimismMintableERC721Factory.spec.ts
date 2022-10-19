@@ -22,6 +22,7 @@ describe('OptimismMintableERC721Factory', () => {
   let baseURI: string
   const remoteChainId = 100
 
+  let Factory__OptimismMintableERC721Factory: ContractFactory
   beforeEach(async () => {
     ;[signer] = await ethers.getSigners()
 
@@ -31,9 +32,14 @@ describe('OptimismMintableERC721Factory', () => {
     )
     L1ERC721 = await Factory__L1ERC721.deploy('L1ERC721', 'ERC')
 
-    OptimismMintableERC721Factory = await (
-      await ethers.getContractFactory('OptimismMintableERC721Factory')
-    ).deploy(DUMMY_L2_BRIDGE_ADDRESS, remoteChainId)
+    Factory__OptimismMintableERC721Factory = await ethers.getContractFactory(
+      'OptimismMintableERC721Factory'
+    )
+    OptimismMintableERC721Factory =
+      await Factory__OptimismMintableERC721Factory.deploy(
+        DUMMY_L2_BRIDGE_ADDRESS,
+        remoteChainId
+      )
 
     baseURI = ''.concat(
       'ethereum:',
@@ -44,6 +50,25 @@ describe('OptimismMintableERC721Factory', () => {
     )
   })
 
+  it('should revert if bridge is initialized as address(0)', async () => {
+    await expect(
+      Factory__OptimismMintableERC721Factory.deploy(
+        ethers.constants.AddressZero,
+        remoteChainId
+      )
+    ).to.be.revertedWith(
+      'OptimismMintableERC721Factory: bridge cannot be address(0)'
+    )
+  })
+
+  it('should revert if remote chain id is initialized as zero', async () => {
+    await expect(
+      Factory__OptimismMintableERC721Factory.deploy(DUMMY_L2_BRIDGE_ADDRESS, 0)
+    ).to.be.revertedWith(
+      'OptimismMintableERC721Factory: remote chain id cannot be zero'
+    )
+  })
+
   it('should be deployed with the correct constructor argument', async () => {
     expect(await OptimismMintableERC721Factory.bridge()).to.equal(
       DUMMY_L2_BRIDGE_ADDRESS
@@ -51,12 +76,11 @@ describe('OptimismMintableERC721Factory', () => {
   })
 
   it('should be able to create a standard ERC721 contract', async () => {
-    const tx =
-      await OptimismMintableERC721Factory.createStandardOptimismMintableERC721(
-        L1ERC721.address,
-        'L2ERC721',
-        'ERC'
-      )
+    const tx = await OptimismMintableERC721Factory.createOptimismMintableERC721(
+      L1ERC721.address,
+      'L2ERC721',
+      'ERC'
+    )
     const receipt = await tx.wait()
 
     // Get the OptimismMintableERC721Created event
@@ -84,7 +108,7 @@ describe('OptimismMintableERC721Factory', () => {
     expect(await OptimismMintableERC721.baseTokenURI()).to.equal(baseURI)
 
     expect(
-      await OptimismMintableERC721Factory.isStandardOptimismMintableERC721(
+      await OptimismMintableERC721Factory.isOptimismMintableERC721(
         OptimismMintableERC721.address
       )
     ).to.equal(true)
@@ -92,7 +116,7 @@ describe('OptimismMintableERC721Factory', () => {
 
   it('should not be able to create a standard token with a 0 address for l1 token', async () => {
     await expect(
-      OptimismMintableERC721Factory.createStandardOptimismMintableERC721(
+      OptimismMintableERC721Factory.createOptimismMintableERC721(
         ethers.constants.AddressZero,
         'L2ERC721',
         'ERC'

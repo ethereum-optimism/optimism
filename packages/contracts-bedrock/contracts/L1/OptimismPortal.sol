@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
 import { Types } from "../libraries/Types.sol";

@@ -1,3 +1,5 @@
+whitelist_error_message = "rpc method is not whitelisted"
+
 ws_backend_group = "main"
 
 ws_method_whitelist = [
@@ -24,3 +26,6 @@ backends = ["good"]
 
 [rpc_method_mappings]
 eth_chainId = "main"
+
+[rate_limit]
+enable_backend_rate_limiter = true

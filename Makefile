@@ -111,3 +111,7 @@ clean-node-modules:
 tag-bedrock-go-modules:
 	./ops/scripts/tag-bedrock-go-modules.sh $(BEDROCK_TAGS_REMOTE) $(VERSION)
 .PHONY: tag-bedrock-go-modules
+
+update-op-geth:
+	./ops/scripts/update-op-geth.py
+.PHONY: update-op-geth

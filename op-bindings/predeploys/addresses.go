@@ -3,7 +3,7 @@ package predeploys
 import "github.com/ethereum/go-ethereum/common"
 
 const (
-	L2ToL1MessagePasser          = "0x4200000000000000000000000000000000000000"
+	L2ToL1MessagePasser          = "0x4200000000000000000000000000000000000016"
 	DeployerWhitelist            = "0x4200000000000000000000000000000000000002"
 	LegacyERC20ETH               = "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000"
 	WETH9                        = "0x4200000000000000000000000000000000000006"
@@ -15,6 +15,7 @@ const (
 	GasPriceOracle               = "0x420000000000000000000000000000000000000F"
 	L1Block                      = "0x4200000000000000000000000000000000000015"
 	GovernanceToken              = "0x4200000000000000000000000000000000000042"
+	LegacyMessagePasser          = "0x4200000000000000000000000000000000000000"
 	// -----
 	BobaTuringCredit             = "0x42000000000000000000000000000000000000ff"
 	BobaL2                       = "0x42000000000000000000000000000000000000fe"
@@ -33,6 +34,7 @@ var (
 	GasPriceOracleAddr               = common.HexToAddress(GasPriceOracle)
 	L1BlockAddr                      = common.HexToAddress(L1Block)
 	GovernanceTokenAddr              = common.HexToAddress(GovernanceToken)
+	LegacyMessagePasserAddr          = common.HexToAddress(LegacyMessagePasser)
 	// -----
 	BobaTuringCreditAddr             = common.HexToAddress(BobaTuringCredit)
 	BobaL2Addr                       = common.HexToAddress(BobaL2)
@@ -53,6 +55,7 @@ func init() {
 	Predeploys["GasPriceOracle"] = &GasPriceOracleAddr
 	Predeploys["L1Block"] = &L1BlockAddr
 	Predeploys["GovernanceToken"] = &GovernanceTokenAddr
+	Predeploys["LegacyMessagePasser"] = &LegacyMessagePasserAddr
 	// -----
 	Predeploys["BobaTuringCredit"] = &BobaTuringCreditAddr
 	Predeploys["BobaL2"] = &BobaL2Addr

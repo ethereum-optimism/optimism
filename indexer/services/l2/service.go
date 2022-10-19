@@ -12,6 +12,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/indexer/metrics"
 	"github.com/ethereum-optimism/optimism/indexer/server"
+	"github.com/ethereum-optimism/optimism/indexer/services/query"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/ethereum-optimism/optimism/indexer/db"
@@ -38,37 +40,18 @@ var errWrongChainID = errors.New("wrong chain id provided")
 
 var errNoNewBlocks = errors.New("no new blocks")
 
-// clientRetryInterval is the interval to wait between retrying client API
-// calls.
-var clientRetryInterval = 5 * time.Second
-
-// HeaderByNumberWithRetry retries the given func until it succeeds, waiting
-// for clientRetryInterval duration after every call.
-func HeaderByNumberWithRetry(ctx context.Context,
-	client *ethclient.Client) (*types.Header, error) {
-	for {
-		res, err := client.HeaderByNumber(ctx, nil)
-		switch err {
-		case nil:
-			return res, err
-		default:
-			log.Error("Error fetching header", "err", err)
-		}
-		time.Sleep(clientRetryInterval)
-	}
-}
-
 type ServiceConfig struct {
-	Context            context.Context
-	Metrics            *metrics.Metrics
-	L2RPC              *rpc.Client
-	L2Client           *ethclient.Client
-	ChainID            *big.Int
+	Context  context.Context
+	Metrics  *metrics.Metrics
+	L2RPC    *rpc.Client
+	L2Client *ethclient.Client
+	ChainID  *big.Int
+
 	ConfDepth          uint64
 	MaxHeaderBatchSize uint64
 	StartBlockNumber   uint64
-	StartBlockHash     string
 	DB                 *db.Database
+	Bedrock            bool
 }
 
 type Service struct {
@@ -113,7 +96,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		cfg.ChainID = chainID
 	}
 
-	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L2Client, ctx)
+	bridges, err := bridge.BridgesByChainID(cfg.ChainID, cfg.L2Client, cfg.Bedrock)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -131,7 +114,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, err
 	}
 
-	return &Service{
+	service := &Service{
 		cfg:            cfg,
 		ctx:            ctx,
 		cancel:         cancel,
@@ -139,14 +122,18 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		headerSelector: confirmedHeaderSelector,
 		metrics:        cfg.Metrics,
 		tokenCache: map[common.Address]*db.Token{
-			db.ETHL2Address: db.ETHL1Token,
+			predeploys.LegacyERC20ETHAddr: db.ETHL1Token,
 		},
-	}, nil
+	}
+	service.wg.Add(1)
+	return service, nil
 }
 
-func (s *Service) Loop(ctx context.Context) {
+func (s *Service) loop() {
+	defer s.wg.Done()
+
 	for {
-		err := s.catchUp(ctx)
+		err := s.catchUp()
 		if err == nil {
 			break
 		}
@@ -160,10 +147,18 @@ func (s *Service) Loop(ctx context.Context) {
 	}
 
 	newHeads := make(chan *types.Header, 1000)
-	go s.subscribeNewHeads(ctx, newHeads)
+	tick := time.NewTicker(5 * time.Second)
+	defer tick.Stop()
 
 	for {
 		select {
+		case <-tick.C:
+			header, err := query.HeaderByNumberWithRetry(s.ctx, s.cfg.L2Client)
+			if err != nil {
+				logger.Error("error fetching header by number", "err", err)
+				continue
+			}
+			newHeads <- header
 		case header := <-newHeads:
 			logger.Info("Received new header", "header", header.Hash)
 			for {
@@ -176,6 +171,7 @@ func (s *Service) Loop(ctx context.Context) {
 				}
 			}
 		case <-s.ctx.Done():
+			logger.Info("service stopped")
 			return
 		}
 	}
@@ -184,7 +180,6 @@ func (s *Service) Loop(ctx context.Context) {
 func (s *Service) Update(newHeader *types.Header) error {
 	var lowest = db.BlockLocator{
 		Number: s.cfg.StartBlockNumber,
-		Hash:   common.HexToHash(s.cfg.StartBlockHash),
 	}
 	highestConfirmed, err := s.cfg.DB.GetHighestL2Block()
 	if err != nil {
@@ -209,7 +204,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		return nil
 	}
 
-	if lowest.Hash != headers[0].ParentHash {
+	if lowest.Number > 0 && lowest.Hash != headers[0].ParentHash {
 		logger.Error("Parent hash does not connect to ",
 			"block", headers[0].Number.Uint64(), "hash", headers[0].Hash(),
 			"lowest_block", lowest.Number, "hash", lowest.Hash)
@@ -218,7 +213,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 
 	startHeight := headers[0].Number.Uint64()
 	endHeight := headers[len(headers)-1].Number.Uint64()
-	depositsByBlockHash := make(map[common.Hash][]db.Deposit)
 	withdrawalsByBlockHash := make(map[common.Hash][]db.Withdrawal)
 
 	start := prometheus.NewTimer(s.metrics.UpdateDuration.WithLabelValues("l2"))
@@ -227,21 +221,12 @@ func (s *Service) Update(newHeader *types.Header) error {
 		logger.Info("updated index", "start_height", startHeight, "end_height", endHeight, "duration", dur)
 	}()
 
-	bridgeDepositsCh := make(chan bridge.DepositsMap, len(s.bridges))
 	bridgeWdsCh := make(chan bridge.WithdrawalsMap)
 	errCh := make(chan error, len(s.bridges))
 
 	for _, bridgeImpl := range s.bridges {
 		go func(b bridge.Bridge) {
-			deposits, err := b.GetDepositsByBlockRange(startHeight, endHeight)
-			if err != nil {
-				errCh <- err
-				return
-			}
-			bridgeDepositsCh <- deposits
-		}(bridgeImpl)
-		go func(b bridge.Bridge) {
-			wds, err := b.GetWithdrawalsByBlockRange(startHeight, endHeight)
+			wds, err := b.GetWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
 			if err != nil {
 				errCh <- err
 				return
@@ -256,29 +241,19 @@ func (s *Service) Update(newHeader *types.Header) error {
 		case bridgeWds := <-bridgeWdsCh:
 			for blockHash, withdrawals := range bridgeWds {
 				for _, wd := range withdrawals {
-					if err := s.cacheToken(wd.L2Token); err != nil {
+					if err := s.cacheToken(wd); err != nil {
 						logger.Warn("error caching token", "err", err)
 					}
 				}
 
 				withdrawalsByBlockHash[blockHash] = append(withdrawalsByBlockHash[blockHash], withdrawals...)
 			}
-		case bridgeDeposits := <-bridgeDepositsCh:
-			for blockHash, deposits := range bridgeDeposits {
-				for _, deposit := range deposits {
-					if err := s.cacheToken(deposit.L2Token); err != nil {
-						logger.Warn("error caching token", "err", err)
-					}
-				}
-
-				depositsByBlockHash[blockHash] = append(depositsByBlockHash[blockHash], deposits...)
-			}
 		case err := <-errCh:
 			return err
 		}
 
 		receives++
-		if receives == 2*len(s.bridges) {
+		if receives == len(s.bridges) {
 			break
 		}
 	}
@@ -286,7 +261,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 	for i, header := range headers {
 		blockHash := header.Hash()
 		number := header.Number.Uint64()
-		deposits := depositsByBlockHash[blockHash]
 		withdrawals := withdrawalsByBlockHash[blockHash]
 
 		if len(withdrawals) == 0 && i != len(headers)-1 {
@@ -298,7 +272,6 @@ func (s *Service) Update(newHeader *types.Header) error {
 			ParentHash:  header.ParentHash,
 			Number:      number,
 			Timestamp:   header.Time,
-			Deposits:    deposits,
 			Withdrawals: withdrawals,
 		}
 
@@ -358,16 +331,21 @@ func (s *Service) GetIndexerStatus(w http.ResponseWriter, r *http.Request) {
 	server.RespondWithJSON(w, http.StatusOK, status)
 }
 
-func (s *Service) GetWithdrawalStatus(w http.ResponseWriter, r *http.Request) {
+func (s *Service) GetWithdrawalBatch(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
+	hash := vars["hash"]
+	if hash == "" {
+		server.RespondWithError(w, http.StatusBadRequest, "must specify a hash")
+		return
+	}
 
-	withdrawal, err := s.cfg.DB.GetWithdrawalStatus(common.HexToHash(vars["hash"]))
+	batch, err := s.cfg.DB.GetWithdrawalBatch(common.HexToHash(vars["hash"]))
 	if err != nil {
 		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	server.RespondWithJSON(w, http.StatusOK, withdrawal)
+	server.RespondWithJSON(w, http.StatusOK, batch)
 }
 
 func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
@@ -390,12 +368,14 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	finalizationState := db.ParseFinalizationState(r.URL.Query().Get("finalized"))
+
 	page := db.PaginationParam{
-		Limit:  uint64(limit),
-		Offset: uint64(offset),
+		Limit:  limit,
+		Offset: offset,
 	}
 
-	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page)
+	withdrawals, err := s.cfg.DB.GetWithdrawalsByAddress(common.HexToAddress(vars["address"]), page, finalizationState)
 	if err != nil {
 		server.RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -404,25 +384,8 @@ func (s *Service) GetWithdrawals(w http.ResponseWriter, r *http.Request) {
 	server.RespondWithJSON(w, http.StatusOK, withdrawals)
 }
 
-func (s *Service) subscribeNewHeads(ctx context.Context, heads chan *types.Header) {
-	tick := time.NewTicker(5 * time.Second)
-
-	for {
-		select {
-		case <-tick.C:
-			header, err := HeaderByNumberWithRetry(ctx, s.cfg.L2Client)
-			if err != nil {
-				logger.Error("error fetching header by number", "err", err)
-			}
-			heads <- header
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-func (s *Service) catchUp(ctx context.Context) error {
-	realHead, err := HeaderByNumberWithRetry(ctx, s.cfg.L2Client)
+func (s *Service) catchUp() error {
+	realHead, err := query.HeaderByNumberWithRetry(s.ctx, s.cfg.L2Client)
 	if err != nil {
 		return err
 	}
@@ -446,8 +409,8 @@ func (s *Service) catchUp(ctx context.Context) error {
 
 	for realHeadNum-s.cfg.ConfDepth > currHeadNum+s.cfg.MaxHeaderBatchSize {
 		select {
-		case <-ctx.Done():
-			return context.Canceled
+		case <-s.ctx.Done():
+			return s.ctx.Err()
 		default:
 			if err := s.Update(realHead); err != nil && err != errNoNewBlocks {
 				return err
@@ -465,32 +428,32 @@ func (s *Service) catchUp(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) cacheToken(address common.Address) error {
-	if s.tokenCache[address] != nil {
+func (s *Service) cacheToken(withdrawal db.Withdrawal) error {
+	if s.tokenCache[withdrawal.L2Token] != nil {
 		return nil
 	}
 
-	token, err := s.cfg.DB.GetL2TokenByAddress(address.String())
+	token, err := s.cfg.DB.GetL2TokenByAddress(withdrawal.L2Token.String())
 	if err != nil {
 		return err
 	}
 	if token != nil {
 		s.metrics.IncL2CachedTokensCount()
-		s.tokenCache[address] = token
+		s.tokenCache[withdrawal.L2Token] = token
 		return nil
 	}
-	token, err = QueryERC20(address, s.cfg.L2Client)
+	token, err = query.NewERC20(withdrawal.L2Token, s.cfg.L2Client)
 	if err != nil {
 		logger.Error("Error querying ERC20 token details",
-			"l2_token", address.String(), "err", err)
+			"l2_token", withdrawal.L2Token.String(), "err", err)
 		token = &db.Token{
-			Address: address.String(),
+			Address: withdrawal.L2Token.String(),
 		}
 	}
-	if err := s.cfg.DB.AddL2Token(address.String(), token); err != nil {
+	if err := s.cfg.DB.AddL2Token(withdrawal.L2Token.String(), token); err != nil {
 		return err
 	}
-	s.tokenCache[address] = token
+	s.tokenCache[withdrawal.L2Token] = token
 	s.metrics.IncL2CachedTokensCount()
 	return nil
 }
@@ -499,16 +462,11 @@ func (s *Service) Start() error {
 	if s.cfg.ChainID == nil {
 		return errNoChainID
 	}
-	s.wg.Add(1)
-	go s.Loop(s.ctx)
+	go s.loop()
 	return nil
 }
 
 func (s *Service) Stop() {
 	s.cancel()
 	s.wg.Wait()
-	err := s.cfg.DB.Close()
-	if err != nil {
-		logger.Error("Error closing db", "err", err)
-	}
 }

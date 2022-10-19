@@ -1,5 +1,7 @@
 FROM debian:bullseye-20220822-slim as foundry-build
 
+SHELL ["/bin/bash", "-c"]
+
 WORKDIR /opt
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -15,10 +17,6 @@ WORKDIR /opt/foundry
 # of COPY. We select a specific commit to use.
 RUN git clone https://github.com/foundry-rs/foundry.git . \
     && git checkout f540aa9ebde88dce720140b332412089c2ee85b6
-
-# Make sure we use bash instead of sh to get the source
-# command below
-RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 
 RUN source $HOME/.profile && \
     cargo build --release && \
@@ -50,7 +48,7 @@ RUN apt-get update && \
   apt-get install -y nodejs && \
   npm i -g yarn && \
   npm i -g depcheck && \
-  pip install slither-analyzer && \
+  pip install slither-analyzer==0.9.0 && \
   go install gotest.tools/gotestsum@latest && \
   curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.48.0 && \
   curl -fLSs https://raw.githubusercontent.com/CircleCI-Public/circleci-cli/master/install.sh | bash && \
@@ -86,10 +84,12 @@ RUN echo "downloading solidity compilers" && \
   rm solc-linux-amd64-v0.8.12+commit.f00d7308
 
 RUN echo "downloading and verifying Codecov uploader" && \
-  curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import # One-time step && \
+  curl https://keybase.io/codecovsecurity/pgp_keys.asc | gpg --no-default-keyring --keyring trustedkeys.gpg --import && \
   curl -Os "https://uploader.codecov.io/latest/linux/codecov" && \
   curl -Os "https://uploader.codecov.io/latest/linux/codecov.SHA256SUM" && \
   curl -Os "https://uploader.codecov.io/latest/linux/codecov.SHA256SUM.sig" && \
   gpgv codecov.SHA256SUM.sig codecov.SHA256SUM && \
   shasum -a 256 -c codecov.SHA256SUM || sha256sum -c codecov.SHA256SUM && \
-  chmod +x codecov
+  cp codecov /usr/local/bin/codecov && \
+  chmod +x /usr/local/bin/codecov  && \
+  rm codecov
