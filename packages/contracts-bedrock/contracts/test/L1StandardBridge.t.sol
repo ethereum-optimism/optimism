@@ -21,20 +21,11 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
 
 contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
     function test_initialize_success() external {
-        assertEq(
-            address(L1Bridge.messenger()),
-            address(L1Messenger)
-        );
+        assertEq(address(L1Bridge.messenger()), address(L1Messenger));
 
-        assertEq(
-            address(L1Bridge.otherBridge()),
-            Predeploys.L2_STANDARD_BRIDGE
-        );
+        assertEq(address(L1Bridge.otherBridge()), Predeploys.L2_STANDARD_BRIDGE);
 
-        assertEq(
-            address(L2Bridge),
-            Predeploys.L2_STANDARD_BRIDGE
-        );
+        assertEq(address(L2Bridge), Predeploys.L2_STANDARD_BRIDGE);
     }
 }
 
@@ -66,7 +57,7 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
         );
 
         vm.prank(alice, alice);
-        (bool success,) = address(L1Bridge).call{ value: 100 }(hex"");
+        (bool success, ) = address(L1Bridge).call{ value: 100 }(hex"");
         assertEq(success, true);
         assertEq(address(op).balance, 100);
     }
@@ -137,12 +128,7 @@ contract L1StandardBridge_DepositETHTo_Test is Bridge_Initializer {
         // depositETHTo on the L1 bridge should be called
         vm.expectCall(
             address(L1Bridge),
-            abi.encodeWithSelector(
-                L1Bridge.depositETHTo.selector,
-                bob,
-                1000,
-                hex"dead"
-            )
+            abi.encodeWithSelector(L1Bridge.depositETHTo.selector, bob, 1000, hex"dead")
         );
 
         // the L1 bridge should call
@@ -176,6 +162,7 @@ contract L1StandardBridge_DepositETHTo_TestFail is Bridge_Initializer {}
 
 contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
+
     // depositERC20
     // - updates bridge.deposits
     // - emits ERC20DepositInitiated
@@ -183,14 +170,7 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
     // - only callable by EOA
     function test_depositERC20_succeeds() external {
         vm.expectEmit(true, true, true, true);
-        emit ERC20DepositInitiated(
-            address(L1Token),
-            address(L2Token),
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
         deal(address(L1Token), alice, 100000, true);
 
@@ -201,24 +181,13 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
         // to itself
         vm.expectCall(
             address(L1Token),
-            abi.encodeWithSelector(
-                ERC20.transferFrom.selector,
-                alice,
-                address(L1Bridge),
-                100
-            )
+            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 100)
         );
 
         // TODO: optimismPortal.depositTransaction call + event
 
         vm.prank(alice);
-        L1Bridge.depositERC20(
-            address(L1Token),
-            address(L2Token),
-            100,
-            10000,
-            hex""
-        );
+        L1Bridge.depositERC20(address(L1Token), address(L2Token), 100, 10000, hex"");
 
         assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 100);
     }
@@ -231,13 +200,7 @@ contract L1StandardBridge_DepositERC20_TestFail is Bridge_Initializer {
 
         vm.expectRevert("StandardBridge: function can only be called from an EOA");
         vm.prank(alice, alice);
-        L1Bridge.depositERC20(
-            address(0),
-            address(0),
-            100,
-            100,
-            hex""
-        );
+        L1Bridge.depositERC20(address(0), address(0), 100, 100, hex"");
     }
 }
 
@@ -249,14 +212,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
     // - callable by a contract
     function test_depositERC20To_success() external {
         vm.expectEmit(true, true, true, true);
-        emit ERC20DepositInitiated(
-            address(L1Token),
-            address(L2Token),
-            alice,
-            bob,
-            1000,
-            hex""
-        );
+        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
 
         deal(address(L1Token), alice, 100000, true);
 
@@ -265,23 +221,11 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
 
         vm.expectCall(
             address(L1Token),
-            abi.encodeWithSelector(
-                ERC20.transferFrom.selector,
-                alice,
-                address(L1Bridge),
-                1000
-            )
+            abi.encodeWithSelector(ERC20.transferFrom.selector, alice, address(L1Bridge), 1000)
         );
 
         vm.prank(alice);
-        L1Bridge.depositERC20To(
-            address(L1Token),
-            address(L2Token),
-            bob,
-            1000,
-            10000,
-            hex""
-        );
+        L1Bridge.depositERC20To(address(L1Token), address(L2Token), bob, 1000, 10000, hex"");
 
         assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 1000);
     }
@@ -297,17 +241,9 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
         uint256 aliceBalance = alice.balance;
 
         vm.expectEmit(true, true, true, true);
-        emit ETHWithdrawalFinalized(
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        emit ETHWithdrawalFinalized(alice, alice, 100, hex"");
 
-        vm.expectCall(
-            alice,
-            hex""
-        );
+        vm.expectCall(alice, hex"");
 
         vm.mockCall(
             address(L1Bridge.messenger()),
@@ -317,12 +253,7 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
         // ensure that the messenger has ETH to call with
         vm.deal(address(L1Bridge.messenger()), 100);
         vm.prank(address(L1Bridge.messenger()));
-        L1Bridge.finalizeETHWithdrawal{ value: 100 }(
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        L1Bridge.finalizeETHWithdrawal{ value: 100 }(alice, alice, 100, hex"");
 
         assertEq(address(L1Bridge.messenger()).balance, 0);
         assertEq(aliceBalance + 100, alice.balance);
@@ -353,22 +284,11 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is Bridge_Initializer {
         assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 100);
 
         vm.expectEmit(true, true, true, true);
-        emit ERC20WithdrawalFinalized(
-            address(L1Token),
-            address(L2Token),
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        emit ERC20WithdrawalFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
         vm.expectCall(
             address(L1Token),
-            abi.encodeWithSelector(
-                ERC20.transfer.selector,
-                alice,
-                100
-            )
+            abi.encodeWithSelector(ERC20.transfer.selector, alice, 100)
         );
 
         vm.mockCall(
@@ -431,7 +351,9 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_TestFail is Bridge_Initializer
 
 // Todo: move these next two contracts into a test file specific to the direction agnostic
 // StandardBridge interface
-contract L1StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {}
+contract L1StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
+
+}
 
 contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
     function test_finalizeBridgeETH_revert_incorrectValue() external {
@@ -444,12 +366,7 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.deal(messenger, 100);
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: amount sent does not match amount required");
-        L1Bridge.finalizeBridgeETH{value: 50}(
-            alice,
-            alice,
-            100,
-            hex""
-        );
+        L1Bridge.finalizeBridgeETH{ value: 50 }(alice, alice, 100, hex"");
     }
 
     function test_finalizeBridgeETH_revert_sendToSelf() external {
@@ -462,12 +379,7 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.deal(messenger, 100);
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: cannot send to self");
-        L1Bridge.finalizeBridgeETH{value: 100}(
-            alice,
-            address(L1Bridge),
-            100,
-            hex""
-        );
+        L1Bridge.finalizeBridgeETH{ value: 100 }(alice, address(L1Bridge), 100, hex"");
     }
 
     function test_finalizeBridgeETH_revert_sendToMessenger() external {
@@ -480,11 +392,6 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.deal(messenger, 100);
         vm.prank(messenger);
         vm.expectRevert("StandardBridge: cannot send to messenger");
-        L1Bridge.finalizeBridgeETH{value: 100}(
-            alice,
-            messenger,
-            100,
-            hex""
-        );
+        L1Bridge.finalizeBridgeETH{ value: 100 }(alice, messenger, 100, hex"");
     }
 }

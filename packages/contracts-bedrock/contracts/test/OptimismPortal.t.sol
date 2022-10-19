@@ -422,13 +422,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             gasLimit: gasLimit,
             data: hex""
         });
-        (
-            bytes32 stateRoot,
-            bytes32 storageRoot,
-            ,
-            ,
-            bytes memory withdrawalProof
-        ) = ffi.getFinalizeWithdrawalTransactionInputs(insufficientGasTx);
+        (bytes32 stateRoot, bytes32 storageRoot, , , bytes memory withdrawalProof) = ffi
+            .getFinalizeWithdrawalTransactionInputs(insufficientGasTx);
         Types.OutputRootProof memory outputRootProof = Types.OutputRootProof({
             version: bytes32(0),
             stateRoot: stateRoot,

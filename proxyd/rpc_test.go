@@ -45,7 +45,7 @@ func TestRPCResJSON(t *testing.T) {
 			`{"jsonrpc":"2.0","result":null,"id":123}`,
 		},
 		{
-			"error result",
+			"error result without data",
 			&RPCRes{
 				JSONRPC: JSONRPCVersion,
 				Error: &RPCErr{
@@ -55,6 +55,19 @@ func TestRPCResJSON(t *testing.T) {
 				ID: []byte("123"),
 			},
 			`{"jsonrpc":"2.0","error":{"code":1234,"message":"test err"},"id":123}`,
+		},
+		{
+			"error result with data",
+			&RPCRes{
+				JSONRPC: JSONRPCVersion,
+				Error: &RPCErr{
+					Code:    1234,
+					Message: "test err",
+					Data:    "revert",
+				},
+				ID: []byte("123"),
+			},
+			`{"jsonrpc":"2.0","error":{"code":1234,"message":"test err","data":"revert"},"id":123}`,
 		},
 		{
 			"string ID",

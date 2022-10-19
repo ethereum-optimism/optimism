@@ -171,7 +171,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
 	if cfg.RPC.EnableAdmin {
-		n.server.EnableAdminAPI(newAdminAPI(n.l2Driver, n.metrics))
+		n.server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
 	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := n.server.Start(); err != nil {
@@ -196,7 +196,7 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if cfg.P2P != nil {
-		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n)
+		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.metrics)
 		if err != nil || p2pNode == nil {
 			return err
 		}

@@ -18,7 +18,8 @@ eth_chainId = "main"
 eth_foobar = "main"
 
 [rate_limit]
-rate_per_second = 2
+base_rate = 2
+base_interval = "1s"
 exempt_origins = ["exempt_origin"]
 exempt_user_agents = ["exempt_agent"]
 error_message = "over rate limit with special message"

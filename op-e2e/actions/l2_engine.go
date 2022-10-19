@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/beacon"
@@ -21,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
@@ -130,6 +133,12 @@ func (e *L2Engine) RPCClient() client.RPC {
 	}
 }
 
+func (e *L2Engine) EngineClient(t Testing, cfg *rollup.Config) *sources.EngineClient {
+	l2Cl, err := sources.NewEngineClient(e.RPCClient(), e.log, nil, sources.EngineClientDefaultConfig(cfg))
+	require.NoError(t, err)
+	return l2Cl
+}
+
 // ActL2RPCFail makes the next L2 RPC request fail
 func (e *L2Engine) ActL2RPCFail(t Testing) {
 	if e.failL2RPC != nil { // already set to fail?
@@ -165,6 +174,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 		e.pendingIndices[from] = i + 1 // won't retry the tx
+		e.l2BuildingState.Prepare(tx.Hash(), len(e.l2Transactions))
 		receipt, err := core.ApplyTransaction(e.l2Cfg.Config, e.l2Chain, &e.l2BuildingHeader.Coinbase,
 			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {

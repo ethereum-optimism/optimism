@@ -73,7 +73,6 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	data, err := l2ooABI.Pack(
 		"initialize",
 		config.L2OutputOracleGenesisL2Output,
-		big.NewInt(0),
 		config.L2OutputOracleProposer,
 		config.L2OutputOracleOwner,
 	)
@@ -166,6 +165,16 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 
 	for name, proxyAddr := range predeploys.DevPredeploys {
 		memDB.SetState(*proxyAddr, ImplementationSlot, depsByName[name].Address.Hash())
+
+		// Special case for WETH since it was not designed to be behind a proxy
+		if name == "WETH9" {
+			name, _ := state.EncodeStringValue("Wrapped Ether", 0)
+			symbol, _ := state.EncodeStringValue("WETH", 0)
+			decimals, _ := state.EncodeUintValue(18, 0)
+			memDB.SetState(*proxyAddr, common.Hash{}, name)
+			memDB.SetState(*proxyAddr, common.Hash{31: 0x01}, symbol)
+			memDB.SetState(*proxyAddr, common.Hash{31: 0x02}, decimals)
+		}
 	}
 
 	stateDB, err := backend.Blockchain().State()
@@ -184,6 +193,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 
 		memDB.CreateAccount(depAddr)
 		memDB.SetCode(depAddr, dep.Bytecode)
+
 		for iter.Next() {
 			_, data, _, err := rlp.Split(iter.Value)
 			if err != nil {
@@ -251,6 +261,9 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				common.Address{19: 0x01},
 			},
 		},
+		{
+			Name: "WETH9",
+		},
 	}...)
 	return deployer.Deploy(backend, constructors, l1Deployer)
 }
@@ -308,6 +321,11 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			opts,
 			backend,
 			common.Address{},
+		)
+	case "WETH9":
+		_, tx, _, err = bindings.DeployWETH9(
+			opts,
+			backend,
 		)
 	default:
 		if strings.HasSuffix(deployment.Name, "Proxy") {

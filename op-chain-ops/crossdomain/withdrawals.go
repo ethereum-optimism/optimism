@@ -15,12 +15,8 @@ import (
 // A PendingWithdrawal represents a withdrawal that has
 // not been finalized on L1
 type PendingWithdrawal struct {
-	Target          common.Address `json:"target"`
-	Sender          common.Address `json:"sender"`
-	Message         []byte         `json:"message"`
-	MessageNonce    *big.Int       `json:"nonce"`
-	GasLimit        *big.Int       `json:"gasLimit"`
-	TransactionHash common.Hash    `json:"transactionHash"`
+	LegacyWithdrawal `json:"withdrawal"`
+	TransactionHash  common.Hash `json:"transactionHash"`
 }
 
 // Backends represents a set of backends for L1 and L2.
@@ -119,11 +115,12 @@ func GetPendingWithdrawals(messengers *Messengers, version *big.Int, start, end 
 			log.Info("%s not yet relayed", event.Raw.TxHash)
 
 			withdrawal := PendingWithdrawal{
-				Target:          event.Target,
-				Sender:          event.Sender,
-				Message:         event.Message,
-				MessageNonce:    event.MessageNonce,
-				GasLimit:        event.GasLimit,
+				LegacyWithdrawal: LegacyWithdrawal{
+					Target: &event.Target,
+					Sender: &event.Sender,
+					Data:   event.Message,
+					Nonce:  event.MessageNonce,
+				},
 				TransactionHash: event.Raw.TxHash,
 			}
 

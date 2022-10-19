@@ -59,7 +59,11 @@ func (bq *BatchQueue) Origin() eth.L1BlockRef {
 }
 
 func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) (*BatchData, error) {
-	originBehind := bq.origin.Number < safeL2Head.L1Origin.Number
+	// Note: We use the origin that we will have to determine if it's behind. This is important
+	// because it's the future origin that gets saved into the l1Blocks array.
+	// We always update the origin of this stage if it is not the same so after the update code
+	// runs, this is consistent.
+	originBehind := bq.prev.Origin().Number < safeL2Head.L1Origin.Number
 
 	// Advance origin if needed
 	// Note: The entire pipeline has the same origin
@@ -148,7 +152,7 @@ func (bq *BatchQueue) deriveNextBatch(ctx context.Context, outOfData bool, l2Saf
 	epoch := bq.l1Blocks[0]
 
 	if l2SafeHead.L1Origin != epoch.ID() {
-		return nil, NewResetError(fmt.Errorf("buffered L1 chain epoch %s in batch queue does not match safe head %s", epoch, l2SafeHead))
+		return nil, NewResetError(fmt.Errorf("buffered L1 chain epoch %s in batch queue does not match safe head origin %s", epoch, l2SafeHead.L1Origin))
 	}
 
 	// Find the first-seen batch that matches all validity conditions.

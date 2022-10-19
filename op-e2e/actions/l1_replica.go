@@ -4,6 +4,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -15,9 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/stretchr/testify/require"
-
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 // L1CanonSrc is used to sync L1 from another node.
@@ -168,6 +169,12 @@ func (s *L1Replica) RPCClient() client.RPC {
 			return err
 		},
 	}
+}
+
+func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
+	l1F, err := sources.NewL1Client(s.RPCClient(), s.log, nil, sources.L1ClientDefaultConfig(cfg, false))
+	require.NoError(t, err)
+	return l1F
 }
 
 // ActL1FinalizeNext finalizes the next block, which must be marked as safe before doing so (see ActL1SafeNext).

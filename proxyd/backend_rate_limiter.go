@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -57,22 +58,14 @@ type RedisBackendRateLimiter struct {
 	tkMtx     sync.Mutex
 }
 
-func NewRedisRateLimiter(url string) (BackendRateLimiter, error) {
-	opts, err := redis.ParseURL(url)
-	if err != nil {
-		return nil, err
-	}
-	rdb := redis.NewClient(opts)
-	if err := rdb.Ping(context.Background()).Err(); err != nil {
-		return nil, wrapErr(err, "error connecting to redis")
-	}
+func NewRedisRateLimiter(rdb *redis.Client) BackendRateLimiter {
 	out := &RedisBackendRateLimiter{
 		rdb:       rdb,
 		randID:    randStr(20),
 		touchKeys: make(map[string]time.Duration),
 	}
 	go out.touch()
-	return out, nil
+	return out
 }
 
 func (r *RedisBackendRateLimiter) IsBackendOnline(name string) (bool, error) {
@@ -264,5 +257,30 @@ func randStr(l int) string {
 	return hex.EncodeToString(b)
 }
 
-type ServerRateLimiter struct {
+type NoopBackendRateLimiter struct{}
+
+var noopBackendRateLimiter = &NoopBackendRateLimiter{}
+
+func (n *NoopBackendRateLimiter) IsBackendOnline(name string) (bool, error) {
+	return true, nil
+}
+
+func (n *NoopBackendRateLimiter) SetBackendOffline(name string, duration time.Duration) error {
+	return nil
+}
+
+func (n *NoopBackendRateLimiter) IncBackendRPS(name string) (int, error) {
+	return math.MaxInt, nil
+}
+
+func (n *NoopBackendRateLimiter) IncBackendWSConns(name string, max int) (bool, error) {
+	return true, nil
+}
+
+func (n *NoopBackendRateLimiter) DecBackendWSConns(name string) error {
+	return nil
+}
+
+func (n *NoopBackendRateLimiter) FlushBackendWSConns(names []string) error {
+	return nil
 }

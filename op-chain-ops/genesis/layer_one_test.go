@@ -92,6 +92,18 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevL1StandardBridgeAddr, bridgeAddr)
 
+	weth9, err := bindings.NewWETH9(predeploys.DevWETH9Addr, sim)
+	require.NoError(t, err)
+	decimals, err := weth9.Decimals(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, uint8(18), decimals)
+	symbol, err := weth9.Symbol(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, "WETH", symbol)
+	name, err := weth9.Name(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, "Wrapped Ether", name)
+
 	// test that we can do deposits, etc.
 	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
 	require.NoError(t, err)

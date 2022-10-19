@@ -50,9 +50,9 @@ func CLIFlags(envPrefix string) []cli.Flag {
 }
 
 type Config struct {
-	Providers     []string      `envconfig:"PROVIDERS" required:"true"`
-	CheckInterval time.Duration `envconfig:"CHECK_INTERVAL" default:"5m"`
-	CheckDuration time.Duration `envconfig:"CHECK_DURATION" default:"4m"`
+	Providers     []string
+	CheckInterval time.Duration
+	CheckDuration time.Duration
 
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig

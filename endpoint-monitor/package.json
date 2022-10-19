@@ -1,0 +1,6 @@
+{
+  "name": "@eth-optimism/endpoint-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {}
+}

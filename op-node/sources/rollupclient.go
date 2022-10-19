@@ -4,17 +4,17 @@ import (
 	"context"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 type RollupClient struct {
-	rpc *rpc.Client
+	rpc client.RPC
 }
 
-func NewRollupClient(rpc *rpc.Client) *RollupClient {
+func NewRollupClient(rpc client.RPC) *RollupClient {
 	return &RollupClient{rpc}
 }
 
