@@ -367,6 +367,9 @@ When decompressing a channel, we limit the amount of decompressed data to `MAX_R
 humongous amount of data). If the decompressed data exceeds the limit, things proceeds as thought the channel contained
 only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
 
+When decoding batches, all batches that can be completly decoded below `MAX_RLP_BYTES_PER_CHANNEL` will be accepted
+even if the size of the channel is greater than `MAX_RLP_BYTES_PER_CHANNEL`.
+
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
 [batcher transaction][g-batcher-transaction] before we know how many batches (and how many frames) the channel will
