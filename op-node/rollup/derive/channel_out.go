@@ -90,7 +90,8 @@ func (co *ChannelOut) AddBlock(block *types.Block) error {
 		return err
 	}
 	if co.rlpLength+buf.Len() > MaxRLPBytesPerChannel {
-		return ErrTooManyRLPBytes
+		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
+			buf.Len(), co.rlpLength, MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 
