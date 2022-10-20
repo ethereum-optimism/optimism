@@ -107,7 +107,7 @@ const deployFn: DeployFunction = async (hre) => {
       from: deployer,
       args: [messengerProxy.address, predeploys.L2ERC721Bridge],
       log: true,
-      waitConfirmations: deployConfig.waitConfirmations,
+      waitConfirmations: deployConfig.deploymentWaitConfirmations,
       nonce: ++nonce,
     }),
   ]
