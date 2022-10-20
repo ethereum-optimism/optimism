@@ -121,22 +121,6 @@ library Bytes {
     }
 
     /**
-     * @notice Generates a byte array from a nibble array by joining each set of two nibbles into a
-     *         single byte. Resulting byte array will be half as long as the input byte array.
-     *
-     * @param _bytes Input nibble array to convert.
-     *
-     * @return Resulting byte array.
-     */
-    function fromNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
-        bytes memory ret = new bytes(_bytes.length / 2);
-        for (uint256 i = 0; i < ret.length; i++) {
-            ret[i] = (_bytes[i * 2] << 4) | (_bytes[i * 2 + 1]);
-        }
-        return ret;
-    }
-
-    /**
      * @notice Compares two byte arrays by comparing their keccak256 hashes.
      *
      * @param _bytes First byte array to compare.
