@@ -1,5 +1,13 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.2
+
+### Patch Changes
+
+- e81a6ff5: Goerli nft bridge deployment
+- a3242d4f: Fix erc721 factory to match erc21 factory
+- ffa5297e: mainnet nft bridge deployments
+
 ## 1.0.1
 
 ### Patch Changes

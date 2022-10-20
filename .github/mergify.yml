@@ -105,3 +105,39 @@ pull_request_rules:
       comment:
         message: |
           This PR changes implementation code, but doesn't include a changeset. Did you forget to add one?
+
+  - name: Add indexer tag and ecopod reviewers
+    conditions:
+      - 'files~=^indexer/'
+    actions:
+      label:
+        add:
+          - indexer
+      request_reviews:
+        users:
+          - roninjin10
+          - nickbalestra
+
+  - name: Add sdk tag and ecopod reviewers
+    conditions:
+      - 'files~=^packages/sdk/'
+    actions:
+      label:
+        add:
+          - sdk
+      request_reviews:
+        users:
+          - roninjin10
+          - nickbalestra
+
+  - name: Add common-ts tag and ecopod reviewers
+    conditions:
+      - 'files~=^packages/common-ts/'
+    actions:
+      label:
+        add:
+          - common-ts
+      request_reviews:
+        users:
+          - imranjami
+          - roninjin10

@@ -91,6 +91,7 @@ func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPa
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building on top of L2 chain %s, error (%d): %w", d.buildingOnto.HeadBlockHash, errTyp, err)
 	}
+	d.buildingID = eth.PayloadID{}
 	return payload, nil
 }
 
@@ -103,7 +104,6 @@ func (d *Sequencer) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l
 	if err != nil {
 		return l2Head, nil, err
 	}
-	d.buildingID = eth.PayloadID{}
 
 	// Generate an L2 block ref from the payload.
 	ref, err := derive.PayloadToBlockRef(payload, &d.config.Genesis)
