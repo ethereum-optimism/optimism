@@ -24,6 +24,8 @@ import (
 	"sort"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/l2geth/statedumper"
+
 	"github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum-optimism/optimism/l2geth/core/types"
 	"github.com/ethereum-optimism/optimism/l2geth/crypto"
@@ -244,6 +246,7 @@ func (s *StateDB) GetBalance(addr common.Address) *big.Int {
 	if rcfg.UsingOVM {
 		// Get balance from the OVM_ETH contract.
 		// NOTE: We may remove this feature in a future release.
+		statedumper.WriteETH(addr)
 		key := GetOVMBalanceKey(addr)
 		bal := s.GetState(dump.OvmEthAddress, key)
 		return bal.Big()
@@ -377,6 +380,7 @@ func (s *StateDB) AddBalance(addr common.Address, amount *big.Int) {
 		// Note that we don't need to check for overflows or underflows here because the code that
 		// uses this codepath already checks for them. You can follow the original codepath below
 		// (stateObject.AddBalance) to confirm that there are no checks being performed here.
+		statedumper.WriteETH(addr)
 		key := GetOVMBalanceKey(addr)
 		value := s.GetState(dump.OvmEthAddress, key)
 		bal := value.Big()
@@ -397,6 +401,7 @@ func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 		// Note that we don't need to check for overflows or underflows here because the code that
 		// uses this codepath already checks for them. You can follow the original codepath below
 		// (stateObject.SubBalance) to confirm that there are no checks being performed here.
+		statedumper.WriteETH(addr)
 		key := GetOVMBalanceKey(addr)
 		value := s.GetState(dump.OvmEthAddress, key)
 		bal := value.Big()
@@ -413,6 +418,7 @@ func (s *StateDB) SubBalance(addr common.Address, amount *big.Int) {
 func (s *StateDB) SetBalance(addr common.Address, amount *big.Int) {
 	if rcfg.UsingOVM {
 		// Mutate the storage slot inside of OVM_ETH to change balances.
+		statedumper.WriteETH(addr)
 		key := GetOVMBalanceKey(addr)
 		s.SetState(dump.OvmEthAddress, key, common.BigToHash(amount))
 	} else {
@@ -580,8 +586,8 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 // CreateAccount is called during the EVM CREATE operation. The situation might arise that
 // a contract does the following:
 //
-//   1. sends funds to sha(account ++ (nonce + 1))
-//   2. tx_create(sha(account ++ nonce)) (note that this gets the address of 1)
+//  1. sends funds to sha(account ++ (nonce + 1))
+//  2. tx_create(sha(account ++ nonce)) (note that this gets the address of 1)
 //
 // Carrying over the balance ensures that Ether doesn't disappear.
 func (s *StateDB) CreateAccount(addr common.Address) {
