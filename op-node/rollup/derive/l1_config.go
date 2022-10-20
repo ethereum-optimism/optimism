@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ConfigUpdateEventABI      = "ConfigUpdate(uint256,UpdateType,bytes)"
+	ConfigUpdateEventABI      = "ConfigUpdate(uint256,uint8,bytes)"
 	ConfigUpdateEventABIHash  = crypto.Keccak256Hash([]byte(ConfigUpdateEventABI))
 	ConfigUpdateEventVersion0 = common.Hash{}
 )
@@ -65,7 +65,7 @@ func ProcessConfigUpdateLogEvent(destL1Config *eth.L1ConfigData, ev *types.Log) 
 	case common.Hash{}:
 		destL1Config.BatcherAddr.SetBytes(ev.Data)
 		return nil
-	case common.Hash{0: 0x01}:
+	case common.Hash{31: 0x01}: // left padded uint8
 		if len(ev.Data) != 32*2 {
 			return fmt.Errorf("expected 32*2 bytes in GPO params update data, but got %d", len(ev.Data))
 		}
