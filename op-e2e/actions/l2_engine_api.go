@@ -96,7 +96,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 		if err := tx.UnmarshalBinary(otx); err != nil {
 			return fmt.Errorf("transaction %d is not valid: %v", i, err)
 		}
-
+		ea.l2BuildingState.Prepare(tx.Hash(), i)
 		receipt, err := core.ApplyTransaction(ea.l2Cfg.Config, ea.l2Chain, &ea.l2BuildingHeader.Coinbase,
 			ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, &tx, &ea.l2BuildingHeader.GasUsed, *ea.l2Chain.GetVMConfig())
 		if err != nil {

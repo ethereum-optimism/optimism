@@ -149,6 +149,13 @@ func (s *BasicUser[B]) ActRandomTxToAddr(t Testing) {
 	s.txToAddr = to
 }
 
+func (s *BasicUser[B]) ActSetTxCalldata(calldata []byte) Action {
+	return func(t Testing) {
+		require.NotNil(t, calldata)
+		s.txCallData = calldata
+	}
+}
+
 func (s *BasicUser[B]) ActSetTxToAddr(to *common.Address) Action {
 	return func(t Testing) {
 		s.txToAddr = to
@@ -163,6 +170,12 @@ func (s *BasicUser[B]) ActRandomTxValue(t Testing) {
 	part := big.NewInt(s.rng.Int63n(precision))
 	new(big.Int).Div(new(big.Int).Mul(bal, part), big.NewInt(precision))
 	s.txOpts.Value = big.NewInt(s.rng.Int63())
+}
+
+func (s *BasicUser[B]) ActSetTxValue(value *big.Int) Action {
+	return func(t Testing) {
+		s.txOpts.Value = value
+	}
 }
 
 func (s *BasicUser[B]) ActRandomTxData(t Testing) {
@@ -190,6 +203,13 @@ func (s *BasicUser[B]) TxValue() *big.Int {
 	return big.NewInt(0)
 }
 
+func (s *BasicUser[B]) LastTxReceipt(t Testing) *types.Receipt {
+	require.NotEqual(t, s.lastTxHash, common.Hash{}, "must send tx before getting last receipt")
+	receipt, err := s.env.EthCl.TransactionReceipt(t.Ctx(), s.lastTxHash)
+	require.NoError(t, err)
+	return receipt
+}
+
 // ActMakeTx makes a tx with the predetermined contents (see randomization and other actions)
 // and sends it to the tx pool
 func (s *BasicUser[B]) ActMakeTx(t Testing) {
@@ -210,10 +230,13 @@ func (s *BasicUser[B]) ActMakeTx(t Testing) {
 		ChainID:   s.env.Signer.ChainID(),
 		Nonce:     s.PendingNonce(t),
 		Gas:       gas,
+		Data:      s.txCallData,
 	})
 	err = s.env.EthCl.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "must send tx")
 	s.lastTxHash = tx.Hash()
+	// reset the calldata
+	s.txCallData = []byte{}
 }
 
 func (s *BasicUser[B]) ActCheckReceiptStatusOfLastTx(success bool) func(t Testing) {

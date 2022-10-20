@@ -1,0 +1,3 @@
+exclude:
+  global:
+    - infra/op-replica/**  # snyk does not respect kustomizations, so not useful here

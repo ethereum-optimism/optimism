@@ -15,6 +15,10 @@ const DerivationVersion0 = 0
 // starting with the oldest channel.
 const MaxChannelBankSize = 100_000_000
 
+// MaxRLPBytesPerChannel is the maximum amount of bytes that will be read from
+// a channel. This limit is set when decoding the RLP.
+const MaxRLPBytesPerChannel = 10_000_000
+
 // DuplicateErr is returned when a newly read frame is already known
 var DuplicateErr = errors.New("duplicate frame")
 
