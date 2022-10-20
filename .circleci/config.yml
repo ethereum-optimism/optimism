@@ -508,6 +508,11 @@ jobs:
     machine:
       image: ubuntu-2004:2022.07.1
       docker_layer_caching: true
+    parameters:
+      deploy:
+        description: Deploy contracts
+        default: false
+        type: boolean
     environment:
       DOCKER_BUILDKIT: 1
     steps:
@@ -539,22 +544,48 @@ jobs:
           command: |
             yarn install
             yarn build
-      - run:
-          name: Bring up the stack
-          command: |
-            make devnet-up
-      - run:
-          name: Deposit ERC20 through the bridge
-          command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
-          working_directory: packages/sdk
-      - run:
-          name: Deposit ETH through the bridge
-          command: timeout 5m npx hardhat deposit-eth --network devnetL1
-          working_directory: packages/sdk
-      - run:
-          name: Check the status
-          command: npx hardhat check-op-node
-          working_directory: packages/contracts-bedrock
+      - when:
+          condition:
+            and:
+              - equal: [ true, <<parameters.deploy>> ]
+          steps:
+            - run:
+                name: Bring up the stack
+                command: |
+                  make devnet-up-deploy
+            - run:
+                name: Deposit ERC20 through the bridge
+                command: timeout 5m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                working_directory: packages/sdk
+            - run:
+                name: Deposit ETH through the bridge
+                command: timeout 5m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                working_directory: packages/sdk
+            - run:
+                name: Check the status
+                command: npx hardhat check-op-node
+                working_directory: packages/contracts-bedrock
+      - when:
+          condition:
+            and:
+              - equal: [ false, <<parameters.deploy>> ]
+          steps:
+            - run:
+                name: Bring up the stack
+                command: |
+                  make devnet-up
+            - run:
+                name: Deposit ERC20 through the bridge
+                command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
+                working_directory: packages/sdk
+            - run:
+                name: Deposit ETH through the bridge
+                command: timeout 5m npx hardhat deposit-eth --network devnetL1
+                working_directory: packages/sdk
+            - run:
+                name: Check the status
+                command: npx hardhat check-op-node
+                working_directory: packages/contracts-bedrock
 
   integration-tests:
     machine:
@@ -773,7 +804,12 @@ workflows:
       - bedrock-go-tests
       - fuzz-op-node
       - bedrock-markdown
-      - devnet
+      - devnet:
+          name: devnet (with deployed contracts)
+          deploy: true
+      - devnet:
+          name: devnet (with genesis contracts)
+          deploy: false
       - go-lint-test-build:
           name: batch-submitter-tests
           binary_name: batch-submitter

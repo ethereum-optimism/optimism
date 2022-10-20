@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -125,7 +126,7 @@ var Subcommands = cli.Commands{
 				l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("error getting l1 start block: %w", err)
 			}
 
 			depPath, network := filepath.Split(ctx.String("deployment-dir"))
@@ -157,7 +158,7 @@ var Subcommands = cli.Commands{
 			}
 			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
 			if err != nil {
-				return err
+				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
 			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address)

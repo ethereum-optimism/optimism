@@ -313,7 +313,14 @@ mainLoop:
 				l.ch = ch
 			}
 			prevID := l.lastSubmittedBlock
-			for i := l.lastSubmittedBlock.Number + 1; i <= syncStatus.UnsafeL2.Number; i++ {
+			maxBlocksPerChannel := uint64(100)
+			// Hacky min() here to ensure that we don't batch submit more than 100 blocks per channel.
+			// TODO: use proper channel size here instead.
+			upToBlockNumber := syncStatus.UnsafeL2.Number
+			if l.lastSubmittedBlock.Number+1+maxBlocksPerChannel < upToBlockNumber {
+				upToBlockNumber = l.lastSubmittedBlock.Number + 1 + maxBlocksPerChannel
+			}
+			for i := l.lastSubmittedBlock.Number + 1; i <= upToBlockNumber; i++ {
 				ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
 				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
 				cancel()
