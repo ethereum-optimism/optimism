@@ -1,4 +1,4 @@
-package state_surgery
+package ether
 
 import (
 	"path/filepath"

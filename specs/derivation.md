@@ -299,9 +299,8 @@ Batcher transactions are encoded as `version_byte ++ rollup_payload` (where `++`
 | 0              | `frame ...` (one or more frames, concatenated) |
 
 Unknown versions make the batcher transaction invalid (it must be ignored by the rollup node).
-
-The `rollup_payload` may be right-padded with 0s, which will be ignored. It's allowed for them to be
-interpreted as frames for channel 0, which must always be ignored.
+All frames in a batcher transaction must be parseable. If any one frame fails to parse, the all frames in the
+transaction are rejected.
 
 > **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher
 > signers)

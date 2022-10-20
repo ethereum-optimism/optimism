@@ -176,6 +176,7 @@ export class CrossChainMessenger {
 
     this.bridges = getBridgeAdapters(this.l2ChainId, this, {
       overrides: opts.bridges,
+      contracts: opts.contracts,
     })
   }
 
