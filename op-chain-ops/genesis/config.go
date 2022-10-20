@@ -63,6 +63,7 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
+	ProxyAdminOwner             common.Address `json:"proxyAdminOwner"`
 	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
 	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
