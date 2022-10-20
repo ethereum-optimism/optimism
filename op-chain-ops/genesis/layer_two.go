@@ -12,7 +12,7 @@ import (
 // L2Addresses represents L1 contract addresses
 // that are required for the construction of an L2 state
 type L2Addresses struct {
-	ProxyAdmin                  common.Address
+	ProxyAdminOwner             common.Address
 	L1StandardBridgeProxy       common.Address
 	L1CrossDomainMessengerProxy common.Address
 	L1ERC721BridgeProxy         common.Address
@@ -36,7 +36,8 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block, l2
 	// Use the known developer addresses if they are not set
 	if l2Addrs == nil {
 		l2Addrs = &L2Addresses{
-			ProxyAdmin:                  predeploys.DevProxyAdminAddr,
+			// corresponds to m/44'/60'/0'/0/1 in the 'test test... junk' mnemonic
+			ProxyAdminOwner:             common.HexToAddress("0x70997970C51812dc3A010C7d01b50e0d17dc79C8"),
 			L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 			L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
 			L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,

@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/stretchr/testify/require"
@@ -31,17 +30,7 @@ func init() {
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 func TestBuildL2DeveloperGenesis(t *testing.T) {
-	hh, err := hardhat.New(
-		"alpha-1",
-		nil,
-		[]string{"../../packages/contracts-bedrock/deployments"},
-	)
-	require.Nil(t, err)
-
 	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
-	require.Nil(t, err)
-
-	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
 	require.Nil(t, err)
 
 	backend := backends.NewSimulatedBackend(
@@ -52,12 +41,8 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	)
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
-		ProxyAdmin:                  proxyAdmin.Address,
-		L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,
-		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-	})
+
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block, nil)
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
@@ -101,12 +86,8 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	)
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
-		ProxyAdmin:                  common.Address{},
-		L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,
-		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-	})
+
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block, nil)
 	require.NoError(t, err)
 	require.Equal(t, 2319, len(gen.Alloc))
 }
