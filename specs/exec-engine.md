@@ -101,6 +101,11 @@ The `noTxPool` is optional as well, and extends the `transactions` meaning:
   into the payload, after any of the `transactions`. This is the default behavior a L1 node implements.
 - If `true`, the execution engine must not change anything about the given list of `transactions`.
 
+If the `transactions` field is present, the engine must execute the transactions in order and return `STATUS_INVALID`
+if there is an error processing the transactions. It must return `STATUS_VALID` if all of the transactions could
+be executed without error. **Note**: The state transition rules have been modified such that deposits will never fail
+so if `engine_forkchoiceUpdatedV1` returns `STATUS_INVALID` it is because a batched transaction is invalid.
+
 [rollup-driver]: rollup-node.md
 
 ### `engine_newPayloadV1`
