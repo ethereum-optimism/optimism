@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/message-relayer",
-  "version": "0.5.17",
+  "version": "0.5.18",
   "description": "[Optimism] Service for automatically relaying L2 to L1 transactions",
   "main": "dist/index",
   "types": "dist/index",
@@ -33,7 +33,7 @@
   "dependencies": {
     "@eth-optimism/common-ts": "0.6.6",
     "@eth-optimism/core-utils": "0.10.1",
-    "@eth-optimism/sdk": "1.6.7",
+    "@eth-optimism/sdk": "1.6.8",
     "ethers": "^5.7.0"
   },
   "devDependencies": {

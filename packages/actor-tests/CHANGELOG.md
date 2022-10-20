@@ -1,5 +1,13 @@
 # @eth-optimism/actor-tests
 
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [7d7d9ba8]
+  - @eth-optimism/contracts-bedrock@0.8.2
+  - @eth-optimism/sdk@1.6.8
+
 ## 0.0.9
 
 ### Patch Changes

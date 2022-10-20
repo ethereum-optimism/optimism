@@ -1,5 +1,11 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.19
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.6.8
+
 ## 0.3.18
 
 ### Patch Changes

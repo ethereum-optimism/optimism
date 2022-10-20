@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.8.2
+
+### Patch Changes
+
+- 7d7d9ba8: Moves initializers underneath constructors always
+
 ## 0.8.1
 
 ### Patch Changes
