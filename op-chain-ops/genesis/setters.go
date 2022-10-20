@@ -115,36 +115,6 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	return nil
 }
 
-// Get the storage layout of the LegacyMessagePasser
-// Iterate over the storage layout to know which storage slots to ignore
-// Iterate over each storage slot, compute the migration
-func MigrateDepositHashes(db vm.StateDB) error {
-	layout, err := bindings.GetStorageLayout("LegacyMessagePasser")
-	if err != nil {
-		return err
-	}
-
-	// Build a list of storage slots to ignore. The values in the
-	// mapping are guaranteed to not be in this list because they are
-	// hashes.
-	ignore := make(map[common.Hash]bool)
-	for _, entry := range layout.Storage {
-		encoded, err := state.EncodeUintValue(entry.Slot, 0)
-		if err != nil {
-			return err
-		}
-		ignore[encoded] = true
-	}
-
-	return db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
-		if _, ok := ignore[key]; ok {
-			return true
-		}
-		// TODO(tynes): Do the value migration here
-		return true
-	})
-}
-
 // SetPrecompileBalances will set a single wei at each precompile address.
 // This is an optimization to make calling them cheaper. This should only
 // be used for devnets.
