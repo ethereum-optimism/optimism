@@ -3,8 +3,9 @@ package testutils
 import (
 	"context"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type MockL2Client struct {
@@ -33,4 +34,12 @@ func (c *MockL2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (
 
 func (m *MockL2Client) ExpectL2BlockRefByHash(hash common.Hash, ref eth.L2BlockRef, err error) {
 	m.Mock.On("L2BlockRefByHash", hash).Once().Return(ref, &err)
+}
+
+func (m *MockL2Client) L1ConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.L1ConfigData, error) {
+	return m.Mock.MethodCalled("L1ConfigByL2Hash", hash).Get(0).(eth.L1ConfigData), nil
+}
+
+func (m *MockL2Client) ExpectL1ConfigByL2Hash(hash common.Hash, cfg eth.L1ConfigData, err error) {
+	m.Mock.On("L1ConfigByL2Hash", hash).Once().Return(cfg, &err)
 }

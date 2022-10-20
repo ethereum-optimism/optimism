@@ -8,15 +8,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 type testTx struct {
@@ -103,6 +104,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 				{to: &altInbox, dataLen: 2020, value: 12, author: batcherPriv, good: false},
 			},
 		},
+		// TODO: test with different batcher key, i.e. when it's changed from initial config value by L1 contract
 	}
 
 	for i, tc := range testCases {
@@ -118,7 +120,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			}
 		}
 
-		out := DataFromEVMTransactions(cfg, txs, testlog.Logger(t, log.LvlCrit))
+		out := DataFromEVMTransactions(cfg, cfg.BatchSenderAddress, txs, testlog.Logger(t, log.LvlCrit))
 		require.ElementsMatch(t, expectedData, out)
 	}
 

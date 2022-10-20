@@ -8,19 +8,20 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // TestAttributesQueue checks that it properly uses the PreparePayloadAttributes function
 // (which is well tested) and that it properly sets NoTxPool and adds in the candidate
 // transactions.
 func TestAttributesQueue(t *testing.T) {
-	// test config, only init the necessary fields
+	// test l1Config, only init the necessary fields
 	cfg := &rollup.Config{
 		BlockTime:              2,
 		L1ChainID:              big.NewInt(101),
@@ -47,7 +48,25 @@ func TestAttributesQueue(t *testing.T) {
 		Transactions: []eth.Data{eth.Data("foobar"), eth.Data("example")},
 	}}
 
-	l1InfoTx, err := L1InfoDepositBytes(safeHead.SequenceNumber+1, l1Info)
+	parentL1Cfg := eth.L1ConfigData{
+		Origin:      l1Info.BlockRef().ParentID(),
+		BatcherAddr: common.Address{42},
+		Overhead:    [32]byte{},
+		Scalar:      [32]byte{},
+	}
+	// TODO: make L1Config part of source interface?
+
+	expectedL1Cfg := eth.L1ConfigData{
+		Origin:      l1Info.ID(),
+		BatcherAddr: common.Address{42},
+		Overhead:    [32]byte{},
+		Scalar:      [32]byte{},
+	}
+
+	l2Fetcher := &testutils.MockL2Client{}
+	l2Fetcher.ExpectL1ConfigByL2Hash(safeHead.Hash, parentL1Cfg, nil)
+
+	l1InfoTx, err := L1InfoDepositBytes(safeHead.SequenceNumber+1, l1Info, expectedL1Cfg)
 	require.NoError(t, err)
 	attrs := eth.PayloadAttributes{
 		Timestamp:             eth.Uint64Quantity(safeHead.Time + cfg.BlockTime),
@@ -57,7 +76,7 @@ func TestAttributesQueue(t *testing.T) {
 		NoTxPool:              true,
 	}
 
-	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, l1Fetcher, nil)
+	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, l1Fetcher, l2Fetcher, nil)
 
 	actual, err := aq.createNextAttributes(context.Background(), batch, safeHead)
 

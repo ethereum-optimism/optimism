@@ -6,14 +6,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 type ValidBatchTestCase struct {
@@ -35,7 +36,7 @@ func TestValidBatch(t *testing.T) {
 		BlockTime:         2,
 		SeqWindowSize:     4,
 		MaxSequencerDrift: 6,
-		// other config fields are ignored and can be left empty.
+		// other l1Config fields are ignored and can be left empty.
 	}
 
 	rng := rand.New(rand.NewSource(1234))

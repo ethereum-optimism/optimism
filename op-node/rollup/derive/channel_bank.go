@@ -4,10 +4,11 @@ import (
 	"context"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type NextDataProvider interface {
@@ -166,7 +167,7 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 	}
 }
 
-func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef) error {
+func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef, _ eth.L1ConfigData) error {
 	cb.channels = make(map[ChannelID]*Channel)
 	cb.channelQueue = make([]ChannelID, 0, 10)
 	return io.EOF

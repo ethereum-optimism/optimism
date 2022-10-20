@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Metrics interface {
@@ -25,8 +26,8 @@ type L1Fetcher interface {
 }
 
 type ResetableStage interface {
-	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to.
-	Reset(ctx context.Context, base eth.L1BlockRef) error
+	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
+	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.L1ConfigData) error
 }
 
 type EngineQueueStage interface {
@@ -34,6 +35,7 @@ type EngineQueueStage interface {
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
+	L1Config() eth.L1ConfigData
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.BlockID)
@@ -70,7 +72,7 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	bank := NewChannelBank(log, cfg, l1Src, l1Fetcher)
 	chInReader := NewChannelInReader(log, bank)
 	batchQueue := NewBatchQueue(log, cfg, chInReader)
-	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, batchQueue)
+	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, engine, batchQueue)
 
 	// Step stages
 	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher)
@@ -137,7 +139,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
-		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin()); err == io.EOF {
+		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin(), dp.eng.L1Config()); err == io.EOF {
 			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Origin())
 			dp.resetting += 1
 			return nil

@@ -7,13 +7,16 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // TestL1TraversalNext tests that the `Next` function only returns
@@ -24,7 +27,13 @@ func TestL1TraversalNext(t *testing.T) {
 
 	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), nil)
 	// Load up the initial state with a reset
-	_ = tr.Reset(context.Background(), a)
+	l1Cfg := eth.L1ConfigData{
+		Origin:      a.ID(),
+		BatcherAddr: common.Address{},
+		Overhead:    [32]byte{},
+		Scalar:      [32]byte{},
+	}
+	_ = tr.Reset(context.Background(), a, l1Cfg)
 
 	// First call should always succeed
 	ref, err := tr.NextL1Block(context.Background())
@@ -53,16 +62,25 @@ func TestL1TraversalAdvance(t *testing.T) {
 	x.Number = b.Number
 
 	tests := []struct {
-		name        string
-		startBlock  eth.L1BlockRef
-		nextBlock   eth.L1BlockRef
-		fetcherErr  error
-		expectedErr error
+		name         string
+		startBlock   eth.L1BlockRef
+		nextBlock    eth.L1BlockRef
+		initialL1Cfg eth.L1ConfigData
+		l1Receipts   []*types.Receipt
+		fetcherErr   error
+		expectedErr  error
 	}{
 		{
-			name:        "simple extension",
-			startBlock:  a,
-			nextBlock:   b,
+			name:       "simple extension",
+			startBlock: a,
+			nextBlock:  b,
+			initialL1Cfg: eth.L1ConfigData{
+				Origin:      a.ID(),
+				BatcherAddr: common.Address{11},
+				Overhead:    [32]byte{22},
+				Scalar:      [32]byte{33},
+			},
+			l1Receipts:  []*types.Receipt{},
 			fetcherErr:  nil,
 			expectedErr: nil,
 		},
@@ -87,16 +105,27 @@ func TestL1TraversalAdvance(t *testing.T) {
 			fetcherErr:  errors.New("interrupted connection"),
 			expectedErr: ErrTemporary,
 		},
+		// TODO: add tests that cover the receipts to config data updates
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			src := &testutils.MockL1Source{}
 			src.ExpectL1BlockRefByNumber(test.startBlock.Number+1, test.nextBlock, test.fetcherErr)
+			info := &testutils.MockBlockInfo{
+				InfoHash:       test.nextBlock.Hash,
+				InfoParentHash: test.nextBlock.ParentHash,
+				InfoNum:        test.nextBlock.Number,
+				InfoTime:       test.nextBlock.Time,
+				// TODO: don't need full L1 info in receipts fetching API maybe?
+			}
+			if test.l1Receipts != nil {
+				src.ExpectFetchReceipts(test.nextBlock.Hash, info, test.l1Receipts, nil)
+			}
 
 			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), src)
 			// Load up the initial state with a reset
-			_ = tr.Reset(context.Background(), test.startBlock)
+			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
 
 			// Advance it + assert output
 			err := tr.AdvanceL1Block(context.Background())
