@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+
 import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
@@ -141,8 +143,9 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     const l2ChainId = await l2Signer.getChainId()
     let contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
     if (args.l1ContractsJsonPath) {
+      const data = await fs.readFile(args.l1ContractsJsonPath)
       contractAddrs = {
-        l1: require(args.l1ContractsJsonPath),
+        l1: JSON.parse(data.toString()),
         l2: DEFAULT_L2_CONTRACT_ADDRESSES,
       } as OEContractsLike
     }
