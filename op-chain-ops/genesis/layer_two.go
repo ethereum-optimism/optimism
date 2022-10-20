@@ -75,9 +75,5 @@ func BuildL2Genesis(db *state.MemoryStateDB, config *DeployConfig, l1Block *type
 		return nil, err
 	}
 
-	if err := MigrateDepositHashes(db); err != nil {
-		return nil, err
-	}
-
 	return db.Genesis(), nil
 }
