@@ -25,8 +25,8 @@ func FundDevAccounts(db vm.StateDB) {
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
 // can be set in state and the ProxyAdmin can be set as the admin of the
 // Proxy.
-func SetL2Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
-	return setProxies(db, proxyAdminAddr, bigL2PredeployNamespace, 2048)
+func SetL2Proxies(db vm.StateDB) error {
+	return setProxies(db, predeploys.ProxyAdminAddr, bigL2PredeployNamespace, 2048)
 }
 
 // SetL1Proxies will set each of the proxies in the state. It requires
@@ -56,7 +56,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 
 		db.CreateAccount(addr)
 		db.SetCode(addr, depBytecode)
-		db.SetState(addr, AdminSlot, predeploys.ProxyAdminAddr.Hash())
+		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
 	}
 	return nil
 }
@@ -71,7 +71,8 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	}
 
 	for name, address := range predeploys.Predeploys {
-		// Convert the address to the code address
+		// Convert the address to the code address unless it is
+		// designed to not be behind a proxy
 		var addr common.Address
 		switch *address {
 		case predeploys.GovernanceTokenAddr:
