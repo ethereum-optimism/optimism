@@ -11,8 +11,10 @@ bytecode and storage slots in state.
 
 ## Dependencies
 
-- `abigen`
+- `abigen` version 1.10.25
 - `make`
+
+To check the version of `abigen`, run the command `abigen --version`.
 
 ## abigen
 
