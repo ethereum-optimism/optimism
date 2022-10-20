@@ -272,8 +272,7 @@ func TestGetPendingWithdrawals(t *testing.T) {
 	for i, msg := range msgs[3:] {
 		withdrawal := withdrawals[i]
 
-		require.Equal(t, msg.Target, withdrawal.Target)
-		require.Equal(t, msg.Message, withdrawal.Message)
-		require.Equal(t, uint64(msg.MinGasLimit), withdrawal.GasLimit.Uint64())
+		require.Equal(t, msg.Target, *withdrawal.Target)
+		require.Equal(t, msg.Message, withdrawal.Data)
 	}
 }

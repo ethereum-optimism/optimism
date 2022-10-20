@@ -1,4 +1,4 @@
-package state_surgery
+package ether
 
 import (
 	"github.com/ethereum/go-ethereum/common"

@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p-core/connmgr"
 	"github.com/libp2p/go-libp2p-core/host"
+	p2pmetrics "github.com/libp2p/go-libp2p-core/metrics"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	ma "github.com/multiformats/go-multiaddr"
@@ -30,12 +32,12 @@ type NodeP2P struct {
 	gsOut    GossipOut        // p2p gossip application interface for publishing
 }
 
-func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn) (*NodeP2P, error) {
+func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, metrics metrics.Metricer) (*NodeP2P, error) {
 	if setup == nil {
 		return nil, errors.New("p2p node cannot be created without setup")
 	}
 	var n NodeP2P
-	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn); err != nil {
+	if err := n.init(resourcesCtx, rollupCfg, log, setup, gossipIn, metrics); err != nil {
 		closeErr := n.Close()
 		if closeErr != nil {
 			log.Error("failed to close p2p after starting with err", "closeErr", closeErr, "err", err)
@@ -48,10 +50,12 @@ func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.
 	return &n, nil
 }
 
-func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn) error {
+func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, metrics metrics.Metricer) error {
+	bwc := p2pmetrics.NewBandwidthCounter()
+
 	var err error
 	// nil if disabled.
-	n.host, err = setup.Host(log)
+	n.host, err = setup.Host(log, bwc)
 	if err != nil {
 		if n.dv5Udp != nil {
 			n.dv5Udp.Close()
@@ -66,10 +70,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 			n.connMgr = extra.ConnectionManager()
 		}
 		// notify of any new connections/streams/etc.
-		n.host.Network().Notify(NewNetworkNotifier(log))
+		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// unregister identify-push handler. Only identifying on dial is fine, and more robust against spam
 		n.host.RemoveStreamHandler(identify.IDDelta)
-		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg)
+		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, metrics)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
@@ -89,6 +93,10 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		n.dv5Local, n.dv5Udp, err = setup.Discovery(log.New("p2p", "discv5"), rollupCfg, tcpPort)
 		if err != nil {
 			return fmt.Errorf("failed to start discv5: %w", err)
+		}
+
+		if metrics != nil {
+			go metrics.RecordBandwidth(resourcesCtx, bwc)
 		}
 	}
 	return nil

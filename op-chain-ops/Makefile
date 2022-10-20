@@ -1,5 +1,5 @@
 surgery:
-	go build -o ./surgery ./cmd/main.go
+	go build -o ./surgery ./cmd/surgery/main.go
 
 test:
 	go test ./...

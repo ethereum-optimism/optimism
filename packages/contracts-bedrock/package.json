@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",

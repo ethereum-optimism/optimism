@@ -41,7 +41,7 @@ import (
 type SetupP2P interface {
 	Check() error
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
-	Host(log log.Logger) (host.Host, error)
+	Host(log log.Logger, reporter metrics.Reporter) (host.Host, error)
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
 	Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error)
 	TargetPeers() uint
@@ -91,8 +91,6 @@ type Config struct {
 
 	ConnGater func(conf *Config) (connmgr.ConnectionGater, error)
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
-	// nil to disable bandwidth metrics
-	BandwidthMetrics metrics.Reporter
 }
 
 type ConnectionGater interface {

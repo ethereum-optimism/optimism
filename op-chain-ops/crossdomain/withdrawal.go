@@ -13,12 +13,12 @@ var _ WithdrawalMessage = (*Withdrawal)(nil)
 
 // Withdrawal represents a withdrawal transaction on L2
 type Withdrawal struct {
-	Nonce    *big.Int
-	Sender   *common.Address
-	Target   *common.Address
-	Value    *big.Int
-	GasLimit *big.Int
-	Data     []byte
+	Nonce    *big.Int        `json:"nonce"`
+	Sender   *common.Address `json:"sender"`
+	Target   *common.Address `json:"target"`
+	Value    *big.Int        `json:"value"`
+	GasLimit *big.Int        `json:"gasLimit"`
+	Data     []byte          `json:"data"`
 }
 
 // NewWithdrawal will create a Withdrawal

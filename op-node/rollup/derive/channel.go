@@ -138,7 +138,7 @@ func BatchReader(r io.Reader, l1InclusionBlock eth.L1BlockRef) (func() (BatchWit
 	if err != nil {
 		return nil, err
 	}
-	rlpReader := rlp.NewStream(zr, 10_000_000)
+	rlpReader := rlp.NewStream(zr, MaxRLPBytesPerChannel)
 	// Read each batch iteratively
 	return func() (BatchWithL1InclusionBlock, error) {
 		ret := BatchWithL1InclusionBlock{

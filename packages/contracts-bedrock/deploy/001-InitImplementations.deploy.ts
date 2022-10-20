@@ -7,7 +7,7 @@ import '@eth-optimism/hardhat-deploy-config'
 
 const upgradeABIs = {
   L2OutputOracleProxy: async (deployConfig) => [
-    'initialize(bytes32,uint256,address)',
+    'initialize(bytes32,address,address)',
     [
       deployConfig.l2OutputOracleGenesisL2Output,
       deployConfig.l2OutputOracleProposer,

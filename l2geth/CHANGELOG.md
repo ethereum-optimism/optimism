@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.26
+
+### Patch Changes
+
+- 397b27ee: Add data exporter
+
 ## 0.5.25
 
 ### Patch Changes
