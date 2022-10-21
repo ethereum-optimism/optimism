@@ -538,8 +538,9 @@ During the *Batch Buffering* stage, we reorder batches by their timestamps. If b
 slots][g-time-slot] and a valid batch with a higher timestamp exists, this stage also generates empty batches to fill
 the gaps.
 
-Batches are pushed to the next stage whenever there is one or more sequential batch(es) directly following the timestamp
+Batches are pushed to the next stage whenever there is one sequential batch directly following the timestamp
 of the current [safe L2 head][g-safe-l2-head] (the last block that can be derived from the canonical L1 chain).
+The parent hash of the batch must also match the hash of the current safe L2 head.
 
 Note that the presence of any gaps in the batches derived from L1 means that this stage will need to buffer for a whole
 [sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
@@ -645,6 +646,10 @@ If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
 
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the block to the
 execution engine to be converted into a proper L2 block, which will become both the new L2 safe and unsafe head.
+
+If a payload attributes created from a batch cannot be inserted into the chain because of a validation error (i.e. there
+was an invalid transaction or state transition in the block) the batch should be dropped & the safe head should not be
+advanced. The engine queue will attempt to use the next batch for that timestamp from the batch queue.
 
 Interaction with the execution engine via the execution engine API is detailed in the [Communication with the Execution
 Engine][exec-engine-comm] section.
