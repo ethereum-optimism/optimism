@@ -871,20 +871,14 @@ func TestFees(t *testing.T) {
 	l2opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L2ChainIDBig())
 	require.Nil(t, err)
 
+	// TODO: no longer set gpo values
+
 	// Update overhead
 	tx, err := gpoContract.SetOverhead(l2opts, big.NewInt(2100))
 	require.Nil(t, err, "sending overhead update tx")
 
 	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "waiting for overhead update tx")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
-
-	// Update decimals
-	tx, err = gpoContract.SetDecimals(l2opts, big.NewInt(6))
-	require.Nil(t, err, "sending gpo update tx")
-
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "waiting for gpo decimals update tx")
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
 	// Update scalar
@@ -897,8 +891,7 @@ func TestFees(t *testing.T) {
 
 	overhead, err := gpoContract.Overhead(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo overhead")
-	decimals, err := gpoContract.Decimals(&bind.CallOpts{})
-	require.Nil(t, err, "reading gpo decimals")
+	decimals := big.NewInt(6) // protocol constant
 	scalar, err := gpoContract.Scalar(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo scalar")
 
