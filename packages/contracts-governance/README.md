@@ -4,6 +4,8 @@
   <h1> Optimism Governance Contracts</h1>
 </div>
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-governance-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 ## TL;DR
 
 The token and governance smart contracts for the Optimism DAO. Built using [OpenZeppelin libraries](https://docs.openzeppelin.com/contracts/4.x/) with some customisations. The token is an [ERC20](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20) that is [permissible](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#ERC20Permit) and allows for [delegate voting](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#ERC20Votes). The token is also [burnable](https://docs.openzeppelin.com/contracts/4.x/api/token/erc20#ERC20Burnable). See more in the [Specification section](#specification).
