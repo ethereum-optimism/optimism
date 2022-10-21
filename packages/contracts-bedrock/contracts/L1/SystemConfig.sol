@@ -1,10 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { Semver } from "../universal/Semver.sol";
 
-contract SystemConfig is Ownable {
-    // Version 0 schema
+/**
+ * @title SystemConfig
+ * @notice This contract is used to update L2 configuration via L1
+ */
+contract SystemConfig is OwnableUpgradeable, Semver {
     uint256 public constant VERSION = 0;
 
     uint256 public overhead;
@@ -22,7 +29,8 @@ contract SystemConfig is Ownable {
         GAS_CONFIG
     }
 
-    constructor(address _owner) {
+    // TODO: initialize()
+    constructor(address _owner) Semver(0, 0, 1) {
         transferOwnership(_owner);
     }
 
