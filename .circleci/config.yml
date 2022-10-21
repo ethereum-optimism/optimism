@@ -879,7 +879,7 @@ workflows:
           context:
             - gcr
       - docker-publish:
-          name: op-node-publish-dev
+          name: op-node-publish-arm-dev
           docker_file: op-node/Dockerfile
           docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node:<<pipeline.git.revision>>
           docker_context: .
