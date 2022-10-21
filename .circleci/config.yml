@@ -87,6 +87,7 @@ jobs:
   docker-publish:
     environment:
       DOCKER_BUILDKIT: 1
+      DOCKER_PLATFORMS: linux/amd64,linux/arm64
     parameters:
       docker_tags:
         description: Docker image tags as csv
@@ -110,6 +111,9 @@ jobs:
       resource_class: xlarge
     steps:
       - gcp-oidc-authenticate
+      - run:
+          name: Authenticate docker with GCP
+          command: gcloud auth configure-docker us-central1-docker.pkg.dev
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
       # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
       - run: sudo sed -i '13 i \ \ \ \ \ \ \ \ \ \ \ \ nameservers:' /etc/netplan/50-cloud-init.yaml
@@ -118,14 +122,20 @@ jobs:
       - run: cat /etc/netplan/50-cloud-init.yaml
       - run: sudo netplan apply
       - checkout
+      - run:
+          name: setup qemu
+          command: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+      - run:
+          name: create builder
+          command: docker buildx create --name builder --use
       - when:
           condition: <<parameters.target>>
           steps:
             - run:
-                name: Build with context
+                name: Build multi-arch image with context and push
                 command: |
                   echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-                  docker build \
+                  docker buildx build --platform ${DOCKER_PLATFORMS} --push \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
                   --target <<parameters.target>> \
@@ -134,18 +144,13 @@ jobs:
           condition: <<parameters.target>>
           steps:
             - run:
-                name: Build
+                name: Build multi-arch image and push
                 command: |
                   echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-                  docker build \
+                  docker buildx build --platform ${DOCKER_PLATFORMS} --push \
                   $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
                   <<parameters.docker_context>>
-      - run:
-          name: Publish
-          command: |
-            gcloud auth configure-docker us-central1-docker.pkg.dev
-            docker push <<parameters.docker_tags>>
 
   contracts-bedrock-tests:
     docker:
