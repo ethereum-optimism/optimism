@@ -34,7 +34,7 @@ export interface OutputRootProof {
  */
 export interface BedrockCrossChainMessageProof {
   outputRootProof: OutputRootProof
-  withdrawalProof: string
+  withdrawalProof: string[]
 }
 
 /**
