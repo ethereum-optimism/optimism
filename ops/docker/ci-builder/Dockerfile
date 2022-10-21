@@ -24,7 +24,7 @@ RUN source $HOME/.profile && \
     strip /opt/foundry/target/release/cast && \
     strip /opt/foundry/target/release/anvil
 
-FROM ethereum/client-go:alltools-v1.10.21 as geth
+FROM ethereum/client-go:alltools-v1.10.25 as geth
 
 FROM python:3.8.13-slim-bullseye
 
