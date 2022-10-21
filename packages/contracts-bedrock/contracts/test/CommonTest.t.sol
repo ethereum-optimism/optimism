@@ -133,14 +133,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(
-                L2OutputOracle.initialize,
-                (
-                    genesisL2Output,
-                    proposer,
-                    owner
-                )
-            )
+            abi.encodeCall(L2OutputOracle.initialize, (genesisL2Output, proposer, owner))
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -194,7 +187,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         address indexed target,
         uint256 value,
         uint256 gasLimit,
-        bytes data
+        bytes data,
+        bytes32 withdrawalHash
     );
 
     event RelayedMessage(bytes32 indexed msgHash);

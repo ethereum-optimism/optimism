@@ -21,8 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes)"))
-var MessagePassedExtension1Topic = crypto.Keccak256Hash([]byte("MessagePassedExtension1(bytes32)"))
+var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
 
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
@@ -176,13 +175,9 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}
-	ev1, err := ParseMessagePassedExtension1(receipt)
-	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
-	}
 	// Generate then verify the withdrawal proof
 	withdrawalHash, err := WithdrawalHash(ev)
-	if !bytes.Equal(withdrawalHash[:], ev1.Hash[:]) {
+	if !bytes.Equal(withdrawalHash[:], ev.WithdrawalHash[:]) {
 		return FinalizedWithdrawalParameters{}, errors.New("Computed withdrawal hash incorrectly")
 	}
 	if err != nil {
@@ -282,29 +277,6 @@ func ParseMessagePassed(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMe
 		return ev, nil
 	}
 	return nil, errors.New("Unable to find MessagePassed event")
-}
-
-// ParseMessagePassedExtension1 parses MessagePassedExtension1 events
-// from a transaction receipt. It does not support multiple withdrawals per
-// receipt.
-func ParseMessagePassedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMessagePassedExtension1, error) {
-	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, log := range receipt.Logs {
-		if len(log.Topics) == 0 || log.Topics[0] != MessagePassedExtension1Topic {
-			continue
-		}
-
-		ev, err := contract.ParseMessagePassedExtension1(*log)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse log: %w", err)
-		}
-		return ev, nil
-	}
-	return nil, errors.New("Unable to find MessagePassedExtension1 event")
 }
 
 // StorageSlotOfWithdrawalHash determines the storage slot of the Withdrawer contract to look at
