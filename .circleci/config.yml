@@ -105,9 +105,15 @@ jobs:
         description: Docker repo
         type: string
         default: ""
+      linux_img:
+        description: The linux image to run the build on
+        type: string
+      resource:
+        description: Resource class to run the build on
+        type: string
     machine:
-      image: ubuntu-2204:2022.07.1
-      resource_class: xlarge
+      image: <<parameters.linux_img>>
+      resource_class: <<parameters.resource>>
     steps:
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
@@ -848,6 +854,8 @@ workflows:
           docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node:<<pipeline.git.revision>>
           docker_context: .
           repo: us-central1-docker.pkg.dev
+          linux_img: ubuntu-2204:2022.07.1
+          resource: xlarge
           context:
             - gcr
       - docker-publish:
@@ -856,6 +864,8 @@ workflows:
           docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-batcher:<<pipeline.git.revision>>
           docker_context: .
           repo: us-central1-docker.pkg.dev
+          linux_img: ubuntu-2204:2022.07.1
+          resource: xlarge
           context:
             - gcr
       - docker-publish:
@@ -864,6 +874,18 @@ workflows:
           docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-proposer:<<pipeline.git.revision>>
           docker_context: .
           repo: us-central1-docker.pkg.dev
+          linux_img: ubuntu-2204:2022.07.1
+          resource: xlarge
+          context:
+            - gcr
+      - docker-publish:
+          name: op-node-publish-dev
+          docker_file: op-node/Dockerfile
+          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node:<<pipeline.git.revision>>
+          docker_context: .
+          repo: us-central1-docker.pkg.dev
+          linux_img: ubuntu-2004:2022.04.1
+          resource: arm.xlarge
           context:
             - gcr
       - hive-test:
