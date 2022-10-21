@@ -112,7 +112,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, l2Addrs *L2A
 		return immutable, errors.New("must pass L1 contract addresses")
 	}
 
-	if l2Addrs.ProxyL1ERC721Bridge == (common.Address{}) {
+	if l2Addrs.L1ERC721BridgeProxy == (common.Address{}) {
 		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
 	}
 
@@ -124,7 +124,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, l2Addrs *L2A
 	}
 	immutable["L2ERC721Bridge"] = immutables.ImmutableValues{
 		"messenger":   predeploys.L2CrossDomainMessengerAddr,
-		"otherBridge": l2Addrs.ProxyL1ERC721Bridge,
+		"otherBridge": l2Addrs.L1ERC721BridgeProxy,
 	}
 	immutable["OptimismMintableERC721Factory"] = immutables.ImmutableValues{
 		"bridge":        predeploys.L2ERC721BridgeAddr,
