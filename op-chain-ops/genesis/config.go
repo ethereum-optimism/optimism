@@ -3,6 +3,7 @@ package genesis
 import (
 	"encoding/json"
 	"errors"
+	"math/big"
 	"os"
 	"path/filepath"
 
@@ -103,14 +104,26 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // Hardhat and a DeployConfig.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (immutables.ImmutableConfig, error) {
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge, proxyL1CrossDomainMessenger, proxyL1ERC721Bridge common.Address) (immutables.ImmutableConfig, error) {
 	immutable := make(immutables.ImmutableConfig)
+
+	if proxyL1ERC721Bridge == (common.Address{}) {
+		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
+	}
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
 		"otherBridge": proxyL1StandardBridge,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
 		"otherMessenger": proxyL1CrossDomainMessenger,
+	}
+	immutable["L2ERC721Bridge"] = immutables.ImmutableValues{
+		"messenger":   predeploys.L2CrossDomainMessengerAddr,
+		"otherBridge": proxyL1ERC721Bridge,
+	}
+	immutable["OptimismMintableERC721Factory"] = immutables.ImmutableValues{
+		"bridge":        predeploys.L2ERC721BridgeAddr,
+		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
 	}
 
 	return immutable, nil

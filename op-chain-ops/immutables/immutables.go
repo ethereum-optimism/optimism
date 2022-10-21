@@ -2,6 +2,7 @@ package immutables
 
 import (
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/types"
 
@@ -67,6 +68,20 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		{
 			Name: "L1BlockNumber",
 		},
+		{
+			Name: "L2ERC721Bridge",
+			Args: []interface{}{
+				predeploys.L2CrossDomainMessengerAddr,
+				immutable["L2ERC721Bridge"]["otherBridge"],
+			},
+		},
+		{
+			Name: "OptimismMintableERC721Factory",
+			Args: []interface{}{
+				predeploys.L2ERC721BridgeAddr,
+				immutable["OptimismMintableERC721Factory"]["remoteChainId"],
+			},
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -124,6 +139,27 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployLegacyMessagePasser(opts, backend)
 	case "L1BlockNumber":
 		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
+	case "L2ERC721Bridge":
+		// TODO(tynes): messenger should be hardcoded in the contract
+		messenger, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for messenger")
+		}
+		otherBridge, ok := deployment.Args[1].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for otherBridge")
+		}
+		_, tx, _, err = bindings.DeployL2ERC721Bridge(opts, backend, messenger, otherBridge)
+	case "OptimismMintableERC721Factory":
+		bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for bridge")
+		}
+		remoteChainId, ok := deployment.Args[1].(*big.Int)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for remoteChainId")
+		}
+		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}

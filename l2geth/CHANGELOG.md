@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.27
+
+### Patch Changes
+
+- 596c974e: Kick the build
+
 ## 0.5.26
 
 ### Patch Changes
