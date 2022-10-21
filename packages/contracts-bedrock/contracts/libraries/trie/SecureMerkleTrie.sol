@@ -26,7 +26,7 @@ library SecureMerkleTrie {
     function verifyInclusionProof(
         bytes memory _key,
         bytes memory _value,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     ) internal pure returns (bool) {
         bytes memory key = _getSecureKey(_key);
@@ -45,7 +45,7 @@ library SecureMerkleTrie {
      */
     function get(
         bytes memory _key,
-        bytes memory _proof,
+        bytes[] memory _proof,
         bytes32 _root
     ) internal pure returns (bool, bytes memory) {
         bytes memory key = _getSecureKey(_key);
