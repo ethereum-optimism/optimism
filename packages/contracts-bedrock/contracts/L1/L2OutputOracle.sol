@@ -16,6 +16,8 @@ import { Types } from "../libraries/Types.sol";
  */
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is OwnableUpgradeable, Semver {
+    event LogThing();
+
     /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
      */
@@ -323,5 +325,9 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         );
 
         return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
+    }
+
+    function untested(uint256 blop) public {
+        emit LogThing();
     }
 }
