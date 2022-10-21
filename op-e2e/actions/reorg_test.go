@@ -3,11 +3,13 @@ package actions
 import (
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
 func setupReorgTest(t Testing) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
@@ -29,7 +31,8 @@ func setupReorgTest(t Testing) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2
 
 func TestReorgOrphanBlock(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	sd, miner, sequencer, _, verifier, _, batcher := setupReorgTest(t)
+	sd, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t)
+	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
@@ -67,7 +70,9 @@ func TestReorgOrphanBlock(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Safe(), "verifier rewinds safe when L1 reorgs out batch")
-	// TODO check that the same holds for verifier engine
+	ref, err := verifEngClient.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, verifier.L2Safe(), ref, "verifier engine matches rollup client")
 
 	// Now replay the batch tx in a new L1 block
 	miner.ActL1StartBlock(12)(t)
@@ -83,7 +88,9 @@ func TestReorgOrphanBlock(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Unsafe(), "verifier syncs from sequencer via replayed batch on L1")
-	// TODO check that the same holds for verifier engine
+	ref, err = verifEngClient.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	require.Equal(t, verifier.L2Safe(), ref, "verifier engine matches rollup client")
 
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
