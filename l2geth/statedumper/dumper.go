@@ -2,10 +2,11 @@ package statedumper
 
 import (
 	"fmt"
-	"github.com/ethereum-optimism/optimism/l2geth/common"
 	"io"
 	"os"
 	"sync"
+
+	"github.com/ethereum-optimism/optimism/l2geth/common"
 )
 
 type StateDumper interface {
@@ -21,7 +22,7 @@ func NewStateDumper() StateDumper {
 		return &noopStateDumper{}
 	}
 
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE, 0o755)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o755)
 	if err != nil {
 		panic(err)
 	}
