@@ -97,6 +97,7 @@ func BuildL2(constructors []deployer.Constructor) (DeploymentResults, error) {
 func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
 	var tx *types.Transaction
 	var err error
+	var addr common.Address
 	switch deployment.Name {
 	case "GasPriceOracle":
 		// The owner of the gas price oracle is not immutable, not required
@@ -134,11 +135,11 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		_, tx, _, err = bindings.DeployL1BlockNumber(opts, backend)
 		//addr, _, _, err = bindings.DeployL1BlockNumber(opts, backend)
 	case "BobaTuringCredit":
-		addr, _, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
+		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
 		log.Info("MMDBG BobaTuringCredit", "addr", addr)
 	case "BobaL2":
 		// Storage slots are populated in genesis/config.go
-		addr, _, _, err = bindings.DeployOptimismMintableERC20(
+		addr, tx, _, err = bindings.DeployOptimismMintableERC20(
 			opts,
 			backend,
 			common.Address{}, //HexToAddress("0x4200000000000000000000000000000000000010"),

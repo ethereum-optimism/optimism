@@ -303,6 +303,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, deployment deployer.Constructor) (*types.Transaction, error) {
 	var tx *types.Transaction
 	var err error
+	var addr common.Address
 
 	switch deployment.Name {
 	case "L2OutputOracle":
@@ -332,7 +333,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			predeploys.DevOptimismPortalAddr,
 		)
 	case "L1StandardBridge":
-		_, tx, _, err = bindings.DeployL1StandardBridge(
+		addr, tx, _, err = bindings.DeployL1StandardBridge(
 			opts,
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
@@ -356,7 +357,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			common.Address{},
 		)
 	case "BobaL1":
-		addr, _, _, err = bindings.DeployBOBA(
+		addr, tx, _, err = bindings.DeployBOBA(
 			opts,
 			backend,
 		)
