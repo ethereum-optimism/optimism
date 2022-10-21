@@ -53,7 +53,10 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
 	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
-		ProxyAdmin: proxyAdmin.Address,
+		ProxyAdmin:                  proxyAdmin.Address,
+		L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,
+		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
+		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 	})
 	require.Nil(t, err)
 	require.NotNil(t, gen)
@@ -77,7 +80,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
 		require.Equal(t, account.Code, depB)
 	}
-	require.Equal(t, 2339, len(gen.Alloc))
+	require.Equal(t, 2341, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
@@ -99,8 +102,11 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
 	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
-		ProxyAdmin: common.Address{},
+		ProxyAdmin:                  common.Address{},
+		L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,
+		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
+		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 	})
 	require.NoError(t, err)
-	require.Equal(t, 2317, len(gen.Alloc))
+	require.Equal(t, 2319, len(gen.Alloc))
 }

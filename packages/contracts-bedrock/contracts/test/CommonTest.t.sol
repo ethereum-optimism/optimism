@@ -7,7 +7,10 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
+import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
+import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
+import { OptimismMintableERC721Factory } from "../universal/OptimismMintableERC721Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
@@ -421,6 +424,40 @@ contract Bridge_Initializer is Messenger_Initializer {
                 string(abi.encodePacked("L1-", NativeL2Token.symbol()))
             )
         );
+    }
+}
+
+contract ERC721Bridge_Initializer is Messenger_Initializer {
+    L1ERC721Bridge L1Bridge;
+    L2ERC721Bridge L2Bridge;
+    OptimismMintableERC721Factory factory;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        L1Bridge = new L1ERC721Bridge(
+            address(L1Messenger),
+            Predeploys.L2_ERC721_BRIDGE
+        );
+
+        L2ERC721Bridge l2b = new L2ERC721Bridge(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            address(L1Bridge)
+        );
+
+        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2b).code);
+        L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+
+        OptimismMintableERC721Factory f = new OptimismMintableERC721Factory(
+            Predeploys.L2_ERC721_BRIDGE,
+            block.chainid
+        );
+        vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, address(f).code);
+        factory = OptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
+
+        vm.label(address(L1Bridge), "L1ERC721Bridge");
+        vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
+        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, "OptimismMintableERC721Factory");
     }
 }
 

@@ -15,8 +15,6 @@
 - [OptimismMintableERC20Factory](#optimismmintableerc20factory)
 - [L1BlockNumber](#l1blocknumber)
 - [OVM\_GasPriceOracle](#ovm%5C_gaspriceoracle)
-- [Reserved System Address 1](#reserved-system-address-1)
-- [Reserved System Address 2](#reserved-system-address-2)
 - [L1Block](#l1block)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
@@ -37,22 +35,23 @@ The following table includes each of the predeploys. The system version
 indicates when the predeploy was introduced. The possible values are `Legacy`
 or `Bedrock`. Deprecated contracts should not be used.
 
-| Name                         | Address                                    | Introduced | Deprecated |
-| ---------------------------- | ------------------------------------------ | ---------- | ---------- |
-| LegacyMessagePasser          | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        |
-| DeployerWhitelist            | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
-| LegacyERC20ETH               | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
-| WETH9                        | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
-| L2CrossDomainMessenger       | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
-| L2StandardBridge             | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
-| SequencerFeeVault            | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
-| OptimismMintableERC20Factory | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
-| L1BlockNumber                | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
-| GasPriceOracle               | 0x420000000000000000000000000000000000000F | Legacy     | No         |
-| Reserved System Address 1    | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
-| Reserved System Address 2    | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
-| L1Block                      | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
-| L2ToL1MessagePasser          | 0x4200000000000000000000000000000000000016 | Bedrock    | No         |
+| Name                          | Address                                    | Introduced | Deprecated |
+| ----------------------------- | ------------------------------------------ | ---------- | ---------- |
+| LegacyMessagePasser           | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        |
+| DeployerWhitelist             | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
+| LegacyERC20ETH                | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
+| WETH9                         | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
+| L2CrossDomainMessenger        | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
+| L2StandardBridge              | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
+| SequencerFeeVault             | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
+| OptimismMintableERC20Factory  | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
+| L1BlockNumber                 | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
+| GasPriceOracle                | 0x420000000000000000000000000000000000000F | Legacy     | No         |
+| GovernanceToken               | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
+| L1Block                       | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
+| L2ToL1MessagePasser           | 0x4200000000000000000000000000000000000016 | Bedrock    | No         |
+| L2ERC721Bridge                | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
+| OptimismMintableERC721Factory | 0x4200000000000000000000000000000000000017 | Bedrock    | No         |
 
 ## OVM\_L2ToL1MessagePasser
 
@@ -323,14 +322,6 @@ interface OVM_GasPriceOracle {
     function getL1GasUsed(bytes memory _data) public view returns (uint256);
 }
 ```
-
-## Reserved System Address 1
-
-Reserved for future use.
-
-## Reserved System Address 2
-
-Reserved for future use.
 
 ## L1Block
 
