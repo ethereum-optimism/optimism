@@ -9,6 +9,8 @@ const proxies = [
   'L1StandardBridgeProxy',
   'OptimismPortalProxy',
   'OptimismMintableERC20FactoryProxy',
+  // SYSCOIN
+  'BatchInboxProxy',
 ]
 
 const deployFn: DeployFunction = async (hre) => {

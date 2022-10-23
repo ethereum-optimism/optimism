@@ -16,6 +16,14 @@ const upgradeABIs = {
   ],
   OptimismPortalProxy: async () => ['initialize', []],
   L1CrossDomainMessengerProxy: async () => ['initialize', []],
+  // SYSCOIN
+  BatchInboxProxy: async (deployConfig) => [
+    'initialize(address,address)',
+    [
+      deployConfig.batchSenderAddress,
+      deployConfig.batchInboxAddress,
+    ],
+  ],
 }
 
 const deployFn: DeployFunction = async (hre) => {
@@ -39,6 +47,8 @@ const deployFn: DeployFunction = async (hre) => {
   const portalProxy = await get('OptimismPortalProxy')
   const messengerProxy = await get('L1CrossDomainMessengerProxy')
   const bridgeProxy = await get('L1StandardBridgeProxy')
+  // SYSCOIN
+  const inboxProxy = await get('BatchInboxProxy')
 
   let nonce = await l1.getTransactionCount(deployer)
   const implTxs = [
@@ -96,6 +106,13 @@ const deployFn: DeployFunction = async (hre) => {
     deploy('ProxyAdmin', {
       from: deployer,
       args: [deployer],
+      log: true,
+      waitConfirmations: deployConfig.deploymentWaitConfirmations,
+      nonce: ++nonce,
+    }),
+    deploy('BatchInbox', {
+      from: deployer,
+      args: [deployConfig.batchSenderAddress, inboxProxy.address],
       log: true,
       waitConfirmations: deployConfig.deploymentWaitConfirmations,
       nonce: ++nonce,

@@ -31,13 +31,13 @@ set -eu
 
 L1_URL="http://localhost:8545"
 L2_URL="http://localhost:9545"
-
+PODA_URL="https://poda.tanenbaum.io"
 OP_NODE="$PWD/op-node"
 CONTRACTS_BEDROCK="$PWD/packages/contracts-bedrock"
 CONTRACTS_GOVERNANCE="$PWD/packages/contracts-governance"
 NETWORK=tanenbaum
 DEVNET="$PWD/.devnet"
-
+SYS_DESC='wpkh(tprv8ZgxMBicQKsPd7Uf69XL1XwhmjHopUGep8GuEiJDZmbQz6o58LninorQAfcKZWARbtRtfnLcJ5MQ2AtHcQJCCRUcMRvmDUjyEmNUWwx8UbK/0h/*h)#y4dfsj7n'
 # Helper method that waits for a given URL to be up. Can't use
 # cURL's built-in retry logic because connection reset errors
 # are ignored unless you're using a very recent version of cURL
@@ -101,6 +101,8 @@ SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_a
 (
   cd ops-bedrock
   echo "Bringing up L2 services..."
+  SYS_DESC="$SYS_DESC" \
+  PODA_URL="$PODA_URL" \
   L2OO_ADDRESS="$L2OO_ADDRESS" \
       SEQUENCER_GENESIS_HASH="$SEQUENCER_GENESIS_HASH" \
       SEQUENCER_BATCH_INBOX_ADDRESS="$SEQUENCER_BATCH_INBOX_ADDRESS" \

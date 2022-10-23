@@ -33,6 +33,19 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
+	// SYSCOIN
+	SyscoinRpcFlag = cli.StringFlag{
+		Name:     "syscoin-rpc",
+		Usage:    "HTTP provider URL for Syscoin node",
+		Required: true,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SYSCOIN_RPC"),
+	}
+	PoDARpcFlag = cli.StringFlag{
+		Name:     "poda-rpc",
+		Usage:    "HTTP provider URL for PoDA node",
+		Required: true,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "PODA_RPC"),
+	}
 	MinL1TxSizeBytesFlag = cli.Uint64Flag{
 		Name:     "min-l1-tx-size-bytes",
 		Usage:    "The minimum size of a batch tx submitted to L1.",
@@ -109,6 +122,9 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
+	// SYSCOIN
+	SyscoinRpcFlag,
+	PoDARpcFlag,
 	MinL1TxSizeBytesFlag,
 	MaxL1TxSizeBytesFlag,
 	ChannelTimeoutFlag,

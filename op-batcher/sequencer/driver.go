@@ -23,6 +23,9 @@ type Config struct {
 	L2Client *ethclient.Client
 
 	RollupNode *sources.RollupClient
+	// SYSCOIN
+	SyscoinNode *sources.SyscoinClient
+	PoDANode *sources.PoDAClient
 
 	// Limit the size of txs
 	MinL1TxSize uint64

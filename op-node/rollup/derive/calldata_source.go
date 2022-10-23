@@ -20,6 +20,7 @@ type DataIter interface {
 
 type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
+	FetchReceiptsFromTxs(ctx context.Context, txs types.Transactions, info eth.BlockInfo, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
 // DataSourceFactory readers raw transactions from a given block & then filters for
@@ -57,7 +58,7 @@ type DataSource struct {
 // NewDataSource creates a new calldata source. It suppresses errors in fetching the L1 block if they occur.
 // If there is an error, it will attempt to fetch the result on the next call to `Next`.
 func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID) DataIter {
-	_, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
+	info, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
 	if err != nil {
 		return &DataSource{
 			open:    false,
@@ -69,7 +70,7 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 	} else {
 		return &DataSource{
 			open: true,
-			data: DataFromEVMTransactions(cfg, txs, log.New("origin", block)),
+			data: DataFromEVMTransactions(ctx, fetcher, info, block.Hash, cfg, txs, log.New("origin", block)),
 		}
 	}
 }
@@ -79,9 +80,9 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 // otherwise it returns a temporary error if fetching the block returns an error.
 func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 	if !ds.open {
-		if _, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.id.Hash); err == nil {
+		if info, txs, err := ds.fetcher.InfoAndTxsByHash(ctx, ds.id.Hash); err == nil {
 			ds.open = true
-			ds.data = DataFromEVMTransactions(ds.cfg, txs, log.New("origin", ds.id))
+			ds.data = DataFromEVMTransactions(ctx, ds.fetcher, info, ds.id.Hash, ds.cfg, txs, log.New("origin", ds.id))
 		} else if errors.Is(err, ethereum.NotFound) {
 			return nil, NewResetError(fmt.Errorf("failed to open calldata source: %w", err))
 		} else {
@@ -100,23 +101,30 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 // DataFromEVMTransactions filters all of the transactions and returns the calldata from transactions
 // that are sent to the batch inbox address from the batch sender address.
 // This will return an empty array if no valid transactions are found.
-func DataFromEVMTransactions(config *rollup.Config, txs types.Transactions, log log.Logger) []eth.Data {
+func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, info eth.BlockInfo, blockHash common.Hash, config *rollup.Config, txs types.Transactions, log log.Logger) []eth.Data {
 	var out []eth.Data
-	l1Signer := config.L1Signer()
-	for j, tx := range txs {
+	var txsToCheck types.Transactions
+	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
-			seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
-			if err != nil {
-				log.Warn("tx in inbox with invalid signature", "index", j, "err", err)
-				continue // bad signature, ignore
-			}
-			// some random L1 user might have sent a transaction to our batch inbox, ignore them
-			if seqDataSubmitter != config.BatchSenderAddress {
-				log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
-				continue // not an authorized batch submitter, ignore
-			}
-			out = append(out, tx.Data())
+			txsToCheck = append(txsToCheck, tx)
 		}
+	}
+	_, receipts, err := fetcher.FetchReceiptsFromTxs(ctx, txsToCheck, info, blockHash)
+	if err != nil {
+		log.Warn("DataFromEVMTransactions", "failed to fetch L1 block info and receipts", err)
+		return nil
+	}
+	for i, receipt := range receipts {
+		if(receipt.Status != types.ReceiptStatusSuccessful) {
+			log.Warn("DataFromEVMTransactions: transaction was not successful", "index", i, "status", receipt.Status)
+			continue // reverted, ignore
+		}
+		// get version hash from calldata and lookup data via syscoinclient
+		// get calldata, break it down into array of VH's
+		// 1. get data from syscoin rpc
+		// 2. if not get it from archiving service
+		// 2a. validate the data against the kzg commitment
+		out = append(out, txs[receipt.TransactionIndex].Data())
 	}
 	return out
 }
