@@ -11,6 +11,7 @@ const proxies = [
   'OptimismMintableERC20FactoryProxy',
   // SYSCOIN
   'BatchInboxProxy',
+  'L1ERC721BridgeProxy',
 ]
 
 const deployFn: DeployFunction = async (hre) => {

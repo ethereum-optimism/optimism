@@ -100,6 +100,14 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
+     * @notice Initializer;
+     */
+    function initialize() public initializer {
+        l2Sender = DEFAULT_L2_SENDER;
+        __ResourceMetering_init();
+    }
+
+    /**
      * @notice Accepts value so that users can send ETH directly to this contract and have the
      *         funds be deposited to their address on L2. This is intended as a convenience
      *         function for EOAs. Contracts should call the depositTransaction() function directly
@@ -121,7 +129,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes[] calldata _withdrawalProof
     ) external {
         // Prevent nested withdrawals within withdrawals.
         require(
@@ -215,14 +223,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Initializer;
-     */
-    function initialize() public initializer {
-        l2Sender = DEFAULT_L2_SENDER;
-        __ResourceMetering_init();
-    }
-
-    /**
      * @notice Accepts deposits of ETH and data, and emits a TransactionDeposited event for use in
      *         deriving deposit transactions. Note that if a deposit is made by a contract, its
      *         address will be aliased when retrieved using `tx.origin` or `msg.sender`. Consider
@@ -293,7 +293,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     function _verifyWithdrawalInclusion(
         bytes32 _withdrawalHash,
         bytes32 _storageRoot,
-        bytes memory _proof
+        bytes[] memory _proof
     ) internal pure returns (bool) {
         bytes32 storageKey = keccak256(
             abi.encode(

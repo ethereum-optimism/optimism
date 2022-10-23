@@ -299,9 +299,8 @@ Batcher transactions are encoded as `version_byte ++ rollup_payload` (where `++`
 | 0              | `frame ...` (one or more frames, concatenated) |
 
 Unknown versions make the batcher transaction invalid (it must be ignored by the rollup node).
-
-The `rollup_payload` may be right-padded with 0s, which will be ignored. It's allowed for them to be
-interpreted as frames for channel 0, which must always be ignored.
+All frames in a batcher transaction must be parseable. If any one frame fails to parse, the all frames in the
+transaction are rejected.
 
 > **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher
 > signers)
@@ -366,6 +365,9 @@ When decompressing a channel, we limit the amount of decompressed data to `MAX_R
 10,000,000 bytes), in order to avoid "zip-bomb" types of attack (where a small compressed input decompresses to a
 humongous amount of data). If the decompressed data exceeds the limit, things proceeds as thought the channel contained
 only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
+
+When decoding batches, all batches that can be completly decoded below `MAX_RLP_BYTES_PER_CHANNEL` will be accepted
+even if the size of the channel is greater than `MAX_RLP_BYTES_PER_CHANNEL`.
 
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a

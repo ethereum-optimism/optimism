@@ -7,7 +7,10 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
+import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
+import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
+import { OptimismMintableERC721Factory } from "../universal/OptimismMintableERC721Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
@@ -130,14 +133,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(
-                L2OutputOracle.initialize,
-                (
-                    genesisL2Output,
-                    proposer,
-                    owner
-                )
-            )
+            abi.encodeCall(L2OutputOracle.initialize, (genesisL2Output, proposer, owner))
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -191,7 +187,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         address indexed target,
         uint256 value,
         uint256 gasLimit,
-        bytes data
+        bytes data,
+        bytes32 withdrawalHash
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
@@ -424,6 +421,40 @@ contract Bridge_Initializer is Messenger_Initializer {
     }
 }
 
+contract ERC721Bridge_Initializer is Messenger_Initializer {
+    L1ERC721Bridge L1Bridge;
+    L2ERC721Bridge L2Bridge;
+    OptimismMintableERC721Factory factory;
+
+    function setUp() public virtual override {
+        super.setUp();
+
+        L1Bridge = new L1ERC721Bridge(
+            address(L1Messenger),
+            Predeploys.L2_ERC721_BRIDGE
+        );
+
+        L2ERC721Bridge l2b = new L2ERC721Bridge(
+            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
+            address(L1Bridge)
+        );
+
+        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2b).code);
+        L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
+
+        OptimismMintableERC721Factory f = new OptimismMintableERC721Factory(
+            Predeploys.L2_ERC721_BRIDGE,
+            block.chainid
+        );
+        vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, address(f).code);
+        factory = OptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
+
+        vm.label(address(L1Bridge), "L1ERC721Bridge");
+        vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
+        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, "OptimismMintableERC721Factory");
+    }
+}
+
 contract FFIInterface is Test {
     function getFinalizeWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
         external
@@ -432,7 +463,7 @@ contract FFIInterface is Test {
             bytes32,
             bytes32,
             bytes32,
-            bytes memory
+            bytes[] memory
         )
     {
         string[] memory cmds = new string[](9);
@@ -452,8 +483,8 @@ contract FFIInterface is Test {
             bytes32 storageRoot,
             bytes32 outputRoot,
             bytes32 withdrawalHash,
-            bytes memory withdrawalProof
-        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes));
+            bytes[] memory withdrawalProof
+        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes[]));
 
         return (stateRoot, storageRoot, outputRoot, withdrawalHash, withdrawalProof);
     }
