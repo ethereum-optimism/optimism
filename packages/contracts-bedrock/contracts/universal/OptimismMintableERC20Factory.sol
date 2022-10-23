@@ -46,7 +46,7 @@ contract OptimismMintableERC20Factory is Semver {
     /**
      * @param _bridge Address of the StandardBridge on this chain.
      */
-    constructor(address _bridge) Semver(0, 0, 1) {
+    constructor(address _bridge) Semver(1, 0, 0) {
         bridge = _bridge;
     }
 

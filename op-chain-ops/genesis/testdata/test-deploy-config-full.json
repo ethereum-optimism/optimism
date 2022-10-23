@@ -42,6 +42,7 @@
   "optimismL1FeeRecipient": "0x0000000000000000000000000000000000000000",
   "l2CrossDomainMessengerOwner": "0x42000000000000000000000000000000000000f2",
   "gasPriceOracleOwner": "0x42000000000000000000000000000000000000f3",
+  "proxyAdminOwner": "0x0000000000000000000000000000000000000000",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "gasPriceOracleDecimals": 6,
