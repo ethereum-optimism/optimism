@@ -45,19 +45,16 @@ type EngineQueueStage interface {
 // DerivationPipeline is updated with new L1 data, and the Step() function can be iterated on to keep the L2 Engine in sync.
 type DerivationPipeline struct {
 	log       log.Logger
-	cfg       *rollup.Config
 	l1Fetcher L1Fetcher
-
+	eng       EngineQueueStage
+	metrics   Metrics
+	cfg       *rollup.Config
+	// Special stages to keep track of
+	traversal *L1Traversal
+	stages    []ResetableStage
 	// Index of the stage that is currently being reset.
 	// >= len(stages) if no additional resetting is required
 	resetting int
-	stages    []ResetableStage
-
-	// Special stages to keep track of
-	traversal *L1Traversal
-	eng       EngineQueueStage
-
-	metrics Metrics
 }
 
 // NewDerivationPipeline creates a derivation pipeline, which should be reset before use.

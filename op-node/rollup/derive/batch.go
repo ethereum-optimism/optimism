@@ -34,12 +34,12 @@ const (
 )
 
 type BatchV1 struct {
-	ParentHash common.Hash  // parent L2 block hash
-	EpochNum   rollup.Epoch // aka l1 num
-	EpochHash  common.Hash  // block hash
-	Timestamp  uint64
 	// no feeRecipient address input, all fees go to a L2 contract
 	Transactions []hexutil.Bytes
+	EpochNum     rollup.Epoch // aka l1 num
+	Timestamp    uint64
+	ParentHash   common.Hash // parent L2 block hash
+	EpochHash    common.Hash // block hash
 }
 
 type BatchData struct {

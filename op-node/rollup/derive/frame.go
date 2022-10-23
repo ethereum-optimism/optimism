@@ -24,9 +24,9 @@ const MaxFrameLen = 1_000_000
 // is_last           = bool
 
 type Frame struct {
-	ID          ChannelID
-	FrameNumber uint16
 	Data        []byte
+	FrameNumber uint16
+	ID          ChannelID
 	IsLast      bool
 }
 

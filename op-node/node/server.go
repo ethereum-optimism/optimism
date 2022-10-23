@@ -19,13 +19,13 @@ import (
 // TODO(inphi): add metrics
 
 type rpcServer struct {
-	endpoint   string
-	apis       []rpc.API
-	httpServer *http.Server
-	appVersion string
+	sources.L2Client
 	listenAddr net.Addr
 	log        log.Logger
-	sources.L2Client
+	httpServer *http.Server
+	endpoint   string
+	appVersion string
+	apis       []rpc.API
 }
 
 func newRPCServer(ctx context.Context, rpcCfg *RPCConfig, rollupCfg *rollup.Config, l2Client l2EthClient, dr driverClient, log log.Logger, appVersion string, m *metrics.Metrics) (*rpcServer, error) {

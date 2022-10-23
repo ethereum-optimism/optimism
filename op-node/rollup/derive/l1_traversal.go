@@ -18,10 +18,10 @@ type L1BlockRefByNumberFetcher interface {
 }
 
 type L1Traversal struct {
-	block    eth.L1BlockRef
-	done     bool
 	l1Blocks L1BlockRefByNumberFetcher
 	log      log.Logger
+	block    eth.L1BlockRef
+	done     bool
 }
 
 var _ ResetableStage = (*L1Traversal)(nil)

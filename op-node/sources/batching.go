@@ -16,20 +16,16 @@ import (
 // and enable the caller to parallelize easily and safely, handle and re-try errors,
 // and pick a batch size all by simply calling Fetch again and again until it returns io.EOF.
 type IterativeBatchCall[K any, V any, O any] struct {
-	completed uint32       // tracks how far to completing all requests we are
-	resetLock sync.RWMutex // ensures we do not concurrently read (incl. fetch) / reset
-
-	requestsKeys []K
-	batchSize    int
-
-	makeRequest func(K) (V, rpc.BatchElem)
-	makeResults func([]K, []V) (O, error)
-	getBatch    BatchCallContextFn
-
-	requestsValues []V
+	makeRequest    func(K) (V, rpc.BatchElem)
+	makeResults    func([]K, []V) (O, error)
+	getBatch       BatchCallContextFn
 	scheduled      chan rpc.BatchElem
-
-	results *O
+	results        *O
+	requestsKeys   []K
+	requestsValues []V
+	batchSize      int
+	resetLock      sync.RWMutex // ensures we do not concurrently read (incl. fetch) / reset
+	completed      uint32       // tracks how far to completing all requests we are
 }
 
 // NewIterativeBatchCall constructs a batch call, fetching the values with the given keys,

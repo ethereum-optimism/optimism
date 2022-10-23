@@ -11,16 +11,15 @@ import (
 
 type MockBlockInfo struct {
 	// Prefixed all fields with "Info" to avoid collisions with the interface method names.
-
-	InfoHash        common.Hash
-	InfoParentHash  common.Hash
-	InfoCoinbase    common.Address
-	InfoRoot        common.Hash
+	InfoBaseFee     *big.Int
 	InfoNum         uint64
 	InfoTime        uint64
+	InfoHash        common.Hash
+	InfoParentHash  common.Hash
+	InfoRoot        common.Hash
 	InfoMixDigest   [32]byte
-	InfoBaseFee     *big.Int
 	InfoReceiptRoot common.Hash
+	InfoCoinbase    common.Address
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {

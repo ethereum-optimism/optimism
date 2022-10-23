@@ -21,21 +21,17 @@ var ErrSubscriberClosed = errors.New("subscriber closed")
 type PollingClient struct {
 	c        RPC
 	lgr      log.Logger
-	pollRate time.Duration
 	ctx      context.Context
 	cancel   context.CancelFunc
 	currHead *types.Header
-	subID    int
-
 	// pollReqCh is used to request new polls of the upstream
 	// RPC client.
 	pollReqCh chan struct{}
-
-	mtx sync.RWMutex
-
-	subs map[int]chan *types.Header
-
-	closedCh chan struct{}
+	subs      map[int]chan *types.Header
+	closedCh  chan struct{}
+	pollRate  time.Duration
+	subID     int
+	mtx       sync.RWMutex
 }
 
 type WrappedHTTPClientOption func(w *PollingClient)

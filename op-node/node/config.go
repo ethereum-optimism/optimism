@@ -14,29 +14,19 @@ import (
 type Config struct {
 	L1 L1EndpointSetup
 	L2 L2EndpointSetup
-
-	Driver driver.Config
-
-	Rollup rollup.Config
-
 	// P2PSigner will be used for signing off on published content
 	// if the node is sequencing and if the p2p stack is enabled
 	P2PSigner p2p.SignerSetup
-
-	RPC RPCConfig
-
-	P2P p2p.SetupP2P
-
-	Metrics MetricsConfig
-
-	Pprof PprofConfig
-
+	P2P       p2p.SetupP2P
+	Tracer    Tracer // Optional
+	Pprof     PprofConfig
+	Heartbeat HeartbeatConfig // Optional
+	Metrics   MetricsConfig
+	RPC       RPCConfig
+	Rollup    rollup.Config
+	Driver    driver.Config
 	// Used to poll the L1 for new finalized or safe blocks
 	L1EpochPollInterval time.Duration
-
-	// Optional
-	Tracer    Tracer
-	Heartbeat HeartbeatConfig
 }
 
 type RPCConfig struct {
@@ -50,9 +40,9 @@ func (cfg *RPCConfig) HttpEndpoint() string {
 }
 
 type MetricsConfig struct {
-	Enabled    bool
 	ListenAddr string
 	ListenPort int
+	Enabled    bool
 }
 
 func (m MetricsConfig) Check() error {
@@ -68,9 +58,9 @@ func (m MetricsConfig) Check() error {
 }
 
 type PprofConfig struct {
-	Enabled    bool
 	ListenAddr string
 	ListenPort string
+	Enabled    bool
 }
 
 func (p PprofConfig) Check() error {
@@ -78,9 +68,9 @@ func (p PprofConfig) Check() error {
 }
 
 type HeartbeatConfig struct {
-	Enabled bool
 	Moniker string
 	URL     string
+	Enabled bool
 }
 
 // Check verifies that the given configuration makes sense

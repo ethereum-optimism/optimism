@@ -60,8 +60,8 @@ type logger struct {
 }
 
 type bufHandler struct {
-	buf []*log.Record
 	fmt log.Format
+	buf []*log.Record
 }
 
 func (h *bufHandler) Log(r *log.Record) error {

@@ -128,22 +128,22 @@ type Data = hexutil.Bytes
 type PayloadID = beacon.PayloadID
 
 type ExecutionPayload struct {
-	ParentHash    common.Hash     `json:"parentHash"`
-	FeeRecipient  common.Address  `json:"feeRecipient"`
-	StateRoot     Bytes32         `json:"stateRoot"`
-	ReceiptsRoot  Bytes32         `json:"receiptsRoot"`
-	LogsBloom     Bytes256        `json:"logsBloom"`
-	PrevRandao    Bytes32         `json:"prevRandao"`
+	ExtraData BytesMax32 `json:"extraData"`
+	// Array of transaction objects, each object is a byte list (DATA) representing
+	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
+	Transactions  []Data          `json:"transactions"`
+	BaseFeePerGas Uint256Quantity `json:"baseFeePerGas"`
+	Timestamp     Uint64Quantity  `json:"timestamp"`
 	BlockNumber   Uint64Quantity  `json:"blockNumber"`
 	GasLimit      Uint64Quantity  `json:"gasLimit"`
 	GasUsed       Uint64Quantity  `json:"gasUsed"`
-	Timestamp     Uint64Quantity  `json:"timestamp"`
-	ExtraData     BytesMax32      `json:"extraData"`
-	BaseFeePerGas Uint256Quantity `json:"baseFeePerGas"`
+	LogsBloom     Bytes256        `json:"logsBloom"`
+	PrevRandao    Bytes32         `json:"prevRandao"`
+	ParentHash    common.Hash     `json:"parentHash"`
+	ReceiptsRoot  Bytes32         `json:"receiptsRoot"`
+	StateRoot     Bytes32         `json:"stateRoot"`
 	BlockHash     common.Hash     `json:"blockHash"`
-	// Array of transaction objects, each object is a byte list (DATA) representing
-	// TransactionType || TransactionPayload or LegacyTransaction as defined in EIP-2718
-	Transactions []Data `json:"transactions"`
+	FeeRecipient  common.Address  `json:"feeRecipient"`
 }
 
 func (payload *ExecutionPayload) ID() BlockID {
@@ -224,14 +224,14 @@ func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {
 }
 
 type PayloadAttributes struct {
+	// Transactions to force into the block (always at the start of the transactions list).
+	Transactions []Data `json:"transactions,omitempty"`
 	// value for the timestamp field of the new payload
 	Timestamp Uint64Quantity `json:"timestamp"`
 	// value for the random field of the new payload
 	PrevRandao Bytes32 `json:"prevRandao"`
 	// suggested value for the coinbase field of the new payload
 	SuggestedFeeRecipient common.Address `json:"suggestedFeeRecipient"`
-	// Transactions to force into the block (always at the start of the transactions list).
-	Transactions []Data `json:"transactions,omitempty"`
 	// NoTxPool to disable adding any transactions from the transaction-pool.
 	NoTxPool bool `json:"noTxPool,omitempty"`
 }
@@ -255,12 +255,12 @@ const (
 )
 
 type PayloadStatusV1 struct {
-	// the result of the payload execution
-	Status ExecutePayloadStatus `json:"status"`
 	// the hash of the most recent valid block in the branch defined by payload and its ancestors (optional field)
 	LatestValidHash *common.Hash `json:"latestValidHash,omitempty"`
 	// additional details on the result (optional field)
 	ValidationError *string `json:"validationError,omitempty"`
+	// the result of the payload execution
+	Status ExecutePayloadStatus `json:"status"`
 }
 
 type ForkchoiceState struct {

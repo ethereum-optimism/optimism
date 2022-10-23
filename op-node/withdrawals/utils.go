@@ -150,14 +150,14 @@ func NewClient(client *rpc.Client) *Client {
 // FinalizedWithdrawalParameters is the set of parameters to pass to the FinalizedWithdrawal function
 type FinalizedWithdrawalParameters struct {
 	Nonce           *big.Int
-	Sender          common.Address
-	Target          common.Address
 	Value           *big.Int
 	GasLimit        *big.Int
 	BlockNumber     *big.Int
 	Data            []byte
-	OutputRootProof bindings.TypesOutputRootProof
 	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
+	OutputRootProof bindings.TypesOutputRootProof
+	Sender          common.Address
+	Target          common.Address
 }
 
 // FinalizeWithdrawalParameters queries L2 to generate all withdrawal parameters and proof necessary to finalize an withdrawal on L1.

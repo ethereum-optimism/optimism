@@ -10,8 +10,8 @@ type Metrics interface {
 // LRUCache wraps hashicorp *lru.Cache and tracks cache metrics
 type LRUCache struct {
 	m     Metrics
-	label string
 	inner *lru.Cache
+	label string
 }
 
 func (c *LRUCache) Get(key any) (value any, ok bool) {

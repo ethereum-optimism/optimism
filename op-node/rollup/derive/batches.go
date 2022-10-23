@@ -8,8 +8,8 @@ import (
 )
 
 type BatchWithL1InclusionBlock struct {
-	L1InclusionBlock eth.L1BlockRef
 	Batch            *BatchData
+	L1InclusionBlock eth.L1BlockRef
 }
 
 type BatchValidity uint8

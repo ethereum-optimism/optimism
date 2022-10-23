@@ -50,47 +50,35 @@ type SetupP2P interface {
 // Config sets up a p2p host and discv5 service from configuration.
 // This implements SetupP2P.
 type Config struct {
-	Priv *crypto.Secp256k1PrivateKey
-
-	DisableP2P  bool
-	NoDiscovery bool
-
-	ListenIP      net.IP
-	ListenTCPPort uint16
-
-	// Port to bind discv5 to
-	ListenUDPPort uint16
-
-	AdvertiseIP      net.IP
-	AdvertiseTCPPort uint16
-	AdvertiseUDPPort uint16
-	Bootnodes        []*enode.Node
-	DiscoveryDB      *enode.DB
-
-	StaticPeers []core.Multiaddr
-
-	HostMux             []lconf.MsMuxC
-	HostSecurity        []lconf.MsSecC
-	NoTransportSecurity bool
-
-	PeersLo    uint
-	PeersHi    uint
-	PeersGrace time.Duration
-
-	// If true a NAT manager will host a NAT port mapping that is updated with PMP and UPNP by libp2p/go-nat
-	NAT bool
-
-	UserAgent string
-
-	TimeoutNegotiation time.Duration
-	TimeoutAccept      time.Duration
-	TimeoutDial        time.Duration
-
 	// Underlying store that hosts connection-gater and peerstore data.
-	Store ds.Batching
-
-	ConnGater func(conf *Config) (connmgr.ConnectionGater, error)
-	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
+	Store              ds.Batching
+	DiscoveryDB        *enode.DB
+	ConnMngr           func(conf *Config) (connmgr.ConnManager, error)
+	ConnGater          func(conf *Config) (connmgr.ConnectionGater, error)
+	Priv               *crypto.Secp256k1PrivateKey
+	UserAgent          string
+	HostMux            []lconf.MsMuxC
+	HostSecurity       []lconf.MsSecC
+	ListenIP           net.IP
+	Bootnodes          []*enode.Node
+	AdvertiseIP        net.IP
+	StaticPeers        []core.Multiaddr
+	PeersLo            uint
+	TimeoutDial        time.Duration
+	TimeoutAccept      time.Duration
+	TimeoutNegotiation time.Duration
+	PeersHi            uint
+	PeersGrace         time.Duration
+	ListenTCPPort      uint16
+	AdvertiseTCPPort   uint16
+	// Port to bind discv5 to
+	ListenUDPPort    uint16
+	AdvertiseUDPPort uint16
+	// If true a NAT manager will host a NAT port mapping that is updated with PMP and UPNP by libp2p/go-nat
+	NAT                 bool
+	NoTransportSecurity bool
+	NoDiscovery         bool
+	DisableP2P          bool
 }
 
 type ConnectionGater interface {

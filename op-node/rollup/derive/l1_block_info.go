@@ -22,13 +22,13 @@ var (
 
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
 type L1BlockInfo struct {
-	Number    uint64
-	Time      uint64
-	BaseFee   *big.Int
-	BlockHash common.Hash
+	BaseFee *big.Int
+	Number  uint64
+	Time    uint64
 	// Not strictly a piece of L1 information. Represents the number of L2 blocks since the start of the epoch,
 	// i.e. when the actual L1 info was first introduced.
 	SequenceNumber uint64
+	BlockHash      common.Hash
 }
 
 func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {

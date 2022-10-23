@@ -35,14 +35,12 @@ type NextBatchProvider interface {
 // L1 blocks are contiguous and this does not support reorgs.
 type BatchQueue struct {
 	log    log.Logger
-	config *rollup.Config
 	prev   NextBatchProvider
-	origin eth.L1BlockRef
-
-	l1Blocks []eth.L1BlockRef
-
+	config *rollup.Config
 	// batches in order of when we've first seen them, grouped by L2 timestamp
-	batches map[uint64][]*BatchWithL1InclusionBlock
+	batches  map[uint64][]*BatchWithL1InclusionBlock
+	l1Blocks []eth.L1BlockRef
+	origin   eth.L1BlockRef
 }
 
 // NewBatchQueue creates a BatchQueue, which should be Reset(origin) before use.

@@ -32,16 +32,16 @@ type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
 // HeaderInfo contains all the header-info required to implement the eth.BlockInfo interface,
 // used in the rollup state-transition, with pre-computed block hash.
 type HeaderInfo struct {
-	hash        common.Hash
-	parentHash  common.Hash
-	coinbase    common.Address
-	root        common.Hash
+	baseFee     *big.Int
 	number      uint64
 	time        uint64
+	hash        common.Hash
+	parentHash  common.Hash
+	root        common.Hash
 	mixDigest   common.Hash // a.k.a. the randomness field post-merge.
-	baseFee     *big.Int
 	txHash      common.Hash
 	receiptHash common.Hash
+	coinbase    common.Address
 }
 
 var _ eth.BlockInfo = (*HeaderInfo)(nil)
@@ -87,27 +87,25 @@ func (info *HeaderInfo) ReceiptHash() common.Hash {
 }
 
 type rpcHeader struct {
-	ParentHash  common.Hash      `json:"parentHash"`
-	UncleHash   common.Hash      `json:"sha3Uncles"`
-	Coinbase    common.Address   `json:"miner"`
-	Root        common.Hash      `json:"stateRoot"`
-	TxHash      common.Hash      `json:"transactionsRoot"`
-	ReceiptHash common.Hash      `json:"receiptsRoot"`
-	Bloom       eth.Bytes256     `json:"logsBloom"`
-	Difficulty  hexutil.Big      `json:"difficulty"`
-	Number      hexutil.Uint64   `json:"number"`
-	GasLimit    hexutil.Uint64   `json:"gasLimit"`
-	GasUsed     hexutil.Uint64   `json:"gasUsed"`
-	Time        hexutil.Uint64   `json:"timestamp"`
-	Extra       hexutil.Bytes    `json:"extraData"`
-	MixDigest   common.Hash      `json:"mixHash"`
-	Nonce       types.BlockNonce `json:"nonce"`
-
 	// BaseFee was added by EIP-1559 and is ignored in legacy headers.
-	BaseFee *hexutil.Big `json:"baseFeePerGas" rlp:"optional"`
-
+	BaseFee     *hexutil.Big   `json:"baseFeePerGas" rlp:"optional"`
+	Difficulty  hexutil.Big    `json:"difficulty"`
+	Extra       hexutil.Bytes  `json:"extraData"`
+	Number      hexutil.Uint64 `json:"number"`
+	GasLimit    hexutil.Uint64 `json:"gasLimit"`
+	Time        hexutil.Uint64 `json:"timestamp"`
+	GasUsed     hexutil.Uint64 `json:"gasUsed"`
+	Bloom       eth.Bytes256   `json:"logsBloom"`
+	Root        common.Hash    `json:"stateRoot"`
+	ParentHash  common.Hash    `json:"parentHash"`
+	TxHash      common.Hash    `json:"transactionsRoot"`
+	ReceiptHash common.Hash    `json:"receiptsRoot"`
+	MixDigest   common.Hash    `json:"mixHash"`
+	UncleHash   common.Hash    `json:"sha3Uncles"`
 	// untrusted info included by RPC, may have to be checked
-	Hash common.Hash `json:"hash"`
+	Hash     common.Hash      `json:"hash"`
+	Coinbase common.Address   `json:"miner"`
+	Nonce    types.BlockNonce `json:"nonce"`
 }
 
 // checkPostMerge checks that the block header meets all criteria to be a valid ExecutionPayloadHeader,
@@ -183,8 +181,8 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (*HeaderInfo, 
 }
 
 type rpcBlock struct {
-	rpcHeader
 	Transactions []*types.Transaction `json:"transactions"`
+	rpcHeader
 }
 
 func (block *rpcBlock) verify() error {

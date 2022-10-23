@@ -83,17 +83,17 @@ func NewFakeChainSource(l1 []string, l2 []string, l1GenesisNumber int, log log.L
 // what the head block is of the L1 and L2 chains. In addition, it enables re-orgs
 // to easily be implemented
 type FakeChainSource struct {
-	l1reorg     int // Index of the L1 chain to be operating on
-	l2reorg     int // Index of the L2 chain to be operating on
-	l1head      int // Head block of the L1 chain
-	l2head      int // Head block of the L2 chain
+	log         log.Logger
+	l1s         [][]eth.L1BlockRef // l1s[reorg] is the L1 chain in that specific re-org configuration
+	l2s         [][]eth.L2BlockRef // l2s[reorg] is the L2 chain in that specific re-org configuration
+	l1reorg     int                // Index of the L1 chain to be operating on
+	l2reorg     int                // Index of the L2 chain to be operating on
+	l1head      int                // Head block of the L1 chain
+	l2head      int                // Head block of the L2 chain
 	l1safe      int
 	l2safe      int
 	l1finalized int
 	l2finalized int
-	l1s         [][]eth.L1BlockRef // l1s[reorg] is the L1 chain in that specific re-org configuration
-	l2s         [][]eth.L2BlockRef // l2s[reorg] is the L2 chain in that specific re-org configuration
-	log         log.Logger
 }
 
 func (m *FakeChainSource) L1Range(ctx context.Context, base eth.BlockID, max uint64) ([]eth.BlockID, error) {

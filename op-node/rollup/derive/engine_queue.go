@@ -60,28 +60,21 @@ type FinalityData struct {
 
 // EngineQueue queues up payload attributes to consolidate or process with the provided Engine
 type EngineQueue struct {
-	log log.Logger
-	cfg *rollup.Config
-
-	finalized  eth.L2BlockRef
-	safeHead   eth.L2BlockRef
-	unsafeHead eth.L2BlockRef
-
-	finalizedL1 eth.BlockID
-
-	safeAttributes []*eth.PayloadAttributes
 	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
-
+	l1Fetcher      L1Fetcher
+	metrics        Metrics
+	prev           NextAttributesProvider
+	engine         Engine
+	log            log.Logger
+	cfg            *rollup.Config
+	safeAttributes []*eth.PayloadAttributes
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
-
-	engine Engine
-	prev   NextAttributesProvider
-
-	origin eth.L1BlockRef // only used for pipeline resets
-
-	metrics   Metrics
-	l1Fetcher L1Fetcher
+	unsafeHead   eth.L2BlockRef
+	safeHead     eth.L2BlockRef
+	finalized    eth.L2BlockRef
+	origin       eth.L1BlockRef // only used for pipeline resets
+	finalizedL1  eth.BlockID
 }
 
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.

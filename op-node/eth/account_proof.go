@@ -14,13 +14,12 @@ import (
 )
 
 type AccountResult struct {
+	Balance      *hexutil.Big    `json:"balance"`
 	AccountProof []hexutil.Bytes `json:"accountProof"`
-
-	Address     common.Address `json:"address"`
-	Balance     *hexutil.Big   `json:"balance"`
-	CodeHash    common.Hash    `json:"codeHash"`
-	Nonce       hexutil.Uint64 `json:"nonce"`
-	StorageHash common.Hash    `json:"storageHash"`
+	Nonce        hexutil.Uint64  `json:"nonce"`
+	CodeHash     common.Hash     `json:"codeHash"`
+	StorageHash  common.Hash     `json:"storageHash"`
+	Address      common.Address  `json:"address"`
 	// storageProof field is ignored, we only need to proof the account contents,
 	// we do not access any individual storage values.
 }

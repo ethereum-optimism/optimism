@@ -74,10 +74,10 @@ func payloadMemSize(p *eth.ExecutionPayload) uint64 {
 // When the size grows too large, the first (lowest block-number) payload is removed from the queue.
 // PayloadsQueue allows entries with same block number, or even full duplicates.
 type PayloadsQueue struct {
+	SizeFn      func(p *eth.ExecutionPayload) uint64
 	pq          payloadsByNumber
 	currentSize uint64
 	MaxSize     uint64
-	SizeFn      func(p *eth.ExecutionPayload) uint64
 }
 
 func (upq *PayloadsQueue) Len() int {

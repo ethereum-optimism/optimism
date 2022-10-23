@@ -18,16 +18,12 @@ import (
 // Each frame is ingested one by one. Once a frame with `closed` is added to the channel, the
 // channel may mark itself as ready for reading once all intervening frames have been added
 type Channel struct {
-	// id of the channel
-	id        ChannelID
-	openBlock eth.L1BlockRef
-
+	// Store a map of frame number -> frame data for constant time ordering
+	inputs                  map[uint64][]byte
+	openBlock               eth.L1BlockRef
+	highestL1InclusionBlock eth.L1BlockRef
 	// estimated memory size, used to drop the channel if we have too much data
 	size uint64
-
-	// true if we have buffered the last frame
-	closed bool
-
 	// TODO: implement this check
 	// highestFrameNumber is the highest frame number yet seen.
 	// This must be equal to `endFrameNumber`
@@ -36,11 +32,10 @@ type Channel struct {
 	// endFrameNumber is the frame number of the frame where `isLast` is true
 	// No other frame number must be larger than this.
 	endFrameNumber uint16
-
-	// Store a map of frame number -> frame data for constant time ordering
-	inputs map[uint64][]byte
-
-	highestL1InclusionBlock eth.L1BlockRef
+	// id of the channel
+	id ChannelID
+	// true if we have buffered the last frame
+	closed bool
 }
 
 func NewChannel(id ChannelID, openBlock eth.L1BlockRef) *Channel {

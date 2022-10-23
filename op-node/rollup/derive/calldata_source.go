@@ -44,14 +44,12 @@ func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID) DataI
 // The constructor will never fail & it will instead re-attempt the fetcher
 // at a later point.
 type DataSource struct {
-	// Internal state + data
-	open bool
-	data []eth.Data
-	// Required to re-attempt fetching
-	id      eth.BlockID
-	cfg     *rollup.Config // TODO: `DataFromEVMTransactions` should probably not take the full config
 	fetcher L1TransactionFetcher
 	log     log.Logger
+	cfg     *rollup.Config // TODO: `DataFromEVMTransactions` should probably not take the full config
+	data    []eth.Data
+	id      eth.BlockID
+	open    bool
 }
 
 // NewDataSource creates a new calldata source. It suppresses errors in fetching the L1 block if they occur.

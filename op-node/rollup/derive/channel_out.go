@@ -18,18 +18,16 @@ var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
 
 type ChannelOut struct {
-	id ChannelID
-	// Frame ID of the next frame to emit. Increment after emitting
-	frame uint64
-	// rlpLength is the uncompressed size of the channel. Must be less than MAX_RLP_BYTES_PER_CHANNEL
-	rlpLength int
-
 	// Compressor stage. Write input data to it
 	compress *zlib.Writer
 	// post compression buffer
 	buf bytes.Buffer
-
-	closed bool
+	// Frame ID of the next frame to emit. Increment after emitting
+	frame uint64
+	// rlpLength is the uncompressed size of the channel. Must be less than MAX_RLP_BYTES_PER_CHANNEL
+	rlpLength int
+	id        ChannelID
+	closed    bool
 }
 
 func (co *ChannelOut) ID() ChannelID {

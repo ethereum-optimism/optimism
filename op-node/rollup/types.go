@@ -20,6 +20,10 @@ type Genesis struct {
 }
 
 type Config struct {
+	// Required to verify L1 signatures
+	L1ChainID *big.Int `json:"l1_chain_id"`
+	// Required to identify the L2 network and create p2p signatures unique for this chain.
+	L2ChainID *big.Int `json:"l2_chain_id"`
 	// Genesis anchor point of the rollup
 	Genesis Genesis `json:"genesis"`
 	// Seconds per L2 block
@@ -34,14 +38,8 @@ type Config struct {
 	SeqWindowSize uint64 `json:"seq_window_size"`
 	// Number of L1 blocks between when a channel can be opened and when it must be closed by.
 	ChannelTimeout uint64 `json:"channel_timeout"`
-	// Required to verify L1 signatures
-	L1ChainID *big.Int `json:"l1_chain_id"`
-	// Required to identify the L2 network and create p2p signatures unique for this chain.
-	L2ChainID *big.Int `json:"l2_chain_id"`
-
 	// Address of the key the sequencer uses to sign blocks on the P2P layer
 	P2PSequencerAddress common.Address `json:"p2p_sequencer_address"`
-
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 

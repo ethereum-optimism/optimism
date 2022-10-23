@@ -71,31 +71,23 @@ func (c *EthClientConfig) Check() error {
 // EthClient retrieves ethereum data with optimized batch requests, cached results, and flag to not trust the RPC.
 type EthClient struct {
 	client client.RPC
-
-	maxBatchSize int
-
-	trustRPC bool
-
-	mustBePostMerge bool
-
-	log log.Logger
-
+	log    log.Logger
 	// cache receipts in bundles per block hash
 	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
 	// common.Hash -> eth.ReceiptsFetcher
 	receiptsCache *caching.LRUCache
-
 	// cache transactions in bundles per block hash
 	// common.Hash -> types.Transactions
 	transactionsCache *caching.LRUCache
-
 	// cache block headers of blocks by hash
 	// common.Hash -> *HeaderInfo
 	headersCache *caching.LRUCache
-
 	// cache payloads by hash
 	// common.Hash -> *eth.ExecutionPayload
-	payloadsCache *caching.LRUCache
+	payloadsCache   *caching.LRUCache
+	maxBatchSize    int
+	trustRPC        bool
+	mustBePostMerge bool
 }
 
 // NewEthClient wraps a RPC with bindings to fetch ethereum data,

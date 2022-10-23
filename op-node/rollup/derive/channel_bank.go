@@ -28,14 +28,12 @@ type NextDataProvider interface {
 
 // ChannelBank buffers channel frames, and emits full channel data
 type ChannelBank struct {
-	log log.Logger
-	cfg *rollup.Config
-
+	log          log.Logger
+	prev         NextDataProvider
+	fetcher      L1Fetcher
+	cfg          *rollup.Config
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
-
-	prev    NextDataProvider
-	fetcher L1Fetcher
 }
 
 var _ ResetableStage = (*ChannelBank)(nil)

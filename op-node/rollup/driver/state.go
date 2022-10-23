@@ -21,53 +21,42 @@ import (
 type SyncStatus = eth.SyncStatus
 
 type Driver struct {
-	l1State L1StateIface
-
+	l1 L1Chain
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
-	derivation DerivationPipeline
-
-	// When the derivation pipeline is waiting for new data to do anything
-	idleDerivation bool
-
-	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
-	syncStatusReq chan chan eth.SyncStatus
-
-	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
-	// It tells the caller that the reset occurred by closing the passed in channel.
-	forceReset chan chan struct{}
-
+	derivation       DerivationPipeline
+	snapshotLog      log.Logger
+	log              log.Logger
+	metrics          Metrics
+	l1State          L1StateIface
+	network          Network // may be nil, network for is optional
+	sequencer        SequencerIface
+	l1OriginSelector L1OriginSelectorIface
+	l2               L2Chain
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
-
-	// Driver config: verifier and sequencer settings
-	driverConfig *Config
-
+	// L2 Signals:
+	unsafeL2Payloads chan *eth.ExecutionPayload
 	// L1 Signals:
 	//
 	// Not all L1 blocks, or all changes, have to be signalled:
 	// the derivation process traverses the chain and handles reorgs as necessary,
 	// the driver just needs to be aware of the *latest* signals enough so to not
 	// lag behind actionable data.
-	l1HeadSig      chan eth.L1BlockRef
-	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
-
-	// L2 Signals:
-	unsafeL2Payloads chan *eth.ExecutionPayload
-
-	l1               L1Chain
-	l2               L2Chain
-	l1OriginSelector L1OriginSelectorIface
-	sequencer        SequencerIface
-	network          Network // may be nil, network for is optional
-
-	metrics     Metrics
-	log         log.Logger
-	snapshotLog log.Logger
-	done        chan struct{}
-
-	wg gosync.WaitGroup
+	l1SafeSig      chan eth.L1BlockRef
+	l1HeadSig      chan eth.L1BlockRef
+	// Driver config: verifier and sequencer settings
+	driverConfig *Config
+	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
+	// It tells the caller that the reset occurred by closing the passed in channel.
+	forceReset chan chan struct{}
+	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
+	syncStatusReq chan chan eth.SyncStatus
+	done          chan struct{}
+	wg            gosync.WaitGroup
+	// When the derivation pipeline is waiting for new data to do anything
+	idleDerivation bool
 }
 
 // Start starts up the state loop.

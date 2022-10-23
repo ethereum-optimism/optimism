@@ -21,26 +21,23 @@ import (
 )
 
 type OpNode struct {
-	log        log.Logger
-	appVersion string
-	metrics    *metrics.Metrics
-
-	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
-	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
-	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
-
-	l1Source  *sources.L1Client     // L1 Client to fetch data from
-	l2Driver  *driver.Driver        // L2 Engine to Sync
-	l2Source  *sources.EngineClient // L2 Execution Engine RPC bindings
-	server    *rpcServer            // RPC server hosting the rollup-node API
-	p2pNode   *p2p.NodeP2P          // P2P node functionality
-	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
-	tracer    Tracer                // tracer to get events for testing/debugging
-
+	p2pSigner p2p.Signer // p2p gogssip application messages will be signed with this signer
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
+	tracer         Tracer                // tracer to get events for testing/debugging
+	l1HeadsSub     ethereum.Subscription // Subscription to get L1 heads (automatically re-subscribes on error)
+	l1SafeSub      ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	l1FinalizedSub ethereum.Subscription // Subscription to get L1 safe blocks, a.k.a. justified data (polling)
+	log            log.Logger
+	l1Source       *sources.L1Client     // L1 Client to fetch data from
+	l2Source       *sources.EngineClient // L2 Execution Engine RPC bindings
+	server         *rpcServer            // RPC server hosting the rollup-node API
+	p2pNode        *p2p.NodeP2P          // P2P node functionality
+	l2Driver       *driver.Driver        // L2 Engine to Sync
+	metrics        *metrics.Metrics
 	resourcesClose context.CancelFunc
+	appVersion     string
 }
 
 // The OpNode handles incoming gossip

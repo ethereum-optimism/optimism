@@ -168,8 +168,8 @@ func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.Val
 }
 
 type seenBlocks struct {
-	sync.Mutex
 	blockHashes []common.Hash
+	sync.Mutex
 }
 
 // hasSeen checks if the hash has been marked as seen, and how many have been seen.
