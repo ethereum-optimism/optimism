@@ -1,0 +1,10 @@
+apiVersion: 1
+datasources:
+  - name: InfluxDB_eth
+    type: influxdb
+    access: proxy
+    orgId: 1
+    database: l1_chain
+    url: http://influxdb_eth:8086
+    version: 1
+    editable: false

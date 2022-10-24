@@ -65,6 +65,7 @@ ENTRYPOINT ["yarn", "run:bedrock"]
 FROM base as deployer
 WORKDIR /opt/optimism/packages/contracts
 COPY ./ops/scripts/deployer.sh .
+COPY ./ops/docker/ethereum/localethereum.ts ./deploy-config
 CMD ["yarn", "run", "deploy"]
 
 FROM alpine:3.16.2 as contract-artifacts-bedrock

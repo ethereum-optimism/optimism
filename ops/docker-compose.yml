@@ -11,16 +11,27 @@ x-system-addr-env: &system-addr-env
 
 services:
   # this is a helper service used because there's no official hardhat image
+  # l1_chain:
+  #   image: ethereumoptimism/hardhat-node:${DOCKER_TAG_HARDHAT:-latest}
+  #   build:
+  #     context: ./docker/hardhat
+  #     dockerfile: Dockerfile
+  #   env_file:
+  #     - ./envs/l1_chain.env
+  #   ports:
+  #     # expose the service to the host for integration testing
+  #     - ${L1CHAIN_HTTP_PORT:-9545}:8545
   l1_chain:
-    image: ethereumoptimism/hardhat-node:${DOCKER_TAG_HARDHAT:-latest}
+    # image: ethereum/client-go:latest
     build:
-      context: ./docker/hardhat
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./docker/ethereum/Dockerfile
     env_file:
-      - ./envs/l1_chain.env
+      - ./envs/ethereum.env
+    entrypoint: sh ./ethereum.sh
     ports:
-      # expose the service to the host for integration testing
       - ${L1CHAIN_HTTP_PORT:-9545}:8545
+      - ${L1CHAIN_WS_PORT:-9546}:8546
 
   deployer:
     depends_on:
@@ -35,7 +46,8 @@ services:
       # Env vars for the deployment script.
       CONTRACTS_RPC_URL: http://l1_chain:8545
       CONTRACTS_DEPLOYER_KEY: 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-      CONTRACTS_TARGET_NETWORK: 'local'
+      CONTRACTS_TARGET_NETWORK: 'localethereum'
+      AUTOMATICALLY_TRANSFER_OWNERSHIP: true
     ports:
       # expose the service to the host for getting the contract addrs
       - ${DEPLOYER_PORT:-8080}:8081
@@ -57,6 +69,7 @@ services:
     # set the rest of the env vars for the network whcih do not
     # depend on the docker-compose setup
     environment:
+      RETRIES: 300
       # used for setting the address manager address
       URL: http://deployer:8081/addresses.json
       # connect to the 2 layers
@@ -87,7 +100,7 @@ services:
       # connecting to the DTL
       ROLLUP_CLIENT_HTTP: http://dtl:7878
       ETH1_CTC_DEPLOYMENT_HEIGHT: 8
-      RETRIES: 60
+      RETRIES: 300
       # no need to keep this secret, only used internally to sign blocks
       BLOCK_SIGNER_KEY: '6587ae678cf4fc9a33000cdbf9f35226b71dcc6a4684a31203241f9bcfd55d27'
       BLOCK_SIGNER_ADDRESS: '0x00000398232E2064F896018496b4b44b3D62751F'
@@ -115,7 +128,7 @@ services:
       MESSAGE_RELAYER__L1_RPC_PROVIDER: http://l1_chain:8545
       MESSAGE_RELAYER__L2_RPC_PROVIDER: http://l2geth:8545
       MESSAGE_RELAYER__L1_WALLET: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97'
-      RETRIES: 60
+      RETRIES: 300
 
   fault_detector:
     depends_on:
@@ -132,7 +145,7 @@ services:
     environment:
       FAULT_DETECTOR__L1_RPC_PROVIDER: http://l1_chain:8545
       FAULT_DETECTOR__L2_RPC_PROVIDER: http://l2geth:8545
-      RETRIES: 60
+      RETRIES: 300
 
   verifier:
     depends_on:
@@ -157,7 +170,7 @@ services:
       ROLLUP_CLIENT_HTTP: http://dtl:7878
       ROLLUP_BACKEND: 'l1'
       ETH1_CTC_DEPLOYMENT_HEIGHT: 8
-      RETRIES: 60
+      RETRIES: 300
       ROLLUP_VERIFIER_ENABLE: 'true'
     ports:
       - ${VERIFIER_HTTP_PORT:-8547}:8545
@@ -185,7 +198,7 @@ services:
       ROLLUP_BACKEND: 'l2'
       ROLLUP_VERIFIER_ENABLE: 'true'
       ETH1_CTC_DEPLOYMENT_HEIGHT: 8
-      RETRIES: 60
+      RETRIES: 300
     ports:
       - ${REPLICA_HTTP_PORT:-8549}:8545
       - ${REPLICA_WS_PORT:-8550}:8546
@@ -204,6 +217,7 @@ services:
     environment:
       HEALTHCHECK__REFERENCE_RPC_PROVIDER: http://l2geth:8545
       HEALTHCHECK__TARGET_RPC_PROVIDER: http://replica:8545
+      RETRIES: 300
     ports:
       - ${HEALTHCHECK_HTTP_PORT:-7300}:7300
 
@@ -245,6 +259,7 @@ services:
       GAS_PRICE_ORACLE_LAYER_TWO_HTTP_URL: http://l2geth:8545
       # Default hardhat account 5
       GAS_PRICE_ORACLE_PRIVATE_KEY: '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba'
+      RETRIES: 300
 
   batch_submitter:
     depends_on:
@@ -259,6 +274,7 @@ services:
     env_file:
       - ./envs/batch-submitter.env
     environment:
+      RETRIES: 300
       L1_ETH_RPC: http://l1_chain:8545
       L2_ETH_RPC: http://l2geth:8545
       URL: http://deployer:8081/addresses.json
