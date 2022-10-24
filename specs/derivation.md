@@ -521,6 +521,14 @@ As currently implemented, each step in this stage performs the following actions
           frame are discarded.
   - Concatenate the data of the *contiguous frame sequence* (in sequential order) and push it to the next stage.
 
+The ordering of these actions is very important to be consistent across nodes & pipeline resets. The rollup node
+must attempt to do the following in order to maintain a consistent channel bank even in the presence of pruning.
+
+1. Attempt to read as many channels as possible from the channel bank.
+2. Load in a single frame
+3. Check if channel bank needs to be pruned & do so if needed.
+4. Go to step 1 once the channel bank is under it's size limit.
+
 > **TODO** Instead of waiting on the first seen channel (which might not contain the oldest batches, meaning buffering
 > further down the pipeline), we could process any channel in the queue that is ready. We could do this by checking for
 > channel readiness upon writing into the bank, and moving ready channel to the front of the queue.

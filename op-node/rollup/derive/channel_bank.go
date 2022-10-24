@@ -78,9 +78,6 @@ func (cb *ChannelBank) IngestData(data []byte) {
 	origin := cb.Origin()
 	cb.log.Debug("channel bank got new data", "origin", origin, "data_len", len(data))
 
-	// TODO: Why is the prune here?
-	cb.prune()
-
 	frames, err := ParseFrames(data)
 	if err != nil {
 		cb.log.Warn("malformed frame", "err", err)
@@ -108,6 +105,10 @@ func (cb *ChannelBank) IngestData(data []byte) {
 			cb.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
 			continue
 		}
+
+		// Prune after the frame is loaded.
+		// TODO: Ingest a single frame at a time (must enable reads before ingesting the data / after this prune.)
+		cb.prune()
 	}
 }
 
