@@ -187,7 +187,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         address indexed target,
         uint256 value,
         uint256 gasLimit,
-        bytes data
+        bytes data,
+        bytes32 withdrawalHash
     );
 
     event RelayedMessage(bytes32 indexed msgHash);
@@ -462,7 +463,7 @@ contract FFIInterface is Test {
             bytes32,
             bytes32,
             bytes32,
-            bytes memory
+            bytes[] memory
         )
     {
         string[] memory cmds = new string[](9);
@@ -482,8 +483,8 @@ contract FFIInterface is Test {
             bytes32 storageRoot,
             bytes32 outputRoot,
             bytes32 withdrawalHash,
-            bytes memory withdrawalProof
-        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes));
+            bytes[] memory withdrawalProof
+        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes[]));
 
         return (stateRoot, storageRoot, outputRoot, withdrawalHash, withdrawalProof);
     }

@@ -89,4 +89,9 @@ library Predeploys {
      *         L2ToL1MessagePasser contract instead.
      */
     address internal constant LEGACY_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
+
+    /**
+     * @notice Address of the ProxyAdmin predeploy.
+     */
+    address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
 }

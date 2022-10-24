@@ -18,6 +18,7 @@ const (
 	LegacyMessagePasser           = "0x4200000000000000000000000000000000000000"
 	L2ERC721Bridge                = "0x4200000000000000000000000000000000000014"
 	OptimismMintableERC721Factory = "0x4200000000000000000000000000000000000017"
+	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 	LegacyMessagePasserAddr           = common.HexToAddress(LegacyMessagePasser)
 	L2ERC721BridgeAddr                = common.HexToAddress(L2ERC721Bridge)
 	OptimismMintableERC721FactoryAddr = common.HexToAddress(OptimismMintableERC721Factory)
+	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -56,4 +58,5 @@ func init() {
 	Predeploys["LegacyMessagePasser"] = &LegacyMessagePasserAddr
 	Predeploys["L2ERC721Bridge"] = &L2ERC721BridgeAddr
 	Predeploys["OptimismMintableERC721Factory"] = &OptimismMintableERC721FactoryAddr
+	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 }
