@@ -649,7 +649,9 @@ execution engine to be converted into a proper L2 block, which will become both 
 
 If a payload attributes created from a batch cannot be inserted into the chain because of a validation error (i.e. there
 was an invalid transaction or state transition in the block) the batch should be dropped & the safe head should not be
-advanced. The engine queue will attempt to use the next batch for that timestamp from the batch queue.
+advanced. The engine queue will attempt to use the next batch for that timestamp from the batch queue. If no valid batch
+is found, the rollup node will create a deposit only batch which should always pass validation because deposits are always
+valid.
 
 Interaction with the execution engine via the execution engine API is detailed in the [Communication with the Execution
 Engine][exec-engine-comm] section.
