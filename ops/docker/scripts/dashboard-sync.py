@@ -6,7 +6,7 @@ dashboard_list=[
   {
    'name': 'Single Geth',
    'filename': 'single_geth.json',
-   'url': 'https://gist.githubusercontent.com/karalabe/1e26f9ea5c842fb118584edadc454e18/raw/6754e6d5c59328e19ad3a8a29a8e7e41fd46e202/geth.json'
+   'url': 'https://grafana.com/api/dashboards/13877/revisions/1/download'
   }
 ]
 dashboard_path="/grafana-dashboards"
