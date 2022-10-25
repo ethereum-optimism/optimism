@@ -449,7 +449,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     function test_finalizeWithdrawalTransaction_revertsOninvalidWithdrawalProof() external {
         // modify the default test values to invalidate the proof.
         _defaultTx.data = hex"abcd";
-        vm.expectRevert("OptimismPortal: invalid withdrawal inclusion proof");
+        vm.expectRevert("MerkleTrie: path remainder must share all nibbles with key");
         op.finalizeWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,

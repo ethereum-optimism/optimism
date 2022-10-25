@@ -40,14 +40,13 @@ library SecureMerkleTrie {
      * @param _proof Merkle trie inclusion proof for the key.
      * @param _root  Known root of the Merkle trie.
      *
-     * @return Whether or not the key exists.
      * @return Value of the key if it exists.
      */
     function get(
         bytes memory _key,
         bytes[] memory _proof,
         bytes32 _root
-    ) internal pure returns (bool, bytes memory) {
+    ) internal pure returns (bytes memory) {
         bytes memory key = _getSecureKey(_key);
         return MerkleTrie.get(key, _proof, _root);
     }
