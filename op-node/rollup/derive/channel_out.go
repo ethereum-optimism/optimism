@@ -84,7 +84,7 @@ func (co *ChannelOut) AddBlock(block *types.Block) error {
 		return err
 	}
 	// We encode to a temporary buffer to determine the encoded length to
-	// ensure that the total size of all RLP elements is less than MAX_RLP_BYTES_PER_CHANNEL
+	// ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	var buf bytes.Buffer
 	if err := rlp.Encode(&buf, batch); err != nil {
 		return err
