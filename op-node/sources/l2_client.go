@@ -64,9 +64,9 @@ type L2Client struct {
 	// common.Hash -> eth.L2BlockRef
 	l2BlockRefsCache *caching.LRUCache
 
-	// cache L1ConfigData by L2 hash
-	// common.Hash -> eth.L1ConfigData
-	l1ConfigsCache *caching.LRUCache
+	// cache SystemConfig by L2 hash
+	// common.Hash -> eth.SystemConfig
+	systemConfigsCache *caching.LRUCache
 }
 
 func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*L2Client, error) {
@@ -76,10 +76,10 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}
 
 	return &L2Client{
-		EthClient:        ethClient,
-		rollupCfg:        config.RollupCfg,
-		l2BlockRefsCache: caching.NewLRUCache(metrics, "blockrefs", config.L2BlockRefsCacheSize),
-		l1ConfigsCache:   caching.NewLRUCache(metrics, "l1configs", config.L1ConfigsCacheSize),
+		EthClient:          ethClient,
+		rollupCfg:          config.RollupCfg,
+		l2BlockRefsCache:   caching.NewLRUCache(metrics, "blockrefs", config.L2BlockRefsCacheSize),
+		systemConfigsCache: caching.NewLRUCache(metrics, "systemconfigs", config.L1ConfigsCacheSize),
 	}, nil
 }
 
@@ -138,22 +138,22 @@ func (s *L2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.
 	return ref, nil
 }
 
-// L1ConfigByL2Hash returns the L1 config (matching the config updates up to and including the L1 origin) for the given L2 block hash.
-// The returned L1ConfigData may not be in the canonical chain.
-func (s *L2Client) L1ConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.L1ConfigData, error) {
-	if ref, ok := s.l1ConfigsCache.Get(hash); ok {
-		return ref.(eth.L1ConfigData), nil
+// SystemConfigByL2Hash returns the system config (matching the config updates up to and including the L1 origin) for the given L2 block hash.
+// The returned SystemConfig may not be in the canonical chain when the hash is not canonical.
+func (s *L2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error) {
+	if ref, ok := s.systemConfigsCache.Get(hash); ok {
+		return ref.(eth.SystemConfig), nil
 	}
 
 	payload, err := s.PayloadByHash(ctx, hash)
 	if err != nil {
 		// w%: wrap to preserve ethereum.NotFound case
-		return eth.L1ConfigData{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
+		return eth.SystemConfig{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
 	}
 	cfg, err := derive.PayloadToL1ConfigData(payload, s.rollupCfg)
 	if err != nil {
-		return eth.L1ConfigData{}, err
+		return eth.SystemConfig{}, err
 	}
-	s.l1ConfigsCache.Add(hash, cfg)
+	s.systemConfigsCache.Add(hash, cfg)
 	return cfg, nil
 }

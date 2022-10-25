@@ -18,8 +18,8 @@ type L1ReceiptsFetcher interface {
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
-type L1ConfigFetcher interface {
-	L1ConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.L1ConfigData, error)
+type SystemConfigL2Fetcher interface {
+	SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error)
 }
 
 // PreparePayloadAttributes prepares a PayloadAttributes template that is ready to build a L2 block with deposits only, on top of the given l2Parent, with the given epoch as L1 origin.
@@ -27,12 +27,12 @@ type L1ConfigFetcher interface {
 // by setting NoTxPool=false as sequencer, or by appending batch transactions as verifier.
 // The severity of the error is returned; a crit=false error means there was a temporary issue, like a failed RPC or time-out.
 // A crit=true error means the input arguments are inconsistent or invalid.
-func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2 L1ConfigFetcher, l2Parent eth.L2BlockRef, timestamp uint64, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error) {
+func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1ReceiptsFetcher, l2 SystemConfigL2Fetcher, l2Parent eth.L2BlockRef, timestamp uint64, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error) {
 	var l1Info eth.BlockInfo
 	var depositTxs []hexutil.Bytes
 	var seqNumber uint64
 
-	l1Config, err := l2.L1ConfigByL2Hash(ctx, l2Parent.Hash)
+	sysConfig, err := l2.SystemConfigByL2Hash(ctx, l2Parent.Hash)
 	if err != nil {
 		return nil, NewTemporaryError(fmt.Errorf("failed to retrieve L2 parent block: %w", err))
 	}
@@ -56,9 +56,9 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 			// deposits may never be ignored. Failing to process them is a critical error.
 			return nil, NewCriticalError(fmt.Errorf("failed to derive some deposits: %w", err))
 		}
-		// apply l1Config changes
-		if err := UpdateL1Config(&l1Config, receipts, cfg); err != nil {
-			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 l1Config updates: %w", err))
+		// apply sysCfg changes
+		if err := UpdateSystemConfigWithL1Receipts(&sysConfig, receipts, cfg); err != nil {
+			return nil, NewCriticalError(fmt.Errorf("failed to apply derived L1 sysCfg updates: %w", err))
 		}
 
 		l1Info = info
@@ -77,8 +77,8 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 		seqNumber = l2Parent.SequenceNumber + 1
 	}
 
-	// TODO: insert l1Config changes
-	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info, l1Config)
+	// TODO: insert sysCfg changes
+	l1InfoTx, err := L1InfoDepositBytes(seqNumber, l1Info, sysConfig)
 	if err != nil {
 		return nil, NewCriticalError(fmt.Errorf("failed to create l1InfoTx: %w", err))
 	}

@@ -36,10 +36,10 @@ func (m *MockL2Client) ExpectL2BlockRefByHash(hash common.Hash, ref eth.L2BlockR
 	m.Mock.On("L2BlockRefByHash", hash).Once().Return(ref, &err)
 }
 
-func (m *MockL2Client) L1ConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.L1ConfigData, error) {
-	return m.Mock.MethodCalled("L1ConfigByL2Hash", hash).Get(0).(eth.L1ConfigData), nil
+func (m *MockL2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error) {
+	return m.Mock.MethodCalled("SystemConfigByL2Hash", hash).Get(0).(eth.SystemConfig), nil
 }
 
-func (m *MockL2Client) ExpectL1ConfigByL2Hash(hash common.Hash, cfg eth.L1ConfigData, err error) {
-	m.Mock.On("L1ConfigByL2Hash", hash).Once().Return(cfg, &err)
+func (m *MockL2Client) ExpectSystemConfigByL2Hash(hash common.Hash, cfg eth.SystemConfig, err error) {
+	m.Mock.On("SystemConfigByL2Hash", hash).Once().Return(cfg, &err)
 }

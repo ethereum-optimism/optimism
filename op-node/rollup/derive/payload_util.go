@@ -49,35 +49,28 @@ func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (
 	}, nil
 }
 
-func PayloadToL1ConfigData(payload *eth.ExecutionPayload, cfg *rollup.Config) (eth.L1ConfigData, error) {
+func PayloadToL1ConfigData(payload *eth.ExecutionPayload, cfg *rollup.Config) (eth.SystemConfig, error) {
 	if uint64(payload.BlockNumber) == cfg.Genesis.L2.Number {
 		if payload.BlockHash != cfg.Genesis.L2.Hash {
-			return eth.L1ConfigData{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", cfg.Genesis.L2.Number, payload.BlockHash, cfg.Genesis.L2.Hash)
+			return eth.SystemConfig{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", cfg.Genesis.L2.Number, payload.BlockHash, cfg.Genesis.L2.Hash)
 		}
-		return eth.L1ConfigData{
-			Origin:      cfg.Genesis.L1,
-			BatcherAddr: cfg.BatchSenderAddress,
-			// TODO genesis values
-			Overhead: [32]byte{},
-			Scalar:   [32]byte{},
-		}, nil
+		return cfg.Genesis.SystemConfig, nil
 	} else {
 		if len(payload.Transactions) == 0 {
-			return eth.L1ConfigData{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
+			return eth.SystemConfig{}, fmt.Errorf("l2 block is missing L1 info deposit tx, block hash: %s", payload.BlockHash)
 		}
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(payload.Transactions[0]); err != nil {
-			return eth.L1ConfigData{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
+			return eth.SystemConfig{}, fmt.Errorf("failed to decode first tx to read l1 info from: %w", err)
 		}
 		if tx.Type() != types.DepositTxType {
-			return eth.L1ConfigData{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
+			return eth.SystemConfig{}, fmt.Errorf("first payload tx has unexpected tx type: %d", tx.Type())
 		}
 		info, err := L1InfoDepositTxData(tx.Data())
 		if err != nil {
-			return eth.L1ConfigData{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
+			return eth.SystemConfig{}, fmt.Errorf("failed to parse L1 info deposit tx from L2 block: %w", err)
 		}
-		return eth.L1ConfigData{
-			Origin:      eth.BlockID{Hash: info.BlockHash, Number: info.Number},
+		return eth.SystemConfig{
 			BatcherAddr: info.BatcherAddr,
 			Overhead:    info.L1FeeOverhead,
 			Scalar:      info.L1FeeScalar,

@@ -21,7 +21,7 @@ import (
 // (which is well tested) and that it properly sets NoTxPool and adds in the candidate
 // transactions.
 func TestAttributesQueue(t *testing.T) {
-	// test l1Config, only init the necessary fields
+	// test sysCfg, only init the necessary fields
 	cfg := &rollup.Config{
 		BlockTime:              2,
 		L1ChainID:              big.NewInt(101),
@@ -49,23 +49,21 @@ func TestAttributesQueue(t *testing.T) {
 		Transactions: []eth.Data{eth.Data("foobar"), eth.Data("example")},
 	}}
 
-	parentL1Cfg := eth.L1ConfigData{
-		Origin:      l1Info.BlockRef().ParentID(),
+	parentL1Cfg := eth.SystemConfig{
 		BatcherAddr: common.Address{42},
 		Overhead:    [32]byte{},
 		Scalar:      [32]byte{},
 	}
 	// TODO: make L1Config part of source interface?
 
-	expectedL1Cfg := eth.L1ConfigData{
-		Origin:      l1Info.ID(),
+	expectedL1Cfg := eth.SystemConfig{
 		BatcherAddr: common.Address{42},
 		Overhead:    [32]byte{},
 		Scalar:      [32]byte{},
 	}
 
 	l2Fetcher := &testutils.MockL2Client{}
-	l2Fetcher.ExpectL1ConfigByL2Hash(safeHead.Hash, parentL1Cfg, nil)
+	l2Fetcher.ExpectSystemConfigByL2Hash(safeHead.Hash, parentL1Cfg, nil)
 
 	l1InfoTx, err := L1InfoDepositBytes(safeHead.SequenceNumber+1, l1Info, expectedL1Cfg)
 	require.NoError(t, err)

@@ -19,13 +19,12 @@ var _ eth.BlockInfo = (*testutils.MockBlockInfo)(nil)
 type infoTest struct {
 	name    string
 	mkInfo  func(rng *rand.Rand) *testutils.MockBlockInfo
-	mkL1Cfg func(rng *rand.Rand, l1Info eth.BlockInfo) eth.L1ConfigData
+	mkL1Cfg func(rng *rand.Rand, l1Info eth.BlockInfo) eth.SystemConfig
 	seqNr   func(rng *rand.Rand) uint64
 }
 
-func randomL1Cfg(rng *rand.Rand, l1Info eth.BlockInfo) eth.L1ConfigData {
-	return eth.L1ConfigData{
-		Origin:      eth.ToBlockID(l1Info),
+func randomL1Cfg(rng *rand.Rand, l1Info eth.BlockInfo) eth.SystemConfig {
+	return eth.SystemConfig{
 		BatcherAddr: testutils.RandomAddress(rng),
 		Overhead:    [32]byte{},
 		Scalar:      [32]byte{},

@@ -27,12 +27,12 @@ type AttributesQueue struct {
 	log    log.Logger
 	config *rollup.Config
 	dl     L1ReceiptsFetcher
-	eng    L1ConfigFetcher
+	eng    SystemConfigL2Fetcher
 	prev   *BatchQueue
 	batch  *BatchData
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, eng L1ConfigFetcher, prev *BatchQueue) *AttributesQueue {
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, eng SystemConfigL2Fetcher, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
 		log:    log,
 		config: cfg,
@@ -91,6 +91,6 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Batc
 	return attrs, nil
 }
 
-func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.L1ConfigData) error {
+func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	return io.EOF
 }

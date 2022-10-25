@@ -50,13 +50,13 @@ type MockL1Traversal struct {
 	mock.Mock
 }
 
-func (m *MockL1Traversal) ExpectConfig(cfg eth.L1ConfigData) {
-	m.Mock.On("Config").Return(cfg)
+func (m *MockL1Traversal) ExpectSystemConfig(sysCfg eth.SystemConfig) {
+	m.Mock.On("SystemConfig").Return(sysCfg)
 }
 
-func (m *MockL1Traversal) Config() eth.L1ConfigData {
-	out := m.Mock.MethodCalled("Config")
-	return out[0].(eth.L1ConfigData)
+func (m *MockL1Traversal) SystemConfig() eth.SystemConfig {
+	out := m.Mock.MethodCalled("SystemConfig")
+	return out[0].(eth.SystemConfig)
 }
 
 func (m *MockL1Traversal) Origin() eth.L1BlockRef {
@@ -85,8 +85,7 @@ func TestL1RetrievalReset(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	dataSrc := &MockDataSource{}
 	a := testutils.RandomBlockRef(rng)
-	l1Cfg := eth.L1ConfigData{
-		Origin:      a.ParentID(),
+	l1Cfg := eth.SystemConfig{
 		BatcherAddr: common.Address{42},
 	}
 
@@ -109,7 +108,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 	tests := []struct {
 		name         string
 		prevBlock    eth.L1BlockRef
-		l1Cfg        eth.L1ConfigData
+		sysCfg       eth.SystemConfig
 		prevErr      error // error returned by prev.NextL1Block
 		openErr      error // error returned by NextData if prev.NextL1Block fails
 		datas        []eth.Data
@@ -119,7 +118,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 		{
 			name:         "simple retrieval",
 			prevBlock:    a,
-			l1Cfg:        eth.L1ConfigData{Origin: a.ID(), BatcherAddr: common.Address{42}},
+			sysCfg:       eth.SystemConfig{BatcherAddr: common.Address{42}},
 			prevErr:      nil,
 			openErr:      nil,
 			datas:        []eth.Data{testutils.RandomData(rng, 10), testutils.RandomData(rng, 10), testutils.RandomData(rng, 10), nil},
@@ -134,7 +133,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 		{
 			name:         "fail to open data",
 			prevBlock:    a,
-			l1Cfg:        eth.L1ConfigData{Origin: a.ID(), BatcherAddr: common.Address{42}},
+			sysCfg:       eth.SystemConfig{BatcherAddr: common.Address{42}},
 			prevErr:      nil,
 			openErr:      nil,
 			datas:        []eth.Data{nil},
@@ -148,7 +147,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 			l1t := &MockL1Traversal{}
 			l1t.ExpectNextL1Block(test.prevBlock, test.prevErr)
 			dataSrc := &MockDataSource{}
-			dataSrc.ExpectOpenData(test.prevBlock.ID(), &fakeDataIter{data: test.datas, errs: test.datasErrs}, test.l1Cfg.BatcherAddr)
+			dataSrc.ExpectOpenData(test.prevBlock.ID(), &fakeDataIter{data: test.datas, errs: test.datasErrs}, test.sysCfg.BatcherAddr)
 
 			ret := NewL1Retrieval(testlog.Logger(t, log.LvlCrit), dataSrc, l1t)
 
@@ -162,7 +161,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 			// Go through the fake data an assert that data is passed through and the correct
 			// errors are returned.
 			for i := range test.expectedErrs {
-				l1t.ExpectConfig(test.l1Cfg)
+				l1t.ExpectSystemConfig(test.sysCfg)
 				data, err := ret.NextData(context.Background())
 				require.Equal(t, test.datas[i], hexutil.Bytes(data))
 				require.ErrorIs(t, err, test.expectedErrs[i])

@@ -19,7 +19,7 @@ import (
 )
 
 func TestPreparePayloadAttributes(t *testing.T) {
-	// test l1Config, only init the necessary fields
+	// test sysCfg, only init the necessary fields
 	cfg := &rollup.Config{
 		BlockTime:              2,
 		L1ChainID:              big.NewInt(101),
@@ -35,13 +35,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
@@ -58,13 +57,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
@@ -80,13 +78,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		epoch := l2Parent.L1Origin
@@ -103,13 +100,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		epoch := l2Parent.L1Origin
@@ -125,13 +121,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
@@ -157,13 +152,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
@@ -182,7 +176,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 
 		epoch := l1Info.ID()
 		nextL1Cfg := l1Cfg
-		nextL1Cfg.Origin = l1Info.ID()
 		l1InfoTx, err := L1InfoDepositBytes(0, l1Info, nextL1Cfg)
 		require.NoError(t, err)
 
@@ -205,13 +198,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		defer l1Fetcher.AssertExpectations(t)
 		l2Parent := testutils.RandomL2BlockRef(rng)
 		l1CfgFetcher := &testutils.MockL2Client{}
-		l1Cfg := eth.L1ConfigData{
-			Origin:      l2Parent.L1Origin,
+		l1Cfg := eth.SystemConfig{
 			BatcherAddr: common.Address{42},
 			Overhead:    [32]byte{},
 			Scalar:      [32]byte{},
 		}
-		l1CfgFetcher.ExpectL1ConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
+		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, l1Cfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
 		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)

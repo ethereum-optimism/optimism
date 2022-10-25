@@ -27,16 +27,17 @@ type L1Traversal struct {
 	done     bool
 	l1Blocks L1BlockRefByNumberFetcher
 	log      log.Logger
-	l1Config eth.L1ConfigData
+	sysCfg   eth.SystemConfig
 	cfg      *rollup.Config
 }
 
 var _ ResetableStage = (*L1Traversal)(nil)
 
-func NewL1Traversal(log log.Logger, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
+func NewL1Traversal(log log.Logger, cfg *rollup.Config, l1Blocks L1BlockRefByNumberFetcher) *L1Traversal {
 	return &L1Traversal{
 		log:      log,
 		l1Blocks: l1Blocks,
+		cfg:      cfg,
 	}
 }
 
@@ -69,14 +70,14 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.block, nextL1Origin, nextL1Origin.ParentID()))
 	}
 
-	// Parse L1 receipts of the given block and update the L1 configuration
+	// Parse L1 receipts of the given block and update the L1 system configuration
 	_, receipts, err := l1t.l1Blocks.FetchReceipts(ctx, nextL1Origin.Hash)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s for L1 l1Config update: %v", origin, err))
+		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s for L1 sysCfg update: %v", origin, err))
 	}
-	if err := UpdateL1Config(&l1t.l1Config, receipts, l1t.cfg); err != nil {
-		// the l1Config changes should always be formatted correctly.
-		return NewCriticalError(fmt.Errorf("failed to update L1 l1Config with receipts from block %s: %v", origin, err))
+	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg); err != nil {
+		// the sysCfg changes should always be formatted correctly.
+		return NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %v", origin, err))
 	}
 
 	l1t.block = nextL1Origin
@@ -87,14 +88,14 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 // Reset sets the internal L1 block to the supplied base.
 // Note that the next call to `NextL1Block` will return the block after `base`
 // TODO: Walk one back/figure this out.
-func (l1t *L1Traversal) Reset(ctx context.Context, base eth.L1BlockRef, cfg eth.L1ConfigData) error {
+func (l1t *L1Traversal) Reset(ctx context.Context, base eth.L1BlockRef, cfg eth.SystemConfig) error {
 	l1t.block = base
 	l1t.done = false
-	l1t.l1Config = cfg
+	l1t.sysCfg = cfg
 	l1t.log.Info("completed reset of derivation pipeline", "origin", base)
 	return io.EOF
 }
 
-func (l1c *L1Traversal) Config() eth.L1ConfigData {
-	return l1c.l1Config
+func (l1c *L1Traversal) SystemConfig() eth.SystemConfig {
+	return l1c.sysCfg
 }

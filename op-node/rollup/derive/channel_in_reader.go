@@ -84,7 +84,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
 	return batch.Batch, nil
 }
 
-func (cr *ChannelInReader) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.L1ConfigData) error {
+func (cr *ChannelInReader) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	cr.nextBatchFn = nil
 	return io.EOF
 }

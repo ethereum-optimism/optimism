@@ -18,6 +18,10 @@ type Genesis struct {
 	L2 eth.BlockID `json:"l2"`
 	// Timestamp of L2 block
 	L2Time uint64 `json:"l2_time"`
+	// Initial system configuration values.
+	// The L2 genesis block may not include transactions, and thus cannot encode the config values,
+	// unlike later L2 blocks.
+	SystemConfig eth.SystemConfig `json:"system_config"`
 }
 
 type Config struct {
@@ -50,8 +54,6 @@ type Config struct {
 	FeeRecipientAddress common.Address `json:"fee_recipient_address"`
 	// L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
-	// Initial acceptable batch-sender address, this may change with L1 config updates.
-	BatchSenderAddress common.Address `json:"batch_sender_address"`
 	// L1 Deposit Contract Address
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address

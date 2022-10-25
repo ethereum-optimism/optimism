@@ -104,16 +104,16 @@ func L1InfoDepositTxData(data []byte) (L1BlockInfo, error) {
 
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, l1Config eth.L1ConfigData) (*types.DepositTx, error) {
+func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfig) (*types.DepositTx, error) {
 	infoDat := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
 		BaseFee:        block.BaseFee(),
 		BlockHash:      block.Hash(),
 		SequenceNumber: seqNumber,
-		BatcherAddr:    l1Config.BatcherAddr,
-		L1FeeOverhead:  l1Config.Overhead,
-		L1FeeScalar:    l1Config.Scalar,
+		BatcherAddr:    sysCfg.BatcherAddr,
+		L1FeeOverhead:  sysCfg.Overhead,
+		L1FeeScalar:    sysCfg.Scalar,
 	}
 	data, err := infoDat.MarshalBinary()
 	if err != nil {
@@ -139,8 +139,8 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, l1Config eth.L1ConfigD
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, l1Config eth.L1ConfigData) ([]byte, error) {
-	dep, err := L1InfoDeposit(seqNumber, l1Info, l1Config)
+func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig) ([]byte, error) {
+	dep, err := L1InfoDeposit(seqNumber, l1Info, sysCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
 	}

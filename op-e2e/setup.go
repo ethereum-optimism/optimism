@@ -277,6 +277,11 @@ func (cfg SystemConfig) Start() (*System, error) {
 					Number: 0,
 				},
 				L2Time: uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				SystemConfig: eth.SystemConfig{
+					BatcherAddr: cfg.DeployConfig.BatchSenderAddress,
+					Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleOverhead))),
+					Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(cfg.DeployConfig.GasPriceOracleScalar))),
+				},
 			},
 			BlockTime:              cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:      cfg.DeployConfig.MaxSequencerDrift,
@@ -287,7 +292,6 @@ func (cfg SystemConfig) Start() (*System, error) {
 			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
 			FeeRecipientAddress:    l2Genesis.Coinbase,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
-			BatchSenderAddress:     cfg.DeployConfig.BatchSenderAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 		}

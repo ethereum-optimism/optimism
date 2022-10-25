@@ -476,6 +476,23 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 		return derive.L1BlockInfo{}, fmt.Errorf("failed to get sequence number: %w", err)
 	}
 
+	overhead, err := contract.L1FeeOverhead(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee overhead: %w", err)
+	}
+	out.L1FeeOverhead = common.BigToHash(overhead)
+
+	scalar, err := contract.L1FeeScalar(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee scalar: %w", err)
+	}
+	out.L1FeeScalar = common.BigToHash(scalar)
+
+	out.BatcherAddr, err = contract.Batcher(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get batch sender: %w", err)
+	}
+
 	return out, nil
 }
 
@@ -617,6 +634,9 @@ func TestL1InfoContract(t *testing.T) {
 			BaseFee:        b.BaseFee(),
 			BlockHash:      h,
 			SequenceNumber: 0, // ignored, will be overwritten
+			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
+			L1FeeOverhead:  sys.RollupConfig.Genesis.SystemConfig.Overhead,
+			L1FeeScalar:    sys.RollupConfig.Genesis.SystemConfig.Scalar,
 		}
 
 		h = b.ParentHash()
@@ -901,13 +921,16 @@ func TestFees(t *testing.T) {
 	gasTip := big.NewInt(10)
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     3, // Already have deposit
+		Nonce:     0,
 		To:        &toAddr,
 		Value:     transferAmount,
 		GasTipCap: gasTip,
 		GasFeeCap: big.NewInt(200),
 		Gas:       21000,
 	})
+	sender, err := types.LatestSignerForChainID(cfg.L2ChainIDBig()).Sender(tx)
+	require.NoError(t, err)
+	t.Logf("waiting for tx %s from %s to %s", tx.Hash(), sender, tx.To())
 	err = l2Seq.SendTransaction(context.Background(), tx)
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 

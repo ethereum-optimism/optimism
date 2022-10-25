@@ -18,8 +18,8 @@ var (
 	ConfigUpdateEventVersion0 = common.Hash{}
 )
 
-// UpdateL1Config filters all receipts to find config updates and applies the config updates to the given l1Cfg
-func UpdateL1Config(l1Cfg *eth.L1ConfigData, receipts []*types.Receipt, cfg *rollup.Config) error {
+// UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
+func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config) error {
 	var result error
 	for i, rec := range receipts {
 		if rec.Status != types.ReceiptStatusSuccessful {
@@ -27,8 +27,8 @@ func UpdateL1Config(l1Cfg *eth.L1ConfigData, receipts []*types.Receipt, cfg *rol
 		}
 		for j, log := range rec.Logs {
 			if log.Address == cfg.L1SystemConfigAddress && len(log.Topics) > 0 && log.Topics[0] == ConfigUpdateEventABIHash {
-				if err := ProcessConfigUpdateLogEvent(l1Cfg, log); err != nil {
-					result = multierror.Append(result, fmt.Errorf("malformatted L1 system l1Config log in receipt %d, log %d: %w", i, j, err))
+				if err := ProcessSystemConfigUpdateLogEvent(sysCfg, log); err != nil {
+					result = multierror.Append(result, fmt.Errorf("malformatted L1 system sysCfg log in receipt %d, log %d: %w", i, j, err))
 				}
 			}
 		}
@@ -36,7 +36,7 @@ func UpdateL1Config(l1Cfg *eth.L1ConfigData, receipts []*types.Receipt, cfg *rol
 	return result
 }
 
-// ProcessConfigUpdateLogEvent decodes an EVM log entry emitted by the system l1Config contract and applies it as a l1Config change.
+// ProcessSystemConfigUpdateLogEvent decodes an EVM log entry emitted by the system config contract and applies it as a system config change.
 //
 // parse log data for:
 //
@@ -45,7 +45,7 @@ func UpdateL1Config(l1Cfg *eth.L1ConfigData, receipts []*types.Receipt, cfg *rol
 //	    UpdateType indexed updateType,
 //	    bytes data
 //	);
-func ProcessConfigUpdateLogEvent(destL1Config *eth.L1ConfigData, ev *types.Log) error {
+func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.Log) error {
 	if len(ev.Topics) != 3 {
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
@@ -56,23 +56,23 @@ func ProcessConfigUpdateLogEvent(destL1Config *eth.L1ConfigData, ev *types.Log) 
 	// indexed 0
 	version := ev.Topics[1]
 	if version != ConfigUpdateEventVersion0 {
-		return fmt.Errorf("unrecognized L1 l1Config update event version: %s", version)
+		return fmt.Errorf("unrecognized L1 sysCfg update event version: %s", version)
 	}
 	// indexed 1
 	updateType := ev.Topics[2]
 	// unindexed data
 	switch updateType {
 	case common.Hash{}:
-		destL1Config.BatcherAddr.SetBytes(ev.Data)
+		destSysCfg.BatcherAddr.SetBytes(ev.Data)
 		return nil
 	case common.Hash{31: 0x01}: // left padded uint8
 		if len(ev.Data) != 32*2 {
 			return fmt.Errorf("expected 32*2 bytes in GPO params update data, but got %d", len(ev.Data))
 		}
-		copy(destL1Config.Overhead[:], ev.Data[:32])
-		copy(destL1Config.Scalar[:], ev.Data[32:])
+		copy(destSysCfg.Overhead[:], ev.Data[:32])
+		copy(destSysCfg.Scalar[:], ev.Data[32:])
 		return nil
 	default:
-		return fmt.Errorf("unrecognized L1 l1Config update type: %s", updateType)
+		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
 	}
 }

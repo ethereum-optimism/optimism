@@ -50,7 +50,7 @@ type DataSource struct {
 	data []eth.Data
 	// Required to re-attempt fetching
 	id      eth.BlockID
-	cfg     *rollup.Config // TODO: `DataFromEVMTransactions` should probably not take the full l1Config
+	cfg     *rollup.Config // TODO: `DataFromEVMTransactions` should probably not take the full sysCfg
 	fetcher L1TransactionFetcher
 	log     log.Logger
 

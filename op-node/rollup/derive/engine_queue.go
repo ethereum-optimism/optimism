@@ -31,7 +31,7 @@ type Engine interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayload, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
-	L1ConfigFetcher
+	SystemConfigL2Fetcher
 }
 
 // Max memory used for buffering unsafe payloads
@@ -86,7 +86,7 @@ type EngineQueue struct {
 	prev   NextAttributesProvider
 
 	origin eth.L1BlockRef   // only used for pipeline resets
-	l1cfg  eth.L1ConfigData // only used for pipeline resets
+	sysCfg eth.SystemConfig // only used for pipeline resets
 
 	metrics   Metrics
 	l1Fetcher L1Fetcher
@@ -113,8 +113,8 @@ func (eq *EngineQueue) Origin() eth.L1BlockRef {
 	return eq.origin
 }
 
-func (eq *EngineQueue) L1Config() eth.L1ConfigData {
-	return eq.l1cfg
+func (eq *EngineQueue) SystemConfig() eth.SystemConfig {
+	return eq.sysCfg
 }
 
 func (eq *EngineQueue) SetUnsafeHead(head eth.L2BlockRef) {
@@ -446,7 +446,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 
 // ResetStep Walks the L2 chain backwards until it finds an L2 block whose L1 origin is canonical.
 // The unsafe head is set to the head of the L2 chain, unless the existing safe head is not canonical.
-func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.L1ConfigData) error {
+func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	result, err := sync.FindL2Heads(ctx, eq.cfg, eq.l1Fetcher, eq.engine, eq.log)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
@@ -474,7 +474,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.L1Conf
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %s; err: %w", pipelineL2.L1Origin, err))
 	}
-	l1Cfg, err := eq.engine.L1ConfigByL2Hash(ctx, pipelineL2.Hash)
+	l1Cfg, err := eq.engine.SystemConfigByL2Hash(ctx, pipelineL2.Hash)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch L1 config of L2 block %s: %v", pipelineL2.ID(), err))
 	}
@@ -486,7 +486,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.L1Conf
 	eq.finalityData = eq.finalityData[:0]
 	// note: we do not clear the unsafe payloads queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.origin = pipelineOrigin
-	eq.l1cfg = l1Cfg
+	eq.sysCfg = l1Cfg
 	eq.metrics.RecordL2Ref("l2_finalized", finalized)
 	eq.metrics.RecordL2Ref("l2_safe", safe)
 	eq.metrics.RecordL2Ref("l2_unsafe", unsafe)

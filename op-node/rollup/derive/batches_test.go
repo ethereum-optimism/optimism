@@ -36,7 +36,7 @@ func TestValidBatch(t *testing.T) {
 		BlockTime:         2,
 		SeqWindowSize:     4,
 		MaxSequencerDrift: 6,
-		// other l1Config fields are ignored and can be left empty.
+		// other sysCfg fields are ignored and can be left empty.
 	}
 
 	rng := rand.New(rand.NewSource(1234))

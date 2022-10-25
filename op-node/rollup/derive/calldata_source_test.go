@@ -55,10 +55,10 @@ func TestDataFromEVMTransactions(t *testing.T) {
 	inboxPriv := testutils.RandomKey()
 	batcherPriv := testutils.RandomKey()
 	cfg := &rollup.Config{
-		L1ChainID:          big.NewInt(100),
-		BatchInboxAddress:  crypto.PubkeyToAddress(inboxPriv.PublicKey),
-		BatchSenderAddress: crypto.PubkeyToAddress(batcherPriv.PublicKey),
+		L1ChainID:         big.NewInt(100),
+		BatchInboxAddress: crypto.PubkeyToAddress(inboxPriv.PublicKey),
 	}
+	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 
 	altInbox := testutils.RandomAddress(rand.New(rand.NewSource(1234)))
 	altAuthor := testutils.RandomKey()
@@ -79,7 +79,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: inboxPriv, good: false}}},
 		{
 			name: "author is inbox",
-			txs:  []testTx{{to: &cfg.BatchSenderAddress, dataLen: 1234, author: batcherPriv, good: false}}},
+			txs:  []testTx{{to: &batcherAddr, dataLen: 1234, author: batcherPriv, good: false}}},
 		{
 			name: "unrelated",
 			txs:  []testTx{{to: &altInbox, dataLen: 1234, author: altAuthor, good: false}}},
@@ -120,7 +120,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			}
 		}
 
-		out := DataFromEVMTransactions(cfg, cfg.BatchSenderAddress, txs, testlog.Logger(t, log.LvlCrit))
+		out := DataFromEVMTransactions(cfg, batcherAddr, txs, testlog.Logger(t, log.LvlCrit))
 		require.ElementsMatch(t, expectedData, out)
 	}
 
