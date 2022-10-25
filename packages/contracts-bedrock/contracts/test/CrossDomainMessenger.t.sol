@@ -8,12 +8,12 @@ import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.so
 contract CrossDomainMessenger_Test is Messenger_Initializer {
     // Ensure that baseGas passes for the max value of _minGasLimit,
     // this is about 4 Billion.
-    function test_baseGas() external {
+    function test_baseGas() external view {
         L1Messenger.baseGas(hex"ff", type(uint32).max);
     }
 
     // Fuzz for other values which might cause a revert in baseGas.
-    function testFuzz_baseGas(uint32 _minGasLimit) external {
+    function testFuzz_baseGas(uint32 _minGasLimit) external view {
         L1Messenger.baseGas(hex"ff", _minGasLimit);
     }
 }
