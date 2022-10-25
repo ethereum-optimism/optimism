@@ -65,7 +65,6 @@ task('rollup-config', 'create a genesis config')
       l2_chain_id: deployConfig.l2ChainID,
 
       p2p_sequencer_address: deployConfig.p2pSequencerAddress,
-      fee_recipient_address: deployConfig.optimismL2FeeRecipient,
       batch_inbox_address: deployConfig.batchInboxAddress,
       batch_sender_address: deployConfig.batchSenderAddress,
       deposit_contract_address: portal.address,

@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
@@ -23,7 +24,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		BlockTime:              2,
 		L1ChainID:              big.NewInt(101),
 		L2ChainID:              big.NewInt(102),
-		FeeRecipientAddress:    common.Address{0xaa},
 		DepositContractAddress: common.Address{0xbb},
 	}
 
@@ -99,7 +99,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
-		require.Equal(t, cfg.FeeRecipientAddress, attrs.SuggestedFeeRecipient)
+		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, 1, len(attrs.Transactions))
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		require.True(t, attrs.NoTxPool)
@@ -136,7 +136,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
-		require.Equal(t, cfg.FeeRecipientAddress, attrs.SuggestedFeeRecipient)
+		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, len(l2Txs), len(attrs.Transactions), "Expected txs to equal l1 info tx + user deposit txs")
 		require.Equal(t, l2Txs, attrs.Transactions)
 		require.True(t, attrs.NoTxPool)
@@ -161,7 +161,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
 		require.Equal(t, eth.Bytes32(l1Info.InfoMixDigest), attrs.PrevRandao)
-		require.Equal(t, cfg.FeeRecipientAddress, attrs.SuggestedFeeRecipient)
+		require.Equal(t, predeploys.SequencerFeeVaultAddr, attrs.SuggestedFeeRecipient)
 		require.Equal(t, 1, len(attrs.Transactions))
 		require.Equal(t, l1InfoTx, []byte(attrs.Transactions[0]))
 		require.True(t, attrs.NoTxPool)
