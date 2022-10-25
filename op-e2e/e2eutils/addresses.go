@@ -41,7 +41,6 @@ func CollectAddresses(sd *SetupData, dp *DeployParams) (out []common.Address) {
 		sd.L1Cfg.Coinbase,
 		sd.L2Cfg.Coinbase,
 		sd.RollupCfg.P2PSequencerAddress,
-		sd.RollupCfg.FeeRecipientAddress,
 		sd.RollupCfg.BatchInboxAddress,
 		sd.RollupCfg.BatchSenderAddress,
 		sd.RollupCfg.DepositContractAddress,
