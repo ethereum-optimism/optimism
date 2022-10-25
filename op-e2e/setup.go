@@ -11,6 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	geth_eth "github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/require"
+
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -24,16 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	geth_eth "github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -68,6 +69,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			L2OutputOracleProposer:           addresses.Proposer,
 			L2OutputOracleOwner:              common.Address{}, // tbd
 
+			SystemConfigOwner: addresses.SysCfgOwner,
+
 			L1BlockTime:                 2,
 			L1GenesisBlockNonce:         4660,
 			CliqueSignerAddress:         addresses.CliqueSigner,
@@ -99,7 +102,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			GasPriceOracleOwner:         addresses.Alice,                   // tbd
 			GasPriceOracleOverhead:      0,
 			GasPriceOracleScalar:        0,
-			GasPriceOracleDecimals:      0,
 			DeploymentWaitConfirmations: 1,
 
 			EIP1559Elasticity:  2,
@@ -287,6 +289,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			BatchSenderAddress:     cfg.DeployConfig.BatchSenderAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
+			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 		}
 	}
 	defaultConfig := makeRollupConfig()

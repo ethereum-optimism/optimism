@@ -5,8 +5,9 @@ pkg := bindings
 all: version mkdir bindings more
 
 bindings: l1block-bindings \
+	system-config-bindings \
 	l1-cross-domain-messenger-bindings \
-  	l1-standard-bridge-bindings \
+	l1-standard-bridge-bindings \
 	l2-to-l1-message-passer-bindings \
 	optimism-portal-bindings \
 	l2-output-oracle-bindings \
@@ -34,6 +35,9 @@ compile:
 	cd ../packages/contracts-bedrock/ && \
 		yarn clean && \
 		npx hardhat compile
+
+system-config-bindings: compile
+	./gen_bindings.sh contracts/L1/SystemConfig.sol:SystemConfig $(pkg)
 
 l1-cross-domain-messenger-bindings: compile
 	./gen_bindings.sh contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger $(pkg)
@@ -108,7 +112,7 @@ more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
-		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
+		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
 		-package bindings
 
 mkdir:

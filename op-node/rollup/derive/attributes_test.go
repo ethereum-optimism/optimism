@@ -26,6 +26,7 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		L2ChainID:              big.NewInt(102),
 		FeeRecipientAddress:    common.Address{0xaa},
 		DepositContractAddress: common.Address{0xbb},
+		L1SystemConfigAddress:  common.Address{0xcc},
 	}
 
 	t.Run("inconsistent next height origin", func(t *testing.T) {

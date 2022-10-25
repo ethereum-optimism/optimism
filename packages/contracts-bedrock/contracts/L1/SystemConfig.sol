@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Semver } from "../universal/Semver.sol";
 
 /**
@@ -29,8 +28,17 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         GAS_CONFIG
     }
 
-    // TODO: initialize()
-    constructor(address _owner) Semver(0, 0, 1) {
+    constructor(uint256 _overhead, uint256 _scalar, address _batcher) Semver(0, 0, 1) {
+        overhead = _overhead;
+        scalar = _scalar;
+        batcher = _batcher;
+    }
+
+    /**
+     * @notice Initializer;
+     */
+    function initialize(address _owner) public initializer {
+        __Ownable_init();
         transferOwnership(_owner);
     }
 

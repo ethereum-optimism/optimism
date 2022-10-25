@@ -8,14 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -27,6 +19,15 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 )
 
 // Init testing to enable test flags
@@ -864,30 +865,8 @@ func TestFees(t *testing.T) {
 	fromAddr := crypto.PubkeyToAddress(ethPrivKey.PublicKey)
 
 	// Find gaspriceoracle contract
-	gpoContract, err := bindings.NewGasPriceOracle(common.HexToAddress(predeploys.GasPriceOracle), l2Seq)
+	gpoContract, err := bindings.NewGasPriceOracle(predeploys.GasPriceOracleAddr, l2Seq)
 	require.Nil(t, err)
-
-	// GPO signer
-	l2opts, err := bind.NewKeyedTransactorWithChainID(ethPrivKey, cfg.L2ChainIDBig())
-	require.Nil(t, err)
-
-	// TODO: no longer set gpo values
-
-	// Update overhead
-	tx, err := gpoContract.SetOverhead(l2opts, big.NewInt(2100))
-	require.Nil(t, err, "sending overhead update tx")
-
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "waiting for overhead update tx")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
-
-	// Update scalar
-	tx, err = gpoContract.SetScalar(l2opts, big.NewInt(1_000_000))
-	require.Nil(t, err, "sending gpo update tx")
-
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
-	require.Nil(t, err, "waiting for gpo scalar update tx")
-	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
 
 	overhead, err := gpoContract.Overhead(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo overhead")
@@ -920,7 +899,7 @@ func TestFees(t *testing.T) {
 	toAddr := common.Address{0xff, 0xff}
 	transferAmount := big.NewInt(1_000_000_000)
 	gasTip := big.NewInt(10)
-	tx = types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 		ChainID:   cfg.L2ChainIDBig(),
 		Nonce:     3, // Already have deposit
 		To:        &toAddr,
@@ -935,7 +914,7 @@ func TestFees(t *testing.T) {
 	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 

@@ -28,6 +28,7 @@ func TestAttributesQueue(t *testing.T) {
 		L2ChainID:              big.NewInt(102),
 		FeeRecipientAddress:    common.Address{0xaa},
 		DepositContractAddress: common.Address{0xbb},
+		L1SystemConfigAddress:  common.Address{0xcc},
 	}
 	rng := rand.New(rand.NewSource(1234))
 	l1Info := testutils.RandomBlockInfo(rng)
