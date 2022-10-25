@@ -103,7 +103,7 @@ func TestBatchQueueNewOrigin(t *testing.T) {
 	}
 
 	bq := NewBatchQueue(log, cfg, input)
-	_ = bq.Reset(context.Background(), l1[0])
+	_ = bq.Reset(context.Background(), l1[0], eth.L1ConfigData{})
 	require.Equal(t, []eth.L1BlockRef{l1[0]}, bq.l1Blocks)
 
 	// Prev Origin: 0; Safehead Origin: 2; Internal Origin: 0
