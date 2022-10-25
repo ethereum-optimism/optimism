@@ -1,5 +1,7 @@
 # Actor Tests
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=actor-tests-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 This README describes how to use the actor testing library to write new tests. If you're just looking for how to run test cases, check out the README [in the root of the repo](../README.md).
 
 ## Introduction
@@ -122,7 +124,7 @@ It's useful to use `expect`/`assert` to make sure that actors are executing prop
 
 ### Test Runner
 
-The test runner is responsible for executing actor tests and managing their lifecycle. It can run in one of two modes: 
+The test runner is responsible for executing actor tests and managing their lifecycle. It can run in one of two modes:
 
 1. Fixed run mode, which will execute the `run` method a fixed number of times.
 2. Timed mode, which will will execute the `run` method as many times as possible until a period of time has elapsed.
@@ -130,7 +132,7 @@ The test runner is responsible for executing actor tests and managing their life
 Test lifecycle is as follows:
 
 1. The runner collects all the actors it needs to run.
-	
+
 	> Actors automatically register themselves with the default instance of the runner upon being `require()`d.
 2. The runner executes each actor's `setupActor` method.
 3. The runner spawns `n` workers.

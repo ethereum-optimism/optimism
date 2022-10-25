@@ -1,6 +1,6 @@
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=contracts)](https://codecov.io/gh/ethereum-optimism/optimism)
-
 # Optimism Smart Contracts
+
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 `@eth-optimism/contracts` contains the various Solidity smart contracts used within the Optimism system.
 Some of these contracts are [meant to be deployed to Ethereum ("Layer 1")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L1), while others are [meant to be deployed to Optimism ("Layer 2")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L2).

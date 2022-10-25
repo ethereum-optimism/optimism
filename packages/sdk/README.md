@@ -1,6 +1,7 @@
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=sdk)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 # @eth-optimism/sdk
+
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=sdk-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 The `@eth-optimism/sdk` package provides a set of tools for interacting with Optimism.
 
