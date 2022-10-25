@@ -3,6 +3,7 @@ package genesis
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -84,7 +85,7 @@ type DeployConfig struct {
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("deploy config at %s not found: %w", path, err)
 	}
 
 	var config DeployConfig
