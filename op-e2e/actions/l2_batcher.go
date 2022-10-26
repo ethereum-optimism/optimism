@@ -108,15 +108,23 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 		s.l2BufferedBlock = syncStatus.SafeL2.ID()
 		s.l2ChannelOut = nil
 	}
+	// Add the next unsafe block to the channel
+	if s.l2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
+		if s.l2BufferedBlock.Number > syncStatus.UnsafeL2.Number || s.l2BufferedBlock.Hash != syncStatus.UnsafeL2.Hash {
+			s.log.Error("detected a reorg in L2 chain vs previous buffered information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
+			s.l2SubmittedBlock = syncStatus.SafeL2.ID()
+			s.l2BufferedBlock = syncStatus.SafeL2.ID()
+			s.l2ChannelOut = nil
+		} else {
+			s.log.Info("nothing left to submit")
+			return
+		}
+	}
 	// Create channel if we don't have one yet
 	if s.l2ChannelOut == nil {
 		ch, err := derive.NewChannelOut()
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
-	}
-	// Add the next unsafe block to the channel
-	if s.l2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
-		return
 	}
 	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.l2BufferedBlock.Number+1)))
 	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
@@ -153,8 +161,8 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
 	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		s.l2ChannelOut = nil
 		s.l2Submitting = false
-		// there may still be some data to submit
 	} else if err != nil {
 		s.l2Submitting = false
 		t.Fatalf("failed to output channel data to frame: %v", err)
