@@ -1,6 +1,5 @@
 import { ethers } from 'ethers'
-import { HardhatUserConfig, task, subtask } from 'hardhat/config'
-import { TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS } from 'hardhat/builtin-tasks/task-names'
+import { HardhatUserConfig } from 'hardhat/config'
 
 // Hardhat plugins
 import '@eth-optimism/hardhat-deploy-config'
@@ -10,22 +9,6 @@ import 'hardhat-deploy'
 
 // Hardhat tasks
 import './tasks'
-
-subtask(TASK_COMPILE_SOLIDITY_GET_SOURCE_PATHS).setAction(
-  async (_, __, runSuper) => {
-    const paths = await runSuper()
-
-    return paths.filter((p: string) => !p.endsWith('.t.sol'))
-  }
-)
-
-task('accounts', 'Prints the list of accounts', async (_, hre) => {
-  const accounts = await hre.ethers.getSigners()
-
-  for (const account of accounts) {
-    console.log(account.address)
-  }
-})
 
 const config: HardhatUserConfig = {
   networks: {
