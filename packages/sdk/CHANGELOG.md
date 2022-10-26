@@ -1,5 +1,13 @@
 # @eth-optimism/sdk
 
+## 1.6.9
+
+### Patch Changes
+
+- Updated dependencies [db84317b]
+- Updated dependencies [9b90c732]
+  - @eth-optimism/contracts-bedrock@0.8.3
+
 ## 1.6.8
 
 ### Patch Changes
