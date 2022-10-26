@@ -5,6 +5,12 @@ import (
 	"errors"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	gnode "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
@@ -13,11 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	gnode "github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 // L2Verifier is an actor that functions like a rollup node,
@@ -50,7 +51,7 @@ type L2API interface {
 	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
 }
 
-func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics)
 	pipeline.Reset()
@@ -66,6 +67,7 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.C
 		rollupCfg:      cfg,
 		rpc:            rpc.NewServer(),
 	}
+	t.Cleanup(rollupNode.rpc.Stop)
 
 	// setup RPC server for rollup node, hooked to the actor as backend
 	m := &testutils.TestRPCMetrics{}
@@ -85,9 +87,7 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.C
 			Authenticated: false,
 		},
 	}
-	if err := gnode.RegisterApis(apis, nil, rollupNode.rpc); err != nil {
-		panic(err)
-	}
+	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
 	return rollupNode
 }
 
