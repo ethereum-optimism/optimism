@@ -49,7 +49,7 @@ func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (
 	}, nil
 }
 
-func PayloadToL1ConfigData(payload *eth.ExecutionPayload, cfg *rollup.Config) (eth.SystemConfig, error) {
+func PayloadToSystemConfig(payload *eth.ExecutionPayload, cfg *rollup.Config) (eth.SystemConfig, error) {
 	if uint64(payload.BlockNumber) == cfg.Genesis.L2.Number {
 		if payload.BlockHash != cfg.Genesis.L2.Hash {
 			return eth.SystemConfig{}, fmt.Errorf("expected L2 genesis hash to match L2 block at genesis block number %d: %s <> %s", cfg.Genesis.L2.Number, payload.BlockHash, cfg.Genesis.L2.Hash)

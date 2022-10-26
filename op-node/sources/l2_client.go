@@ -150,7 +150,7 @@ func (s *L2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (
 		// w%: wrap to preserve ethereum.NotFound case
 		return eth.SystemConfig{}, fmt.Errorf("failed to determine block-hash of hash %v, could not get payload: %w", hash, err)
 	}
-	cfg, err := derive.PayloadToL1ConfigData(payload, s.rollupCfg)
+	cfg, err := derive.PayloadToSystemConfig(payload, s.rollupCfg)
 	if err != nil {
 		return eth.SystemConfig{}, err
 	}
