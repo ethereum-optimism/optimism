@@ -15,6 +15,33 @@ program
   .version(version)
 
 program
+  .command('parse-state-dump')
+  .description('parses state dump to json')
+  .option('--file <file>', 'path to state dump file')
+  .action(async (options) => {
+    const iface = getContractInterface('OVM_L2ToL1MessagePasser')
+    const dump = fs.readFileSync(options.file, 'utf-8')
+
+    const addrs: string[] = []
+    const msgs: any[] = []
+    for (const line of dump.split('\n')) {
+      if (line.startsWith('ETH')) {
+        addrs.push(line.split('|')[1].replace('\r', ''))
+      } else if (line.startsWith('MSG')) {
+        const msg = '0x' + line.split('|')[2].replace('\r', '')
+        const parsed = iface.decodeFunctionData('passMessageToL1', msg)
+        msgs.push({
+          who: line.split('|')[1],
+          msg: parsed._message,
+        })
+      }
+    }
+
+    fs.writeFileSync('./data/evm-addresses.json', JSON.stringify(addrs, null, 2))
+    fs.writeFileSync('./data/evm-messages.json', JSON.stringify(msgs, null, 2))
+  })
+
+program
   .command('evm-sent-messages')
   .description('queries messages sent after the EVM upgrade')
   .option('--rpc <rpc>', 'rpc url to use')
