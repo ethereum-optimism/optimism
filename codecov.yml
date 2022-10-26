@@ -3,6 +3,7 @@ ignore:
   - "l2geth"
   - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "packages/contracts-bedrock/contracts/(vendor|libraries)/(trie|rlp)"
 flag_management:
   # Note: flags should have the same name as the circleci job in which they
   # are uploaded.

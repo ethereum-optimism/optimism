@@ -1,5 +1,7 @@
 # Optimism Smart Contracts (Bedrock)
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-bedrock-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 This package contains the smart contracts that compose the on-chain component of Optimism's upcoming Bedrock upgrade.
 We've tried to maintain 100% backwards compatibility with the existing system while also introducing new useful features.
 You can find detailed specifications for the contracts contained within this package [here](../../specs).

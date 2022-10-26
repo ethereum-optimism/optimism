@@ -9,6 +9,7 @@ const proxies = [
   'L1StandardBridgeProxy',
   'OptimismPortalProxy',
   'OptimismMintableERC20FactoryProxy',
+  'L1ERC721BridgeProxy',
 ]
 
 const deployFn: DeployFunction = async (hre) => {

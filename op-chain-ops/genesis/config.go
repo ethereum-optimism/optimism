@@ -3,6 +3,8 @@ package genesis
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 
@@ -62,6 +64,7 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
+	ProxyAdminOwner             common.Address `json:"proxyAdminOwner"`
 	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
 	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
@@ -82,7 +85,7 @@ type DeployConfig struct {
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("deploy config at %s not found: %w", path, err)
 	}
 
 	var config DeployConfig
@@ -103,14 +106,30 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // Hardhat and a DeployConfig.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (immutables.ImmutableConfig, error) {
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Addresses) (immutables.ImmutableConfig, error) {
 	immutable := make(immutables.ImmutableConfig)
 
+	if l2Addrs == nil {
+		return immutable, errors.New("must pass L1 contract addresses")
+	}
+
+	if l2Addrs.L1ERC721BridgeProxy == (common.Address{}) {
+		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
+	}
+
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
-		"otherBridge": proxyL1StandardBridge,
+		"otherBridge": l2Addrs.L1StandardBridgeProxy,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
-		"otherMessenger": proxyL1CrossDomainMessenger,
+		"otherMessenger": l2Addrs.L1CrossDomainMessengerProxy,
+	}
+	immutable["L2ERC721Bridge"] = immutables.ImmutableValues{
+		"messenger":   predeploys.L2CrossDomainMessengerAddr,
+		"otherBridge": l2Addrs.L1ERC721BridgeProxy,
+	}
+	immutable["OptimismMintableERC721Factory"] = immutables.ImmutableValues{
+		"bridge":        predeploys.L2ERC721BridgeAddr,
+		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
 	}
 
 	return immutable, nil
@@ -118,7 +137,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, proxyL1Stand
 
 // NewL2StorageConfig will create a StorageConfig given an instance of a
 // Hardhat and a DeployConfig.
-func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1StandardBridge common.Address, proxyL1CrossDomainMessenger common.Address) (state.StorageConfig, error) {
+func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Addresses) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 
 	if block.Number() == nil {
@@ -126,6 +145,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 	}
 	if block.BaseFee() == nil {
 		return storage, errors.New("block base fee not set")
+	}
+	if l2Addrs == nil {
+		return storage, errors.New("must pass L1 address info")
 	}
 
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
@@ -173,6 +195,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, proxyL1Standar
 		"_symbol": "OP",
 		// TODO: this should be set to the MintManager
 		"_owner": common.Address{},
+	}
+	storage["ProxyAdmin"] = state.StorageValues{
+		"owner": l2Addrs.ProxyAdminOwner,
 	}
 	return storage, nil
 }

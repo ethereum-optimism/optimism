@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -56,12 +57,7 @@ var Subcommands = cli.Commands{
 			}
 
 			l1StartBlock := l1Genesis.ToBlock()
-			l2Addrs := &genesis.L2Addresses{
-				ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-				L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-				L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-			}
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, nil)
 			if err != nil {
 				return err
 			}
@@ -125,7 +121,7 @@ var Subcommands = cli.Commands{
 				l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("error getting l1 start block: %w", err)
 			}
 
 			depPath, network := filepath.Split(ctx.String("deployment-dir"))
@@ -134,10 +130,6 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
-			if err != nil {
-				return err
-			}
 			l1SBP, err := hh.GetDeployment("L1StandardBridgeProxy")
 			if err != nil {
 				return err
@@ -150,14 +142,20 @@ var Subcommands = cli.Commands{
 			if err != nil {
 				return err
 			}
+			l1ERC721BP, err := hh.GetDeployment("L1ERC721BridgeProxy")
+			if err != nil {
+				return err
+			}
+
 			l2Addrs := &genesis.L2Addresses{
-				ProxyAdmin:                  proxyAdmin.Address,
+				ProxyAdminOwner:             config.ProxyAdminOwner,
 				L1StandardBridgeProxy:       l1SBP.Address,
 				L1CrossDomainMessengerProxy: l1XDMP.Address,
+				L1ERC721BridgeProxy:         l1ERC721BP.Address,
 			}
 			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
 			if err != nil {
-				return err
+				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
 			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address)

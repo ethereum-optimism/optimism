@@ -56,3 +56,16 @@ Oneshot uses s6-overlay under the hood to supervise the processes it runs. It in
 1. `op-init`: A oneshot service that `op-init` and `op-node` use to initialize themselves.
 2. `op-geth`: A longrun service that manages the Geth node.
 3. `op-node`: A longrun service that manages the opnode.
+
+## Creating a oneshot
+
+The `create.py` script in this directory creates a oneshot container given an op-node/op-geth image and a network name. The script essentially wraps `docker build`, but specifies the proper build args. Usage:
+
+```bash
+python3 create.py --op-node-image 7037cc6c528fc967009136e863c771f737f3d231 \
+  --op-geth-image ca157997a49b06c3cb01191a04a96b913ae0c19d \
+  --network-name beta-1 \
+  --tag v0.1.0-beta.1
+```
+
+Nothing other than the Python standard library is required.

@@ -161,6 +161,7 @@ export const getBridgeAdapters = (
   messenger: CrossChainMessenger,
   opts?: {
     overrides?: BridgeAdapterData
+    contracts?: DeepPartial<OEContractsLike>
   }
 ): BridgeAdapters => {
   const adapterData: BridgeAdapterData = {
@@ -168,12 +169,16 @@ export const getBridgeAdapters = (
       ? {
           Standard: {
             Adapter: StandardBridgeAdapter,
-            l1Bridge: CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+            l1Bridge:
+              opts.contracts?.l1?.L1StandardBridge ||
+              CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
             l2Bridge: predeploys.L2StandardBridge,
           },
           ETH: {
             Adapter: ETHBridgeAdapter,
-            l1Bridge: CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
+            l1Bridge:
+              opts.contracts?.l1?.L1StandardBridge ||
+              CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
             l2Bridge: predeploys.L2StandardBridge,
           },
         }
