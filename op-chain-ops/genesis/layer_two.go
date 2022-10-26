@@ -1,10 +1,6 @@
 package genesis
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
@@ -16,25 +12,10 @@ import (
 // L2Addresses represents L1 contract addresses
 // that are required for the construction of an L2 state
 type L2Addresses struct {
-	ProxyAdminOwner             common.Address `json:"proxyAdminOwner"`
-	L1StandardBridgeProxy       common.Address `json:"l1StandardBridgeProxy"`
-	L1CrossDomainMessengerProxy common.Address `json:"l1CrossDomainMessengerProxy"`
-	L1ERC721BridgeProxy         common.Address `json:"l1ERC721BridgeProxy"`
-}
-
-// NewL2Addresses will read the L2Addresses from a json file on disk
-func NewL2Addresses(path string) (*L2Addresses, error) {
-	file, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("cannot find L2Addresses json at %s: %w", path, err)
-	}
-
-	var addrs L2Addresses
-	if err := json.Unmarshal(file, &addrs); err != nil {
-		return nil, err
-	}
-
-	return &addrs, nil
+	ProxyAdminOwner             common.Address
+	L1StandardBridgeProxy       common.Address
+	L1CrossDomainMessengerProxy common.Address
+	L1ERC721BridgeProxy         common.Address
 }
 
 // BuildL2DeveloperGenesis will build the developer Optimism Genesis
