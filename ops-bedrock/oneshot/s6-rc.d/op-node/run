@@ -9,6 +9,4 @@ export OP_NODE_P2P_PRIV_PATH=/etc/secrets/p2p-private-key.txt
 export OP_NODE_P2P_PEERSTORE_PATH=/p2p/
 export OP_NODE_P2P_DISCOVERY_PATH=/p2p/discovery
 
-printenv
-
 exec op-node
