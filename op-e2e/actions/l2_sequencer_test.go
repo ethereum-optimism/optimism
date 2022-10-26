@@ -19,15 +19,15 @@ import (
 func setupSequencerTest(t Testing, sd *e2eutils.SetupData, log log.Logger) (*L1Miner, *L2Engine, *L2Sequencer) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 
-	miner := NewL1Miner(log, sd.L1Cfg)
+	miner := NewL1Miner(t, log, sd.L1Cfg)
 
 	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false))
 	require.NoError(t, err)
-	engine := NewL2Engine(log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
 
-	sequencer := NewL2Sequencer(log, l1F, l2Cl, sd.RollupCfg, 0)
+	sequencer := NewL2Sequencer(t, log, l1F, l2Cl, sd.RollupCfg, 0)
 	return miner, engine, sequencer
 }
 

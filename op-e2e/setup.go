@@ -258,12 +258,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Addrs := &genesis.L2Addresses{
-		ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-	}
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, l2Addrs)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, nil)
 	if err != nil {
 		return nil, err
 	}

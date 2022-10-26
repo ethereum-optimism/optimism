@@ -1,9 +1,13 @@
 #!/command/with-contenv bash
-
 set -eu
 
 GETH_DATA_DIR=/db
 CHAIN_ID=$(cat "/etc/op-geth/genesis.json" | jq -r .config.chainId)
+
+# We must set miner.gaslimit to the gas limit in genesis
+# in the command below!
+GAS_LIMIT_HEX=$(jq -r .gasLimit < "/etc/op-geth/genesis.json" | sed s/0x//i | tr '[:lower:]' '[:upper:]')
+GAS_LIMIT=$(echo "obase=10; ibase=16; $GAS_LIMIT_HEX" | bc)
 
 # Warning: Archive mode is required, otherwise old trie nodes will be
 # pruned within minutes of starting the devnet.
@@ -24,9 +28,11 @@ exec geth \
 	--ws.api=debug,eth,txpool,net,engine \
 	--syncmode=full \
 	--nodiscover \
+	--miner.gaslimit=$GAS_LIMIT \
 	--maxpeers="$OP_GETH_MAX_PEERS" \
 	--networkid=$CHAIN_ID \
 	--gcmode=archive \
+	--rollup.disabletxpoolgossip=true \
 	--rollup.sequencerhttp="$OP_GETH_SEQUENCER_HTTP" \
 	--authrpc.jwtsecret=/etc/secrets/jwt-secret.txt
 	"$@"

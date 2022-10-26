@@ -17,12 +17,10 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes)"))
-var MessagePassedExtension1Topic = crypto.Keccak256Hash([]byte("MessagePassedExtension1(bytes32)"))
+var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
 
 // WaitForFinalizationPeriod waits until there is OutputProof for an L2 block number larger than the supplied l2BlockNumber
 // and that the output is finalized.
@@ -159,7 +157,7 @@ type FinalizedWithdrawalParameters struct {
 	BlockNumber     *big.Int
 	Data            []byte
 	OutputRootProof bindings.TypesOutputRootProof
-	WithdrawalProof []byte // RLP Encoded list of trie nodes to prove L2 storage
+	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
 }
 
 // FinalizeWithdrawalParameters queries L2 to generate all withdrawal parameters and proof necessary to finalize an withdrawal on L1.
@@ -176,13 +174,9 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 	if err != nil {
 		return FinalizedWithdrawalParameters{}, err
 	}
-	ev1, err := ParseMessagePassedExtension1(receipt)
-	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
-	}
 	// Generate then verify the withdrawal proof
 	withdrawalHash, err := WithdrawalHash(ev)
-	if !bytes.Equal(withdrawalHash[:], ev1.Hash[:]) {
+	if !bytes.Equal(withdrawalHash[:], ev.WithdrawalHash[:]) {
 		return FinalizedWithdrawalParameters{}, errors.New("Computed withdrawal hash incorrectly")
 	}
 	if err != nil {
@@ -208,11 +202,6 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		trieNodes[i] = common.FromHex(s)
 	}
 
-	withdrawalProof, err := rlp.EncodeToBytes(trieNodes)
-	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
-	}
-
 	return FinalizedWithdrawalParameters{
 		Nonce:       ev.Nonce,
 		Sender:      ev.Sender,
@@ -227,7 +216,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 			MessagePasserStorageRoot: p.StorageHash,
 			LatestBlockhash:          header.Hash(),
 		},
-		WithdrawalProof: withdrawalProof,
+		WithdrawalProof: trieNodes,
 	}, nil
 }
 
@@ -282,29 +271,6 @@ func ParseMessagePassed(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMe
 		return ev, nil
 	}
 	return nil, errors.New("Unable to find MessagePassed event")
-}
-
-// ParseMessagePassedExtension1 parses MessagePassedExtension1 events
-// from a transaction receipt. It does not support multiple withdrawals per
-// receipt.
-func ParseMessagePassedExtension1(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMessagePassedExtension1, error) {
-	contract, err := bindings.NewL2ToL1MessagePasser(common.Address{}, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, log := range receipt.Logs {
-		if len(log.Topics) == 0 || log.Topics[0] != MessagePassedExtension1Topic {
-			continue
-		}
-
-		ev, err := contract.ParseMessagePassedExtension1(*log)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse log: %w", err)
-		}
-		return ev, nil
-	}
-	return nil, errors.New("Unable to find MessagePassedExtension1 event")
 }
 
 // StorageSlotOfWithdrawalHash determines the storage slot of the Withdrawer contract to look at

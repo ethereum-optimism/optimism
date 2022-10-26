@@ -520,7 +520,7 @@ jobs:
       - run:
           name: Check if we should run
           command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk)/" || echo "TRUE")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk|.circlec)/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -576,11 +576,11 @@ jobs:
                   make devnet-up
             - run:
                 name: Deposit ERC20 through the bridge
-                command: timeout 5m npx hardhat deposit-erc20 --network devnetL1
+                command: timeout 10m npx hardhat deposit-erc20 --network devnetL1
                 working_directory: packages/sdk
             - run:
                 name: Deposit ETH through the bridge
-                command: timeout 5m npx hardhat deposit-eth --network devnetL1
+                command: timeout 10m npx hardhat deposit-eth --network devnetL1
                 working_directory: packages/sdk
             - run:
                 name: Check the status
@@ -590,7 +590,6 @@ jobs:
   integration-tests:
     machine:
       image: ubuntu-2204:2022.07.1
-      docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
     parallelism: 3

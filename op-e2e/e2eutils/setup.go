@@ -168,13 +168,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Addrs := &genesis.L2Addresses{
-		ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-	}
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(deployConf, l1Block, l2Addrs)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(deployConf, l1Block, nil)
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
