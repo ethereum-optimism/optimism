@@ -32,8 +32,8 @@ type Channel struct {
 	// No other frame number must be larger than this.
 	endFrameNumber uint16
 
-	// Store a map of frame number -> frame data for constant time ordering
-	inputs map[uint64][]byte
+	// Store a map of frame number -> frame for constant time ordering
+	inputs map[uint64]Frame
 
 	highestL1InclusionBlock eth.L1BlockRef
 }
@@ -41,7 +41,7 @@ type Channel struct {
 func NewChannel(id ChannelID, openBlock eth.L1BlockRef) *Channel {
 	return &Channel{
 		id:        id,
-		inputs:    make(map[uint64][]byte),
+		inputs:    make(map[uint64]Frame),
 		openBlock: openBlock,
 	}
 }
@@ -77,7 +77,7 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 			if id >= uint64(ch.endFrameNumber) {
 				idsToPrune = append(idsToPrune, id)
 			}
-			ch.size -= uint64(len(prunedFrame)) + frameOverhead
+			ch.size -= frameSize(prunedFrame)
 		}
 		for _, id := range idsToPrune {
 			delete(ch.inputs, id)
@@ -92,8 +92,8 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 	if ch.highestL1InclusionBlock.Number < l1InclusionBlock.Number {
 		ch.highestL1InclusionBlock = l1InclusionBlock
 	}
-	ch.inputs[uint64(frame.FrameNumber)] = frame.Data
-	ch.size += uint64(len(frame.Data)) + frameOverhead
+	ch.inputs[uint64(frame.FrameNumber)] = frame
+	ch.size += frameSize(frame)
 
 	return nil
 }
@@ -137,11 +137,11 @@ func (ch *Channel) IsReady() bool {
 func (ch *Channel) Reader() io.Reader {
 	var readers []io.Reader
 	for i := uint64(0); i <= uint64(ch.endFrameNumber); i++ {
-		data, ok := ch.inputs[i]
+		frame, ok := ch.inputs[i]
 		if !ok {
 			panic("dev error in channel.Reader. Must be called after the channel is ready.")
 		}
-		readers = append(readers, bytes.NewBuffer(data))
+		readers = append(readers, bytes.NewBuffer(frame.Data))
 	}
 	return io.MultiReader(readers...)
 }
