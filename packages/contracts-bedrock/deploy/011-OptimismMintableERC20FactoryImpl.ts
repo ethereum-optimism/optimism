@@ -7,10 +7,19 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const L1StandardBridgeProxy = await getContractFromArtifact(
-    hre,
-    'L1StandardBridgeProxy'
-  )
+  let L1StandardBridgeProxy
+  try {
+    L1StandardBridgeProxy = await getContractFromArtifact(
+      hre,
+      'Proxy__OVM_L1StandardBridge'
+    )
+  } catch (e) {
+    L1StandardBridgeProxy = await getContractFromArtifact(
+      hre,
+      'L1StandardBridge'
+    )
+  }
+
   await deployAndVerifyAndThen({
     hre,
     name: 'OptimismMintableERC20Factory',
