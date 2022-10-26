@@ -50,9 +50,10 @@ type StatefulTesting interface {
 	State() ActionStatus
 }
 
-// NewDefaultTesting returns a new testing obj.
+// NewDefaultTesting returns a new testing obj, and enables parallel test execution.
 // Returns an interface, we're likely changing the behavior here as we build more action tests.
 func NewDefaultTesting(tb e2eutils.TestingBase) StatefulTesting {
+	tb.Parallel()
 	return &defaultTesting{
 		TestingBase: tb,
 		ctx:         context.Background(),
