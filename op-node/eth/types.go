@@ -314,3 +314,12 @@ func (f FetchedReceipts) Result() (types.Receipts, error) {
 }
 
 var _ ReceiptsFetcher = (FetchedReceipts)(nil)
+
+// SystemConfig represents the rollup system configuration that carries over in every L2 block,
+// and may be changed through L1 system config events.
+// The initial SystemConfig at rollup genesis is embedded in the rollup configuration.
+type SystemConfig struct {
+	BatcherAddr common.Address `json:"batcherAddr"`
+	Overhead    Bytes32        `json:"overhead"`
+	Scalar      Bytes32        `json:"scalar"`
+}
