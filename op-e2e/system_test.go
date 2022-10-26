@@ -475,6 +475,24 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 		return derive.L1BlockInfo{}, fmt.Errorf("failed to get sequence number: %w", err)
 	}
 
+	overhead, err := contract.L1FeeOverhead(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee overhead: %w", err)
+	}
+	out.L1FeeOverhead = eth.Bytes32(common.BigToHash(overhead))
+
+	scalar, err := contract.L1FeeScalar(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee scalar: %w", err)
+	}
+	out.L1FeeScalar = eth.Bytes32(common.BigToHash(scalar))
+
+	batcherHash, err := contract.BatcherHash(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get batch sender: %w", err)
+	}
+	out.BatcherAddr = common.BytesToAddress(batcherHash[:])
+
 	return out, nil
 }
 
@@ -616,10 +634,9 @@ func TestL1InfoContract(t *testing.T) {
 			BaseFee:        b.BaseFee(),
 			BlockHash:      h,
 			SequenceNumber: 0, // ignored, will be overwritten
-			// TODO: need system config contract
-			//BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
-			//L1FeeOverhead:  sys.RollupConfig.Genesis.SystemConfig.Overhead,
-			//L1FeeScalar:    sys.RollupConfig.Genesis.SystemConfig.Scalar,
+			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
+			L1FeeOverhead:  sys.RollupConfig.Genesis.SystemConfig.Overhead,
+			L1FeeScalar:    sys.RollupConfig.Genesis.SystemConfig.Scalar,
 		}
 
 		h = b.ParentHash()
@@ -850,11 +867,8 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, withdrawAmount, diff)
 }
 
-// TODO: this test requires an updated op-geth to pass
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	t.Skip()
-
 	t.Parallel()
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
@@ -865,7 +879,6 @@ func TestFees(t *testing.T) {
 	// we can pull in l1 costs into every e2e test and account for it in assertions easily etc.
 	cfg.DeployConfig.GasPriceOracleOverhead = 2100
 	cfg.DeployConfig.GasPriceOracleScalar = 1000_000
-	cfg.DeployConfig.GasPriceOracleDecimals = 6
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")

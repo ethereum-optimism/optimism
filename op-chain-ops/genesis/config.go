@@ -39,6 +39,8 @@ type DeployConfig struct {
 	L2OutputOracleOwner              common.Address `json:"l2OutputOracleOwner"`
 	L2OutputOracleGenesisL2Output    common.Hash    `json:"l2OutputOracleGenesisL2Output"`
 
+	SystemConfigOwner common.Address `json:"systemConfigOwner"`
+
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
@@ -67,11 +69,10 @@ type DeployConfig struct {
 	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
 	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
-	// TODO: the gas price oracle owner is no longer necessary
+
 	GasPriceOracleOwner    common.Address `json:"gasPriceOracleOwner"`
 	GasPriceOracleOverhead uint64         `json:"gasPriceOracleOverhead"`
 	GasPriceOracleScalar   uint64         `json:"gasPriceOracleScalar"`
-	GasPriceOracleDecimals uint           `json:"gasPriceOracleDecimals"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
@@ -182,7 +183,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 		"basefee":        block.BaseFee(),
 		"hash":           block.Hash(),
 		"sequenceNumber": 0,
-		"batcherHash":    common.Hash{},
+		"batcherHash":    config.BatchSenderAddress.Hash(),
 		"l1FeeOverhead":  config.GasPriceOracleOverhead,
 		"l1FeeScalar":    config.GasPriceOracleScalar,
 	}
