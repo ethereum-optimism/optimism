@@ -45,6 +45,9 @@ RUN cd /tmp && \
 	tar -C / -Jxpf /tmp/s6-overlay-x86_64.tar.xz && \
 	chmod +x /usr/local/bin/op-init.sh
 
+# Give Geth enough time to start up
+ENV S6_CMD_WAIT_FOR_SERVICES_MAXTIME=10000
+
 ENV OP_NODE_L1_ETH_RPC=dummy \
 	OP_NODE_RPC_ADDR=0.0.0.0 \
 	OP_NODE_RPC_PORT=9545 \
