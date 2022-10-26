@@ -2,12 +2,7 @@ package actions
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -19,6 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 // L1CanonSrc is used to sync L1 from another node.
@@ -46,7 +46,7 @@ type L1Replica struct {
 }
 
 // NewL1Replica constructs a L1Replica starting at the given genesis.
-func NewL1Replica(log log.Logger, genesis *core.Genesis) *L1Replica {
+func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 	ethCfg := &ethconfig.Config{
 		NetworkId:                 genesis.Config.ChainID.Uint64(),
 		Genesis:                   genesis,
@@ -65,20 +65,17 @@ func NewL1Replica(log log.Logger, genesis *core.Genesis) *L1Replica {
 		},
 	}
 	n, err := node.New(nodeCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = n.Close()
+	})
 
 	backend, err := eth.New(n, ethCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
-	if err := n.Start(); err != nil {
-		panic(fmt.Errorf("failed to start L1 geth node: %w", err))
-	}
+	require.NoError(t, n.Start(), "failed to start L1 geth node")
 	return &L1Replica{
 		log:        log,
 		node:       n,
