@@ -8,9 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var _ eth.BlockInfo = (*testutils.MockBlockInfo)(nil)
@@ -53,7 +54,7 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 			rng := rand.New(rand.NewSource(int64(1234 + i)))
 			info := testCase.mkInfo(rng)
 			seqNr := testCase.seqNr(rng)
-			depTx, err := L1InfoDeposit(seqNr, info)
+			depTx, err := L1InfoDeposit(seqNr, info, eth.SystemConfig{}) // TODO: update along with block info contract update
 			require.NoError(t, err)
 			res, err := L1InfoDepositTxData(depTx.Data)
 			require.NoError(t, err, "expected valid deposit info")

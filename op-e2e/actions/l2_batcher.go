@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,7 @@ type L2Batcher struct {
 	l2BufferedBlock  eth.BlockID
 	l2SubmittedBlock eth.BlockID
 	l2BatcherCfg     *BatcherCfg
+	batcherAddr      common.Address
 }
 
 func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI) *L2Batcher {
@@ -73,6 +75,7 @@ func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherC
 		l2:            l2,
 		l2BatcherCfg:  batcherCfg,
 		l1Signer:      types.LatestSignerForChainID(rollupCfg.L1ChainID),
+		batcherAddr:   crypto.PubkeyToAddress(batcherCfg.BatcherKey.PublicKey),
 	}
 }
 
@@ -157,7 +160,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 		t.Fatalf("failed to output channel data to frame: %v", err)
 	}
 
-	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.rollupCfg.BatchSenderAddress)
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 
 	gasTipCap := big.NewInt(2 * params.GWei)

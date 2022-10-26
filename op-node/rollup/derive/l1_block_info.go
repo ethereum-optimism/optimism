@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 var (
@@ -29,9 +30,13 @@ type L1BlockInfo struct {
 	// Not strictly a piece of L1 information. Represents the number of L2 blocks since the start of the epoch,
 	// i.e. when the actual L1 info was first introduced.
 	SequenceNumber uint64
+	BatcherAddr    common.Address
+	L1FeeOverhead  [32]byte
+	L1FeeScalar    [32]byte
 }
 
 func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
+	//data := make([]byte, 4+32*8) // TODO updated block info contract
 	data := make([]byte, 4+32+32+32+32+32)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
@@ -49,10 +54,17 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	copy(data[offset:offset+32], info.BlockHash.Bytes())
 	offset += 32
 	binary.BigEndian.PutUint64(data[offset+24:offset+32], info.SequenceNumber)
+	//offset += 32
+	//copy(data[offset+12:offset+32], info.BatcherAddr[:])
+	//offset += 32
+	//copy(data[offset:offset+32], info.L1FeeOverhead[:])
+	//offset += 32
+	//copy(data[offset:offset+32], info.L1FeeScalar[:])
 	return data, nil
 }
 
 func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
+	//if len(data) != 4+32*8 {  // TODO updated block info contract
 	if len(data) != 4+32+32+32+32+32 {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
@@ -76,6 +88,13 @@ func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
 	if !bytes.Equal(data[offset:offset+24], padding[:]) {
 		return fmt.Errorf("l1 info sequence number exceeds uint64 bounds: %x", data[offset:offset+32])
 	}
+	// TODO need updated block info contract
+	//offset += 32
+	//info.BatcherAddr.SetBytes(data[offset+12 : offset+32])
+	//offset += 32
+	//copy(info.L1FeeOverhead[:], data[offset:offset+32])
+	//offset += 32
+	//copy(info.L1FeeScalar[:], data[offset:offset+32])
 	return nil
 }
 
@@ -88,13 +107,16 @@ func L1InfoDepositTxData(data []byte) (L1BlockInfo, error) {
 
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, error) {
+func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfig) (*types.DepositTx, error) {
 	infoDat := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
 		BaseFee:        block.BaseFee(),
 		BlockHash:      block.Hash(),
 		SequenceNumber: seqNumber,
+		BatcherAddr:    sysCfg.BatcherAddr,
+		L1FeeOverhead:  sysCfg.Overhead,
+		L1FeeScalar:    sysCfg.Scalar,
 	}
 	data, err := infoDat.MarshalBinary()
 	if err != nil {
@@ -120,8 +142,8 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo) (*types.DepositTx, err
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo) ([]byte, error) {
-	dep, err := L1InfoDeposit(seqNumber, l1Info)
+func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig) ([]byte, error) {
+	dep, err := L1InfoDeposit(seqNumber, l1Info, sysCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
 	}

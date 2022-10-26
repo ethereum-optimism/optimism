@@ -193,7 +193,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 				Hash:   l2Genesis.ToBlock().Hash(),
 				Number: 0,
 			},
-			L2Time: uint64(deployConf.L1GenesisBlockTimestamp),
+			L2Time:       uint64(deployConf.L1GenesisBlockTimestamp),
+			SystemConfig: SystemConfigFromDeployConfig(deployConf),
 		},
 		BlockTime:              deployConf.L2BlockTime,
 		MaxSequencerDrift:      deployConf.MaxSequencerDrift,
@@ -203,8 +204,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L2ChainID:              new(big.Int).SetUint64(deployConf.L2ChainID),
 		P2PSequencerAddress:    deployConf.P2PSequencerAddress,
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
-		BatchSenderAddress:     deployConf.BatchSenderAddress,
 		DepositContractAddress: predeploys.DevOptimismPortalAddr,
+		L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 	}
 
 	deploymentsL1 := DeploymentsL1{
@@ -219,5 +220,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
 		DeploymentsL1: deploymentsL1,
+	}
+}
+
+func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.SystemConfig {
+	return eth.SystemConfig{
+		BatcherAddr: deployConfig.BatchSenderAddress,
+		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleOverhead))),
+		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
 	}
 }

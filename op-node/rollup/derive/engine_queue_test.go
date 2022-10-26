@@ -226,12 +226,19 @@ func TestEngineQueue_Finalize(t *testing.T) {
 
 	// and we fetch the L1 origin of that as starting point for engine queue
 	l1F.ExpectL1BlockRefByHash(refB.Hash, refB, nil)
-	l1F.ExpectL1BlockRefByNumber(refB.Number, refB, nil)
+	l1F.ExpectL1BlockRefByHash(refB.Hash, refB, nil)
+
+	// and mock a L1 config for the last L2 block that references the L1 starting point
+	eng.ExpectSystemConfigByL2Hash(refB1.Hash, eth.SystemConfig{
+		BatcherAddr: common.Address{42},
+		Overhead:    [32]byte{123},
+		Scalar:      [32]byte{42},
+	}, nil)
 
 	prev := &fakeAttributesQueue{}
 
 	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F)
-	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}), io.EOF)
+	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
 
 	require.Equal(t, refB1, eq.SafeL2Head(), "L2 reset should go back to sequence window ago: blocks with origin E and D are not safe until we reconcile, C is extra, and B1 is the end we look for")
 	require.Equal(t, refB, eq.Origin(), "Expecting to be set back derivation L1 progress to B")

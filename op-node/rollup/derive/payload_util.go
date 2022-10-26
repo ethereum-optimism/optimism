@@ -3,9 +3,10 @@ package derive
 import (
 	"fmt"
 
+	"github.com/ethereum/go-ethereum/core/types"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // PayloadToBlockRef extracts the essential L2BlockRef information from an execution payload,
@@ -46,4 +47,9 @@ func PayloadToBlockRef(payload *eth.ExecutionPayload, genesis *rollup.Genesis) (
 		L1Origin:       l1Origin,
 		SequenceNumber: sequenceNumber,
 	}, nil
+}
+
+func PayloadToSystemConfig(payload *eth.ExecutionPayload, cfg *rollup.Config) (eth.SystemConfig, error) {
+	// TODO: temporary hack, while we don't have the block info contract to change the info encoding
+	return cfg.Genesis.SystemConfig, nil
 }

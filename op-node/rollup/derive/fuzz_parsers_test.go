@@ -8,8 +8,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -18,6 +16,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm/runtime"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 var (
@@ -70,13 +71,17 @@ func FuzzL1InfoRoundTrip(f *testing.F) {
 // FuzzL1InfoAgainstContract checks the custom marshalling functions against the contract
 // bindings to ensure that our functions are up to date and match the bindings.
 func FuzzL1InfoAgainstContract(f *testing.F) {
-	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, hash []byte, seqNumber uint64) {
+	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, hash []byte, seqNumber uint64, batcher []byte, l1FeeOverhead []byte, l1FeeScalar []byte) {
 		expected := L1BlockInfo{
 			Number:         number,
 			Time:           time,
 			BaseFee:        BytesToBigInt(baseFee),
 			BlockHash:      common.BytesToHash(hash),
 			SequenceNumber: seqNumber,
+			// TODO need SystemConfig contract
+			//BatcherAddr:    common.BytesToAddress(batcher),
+			//L1FeeOverhead:  common.BytesToHash(l1FeeOverhead),
+			//L1FeeScalar:    common.BytesToHash(l1FeeScalar),
 		}
 
 		// Setup opts
@@ -92,6 +97,10 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			BytesToBigInt(baseFee),
 			common.BytesToHash(hash),
 			seqNumber,
+			// TODO need SystemConfig contract
+			//common.BytesToAddress(batcher),
+			//common.BytesToHash(l1FeeOverhead).Big(),
+			//common.BytesToHash(l1FeeScalar).Big(),
 		)
 		if err != nil {
 			t.Fatalf("Failed to create the transaction: %v", err)

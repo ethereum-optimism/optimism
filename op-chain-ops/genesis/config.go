@@ -68,8 +68,8 @@ type DeployConfig struct {
 	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
 	GasPriceOracleOwner         common.Address `json:"gasPriceOracleOwner"`
-	GasPriceOracleOverhead      uint           `json:"gasPriceOracleOverhead"`
-	GasPriceOracleScalar        uint           `json:"gasPriceOracleScalar"`
+	GasPriceOracleOverhead      uint64         `json:"gasPriceOracleOverhead"`
+	GasPriceOracleScalar        uint64         `json:"gasPriceOracleScalar"`
 	GasPriceOracleDecimals      uint           `json:"gasPriceOracleDecimals"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
