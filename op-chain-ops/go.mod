@@ -9,6 +9,7 @@ require (
 	github.com/holiman/uint256 v1.2.0
 	github.com/mattn/go-isatty v0.0.14
 	github.com/stretchr/testify v1.8.0
+	github.com/urfave/cli v1.22.1
 	github.com/urfave/cli/v2 v2.10.2
 	golang.org/x/crypto v0.0.0-20220525230936-793ad666bf5e
 )
