@@ -1,15 +1,19 @@
 package actions
 
 import (
+	"math/big"
+	"math/rand"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
@@ -166,4 +170,121 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, uint64(3+6+1), verifier.L2Safe().L1Origin.Number, "sync new L1 chain, while key change is reorged out")
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Unsafe(), "verifier synced")
+}
+
+func TestGPOParamsChange(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+
+	alice := NewBasicUser[any](log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice.SetUserEnv(&BasicUserEnv[any]{
+		EthCl:  seqEngine.EthClient(),
+		Signer: types.LatestSigner(sd.L2Cfg.Config),
+	})
+
+	sequencer.ActL2PipelineFull(t)
+
+	// new L1 block, with new L2 chain
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+	basefee := miner.l1Chain.CurrentBlock().BaseFee()
+
+	// alice makes a L2 tx, sequencer includes it
+	alice.ActResetTxOpts(t)
+	alice.ActMakeTx(t)
+	sequencer.ActL2StartBlock(t)
+	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	sequencer.ActL2EndBlock(t)
+
+	receipt := alice.LastTxReceipt(t)
+	require.Equal(t, basefee, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
+	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
+	l1Cost := types.L1Cost(receipt.L1GasUsed.Uint64(), basefee, big.NewInt(2100), big.NewInt(1000_000))
+	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with standard GPO params")
+	require.Equal(t, "1", receipt.FeeScalar.String(), "1000_000 divided by 6 decimals = float(1)")
+
+	// confirm L2 chain on L1
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+
+	sysCfgContract, err := bindings.NewSystemConfig(sd.RollupCfg.L1SystemConfigAddress, miner.EthClient())
+	require.NoError(t, err)
+
+	sysCfgOwner, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.SysCfgOwner, sd.RollupCfg.L1ChainID)
+	require.NoError(t, err)
+
+	// overhead changes from 2100 (default) to 1000
+	// scalar changes from 1000_000 (default) to 2300_000
+	// e.g. if system operator determines that l2 txs need to be more expensive, but small ones less
+	_, err = sysCfgContract.SetGasConfig(sysCfgOwner, big.NewInt(1000), big.NewInt(2300_000))
+	require.NoError(t, err)
+
+	// include the GPO change tx in L1
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.SysCfgOwner)(t)
+	miner.ActL1EndBlock(t)
+	basefeeGPOUpdate := miner.l1Chain.CurrentBlock().BaseFee()
+
+	// build empty L2 chain, up to but excluding the L2 block with the L1 origin that processes the GPO change
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1HeadExcl(t)
+
+	engCl := seqEngine.EngineClient(t, sd.RollupCfg)
+	payload, err := engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	sysCfg, err := derive.PayloadToSystemConfig(payload, sd.RollupCfg)
+	require.NoError(t, err)
+	require.Equal(t, sd.RollupCfg.Genesis.SystemConfig, sysCfg, "still have genesis system config before we adopt the L1 block with GPO change")
+
+	// Now alice makes another transaction, which gets included in the same block that adopts the L1 origin with GPO change
+	alice.ActResetTxOpts(t)
+	alice.ActMakeTx(t)
+	sequencer.ActL2StartBlock(t)
+	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	sequencer.ActL2EndBlock(t)
+
+	payload, err = engCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	sysCfg, err = derive.PayloadToSystemConfig(payload, sd.RollupCfg)
+	require.NoError(t, err)
+	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(1000))), sysCfg.Overhead, "overhead changed")
+	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(2300_000))), sysCfg.Scalar, "scalar changed")
+
+	receipt = alice.LastTxReceipt(t)
+	require.Equal(t, basefeeGPOUpdate, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
+	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
+	l1Cost = types.L1Cost(receipt.L1GasUsed.Uint64(), basefeeGPOUpdate, big.NewInt(1000), big.NewInt(2300_000))
+	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
+	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2300_000 divided by 6 decimals = float(2.3)")
+
+	// build more L2 blocks, with new L1 origin
+	miner.ActEmptyBlock(t)
+	basefee = miner.l1Chain.CurrentBlock().BaseFee()
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+	// and Alice makes a tx again
+	alice.ActResetTxOpts(t)
+	alice.ActMakeTx(t)
+	sequencer.ActL2StartBlock(t)
+	seqEngine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+	sequencer.ActL2EndBlock(t)
+
+	// and verify the new GPO params are persistent, even though the L1 origin and L2 chain have progressed
+	receipt = alice.LastTxReceipt(t)
+	require.Equal(t, basefee, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
+	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
+	l1Cost = types.L1Cost(receipt.L1GasUsed.Uint64(), basefee, big.NewInt(1000), big.NewInt(2300_000))
+	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
+	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2300_000 divided by 6 decimals = float(2.3)")
 }
