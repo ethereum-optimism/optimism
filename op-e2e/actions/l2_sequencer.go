@@ -1,12 +1,13 @@
 package actions
 
 import (
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 // L2Sequencer is an actor that functions like a rollup node,
@@ -97,6 +98,20 @@ func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
 		s.ActL2PipelineFull(t)
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
+
+// ActBuildToL1HeadExcl builds empty blocks until (excl.) the L1 head becomes the L2 origin
+func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
+	for {
+		s.ActL2PipelineFull(t)
+		nextOrigin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), s.derivation.UnsafeL2Head())
+		require.NoError(t, err)
+		if nextOrigin.Number >= s.l1State.L1Head().Number {
+			break
+		}
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}
