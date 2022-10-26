@@ -463,7 +463,7 @@ contract FFIInterface is Test {
             bytes32,
             bytes32,
             bytes32,
-            bytes memory
+            bytes[] memory
         )
     {
         string[] memory cmds = new string[](9);
@@ -483,8 +483,8 @@ contract FFIInterface is Test {
             bytes32 storageRoot,
             bytes32 outputRoot,
             bytes32 withdrawalHash,
-            bytes memory withdrawalProof
-        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes));
+            bytes[] memory withdrawalProof
+        ) = abi.decode(result, (bytes32, bytes32, bytes32, bytes32, bytes[]));
 
         return (stateRoot, storageRoot, outputRoot, withdrawalHash, withdrawalProof);
     }

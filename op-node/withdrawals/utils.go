@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -158,7 +157,7 @@ type FinalizedWithdrawalParameters struct {
 	BlockNumber     *big.Int
 	Data            []byte
 	OutputRootProof bindings.TypesOutputRootProof
-	WithdrawalProof []byte // RLP Encoded list of trie nodes to prove L2 storage
+	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
 }
 
 // FinalizeWithdrawalParameters queries L2 to generate all withdrawal parameters and proof necessary to finalize an withdrawal on L1.
@@ -203,11 +202,6 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		trieNodes[i] = common.FromHex(s)
 	}
 
-	withdrawalProof, err := rlp.EncodeToBytes(trieNodes)
-	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
-	}
-
 	return FinalizedWithdrawalParameters{
 		Nonce:       ev.Nonce,
 		Sender:      ev.Sender,
@@ -222,7 +216,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 			MessagePasserStorageRoot: p.StorageHash,
 			LatestBlockhash:          header.Hash(),
 		},
-		WithdrawalProof: withdrawalProof,
+		WithdrawalProof: trieNodes,
 	}, nil
 }
 

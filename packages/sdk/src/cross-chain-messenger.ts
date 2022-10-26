@@ -1296,7 +1296,7 @@ export class CrossChainMessenger {
           messagePasserStorageRoot: stateTrieProof.storageRoot,
           latestBlockhash: block.hash,
         },
-        withdrawalProof: ethers.utils.RLP.encode(stateTrieProof.storageProof),
+        withdrawalProof: stateTrieProof.storageProof,
       },
       output,
       // TODO(tynes): use better type, typechain?

@@ -363,11 +363,10 @@ where:
 
 When decompressing a channel, we limit the amount of decompressed data to `MAX_RLP_BYTES_PER_CHANNEL` (currently
 10,000,000 bytes), in order to avoid "zip-bomb" types of attack (where a small compressed input decompresses to a
-humongous amount of data). If the decompressed data exceeds the limit, things proceeds as thought the channel contained
-only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
-
-When decoding batches, all batches that can be completly decoded below `MAX_RLP_BYTES_PER_CHANNEL` will be accepted
-even if the size of the channel is greater than `MAX_RLP_BYTES_PER_CHANNEL`.
+humongous amount of data). If the decompressed data exceeds the limit, things proceeds as though the channel contained
+only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes. The limit is set on RLP decoding, so all batches that
+can be decoded in `MAX_RLP_BYTES_PER_CHANNEL` will be accepted ven if the size of the channel is greater than
+`MAX_RLP_BYTES_PER_CHANNEL`. The exact requirement is that `length(input) <= MAX_RLP_BYTES_PER_CHANNEL`.
 
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
@@ -520,6 +519,14 @@ As currently implemented, each step in this stage performs the following actions
     - For a timed channel, those are all the frames until the first missing frame. Frames after the first missing
           frame are discarded.
   - Concatenate the data of the *contiguous frame sequence* (in sequential order) and push it to the next stage.
+
+The ordering of these actions is very important to be consistent across nodes & pipeline resets. The rollup node
+must attempt to do the following in order to maintain a consistent channel bank even in the presence of pruning.
+
+1. Attempt to read as many channels as possible from the channel bank.
+2. Load in a single frame
+3. Check if channel bank needs to be pruned & do so if needed.
+4. Go to step 1 once the channel bank is under it's size limit.
 
 > **TODO** Instead of waiting on the first seen channel (which might not contain the oldest batches, meaning buffering
 > further down the pipeline), we could process any channel in the queue that is ready. We could do this by checking for

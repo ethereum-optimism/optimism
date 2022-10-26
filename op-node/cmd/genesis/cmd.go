@@ -57,13 +57,7 @@ var Subcommands = cli.Commands{
 			}
 
 			l1StartBlock := l1Genesis.ToBlock()
-			l2Addrs := &genesis.L2Addresses{
-				ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-				L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-				L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-				L1ERC721BridgeProxy:         predeploys.DevL1ERC721BridgeAddr,
-			}
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, nil)
 			if err != nil {
 				return err
 			}
@@ -136,10 +130,6 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
-			if err != nil {
-				return err
-			}
 			l1SBP, err := hh.GetDeployment("L1StandardBridgeProxy")
 			if err != nil {
 				return err
@@ -158,7 +148,7 @@ var Subcommands = cli.Commands{
 			}
 
 			l2Addrs := &genesis.L2Addresses{
-				ProxyAdmin:                  proxyAdmin.Address,
+				ProxyAdminOwner:             config.ProxyAdminOwner,
 				L1StandardBridgeProxy:       l1SBP.Address,
 				L1CrossDomainMessengerProxy: l1XDMP.Address,
 				L1ERC721BridgeProxy:         l1ERC721BP.Address,
