@@ -65,7 +65,7 @@ func main() {
 			},
 			cli.BoolFlag{
 				Name:  "dry-run",
-				Usage: "Dry run the upgrade by not commiting the database",
+				Usage: "Dry run the upgrade by not committing the database",
 			},
 		},
 		Action: func(ctx *cli.Context) error {
@@ -155,10 +155,14 @@ func main() {
 			}
 
 			if ctx.Bool("dry-run") {
+				log.Info("Dry run complete")
 				return nil
 			}
 
 			root, err := sdb.Commit(true)
+			if err != nil {
+				return err
+			}
 			log.Info("Migration complete", "root", root)
 
 			return nil
