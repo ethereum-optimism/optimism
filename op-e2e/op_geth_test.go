@@ -132,5 +132,4 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	res, err = client.ForkchoiceUpdate(ctx, &fc, nil)
 	require.Nil(t, err)
 	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
-
 }
