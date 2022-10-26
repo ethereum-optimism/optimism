@@ -464,18 +464,18 @@ particular we extract a byte string that corresponds to the concatenation of the
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
-These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
+These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*. When
+adding frames the the channel, individual frames may be invalid, but the channel does not have a notion of validity
+until the channel timeout is up. This enables adding the option to do a partial read from the channel in the future.
 
 Some frames are ignored:
 
-- Frames where `frame.frame_number <= highest_frame_number`, where `highest_frame_number` is the highest frame number
-  that was previously encountered for this channel.
-  - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
-- Frames with a higher number than that of the final frame of the channel (i.e. the first frame marked with
-  `frame.is_last == 1`) are ignored.
-  - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
-      never be read out from the channel bank.
-- Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears.
+- Frames with the same frame number as an existing frame in the channel (a duplicate). The first seen frame is used.
+- Frames that attempt to close an already closed channel. This would be the second frame with `frame.is_last == 1` even
+  if the frame number of the second frame is not the same as the first frame which closed the channel.
+
+If a frame with `is_last == 1` is added to a channel, all frames with a higher frame number are removed from the
+channel.
 
 Channels are also recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
 queue the first time a frame belonging to the channel is seen. This structure is used in the next stage.
