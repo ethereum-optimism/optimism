@@ -191,6 +191,11 @@ func makeRollupConfig(
 				Number: 0,
 			},
 			L2Time: l1StartBlock.Time(),
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: config.BatchSenderAddress,
+				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleOverhead))),
+				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleScalar))),
+			},
 		},
 		BlockTime:              config.L2BlockTime,
 		MaxSequencerDrift:      config.MaxSequencerDrift,
@@ -201,7 +206,6 @@ func makeRollupConfig(
 		P2PSequencerAddress:    config.P2PSequencerAddress,
 		FeeRecipientAddress:    config.OptimismL2FeeRecipient,
 		BatchInboxAddress:      config.BatchInboxAddress,
-		BatchSenderAddress:     config.BatchSenderAddress,
 		DepositContractAddress: portalAddr,
 		L1SystemConfigAddress:  sysConfigAddr,
 	}
