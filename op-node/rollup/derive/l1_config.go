@@ -66,11 +66,17 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		destSysCfg.BatcherAddr.SetBytes(ev.Data)
 		return nil
 	case common.Hash{31: 0x01}: // left padded uint8
-		if len(ev.Data) != 32*2 {
-			return fmt.Errorf("expected 32*2 bytes in GPO params update data, but got %d", len(ev.Data))
+		if len(ev.Data) != 32*4 {
+			return fmt.Errorf("expected 32*4 bytes in GPO params update data, but got %d", len(ev.Data))
 		}
-		copy(destSysCfg.Overhead[:], ev.Data[:32])
-		copy(destSysCfg.Scalar[:], ev.Data[32:])
+		if x := common.BytesToHash(ev.Data[:32]); x != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected offset to point to length location, but got %s", x)
+		}
+		if x := common.BytesToHash(ev.Data[32:64]); x != (common.Hash{31: 64}) {
+			return fmt.Errorf("expected length of 2 bytes32, but got %s", x)
+		}
+		copy(destSysCfg.Overhead[:], ev.Data[64:96])
+		copy(destSysCfg.Scalar[:], ev.Data[96:128])
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
