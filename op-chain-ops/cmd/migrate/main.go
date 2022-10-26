@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -12,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 
 	op_state "github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/mattn/go-isatty"
@@ -54,6 +54,10 @@ func main() {
 			&cli.StringFlag{
 				Name:  "evm-messages",
 				Usage: "Path to evm-messages.json",
+			},
+			&cli.StringFlag{
+				Name:  "l2-addresses",
+				Usage: "Path to l2-addresses.json",
 			},
 			&cli.StringFlag{
 				Name:  "db-path",
@@ -104,6 +108,11 @@ func main() {
 				EvmMessages:   evmMessages,
 			}
 
+			l2Addrs, err := genesis.NewL2Addresses(ctx.String("l2-addresses"))
+			if err != nil {
+				return err
+			}
+
 			l1RpcURL := ctx.String("l1-rpc-url")
 			l1Client, err := ethclient.Dial(l1RpcURL)
 			if err != nil {
@@ -142,15 +151,14 @@ func main() {
 				return err
 			}
 
-			l2Addrs := genesis.L2Addresses{
-				ProxyAdminOwner: config.ProxyAdminOwner,
-				// TODO: these values are not in the config
-				L1StandardBridgeProxy:       common.Address{},
-				L1CrossDomainMessengerProxy: common.Address{},
-				L1ERC721BridgeProxy:         common.Address{},
+			// TODO: think about optimal config, there are a lot of deps
+			// regarding changing this
+			if config.ProxyAdminOwner != l2Addrs.ProxyAdminOwner {
+				return errors.New("mismatched ProxyAdminOwner config")
+
 			}
 
-			if err := genesis.MigrateDB(wrappedDB, config, block, &l2Addrs, &migrationData); err != nil {
+			if err := genesis.MigrateDB(wrappedDB, config, block, l2Addrs, &migrationData); err != nil {
 				return err
 			}
 
