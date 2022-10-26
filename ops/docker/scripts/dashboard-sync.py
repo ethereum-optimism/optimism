@@ -4,16 +4,9 @@ import urllib.request
 
 dashboard_list=[
   {
-   'name': 'Geth Optimism',
+   'name': 'Single Geth',
    'filename': 'single_geth.json',
-   'url': 'https://grafana.com/api/dashboards/13877/revisions/1/download',
-   'datasource': 'InfluxDB'
-  },
-  {
-   'name': 'Geth Ethereum',
-   'filename': 'single_geth_eth.json',
-   'url': 'https://grafana.com/api/dashboards/13877/revisions/1/download',
-   'datasource': 'InfluxDB_eth'
+   'url': 'https://grafana.com/api/dashboards/13877/revisions/1/download'
   }
 ]
 dashboard_path="/grafana-dashboards"

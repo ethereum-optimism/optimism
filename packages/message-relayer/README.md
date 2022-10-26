@@ -1,5 +1,7 @@
 # @eth-optimism/message-relayer
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=message-relayer-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 `message-relayer` is a service that automatically finalizes ("relays") messages sent from Optimism to Ethereum.
 This package is meant to be used during local development and should NOT be used on a production network.
 

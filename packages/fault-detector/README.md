@@ -1,5 +1,7 @@
 # @eth-optimism/fault-detector
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=fault-detector-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 The `fault-detector` is a simple service for detecting discrepancies between your local view of the Optimism network and the L2 output proposals published to Ethereum.
 
 ## Installation

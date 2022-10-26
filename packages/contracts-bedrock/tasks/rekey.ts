@@ -8,7 +8,7 @@ task('rekey', 'Generates a new set of keys for a test network').setAction(
     const pathPrefix = "m/44'/60'/0'/0"
     const labels = [
       'l2OutputOracleProposer',
-      'proxyAdmin',
+      'proxyAdminOwner',
       'optimismBaseFeeRecipient',
       'optimismL1FeeRecipient',
       'optimismL2FeeRecipient',

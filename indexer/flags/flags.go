@@ -22,12 +22,6 @@ var (
 		Required: true,
 		EnvVar:   prefixEnvVar("BUILD_ENV"),
 	}
-	EthNetworkNameFlag = cli.StringFlag{
-		Name:     "eth-network-name",
-		Usage:    "Ethereum network name",
-		Required: true,
-		EnvVar:   prefixEnvVar("ETH_NETWORK_NAME"),
-	}
 	ChainIDFlag = cli.StringFlag{
 		Name:     "chain-id",
 		Usage:    "Ethereum chain ID",
@@ -188,7 +182,6 @@ var (
 
 var requiredFlags = []cli.Flag{
 	BuildEnvFlag,
-	EthNetworkNameFlag,
 	ChainIDFlag,
 	L1EthRPCFlag,
 	L2EthRPCFlag,
