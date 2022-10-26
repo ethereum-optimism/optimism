@@ -29,6 +29,7 @@ type TestingBase interface {
 	Skipf(format string, args ...any)
 	Skipped() bool
 	TempDir() string
+	Parallel()
 }
 
 func TimeoutCtx(t *testing.T, timeout time.Duration) context.Context {
