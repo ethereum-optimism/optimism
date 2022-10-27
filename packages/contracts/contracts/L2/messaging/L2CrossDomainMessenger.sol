@@ -33,9 +33,9 @@ contract L2CrossDomainMessenger is IL2CrossDomainMessenger {
      * Constructor *
      ***************/
 
-     /**
-      * @param _l1CrossDomainMessenger Address of the L1 CrossDomainMessenger
-      */
+    /**
+     * @param _l1CrossDomainMessenger Address of the L1 CrossDomainMessenger
+     */
     constructor(address _l1CrossDomainMessenger) {
         l1CrossDomainMessenger = _l1CrossDomainMessenger;
     }
