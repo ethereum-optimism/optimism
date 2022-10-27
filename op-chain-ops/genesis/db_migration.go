@@ -60,14 +60,14 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 	}
 
 	// Check that all of the slots from storage correspond to a known message
-	for slot, _ := range slots {
+	for slot := range slots {
 		_, ok := knownSlots[slot]
 		if !ok {
 			return fmt.Errorf("Unknown storage slot in state: %s", slot)
 		}
 	}
 	// Check that all of the input messages are legit
-	for slot, _ := range knownSlots {
+	for slot := range knownSlots {
 		_, ok := slots[slot]
 		if !ok {
 			return fmt.Errorf("Unknown input message: %s", slot)

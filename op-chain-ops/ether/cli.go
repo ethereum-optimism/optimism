@@ -1,7 +1,6 @@
 package ether
 
 import (
-	"bytes"
 	"encoding/json"
 	"math/big"
 	"os"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -24,8 +22,6 @@ var (
 
 	// maxSlot is the maximum slot we'll consider to be a non-mapping variable.
 	maxSlot = new(big.Int).SetUint64(256)
-
-	emptyCodeHash = crypto.Keccak256(nil)
 )
 
 // DumpAddresses dumps address preimages in Geth's database to disk.
@@ -122,6 +118,9 @@ func Migrate(dataDir, outDir string, genesis *core.Genesis, addrLists, allowance
 	root := headBlock.Root()
 	backingStateDB := state.NewDatabase(db)
 	stateDB, err := state.New(root, backingStateDB, nil)
+	if err != nil {
+		return wrapErr(err, "error creating state DB")
+	}
 
 	log.Info("committing state DB")
 	newRoot, err := stateDB.Commit(false)
@@ -171,22 +170,6 @@ func getOVMETHTotalSupply(inStateDB *state.StateDB) *big.Int {
 	position := common.Big2
 	key := common.BytesToHash(common.LeftPadBytes(position.Bytes(), 32))
 	return inStateDB.GetState(OVMETHAddress, key).Big()
-}
-
-// getCode returns a contract's code. Taken verbatim from Geth.
-func getCode(addrHash common.Hash, data types.StateAccount, db state.Database) []byte {
-	if bytes.Equal(data.CodeHash, emptyCodeHash) {
-		return nil
-	}
-
-	code, err := db.ContractCode(
-		addrHash,
-		common.BytesToHash(data.CodeHash),
-	)
-	if err != nil {
-		panic(err)
-	}
-	return code
 }
 
 // getOVMETHBalance gets a user's OVM ETH balance from state by querying the
