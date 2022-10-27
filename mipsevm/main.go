@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"flag"
 
 	uc "github.com/unicorn-engine/unicorn/bindings/go/unicorn"
 )
@@ -20,29 +21,36 @@ func WriteCheckpoint(ram map[uint32](uint32), fn string, step int) {
 }
 
 func main() {
-	root := ""
-	target := -1
+	var target int
+	var programPath string
+	var evm bool
+	var basedir string
+	var outputGolden bool
+	var blockNumber int
+	var root string
+
+	defaultBasedir := os.Getenv("BASEDIR")
+	if len(defaultBasedir) == 0 {
+		defaultBasedir = "/tmp/cannon"
+	}
+	flag.StringVar(&basedir, "basedir", defaultBasedir, "Directory to read inputs, write outputs, and cache preimage oracle data.")
+	flag.IntVar(&blockNumber, "blockNumber", -1, "For state transition programs (e.g. rollups), used to create a seperate subdirectory in the basedir for each block inputs/outputs and snapshots.")
+	flag.IntVar(&target, "target", -1, "Target number of instructions to execute in the trace. If < 0 will execute until termination")
+	flag.StringVar(&programPath, "program", "mipigo/minigeth.bin", "Path to binary file containing the program to run")
+	flag.BoolVar(&evm, "evm", false, "If the program should be executed by a MIPS emulator running inside the EVM. This is much much slower than using the Unicorn emulator but exactly replicates the fault proving environment.")
+	flag.BoolVar(&outputGolden, "outputGolden", false, "Do not read any inputs and instead produce a snapshot of the state prior to execution. Written to <basedir>/golden.json")
+	flag.Parse()
+
+	if blockNumber >= 0 {
+		root = fmt.Sprintf("%s/%d_%d", basedir, 0, blockNumber)
+	} else {
+		root = basedir
+	}
 
 	regfault := -1
 	regfault_str, regfault_valid := os.LookupEnv("REGFAULT")
 	if regfault_valid {
 		regfault, _ = strconv.Atoi(regfault_str)
-	}
-
-	basedir := os.Getenv("BASEDIR")
-	if len(basedir) == 0 {
-		basedir = "/tmp/cannon"
-	}
-	if len(os.Args) > 1 {
-		blockNumber, _ := strconv.Atoi(os.Args[1])
-		root = fmt.Sprintf("%s/%d_%d", basedir, 0, blockNumber)
-	}
-	if len(os.Args) > 2 {
-		target, _ = strconv.Atoi(os.Args[2])
-	}
-	evm := false
-	if len(os.Args) > 3 && os.Args[3] == "evm" {
-		evm = true
 	}
 
 	// step 1, generate the checkpoints every million steps using unicorn
@@ -52,7 +60,7 @@ func main() {
 	if evm {
 		// TODO: fix this
 		/*ZeroRegisters(ram)
-		LoadMappedFile("mipigo/minigeth.bin", ram, 0)
+		LoadMappedFile(programPath, ram, 0)
 		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)
 		LoadMappedFile(fmt.Sprintf("%s/input", root), ram, 0x30000000)
 		RunWithRam(ram, target-1, 0, root, nil)
@@ -83,10 +91,10 @@ func main() {
 
 		ZeroRegisters(ram)
 		// not ready for golden yet
-		LoadMappedFileUnicorn(mu, "mipigo/minigeth.bin", ram, 0)
-		if root == "" {
-			WriteCheckpoint(ram, fmt.Sprintf("%s/golden.json", basedir), -1)
-			fmt.Println("exiting early without a block number")
+		LoadMappedFileUnicorn(mu, programPath, ram, 0)
+		if outputGolden {
+			WriteCheckpoint(ram, fmt.Sprintf("%s/golden.json", root), -1)
+			fmt.Println("Writing golden snapshot and exiting early without execution")
 			os.Exit(0)
 		}
 
