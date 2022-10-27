@@ -39,7 +39,7 @@ type BatchSubmitter struct {
 
 	ch *derive.ChannelOut
 
-	s batchState
+	s channelManager
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
@@ -279,7 +279,7 @@ func (l *BatchSubmitter) loop() {
 		select {
 		case <-ticker.C:
 			l.loadBlocksIntoState(context.TODO())
-			data, err := l.s.TxData(eth.L1BlockRef{})
+			data, _, err := l.s.TxData(eth.L1BlockRef{})
 			if err == io.EOF {
 				break
 			} else if err != nil {
