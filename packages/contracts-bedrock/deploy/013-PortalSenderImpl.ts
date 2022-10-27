@@ -1,0 +1,31 @@
+import { DeployFunction } from 'hardhat-deploy/dist/types'
+
+import {
+  assertContractVariable,
+  deployAndVerifyAndThen,
+  getContractFromArtifact,
+} from '../src/deploy-utils'
+
+const deployFn: DeployFunction = async (hre) => {
+  const OptimismPortalProxy = await getContractFromArtifact(
+    hre,
+    'OptimismPortalProxy'
+  )
+  await deployAndVerifyAndThen({
+    hre,
+    name: 'PortalSenderImpl',
+    contract: 'PortalSender',
+    args: [OptimismPortalProxy.address],
+    postDeployAction: async (contract) => {
+      await assertContractVariable(
+        contract,
+        'portal',
+        OptimismPortalProxy.address
+      )
+    },
+  })
+}
+
+deployFn.tags = ['PortalSenderImpl', 'fresh', 'migration']
+
+export default deployFn

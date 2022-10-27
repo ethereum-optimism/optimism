@@ -77,6 +77,18 @@ const config: HardhatUserConfig = {
       default: ethers.constants.AddressZero,
     },
 
+    // Address of the AddressManager (legacy only).
+    addressManager: {
+      type: 'address',
+      default: ethers.constants.AddressZero,
+    },
+
+    // Address of the system controller.
+    controller: {
+      type: 'address',
+      default: ethers.constants.AddressZero,
+    },
+
     // To anchor the rollup at for L1 genesis.
     // The L2 genesis script uses this to fill the storage of the L1Block info predeploy.
     // The rollup config script uses this to fill the L1 genesis info for the rollup.
