@@ -62,6 +62,14 @@ func TestFrameValidity(t *testing.T) {
 			sizes:     []uint64{204, 204},
 		},
 		{
+			name: "duplicate closing frames",
+			frames: []Frame{
+				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
+				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("seven__")}},
+			shouldErr: []bool{false, true},
+			sizes:     []uint64{204, 204},
+		},
+		{
 			name: "frame past closing",
 			frames: []Frame{
 				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")},
@@ -76,6 +84,14 @@ func TestFrameValidity(t *testing.T) {
 				{ID: id, FrameNumber: 2, IsLast: true, Data: []byte("four")}},
 			shouldErr: []bool{false, false},
 			sizes:     []uint64{207, 204},
+		},
+		{
+			name: "multiple valid frames",
+			frames: []Frame{
+				{ID: id, FrameNumber: 10, Data: []byte("seven__")},
+				{ID: id, FrameNumber: 2, Data: []byte("four")}},
+			shouldErr: []bool{false, false},
+			sizes:     []uint64{207, 411},
 		},
 	}
 

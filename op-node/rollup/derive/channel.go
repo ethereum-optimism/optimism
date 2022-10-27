@@ -72,15 +72,11 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 	// Prune frames with a number higher than the closing frame number when we receive a closing frame
 	if frame.IsLast && ch.endFrameNumber < ch.highestFrameNumber {
 		// Do a linear scan over saved inputs instead of ranging over ID numbers
-		var idsToPrune []uint64
 		for id, prunedFrame := range ch.inputs {
 			if id >= uint64(ch.endFrameNumber) {
-				idsToPrune = append(idsToPrune, id)
+				delete(ch.inputs, id)
 			}
 			ch.size -= frameSize(prunedFrame)
-		}
-		for _, id := range idsToPrune {
-			delete(ch.inputs, id)
 		}
 		ch.highestFrameNumber = ch.endFrameNumber
 	}
@@ -141,7 +137,7 @@ func (ch *Channel) Reader() io.Reader {
 		if !ok {
 			panic("dev error in channel.Reader. Must be called after the channel is ready.")
 		}
-		readers = append(readers, bytes.NewBuffer(frame.Data))
+		readers = append(readers, bytes.NewReader(frame.Data))
 	}
 	return io.MultiReader(readers...)
 }
