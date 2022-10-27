@@ -41,7 +41,7 @@ import {
   SignerOrProviderLike,
   CrossChainMessage,
   CrossChainMessageRequest,
-  CrossChainMessageProof,
+  StorageProof,
   MessageDirection,
   MessageStatus,
   TokenBridgeMessage,
@@ -52,6 +52,7 @@ import {
   StateRoot,
   StateRootBatch,
   IBridgeAdapter,
+  CrossChainMessageProof,
 } from './interfaces'
 import {
   toSignerOrProvider,
@@ -943,6 +944,49 @@ export class CrossChainMessenger {
   }
 
   /**
+   * Returns the state root that corresponds to a given transaction index. This is the state root
+   * for the block in which the transaction was included, as published to the StateCommitmentChain.
+   * If the state root for the given transaction has not been published yet, this function returns
+   * null.
+   *
+   * @param transactionIndex Transaction index to find a state root for.
+   * @returns State root for the block in which the transaction was included.
+   */
+  public async getStateRootByTransactionIndex(
+    transactionIndex: number
+  ): Promise<StateRoot | null> {
+    // Pull down the state root batch, we'll try to pick out the specific state root that
+    // corresponds to our transaction index.
+    const stateRootBatch = await this.getStateRootBatchByTransactionIndex(
+      transactionIndex
+    )
+
+    // No state root batch, no state root.
+    if (stateRootBatch === null) {
+      return null
+    }
+
+    // We have a state root batch, now we need to find the specific state root for our transaction.
+    // First we need to figure out the index of the state root within the batch we found. This is
+    // going to be the original transaction index offset by the total number of previous state
+    // roots.
+    const indexInBatch =
+      transactionIndex - stateRootBatch.header.prevTotalElements.toNumber()
+
+    // Just a sanity check.
+    if (stateRootBatch.stateRoots.length <= indexInBatch) {
+      // Should never happen!
+      throw new Error(`state root does not exist in batch`)
+    }
+
+    return {
+      stateRoot: stateRootBatch.stateRoots[indexInBatch],
+      stateRootIndexInBatch: indexInBatch,
+      batch: stateRootBatch,
+    }
+  }
+
+  /**
    * Returns the state root that corresponds to a given message. This is the state root for the
    * block in which the transaction was included, as published to the StateCommitmentChain. If the
    * state root for the given message has not been published yet, this function returns null.
@@ -966,39 +1010,7 @@ export class CrossChainMessenger {
       resolved.transactionHash
     )
 
-    // Every block has exactly one transaction in it. Since there's a genesis block, the
-    // transaction index will always be one less than the block number.
-    const messageTxIndex = messageTxReceipt.blockNumber - 1
-
-    // Pull down the state root batch, we'll try to pick out the specific state root that
-    // corresponds to our message.
-    const stateRootBatch = await this.getStateRootBatchByTransactionIndex(
-      messageTxIndex
-    )
-
-    // No state root batch, no state root.
-    if (stateRootBatch === null) {
-      return null
-    }
-
-    // We have a state root batch, now we need to find the specific state root for our transaction.
-    // First we need to figure out the index of the state root within the batch we found. This is
-    // going to be the original transaction index offset by the total number of previous state
-    // roots.
-    const indexInBatch =
-      messageTxIndex - stateRootBatch.header.prevTotalElements.toNumber()
-
-    // Just a sanity check.
-    if (stateRootBatch.stateRoots.length <= indexInBatch) {
-      // Should never happen!
-      throw new Error(`state root does not exist in batch`)
-    }
-
-    return {
-      stateRoot: stateRootBatch.stateRoots[indexInBatch],
-      stateRootIndexInBatch: indexInBatch,
-      batch: stateRootBatch,
-    }
+    return this.getStateRootByTransactionIndex(messageTxReceipt.blockNumber - 1)
   }
 
   /**
@@ -1130,6 +1142,108 @@ export class CrossChainMessenger {
   }
 
   /**
+   * Gets a storage proof (including state root proof) for a given address and storage slot at a
+   * given block tag. A block tag can either be a specific block number or the string "latest" or
+   * "finalized". If the string "finalized" is used, then the proof will be provided with respect
+   * to the latest finalized **state root**.
+   *
+   * @param address Address to get a storage proof for.
+   * @param slot Storage slot to get a storage proof for.
+   * @param blockTag Block tag at which to get the storage proof.
+   * @returns Storage proof for the given address and storage slot at the given block tag.
+   */
+  public async getStorageProof(
+    address: string,
+    slot: string,
+    blockTag?: NumberLike | 'latest' | 'finalized'
+  ): Promise<StorageProof> {
+    let transactionIndex: number
+    if (blockTag === 'latest') {
+      const totalElements =
+        await this.contracts.l1.StateCommitmentChain.getTotalElements()
+      transactionIndex = totalElements.toNumber() - 1
+    } else if (blockTag === 'finalized') {
+      const fpw =
+        await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
+      const latestBlock = await this.l1Provider.getBlock('latest')
+      const totalBatches =
+        await this.contracts.l1.StateCommitmentChain.getTotalBatches()
+
+      // Nothing can be finalized if there are no batches.
+      if (totalBatches.eq(0)) {
+        throw new Error(`no state root batches have been submitted yet`)
+      }
+
+      const isBatchFinalized = async (batchIndex: number): Promise<boolean> => {
+        const event = await this.getStateBatchAppendedEventByBatchIndex(
+          batchIndex
+        )
+
+        // Happens when the StateCommitmentChain is redeployed. We'll just assume these are
+        // finalized, shouldn't be a problem in practice.
+        if (event === null && batchIndex < totalBatches.toNumber()) {
+          return true
+        }
+
+        const block = await event.getBlock()
+        return block.timestamp + fpw.toNumber() < latestBlock.timestamp
+      }
+
+      // Perform a binary search to find the latest finalized batch.
+      let hasSomeFinalized = false
+      let lo = 0
+      let hi = totalBatches.toNumber()
+      while (lo + 1 !== hi) {
+        const mid = Math.floor((lo + hi) / 2)
+        if (await isBatchFinalized(mid)) {
+          hasSomeFinalized = true
+          lo = mid
+        } else {
+          hi = mid - 1
+        }
+      }
+
+      // Might happen early on in the chain when there are no finalized batches yet.
+      if (!hasSomeFinalized) {
+        throw new Error(`no state root batches have been finalized yet`)
+      }
+
+      const batchEvent = await this.getStateBatchAppendedEventByBatchIndex(lo)
+      transactionIndex =
+        batchEvent.args._prevTotalElements.toNumber() +
+        batchEvent.args._batchSize.toNumber() -
+        1
+    } else {
+      transactionIndex = toNumber(blockTag)
+    }
+
+    const stateRoot = await this.getStateRootByTransactionIndex(
+      transactionIndex
+    )
+
+    const stateTrieProof = await makeStateTrieProof(
+      this.l2Provider as ethers.providers.JsonRpcProvider,
+      transactionIndex + 1,
+      address,
+      slot
+    )
+
+    return {
+      stateRoot: stateRoot.stateRoot,
+      stateRootBatchHeader: stateRoot.batch.header,
+      stateRootProof: {
+        index: stateRoot.stateRootIndexInBatch,
+        siblings: makeMerkleTreeProof(
+          stateRoot.batch.stateRoots,
+          stateRoot.stateRootIndexInBatch
+        ),
+      },
+      stateTrieWitness: toHexString(rlp.encode(stateTrieProof.accountProof)),
+      storageTrieWitness: toHexString(rlp.encode(stateTrieProof.storageProof)),
+    }
+  }
+
+  /**
    * Generates the proof required to finalize an L2 to L1 message.
    *
    * @param message Message to generate a proof for.
@@ -1141,11 +1255,6 @@ export class CrossChainMessenger {
     const resolved = await this.toCrossChainMessage(message)
     if (resolved.direction === MessageDirection.L1_TO_L2) {
       throw new Error(`can only generate proofs for L2 to L1 messages`)
-    }
-
-    const stateRoot = await this.getMessageStateRoot(resolved)
-    if (stateRoot === null) {
-      throw new Error(`state root for message not yet published`)
     }
 
     // We need to calculate the specific storage slot that demonstrates that this message was
@@ -1165,26 +1274,11 @@ export class CrossChainMessenger {
       ) + '00'.repeat(32)
     )
 
-    const stateTrieProof = await makeStateTrieProof(
-      this.l2Provider as ethers.providers.JsonRpcProvider,
-      resolved.blockNumber,
+    return this.getStorageProof(
       this.contracts.l2.OVM_L2ToL1MessagePasser.address,
-      messageSlot
+      messageSlot,
+      resolved.blockNumber
     )
-
-    return {
-      stateRoot: stateRoot.stateRoot,
-      stateRootBatchHeader: stateRoot.batch.header,
-      stateRootProof: {
-        index: stateRoot.stateRootIndexInBatch,
-        siblings: makeMerkleTreeProof(
-          stateRoot.batch.stateRoots,
-          stateRoot.stateRootIndexInBatch
-        ),
-      },
-      stateTrieWitness: toHexString(rlp.encode(stateTrieProof.accountProof)),
-      storageTrieWitness: toHexString(rlp.encode(stateTrieProof.storageProof)),
-    }
   }
 
   /**

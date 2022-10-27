@@ -263,7 +263,7 @@ export interface StateRootBatch {
 /**
  * Proof data required to finalize an L2 to L1 message.
  */
-export interface CrossChainMessageProof {
+export interface StorageProof {
   stateRoot: string
   stateRootBatchHeader: StateRootBatchHeader
   stateRootProof: {
@@ -273,6 +273,11 @@ export interface CrossChainMessageProof {
   stateTrieWitness: string
   storageTrieWitness: string
 }
+
+/**
+ * Legacy alias type.
+ */
+export type CrossChainMessageProof = StorageProof
 
 /**
  * Stuff that can be coerced into a transaction.
