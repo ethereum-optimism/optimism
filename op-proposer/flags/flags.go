@@ -68,6 +68,9 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
+
+	/* Optional flags */
+
 	MnemonicFlag = cli.StringFlag{
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
@@ -84,6 +87,11 @@ var (
 		Name:   "private-key",
 		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "PRIVATE_KEY"),
+	}
+	AllowNonFinalizedFlag = cli.BoolFlag{
+		Name:   "allow-non-finalized",
+		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ALLOW_NON_FINALIZED"),
 	}
 )
 
@@ -102,6 +110,7 @@ var optionalFlags = []cli.Flag{
 	MnemonicFlag,
 	L2OutputHDPathFlag,
 	PrivateKeyFlag,
+	AllowNonFinalizedFlag,
 }
 
 func init() {

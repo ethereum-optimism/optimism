@@ -12,14 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -28,6 +20,15 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"github.com/urfave/cli"
+
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
+	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
+	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
 const (
@@ -172,11 +173,6 @@ func NewL2OutputSubmitter(
 		return nil, err
 	}
 
-	l2Client, err := dialEthClientWithTimeout(ctx, cfg.L2EthRpc)
-	if err != nil {
-		return nil, err
-	}
-
 	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
@@ -197,14 +193,14 @@ func NewL2OutputSubmitter(
 	}
 
 	l2OutputDriver, err := l2output.NewDriver(l2output.Config{
-		Log:          l,
-		Name:         "L2Output Submitter",
-		L1Client:     l1Client,
-		L2Client:     l2Client,
-		RollupClient: rollupClient,
-		L2OOAddr:     l2ooAddress,
-		ChainID:      chainID,
-		PrivKey:      l2OutputPrivKey,
+		Log:               l,
+		Name:              "L2Output Submitter",
+		L1Client:          l1Client,
+		RollupClient:      rollupClient,
+		AllowNonFinalized: cfg.AllowNonFinalized,
+		L2OOAddr:          l2ooAddress,
+		ChainID:           chainID,
+		PrivKey:           l2OutputPrivKey,
 	})
 	if err != nil {
 		return nil, err

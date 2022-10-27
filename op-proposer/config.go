@@ -18,9 +18,6 @@ type Config struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
-	// L2EthRpc is the HTTP provider URL for L2.
-	L2EthRpc string
-
 	// RollupRpc is the HTTP provider URL for the rollup node.
 	RollupRpc string
 
@@ -60,6 +57,10 @@ type Config struct {
 
 	/* Optional Params */
 
+	// AllowNonFinalized can be set to true to propose outputs
+	// for L2 blocks derived from non-finalized L1 data.
+	AllowNonFinalized bool
+
 	LogConfig oplog.CLIConfig
 
 	MetricsConfig opmetrics.CLIConfig
@@ -88,7 +89,6 @@ func NewConfig(ctx *cli.Context) Config {
 	return Config{
 		/* Required Flags */
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
 		L2OOAddress:               ctx.GlobalString(flags.L2OOAddressFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
@@ -98,6 +98,7 @@ func NewConfig(ctx *cli.Context) Config {
 		Mnemonic:                  ctx.GlobalString(flags.MnemonicFlag.Name),
 		L2OutputHDPath:            ctx.GlobalString(flags.L2OutputHDPathFlag.Name),
 		PrivateKey:                ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		AllowNonFinalized:         ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:                 oprpc.ReadCLIConfig(ctx),
 		LogConfig:                 oplog.ReadCLIConfig(ctx),
 		MetricsConfig:             opmetrics.ReadCLIConfig(ctx),
