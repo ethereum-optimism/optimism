@@ -34,7 +34,7 @@ func main() {
 		defaultBasedir = "/tmp/cannon"
 	}
 	flag.StringVar(&basedir, "basedir", defaultBasedir, "Directory to read inputs, write outputs, and cache preimage oracle data.")
-	flag.IntVar(&blockNumber, "blockNumber", -1, "For state transition programs (e.g. rollups), used to create a seperate subdirectory in the basedir for each block inputs/outputs and snapshots.")
+	flag.IntVar(&blockNumber, "blockNumber", -1, "For state transition programs (e.g. rollups), used to create a separate subdirectory in the basedir for each block inputs/outputs and snapshots.")
 	flag.IntVar(&target, "target", -1, "Target number of instructions to execute in the trace. If < 0 will execute until termination")
 	flag.StringVar(&programPath, "program", "mipigo/minigeth.bin", "Path to binary file containing the program to run")
 	flag.BoolVar(&evm, "evm", false, "If the program should be executed by a MIPS emulator running inside the EVM. This is much much slower than using the Unicorn emulator but exactly replicates the fault proving environment.")
