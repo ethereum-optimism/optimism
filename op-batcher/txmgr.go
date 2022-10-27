@@ -102,6 +102,9 @@ func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transacti
 
 	gasFeeCap := txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
 
+	// TODO: gasTipCap & gasFeeCap may be below the exisitng gas/fee cap &
+	// should usually be bumped at least by geth's default price bump.
+
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   l.cfg.ChainID,
 		Nonce:     tx.Nonce(),
