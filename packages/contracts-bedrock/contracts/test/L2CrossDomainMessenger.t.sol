@@ -55,7 +55,6 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             )
         );
 
-
         // MessagePassed event
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(

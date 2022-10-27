@@ -32,7 +32,7 @@ func TestL1Replica_ActL1RPCFail(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	replica := NewL1Replica(log, sd.L1Cfg)
+	replica := NewL1Replica(t, log, sd.L1Cfg)
 	t.Cleanup(func() {
 		_ = replica.Close()
 	})
@@ -78,7 +78,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	}
 
 	// Enough setup, create the test actor and run the actual actions
-	replica1 := NewL1Replica(log, sd.L1Cfg)
+	replica1 := NewL1Replica(t, log, sd.L1Cfg)
 	t.Cleanup(func() {
 		_ = replica1.Close()
 	})
@@ -99,7 +99,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	require.Equal(t, replica1.l1Chain.CurrentBlock().Hash(), chainB[len(chainB)-1].Hash(), "sync replica1 to head of chain B")
 
 	// Adding and syncing a new replica
-	replica2 := NewL1Replica(log, sd.L1Cfg)
+	replica2 := NewL1Replica(t, log, sd.L1Cfg)
 	t.Cleanup(func() {
 		_ = replica2.Close()
 	})

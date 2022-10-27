@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.5.28
+
+### Patch Changes
+
+- ac0f14f5: Fix state dumper
+- 5005da9a: Fixes a small l2geth bug when trying to dump state
+
 ## 0.5.27
 
 ### Patch Changes
