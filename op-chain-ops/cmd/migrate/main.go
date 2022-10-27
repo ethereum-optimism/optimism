@@ -5,14 +5,15 @@ import (
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
 	"github.com/ethereum-optimism/optimism/l2geth/core/state"
 	"github.com/ethereum-optimism/optimism/l2geth/log"
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 
 	op_state "github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/mattn/go-isatty"
@@ -63,6 +64,14 @@ func main() {
 				Name:  "deploy-config",
 				Usage: "Path to hardhat deploy config file",
 			},
+			cli.StringFlag{
+				Name:  "network",
+				Usage: "Name of hardhat deploy network",
+			},
+			cli.StringFlag{
+				Name:  "hardhat-deployments",
+				Usage: "Comma separated list of hardhat deployment directories",
+			},
 			cli.BoolFlag{
 				Name:  "dry-run",
 				Usage: "Dry run the upgrade by not committing the database",
@@ -104,6 +113,13 @@ func main() {
 				EvmMessages:   evmMessages,
 			}
 
+			network := ctx.String("network")
+			deployments := strings.Split(ctx.String("hardhat-deployments"), ",")
+			hh, err := hardhat.New(network, []string{}, deployments)
+			if err != nil {
+				return err
+			}
+
 			l1RpcURL := ctx.String("l1-rpc-url")
 			l1Client, err := ethclient.Dial(l1RpcURL)
 			if err != nil {
@@ -142,12 +158,25 @@ func main() {
 				return err
 			}
 
+			// Get the addresses from the hardhat deploy artifacts
+			l1StandardBridgeProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1StandardBridge")
+			if err != nil {
+				return err
+			}
+			l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1CrossdomainMessenger")
+			if err != nil {
+				return err
+			}
+			l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
+			if err != nil {
+				return err
+			}
+
 			l2Addrs := genesis.L2Addresses{
-				ProxyAdminOwner: config.ProxyAdminOwner,
-				// TODO: these values are not in the config
-				L1StandardBridgeProxy:       common.Address{},
-				L1CrossDomainMessengerProxy: common.Address{},
-				L1ERC721BridgeProxy:         common.Address{},
+				ProxyAdminOwner:             config.ProxyAdminOwner,
+				L1StandardBridgeProxy:       l1StandardBridgeProxyDeployment.Address,
+				L1CrossDomainMessengerProxy: l1CrossDomainMessengerProxyDeployment.Address,
+				L1ERC721BridgeProxy:         l1ERC721BridgeProxyDeployment.Address,
 			}
 
 			if err := genesis.MigrateDB(wrappedDB, config, block, &l2Addrs, &migrationData); err != nil {
