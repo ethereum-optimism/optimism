@@ -72,7 +72,7 @@ type EngineQueue struct {
 	// This update may repeat if the engine returns a temporary error.
 	needForkchoiceUpdate bool
 
-	finalizedL1 eth.BlockID
+	finalizedL1 eth.L1BlockRef
 
 	safeAttributes []*eth.PayloadAttributes
 	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
@@ -83,7 +83,7 @@ type EngineQueue struct {
 	engine Engine
 	prev   NextAttributesProvider
 
-	origin eth.L1BlockRef // only used for pipeline resets
+	origin eth.L1BlockRef // updated on resets, and whenever we read from the previous stage.
 
 	metrics   Metrics
 	l1Fetcher L1Fetcher
@@ -106,6 +106,7 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 	}
 }
 
+// Origin identifies the L1 chain (incl.) that included and/or produced all the safe L2 blocks.
 func (eq *EngineQueue) Origin() eth.L1BlockRef {
 	return eq.origin
 }
@@ -134,9 +135,28 @@ func (eq *EngineQueue) AddSafeAttributes(attributes *eth.PayloadAttributes) {
 	eq.safeAttributes = append(eq.safeAttributes, attributes)
 }
 
-func (eq *EngineQueue) Finalize(l1Origin eth.BlockID) {
-	eq.finalizedL1 = l1Origin
-	eq.tryFinalizeL2()
+func (eq *EngineQueue) Finalize(l1Origin eth.L1BlockRef) {
+	if l1Origin.Number < eq.finalizedL1.Number {
+		eq.log.Error("ignoring old L1 finalized block signal! Is the L1 provider corrupted?", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+		return
+	}
+	// Perform a safety check: the L1 finalization signal is only accepted if we previously processed the L1 block.
+	// This prevents a corrupt L1 provider from tricking us in recognizing a L1 block inconsistent with the L1 chain we are on.
+	// Missing a finality signal due to empty buffer is fine, it will finalize when the buffer is filled again.
+	for _, fd := range eq.finalityData {
+		if fd.L1Block == l1Origin.ID() {
+			eq.finalizedL1 = l1Origin
+			eq.tryFinalizeL2()
+			return
+		}
+	}
+	eq.log.Warn("ignoring finalization signal for unknown L1 block, waiting for new L1 blocks in buffer", "prev_finalized_l1", eq.finalizedL1, "signaled_finalized_l1", l1Origin)
+}
+
+// FinalizedL1 identifies the L1 chain (incl.) that included and/or produced all the finalized L2 blocks.
+// This may return a zeroed ID if no finalization signals have been seen yet.
+func (eq *EngineQueue) FinalizedL1() eth.L1BlockRef {
+	return eq.finalizedL1
 }
 
 func (eq *EngineQueue) Finalized() eth.L2BlockRef {
@@ -167,6 +187,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	}
 	outOfData := false
 	if len(eq.safeAttributes) == 0 {
+		eq.origin = eq.prev.Origin()
 		if next, err := eq.prev.NextAttributes(ctx, eq.safeHead); err == io.EOF {
 			outOfData = true
 		} else if err != nil {
@@ -191,7 +212,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 // and then marks the latest fully derived L2 block from this as finalized,
 // or defaults to the current finalized L2 block.
 func (eq *EngineQueue) tryFinalizeL2() {
-	if eq.finalizedL1 == (eth.BlockID{}) {
+	if eq.finalizedL1 == (eth.L1BlockRef{}) {
 		return // if no L1 information is finalized yet, then skip this
 	}
 	// default to keep the same finalized block
@@ -200,6 +221,7 @@ func (eq *EngineQueue) tryFinalizeL2() {
 	for _, fd := range eq.finalityData {
 		if fd.L2Block.Number > finalizedL2.Number && fd.L1Block.Number <= eq.finalizedL1.Number {
 			finalizedL2 = fd.L2Block
+			eq.needForkchoiceUpdate = true
 		}
 	}
 	eq.finalized = finalizedL2
@@ -214,11 +236,11 @@ func (eq *EngineQueue) postProcessSafeL2() {
 		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
 	}
 	// remember the last L2 block that we fully derived from the given finality data
-	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.prev.Origin().Number {
+	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
 		// append entry for new L1 block
 		eq.finalityData = append(eq.finalityData, FinalityData{
 			L2Block: eq.safeHead,
-			L1Block: eq.prev.Origin().ID(),
+			L1Block: eq.origin.ID(),
 		})
 	} else {
 		// if it's a now L2 block that was derived from the same latest L1 block, then just update the entry
@@ -233,7 +255,7 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_safe", eq.safeHead,
 		"l2_unsafe", eq.unsafeHead,
 		"l2_time", eq.unsafeHead.Time,
-		"l1_derived", eq.prev.Origin(),
+		"l1_derived", eq.origin,
 	)
 }
 
