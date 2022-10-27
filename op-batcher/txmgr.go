@@ -12,9 +12,8 @@ import (
 
 func (l *BatchSubmitter) submitTransaction(data []byte) error {
 	// Query for the submitter's current nonce.
-	walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
 	ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
-	nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
+	nonce, err := l.cfg.L1Client.NonceAt(ctx, l.addr, nil)
 	cancel()
 	if err != nil {
 		l.log.Error("unable to get current nonce", "err", err)
