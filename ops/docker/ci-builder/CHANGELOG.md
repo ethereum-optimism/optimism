@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.3.4
+
+### Patch Changes
+
+- 8e22c28f: Update geth to 1.10.25
+
 ## 0.3.3
 
 ### Patch Changes

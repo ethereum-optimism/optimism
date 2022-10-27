@@ -1,5 +1,12 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.8.3
+
+### Patch Changes
+
+- db84317b: Various RLP updates
+- 9b90c732: Added codecov badge to readme
+
 ## 0.8.2
 
 ### Patch Changes
