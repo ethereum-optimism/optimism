@@ -12,7 +12,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -36,8 +35,6 @@ type BatchSubmitter struct {
 	cancel context.CancelFunc
 
 	lastSubmittedBlock eth.BlockID
-
-	ch *derive.ChannelOut
 
 	s channelManager
 }
@@ -266,7 +263,6 @@ func (l *BatchSubmitter) submitTransaction(data []byte) error {
 
 	// The transaction was successfully submitted.
 	l.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
-	// l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
 	return nil
 }
 
