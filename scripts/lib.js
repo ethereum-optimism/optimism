@@ -112,7 +112,7 @@ function getTrieAtStep(blockNumberN, step) {
 
   if (!fs.existsSync(fn)) {
     console.log("running mipsevm")
-    child_process.execSync("mipsevm/mipsevm "+blockNumberN.toString()+" "+step.toString(), {stdio: 'inherit'})
+    child_process.execSync("mipsevm/mipsevm --blockNumber="+blockNumberN.toString()+" --target="+step.toString(), {stdio: 'inherit'})
   }
 
   return JSON.parse(fs.readFileSync(fn))

@@ -79,7 +79,7 @@ test_challenge:
 	minigeth/go-ethereum 13284469
 	# Generate initial (generic) MIPS memory checkpoint and final checkpoint for
 	# block 13284469.
-	mipsevm/mipsevm && mipsevm/mipsevm 13284469
+	mipsevm/mipsevm --outputGolden && mipsevm/mipsevm --blockNumber=13284469
 	npx hardhat test test/challenge_test.js
 .PHONY: test_challenge
 

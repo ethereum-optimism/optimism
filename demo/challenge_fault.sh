@@ -101,7 +101,7 @@ mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault
 
 # stored in /tmp/cannon/golden.json
 shout "GENERATING INITIAL MEMORY STATE CHECKPOINT"
-mipsevm/mipsevm
+mipsevm/mipsevm --outputGolden
 
 shout "DEPLOYING CONTRACTS"
 npx hardhat run scripts/deploy.js --network $NETWORK
@@ -113,7 +113,7 @@ shout "FETCHING PREIMAGES FOR REAL BLOCK"
 minigeth/go-ethereum $BLOCK
 
 shout "COMPUTING REAL MIPS FINAL MEMORY CHECKPOINT"
-mipsevm/mipsevm $BLOCK
+mipsevm/mipsevm --blockNumber=$BLOCK
 
 # these are the preimages for the real block (but go into a different basedir)
 shout "FETCHING PREIMAGES FOR FAULTY BLOCK"
@@ -122,10 +122,10 @@ BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $BLOCK
 # since the computation includes a fault, the output file will be different than
 # for the real block
 shout "COMPUTE FAKE MIPS CHECKPOINT"
-OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
+OUTPUTFAULT=1 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm --blockNumber=$BLOCK
 
 # alternatively, to inject a fault in registers instead of memory
-# REGFAULT=13240000 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $BLOCK
+# REGFAULT=13240000 BASEDIR=/tmp/cannon_fault mipsevm/mipsevm --blockNumber=$BLOCK
 
 # --- BINARY SEARCH ------------------------------------------------------------
 

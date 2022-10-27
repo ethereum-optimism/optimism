@@ -59,6 +59,7 @@ func main() {
 	lastStep := 1
 	if evm {
 		// TODO: fix this
+		log.Fatal("EVM execution currently not supported")
 		/*ZeroRegisters(ram)
 		LoadMappedFile(programPath, ram, 0)
 		WriteCheckpoint(ram, "/tmp/cannon/golden.json", -1)

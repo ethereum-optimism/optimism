@@ -97,7 +97,7 @@ mkdir -p /tmp/cannon /tmp/cannon_fault && rm -rf /tmp/cannon/* /tmp/cannon_fault
 
 # stored in /tmp/cannon/golden.json
 shout "GENERATING INITIAL MEMORY STATE CHECKPOINT"
-mipsevm/mipsevm
+mipsevm/mipsevm --outputGolden
 
 shout "DEPLOYING CONTRACTS"
 npx hardhat run scripts/deploy.js --network $NETWORK
@@ -109,13 +109,13 @@ shout "FETCHING PREIMAGES FOR REAL BLOCK"
 minigeth/go-ethereum $BLOCK
 
 shout "COMPUTING REAL MIPS FINAL MEMORY CHECKPOINT"
-mipsevm/mipsevm $BLOCK
+mipsevm/mipsevm --blockNumber=$BLOCK
 
 shout "FETCHING PREIMAGES FOR WRONG BLOCK"
 BASEDIR=/tmp/cannon_fault minigeth/go-ethereum $WRONG_BLOCK
 
 shout "COMPUTING FAKE MIPS FINAL MEMORY CHECKPOINT"
-BASEDIR=/tmp/cannon_fault mipsevm/mipsevm $WRONG_BLOCK
+BASEDIR=/tmp/cannon_fault mipsevm/mipsevm --blockNumber=$WRONG_BLOCK
 
 # pretend the wrong block's input, checkpoints and preimages are the right block's
 ln -s /tmp/cannon_fault/0_$WRONG_BLOCK /tmp/cannon_fault/0_$BLOCK
