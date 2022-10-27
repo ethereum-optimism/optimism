@@ -1,4 +1,4 @@
-package genesis
+package migration
 
 import (
 	"encoding/json"
@@ -115,4 +115,37 @@ type MigrationData struct {
 	// OvmMessages represents the set of withdrawals through the
 	// L2CrossDomainMessenger from after the evm equivalence upgrade
 	EvmMessages []*SentMessage
+}
+
+func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error) {
+	messages := make([]*crossdomain.LegacyWithdrawal, 0)
+	for _, msg := range m.OvmMessages {
+		wd, err := msg.ToLegacyWithdrawal()
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, wd)
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, msg := range m.EvmMessages {
+		wd, err := msg.ToLegacyWithdrawal()
+		if err != nil {
+			return nil, err
+		}
+		messages = append(messages, wd)
+	}
+	return messages, nil
+}
+
+func (m *MigrationData) Addresses() []common.Address {
+	addresses := make([]common.Address, 0)
+	for addr := range m.EvmAddresses {
+		addresses = append(addresses, addr)
+	}
+	for addr := range m.EvmAddresses {
+		addresses = append(addresses, addr)
+	}
+	return addresses
 }
