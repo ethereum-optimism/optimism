@@ -117,9 +117,3 @@ func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transacti
 
 	return types.SignNewTx(l.cfg.PrivKey, types.LatestSignerForChainID(l.cfg.ChainID), rawTx)
 }
-
-// SendTransaction injects a signed transaction into the pending pool for
-// execution.
-func (l *BatchSubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
-	return l.cfg.L1Client.SendTransaction(ctx, tx)
-}
