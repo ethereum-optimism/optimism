@@ -1,7 +1,6 @@
 package op_batcher
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,7 +36,7 @@ type BatchSubmitter struct {
 
 	lastSubmittedBlock eth.BlockID
 
-	ch *derive.ChannelOut
+	state *channelManager
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
@@ -151,6 +149,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		txMgr: txmgr.NewSimpleTxManager("batcher", txManagerConfig, l1Client),
 		done:  make(chan struct{}),
 		log:   l,
+		state: new(channelManager),
 		// TODO: this context only exists because the even loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
@@ -207,12 +206,6 @@ mainLoop:
 				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
 				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 			}
-			if ch, err := derive.NewChannelOut(); err != nil {
-				l.log.Error("Error creating channel", "err", err)
-				continue
-			} else {
-				l.ch = ch
-			}
 			prevID := l.lastSubmittedBlock
 			maxBlocksPerChannel := uint64(100)
 			// Hacky min() here to ensure that we don't batch submit more than 100 blocks per channel.
@@ -234,28 +227,22 @@ mainLoop:
 					l.lastSubmittedBlock = syncStatus.SafeL2.ID()
 					continue mainLoop
 				}
-				if err := l.ch.AddBlock(block); err != nil {
-					l.log.Error("issue adding L2 Block to the channel", "err", err, "channel_id", l.ch.ID())
+				if err := l.state.AddL2Block(block); err != nil {
+					l.log.Error("issue adding L2 Block to the channel", "err", err)
 					continue mainLoop
 				}
 				prevID = eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}
-				l.log.Info("added L2 block to channel", "block", prevID, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
+				l.log.Info("added L2 block to channel", "block", prevID, "tx_count", len(block.Transactions()), "time", block.Time())
 			}
-			if err := l.ch.Close(); err != nil {
-				l.log.Error("issue getting adding L2 Block", "err", err)
-				continue
-			}
+
 			// Hand role do-while loop to fully pull all frames out of the channel
 			for {
 				// Collect the output frame
-				data := new(bytes.Buffer)
-				data.WriteByte(derive.DerivationVersion0)
-				done := false
-				// subtract one, to account for the version byte
-				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize-1); err == io.EOF {
-					done = true
+				data, _, err := l.state.TxData(syncStatus.HeadL1)
+				if err == io.EOF {
+					break // local for loop
 				} else if err != nil {
-					l.log.Error("error outputting frame", "err", err)
+					l.log.Error("unable to get tx data", "err", err)
 					continue mainLoop
 				}
 
@@ -271,7 +258,7 @@ mainLoop:
 
 				// Create the transaction
 				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-				tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
+				tx, err := l.CraftTx(ctx, data, nonce)
 				cancel()
 				if err != nil {
 					l.log.Error("unable to craft tx", "err", err)
@@ -297,12 +284,8 @@ mainLoop:
 				}
 
 				// The transaction was successfully submitted.
-				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
+				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
 
-				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
-				if done {
-					break // local do-while loop
-				}
 			}
 			// TODO: if we exit to the mainLoop early on an error,
 			// it would be nice if we can determine which blocks are still readable from the partially submitted data.
