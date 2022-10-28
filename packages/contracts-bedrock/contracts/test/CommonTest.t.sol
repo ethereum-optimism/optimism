@@ -429,10 +429,7 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        L1Bridge = new L1ERC721Bridge(
-            address(L1Messenger),
-            Predeploys.L2_ERC721_BRIDGE
-        );
+        L1Bridge = new L1ERC721Bridge(address(L1Messenger), Predeploys.L2_ERC721_BRIDGE);
 
         L2ERC721Bridge l2b = new L2ERC721Bridge(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,

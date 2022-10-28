@@ -1,5 +1,4 @@
 #!/command/with-contenv bash
-
 set -eu
 
 GETH_DATA_DIR=/db

@@ -1,12 +1,13 @@
 package actions
 
 import (
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 )
 
 // L2Sequencer is an actor that functions like a rollup node,
@@ -22,8 +23,8 @@ type L2Sequencer struct {
 	failL2GossipUnsafeBlock error // mock error
 }
 
-func NewL2Sequencer(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
-	ver := NewL2Verifier(log, l1, eng, cfg)
+func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
+	ver := NewL2Verifier(t, log, l1, eng, cfg)
 	return &L2Sequencer{
 		L2Verifier:              *ver,
 		sequencer:               driver.NewSequencer(log, cfg, l1, eng),

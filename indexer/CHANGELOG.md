@@ -1,5 +1,11 @@
 # @eth-optimism/indexer
 
+## 0.3.1
+
+### Patch Changes
+
+- 4006ef3a: Delete unused flags
+
 ## 0.3.0
 
 ### Minor Changes

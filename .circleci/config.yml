@@ -590,7 +590,6 @@ jobs:
   integration-tests:
     machine:
       image: ubuntu-2204:2022.07.1
-      docker_layer_caching: true
     environment:
       DOCKER_BUILDKIT: 1
     parallelism: 3

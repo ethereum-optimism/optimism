@@ -32,8 +32,8 @@ type L1Miner struct {
 }
 
 // NewL1Miner creates a new L1Replica that can also build blocks.
-func NewL1Miner(log log.Logger, genesis *core.Genesis) *L1Miner {
-	rep := NewL1Replica(log, genesis)
+func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
+	rep := NewL1Replica(t, log, genesis)
 	return &L1Miner{
 		L1Replica: *rep,
 	}

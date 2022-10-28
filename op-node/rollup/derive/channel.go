@@ -10,9 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-// TODO: Full state machine for channel
-// Open, Closed, Ready (todo - when to construct RLP reader)
-
 // A Channel is a set of batches that are split into at least one, but possibly multiple frames.
 // Frames are allowed to be ingested out of order.
 // Each frame is ingested one by one. Once a frame with `closed` is added to the channel, the
@@ -28,17 +25,15 @@ type Channel struct {
 	// true if we have buffered the last frame
 	closed bool
 
-	// TODO: implement this check
 	// highestFrameNumber is the highest frame number yet seen.
-	// This must be equal to `endFrameNumber`
-	// highestFrameNumber uint16
+	highestFrameNumber uint16
 
 	// endFrameNumber is the frame number of the frame where `isLast` is true
 	// No other frame number must be larger than this.
 	endFrameNumber uint16
 
-	// Store a map of frame number -> frame data for constant time ordering
-	inputs map[uint64][]byte
+	// Store a map of frame number -> frame for constant time ordering
+	inputs map[uint64]Frame
 
 	highestL1InclusionBlock eth.L1BlockRef
 }
@@ -46,7 +41,7 @@ type Channel struct {
 func NewChannel(id ChannelID, openBlock eth.L1BlockRef) *Channel {
 	return &Channel{
 		id:        id,
-		inputs:    make(map[uint64][]byte),
+		inputs:    make(map[uint64]Frame),
 		openBlock: openBlock,
 	}
 }
@@ -58,26 +53,43 @@ func (ch *Channel) AddFrame(frame Frame, l1InclusionBlock eth.L1BlockRef) error 
 	if frame.ID != ch.id {
 		return fmt.Errorf("frame id does not match channel id. Expected %v, got %v", ch.id, frame.ID)
 	}
+	// These checks are specified and cannot be changed without a hard fork.
 	if frame.IsLast && ch.closed {
 		return fmt.Errorf("cannot add ending frame to a closed channel. id %v", ch.id)
 	}
 	if _, ok := ch.inputs[uint64(frame.FrameNumber)]; ok {
 		return DuplicateErr
 	}
-	// TODO: highest seen frame vs endFrameNumber
+	if ch.closed && frame.FrameNumber >= ch.endFrameNumber {
+		return fmt.Errorf("frame number (%d) is greater than or equal to end frame number (%d) of a closed channel", frame.FrameNumber, ch.endFrameNumber)
+	}
 
 	// Guaranteed to succeed. Now update internal state
 	if frame.IsLast {
 		ch.endFrameNumber = frame.FrameNumber
 		ch.closed = true
 	}
+	// Prune frames with a number higher than the closing frame number when we receive a closing frame
+	if frame.IsLast && ch.endFrameNumber < ch.highestFrameNumber {
+		// Do a linear scan over saved inputs instead of ranging over ID numbers
+		for id, prunedFrame := range ch.inputs {
+			if id >= uint64(ch.endFrameNumber) {
+				delete(ch.inputs, id)
+			}
+			ch.size -= frameSize(prunedFrame)
+		}
+		ch.highestFrameNumber = ch.endFrameNumber
+	}
+	// Update highest seen frame number after pruning
+	if frame.FrameNumber > ch.highestFrameNumber {
+		ch.highestFrameNumber = frame.FrameNumber
+	}
+
 	if ch.highestL1InclusionBlock.Number < l1InclusionBlock.Number {
 		ch.highestL1InclusionBlock = l1InclusionBlock
 	}
-	ch.inputs[uint64(frame.FrameNumber)] = frame.Data
-	ch.size += uint64(len(frame.Data)) + frameOverhead
-
-	// todo use `IsReady` + state to create final output reader
+	ch.inputs[uint64(frame.FrameNumber)] = frame
+	ch.size += frameSize(frame)
 
 	return nil
 }
@@ -121,11 +133,11 @@ func (ch *Channel) IsReady() bool {
 func (ch *Channel) Reader() io.Reader {
 	var readers []io.Reader
 	for i := uint64(0); i <= uint64(ch.endFrameNumber); i++ {
-		data, ok := ch.inputs[i]
+		frame, ok := ch.inputs[i]
 		if !ok {
 			panic("dev error in channel.Reader. Must be called after the channel is ready.")
 		}
-		readers = append(readers, bytes.NewBuffer(data))
+		readers = append(readers, bytes.NewReader(frame.Data))
 	}
 	return io.MultiReader(readers...)
 }
