@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
-	"github.com/ethereum-optimism/optimism/l2geth/core/state"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/log"
 
-	op_state "github.com/ethereum-optimism/optimism/op-chain-ops/state"
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/mattn/go-isatty"
@@ -137,7 +137,8 @@ func main() {
 			}
 
 			chaindataPath := filepath.Join(ctx.String("db-path"), "geth", "chaindata")
-			ldb, err := rawdb.NewLevelDBDatabase(chaindataPath, 1024, 64, "")
+			ancientPath := filepath.Join(ctx.String("db-path"), "ancient")
+			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, int(1024), int(60), ancientPath, "", true)
 			if err != nil {
 				return err
 			}
@@ -149,11 +150,7 @@ func main() {
 			num := rawdb.ReadHeaderNumber(ldb, hash)
 			header := rawdb.ReadHeader(ldb, hash, *num)
 
-			sdb, err := state.New(header.Root, state.NewDatabase(ldb))
-			if err != nil {
-				return err
-			}
-			wrappedDB, err := op_state.NewWrappedStateDB(nil, sdb)
+			sdb, err := state.New(header.Root, state.NewDatabase(ldb), nil)
 			if err != nil {
 				return err
 			}
@@ -179,7 +176,7 @@ func main() {
 				L1ERC721BridgeProxy:         l1ERC721BridgeProxyDeployment.Address,
 			}
 
-			if err := genesis.MigrateDB(wrappedDB, config, block, &l2Addrs, &migrationData); err != nil {
+			if err := genesis.MigrateDB(sdb, config, block, &l2Addrs, &migrationData); err != nil {
 				return err
 			}
 
