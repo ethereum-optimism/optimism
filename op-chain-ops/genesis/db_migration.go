@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -36,42 +37,8 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 		return err
 	}
 
-	// Create a mapping of all of their storage slots
-	knownSlots := make(map[common.Hash]bool)
-	for _, wd := range withdrawals {
-		slot, err := wd.StorageSlot()
-		if err != nil {
-			return err
-		}
-		knownSlots[slot] = true
-	}
-
-	// Build a map of all the slots in the LegacyMessagePasser
-	slots := make(map[common.Hash]bool)
-	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
-		if value != abiTrue {
-			return false
-		}
-		slots[key] = true
-		return true
-	})
-	if err != nil {
+	if err := CheckWithdrawals(db, withdrawals); err != nil {
 		return err
-	}
-
-	// Check that all of the slots from storage correspond to a known message
-	for slot := range slots {
-		_, ok := knownSlots[slot]
-		if !ok {
-			return fmt.Errorf("Unknown storage slot in state: %s", slot)
-		}
-	}
-	// Check that all of the input messages are legit
-	for slot := range knownSlots {
-		_, ok := slots[slot]
-		if !ok {
-			return fmt.Errorf("Unknown input message: %s", slot)
-		}
 	}
 
 	// Now start the migration
@@ -144,6 +111,49 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 	rawdb.WriteHeadBlockHash(ldb, block.Hash())
 	rawdb.WriteHeadFastBlockHash(ldb, block.Hash())
 	rawdb.WriteHeadHeaderHash(ldb, block.Hash())
+
+	return nil
+}
+
+// CheckWithdrawals will ensure that the entire list of withdrawals is being
+// operated on during the database migration.
+func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
+	// Create a mapping of all of their storage slots
+	knownSlots := make(map[common.Hash]bool)
+	for _, wd := range withdrawals {
+		slot, err := wd.StorageSlot()
+		if err != nil {
+			return err
+		}
+		knownSlots[slot] = true
+	}
+	// Build a map of all the slots in the LegacyMessagePasser
+	slots := make(map[common.Hash]bool)
+	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
+		if value != abiTrue {
+			return false
+		}
+		slots[key] = true
+		return true
+	})
+	if err != nil {
+		return err
+	}
+
+	// Check that all of the slots from storage correspond to a known message
+	for slot := range slots {
+		_, ok := knownSlots[slot]
+		if !ok {
+			return fmt.Errorf("Unknown storage slot in state: %s", slot)
+		}
+	}
+	// Check that all of the input messages are legit
+	for slot := range knownSlots {
+		_, ok := slots[slot]
+		if !ok {
+			return fmt.Errorf("Unknown input message: %s", slot)
+		}
+	}
 
 	return nil
 }

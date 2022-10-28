@@ -166,14 +166,19 @@ func Migrate(dataDir, outDir string, genesis *core.Genesis, addrLists, allowance
 
 // getOVMETHTotalSupply returns OVM ETH's total supply by reading
 // the appropriate storage slot.
-func getOVMETHTotalSupply(inStateDB *state.StateDB) *big.Int {
+func getOVMETHTotalSupply(db *state.StateDB) *big.Int {
+	key := getOVMETHTotalSupplySlot()
+	return db.GetState(OVMETHAddress, key).Big()
+}
+
+func getOVMETHTotalSupplySlot() common.Hash {
 	position := common.Big2
 	key := common.BytesToHash(common.LeftPadBytes(position.Bytes(), 32))
-	return inStateDB.GetState(OVMETHAddress, key).Big()
+	return key
 }
 
 // getOVMETHBalance gets a user's OVM ETH balance from state by querying the
 // appropriate storage slot directly.
-func getOVMETHBalance(inStateDB *state.StateDB, addr common.Address) *big.Int {
-	return inStateDB.GetState(OVMETHAddress, CalcOVMETHStorageKey(addr)).Big()
+func getOVMETHBalance(db *state.StateDB, addr common.Address) *big.Int {
+	return db.GetState(OVMETHAddress, CalcOVMETHStorageKey(addr)).Big()
 }

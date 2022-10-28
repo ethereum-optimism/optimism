@@ -191,5 +191,8 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 		)
 	}
 
+	// Set the total supply to 0
+	stateDB.SetState(predeploys.LegacyERC20ETHAddr, getOVMETHTotalSupplySlot(), common.Hash{})
+
 	return nil
 }
