@@ -24,7 +24,7 @@ contract L1BlockNumberTest is Test {
             _basefee: 3,
             _hash: bytes32(uint256(10)),
             _sequenceNumber: uint64(4),
-            _batcher: address(0),
+            _batcherHash: bytes32(uint256(0)),
             _l1FeeOverhead: 2,
             _l1FeeScalar: 3
         });
