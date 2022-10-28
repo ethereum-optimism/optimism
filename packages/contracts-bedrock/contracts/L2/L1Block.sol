@@ -44,22 +44,19 @@ contract L1Block is Semver {
     uint64 public sequenceNumber;
 
     /**
-     * @notice
+     * @notice The versioned hash to authenticate the batcher by.
      */
-
-    address public batcher;
+    bytes32 public batcherHash;
 
     /**
      * @notice The overhead value applied to the L1 portion of the transaction
      *         fee.
      */
-
     uint256 public l1FeeOverhead;
 
     /**
      * @notice The scalar value applied to the L1 portion of the transaction fee.
      */
-
     uint256 public l1FeeScalar;
 
     /**
@@ -75,6 +72,9 @@ contract L1Block is Semver {
      * @param _basefee        L1 basefee.
      * @param _hash           L1 blockhash.
      * @param _sequenceNumber Number of L2 blocks since epoch start.
+     * @param _batcherHash    Versioned hash to authenticate batcher by.
+     * @param _l1FeeOverhead  L1 fee overhead.
+     * @param _l1FeeScalar    L1 fee scalar.
      */
     function setL1BlockValues(
         uint64 _number,
@@ -82,7 +82,7 @@ contract L1Block is Semver {
         uint256 _basefee,
         bytes32 _hash,
         uint64 _sequenceNumber,
-        address _batcher,
+        bytes32 _batcherHash,
         uint256 _l1FeeOverhead,
         uint256 _l1FeeScalar
     ) external {
@@ -96,7 +96,7 @@ contract L1Block is Semver {
         basefee = _basefee;
         hash = _hash;
         sequenceNumber = _sequenceNumber;
-        batcher = _batcher;
+        batcherHash = _batcherHash;
         l1FeeOverhead = _l1FeeOverhead;
         l1FeeScalar = _l1FeeScalar;
     }

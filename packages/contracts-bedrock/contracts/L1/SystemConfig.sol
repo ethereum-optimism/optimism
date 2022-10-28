@@ -15,7 +15,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     uint256 public overhead;
     uint256 public scalar;
-    address public batcher;
+    bytes32 public batcherHash;
 
     event ConfigUpdate(
         uint256 indexed version,
@@ -28,10 +28,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         GAS_CONFIG
     }
 
-    constructor(uint256 _overhead, uint256 _scalar, address _batcher) Semver(0, 0, 1) {
+    constructor(uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) Semver(0, 0, 1) {
         overhead = _overhead;
         scalar = _scalar;
-        batcher = _batcher;
+        batcherHash = _batcherHash;
     }
 
     /**
@@ -42,10 +42,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         transferOwnership(_owner);
     }
 
-    function setBatcher(address _batcher) external onlyOwner {
-        batcher = _batcher;
+    function setBatcherHash(bytes32 _batcherHash) external onlyOwner {
+        batcherHash = _batcherHash;
 
-        bytes memory data = abi.encode(_batcher);
+        bytes memory data = abi.encode(_batcherHash);
         emit ConfigUpdate(VERSION, UpdateType.BATCHER, data);
     }
 
