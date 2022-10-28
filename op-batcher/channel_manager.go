@@ -54,7 +54,12 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	}
 	// TODO: use peek/pop paradigm here instead of manually slicing
 	i := 0
-	for ; i < len(s.blocks); i++ {
+	// Cap length at 100 blocks
+	l := len(s.blocks)
+	if l > 100 {
+		l = 100
+	}
+	for ; i < l; i++ {
 		if err := ch.AddBlock(s.blocks[i]); err == derive.ErrTooManyRLPBytes {
 			break
 		} else if err != nil {
