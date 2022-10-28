@@ -28,10 +28,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         GAS_CONFIG
     }
 
-    constructor(uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) Semver(0, 0, 1) {
+    constructor(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) Semver(0, 0, 1) {
         overhead = _overhead;
         scalar = _scalar;
         batcherHash = _batcherHash;
+        initialize(_owner);
     }
 
     /**
