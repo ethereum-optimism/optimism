@@ -28,6 +28,7 @@ func randomL1Cfg(rng *rand.Rand, l1Info eth.BlockInfo) eth.SystemConfig {
 		BatcherAddr: testutils.RandomAddress(rng),
 		Overhead:    [32]byte{},
 		Scalar:      [32]byte{},
+		GasLimit:    1234567,
 	}
 }
 

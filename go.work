@@ -20,7 +20,11 @@ use (
 	./teleportr
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20221104021113-befc264446fa
+// TODO: this temporarily pulls in the dynamic gas limit changes in op-geth for CI.
+// We need to merge op-geth PR 22 and update geth references across the monorepo.
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20221104125741-d6c1bb9a110d
+
+//replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20221104021113-befc264446fa
 
 // For local debugging:
 //replace github.com/ethereum/go-ethereum v1.10.23 => ../go-ethereum

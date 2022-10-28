@@ -53,11 +53,13 @@ func TestAttributesQueue(t *testing.T) {
 		BatcherAddr: common.Address{42},
 		Overhead:    [32]byte{},
 		Scalar:      [32]byte{},
+		GasLimit:    1234,
 	}
 	expectedL1Cfg := eth.SystemConfig{
 		BatcherAddr: common.Address{42},
 		Overhead:    [32]byte{},
 		Scalar:      [32]byte{},
+		GasLimit:    1234,
 	}
 
 	l2Fetcher := &testutils.MockL2Client{}
@@ -71,6 +73,7 @@ func TestAttributesQueue(t *testing.T) {
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Transactions:          []eth.Data{l1InfoTx, eth.Data("foobar"), eth.Data("example")},
 		NoTxPool:              true,
+		GasLimit:              (*eth.Uint64Quantity)(&expectedL1Cfg.GasLimit),
 	}
 
 	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, l1Fetcher, l2Fetcher, nil)

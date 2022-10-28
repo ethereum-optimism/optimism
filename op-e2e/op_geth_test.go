@@ -104,6 +104,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 		Timestamp:    hexutil.Uint64(l2GenesisBlock.Time() + 2),
 		Transactions: []hexutil.Bytes{l1Info, badDeposit},
 		NoTxPool:     true,
+		GasLimit:     (*eth.Uint64Quantity)(&rollupGenesis.SystemConfig.GasLimit),
 	}
 
 	// Go through the flow of FCU, GetPayload, NewPayload, FCU

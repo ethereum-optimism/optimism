@@ -75,7 +75,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			L1GenesisBlockNonce:         4660,
 			CliqueSignerAddress:         addresses.CliqueSigner,
 			L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-			L1GenesisBlockGasLimit:      5_000_000,
+			L1GenesisBlockGasLimit:      8_000_000,
 			L1GenesisBlockDifficulty:    uint642big(1),
 			L1GenesisBlockMixHash:       common.Hash{},
 			L1GenesisBlockCoinbase:      common.Address{},
@@ -86,7 +86,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 
 			L2GenesisBlockNonce:         0,
 			L2GenesisBlockExtraData:     []byte{},
-			L2GenesisBlockGasLimit:      5_000_000,
+			L2GenesisBlockGasLimit:      8_000_000,
 			L2GenesisBlockDifficulty:    uint642big(1),
 			L2GenesisBlockMixHash:       common.Hash{},
 			L2GenesisBlockCoinbase:      common.Address{0: 0x12},

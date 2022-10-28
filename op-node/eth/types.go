@@ -234,6 +234,8 @@ type PayloadAttributes struct {
 	Transactions []Data `json:"transactions,omitempty"`
 	// NoTxPool to disable adding any transactions from the transaction-pool.
 	NoTxPool bool `json:"noTxPool,omitempty"`
+	// GasLimit override
+	GasLimit *Uint64Quantity `json:"gasLimit,omitempty"`
 }
 
 type ExecutePayloadStatus string
@@ -325,5 +327,7 @@ type SystemConfig struct {
 	Overhead Bytes32 `json:"overhead"`
 	// Scalar identifies the L1 fee scalar, and is passed through opaquely to op-geth.
 	Scalar Bytes32 `json:"scalar"`
+	// GasLimit identifies the L2 block gas limit
+	GasLimit uint64 `json:"gasLimit"`
 	// More fields can be added for future SystemConfig versions.
 }

@@ -2,6 +2,7 @@ package derive
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -16,6 +17,7 @@ import (
 var (
 	SystemConfigUpdateBatcher   = common.Hash{31: 0}
 	SystemConfigUpdateGasConfig = common.Hash{31: 1}
+	SystemConfigUpdateGasLimit  = common.Hash{31: 2}
 )
 
 var (
@@ -95,6 +97,21 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 		copy(destSysCfg.Overhead[:], ev.Data[64:96])
 		copy(destSysCfg.Scalar[:], ev.Data[96:128])
+		return nil
+	case SystemConfigUpdateGasLimit:
+		if len(ev.Data) != 32*3 {
+			return fmt.Errorf("expected 32*3 bytes in gas limit update, but got %d bytes", len(ev.Data))
+		}
+		if x := common.BytesToHash(ev.Data[:32]); x != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected offset to point to length location, but got %s", x)
+		}
+		if x := common.BytesToHash(ev.Data[32:64]); x != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected length of 1 bytes32, but got %s", x)
+		}
+		if !bytes.Equal(ev.Data[64:64+24], make([]byte, 24)) {
+			return fmt.Errorf("expected zero padding for gaslimit, but got %x", ev.Data)
+		}
+		destSysCfg.GasLimit = binary.BigEndian.Uint64(ev.Data[64+24:])
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)

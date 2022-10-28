@@ -77,6 +77,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
+		uint64(config.L2GenesisBlockGasLimit),
 	)
 	if err != nil {
 		return nil, err
@@ -259,6 +260,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				uint642Big(config.GasPriceOracleOverhead),
 				uint642Big(config.GasPriceOracleScalar),
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
+				uint64(config.L2GenesisBlockGasLimit),
 			},
 		},
 		{
@@ -321,6 +323,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[1].(*big.Int),
 			deployment.Args[2].(*big.Int),
 			deployment.Args[3].(common.Hash),
+			deployment.Args[4].(uint64),
 		)
 	case "L2OutputOracle":
 		_, tx, _, err = bindings.DeployL2OutputOracle(
