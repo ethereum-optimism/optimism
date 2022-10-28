@@ -73,7 +73,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 		Coinbase:   params.SuggestedFeeRecipient,
 		Difficulty: common.Big0,
 		Number:     new(big.Int).Add(parentHeader.Number, common.Big1),
-		GasLimit:   parentHeader.GasLimit,
+		GasLimit:   uint64(*params.GasLimit),
 		Time:       uint64(params.Timestamp),
 		Extra:      nil,
 		MixDigest:  common.Hash(params.PrevRandao),
