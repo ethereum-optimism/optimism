@@ -30,10 +30,6 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         ERC721Bridge(_messenger, _otherBridge)
     {}
 
-    /*************************
-     * Cross-chain Functions *
-     *************************/
-
     /**
      * @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
      *         recipient on this domain.
