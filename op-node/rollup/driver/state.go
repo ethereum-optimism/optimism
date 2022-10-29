@@ -279,8 +279,9 @@ func (s *Driver) eventLoop() {
 			// requesting a new block ASAP instead of waiting for the next tick.
 			// We don't request a block if the confirmation depth is not met.
 			l2Head := s.derivation.UnsafeL2Head()
-			if l1Head.Number > l2Head.L1Origin.Number+s.driverConfig.SequencerConfDepth {
-				s.log.Trace("Building another L2 block asap to catch up with L1 head", "l2_unsafe", l2Head, "l2_unsafe_l1_origin", l2Head.L1Origin, "l1_head", l1Head)
+			if wallClock := uint64(time.Now().Unix()); l2Head.Time+s.config.BlockTime <= wallClock {
+				s.log.Trace("Building another L2 block asap to catch up with wallclock",
+					"l2_unsafe", l2Head, "l2_unsafe_time", l2Head.Time, "wallclock", wallClock)
 				// But not too quickly to minimize busy-waiting for new blocks
 				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
 			}
