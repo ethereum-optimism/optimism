@@ -1,4 +1,4 @@
-comment: false
+comment: true
 ignore:
   - "l2geth"
   - "**/*.t.sol"
