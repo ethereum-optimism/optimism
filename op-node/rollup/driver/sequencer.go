@@ -59,7 +59,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l2Head eth.L2BlockRe
 	// empty blocks (other than the L1 info deposit and any user deposits). We handle this by
 	// setting NoTxPool to true, which will cause the Sequencer to not include any transactions
 	// from the transaction pool.
-	attrs.NoTxPool = true
+	attrs.NoTxPool = uint64(attrs.Timestamp) >= l1Origin.Time+d.config.MaxSequencerDrift
 
 	// And construct our fork choice state. This is our current fork choice state and will be
 	// updated as a result of executing the block based on the attributes described above.
