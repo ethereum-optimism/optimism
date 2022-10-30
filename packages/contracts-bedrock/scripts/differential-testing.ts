@@ -13,7 +13,7 @@ import { Account, Address, toBuffer, bufferToHex } from '@ethereumjs/util'
 
 import { predeploys } from '../src'
 
-const { hexZeroPad, RLP, keccak256 } = utils
+const { hexZeroPad, keccak256 } = utils
 
 const args = process.argv.slice(2)
 const command = args[0]
@@ -215,11 +215,9 @@ const command = args[0]
         latestBlockhash: constants.HashZero,
       })
 
-      const encodedProof = RLP.encode(proof)
-
       const output = utils.defaultAbiCoder.encode(
-        ['bytes32', 'bytes32', 'bytes32', 'bytes32', 'bytes'],
-        [world.root, storage.root, outputRoot, withdrawalHash, encodedProof]
+        ['bytes32', 'bytes32', 'bytes32', 'bytes32', 'bytes[]'],
+        [world.root, storage.root, outputRoot, withdrawalHash, proof]
       )
       process.stdout.write(output)
       break

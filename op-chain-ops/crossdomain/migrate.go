@@ -18,7 +18,7 @@ var (
 )
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(withdrawals []*PendingWithdrawal, db vm.StateDB, l1CrossDomainMessenger, l1StandardBridge *common.Address) error {
+func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger, l1StandardBridge *common.Address) error {
 	for _, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
@@ -30,7 +30,7 @@ func MigrateWithdrawals(withdrawals []*PendingWithdrawal, db vm.StateDB, l1Cross
 			return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacyValue)
 		}
 
-		withdrawal, err := MigrateWithdrawal(&legacy.LegacyWithdrawal, l1CrossDomainMessenger, l1StandardBridge)
+		withdrawal, err := MigrateWithdrawal(legacy, l1CrossDomainMessenger, l1StandardBridge)
 		if err != nil {
 			return err
 		}

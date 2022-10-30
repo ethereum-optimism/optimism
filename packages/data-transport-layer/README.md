@@ -1,5 +1,6 @@
-[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/master/graph/badge.svg?token=0VTG7PG7YR&flag=data-transport-layer)](https://codecov.io/gh/ethereum-optimism/optimism)
 # @eth-optimism/data-transport-layer
+
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=dtl-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
 
 ## What is this?
 

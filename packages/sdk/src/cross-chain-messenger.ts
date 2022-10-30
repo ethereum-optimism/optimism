@@ -176,6 +176,7 @@ export class CrossChainMessenger {
 
     this.bridges = getBridgeAdapters(this.l2ChainId, this, {
       overrides: opts.bridges,
+      contracts: opts.contracts,
     })
   }
 
@@ -310,7 +311,7 @@ export class CrossChainMessenger {
         return parsed.name === 'SentMessage'
       })
       .map((log) => {
-        // Try to pull out the value field, but only if the very next log is a SentMessageExtraData
+        // Try to pull out the value field, but only if the very next log is a SentMessageExtension1
         // event which was introduced in the Bedrock upgrade.
         let value = ethers.BigNumber.from(0)
         const next = receipt.logs.find((l) => {
@@ -1213,11 +1214,9 @@ export class CrossChainMessenger {
 
     interface WithdrawalEntry {
       MessagePassed: any
-      MessagePassedExtension1: any
     }
 
-    // Handle multiple withdrawals in the same tx and be backwards
-    // compatible without MessagePassedExtension1
+    // Handle multiple withdrawals in the same tx
     const logs: Partial<{ number: WithdrawalEntry }> = {}
     for (const [i, log] of Object.entries(receipt.logs)) {
       if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
@@ -1227,16 +1226,6 @@ export class CrossChainMessenger {
         if (decoded.name === 'MessagePassed') {
           logs[log.logIndex] = {
             MessagePassed: decoded.args,
-            MessagePassedExtension1: null,
-          }
-          if (receipt.logs[i + 1]) {
-            const next =
-              this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(
-                receipt.logs[i + 1]
-              )
-            if (next.name === 'MessagePassedExtension1') {
-              logs[log.logIndex].MessagePassedExtension1 = next.args
-            }
           }
         }
       }
@@ -1261,10 +1250,8 @@ export class CrossChainMessenger {
     )
 
     // Sanity check
-    if (withdrawal.MessagePassedExtension1) {
-      if (withdrawal.MessagePassedExtension1.hash !== withdrawalHash) {
-        throw new Error(`Mismatched withdrawal hashes`)
-      }
+    if (withdrawal.MessagePassed.withdrawalHash !== withdrawalHash) {
+      throw new Error(`Mismatched withdrawal hashes`)
     }
 
     // TODO: turn into util
@@ -1309,7 +1296,7 @@ export class CrossChainMessenger {
           messagePasserStorageRoot: stateTrieProof.storageRoot,
           latestBlockhash: block.hash,
         },
-        withdrawalProof: ethers.utils.RLP.encode(stateTrieProof.storageProof),
+        withdrawalProof: stateTrieProof.storageProof,
       },
       output,
       // TODO(tynes): use better type, typechain?

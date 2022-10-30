@@ -1,5 +1,11 @@
 # @eth-optimism/message-relayer
 
+## 0.5.19
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.6.9
+
 ## 0.5.18
 
 ### Patch Changes

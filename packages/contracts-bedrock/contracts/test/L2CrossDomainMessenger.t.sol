@@ -10,6 +10,7 @@ import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
+import { Types } from "../libraries/Types.sol";
 
 contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     // Receiver address for testing
@@ -36,20 +37,21 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     function test_L2MessengerSendMessage() external {
+        bytes memory xDomainCallData = Encoding.encodeCrossDomainMessage(
+            L2Messenger.messageNonce(),
+            alice,
+            recipient,
+            0,
+            100,
+            hex"ff"
+        );
         vm.expectCall(
             address(messagePasser),
             abi.encodeWithSelector(
                 L2ToL1MessagePasser.initiateWithdrawal.selector,
                 address(L1Messenger),
                 L2Messenger.baseGas(hex"ff", 100),
-                Encoding.encodeCrossDomainMessage(
-                    L2Messenger.messageNonce(),
-                    alice,
-                    recipient,
-                    0,
-                    100,
-                    hex"ff"
-                )
+                xDomainCallData
             )
         );
 
@@ -61,13 +63,16 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             address(L1Messenger),
             0,
             L2Messenger.baseGas(hex"ff", 100),
-            Encoding.encodeCrossDomainMessage(
-                L2Messenger.messageNonce(),
-                alice,
-                recipient,
-                0,
-                100,
-                hex"ff"
+            xDomainCallData,
+            Hashing.hashWithdrawal(
+                Types.WithdrawalTransaction({
+                    nonce: messagePasser.nonce(),
+                    sender: address(L2Messenger),
+                    target: address(L1Messenger),
+                    value: 0,
+                    gasLimit: L2Messenger.baseGas(hex"ff", 100),
+                    data: xDomainCallData
+                })
             )
         );
 

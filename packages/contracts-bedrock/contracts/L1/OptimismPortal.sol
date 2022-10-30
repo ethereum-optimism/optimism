@@ -118,6 +118,14 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
+     * @notice Accepts ETH value without triggering a deposit to L2. This function mainly exists
+     *         for the sake of the migration between the legacy Optimism system and Bedrock.
+     */
+    function donateETH() external payable {
+        // Intentionally empty.
+    }
+
+    /**
      * @notice Finalizes a withdrawal transaction.
      *
      * @param _tx              Withdrawal transaction to finalize.
@@ -129,7 +137,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes[] calldata _withdrawalProof
     ) external {
         // Prevent nested withdrawals within withdrawals.
         require(
@@ -293,7 +301,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     function _verifyWithdrawalInclusion(
         bytes32 _withdrawalHash,
         bytes32 _storageRoot,
-        bytes memory _proof
+        bytes[] memory _proof
     ) internal pure returns (bool) {
         bytes32 storageKey = keccak256(
             abi.encode(

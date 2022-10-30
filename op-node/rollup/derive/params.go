@@ -8,6 +8,14 @@ import (
 // count the tagging info as 200 in terms of buffer size.
 const frameOverhead = 200
 
+// frameSize calculates the size of the frame + overhead for
+// storing the frame. The sum of the frame size of each frame in
+// a channel determines the channel's size. The sum of the channel
+// sizes is used for pruning & compared against `MaxChannelBankSize`
+func frameSize(frame Frame) uint64 {
+	return uint64(len(frame.Data)) + frameOverhead
+}
+
 const DerivationVersion0 = 0
 
 // MaxChannelBankSize is the amount of memory space, in number of bytes,

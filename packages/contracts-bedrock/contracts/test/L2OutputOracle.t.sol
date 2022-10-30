@@ -382,20 +382,12 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(payable(proxy)).initialize(
-            genesisL2Output,
-            proposer,
-            owner
-        );
+        L2OutputOracle(payable(proxy)).initialize(genesisL2Output, proposer, owner);
     }
 
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(oracleImpl).initialize(
-            genesisL2Output,
-            proposer,
-            owner
-        );
+        L2OutputOracle(oracleImpl).initialize(genesisL2Output, proposer, owner);
     }
 
     function test_upgrading() external {

@@ -7,14 +7,14 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type NextAttributesProvider interface {
@@ -66,6 +66,11 @@ type EngineQueue struct {
 	finalized  eth.L2BlockRef
 	safeHead   eth.L2BlockRef
 	unsafeHead eth.L2BlockRef
+
+	// Track when the rollup node changes the forkchoice without engine action,
+	// e.g. on a reset after a reorg, or after consolidating a block.
+	// This update may repeat if the engine returns a temporary error.
+	needForkchoiceUpdate bool
 
 	finalizedL1 eth.BlockID
 
@@ -154,6 +159,9 @@ func (eq *EngineQueue) LastL2Time() uint64 {
 }
 
 func (eq *EngineQueue) Step(ctx context.Context) error {
+	if eq.needForkchoiceUpdate {
+		return eq.tryUpdateEngine(ctx)
+	}
 	if len(eq.safeAttributes) > 0 {
 		return eq.tryNextSafeAttributes(ctx)
 	}
@@ -227,6 +235,32 @@ func (eq *EngineQueue) logSyncProgress(reason string) {
 		"l2_time", eq.unsafeHead.Time,
 		"l1_derived", eq.prev.Origin(),
 	)
+}
+
+// tryUpdateEngine attempts to update the engine with the current forkchoice state of the rollup node,
+// this is a no-op if the nodes already agree on the forkchoice state.
+func (eq *EngineQueue) tryUpdateEngine(ctx context.Context) error {
+	fc := eth.ForkchoiceState{
+		HeadBlockHash:      eq.unsafeHead.Hash,
+		SafeBlockHash:      eq.safeHead.Hash,
+		FinalizedBlockHash: eq.finalized.Hash,
+	}
+	_, err := eq.engine.ForkchoiceUpdate(ctx, &fc, nil)
+	if err != nil {
+		var inputErr eth.InputError
+		if errors.As(err, &inputErr) {
+			switch inputErr.Code {
+			case eth.InvalidForkchoiceState:
+				return NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+			default:
+				return NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+			}
+		} else {
+			return NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
+		}
+	}
+	eq.needForkchoiceUpdate = false
+	return nil
 }
 
 func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
@@ -339,6 +373,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 		return NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
 	eq.safeHead = ref
+	eq.needForkchoiceUpdate = true
 	eq.metrics.RecordL2Ref("l2_safe", ref)
 	// unsafe head stays the same, we did not reorg the chain.
 	eq.safeAttributes = eq.safeAttributes[1:]
@@ -368,21 +403,28 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		case BlockInsertPrestateErr:
 			return NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
 		case BlockInsertPayloadErr:
-			eq.log.Warn("could not process payload derived from L1 data", "err", err)
-			// filter everything but the deposits
-			var deposits []hexutil.Bytes
+			eq.log.Warn("could not process payload derived from L1 data, dropping batch", "err", err)
+			// Count the number of deposits to see if the tx list is deposit only.
+			depositCount := 0
 			for _, tx := range attrs.Transactions {
 				if len(tx) > 0 && tx[0] == types.DepositTxType {
-					deposits = append(deposits, tx)
+					depositCount += 1
 				}
 			}
-			if len(attrs.Transactions) > len(deposits) {
-				eq.log.Warn("dropping sequencer transactions from payload for re-attempt, batcher may have included invalid transactions",
-					"txs", len(attrs.Transactions), "deposits", len(deposits), "parent", eq.safeHead)
-				eq.safeAttributes[0].Transactions = deposits
-				return nil
+			// Deposit transaction execution errors are suppressed in the execution engine, but if the
+			// block is somehow invalid, there is nothing we can do to recover & we should exit.
+			// TODO: Can this be triggered by an empty batch with invalid data (like parent hash or gas limit?)
+			if len(attrs.Transactions) == depositCount {
+				eq.log.Error("deposit only block was invalid", "parent", eq.safeHead, "err", err)
+				return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
 			}
-			return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
+			// drop the payload without inserting it
+			eq.safeAttributes = eq.safeAttributes[1:]
+			// suppress the error b/c we want to retry with the next batch from the batch queue
+			// If there is no valid batch the node will eventually force a deposit only block. If
+			// the deposit only block fails, this will return the critical error above.
+			return nil
+
 		default:
 			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
@@ -431,6 +473,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef) error {
 	eq.unsafeHead = unsafe
 	eq.safeHead = safe
 	eq.finalized = finalized
+	eq.needForkchoiceUpdate = true
 	eq.finalityData = eq.finalityData[:0]
 	// note: we do not clear the unsafe payloadds queue; if the payloads are not applicable anymore the parent hash checks will clear out the old payloads.
 	eq.origin = pipelineOrigin

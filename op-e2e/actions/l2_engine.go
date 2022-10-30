@@ -2,7 +2,6 @@ package actions
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/stretchr/testify/require"
 
@@ -58,7 +57,7 @@ type L2Engine struct {
 	failL2RPC error // mock error
 }
 
-func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string) *L2Engine {
+func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string) *L2Engine {
 	ethCfg := &ethconfig.Config{
 		NetworkId: genesis.Config.ChainID.Uint64(),
 		Genesis:   genesis,
@@ -74,13 +73,12 @@ func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.Bloc
 		JWTSecret:   jwtPath,
 	}
 	n, err := node.New(nodeCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = n.Close()
+	})
 	backend, err := geth.New(n, ethCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
 	chain := backend.BlockChain()
@@ -109,9 +107,7 @@ func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.Bloc
 			Authenticated: true,
 		},
 	})
-	if err := n.Start(); err != nil {
-		panic(fmt.Errorf("failed to start L2 op-geth node: %w", err))
-	}
+	require.NoError(t, n.Start(), "failed to start L2 op-geth node")
 
 	return eng
 }
