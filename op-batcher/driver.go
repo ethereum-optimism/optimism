@@ -107,6 +107,16 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		return nil, err
 	}
 
+	// SYSCOIN
+	syscoinClient, err := dialSyscoinClientWithTimeout(ctx, cfg.SyscoinRpc)
+	if err != nil {
+		return nil, err
+	}
+	podaClient, err := dialPoDAClientWithTimeout(ctx, cfg.PoDARpc)
+	if err != nil {
+		return nil, err
+	}
+
 	chainID, err := l1Client.ChainID(ctx)
 	if err != nil {
 		return nil, err
@@ -118,7 +128,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	log.Info("starting batch submitter", "submitter_addr", addr, "submitter_bal", sequencerBalance)
-
 	txManagerConfig := txmgr.Config{
 		Log:                       l,
 		Name:                      "Batch Submitter",
@@ -134,6 +143,8 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		L1Client:          l1Client,
 		L2Client:          l2Client,
 		RollupNode:        rollupClient,
+		SyscoinNode:       syscoinClient,
+		PoDANode:          podaClient,
 		MinL1TxSize:       cfg.MinL1TxSize,
 		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
@@ -144,7 +155,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
@@ -246,6 +256,7 @@ mainLoop:
 				continue
 			}
 			// Hand role do-while loop to fully pull all frames out of the channel
+			VHs := make([]common.Hash, 0)
 			for {
 				// Collect the output frame
 				data := new(bytes.Buffer)
@@ -258,52 +269,74 @@ mainLoop:
 					l.log.Error("error outputting frame", "err", err)
 					continue mainLoop
 				}
-
-				// Query for the submitter's current nonce.
-				walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-				nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
-				cancel()
+				// post data.Bytes() into SYS RPC to get version hash
+				vh, err := l.cfg.SyscoinNode.CreatePoDA(ctx, data.Bytes())
 				if err != nil {
-					l.log.Error("unable to get current nonce", "err", err)
+					l.log.Error("unable to create PoDA tx", "err", err)
 					continue mainLoop
 				}
-
-				// Create the transaction
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-				tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
-				cancel()
-				if err != nil {
-					l.log.Error("unable to craft tx", "err", err)
-					continue mainLoop
-				}
-
-				// Construct the a closure that will update the txn with the current gas prices.
-				updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-					l.log.Debug("updating batch tx gas price")
-					return l.UpdateGasPrice(ctx, tx)
-				}
-
-				// Wait until one of our submitted transactions confirms. If no
-				// receipt is received it's likely our gas price was too low.
-				// TODO: does the tx manager nicely replace the tx?
-				//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
-				receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
-				cancel()
-				if err != nil {
-					l.log.Warn("unable to publish tx", "err", err)
-					continue mainLoop
-				}
-
-				// The transaction was successfully submitted.
-				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
-
+				VHs = append(VHs, vh)
 				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
 				if done {
 					break // local do-while loop
 				}
 			}
+			vhBytes := make([]byte, 0)
+			for _, vh := range VHs {
+				// wait for VH to confirm (MTP > 0)
+				podaCreateStatus, err := l.cfg.SyscoinNode.IsPoDAConfirmed(ctx, vh)
+				if err != nil {
+					l.log.Error("unable to check for PoDA confirmation", "err", err)
+					continue mainLoop
+				}
+				if podaCreateStatus == false {
+					l.log.Error("PoDA not confirmed", "err", err)
+					continue mainLoop
+				}
+				vhBytes = append(vhBytes, vh.Bytes()...)
+			}
+			// Query for the submitter's current nonce.
+			walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
+			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
+			nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
+			cancel()
+			if err != nil {
+				l.log.Error("unable to get current nonce", "err", err)
+				continue mainLoop
+			}
+			// Create the transaction
+			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
+			// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
+			sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
+			calldata := append(sig, vhBytes...)
+			tx, err := l.CraftTx(ctx, calldata, nonce)
+			cancel()
+			if err != nil {
+				l.log.Error("unable to craft tx", "err", err)
+				continue mainLoop
+			}
+
+			// Construct the a closure that will update the txn with the current gas prices.
+			updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+				l.log.Debug("updating batch tx gas price")
+				return l.UpdateGasPrice(ctx, tx, uint64(len(VHs))*1800)
+			}
+
+			// Wait until one of our submitted transactions confirms. If no
+			// receipt is received it's likely our gas price was too low.
+			// TODO: does the tx manager nicely replace the tx?
+			//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
+			ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
+			receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
+			cancel()
+			if err != nil {
+				l.log.Warn("unable to publish tx", "err", err)
+				continue mainLoop
+			}
+
+			// The transaction was successfully submitted.
+			l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
+
 			// TODO: if we exit to the mainLoop early on an error,
 			// it would be nice if we can determine which blocks are still readable from the partially submitted data.
 			// We can open a channel-in-reader, parse the data up to which we managed to submit it,

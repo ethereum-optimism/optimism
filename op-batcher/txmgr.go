@@ -46,7 +46,7 @@ func (l *BatchSubmitter) CraftTx(ctx context.Context, data []byte, nonce uint64)
 // updated gas prices sampled from the existing network conditions.
 //
 // NOTE: Thie method SHOULD NOT publish the resulting transaction.
-func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Transaction, error) {
 	gasTipCap, err := l.cfg.L1Client.SuggestGasTipCap(ctx)
 	if err != nil {
 		return nil, err
@@ -65,7 +65,7 @@ func (l *BatchSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transacti
 		To:        tx.To(),
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
-		Gas:       tx.Gas(),
+		Gas:       tx.Gas() + additionalGas,
 		Data:      tx.Data(),
 	}
 

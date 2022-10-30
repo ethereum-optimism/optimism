@@ -37,6 +37,34 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.Roll
 	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
 }
 
+// SYSCOIN
+// dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
+// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
+// method will return an error.
+func dialSyscoinClientWithTimeout(ctx context.Context, url string) (*sources.SyscoinClient, error) {
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	rpcCl, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, err
+	}
+
+	return sources.NewSyscoinClient(client.NewBaseRPCClient(rpcCl)), nil
+}
+
+func dialPoDAClientWithTimeout(ctx context.Context, url string) (*sources.PoDAClient, error) {
+	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	defer cancel()
+
+	rpcCl, err := rpc.DialContext(ctxt, url)
+	if err != nil {
+		return nil, err
+	}
+
+	r
+	eturn sources.NewPoDAClient(client.NewBaseRPCClient(rpcCl)), nil
+}
 // parseAddress parses an ETH address from a hex string. This method will fail if
 // the address is not a valid hexadecimal address.
 func parseAddress(address string) (common.Address, error) {
