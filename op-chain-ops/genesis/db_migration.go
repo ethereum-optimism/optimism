@@ -66,7 +66,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 	}
 
 	addrs := migrationData.Addresses()
-	if err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, 0); err != nil {
+	if err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID)); err != nil {
 		return err
 	}
 
