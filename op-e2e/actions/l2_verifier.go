@@ -118,13 +118,14 @@ func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
-		CurrentL1:   s.derivation.Origin(),
-		HeadL1:      s.l1State.L1Head(),
-		SafeL1:      s.l1State.L1Safe(),
-		FinalizedL1: s.l1State.L1Finalized(),
-		UnsafeL2:    s.L2Unsafe(),
-		SafeL2:      s.L2Safe(),
-		FinalizedL2: s.L2Finalized(),
+		CurrentL1:          s.derivation.Origin(),
+		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		HeadL1:             s.l1State.L1Head(),
+		SafeL1:             s.l1State.L1Safe(),
+		FinalizedL1:        s.l1State.L1Finalized(),
+		UnsafeL2:           s.L2Unsafe(),
+		SafeL2:             s.L2Safe(),
+		FinalizedL2:        s.L2Finalized(),
 	}
 }
 
@@ -160,15 +161,16 @@ func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 }
 
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
-	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
+	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1SafeBlock(head)
+	s.l1State.HandleNewL1SafeBlock(safe)
 }
 
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
-	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
+	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1FinalizedBlock(head)
+	s.l1State.HandleNewL1FinalizedBlock(finalized)
+	s.derivation.Finalize(finalized)
 }
 
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline

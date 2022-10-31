@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Metrics interface {
@@ -30,13 +31,14 @@ type ResetableStage interface {
 }
 
 type EngineQueueStage interface {
+	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
 	SetUnsafeHead(head eth.L2BlockRef)
 
-	Finalize(l1Origin eth.BlockID)
+	Finalize(l1Origin eth.L1BlockRef)
 	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Step(context.Context) error
@@ -97,12 +99,20 @@ func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
 
+// Origin is the L1 block of the inner-most stage of the derivation pipeline,
+// i.e. the L1 chain up to and including this point included and/or produced all the safe L2 blocks.
 func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 	return dp.eng.Origin()
 }
 
-func (dp *DerivationPipeline) Finalize(l1Origin eth.BlockID) {
+func (dp *DerivationPipeline) Finalize(l1Origin eth.L1BlockRef) {
 	dp.eng.Finalize(l1Origin)
+}
+
+// FinalizedL1 is the L1 finalization of the inner-most stage of the derivation pipeline,
+// i.e. the L1 chain up to and including this point included and/or produced all the finalized L2 blocks.
+func (dp *DerivationPipeline) FinalizedL1() eth.L1BlockRef {
+	return dp.eng.FinalizedL1()
 }
 
 func (dp *DerivationPipeline) Finalized() eth.L2BlockRef {
