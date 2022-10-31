@@ -17,6 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
           proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
           controller: deployer, // TODO
           finalOwner: hre.deployConfig.proxyAdminOwner,
+          addressManager: hre.deployConfig.addressManager,
         },
         proxyAddressConfig: {
           l2OutputOracleProxy: await getDeploymentAddress(
@@ -69,6 +70,7 @@ const deployFn: DeployFunction = async (hre) => {
             hre,
             'L1ERC721BridgeImpl'
           ),
+          portalSenderImpl: await getDeploymentAddress(hre, 'PortalSenderImpl'),
         },
         l2OutputOracleConfig: {
           l2OutputOracleGenesisL2Output:
