@@ -49,9 +49,11 @@ contract FeeVault {
 
         uint256 value = address(this).balance;
 
-        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{
-            value: value
-        }(recipient, 20000, bytes(""));
+        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
+            recipient,
+            20000,
+            bytes("")
+        );
 
         emit Withdrawal(value, recipient, msg.sender);
     }
