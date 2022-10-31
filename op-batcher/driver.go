@@ -23,7 +23,7 @@ import (
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
 // batches to L1 for availability.
 type BatchSubmitter struct {
-	txMgr txmgr.TxManager
+	txMgr *TransactionManager
 	addr  common.Address
 	cfg   sequencer.Config
 	wg    sync.WaitGroup
@@ -145,7 +145,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: txmgr.NewSimpleTxManager("batcher", txManagerConfig, l1Client),
+		txMgr: NewTransactionManger(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
 		done:  make(chan struct{}),
 		log:   l,
 		state: new(channelManager),
@@ -243,7 +243,10 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
-				_ = l.submitTransaction(data)
+				// Drop receipt + error for now
+				if _, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
+					l.log.Error("Failed to send transaction", "err", err)
+				}
 			}
 
 		case <-l.done:
