@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"encoding/binary"
 	"fmt"
 	"math/big"
 
@@ -79,9 +78,6 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 		return err
 	}
 
-	nonce := [8]byte{}
-	binary.LittleEndian.PutUint64(nonce[:], (uint64)(config.L1GenesisBlockNonce))
-
 	// Create the bedrock transition block
 	bedrockHeader := &types.Header{
 		ParentHash:  header.Hash(),
@@ -98,7 +94,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
 		Extra:       config.L2GenesisBlockExtraData,
 		MixDigest:   config.L2GenesisBlockMixHash,
-		Nonce:       (types.BlockNonce)(nonce),
+		Nonce:       types.EncodeNonce((uint64)(config.L1GenesisBlockNonce)),
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
 	}
 
