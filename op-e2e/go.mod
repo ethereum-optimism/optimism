@@ -19,6 +19,13 @@ require (
 	github.com/stretchr/testify v1.8.1
 )
 
+replace github.com/ethereum-optimism/optimism/op-batcher v0.8.10 => ../op-batcher
+replace github.com/ethereum-optimism/optimism/op-bindings v0.8.10 => ../op-bindings
+replace github.com/ethereum-optimism/optimism/op-chain-ops v0.8.10 => ../op-chain-ops
+replace github.com/ethereum-optimism/optimism/op-node v0.8.10 => ../op-node
+replace github.com/ethereum-optimism/optimism/op-proposer v0.8.10 => ../op-proposer
+replace github.com/ethereum-optimism/optimism/op-service v0.8.10 => ../op-service
+
 require (
 	github.com/Microsoft/go-winio v0.6.0 // indirect
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect
