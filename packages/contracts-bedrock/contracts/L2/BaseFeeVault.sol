@@ -8,21 +8,14 @@ import { FeeVault } from "../universal/FeeVault.sol";
 
 /**
  * @custom:proxied
- * @custom:predeploy 0x4200000000000000000000000000000000000011
- * @title SequencerFeeVault
- * @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
- *         transaction processing and block production.
+ * @custom:predeploy 0x4200000000000000000000000000000000000019
+ * @title BaseFeeVault
+ * @notice The BaseFeeVault accumulates the base fee that is paid by
+ *         transactions.
  */
-contract SequencerFeeVault is FeeVault, Semver {
+contract BaseFeeVault is FeeVault, Semver {
     /**
      * @custom:semver 0.0.1
      */
     constructor(address _recipient) FeeVault(_recipient, 10 ether) Semver(0, 0, 1) {}
-
-    /**
-     * @custom:legacy
-     */
-    function l1FeeWallet() public view returns (address) {
-        return recipient;
-    }
 }
