@@ -1,4 +1,4 @@
-package op_batcher
+package batcher
 
 import (
 	"time"
@@ -12,7 +12,7 @@ import (
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 )
 
-type Config struct {
+type CLIConfig struct {
 	/* Required Params */
 
 	// L1EthRpc is the HTTP provider URL for L1.
@@ -78,7 +78,7 @@ type Config struct {
 	PprofConfig oppprof.CLIConfig
 }
 
-func (c Config) Check() error {
+func (c CLIConfig) Check() error {
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
 	}
@@ -95,8 +95,8 @@ func (c Config) Check() error {
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context) Config {
-	return Config{
+func NewConfig(ctx *cli.Context) CLIConfig {
+	return CLIConfig{
 		/* Required Flags */
 		L1EthRpc:                   ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                   ctx.GlobalString(flags.L2EthRpcFlag.Name),
