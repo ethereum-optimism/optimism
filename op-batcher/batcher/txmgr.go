@@ -1,4 +1,4 @@
-package op_batcher
+package batcher
 
 import (
 	"context"
