@@ -1,4 +1,4 @@
-package sequencer
+package batcher
 
 import (
 	"crypto/ecdsa"

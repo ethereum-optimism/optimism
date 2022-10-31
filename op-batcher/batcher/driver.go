@@ -1,4 +1,4 @@
-package op_batcher
+package batcher
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"time"
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
-	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -26,7 +25,7 @@ import (
 type BatchSubmitter struct {
 	txMgr *TransactionManager
 	addr  common.Address
-	cfg   sequencer.Config
+	cfg   Config
 	wg    sync.WaitGroup
 	done  chan struct{}
 	log   log.Logger
@@ -42,7 +41,7 @@ type BatchSubmitter struct {
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
+func NewBatchSubmitter(cfg CLIConfig, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
 	var err error
@@ -127,7 +126,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 	}
 
-	batcherCfg := sequencer.Config{
+	batcherCfg := Config{
 		Log:               l,
 		Name:              "Batch Submitter",
 		L1Client:          l1Client,
