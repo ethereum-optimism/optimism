@@ -30,7 +30,7 @@ type Driver struct {
 	// When the derivation pipeline is waiting for new data to do anything
 	idleDerivation bool
 
-	// Requests for synchronized event loop execution to avoid reading an inconsistent state
+	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
 
 	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
@@ -373,6 +373,8 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	}
 }
 
+// syncStatus returns the current sync status, and should only be called synchronously with
+// the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
 		CurrentL1:          s.derivation.Origin(),
@@ -386,6 +388,8 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 	}
 }
 
+// SyncStatus blocks the driver event loop and captures the syncing status.
+// If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	wait := make(chan struct{})
 	select {
@@ -398,6 +402,9 @@ func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	}
 }
 
+// BlockRefWithStatus blocks the driver event loop and captures the syncing status,
+// along with an L2 block reference by number consistent with that same status.
+// If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
 	wait := make(chan struct{})
 	select {
