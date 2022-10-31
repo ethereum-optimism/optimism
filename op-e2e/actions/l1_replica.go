@@ -177,8 +177,16 @@ func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
 // ActL1FinalizeNext finalizes the next block, which must be marked as safe before doing so (see ActL1SafeNext).
 func (s *L1Replica) ActL1FinalizeNext(t Testing) {
 	safe := s.l1Chain.CurrentSafeBlock()
-	finalizedNum := s.l1Chain.CurrentFinalizedBlock().NumberU64()
-	if safe.NumberU64() <= finalizedNum {
+	safeNum := uint64(0)
+	if safe != nil {
+		safeNum = safe.NumberU64()
+	}
+	finalized := s.l1Chain.CurrentFinalizedBlock()
+	finalizedNum := uint64(0)
+	if finalized != nil {
+		finalizedNum = finalized.NumberU64()
+	}
+	if safeNum <= finalizedNum {
 		t.InvalidAction("need to move forward safe block before moving finalized block")
 		return
 	}
@@ -192,7 +200,11 @@ func (s *L1Replica) ActL1FinalizeNext(t Testing) {
 // ActL1SafeNext marks the next unsafe block as safe.
 func (s *L1Replica) ActL1SafeNext(t Testing) {
 	safe := s.l1Chain.CurrentSafeBlock()
-	next := s.l1Chain.GetBlockByNumber(safe.NumberU64() + 1)
+	safeNum := uint64(0)
+	if safe != nil {
+		safeNum = safe.NumberU64()
+	}
+	next := s.l1Chain.GetBlockByNumber(safeNum + 1)
 	if next == nil {
 		t.InvalidAction("if head of chain is marked as safe then there's no next block")
 		return
