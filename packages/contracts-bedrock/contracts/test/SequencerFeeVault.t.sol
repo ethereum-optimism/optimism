@@ -15,7 +15,6 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
 
     function setUp() public override {
         super.setUp();
-
         vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(new SequencerFeeVault(recipient)).code);
     }
 
