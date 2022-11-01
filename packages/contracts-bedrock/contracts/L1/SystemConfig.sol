@@ -29,17 +29,17 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     constructor(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) Semver(0, 0, 1) {
-        overhead = _overhead;
-        scalar = _scalar;
-        initialize(_owner, _batcherHash);
+        initialize(_owner, _overhead, _scalar, _batcherHash);
     }
 
     /**
      * @notice Initializer;
      */
-    function initialize(address _owner, bytes32 _batcherHash) public initializer {
+    function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
+        overhead = _overhead;
+        scalar = _scalar;
         batcherHash = _batcherHash;
     }
 
