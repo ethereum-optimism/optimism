@@ -17,25 +17,31 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint256 public scalar;
     bytes32 public batcherHash;
 
-    event ConfigUpdate(
-        uint256 indexed version,
-        UpdateType indexed updateType,
-        bytes data
-    );
+    event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     enum UpdateType {
         BATCHER,
         GAS_CONFIG
     }
 
-    constructor(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) Semver(0, 0, 1) {
+    constructor(
+        address _owner,
+        uint256 _overhead,
+        uint256 _scalar,
+        bytes32 _batcherHash
+    ) Semver(0, 0, 1) {
         initialize(_owner, _overhead, _scalar, _batcherHash);
     }
 
     /**
      * @notice Initializer;
      */
-    function initialize(address _owner, uint256 _overhead, uint256 _scalar, bytes32 _batcherHash) public initializer {
+    function initialize(
+        address _owner,
+        uint256 _overhead,
+        uint256 _scalar,
+        bytes32 _batcherHash
+    ) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;
