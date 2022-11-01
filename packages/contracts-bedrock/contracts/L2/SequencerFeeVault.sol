@@ -15,6 +15,12 @@ import { FeeVault } from "../universal/FeeVault.sol";
  */
 contract SequencerFeeVault is FeeVault, Semver {
     /**
+     * @custom:spacer l1FeeWallet
+     * @notice Spacer for backwards compatibility.
+     */
+    address private spacer_0_0_20;
+
+    /**
      * @custom:semver 0.0.1
      */
     constructor(address _recipient) FeeVault(_recipient, 10 ether) Semver(0, 0, 1) {}
