@@ -26,6 +26,7 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	_ = abi.ConvertType
 )
 
 // L1StandardBridgeMetaData contains all meta data concerning the L1StandardBridge contract.
@@ -156,11 +157,11 @@ func NewL1StandardBridgeFilterer(address common.Address, filterer bind.ContractF
 
 // bindL1StandardBridge binds a generic wrapper to an already deployed contract.
 func bindL1StandardBridge(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(L1StandardBridgeABI))
+	parsed, err := L1StandardBridgeMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
