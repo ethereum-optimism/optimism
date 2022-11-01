@@ -106,7 +106,7 @@ def run_forked(monorepo_dir, snapshot_cache_dir, work_dir, l1_url, reset_work_di
         'yarn',
         'hardhat',
         '--network',
-        'mainnet',
+        'mainnet-forked',
         'deploy',
         '--tags',
         'migration'
