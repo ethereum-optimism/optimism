@@ -7,10 +7,10 @@ import "./CitizenshipChecker.sol";
 import "./SocialContract.sol";
 
 contract CitizenshipBadge is ERC721 {
-    address public admin;
+    address public immutable admin;
 
-    SocialContract public socialContract;
-    CitizenshipChecker public citizenshipChecker;
+    SocialContract public immutable socialContract;
+    CitizenshipChecker public immutable citizenshipChecker;
 
     constructor(
         address _admin,

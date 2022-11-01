@@ -35,7 +35,7 @@ contract CitizenCheckerTest is Test {
         attestationData[0] = SocialContract.AttestationData({
             about: opco,
             key: keccak256("op.opco"),
-            val: abi.encodePacked(uint256(100)) //abi.encodePacked(true)
+            val: abi.encodePacked(uint256(100))
         });
         vm.prank(admin);
         socialContract.attest(attestationData);

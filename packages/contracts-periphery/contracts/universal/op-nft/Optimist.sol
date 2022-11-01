@@ -6,15 +6,17 @@ import "@openzeppelin/contracts/utils/Strings.sol";
 import "./SocialContract.sol";
 
 contract Optimist is ERC721 {
-    SocialContract public sc;
-    address public admin;
+    SocialContract public immutable sc;
+    address public immutable admin;
 
     constructor(
         string memory _name,
         string memory _symbol,
-        address _admin
+        address _admin,
+        address _sc
     ) ERC721(_name, _symbol) {
         admin = _admin;
+        sc = SocialContract(_sc);
     }
 
     function mint(address recipient) public returns (uint256) {
