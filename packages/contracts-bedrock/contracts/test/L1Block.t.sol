@@ -59,7 +59,13 @@ contract L1Block_Setters_Test is L1Block_TestInit {
         );
     }
 
-    function testFuzz_setL1BlockValues_succeeds(uint64 n, uint64 t, uint256 b, bytes32 h, uint64 s) external {
+    function testFuzz_setL1BlockValues_succeeds(
+        uint64 n,
+        uint64 t,
+        uint256 b,
+        bytes32 h,
+        uint64 s
+    ) external {
         vm.prank(depositor);
         lb.setL1BlockValues(n, t, b, h, s);
         assertEq(lb.number(), n);

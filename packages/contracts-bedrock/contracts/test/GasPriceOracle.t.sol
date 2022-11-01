@@ -7,7 +7,6 @@ import { L1Block } from "../L2/L1Block.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 
 contract GasPriceOracle_TestInit is CommonTest {
-
     event OverheadUpdated(uint256);
     event ScalarUpdated(uint256);
     event DecimalsUpdated(uint256);
@@ -69,30 +68,21 @@ contract GasPriceOracle_Layout_Test is GasPriceOracle_TestInit {
         // the overhead is at slot 3
         vm.prank(gasOracle.owner());
         gasOracle.setOverhead(456);
-        assertEq(
-            456,
-            uint256(vm.load(address(gasOracle), bytes32(uint256(3))))
-        );
+        assertEq(456, uint256(vm.load(address(gasOracle), bytes32(uint256(3)))));
     }
 
     function test_setScalar_layout_succeeds() external {
         // scalar is at slot 4
         vm.prank(gasOracle.owner());
         gasOracle.setScalar(333);
-        assertEq(
-            333,
-            uint256(vm.load(address(gasOracle), bytes32(uint256(4))))
-        );
+        assertEq(333, uint256(vm.load(address(gasOracle), bytes32(uint256(4)))));
     }
 
     function test_setDecimals_layout_succeeds() external {
         // decimals is at slot 5
         vm.prank(gasOracle.owner());
         gasOracle.setDecimals(222);
-        assertEq(
-            222,
-            uint256(vm.load(address(gasOracle), bytes32(uint256(5))))
-        );
+        assertEq(222, uint256(vm.load(address(gasOracle), bytes32(uint256(5)))));
     }
 }
 
