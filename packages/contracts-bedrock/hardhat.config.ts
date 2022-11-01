@@ -133,11 +133,6 @@ const config: HardhatUserConfig = {
     p2pSequencerAddress: {
       type: 'address',
     },
-    // L2 address used to send all priority fees to, also known as the coinbase address in the block.
-    // "fee_recipient_address" in rollup config.
-    optimismL2FeeRecipient: {
-      type: 'address',
-    },
     // L1 address that batches are sent to.
     // "batch_inbox_address" in rollup config.
     batchInboxAddress: {

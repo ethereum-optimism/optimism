@@ -13,8 +13,7 @@ const deployFn: DeployFunction = async (hre) => {
   )
   await deployAndVerifyAndThen({
     hre,
-    name: 'OptimismMintableERC20FactoryImpl',
-    contract: 'OptimismMintableERC20Factory',
+    name: 'OptimismMintableERC20Factory',
     args: [L1StandardBridgeProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(

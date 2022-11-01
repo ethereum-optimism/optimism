@@ -193,7 +193,6 @@ func makeRollupConfig(
 		L1ChainID:              new(big.Int).SetUint64(config.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
 		P2PSequencerAddress:    config.P2PSequencerAddress,
-		FeeRecipientAddress:    config.OptimismL2FeeRecipient,
 		BatchInboxAddress:      config.BatchInboxAddress,
 		BatchSenderAddress:     config.BatchSenderAddress,
 		DepositContractAddress: portalAddr,

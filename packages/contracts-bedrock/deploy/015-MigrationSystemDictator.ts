@@ -1,6 +1,8 @@
 import { awaitCondition } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import '@eth-optimism/hardhat-deploy-config'
+import 'hardhat-deploy'
 
 import {
   getDeploymentAddress,
@@ -69,31 +71,22 @@ const deployFn: DeployFunction = async (hre) => {
           ),
         },
         implementationAddressConfig: {
-          l2OutputOracleImpl: await getDeploymentAddress(
-            hre,
-            'L2OutputOracleImpl'
-          ),
-          optimismPortalImpl: await getDeploymentAddress(
-            hre,
-            'OptimismPortalImpl'
-          ),
+          l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
+          optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
           l1CrossDomainMessengerImpl: await getDeploymentAddress(
             hre,
-            'L1CrossDomainMessengerImpl'
+            'L1CrossDomainMessenger'
           ),
           l1StandardBridgeImpl: await getDeploymentAddress(
             hre,
-            'L1StandardBridgeImpl'
+            'L1StandardBridge'
           ),
           optimismMintableERC20FactoryImpl: await getDeploymentAddress(
             hre,
-            'OptimismMintableERC20FactoryImpl'
+            'OptimismMintableERC20Factory'
           ),
-          l1ERC721BridgeImpl: await getDeploymentAddress(
-            hre,
-            'L1ERC721BridgeImpl'
-          ),
-          portalSenderImpl: await getDeploymentAddress(hre, 'PortalSenderImpl'),
+          l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
+          portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
         },
         l2OutputOracleConfig: {
           l2OutputOracleGenesisL2Output:
