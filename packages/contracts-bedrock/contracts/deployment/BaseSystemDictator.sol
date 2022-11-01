@@ -11,6 +11,7 @@ import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SystemConfig } from "./DeployConfig.sol";
 
 /**
  * @title BaseSystemDictator
