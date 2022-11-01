@@ -27,7 +27,6 @@ contract CrossDomainOwnable2_TestInit is Messenger_Initializer {
 }
 
 contract CrossDomainOwnable2_CheckOwner_TestFail is CrossDomainOwnable2_TestInit {
-
     function test_checkOwner_notMessenger_reverts() external {
         vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
         setter.set(1);

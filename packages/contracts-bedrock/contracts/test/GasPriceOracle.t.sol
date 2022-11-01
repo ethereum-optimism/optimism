@@ -6,7 +6,7 @@ import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
 import { L1Block } from "../L2/L1Block.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 
-contract GasPriceOracle_Test is CommonTest {
+contract GasPriceOracle_TestInit is CommonTest {
     event OverheadUpdated(uint256);
     event ScalarUpdated(uint256);
     event DecimalsUpdated(uint256);
