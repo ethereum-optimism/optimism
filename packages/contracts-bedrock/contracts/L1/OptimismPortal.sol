@@ -59,6 +59,26 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
     /**
+     * @notice Represents a proven withdrawal
+     *
+     * TODO: Sanity check packing the vars as u128.
+     * 2^128 - 1 should be more than large enough to be a viable
+     * max for the L2 transaction index going forward, and the
+     * sun will have exploded by the time the unix timestamp
+     * hits this value.
+     */
+    struct ProvenWithdrawal {
+        bytes32 outputRoot;
+        uint128 timestamp;
+        uint128 l2BlockNumber;
+    }
+
+    /**
+     * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
+     */
+    mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
+
+    /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
@@ -78,6 +98,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 indexed version,
         bytes opaqueData
     );
+
+    /**
+     * @notice Emitted when a withdrawal transaction is proven.
+     *
+     * @param withdrawalHash Hash of the withdrawal transaction.
+     */
+    event WithdrawalProven(bytes32 indexed withdrawalHash);
 
     /**
      * @notice Emitted when a withdrawal transaction is finalized.
@@ -126,47 +153,37 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Finalizes a withdrawal transaction.
+     * @notice Proves a withdrawal transaction.
      *
      * @param _tx              Withdrawal transaction to finalize.
      * @param _l2BlockNumber   L2 block number of the outputRoot.
      * @param _outputRootProof Inclusion proof of the L2ToL1MessagePasser contract's storage root.
      * @param _withdrawalProof Inclusion proof of the withdrawal in L2ToL1MessagePasser contract.
      */
-    function finalizeWithdrawalTransaction(
+    function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
     ) external {
-        // Prevent nested withdrawals within withdrawals.
-        require(
-            l2Sender == DEFAULT_L2_SENDER,
-            "OptimismPortal: can only trigger one withdrawal per transaction"
-        );
-
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2.
         // In the context of the proxy delegate calling to this implementation,
         // address(this) will return the address of the proxy.
+        //
+        // Because this is checked here, we do not need to check again in `finalizeWithdrawalTransaction`
         require(
             _tx.target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"
         );
 
-        // Get the output root. This will fail if there is no
-        // output root for the given block number.
-        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-
-        // Ensure that enough time has passed since the proposal was submitted before allowing a
-        // withdrawal. Under the assumption that the fault proof mechanism is operating correctly,
-        // we can infer that any withdrawal that has passed the finalization period must be valid
-        // and can therefore be operated on.
-        require(_isOutputFinalized(proposal), "OptimismPortal: proposal is not yet finalized");
+        // Get the output root and load onto the stack to prevent multiple mloads. This will
+        // fail if there is no output root for the given block number.
+        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2BlockNumber).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
-            proposal.outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
+            outputRoot == Hashing.hashOutputRootProof(_outputRootProof),
             "OptimismPortal: invalid output root proof"
         );
 
@@ -184,6 +201,66 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
                 _withdrawalProof
             ),
             "OptimismPortal: invalid withdrawal inclusion proof"
+        );
+
+        // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`,
+        // and `l2BlockNumber` in the `provenWithdrawals` mapping. A certain withdrawal
+        // can be proved multiple times and thus overwrite a previously stored `ProvenWithdrawal`,
+        // but this is safe due to the replay check in `finalizeWithdrawalTransaction`.
+        provenWithdrawals[withdrawalHash] = ProvenWithdrawal({
+            outputRoot: outputRoot,
+            timestamp: uint128(block.timestamp),
+            l2BlockNumber: uint128(_l2BlockNumber)
+        });
+
+        // Emit a `WithdrawalProven` event.
+        emit WithdrawalProven(withdrawalHash);
+    }
+
+    /**
+     * @notice Finalizes a withdrawal transaction.
+     *
+     * @param _tx              Withdrawal transaction to finalize.
+     */
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
+        // Prevent nested withdrawals within withdrawals.
+        require(
+            l2Sender == DEFAULT_L2_SENDER,
+            "OptimismPortal: can only trigger one withdrawal per transaction"
+        );
+
+        // All withdrawals have a unique hash, we'll use this as the identifier for the withdrawal
+        // and to prevent replay attacks.
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
+
+        // Grab the proven withdrawal from the `provenWithdrawals` map.
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash];
+
+        // Ensure that the withdrawal has been proven
+        require(provenWithdrawal.timestamp != 0, "OptimismPortal: withdrawal has not been proven");
+
+        // Ensure that the withdrawal's finalization period has elapsed.
+        require(
+            _isOutputFinalized(provenWithdrawal.timestamp),
+            "OptimismPortal: withdrawal finalization period has not elapsed"
+        );
+
+        // Grab the OutputProposal from the L2 Oracle
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(
+            provenWithdrawal.l2BlockNumber
+        );
+
+        // Check that the output proposal hasn't been updated.
+        require(
+            proposal.outputRoot == provenWithdrawal.outputRoot,
+            "OptimismPortal: output root proven is not the same as current output root"
+        );
+
+        // Perform a second check on the withdrawal's finalization period, this time with
+        // the `OutputProposal`'s timestamp fetched from the L2 Oracle.
+        require(
+            _isOutputFinalized(proposal.timestamp),
+            "OptimismPortal: withdrawal finalization period has not elapsed"
         );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
@@ -226,8 +303,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @param _l2BlockNumber The number of the L2 block.
      */
     function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(_l2BlockNumber);
-        return _isOutputFinalized(proposal);
+        return _isOutputFinalized(L2_ORACLE.getL2Output(_l2BlockNumber).timestamp);
     }
 
     /**
@@ -280,14 +356,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Determine if an L2 Output is finalized.
      *
-     * @param _proposal The output proposal to check.
+     * @param _timestamp The timestamp to check.
      */
-    function _isOutputFinalized(Types.OutputProposal memory _proposal)
-        internal
-        view
-        returns (bool)
-    {
-        return block.timestamp > _proposal.timestamp + FINALIZATION_PERIOD_SECONDS;
+    function _isOutputFinalized(uint256 _timestamp) internal view returns (bool) {
+        return block.timestamp > _timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
     /**
