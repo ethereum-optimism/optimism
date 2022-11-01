@@ -78,10 +78,9 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			BaseFee:        BytesToBigInt(baseFee),
 			BlockHash:      common.BytesToHash(hash),
 			SequenceNumber: seqNumber,
-			// TODO need SystemConfig contract
-			//BatcherAddr:    common.BytesToAddress(batcher),
-			//L1FeeOverhead:  common.BytesToHash(l1FeeOverhead),
-			//L1FeeScalar:    common.BytesToHash(l1FeeScalar),
+			BatcherAddr:    common.BytesToAddress(batcher),
+			L1FeeOverhead:  common.BytesToHash(l1FeeOverhead),
+			L1FeeScalar:    common.BytesToHash(l1FeeScalar),
 		}
 
 		// Setup opts
@@ -97,10 +96,9 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			BytesToBigInt(baseFee),
 			common.BytesToHash(hash),
 			seqNumber,
-			// TODO need SystemConfig contract
-			//common.BytesToAddress(batcher),
-			//common.BytesToHash(l1FeeOverhead).Big(),
-			//common.BytesToHash(l1FeeScalar).Big(),
+			common.BytesToHash(batcher),
+			common.BytesToHash(l1FeeOverhead).Big(),
+			common.BytesToHash(l1FeeScalar).Big(),
 		)
 		if err != nil {
 			t.Fatalf("Failed to create the transaction: %v", err)
