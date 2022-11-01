@@ -182,6 +182,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 		"basefee":        block.BaseFee(),
 		"hash":           block.Hash(),
 		"sequenceNumber": 0,
+		"batcherHash":    common.Hash{},
+		"l1FeeOverhead":  config.GasPriceOracleOverhead,
+		"l1FeeScalar":    config.GasPriceOracleScalar,
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
 		"bridge":      predeploys.L2StandardBridge,
