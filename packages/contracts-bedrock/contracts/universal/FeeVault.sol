@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 
@@ -26,7 +25,9 @@ contract FeeVault {
     address public immutable recipient;
 
     /**
-     * @custom:semver 0.0.1
+     * @param _recipient - The L1 account that funds can be withdrawn to.
+     * @param _minWithdrawalAmount - The min amount of funds before a withdrawal
+     *        can be triggered.
      */
     constructor(address _recipient, uint256 _minWithdrawalAmount) {
         MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;

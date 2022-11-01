@@ -16,5 +16,5 @@ contract L1FeeVault is FeeVault, Semver {
     /**
      * @custom:semver 0.0.1
      */
-    constructor(address _recipient) FeeVault(recipient, 10 ether) Semver(0, 0, 1) {}
+    constructor(address _recipient) FeeVault(_recipient, 10 ether) Semver(0, 0, 1) {}
 }
