@@ -8,8 +8,8 @@ import (
 	"io"
 	"strings"
 
-	l2grawdb "github.com/ethereum-optimism/optimism/l2geth/core/rawdb"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 )
 
@@ -31,8 +31,8 @@ type AllowanceCB func(owner, spender common.Address) error
 
 // IterateDBAddresses iterates over each address in Geth's address
 // preimage database, calling the callback with the address.
-func IterateDBAddresses(inDB ethdb.Database, cb AddressCB) error {
-	iter := inDB.NewIterator(AddressPreimagePrefix, nil)
+func IterateDBAddresses(db ethdb.Database, cb AddressCB) error {
+	iter := db.NewIterator(AddressPreimagePrefix, nil)
 	for iter.Next() {
 		if iter.Error() != nil {
 			return iter.Error()
@@ -98,10 +98,10 @@ func IterateAllowanceList(r io.Reader, cb AllowanceCB) error {
 
 // IterateMintEvents iterates over each mint event in the database starting
 // from head and stopping at genesis.
-func IterateMintEvents(inDB ethdb.Database, headNum uint64, cb AddressCB) error {
+func IterateMintEvents(db ethdb.Database, headNum uint64, cb AddressCB) error {
 	for headNum > 0 {
-		hash := l2grawdb.ReadCanonicalHash(inDB, headNum)
-		receipts := l2grawdb.ReadRawReceipts(inDB, hash, headNum)
+		hash := rawdb.ReadCanonicalHash(db, headNum)
+		receipts := rawdb.ReadRawReceipts(db, hash, headNum)
 		for _, receipt := range receipts {
 			for _, l := range receipt.Logs {
 				if common.BytesToHash(l.Topics[0].Bytes()) != MintTopic {
