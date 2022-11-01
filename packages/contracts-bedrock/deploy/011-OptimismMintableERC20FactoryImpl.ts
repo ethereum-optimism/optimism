@@ -1,3 +1,4 @@
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import {
@@ -7,7 +8,7 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  let L1StandardBridgeProxy
+  let L1StandardBridgeProxy: ethers.Contract
   try {
     L1StandardBridgeProxy = await getContractFromArtifact(
       hre,
@@ -16,7 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
   } catch (e) {
     L1StandardBridgeProxy = await getContractFromArtifact(
       hre,
-      'L1StandardBridge'
+      'L1StandardBridgeProxy'
     )
   }
 
