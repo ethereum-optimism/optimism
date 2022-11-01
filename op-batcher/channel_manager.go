@@ -2,12 +2,15 @@ package op_batcher
 
 import (
 	"bytes"
+	"errors"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/core/types"
 )
+
+var ErrReorg = errors.New("block does not extend existing chain")
 
 type txID struct {
 	chID        derive.ChannelID
@@ -23,6 +26,13 @@ type channelManager struct {
 	// All blocks since the last request for new tx data
 	blocks []*types.Block
 	datas  []taggedData
+}
+
+// Clear clears the entire state of the channel manager.
+// It is intended to be used after an L2 reorg.
+func (s *channelManager) Clear() {
+	s.blocks = s.blocks[:0]
+	s.datas = s.datas[:0]
 }
 
 // func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
@@ -106,9 +116,15 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	return r.data, r.id, nil
 }
 
-// TODO: Continuity check here?
-// Invariants about what's on L1?
+// AddL2Block saves an L2 block to the internal state. It returns ErrReorg
+// if the block does not extend the last block loaded into the state.
+// If no block is already in the channel, the the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
+	if len(s.blocks) > 0 {
+		if s.blocks[len(s.blocks)-1].Hash() != block.ParentHash() {
+			return ErrReorg
+		}
+	}
 	s.blocks = append(s.blocks, block)
 	return nil
 }
