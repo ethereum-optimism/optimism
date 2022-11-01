@@ -8,9 +8,9 @@ interface ICitizenshipChecker {
 }
 
 contract CitizenshipChecker is ICitizenshipChecker {
-    address public root;
+    address public immutable root;
 
-    SocialContract public sc;
+    SocialContract public immutable sc;
 
     constructor(address _root, address sca) {
         root = _root;

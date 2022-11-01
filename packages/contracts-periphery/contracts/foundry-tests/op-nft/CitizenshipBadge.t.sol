@@ -6,7 +6,6 @@ import "forge-std/Test.sol";
 import { CitizenshipBadge } from "../../universal/op-nft/CitizenshipBadge.sol";
 import { SocialContract } from "../../universal/op-nft/SocialContract.sol";
 import { CitizenshipChecker } from "../../universal/op-nft/CitizenshipChecker.sol";
-import "forge-std/console.sol";
 
 contract CitizenshipBadgeTest is Test {
     using stdStorage for StdStorage;
