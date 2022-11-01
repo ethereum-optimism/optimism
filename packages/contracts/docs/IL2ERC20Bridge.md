@@ -63,8 +63,8 @@ function withdraw(address _l2Token, uint256 _amount, uint32 _l1Gas, bytes _data)
 | Name | Type | Description |
 |---|---|---|
 | _l2Token | address | Address of L2 token where withdrawal was initiated.
-| _amount | uint256 | Amount of the token to withdraw. param _l1Gas Unused, but included for potential forward compatibility considerations.
-| _l1Gas | uint32 | undefined
+| _amount | uint256 | Amount of the token to withdraw.
+| _l1Gas | uint32 | Unused, but included for potential forward compatibility considerations.
 | _data | bytes | Optional data to forward to L1. This data is provided        solely as a convenience for external contracts. Aside from enforcing a maximum        length, these contracts provide no guarantees about its content.
 
 ### withdrawTo
@@ -83,8 +83,8 @@ function withdrawTo(address _l2Token, address _to, uint256 _amount, uint32 _l1Ga
 |---|---|---|
 | _l2Token | address | Address of L2 token where withdrawal is initiated.
 | _to | address | L1 adress to credit the withdrawal to.
-| _amount | uint256 | Amount of the token to withdraw. param _l1Gas Unused, but included for potential forward compatibility considerations.
-| _l1Gas | uint32 | undefined
+| _amount | uint256 | Amount of the token to withdraw.
+| _l1Gas | uint32 | Unused, but included for potential forward compatibility considerations.
 | _data | bytes | Optional data to forward to L1. This data is provided        solely as a convenience for external contracts. Aside from enforcing a maximum        length, these contracts provide no guarantees about its content.
 
 
