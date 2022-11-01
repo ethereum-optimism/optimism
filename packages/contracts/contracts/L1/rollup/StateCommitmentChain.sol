@@ -34,6 +34,9 @@ contract StateCommitmentChain is IStateCommitmentChain, Lib_AddressResolver {
 
     /**
      * @param _libAddressManager Address of the Address Manager.
+     * @param _fraudProofWindow Number of seconds until fraud proof is in the finalized state.
+     * @param _sequencerPublishWindow Number of seconds that the sequencer is exclusively allowed
+     * to post state roots.
      */
     constructor(
         address _libAddressManager,

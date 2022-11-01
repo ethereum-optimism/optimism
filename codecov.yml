@@ -1,4 +1,4 @@
-comment: false
+comment: true
 ignore:
   - "l2geth"
   - "**/*.t.sol"
@@ -10,6 +10,11 @@ flag_management:
   individual_flags:
     - name: bedrock-go-tests
     - name: contracts-bedrock-tests
+      paths:
+        - packages/contracts-bedrock/contracts
+      statuses:
+        - type: patch
+          target: 100%
     - name: common-ts-tests
     - name: contracts-tests
     - name: core-utils-tests
@@ -22,3 +27,20 @@ flag_management:
     - name: message-relayer-tests
     - name: replica-healthcheck-tests
     - name: sdk-tests
+coverage:
+  status:
+    patch:
+      default:
+        # basic
+        target: auto
+        threshold: 0%
+        base: auto
+        # advanced
+        branches:
+          - master
+        if_ci_failed: error #success, error
+        only_pulls: false
+        flags:
+          - "unit"
+        paths:
+          - "src"

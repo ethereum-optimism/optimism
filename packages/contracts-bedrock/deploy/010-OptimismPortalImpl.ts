@@ -1,4 +1,5 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import '@eth-optimism/hardhat-deploy-config'
 
 import {
   assertContractVariable,
@@ -13,8 +14,7 @@ const deployFn: DeployFunction = async (hre) => {
   )
   await deployAndVerifyAndThen({
     hre,
-    name: 'OptimismPortalImpl',
-    contract: 'OptimismPortal',
+    name: 'OptimismPortal',
     args: [
       L2OutputOracleProxy.address,
       hre.deployConfig.finalizationPeriodSeconds,

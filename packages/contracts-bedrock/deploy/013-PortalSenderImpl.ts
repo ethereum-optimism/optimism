@@ -13,8 +13,7 @@ const deployFn: DeployFunction = async (hre) => {
   )
   await deployAndVerifyAndThen({
     hre,
-    name: 'PortalSenderImpl',
-    contract: 'PortalSender',
+    name: 'PortalSender',
     args: [OptimismPortalProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(

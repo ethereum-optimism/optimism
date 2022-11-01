@@ -175,7 +175,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {
 			e.l2TxFailed = append(e.l2TxFailed, tx)
-			t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(e.l2Transactions), err)
+			t.Fatalf("failed to apply transaction to L2 block (tx %d): %v", len(e.l2Transactions), err)
 		}
 		e.l2Receipts = append(e.l2Receipts, receipt)
 		e.l2Transactions = append(e.l2Transactions, tx)

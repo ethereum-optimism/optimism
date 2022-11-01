@@ -14,8 +14,7 @@ const deployFn: DeployFunction = async (hre) => {
   )
   await deployAndVerifyAndThen({
     hre,
-    name: 'L1StandardBridgeImpl',
-    contract: 'L1StandardBridge',
+    name: 'L1StandardBridge',
     args: [L1CrossDomainMessengerProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(

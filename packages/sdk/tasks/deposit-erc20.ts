@@ -32,8 +32,10 @@ const deployWETH9 = async (
     signer
   )
 
+  console.log('Sending deployment transaction')
   const WETH9 = await Factory__WETH9.deploy()
-  await WETH9.deployTransaction.wait()
+  const receipt = await WETH9.deployTransaction.wait()
+  console.log(`WETH9 deployed: ${receipt.transactionHash}`)
 
   if (wrap) {
     const deposit = await signer.sendTransaction({
