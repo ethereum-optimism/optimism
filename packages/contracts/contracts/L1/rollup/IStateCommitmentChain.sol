@@ -62,6 +62,7 @@ interface IStateCommitmentChain {
      * @param _element Hash of the element to verify a proof for.
      * @param _batchHeader Header of the batch in which the element was included.
      * @param _proof Merkle inclusion proof for the element.
+     * @return _verified Whether or not the batch inclusion proof is verified.
      */
     function verifyStateCommitment(
         bytes32 _element,

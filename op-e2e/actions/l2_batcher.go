@@ -7,15 +7,16 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 type SyncStatusAPI interface {
@@ -149,8 +150,8 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
 	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		s.l2ChannelOut = nil
 		s.l2Submitting = false
-		// there may still be some data to submit
 	} else if err != nil {
 		s.l2Submitting = false
 		t.Fatalf("failed to output channel data to frame: %v", err)

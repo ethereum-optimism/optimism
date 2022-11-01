@@ -96,6 +96,8 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
     /**
      * Allows the Burn Admin to update the parameters which determine the amount of gas to burn.
      * The value of enqueueL2GasPrepaid is immediately updated as well.
+     * @param _l2GasDiscountDivisor The ratio of the cost of L1 gas to the cost of L2 gas
+     * @param _enqueueGasCost The approximate cost of calling the enqueue function
      */
     function setGasParams(uint256 _l2GasDiscountDivisor, uint256 _enqueueGasCost)
         external
@@ -416,6 +418,8 @@ contract CanonicalTransactionChain is ICanonicalTransactionChain, Lib_AddressRes
      * Parses the batch context from the extra data.
      * @return Total number of elements submitted.
      * @return Index of the next queue element.
+     * @return Timestamp for the last transaction
+     * @return Block number for the last transaction.
      */
     function _getBatchExtraData()
         internal

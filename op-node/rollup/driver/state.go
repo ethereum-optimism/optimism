@@ -30,8 +30,8 @@ type Driver struct {
 	// When the derivation pipeline is waiting for new data to do anything
 	idleDerivation bool
 
-	// Requests for sync status. Synchronized with event loop to avoid reading an inconsistent sync status.
-	syncStatusReq chan chan eth.SyncStatus
+	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
+	stateReq chan chan struct{}
 
 	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
 	// It tells the caller that the reset occurred by closing the passed in channel.
@@ -300,7 +300,7 @@ func (s *Driver) eventLoop() {
 			// no step, justified L1 information does not do anything for L2 derivation or status
 		case newL1Finalized := <-s.l1FinalizedSig:
 			s.l1State.HandleNewL1FinalizedBlock(newL1Finalized)
-			s.derivation.Finalize(newL1Finalized.ID())
+			s.derivation.Finalize(newL1Finalized)
 			reqStep() // we may be able to mark more L2 data as finalized now
 		case <-delayedStepReq:
 			delayedStepReq = nil
@@ -342,16 +342,8 @@ func (s *Driver) eventLoop() {
 				stepAttempts = 0
 				reqStep() // continue with the next step if we can
 			}
-		case respCh := <-s.syncStatusReq:
-			respCh <- eth.SyncStatus{
-				CurrentL1:   s.derivation.Origin(),
-				HeadL1:      s.l1State.L1Head(),
-				SafeL1:      s.l1State.L1Safe(),
-				FinalizedL1: s.l1State.L1Finalized(),
-				UnsafeL2:    s.derivation.UnsafeL2Head(),
-				SafeL2:      s.derivation.SafeL2Head(),
-				FinalizedL2: s.derivation.Finalized(),
-			}
+		case respCh := <-s.stateReq:
+			respCh <- struct{}{}
 		case respCh := <-s.forceReset:
 			s.log.Warn("Derivation pipeline is manually reset")
 			s.derivation.Reset()
@@ -381,18 +373,48 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	}
 }
 
+// syncStatus returns the current sync status, and should only be called synchronously with
+// the driver event loop to avoid retrieval of an inconsistent status.
+func (s *Driver) syncStatus() *eth.SyncStatus {
+	return &eth.SyncStatus{
+		CurrentL1:          s.derivation.Origin(),
+		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		HeadL1:             s.l1State.L1Head(),
+		SafeL1:             s.l1State.L1Safe(),
+		FinalizedL1:        s.l1State.L1Finalized(),
+		UnsafeL2:           s.derivation.UnsafeL2Head(),
+		SafeL2:             s.derivation.SafeL2Head(),
+		FinalizedL2:        s.derivation.Finalized(),
+	}
+}
+
+// SyncStatus blocks the driver event loop and captures the syncing status.
+// If the event loop is too busy and the context expires, a context error is returned.
 func (s *Driver) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
-	respCh := make(chan eth.SyncStatus, 1)
+	wait := make(chan struct{})
 	select {
+	case s.stateReq <- wait:
+		resp := s.syncStatus()
+		<-wait
+		return resp, nil
 	case <-ctx.Done():
 		return nil, ctx.Err()
-	case s.syncStatusReq <- respCh:
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case resp := <-respCh:
-			return &resp, nil
-		}
+	}
+}
+
+// BlockRefWithStatus blocks the driver event loop and captures the syncing status,
+// along with an L2 block reference by number consistent with that same status.
+// If the event loop is too busy and the context expires, a context error is returned.
+func (s *Driver) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+	wait := make(chan struct{})
+	select {
+	case s.stateReq <- wait:
+		resp := s.syncStatus()
+		ref, err := s.l2.L2BlockRefByNumber(ctx, num)
+		<-wait
+		return ref, resp, err
+	case <-ctx.Done():
+		return eth.L2BlockRef{}, nil, ctx.Err()
 	}
 }
 
