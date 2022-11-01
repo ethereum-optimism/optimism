@@ -8,8 +8,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/bss-core/dial"
 	"github.com/ethereum-optimism/optimism/l2geth/ethclient"
-	"github.com/ethereum-optimism/optimism/l2geth/log"
 	"github.com/ethereum-optimism/optimism/l2geth/rpc"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // DialL2EthClientWithTimeout attempts to dial the L2 provider using the
