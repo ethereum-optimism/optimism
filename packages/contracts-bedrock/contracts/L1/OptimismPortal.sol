@@ -303,19 +303,42 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         bytes32 _storageRoot,
         bytes[] memory _proof
     ) internal pure returns (bool) {
-        bytes32 storageKey = keccak256(
-            abi.encode(
-                _withdrawalHash,
-                uint256(0) // The withdrawals mapping is at the first slot in the layout.
-            )
-        );
+        // Instantiate a blank dynamic bytes object. This saves us an
+        // `abi.encode` call on the 32 byte `storageKey` digest within `verifyInclusionProof`.
+        // We give it a value to ensure that the memory is always allocated by the
+        // compiler.
+        bytes memory storageKey = hex"00";
 
-        return
-            SecureMerkleTrie.verifyInclusionProof(
-                abi.encode(storageKey),
-                hex"01",
-                _proof,
-                _storageRoot
-            );
+        // Hash `abi.encode(_withdrawalHash, uint256(0))` and store the
+        // digest within `storageKey`
+        //
+        // SAFETY:
+        // - Clobbers the free memory pointer, but ensures that it is restored.
+        assembly {
+            // Set the length of `storageKey` to 32 bytes.
+            //
+            // This instruction can be removed with a codesize tradeoff
+            // if `storageKey` is initialized with a 32 byte value.
+            mstore(storageKey, 0x20)
+
+            // Grab the free memory pointer so that we can restore it later.
+            let ptr := mload(0x40)
+
+            // Store the withdrawal hash in the free memory pointer word
+            // so that we can take advantage of the pre-allocated zero slot @ 0x60.
+            //
+            // The objective here is to hash the `_withdrawalHash` as well
+            // as a 32-byte 0 value (the slot of the withdrawals mapping).
+            mstore(0x40, _withdrawalHash)
+
+            // Hash 64 bytes of memory between [0x40:0x80) and store the digest
+            // within the first word of `storageKey`.
+            mstore(add(storageKey, 0x20), keccak256(0x40, 0x40))
+
+            // SAFETY: Restore the free memory pointer
+            mstore(0x40, ptr)
+        }
+
+        return SecureMerkleTrie.verifyInclusionProof(storageKey, hex"01", _proof, _storageRoot);
     }
 }
