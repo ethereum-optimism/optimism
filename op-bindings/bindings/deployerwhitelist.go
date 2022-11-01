@@ -26,7 +26,6 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
-	_ = abi.ConvertType
 )
 
 // DeployerWhitelistMetaData contains all meta data concerning the DeployerWhitelist contract.
@@ -157,11 +156,11 @@ func NewDeployerWhitelistFilterer(address common.Address, filterer bind.Contract
 
 // bindDeployerWhitelist binds a generic wrapper to an already deployed contract.
 func bindDeployerWhitelist(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := DeployerWhitelistMetaData.GetAbi()
+	parsed, err := abi.JSON(strings.NewReader(DeployerWhitelistABI))
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
