@@ -23,7 +23,7 @@ contract FeeVault {
     /**
      * @notice Wallet that will receive the fees on L1.
      */
-    address public recipient;
+    address public immutable recipient;
 
     /**
      * @custom:semver 0.0.1
