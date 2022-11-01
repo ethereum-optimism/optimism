@@ -242,6 +242,6 @@ func (d *Driver) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*ty
 
 // SendTransaction injects a signed transaction into the pending pool for execution.
 func (d *Driver) SendTransaction(ctx context.Context, tx *types.Transaction) error {
-	d.l.Info("")
+	d.l.Info(d.cfg.Name+" sending transaction", "tx", tx.Hash())
 	return d.cfg.L1Client.SendTransaction(ctx, tx)
 }
