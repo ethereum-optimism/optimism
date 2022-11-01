@@ -8,10 +8,19 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const L1CrossDomainMessengerProxy = await getContractFromArtifact(
-    hre,
-    'L1CrossDomainMessengerProxy'
-  )
+  let L1CrossDomainMessengerProxy
+  try {
+    L1CrossDomainMessengerProxy = await getContractFromArtifact(
+      hre,
+      'Proxy__OVM_L1CrossDomainMessenger'
+    )
+  } catch {
+    L1CrossDomainMessengerProxy = await getContractFromArtifact(
+      hre,
+      'L1CrossDomainMessenger'
+    )
+  }
+
   await deployAndVerifyAndThen({
     hre,
     name: 'L1StandardBridge',

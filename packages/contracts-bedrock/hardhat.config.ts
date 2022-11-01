@@ -39,6 +39,12 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
+    'mainnet-forked': {
+      chainId: 1,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: false,
+    },
   },
   foundry: {
     buildInfo: true,
@@ -345,6 +351,7 @@ const config: HardhatUserConfig = {
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
+      'mainnet-forked': ['../contracts/deployments/mainnet'],
     },
   },
   solidity: {
