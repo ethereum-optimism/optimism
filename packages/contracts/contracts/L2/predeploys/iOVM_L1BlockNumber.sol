@@ -9,5 +9,8 @@ interface iOVM_L1BlockNumber {
      * Public Functions *
      ********************/
 
+    /**
+     * @return Block number of L1
+     */
     function getL1BlockNumber() external view returns (uint256);
 }

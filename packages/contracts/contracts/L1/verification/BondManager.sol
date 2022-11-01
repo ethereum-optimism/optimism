@@ -20,10 +20,7 @@ contract BondManager is IBondManager, Lib_AddressResolver {
     constructor(address _libAddressManager) Lib_AddressResolver(_libAddressManager) {}
 
     /**
-     * Checks whether a given address is properly collateralized and can perform actions within
-     * the system.
-     * @param _who Address to check.
-     * @return true if the address is properly collateralized, false otherwise.
+     * @inheritdoc IBondManager
      */
     // slither-disable-next-line external-function
     function isCollateralized(address _who) public view returns (bool) {
