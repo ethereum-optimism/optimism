@@ -138,7 +138,7 @@ Verifies a batch inclusion proof.
 
 | Name | Type | Description |
 |---|---|---|
-| _verified | bool | undefined
+| _verified | bool | Whether or not the batch inclusion proof is verified.
 
 
 

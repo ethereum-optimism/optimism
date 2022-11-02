@@ -45,8 +45,6 @@ type Config struct {
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
-	// L2 address used to send all priority fees to, also known as the coinbase address in the block.
-	FeeRecipientAddress common.Address `json:"fee_recipient_address"`
 	// L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
 	// Acceptable batch-sender address
@@ -80,9 +78,6 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.P2PSequencerAddress == (common.Address{}) {
 		return errors.New("missing p2p sequencer address")
-	}
-	if cfg.FeeRecipientAddress == (common.Address{}) {
-		return errors.New("missing fee recipient address")
 	}
 	if cfg.BatchInboxAddress == (common.Address{}) {
 		return errors.New("missing batch inbox address")

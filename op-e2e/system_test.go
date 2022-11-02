@@ -915,7 +915,7 @@ func TestFees(t *testing.T) {
 	// L1Fee Recipient
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL2FeeRecipient, nil)
+	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL1FeeRecipient, nil)
 	require.Nil(t, err)
 
 	// Simple transfer from signer to random account
@@ -976,7 +976,7 @@ func TestFees(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL2FeeRecipient, nil)
+	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL1FeeRecipient, header.Number)
 	require.Nil(t, err)
 
 	// Diff fee recipient + coinbase balances

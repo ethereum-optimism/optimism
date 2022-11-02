@@ -95,7 +95,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 
 			OptimismBaseFeeRecipient:    common.Address{0: 0x52, 19: 0xf0}, // tbd
 			OptimismL1FeeRecipient:      common.Address{0: 0x52, 19: 0xf1},
-			OptimismL2FeeRecipient:      common.Address{0: 0x52, 19: 0xf2}, // tbd
 			L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
 			GasPriceOracleOwner:         addresses.Alice,                   // tbd
 			GasPriceOracleOverhead:      0,
@@ -288,7 +287,6 @@ func (cfg SystemConfig) Start() (*System, error) {
 			L1ChainID:              cfg.L1ChainIDBig(),
 			L2ChainID:              cfg.L2ChainIDBig(),
 			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
-			FeeRecipientAddress:    l2Genesis.Coinbase,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			BatchSenderAddress:     cfg.DeployConfig.BatchSenderAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,

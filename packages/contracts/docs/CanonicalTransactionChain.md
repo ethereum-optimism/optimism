@@ -352,8 +352,8 @@ Allows the Burn Admin to update the parameters which determine the amount of gas
 
 | Name | Type | Description |
 |---|---|---|
-| _l2GasDiscountDivisor | uint256 | undefined
-| _enqueueGasCost | uint256 | undefined
+| _l2GasDiscountDivisor | uint256 | The ratio of the cost of L1 gas to the cost of L2 gas
+| _enqueueGasCost | uint256 | The approximate cost of calling the enqueue function
 
 
 
