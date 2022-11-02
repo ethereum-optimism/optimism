@@ -20,14 +20,6 @@ contract BaseSystemDictator is Ownable {
     uint256 public currentStep = 1;
 
     /**
-     * @param _config System configuration.
-     */
-    constructor(SystemConfig memory _config) Ownable() {
-        config = _config;
-        _transferOwnership(config.globalConfig.controller);
-    }
-
-    /**
      * @notice Checks that the current step is the expected step, then bumps the current step.
      *
      * @param _step Current step.
@@ -36,5 +28,13 @@ contract BaseSystemDictator is Ownable {
         require(currentStep == _step, "BaseSystemDictator: incorrect step");
         _;
         currentStep++;
+    }
+
+    /**
+     * @param _config System configuration.
+     */
+    constructor(SystemConfig memory _config) Ownable() {
+        config = _config;
+        _transferOwnership(config.globalConfig.controller);
     }
 }

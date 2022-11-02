@@ -1,3 +1,4 @@
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import { predeploys } from '../src'
@@ -8,14 +9,22 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const L1CrossDomainMessengerProxy = await getContractFromArtifact(
-    hre,
-    'L1CrossDomainMessengerProxy'
-  )
+  let L1CrossDomainMessengerProxy: ethers.Contract
+  try {
+    L1CrossDomainMessengerProxy = await getContractFromArtifact(
+      hre,
+      'Proxy__OVM_L1CrossDomainMessenger'
+    )
+  } catch {
+    L1CrossDomainMessengerProxy = await getContractFromArtifact(
+      hre,
+      'L1CrossDomainMessengerProxy'
+    )
+  }
+
   await deployAndVerifyAndThen({
     hre,
-    name: 'L1StandardBridgeImpl',
-    contract: 'L1StandardBridge',
+    name: 'L1StandardBridge',
     args: [L1CrossDomainMessengerProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(

@@ -10,6 +10,21 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
  */
 abstract contract ERC721Bridge {
     /**
+     * @notice Messenger contract on this domain.
+     */
+    CrossDomainMessenger public immutable messenger;
+
+    /**
+     * @notice Address of the bridge on the other network.
+     */
+    address public immutable otherBridge;
+
+    /**
+     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
+     */
+    uint256[49] private __gap;
+
+    /**
      * @notice Emitted when an ERC721 bridge to the other network is initiated.
      *
      * @param localToken  Address of the token on this domain.
@@ -46,21 +61,6 @@ abstract contract ERC721Bridge {
         uint256 tokenId,
         bytes extraData
     );
-
-    /**
-     * @notice Messenger contract on this domain.
-     */
-    CrossDomainMessenger public immutable messenger;
-
-    /**
-     * @notice Address of the bridge on the other network.
-     */
-    address public immutable otherBridge;
-
-    /**
-     * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
-     */
-    uint256[49] private __gap;
 
     /**
      * @notice Ensures that the caller is a cross-chain message from the other bridge.

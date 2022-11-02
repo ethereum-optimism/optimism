@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -25,7 +26,6 @@ func TestAttributesQueue(t *testing.T) {
 		BlockTime:              2,
 		L1ChainID:              big.NewInt(101),
 		L2ChainID:              big.NewInt(102),
-		FeeRecipientAddress:    common.Address{0xaa},
 		DepositContractAddress: common.Address{0xbb},
 	}
 	rng := rand.New(rand.NewSource(1234))
@@ -52,7 +52,7 @@ func TestAttributesQueue(t *testing.T) {
 	attrs := eth.PayloadAttributes{
 		Timestamp:             eth.Uint64Quantity(safeHead.Time + cfg.BlockTime),
 		PrevRandao:            eth.Bytes32(l1Info.InfoMixDigest),
-		SuggestedFeeRecipient: cfg.FeeRecipientAddress,
+		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Transactions:          []eth.Data{l1InfoTx, eth.Data("foobar"), eth.Data("example")},
 		NoTxPool:              true,
 	}

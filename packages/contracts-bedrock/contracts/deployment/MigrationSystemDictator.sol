@@ -123,18 +123,18 @@ contract MigrationSystemDictator is BaseSystemDictator {
             abi.encodeCall(OptimismPortal.initialize, ())
         );
 
-        // Upgrade and initialize the L1CrossDomainMessenger.
-        config.globalConfig.proxyAdmin.upgradeAndCall(
+        // Upgrade the L1CrossDomainMessenger. No initializer because this is
+        // already initialized.
+        config.globalConfig.proxyAdmin.upgrade(
             payable(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
-            address(config.implementationAddressConfig.l1CrossDomainMessengerImpl),
-            abi.encodeCall(L1CrossDomainMessenger.initialize, ())
+            address(config.implementationAddressConfig.l1CrossDomainMessengerImpl)
         );
 
         // Transfer ETH from the L1StandardBridge to the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l1StandardBridgeProxy),
             address(config.implementationAddressConfig.portalSenderImpl),
-            abi.encodeCall(PortalSender.send, ())
+            abi.encodeCall(PortalSender.donate, ())
         );
 
         // Upgrade the L1StandardBridge (no initializer).

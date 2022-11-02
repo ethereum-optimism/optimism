@@ -11,7 +11,6 @@ task('rekey', 'Generates a new set of keys for a test network').setAction(
       'proxyAdminOwner',
       'optimismBaseFeeRecipient',
       'optimismL1FeeRecipient',
-      'optimismL2FeeRecipient',
       'p2pSequencerAddress',
       'l2OutputOracleOwner',
       'batchSenderAddress',

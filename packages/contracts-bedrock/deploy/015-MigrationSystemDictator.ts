@@ -1,6 +1,8 @@
 import { awaitCondition } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import '@eth-optimism/hardhat-deploy-config'
+import 'hardhat-deploy'
 
 import {
   getDeploymentAddress,
@@ -31,6 +33,22 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
+  let finalOwner = hre.deployConfig.proxyAdminOwner
+  if (finalOwner === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      finalOwner = deployer
+    } else {
+      throw new Error(`must specify the proxyAdminOwner on live networks`)
+    }
+  }
+
   await deployAndVerifyAndThen({
     hre,
     name: 'MigrationSystemDictator',
@@ -38,8 +56,8 @@ const deployFn: DeployFunction = async (hre) => {
       {
         globalConfig: {
           proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-          controller: deployer, // TODO
-          finalOwner: hre.deployConfig.proxyAdminOwner,
+          controller,
+          finalOwner,
           addressManager: hre.deployConfig.addressManager,
         },
         proxyAddressConfig: {
@@ -69,31 +87,22 @@ const deployFn: DeployFunction = async (hre) => {
           ),
         },
         implementationAddressConfig: {
-          l2OutputOracleImpl: await getDeploymentAddress(
-            hre,
-            'L2OutputOracleImpl'
-          ),
-          optimismPortalImpl: await getDeploymentAddress(
-            hre,
-            'OptimismPortalImpl'
-          ),
+          l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
+          optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
           l1CrossDomainMessengerImpl: await getDeploymentAddress(
             hre,
-            'L1CrossDomainMessengerImpl'
+            'L1CrossDomainMessenger'
           ),
           l1StandardBridgeImpl: await getDeploymentAddress(
             hre,
-            'L1StandardBridgeImpl'
+            'L1StandardBridge'
           ),
           optimismMintableERC20FactoryImpl: await getDeploymentAddress(
             hre,
-            'OptimismMintableERC20FactoryImpl'
+            'OptimismMintableERC20Factory'
           ),
-          l1ERC721BridgeImpl: await getDeploymentAddress(
-            hre,
-            'L1ERC721BridgeImpl'
-          ),
-          portalSenderImpl: await getDeploymentAddress(hre, 'PortalSenderImpl'),
+          l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
+          portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
         },
         l2OutputOracleConfig: {
           l2OutputOracleGenesisL2Output:
@@ -125,9 +134,13 @@ const deployFn: DeployFunction = async (hre) => {
   await ProxyAdmin.setOwner(MigrationSystemDictator.address)
 
   // Transfer ownership of the AddressManager to MigrationSystemDictator.
-  const AddressManager = await getContractFromArtifact(hre, 'AddressManager', {
-    signerOrProvider: deployer,
-  })
+  const AddressManager = await getContractFromArtifact(
+    hre,
+    'Lib_AddressManager',
+    {
+      signerOrProvider: deployer,
+    }
+  )
   if (isLiveDeployer) {
     console.log(
       `Transferring ownership of AddressManager to the MigrationSystemDictator...`
@@ -187,8 +200,14 @@ const deployFn: DeployFunction = async (hre) => {
       `Please transfer ownership of the L1StandardBridge (proxy) to the MigrationSystemDictator located at: ${MigrationSystemDictator.address}`
     )
   }
+  const noSigner = await getContractFromArtifact(
+    hre,
+    'Proxy__OVM_L1StandardBridge'
+  )
   await awaitCondition(async () => {
-    const owner = await L1StandardBridge.owner()
+    const owner = await noSigner.callStatic.getOwner({
+      from: ethers.constants.AddressZero,
+    })
     return owner === MigrationSystemDictator.address
   })
 
@@ -198,11 +217,12 @@ const deployFn: DeployFunction = async (hre) => {
       await MigrationSystemDictator[`step${i}`]()
     } else {
       console.log(`Please execute step ${i}...`)
-      await awaitCondition(async () => {
-        const step = await MigrationSystemDictator.step()
-        return step.toNumber() === i
-      })
     }
+
+    await awaitCondition(async () => {
+      const step = await MigrationSystemDictator.currentStep()
+      return step.toNumber() === i + 1
+    })
   }
 }
 

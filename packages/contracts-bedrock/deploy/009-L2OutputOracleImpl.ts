@@ -2,6 +2,8 @@ import assert from 'assert'
 
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import '@eth-optimism/hardhat-deploy-config'
+import '@nomiclabs/hardhat-ethers'
 
 import {
   assertContractVariable,
@@ -26,8 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   await deployAndVerifyAndThen({
     hre,
-    name: 'L2OutputOracleImpl',
-    contract: 'L2OutputOracle',
+    name: 'L2OutputOracle',
     args: [
       hre.deployConfig.l2OutputOracleSubmissionInterval,
       hre.deployConfig.l2OutputOracleGenesisL2Output,

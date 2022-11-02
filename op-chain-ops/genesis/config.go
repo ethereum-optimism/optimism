@@ -30,7 +30,6 @@ type DeployConfig struct {
 	SequencerWindowSize       uint64         `json:"sequencerWindowSize"`
 	ChannelTimeout            uint64         `json:"channelTimeout"`
 	P2PSequencerAddress       common.Address `json:"p2pSequencerAddress"`
-	OptimismL2FeeRecipient    common.Address `json:"optimismL2FeeRecipient"`
 	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
 	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
 
