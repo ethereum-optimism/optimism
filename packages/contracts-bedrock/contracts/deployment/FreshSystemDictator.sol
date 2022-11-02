@@ -47,7 +47,7 @@ contract FreshSystemDictator is BaseSystemDictator {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             address(config.implementationAddressConfig.l1CrossDomainMessengerImpl),
-            abi.encodeCall(L1CrossDomainMessenger.initialize, ())
+            abi.encodeCall(L1CrossDomainMessenger.initialize, (config.globalConfig.finalOwner))
         );
 
         // Upgrade the L1StandardBridge (no initializer).

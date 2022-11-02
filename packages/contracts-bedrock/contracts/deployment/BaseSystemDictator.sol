@@ -79,14 +79,14 @@ contract BaseSystemDictator is Ownable {
     /**
      * @notice Current step;
      */
-    uint256 public currentStep = 1;
+    uint8 public currentStep = 1;
 
     /**
      * @notice Checks that the current step is the expected step, then bumps the current step.
      *
      * @param _step Current step.
      */
-    modifier step(uint256 _step) {
+    modifier step(uint8 _step) {
         require(currentStep == _step, "BaseSystemDictator: incorrect step");
         _;
         currentStep++;

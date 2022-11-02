@@ -61,7 +61,7 @@ const config: HardhatUserConfig = {
   },
   deployConfigSpec: {
     // Address of the L1 proxy admin owner.
-    proxyAdminOwner: {
+    finalSystemOwner: {
       type: 'address',
       default: ethers.constants.AddressZero,
     },

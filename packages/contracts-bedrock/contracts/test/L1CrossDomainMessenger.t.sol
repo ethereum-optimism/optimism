@@ -31,6 +31,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // pause: should pause the contract when called by the current owner
     function test_L1MessengerPause() external {
+        vm.prank(alice);
         L1Messenger.pause();
         assert(L1Messenger.paused());
     }
@@ -44,8 +45,11 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // unpause: should unpause the contract when called by the current owner
     function test_L1MessengerUnpause() external {
+        vm.prank(alice);
         L1Messenger.pause();
         assert(L1Messenger.paused());
+
+        vm.prank(alice);
         L1Messenger.unpause();
         assert(!L1Messenger.paused());
     }
