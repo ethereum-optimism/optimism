@@ -28,7 +28,5 @@
   "finalizationPeriodSeconds": 2,
 
   "deploymentWaitConfirmations": 1,
-  "fundDevAccounts": false,
-
-  "addressManager": "0xdE1FCfB0851916CA5101820A69b13a4E276bd81F"
+  "fundDevAccounts": false
 }
