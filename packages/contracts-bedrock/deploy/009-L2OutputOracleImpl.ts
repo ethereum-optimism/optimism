@@ -35,7 +35,7 @@ const deployFn: DeployFunction = async (hre) => {
       hre.deployConfig.l2OutputOracleHistoricalTotalBlocks,
       hre.deployConfig.l2OutputOracleStartingBlockNumber,
       deployL2StartingTimestamp,
-      hre.deployConfig.l2BlockTime,
+      hre.deployConfig.l2BlockTimeSeconds,
       hre.deployConfig.l2OutputOracleProposer,
       hre.deployConfig.l2OutputOracleOwner,
     ],
@@ -63,7 +63,7 @@ const deployFn: DeployFunction = async (hre) => {
       await assertContractVariable(
         contract,
         'L2_BLOCK_TIME',
-        hre.deployConfig.l2BlockTime
+        hre.deployConfig.l2BlockTimeSeconds
       )
       await assertContractVariable(
         contract,
