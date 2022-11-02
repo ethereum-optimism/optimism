@@ -26,7 +26,10 @@ import (
 type L2Verifier struct {
 	log log.Logger
 
-	eng derive.Engine
+	eng interface {
+		derive.Engine
+		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	}
 
 	// L2 rollup
 	derivation *derive.DerivationPipeline
@@ -46,7 +49,8 @@ type L2Verifier struct {
 
 type L2API interface {
 	derive.Engine
-	InfoByRpcNumber(ctx context.Context, num rpc.BlockNumber) (eth.BlockInfo, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
 	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
 }
@@ -93,6 +97,11 @@ func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cf
 
 type l2VerifierBackend struct {
 	verifier *L2Verifier
+}
+
+func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+	ref, err := s.verifier.eng.L2BlockRefByNumber(ctx, num)
+	return ref, s.verifier.SyncStatus(), err
 }
 
 func (s *l2VerifierBackend) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {

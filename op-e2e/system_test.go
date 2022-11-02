@@ -8,14 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -27,6 +19,15 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p-core/peer"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 )
 
 // Init testing to enable test flags
@@ -49,6 +50,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
+	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
@@ -99,11 +101,9 @@ func TestL2OutputSubmitter(t *testing.T) {
 			// finalized.
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ooBlockNumber)
+			l2Output, err := rollupClient.OutputAtBlock(ctx, l2ooBlockNumber.Uint64())
 			require.Nil(t, err)
-			require.Len(t, l2Output, 2)
-
-			require.Equal(t, l2Output[1][:], committedL2Output.OutputRoot[:])
+			require.Equal(t, l2Output.OutputRoot[:], committedL2Output.OutputRoot[:])
 			break
 		}
 
