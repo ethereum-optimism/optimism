@@ -3,8 +3,7 @@ import assert from 'assert'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, awaitCondition, getChainId } from '@eth-optimism/core-utils'
-import { HttpNetworkConfig } from 'hardhat/types'
+import { sleep, getChainId } from '@eth-optimism/core-utils'
 
 export const deployAndVerifyAndThen = async ({
   hre,
@@ -192,6 +191,10 @@ export const getContractFromArtifact = async (
       signerOrProvider
     ),
   })
+}
+
+const isHardhatNode = async (hre) => {
+  return (await getChainId(hre.ethers.provider)) === 31337
 }
 
 export const assertContractVariable = async (
