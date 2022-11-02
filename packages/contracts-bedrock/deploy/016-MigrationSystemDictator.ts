@@ -33,7 +33,7 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
-  let finalOwner = hre.deployConfig.proxyAdminOwner
+  let finalOwner = hre.deployConfig.finalSystemOwner
   if (finalOwner === ethers.constants.AddressZero) {
     if (hre.network.config.live === false) {
       console.log(`WARNING!!!`)
@@ -45,7 +45,7 @@ const deployFn: DeployFunction = async (hre) => {
       )
       finalOwner = deployer
     } else {
-      throw new Error(`must specify the proxyAdminOwner on live networks`)
+      throw new Error(`must specify the finalSystemOwner on live networks`)
     }
   }
 

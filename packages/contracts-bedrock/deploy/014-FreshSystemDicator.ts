@@ -5,7 +5,6 @@ import 'hardhat-deploy'
 import {
   getDeploymentAddress,
   deployAndVerifyAndThen,
-  getContractFromArtifact,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -18,7 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
         globalConfig: {
           proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
           controller: deployer, // TODO
-          finalOwner: hre.deployConfig.proxyAdminOwner,
+          finalOwner: hre.deployConfig.finalSystemOwner,
           addressManager: hre.deployConfig.addressManager,
         },
         proxyAddressConfig: {
@@ -77,21 +76,6 @@ const deployFn: DeployFunction = async (hre) => {
       // TODO: Assert all the config was set correctly.
     },
   })
-
-  const ProxyAdmin = await getContractFromArtifact(hre, 'ProxyAdmin', {
-    signerOrProvider: deployer,
-  })
-  const FreshSystemDictator = await getContractFromArtifact(
-    hre,
-    'FreshSystemDictator',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-
-  await ProxyAdmin.setOwner(FreshSystemDictator.address)
-  await FreshSystemDictator.step1()
-  await FreshSystemDictator.step2()
 }
 
 deployFn.tags = ['FreshSystemDictator', 'fresh']
