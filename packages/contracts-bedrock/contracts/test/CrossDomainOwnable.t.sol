@@ -36,7 +36,7 @@ contract CrossDomainOwnable_OnlyOwner_Test is CrossDomainOwnable_TestInit {
 
 contract CrossDomainOwnable_OnlyOwner_TestFail is CrossDomainOwnable_TestInit {
     // Check that the revert message is correct
-    function test_onlyOwner_callerIsNotOwner_revert() external {
+    function test_onlyOwner_callerIsNotOwner_reverts() external {
         vm.expectRevert("CrossDomainOwnable: caller is not the owner");
         setter.set(1);
     }

@@ -46,7 +46,7 @@ const handleFunctionName = (name: string) => {
   }
 }
 
-// Todo
+// Todo: Implement a check to validate test contract names
 const handleContractName = (name: string) => {
   name
 }
