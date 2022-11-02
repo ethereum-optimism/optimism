@@ -8,3 +8,4 @@ broadcast
 genesis.json
 src/contract-artifacts.ts
 tmp-artifacts
+target/

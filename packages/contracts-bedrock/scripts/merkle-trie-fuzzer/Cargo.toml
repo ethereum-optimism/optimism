@@ -1,0 +1,19 @@
+[package]
+name = "merkle-trie-fuzzer"
+authors = ["clabby"]
+description = "A lightweight, efficient Merkle Trie fuzzer for use in Optimism bedrock"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.0", features = ["derive", "env", "wrap_help"] }
+eth_trie = "0.1.0"
+serde_json = "1.0.87"
+serde = "1.0.147"
+ethers = "1.0.0"
+rand = "0.8.5"
+yansi = "0.5.1"
+
+[[bin]]
+name = "patricia"
+path = "./src/patricia.rs"

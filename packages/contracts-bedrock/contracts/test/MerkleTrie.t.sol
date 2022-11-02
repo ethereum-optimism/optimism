@@ -364,4 +364,21 @@ contract MerkleTrie_Test is CommonTest {
             root
         );
     }
+
+    function testFuzzTrie_validProofs() external {
+        for (uint256 i = 0; i < 1024; ++i) {
+            // TODO: Make sure that the `merkle-trie-fuzzer` is built before running
+            //       the CI tests.
+            string[] memory cmds = new string[](1);
+            cmds[0] = "./scripts/merkle-trie-fuzzer/target/release/patricia";
+            bytes memory res = vm.ffi(cmds);
+            (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = abi.decode(
+                res,
+                (bytes32, bytes, bytes, bytes[])
+            );
+
+            // Assert that our expected value is equal to our actual value.
+            assertEq(val, MerkleTrie.get(key, proof, root));
+        }
+    }
 }
