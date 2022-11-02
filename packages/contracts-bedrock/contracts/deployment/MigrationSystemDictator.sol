@@ -7,7 +7,6 @@ import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { PortalSender } from "./PortalSender.sol";
-import { SystemConfig } from "./SystemConfig.sol";
 import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**

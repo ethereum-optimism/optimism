@@ -1,9 +1,13 @@
 import { task } from 'hardhat/config'
 
+import layoutLock from '../layout-lock.json'
+
 task(
   'validate-spacers',
   'validates that spacer variables are in the correct positions'
 ).setAction(async (args, hre) => {
+  const accounted: string[] = []
+
   const names = await hre.artifacts.getAllFullyQualifiedNames()
   for (const name of names) {
     // Script is remarkably slow because of getBuildInfo, so better to skip test files since they
@@ -12,10 +16,37 @@ task(
       continue
     }
 
+    // Some files may not have buildInfo (certain libraries). We can safely skip these because we
+    // make sure that everything is accounted for anyway.
     const buildInfo = await hre.artifacts.getBuildInfo(name)
+    if (buildInfo === undefined) {
+      continue
+    }
+
     for (const source of Object.values(buildInfo.output.contracts)) {
       for (const [contractName, contract] of Object.entries(source)) {
         const storageLayout = (contract as any).storageLayout
+
+        // Check that the layout lock is respected.
+        if (layoutLock[contractName]) {
+          const removed = layoutLock[contractName].filter((variable: any) => {
+            return (
+              (storageLayout?.storage || []).find(
+                (item: any) => item.label === variable
+              ) === undefined
+            )
+          })
+
+          if (removed.length > 0) {
+            throw new Error(
+              `variable(s) removed from ${contractName}: ${removed.join(', ')}`
+            )
+          }
+
+          accounted.push(contractName)
+        }
+
+        // Check that the positions have not changed.
         for (const variable of storageLayout?.storage || []) {
           if (variable.label.startsWith('spacer_')) {
             const [, slot, offset, length] = variable.label.split('_')
@@ -59,6 +90,12 @@ task(
           }
         }
       }
+    }
+  }
+
+  for (const name of Object.keys(layoutLock)) {
+    if (!accounted.includes(name)) {
+      throw new Error(`contract ${name} is not accounted for`)
     }
   }
 })

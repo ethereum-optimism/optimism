@@ -1,0 +1,20 @@
+{
+  "GasPriceOracle": [
+    "spacer_1_0_32",
+    "spacer_2_0_32"
+  ],
+  "L1CrossDomainMessenger": [
+    "spacer_0_0_20",
+    "spacer_201_0_32",
+    "spacer_202_0_32"
+  ],
+  "L2CrossDomainMessenger": [
+    "spacer_0_0_20",
+    "spacer_201_0_32",
+    "spacer_202_0_32"
+  ],
+  "L1StandardBridge": [
+    "spacer_0_0_20",
+    "spacer_1_0_20"
+  ]
+}
