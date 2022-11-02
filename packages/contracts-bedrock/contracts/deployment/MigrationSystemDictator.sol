@@ -134,7 +134,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l1StandardBridgeProxy),
             address(config.implementationAddressConfig.portalSenderImpl),
-            abi.encodeCall(PortalSender.send, ())
+            abi.encodeCall(PortalSender.donate, ())
         );
 
         // Upgrade the L1StandardBridge (no initializer).

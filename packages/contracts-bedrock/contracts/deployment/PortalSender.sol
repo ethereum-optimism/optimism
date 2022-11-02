@@ -24,7 +24,7 @@ contract PortalSender {
     /**
      * @notice Sends balance of this contract to the OptimismPortal.
      */
-    function send() public {
+    function donate() public {
         portal.donateETH{ value: address(this).balance }();
     }
 }

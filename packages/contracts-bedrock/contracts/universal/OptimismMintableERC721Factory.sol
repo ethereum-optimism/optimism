@@ -10,19 +10,6 @@ import { Semver } from "./Semver.sol";
  */
 contract OptimismMintableERC721Factory is Semver {
     /**
-     * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
-     *
-     * @param localToken  Address of the token on the this domain.
-     * @param remoteToken Address of the token on the remote domain.
-     * @param deployer    Address of the initiator of the deployment
-     */
-    event OptimismMintableERC721Created(
-        address indexed localToken,
-        address indexed remoteToken,
-        address deployer
-    );
-
-    /**
      * @notice Address of the ERC721 bridge on this network.
      */
     address public immutable bridge;
@@ -36,6 +23,19 @@ contract OptimismMintableERC721Factory is Semver {
      * @notice Tracks addresses created by this factory.
      */
     mapping(address => bool) public isOptimismMintableERC721;
+
+    /**
+     * @notice Emitted whenever a new OptimismMintableERC721 contract is created.
+     *
+     * @param localToken  Address of the token on the this domain.
+     * @param remoteToken Address of the token on the remote domain.
+     * @param deployer    Address of the initiator of the deployment
+     */
+    event OptimismMintableERC721Created(
+        address indexed localToken,
+        address indexed remoteToken,
+        address deployer
+    );
 
     /**
      * @custom:semver 1.0.0
