@@ -1,3 +1,4 @@
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
@@ -19,7 +20,7 @@ const deployFn: DeployFunction = async (hre) => {
           proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
           controller: deployer, // TODO
           finalOwner: hre.deployConfig.proxyAdminOwner,
-          addressManager: hre.deployConfig.addressManager,
+          addressManager: ethers.constants.AddressZero,
         },
         proxyAddressConfig: {
           l2OutputOracleProxy: await getDeploymentAddress(
