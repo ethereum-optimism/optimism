@@ -19,31 +19,26 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
      */
-    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /**
      * @notice The number of blocks in the chain before the first block in this contract.
      */
-    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable HISTORICAL_TOTAL_BLOCKS;
 
     /**
      * @notice The number of the first L2 block recorded in this contract.
      */
-    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable STARTING_BLOCK_NUMBER;
 
     /**
      * @notice The timestamp of the first L2 block recorded in this contract.
      */
-    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable STARTING_TIMESTAMP;
 
     /**
      * @notice The time between L2 blocks in seconds.
      */
-    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable L2_BLOCK_TIME;
 
     /**
@@ -170,6 +165,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _proposal Represents the output proposal to delete
      */
+    // solhint-disable-next-line ordering
     function deleteL2Output(Types.OutputProposal memory _proposal) external onlyOwner {
         Types.OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
 

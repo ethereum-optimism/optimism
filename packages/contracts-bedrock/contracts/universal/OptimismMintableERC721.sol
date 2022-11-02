@@ -37,6 +37,14 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
     string public baseTokenURI;
 
     /**
+     * @notice Modifier that prevents callers other than the bridge from calling the function.
+     */
+    modifier onlyBridge() {
+        require(msg.sender == bridge, "OptimismMintableERC721: only bridge can call this function");
+        _;
+    }
+
+    /**
      * @param _bridge        Address of the bridge on this network.
      * @param _remoteChainId Chain ID where the remote token is deployed.
      * @param _remoteToken   Address of the corresponding token on the other network.
@@ -72,14 +80,6 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
                 "/tokenURI?uint256="
             )
         );
-    }
-
-    /**
-     * @notice Modifier that prevents callers other than the bridge from calling the function.
-     */
-    modifier onlyBridge() {
-        require(msg.sender == bridge, "OptimismMintableERC721: only bridge can call this function");
-        _;
     }
 
     /**
