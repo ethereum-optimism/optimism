@@ -47,6 +47,12 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1Bloc
 		return eth.L1BlockRef{}, err
 	}
 
+	// We know there is at least one block & we have hit the sequencer drift, we need to advance.
+	if l2Head.Time+los.cfg.BlockTime > currentOrigin.Time+los.cfg.MaxSequencerDrift {
+		log.Info("Must try to advance origin") // TODO: Full log
+		return los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
+	}
+
 	if currentOrigin.Number+1+los.sequencingConfDepth > l1Head.Number {
 		// TODO: we can decide to ignore confirmation depth if we would be forced
 		//  to make an empty block (only deposits) by staying on the current origin.
