@@ -150,7 +150,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		txMgr: NewTransactionManger(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
 		done:  make(chan struct{}),
 		log:   l,
-		state: new(channelManager),
+		state: NewChannelManager(l, cfg.ChannelTimeout),
 		// TODO: this context only exists because the even loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
@@ -234,7 +234,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 	if l.lastStoredBlock == (eth.BlockID{}) {
 		l.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
 		l.lastStoredBlock = syncStatus.SafeL2.ID()
-	} else if l.lastStoredBlock.Number <= syncStatus.SafeL2.Number {
+	} else if l.lastStoredBlock.Number < syncStatus.SafeL2.Number {
 		l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastStoredBlock, "safe", syncStatus.SafeL2)
 		l.lastStoredBlock = syncStatus.SafeL2.ID()
 	}
@@ -271,16 +271,20 @@ func (l *BatchSubmitter) loop() {
 			// Empty the state after loading into it on every iteration.
 			for {
 				// Collect the output frame
-				data, _, err := l.state.TxData(eth.L1BlockRef{})
+				data, id, err := l.state.TxData(eth.L1BlockRef{})
 				if err == io.EOF {
+					l.log.Trace("no transaction data available")
 					break // local for loop
 				} else if err != nil {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
 				// Drop receipt + error for now
-				if _, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
+				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
 					l.log.Error("Failed to send transaction", "err", err)
+					l.state.TxFailed(id)
+				} else {
+					l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
 				}
 			}
 
