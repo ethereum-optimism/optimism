@@ -100,6 +100,7 @@ services:
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
+      OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
 
   op-batcher:
     depends_on:

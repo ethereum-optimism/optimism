@@ -21,12 +21,6 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
-	L2EthRpcFlag = cli.StringFlag{
-		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L2_ETH_RPC"),
-	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:     "rollup-rpc",
 		Usage:    "HTTP provider URL for the rollup node",
@@ -97,7 +91,6 @@ var (
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	L2EthRpcFlag,
 	RollupRpcFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
