@@ -21,12 +21,6 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
-	L2EthRpcFlag = cli.StringFlag{
-		Name:     "l2-eth-rpc",
-		Usage:    "HTTP provider URL for L2",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L2_ETH_RPC"),
-	}
 	RollupRpcFlag = cli.StringFlag{
 		Name:     "rollup-rpc",
 		Usage:    "HTTP provider URL for the rollup node",
@@ -68,6 +62,9 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
+
+	/* Optional flags */
+
 	MnemonicFlag = cli.StringFlag{
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
@@ -85,11 +82,15 @@ var (
 		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "PRIVATE_KEY"),
 	}
+	AllowNonFinalizedFlag = cli.BoolFlag{
+		Name:   "allow-non-finalized",
+		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ALLOW_NON_FINALIZED"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
-	L2EthRpcFlag,
 	RollupRpcFlag,
 	L2OOAddressFlag,
 	PollIntervalFlag,
@@ -102,6 +103,7 @@ var optionalFlags = []cli.Flag{
 	MnemonicFlag,
 	L2OutputHDPathFlag,
 	PrivateKeyFlag,
+	AllowNonFinalizedFlag,
 }
 
 func init() {

@@ -803,9 +803,9 @@ workflows:
       - bedrock-go-tests
       - fuzz-op-node
       - bedrock-markdown
-      - devnet:
-          name: devnet (with deployed contracts)
-          deploy: true
+      # - devnet:
+      #     name: devnet (with deployed contracts)
+      #     deploy: true
       - devnet:
           name: devnet (with genesis contracts)
           deploy: false

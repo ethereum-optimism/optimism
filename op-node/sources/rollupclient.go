@@ -2,12 +2,12 @@ package sources
 
 import (
 	"context"
-	"math/big"
+
+	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
 type RollupClient struct {
@@ -18,9 +18,9 @@ func NewRollupClient(rpc client.RPC) *RollupClient {
 	return &RollupClient{rpc}
 }
 
-func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum *big.Int) ([]eth.Bytes32, error) {
-	var output []eth.Bytes32
-	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.EncodeBig(blockNum))
+func (r *RollupClient) OutputAtBlock(ctx context.Context, blockNum uint64) (*eth.OutputResponse, error) {
+	var output *eth.OutputResponse
+	err := r.rpc.CallContext(ctx, &output, "optimism_outputAtBlock", hexutil.Uint64(blockNum))
 	return output, err
 }
 

@@ -94,4 +94,14 @@ library Predeploys {
      * @notice Address of the ProxyAdmin predeploy.
      */
     address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
+
+    /**
+     * @notice Address of the BaseFeeVault predeploy.
+     */
+    address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
+
+    /**
+     * @notice Address of the L1FeeVault predeploy.
+     */
+    address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
 }
