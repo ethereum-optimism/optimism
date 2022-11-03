@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
+// TestBatcherKeyRotation tests that batcher A can operate, then be replaced with batcher B, then ignore old batcher A,
+// and that the change to batcher B is reverted properly upon reorg of L1.
 func TestBatcherKeyRotation(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 
@@ -172,6 +174,8 @@ func TestBatcherKeyRotation(gt *testing.T) {
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Unsafe(), "verifier synced")
 }
 
+// TestGPOParamsChange tests that the GPO params can be updated to adjust fees of L2 transactions,
+// and that the L1 data fees to the L2 transaction are applied correctly before, during and after the GPO update in L2.
 func TestGPOParamsChange(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
