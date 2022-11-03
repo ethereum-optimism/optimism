@@ -4,7 +4,7 @@
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 **Table of Contents**
 
-- [System config contents](#system-config-contents)
+- [System config contents (version 0)](#system-config-contents-version-0)
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [`l1FeeOverhead` and `l1FeeScalar` (`uint256,uint256`)](#l1feeoverhead-and-l1feescalar-uint256uint256)
 - [Writing the system config](#writing-the-system-config)
@@ -15,7 +15,9 @@
 The `SystemConfig` is a contract on L1 that can emit rollup configuration changes as log events.
 The rollup [block derivation process](./derivation.md) picks up on these log events, and applies the changes.
 
-## System config contents
+## System config contents (version 0)
+
+Version 0 of the system configuration contract defines the following parameters:
 
 ### `batcherHash` (`bytes32`)
 
@@ -51,8 +53,9 @@ A rollup node initializes its derivation process by finding a starting point bas
   - other future variables may also be retrieved from other contents of the L2 block, such as the header.
 
 After preparing the initial system configuration for the given L1 starting input,
-with each new L1 block the system configuration is updated by copying the configuration
-and then applying any emitted log events from the L1 `SystemConfig` contract:
+with each new L1 block the system configuration is updated by processing all receipts from the block.
+
+The contained log events are filtered and processed as follows:
 
 - the log event contract address must match the rollup `SystemConfig` deployment
 - the first log event topic must match the ABI hash of `ConfigUpdate(uint256,uint8,bytes)`
