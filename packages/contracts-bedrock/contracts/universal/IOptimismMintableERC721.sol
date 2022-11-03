@@ -28,21 +28,6 @@ interface IOptimismMintableERC721 is IERC721Enumerable {
     event Burn(address indexed account, uint256 tokenId);
 
     /**
-     * @notice Chain ID of the chain where the remote token is deployed.
-     */
-    function remoteChainId() external view returns (uint256);
-
-    /**
-     * @notice Address of the token on the remote domain.
-     */
-    function remoteToken() external view returns (address);
-
-    /**
-     * @notice Address of the ERC721 bridge on this network.
-     */
-    function bridge() external view returns (address);
-
-    /**
      * @notice Mints some token ID for a user, checking first that contract recipients
      *         are aware of the ERC721 protocol to prevent tokens from being forever locked.
      *
@@ -58,4 +43,34 @@ interface IOptimismMintableERC721 is IERC721Enumerable {
      * @param _tokenId Token ID to burn.
      */
     function burn(address _from, uint256 _tokenId) external;
+
+    /**
+     * @notice Chain ID of the chain where the remote token is deployed.
+     */
+    function REMOTE_CHAIN_ID() external view returns (uint256);
+
+    /**
+     * @notice Address of the token on the remote domain.
+     */
+    function REMOTE_TOKEN() external view returns (address);
+
+    /**
+     * @notice Address of the ERC721 bridge on this network.
+     */
+    function BRIDGE() external view returns (address);
+
+    /**
+     * @notice Chain ID of the chain where the remote token is deployed.
+     */
+    function remoteChainId() external view returns (uint256);
+
+    /**
+     * @notice Address of the token on the remote domain.
+     */
+    function remoteToken() external view returns (address);
+
+    /**
+     * @notice Address of the ERC721 bridge on this network.
+     */
+    function bridge() external view returns (address);
 }

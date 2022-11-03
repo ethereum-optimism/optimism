@@ -250,7 +250,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	eq.postProcessSafeL2()
 
 	// let's finalize D (current L1), from which we fully derived C1 (it was safe head), but not D0 (included in E)
-	eq.Finalize(refD.ID())
+	eq.Finalize(refD)
 
 	require.Equal(t, refC1, eq.Finalized(), "C1 was included in finalized D, and should now be finalized")
 

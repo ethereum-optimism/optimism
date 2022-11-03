@@ -25,7 +25,7 @@ function getL1BlockNumber() external view returns (uint256)
 
 | Name | Type | Description |
 |---|---|---|
-| _0 | uint256 | undefined
+| _0 | uint256 | Block number of L1
 
 
 

@@ -8,12 +8,12 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/mattn/go-isatty"
@@ -84,28 +84,28 @@ func main() {
 				return err
 			}
 
-			ovmAddresses, err := genesis.NewAddresses(ctx.String("ovm-addresses"))
+			ovmAddresses, err := migration.NewAddresses(ctx.String("ovm-addresses"))
 			if err != nil {
 				return err
 			}
-			evmAddresess, err := genesis.NewAddresses(ctx.String("evm-addresses"))
+			evmAddresess, err := migration.NewAddresses(ctx.String("evm-addresses"))
 			if err != nil {
 				return err
 			}
-			ovmAllowances, err := genesis.NewAllowances(ctx.String("ovm-allowances"))
+			ovmAllowances, err := migration.NewAllowances(ctx.String("ovm-allowances"))
 			if err != nil {
 				return err
 			}
-			ovmMessages, err := genesis.NewSentMessage(ctx.String("ovm-messages"))
+			ovmMessages, err := migration.NewSentMessage(ctx.String("ovm-messages"))
 			if err != nil {
 				return err
 			}
-			evmMessages, err := genesis.NewSentMessage(ctx.String("evm-messages"))
+			evmMessages, err := migration.NewSentMessage(ctx.String("evm-messages"))
 			if err != nil {
 				return err
 			}
 
-			migrationData := genesis.MigrationData{
+			migrationData := migration.MigrationData{
 				OvmAddresses:  ovmAddresses,
 				EvmAddresses:  evmAddresess,
 				OvmAllowances: ovmAllowances,
@@ -143,18 +143,6 @@ func main() {
 				return err
 			}
 
-			hash := rawdb.ReadHeadHeaderHash(ldb)
-			if err != nil {
-				return err
-			}
-			num := rawdb.ReadHeaderNumber(ldb, hash)
-			header := rawdb.ReadHeader(ldb, hash, *num)
-
-			sdb, err := state.New(header.Root, state.NewDatabase(ldb), nil)
-			if err != nil {
-				return err
-			}
-
 			// Get the addresses from the hardhat deploy artifacts
 			l1StandardBridgeProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1StandardBridge")
 			if err != nil {
@@ -176,20 +164,10 @@ func main() {
 				L1ERC721BridgeProxy:         l1ERC721BridgeProxyDeployment.Address,
 			}
 
-			if err := genesis.MigrateDB(sdb, config, block, &l2Addrs, &migrationData); err != nil {
+			dryRun := ctx.Bool("dry-run")
+			if err := genesis.MigrateDB(ldb, config, block, &l2Addrs, &migrationData, !dryRun); err != nil {
 				return err
 			}
-
-			if ctx.Bool("dry-run") {
-				log.Info("Dry run complete")
-				return nil
-			}
-
-			root, err := sdb.Commit(true)
-			if err != nil {
-				return err
-			}
-			log.Info("Migration complete", "root", root)
 
 			return nil
 		},

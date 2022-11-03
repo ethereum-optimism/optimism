@@ -26,7 +26,10 @@ import (
 type L2Verifier struct {
 	log log.Logger
 
-	eng derive.Engine
+	eng interface {
+		derive.Engine
+		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	}
 
 	// L2 rollup
 	derivation *derive.DerivationPipeline
@@ -46,7 +49,8 @@ type L2Verifier struct {
 
 type L2API interface {
 	derive.Engine
-	InfoByRpcNumber(ctx context.Context, num rpc.BlockNumber) (eth.BlockInfo, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
 	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
 }
@@ -95,6 +99,11 @@ type l2VerifierBackend struct {
 	verifier *L2Verifier
 }
 
+func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+	ref, err := s.verifier.eng.L2BlockRefByNumber(ctx, num)
+	return ref, s.verifier.SyncStatus(), err
+}
+
 func (s *l2VerifierBackend) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
 	return s.verifier.SyncStatus(), nil
 }
@@ -118,13 +127,14 @@ func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
-		CurrentL1:   s.derivation.Origin(),
-		HeadL1:      s.l1State.L1Head(),
-		SafeL1:      s.l1State.L1Safe(),
-		FinalizedL1: s.l1State.L1Finalized(),
-		UnsafeL2:    s.L2Unsafe(),
-		SafeL2:      s.L2Safe(),
-		FinalizedL2: s.L2Finalized(),
+		CurrentL1:          s.derivation.Origin(),
+		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		HeadL1:             s.l1State.L1Head(),
+		SafeL1:             s.l1State.L1Safe(),
+		FinalizedL1:        s.l1State.L1Finalized(),
+		UnsafeL2:           s.L2Unsafe(),
+		SafeL2:             s.L2Safe(),
+		FinalizedL2:        s.L2Finalized(),
 	}
 }
 
@@ -160,15 +170,16 @@ func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 }
 
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
-	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
+	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1SafeBlock(head)
+	s.l1State.HandleNewL1SafeBlock(safe)
 }
 
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
-	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
+	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1FinalizedBlock(head)
+	s.l1State.HandleNewL1FinalizedBlock(finalized)
+	s.derivation.Finalize(finalized)
 }
 
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline

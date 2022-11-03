@@ -25,7 +25,9 @@ bindings: l1block-bindings \
 	deployer-whitelist-bindings \
 	l2-erc721-bridge-bindings \
 	l1-erc721-bridge-bindings \
-	optimism-mintable-erc721-factory-bindings
+	optimism-mintable-erc721-factory-bindings \
+	l1-fee-vault-bindings \
+	basefee-vault-bindings
 
 version:
 	forge --version
@@ -77,6 +79,12 @@ optimism-mintable-erc721-factory-bindings:
 sequencer-fee-vault-bindings: compile
 	./gen_bindings.sh contracts/L2/SequencerFeeVault.sol:SequencerFeeVault $(pkg)
 
+basefee-vault-bindings: compile
+	./gen_bindings.sh contracts/L2/BaseFeeVault.sol:BaseFeeVault $(pkg)
+
+l1-fee-vault-bindings: compile
+	./gen_bindings.sh contracts/L2/L1FeeVault.sol:L1FeeVault $(pkg)
+
 optimism-mintable-erc20-factory-bindings: compile
 	./gen_bindings.sh contracts/universal/OptimismMintableERC20Factory.sol:OptimismMintableERC20Factory $(pkg)
 
@@ -108,7 +116,7 @@ more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
-		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
+		-contracts OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
 		-package bindings
 
 mkdir:

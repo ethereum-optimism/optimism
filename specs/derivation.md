@@ -44,6 +44,7 @@
 [g-l1-origin]: glossary.md#l1-origin
 [g-deposit-tx-type]: glossary.md#deposited-transaction-type
 [g-finalized-l2-head]: glossary.md#finalized-l2-head
+[g-system-config]: glossary.md#system-configuration
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -302,8 +303,9 @@ Unknown versions make the batcher transaction invalid (it must be ignored by the
 All frames in a batcher transaction must be parseable. If any one frame fails to parse, the all frames in the
 transaction are rejected.
 
-> **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher
-> signers)
+Batch transactions are authenticated by verifying that the `to` address of the transaction matches the batch inbox
+address, and the `from` address matches the batch-sender address in the [system configuration][g-system-config] at the
+time of the L1 block that the transaction data is read from.
 
 ### Frame Format
 
@@ -456,6 +458,9 @@ Let's briefly describe each stage of the pipeline.
 
 In the *L1 Traversal* stage, we simply read the header of the next L1 block. In normal operations, these will be new
 L1 blocks as they get created, though we can also read old blocks while syncing, or in case of an L1 [re-org][g-reorg].
+
+Upon traversal of the L1 block, the [system configuration][g-system-config] copy used by the L1 retrieval stage is
+updated, such that the batch-sender authentication is always accurate to the exact L1 block that is read by the stage.
 
 ### L1 Retrieval
 
@@ -621,6 +626,9 @@ In the *Payload Attributes Derivation* stage, we convert the batches we get from
 the [`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into
 a block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
 section [Deriving Payload Attributes section][deriving-payload-attr] below.
+
+This stage maintains its own copy of the [system configuration][g-system-config], independent of the L1 retrieval stage.
+The system configuration is updated with L1 log events whenever the L1 epoch referenced by the batch input changes.
 
 ### Engine Queue
 

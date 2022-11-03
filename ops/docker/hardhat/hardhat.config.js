@@ -11,6 +11,7 @@ const config = {
     hardhat: {
       gasPrice,
       initialBaseFeePerGas: 0,
+      chainId: process.env.FORK_CHAIN_ID ? Number(process.env.FORK_CHAIN_ID) : 31337
     },
   },
   analytics: { enabled: false },

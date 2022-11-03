@@ -17,7 +17,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_initialize() external {
         assertEq(address(L2Bridge.messenger()), address(L2Messenger));
 
-        assertEq(address(L2Bridge.otherBridge()), address(L1Bridge));
+        assertEq(address(L2Bridge.OTHER_BRIDGE()), address(L1Bridge));
     }
 
     // receive
@@ -99,7 +99,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L2Bridge.otherBridge()))
+            abi.encode(address(L2Bridge.OTHER_BRIDGE()))
         );
         vm.expectEmit(true, true, true, true, address(L2Bridge));
         emit ERC20BridgeFinalized(
@@ -120,7 +120,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L2Bridge.otherBridge()))
+            abi.encode(address(L2Bridge.OTHER_BRIDGE()))
         );
         vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
@@ -132,7 +132,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L2Bridge.otherBridge()))
+            abi.encode(address(L2Bridge.OTHER_BRIDGE()))
         );
         vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));
@@ -144,7 +144,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L2Bridge.otherBridge()))
+            abi.encode(address(L2Bridge.OTHER_BRIDGE()))
         );
         vm.deal(address(L2Messenger), 100);
         vm.prank(address(L2Messenger));

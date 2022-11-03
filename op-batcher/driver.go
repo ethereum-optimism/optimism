@@ -1,10 +1,10 @@
 package op_batcher
 
 import (
-	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"strings"
@@ -13,11 +13,9 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
@@ -26,7 +24,7 @@ import (
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
 // batches to L1 for availability.
 type BatchSubmitter struct {
-	txMgr txmgr.TxManager
+	txMgr *TransactionManager
 	addr  common.Address
 	cfg   sequencer.Config
 	wg    sync.WaitGroup
@@ -36,9 +34,10 @@ type BatchSubmitter struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	lastSubmittedBlock eth.BlockID
+	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
+	lastStoredBlock eth.BlockID
 
-	ch *derive.ChannelOut
+	state *channelManager
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
@@ -148,9 +147,10 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: txmgr.NewSimpleTxManager("batcher", txManagerConfig, l1Client),
+		txMgr: NewTransactionManger(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
 		done:  make(chan struct{}),
 		log:   l,
+		state: new(channelManager),
 		// TODO: this context only exists because the even loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
@@ -170,147 +170,119 @@ func (l *BatchSubmitter) Stop() {
 	l.wg.Wait()
 }
 
+// loadBlocksIntoState loads all blocks since the previous stored block
+// It does the following:
+// 1. Fetch the sync status of the sequencer
+// 2. Check if the sync status is valid or if we are all the way up to date
+// 3. Check if it needs to initialize state OR it is lagging (todo: lagging just means race condition?)
+// 4. Load all new blocks into the local state.
+func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
+	start, end, err := l.calculateL2BlockRangeToStore(ctx)
+	if err != nil {
+		l.log.Trace("was not able to calculate L2 block range", "err", err)
+		return
+	}
+
+	// Add all blocks to "state"
+	for i := start.Number + 1; i < end.Number+1; i++ {
+		id, err := l.loadBlockIntoState(ctx, i)
+		if errors.Is(err, ErrReorg) {
+			l.log.Warn("Found L2 reorg", "block_number", i)
+			l.state.Clear()
+			l.lastStoredBlock = eth.BlockID{}
+			return
+		} else if err != nil {
+			l.log.Warn("failed to load block into state", "err", err)
+			return
+		}
+		l.lastStoredBlock = id
+	}
+}
+
+// loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
+func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (eth.BlockID, error) {
+	ctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
+	cancel()
+	if err != nil {
+		return eth.BlockID{}, err
+	}
+	if err := l.state.AddL2Block(block); err != nil {
+		return eth.BlockID{}, err
+	}
+	id := eth.ToBlockID(block)
+	l.log.Info("added L2 block to local state", "block", id, "tx_count", len(block.Transactions()), "time", block.Time())
+	return id, nil
+}
+
+// calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
+// It also takes care of initializing some local state (i.e. will modify l.lastStoredBlock in certain conditions)
+func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
+	childCtx, cancel := context.WithTimeout(ctx, networkTimeout)
+	defer cancel()
+	syncStatus, err := l.cfg.RollupNode.SyncStatus(childCtx)
+	// Ensure that we have the sync status
+	if err != nil {
+		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
+	}
+	if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
+		return eth.BlockID{}, eth.BlockID{}, errors.New("empty sync status")
+	}
+
+	// Check last stored to see if it needs to be set on startup OR set if is lagged behind.
+	// It lagging implies that the op-node processed some batches that where submitted prior to the current instance of the batcher being alive.
+	if l.lastStoredBlock == (eth.BlockID{}) {
+		l.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
+		l.lastStoredBlock = syncStatus.SafeL2.ID()
+	} else if l.lastStoredBlock.Number <= syncStatus.SafeL2.Number {
+		l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastStoredBlock, "safe", syncStatus.SafeL2)
+		l.lastStoredBlock = syncStatus.SafeL2.ID()
+	}
+
+	// Check if we should even attempt to load any blocks. TODO: May not need this check
+	if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
+		return eth.BlockID{}, eth.BlockID{}, errors.New("L2 safe head ahead of L2 unsafe head")
+	}
+
+	return l.lastStoredBlock, syncStatus.UnsafeL2.ID(), nil
+}
+
+// The following things occur:
+// New L2 block (reorg or not)
+// L1 transaction is confirmed
+//
+// What the batcher does:
+// Ensure that channels are created & submitted as frames for an L2 range
+//
+// Error conditions:
+// Submitted batch, but it is not valid
+// Missed L2 block somehow.
+
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
 	ticker := time.NewTicker(l.cfg.PollInterval)
 	defer ticker.Stop()
-mainLoop:
 	for {
 		select {
 		case <-ticker.C:
-			// Do the simplest thing of one channel per range of blocks since the iteration of this loop.
-			// The channel is closed at the end of this loop (to avoid lifecycle management of the channel).
-			ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
-			syncStatus, err := l.cfg.RollupNode.SyncStatus(ctx)
-			cancel()
-			if err != nil {
-				l.log.Warn("issue fetching L2 head", "err", err)
-				continue
-			}
-			if syncStatus.HeadL1 == (eth.L1BlockRef{}) {
-				l.log.Info("Rollup node has no L1 head info yet")
-				continue
-			}
-			l.log.Info("Got new L2 sync status", "safe_head", syncStatus.SafeL2, "unsafe_head", syncStatus.UnsafeL2, "last_submitted", l.lastSubmittedBlock, "l1_head", syncStatus.HeadL1)
-			if syncStatus.SafeL2.Number >= syncStatus.UnsafeL2.Number {
-				l.log.Trace("No unsubmitted blocks from sequencer")
-				continue
-			}
-			// If we just started, start at safe-head
-			if l.lastSubmittedBlock == (eth.BlockID{}) {
-				l.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
-				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
-			}
-			// If it's lagging behind, catch it up.
-			if l.lastSubmittedBlock.Number < syncStatus.SafeL2.Number {
-				l.log.Warn("last submitted block lagged behind L2 safe head: batch submission will continue from the safe head now", "last", l.lastSubmittedBlock, "safe", syncStatus.SafeL2)
-				l.lastSubmittedBlock = syncStatus.SafeL2.ID()
-			}
-			if ch, err := derive.NewChannelOut(); err != nil {
-				l.log.Error("Error creating channel", "err", err)
-				continue
-			} else {
-				l.ch = ch
-			}
-			prevID := l.lastSubmittedBlock
-			maxBlocksPerChannel := uint64(100)
-			// Hacky min() here to ensure that we don't batch submit more than 100 blocks per channel.
-			// TODO: use proper channel size here instead.
-			upToBlockNumber := syncStatus.UnsafeL2.Number
-			if l.lastSubmittedBlock.Number+1+maxBlocksPerChannel < upToBlockNumber {
-				upToBlockNumber = l.lastSubmittedBlock.Number + 1 + maxBlocksPerChannel
-			}
-			for i := l.lastSubmittedBlock.Number + 1; i <= upToBlockNumber; i++ {
-				ctx, cancel := context.WithTimeout(l.ctx, time.Second*10)
-				block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(i))
-				cancel()
-				if err != nil {
-					l.log.Error("issue fetching L2 block", "err", err)
-					continue mainLoop
-				}
-				if block.ParentHash() != prevID.Hash {
-					l.log.Error("detected a reorg in L2 chain vs previous submitted information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
-					l.lastSubmittedBlock = syncStatus.SafeL2.ID()
-					continue mainLoop
-				}
-				if err := l.ch.AddBlock(block); err != nil {
-					l.log.Error("issue adding L2 Block to the channel", "err", err, "channel_id", l.ch.ID())
-					continue mainLoop
-				}
-				prevID = eth.BlockID{Hash: block.Hash(), Number: block.NumberU64()}
-				l.log.Info("added L2 block to channel", "block", prevID, "channel_id", l.ch.ID(), "tx_count", len(block.Transactions()), "time", block.Time())
-			}
-			if err := l.ch.Close(); err != nil {
-				l.log.Error("issue getting adding L2 Block", "err", err)
-				continue
-			}
-			// Hand role do-while loop to fully pull all frames out of the channel
+			l.loadBlocksIntoState(l.ctx)
+
+			// Empty the state after loading into it on every iteration.
 			for {
 				// Collect the output frame
-				data := new(bytes.Buffer)
-				data.WriteByte(derive.DerivationVersion0)
-				done := false
-				// subtract one, to account for the version byte
-				if err := l.ch.OutputFrame(data, l.cfg.MaxL1TxSize-1); err == io.EOF {
-					done = true
+				data, _, err := l.state.TxData(eth.L1BlockRef{})
+				if err == io.EOF {
+					break // local for loop
 				} else if err != nil {
-					l.log.Error("error outputting frame", "err", err)
-					continue mainLoop
+					l.log.Error("unable to get tx data", "err", err)
+					break
 				}
-
-				// Query for the submitter's current nonce.
-				walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-				nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
-				cancel()
-				if err != nil {
-					l.log.Error("unable to get current nonce", "err", err)
-					continue mainLoop
-				}
-
-				// Create the transaction
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-				tx, err := l.CraftTx(ctx, data.Bytes(), nonce)
-				cancel()
-				if err != nil {
-					l.log.Error("unable to craft tx", "err", err)
-					continue mainLoop
-				}
-
-				// Construct the a closure that will update the txn with the current gas prices.
-				updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-					l.log.Debug("updating batch tx gas price")
-					return l.UpdateGasPrice(ctx, tx)
-				}
-
-				// Wait until one of our submitted transactions confirms. If no
-				// receipt is received it's likely our gas price was too low.
-				// TODO: does the tx manager nicely replace the tx?
-				//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
-				ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
-				receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
-				cancel()
-				if err != nil {
-					l.log.Warn("unable to publish tx", "err", err)
-					continue mainLoop
-				}
-
-				// The transaction was successfully submitted.
-				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
-
-				// If `ch.OutputFrame` returned io.EOF we don't need to submit any more frames for this channel.
-				if done {
-					break // local do-while loop
+				// Drop receipt + error for now
+				if _, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
+					l.log.Error("Failed to send transaction", "err", err)
 				}
 			}
-			// TODO: if we exit to the mainLoop early on an error,
-			// it would be nice if we can determine which blocks are still readable from the partially submitted data.
-			// We can open a channel-in-reader, parse the data up to which we managed to submit it,
-			// and then take the block hash (if we remember which blocks we put in the channel)
-			//
-			// Now we just continue batch submission from the end of the channel.
-			l.lastSubmittedBlock = prevID
 
 		case <-l.done:
 			return

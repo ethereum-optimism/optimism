@@ -16,7 +16,7 @@
 function passMessageToL1(bytes _message) external nonpayable
 ```
 
-
+Passes a message to L1.
 
 
 
@@ -24,7 +24,7 @@ function passMessageToL1(bytes _message) external nonpayable
 
 | Name | Type | Description |
 |---|---|---|
-| _message | bytes | undefined
+| _message | bytes | Message to pass to L1.
 
 
 

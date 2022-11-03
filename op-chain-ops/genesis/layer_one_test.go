@@ -73,7 +73,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 
 	msgr, err := bindings.NewL1CrossDomainMessenger(predeploys.DevL1CrossDomainMessengerAddr, sim)
 	require.NoError(t, err)
-	portalAddr, err := msgr.Portal(callOpts)
+	portalAddr, err := msgr.PORTAL(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevOptimismPortalAddr, portalAddr)
 
@@ -82,7 +82,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	msgrAddr, err := bridge.Messenger(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevL1CrossDomainMessengerAddr, msgrAddr)
-	otherBridge, err := bridge.OtherBridge(callOpts)
+	otherBridge, err := bridge.OTHERBRIDGE(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.L2StandardBridgeAddr, otherBridge)
 

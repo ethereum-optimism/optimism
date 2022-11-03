@@ -1,3 +1,4 @@
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import {
@@ -13,14 +14,18 @@ const deployFn: DeployFunction = async (hre) => {
   )
   await deployAndVerifyAndThen({
     hre,
-    name: 'L1CrossDomainMessengerImpl',
-    contract: 'L1CrossDomainMessenger',
+    name: 'L1CrossDomainMessenger',
     args: [OptimismPortalProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'portal',
+        'PORTAL',
         OptimismPortalProxy.address
+      )
+      await assertContractVariable(
+        contract,
+        'owner',
+        ethers.constants.AddressZero
       )
     },
   })
