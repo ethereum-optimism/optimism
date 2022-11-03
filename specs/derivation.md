@@ -303,9 +303,9 @@ Unknown versions make the batcher transaction invalid (it must be ignored by the
 All frames in a batcher transaction must be parseable. If any one frame fails to parse, the all frames in the
 transaction are rejected.
 
-Batch transactions are authenticated by verifying the `to` address of the transaction matches the batch inbox address,
-and the `from` address matches the batch-sender address in the [system configuration][g-system-config] at the time
-of the L1 block that the transaction data is read from.
+Batch transactions are authenticated by verifying that the `to` address of the transaction matches the batch inbox
+address, and the `from` address matches the batch-sender address in the [system configuration][g-system-config] at the
+time of the L1 block that the transaction data is read from.
 
 ### Frame Format
 

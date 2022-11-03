@@ -13,7 +13,7 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 The `SystemConfig` is a contract on L1 that can emit rollup configuration changes as log events.
-The rollup [block derivation process](./derivation.md) picks up on these log events, and applies the changes.
+The rollup [block derivation process](./derivation.md) picks up on these log events and applies the changes.
 
 ## System config contents (version 0)
 
@@ -39,7 +39,7 @@ are updated in conjunction and apply new L1 costs to the L2 transactions.
 The `SystemConfig` contract applies authentication to all writing contract functions,
 the configuration management can be configured to be any type of ethereum account or contract.
 
-On write, an event is emitted for the change to be picked up by the L2 system,
+On a write, an event is emitted for the change to be picked up by the L2 system,
 and a copy of the new written configuration variable is retained in L1 state to read with L1 contracts.
 
 ## Reading the system config
@@ -53,7 +53,7 @@ A rollup node initializes its derivation process by finding a starting point bas
   - other future variables may also be retrieved from other contents of the L2 block, such as the header.
 
 After preparing the initial system configuration for the given L1 starting input,
-with each new L1 block the system configuration is updated by processing all receipts from the block.
+the system configuration is updated by processing all receipts from each new L1 block.
 
 The contained log events are filtered and processed as follows:
 
