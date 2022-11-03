@@ -61,13 +61,7 @@ const config: HardhatUserConfig = {
   },
   deployConfigSpec: {
     // Address of the L1 proxy admin owner.
-    proxyAdminOwner: {
-      type: 'address',
-      default: ethers.constants.AddressZero,
-    },
-
-    // Address of the AddressManager (legacy only).
-    addressManager: {
+    finalSystemOwner: {
       type: 'address',
       default: ethers.constants.AddressZero,
     },
@@ -351,6 +345,7 @@ const config: HardhatUserConfig = {
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
+      mainnet: ['../contracts/deployments/mainnet'],
       'mainnet-forked': ['../contracts/deployments/mainnet'],
     },
   },

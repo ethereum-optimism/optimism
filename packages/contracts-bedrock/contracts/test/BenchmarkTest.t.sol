@@ -109,7 +109,7 @@ contract GasBenchMark_L1StandardBridge_Finalize is Bridge_Initializer {
         vm.mockCall(
             address(L1Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         vm.startPrank(address(L1Bridge.messenger()));
         vm.deal(address(L1Bridge.messenger()), 100);

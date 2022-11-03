@@ -29,7 +29,7 @@ const deployFn: DeployFunction = async (hre) => {
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'messenger',
+        'MESSENGER',
         L1CrossDomainMessengerProxy.address
       )
     },
