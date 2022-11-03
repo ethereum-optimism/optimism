@@ -691,9 +691,6 @@ func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 	return new(big.Int).Add(l1Gas, overhead)
 }
 
-// TODO: temp until TestFees is unskipped
-var _ = calcL1GasUsed
-
 // TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
@@ -1022,6 +1019,3 @@ func TestFees(t *testing.T) {
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
 }
-
-// TODO: temp until TestFees is unskipped
-var _ = safeAddBig
