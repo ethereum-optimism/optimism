@@ -28,6 +28,8 @@ FROM ethereum/client-go:alltools-v1.10.25 as geth
 
 FROM python:3.8.13-slim-bullseye
 
+FROM ghcr.io/crytic/echidna/echidna:testing-master as echidna-test
+
 ENV GOPATH=/go
 ENV PATH=/usr/local/go/bin:$GOPATH/bin:$PATH
 ENV DEBIAN_FRONTEND=noninteractive
@@ -36,6 +38,7 @@ COPY --from=foundry-build /opt/foundry/target/release/forge /usr/local/bin/forge
 COPY --from=foundry-build /opt/foundry/target/release/cast /usr/local/bin/cast
 COPY --from=foundry-build /opt/foundry/target/release/anvil /usr/local/bin/anvil
 COPY --from=geth /usr/local/bin/abigen /usr/local/bin/abigen
+COPY --from=echidna-test /usr/local/bin/echidna-test /usr/local/bin/echidna-test
 COPY check-changed.sh /usr/local/bin/check-changed
 
 RUN apt-get update && \
