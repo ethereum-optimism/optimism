@@ -69,6 +69,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			L2OutputOracleProposer:           addresses.Proposer,
 			L2OutputOracleOwner:              common.Address{}, // tbd
 
+			SystemConfigOwner: addresses.SysCfgOwner,
+
 			L1BlockTime:                 2,
 			L1GenesisBlockNonce:         4660,
 			CliqueSignerAddress:         addresses.CliqueSigner,
@@ -99,7 +101,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			GasPriceOracleOwner:         addresses.Alice,                   // tbd
 			GasPriceOracleOverhead:      0,
 			GasPriceOracleScalar:        0,
-			GasPriceOracleDecimals:      0,
 			DeploymentWaitConfirmations: 1,
 
 			EIP1559Elasticity:  2,

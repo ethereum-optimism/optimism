@@ -70,6 +70,8 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleOwner:              common.Address{}, // tbd
 
+		SystemConfigOwner: addresses.SysCfgOwner,
+
 		L1BlockTime:                 15,
 		L1GenesisBlockNonce:         0,
 		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
@@ -102,7 +104,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		GasPriceOracleOwner:         common.Address{0: 0x42, 19: 0xf3}, // tbd
 		GasPriceOracleOverhead:      2100,
 		GasPriceOracleScalar:        1000_000,
-		GasPriceOracleDecimals:      6,
 		DeploymentWaitConfirmations: 1,
 
 		EIP1559Elasticity:  10,
@@ -126,6 +127,7 @@ type DeploymentsL1 struct {
 	L1StandardBridgeProxy       common.Address
 	L2OutputOracleProxy         common.Address
 	OptimismPortalProxy         common.Address
+	SystemConfigProxy           common.Address
 }
 
 // SetupData bundles the L1, L2, rollup and deployment configuration data: everything for a full test setup.
@@ -213,6 +215,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 		L2OutputOracleProxy:         predeploys.DevL2OutputOracleAddr,
 		OptimismPortalProxy:         predeploys.DevOptimismPortalAddr,
+		SystemConfigProxy:           predeploys.DevSystemConfigAddr,
 	}
 
 	return &SetupData{

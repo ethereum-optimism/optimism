@@ -14,8 +14,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
+const (
+	L1InfoFuncSignature = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)"
+	L1InfoArguments     = 8
+	L1InfoLen           = 4 + 32*L1InfoArguments
+)
+
 var (
-	L1InfoFuncSignature    = "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64)"
 	L1InfoFuncBytes4       = crypto.Keccak256([]byte(L1InfoFuncSignature))[:4]
 	L1InfoDepositerAddress = common.HexToAddress("0xdeaddeaddeaddeaddeaddeaddeaddeaddead0001")
 	L1BlockAddress         = predeploys.L1BlockAddr
@@ -30,14 +35,14 @@ type L1BlockInfo struct {
 	// Not strictly a piece of L1 information. Represents the number of L2 blocks since the start of the epoch,
 	// i.e. when the actual L1 info was first introduced.
 	SequenceNumber uint64
-	BatcherAddr    common.Address
-	L1FeeOverhead  [32]byte
-	L1FeeScalar    [32]byte
+	// BatcherHash version 0 is just the address with 0 padding to the left.
+	BatcherAddr   common.Address
+	L1FeeOverhead eth.Bytes32
+	L1FeeScalar   eth.Bytes32
 }
 
 func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
-	//data := make([]byte, 4+32*8) // TODO updated block info contract
-	data := make([]byte, 4+32+32+32+32+32)
+	data := make([]byte, L1InfoLen)
 	offset := 0
 	copy(data[offset:4], L1InfoFuncBytes4)
 	offset += 4
@@ -54,18 +59,17 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	copy(data[offset:offset+32], info.BlockHash.Bytes())
 	offset += 32
 	binary.BigEndian.PutUint64(data[offset+24:offset+32], info.SequenceNumber)
-	//offset += 32
-	//copy(data[offset+12:offset+32], info.BatcherAddr[:])
-	//offset += 32
-	//copy(data[offset:offset+32], info.L1FeeOverhead[:])
-	//offset += 32
-	//copy(data[offset:offset+32], info.L1FeeScalar[:])
+	offset += 32
+	copy(data[offset+12:offset+32], info.BatcherAddr[:])
+	offset += 32
+	copy(data[offset:offset+32], info.L1FeeOverhead[:])
+	offset += 32
+	copy(data[offset:offset+32], info.L1FeeScalar[:])
 	return data, nil
 }
 
 func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
-	//if len(data) != 4+32*8 {  // TODO updated block info contract
-	if len(data) != 4+32+32+32+32+32 {
+	if len(data) != L1InfoLen {
 		return fmt.Errorf("data is unexpected length: %d", len(data))
 	}
 	var padding [24]byte
@@ -88,13 +92,12 @@ func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
 	if !bytes.Equal(data[offset:offset+24], padding[:]) {
 		return fmt.Errorf("l1 info sequence number exceeds uint64 bounds: %x", data[offset:offset+32])
 	}
-	// TODO need updated block info contract
-	//offset += 32
-	//info.BatcherAddr.SetBytes(data[offset+12 : offset+32])
-	//offset += 32
-	//copy(info.L1FeeOverhead[:], data[offset:offset+32])
-	//offset += 32
-	//copy(info.L1FeeScalar[:], data[offset:offset+32])
+	offset += 32
+	info.BatcherAddr.SetBytes(data[offset+12 : offset+32])
+	offset += 32
+	copy(info.L1FeeOverhead[:], data[offset:offset+32])
+	offset += 32
+	copy(info.L1FeeScalar[:], data[offset:offset+32])
 	return nil
 }
 
