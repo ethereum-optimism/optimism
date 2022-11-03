@@ -183,3 +183,36 @@ After the initial Bedrock upgrade, contracts MUST use the following versioning s
 #### Exceptions
 
 We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
+
+### Tests
+
+Tests are written using Foundry.
+
+#### Organizing Principles
+
+- Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
+- Every non-trivial state changing function should have a separate contract for happy and sad path
+   tests. This helps to make it very obvious where there are not yet sad path tests.
+- Simpler functions like getters and setters are grouped together into test contracts.
+
+All contracts and functions should be consistently named following a convention.
+
+#### Contract Naming Conventions
+
+Test contracts should be named one of the following according to their use:
+
+- `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
+- `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
+- `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
+
+
+#### Test naming convention
+
+Test function names are split by underscores, into 3 or 4 parts. An example function name is `test_onlyOwner_callerIsNotOwner_reverts()`.
+
+The parts are: `[method]_[FunctionName]_[reason]_[success]`, where:
+
+- `[method]` is either `test` or `testFuzz`
+- `[FunctionName]` is the name of the function or higher level behavior being tested.
+- `[reason]` is an optional description for the behavior being tested.
+- `[success]` must be one of `succeeds` or `reverts` or `fails`.
