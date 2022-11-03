@@ -491,12 +491,19 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 
 	// Walk back L2 chain to find the L1 origin that is old enough to start buffering channel data from.
 	pipelineL2 := safe
-	for pipelineL2.Number > eq.cfg.Genesis.L2.Number && pipelineL2.L1Origin.Number > eq.cfg.Genesis.L1.Number && pipelineL2.L1Origin.Number+eq.cfg.ChannelTimeout > l1Origin.Number {
-		parent, err := eq.engine.L2BlockRefByHash(ctx, pipelineL2.ParentHash)
-		if err != nil {
-			return NewResetError(fmt.Errorf("failed to fetch L2 parent block %s", pipelineL2.ParentID()))
+	for {
+		afterL2Genesis := pipelineL2.Number > eq.cfg.Genesis.L2.Number
+		afterL1Genesis := pipelineL2.L1Origin.Number > eq.cfg.Genesis.L1.Number
+		afterChannelTimeout := pipelineL2.L1Origin.Number+eq.cfg.ChannelTimeout > l1Origin.Number
+		if afterL2Genesis && afterL1Genesis && afterChannelTimeout {
+			parent, err := eq.engine.L2BlockRefByHash(ctx, pipelineL2.ParentHash)
+			if err != nil {
+				return NewResetError(fmt.Errorf("failed to fetch L2 parent block %s", pipelineL2.ParentID()))
+			}
+			pipelineL2 = parent
+		} else {
+			break
 		}
-		pipelineL2 = parent
 	}
 	pipelineOrigin, err := eq.l1Fetcher.L1BlockRefByHash(ctx, pipelineL2.L1Origin.Hash)
 	if err != nil {
