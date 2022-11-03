@@ -66,12 +66,6 @@ const config: HardhatUserConfig = {
       default: ethers.constants.AddressZero,
     },
 
-    // Address of the AddressManager (legacy only).
-    addressManager: {
-      type: 'address',
-      default: ethers.constants.AddressZero,
-    },
-
     // Address of the system controller.
     controller: {
       type: 'address',
@@ -351,6 +345,7 @@ const config: HardhatUserConfig = {
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
+      mainnet: ['../contracts/deployments/mainnet'],
       'mainnet-forked': ['../contracts/deployments/mainnet'],
     },
   },
