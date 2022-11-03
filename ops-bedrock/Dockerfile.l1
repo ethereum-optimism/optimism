@@ -24,6 +24,14 @@ RUN apk --no-cache add \
 # Warning: Archive mode is required, otherwise old trie nodes will be
 # pruned within minutes of starting the tanenbaum.
 RUN echo $'mkdir -p ${SYSCOIN_DATA}/testnet3/geth/keystore/' >> geth.sh
+RUN echo $'syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DATA} \
+    --gethcommandline=--exitwhensynced \
+	--gethcommandline=--datadir="$GETH_DATA_DIR" \
+	--gethcommandline=--syncmode=full \
+	--gethcommandline=--nodiscover \
+	--gethcommandline=--maxpeers=1 \
+	--gethcommandline=--allow-insecure-unlock \
+	--gethcommandline=--gcmode=archive' >> geth.sh
 RUN echo $'exec syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DATA} \
 	--gethcommandline=--datadir="$GETH_DATA_DIR" \
 	--gethcommandline=--verbosity="$VERBOSITY" \
