@@ -9,7 +9,7 @@ import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 
 // Test the implementations of the FeeVault
-contract BFeeVault_Test is Bridge_Initializer {
+contract FeeVault_Test is Bridge_Initializer {
     BaseFeeVault baseFeeVault = BaseFeeVault(payable(Predeploys.BASE_FEE_VAULT));
     L1FeeVault l1FeeVault = L1FeeVault(payable(Predeploys.L1_FEE_VAULT));
 
