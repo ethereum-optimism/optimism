@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -791,12 +792,13 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	rpc, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+	rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
 	require.Nil(t, err)
-	l2client := withdrawals.NewClient(rpc)
+	proofCl := gethclient.New(rpcClient)
+	receiptCl := ethclient.NewClient(rpcClient)
 
 	// Now create withdrawal
-	params, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), l2client, tx.Hash(), header)
+	params, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
