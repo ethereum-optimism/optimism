@@ -56,3 +56,6 @@ op-exporter
 
 
 __pycache__
+
+# Ignore echidna artifacts
+crytic-export
