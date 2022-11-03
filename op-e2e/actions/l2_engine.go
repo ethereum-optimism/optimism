@@ -3,6 +3,7 @@ package actions
 import (
 	"errors"
 
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -115,6 +116,11 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 func (s *L2Engine) EthClient() *ethclient.Client {
 	cl, _ := s.node.Attach() // never errors
 	return ethclient.NewClient(cl)
+}
+
+func (s *L2Engine) GethClient() *gethclient.Client {
+	cl, _ := s.node.Attach() // never errors
+	return gethclient.New(cl)
 }
 
 func (e *L2Engine) RPCClient() client.RPC {

@@ -11,6 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1"
@@ -20,12 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 
 	_ "github.com/lib/pq"
 )
@@ -196,8 +199,9 @@ func TestBedrockIndexer(t *testing.T) {
 
 		rpcClient, err := rpc.Dial(sys.Nodes["sequencer"].HTTPEndpoint())
 		require.NoError(t, err)
-		proofClient := withdrawals.NewClient(rpcClient)
-		wParams, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofClient, wdTx.Hash(), finHeader)
+		proofCl := gethclient.New(rpcClient)
+		receiptCl := ethclient.NewClient(rpcClient)
+		wParams, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
