@@ -472,8 +472,8 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(bobBalanceBefore, address(bob).balance);
     }
 
-    // Test: finalizeWithdrawalTransaction reverts if the output root proven is not the same as the
-    // output root at the time of finalization.
+    // Test: finalizeWithdrawalTransaction reverts if the output proposal's timestamp has
+    // not passed the finalization period.
     function test_finalizeWithdrawalTransaction_ifOutputTimestampChanges_reverts() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
