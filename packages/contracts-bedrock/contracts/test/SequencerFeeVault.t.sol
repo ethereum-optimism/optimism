@@ -49,7 +49,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         vm.deal(address(vault), vault.MIN_WITHDRAWAL_AMOUNT() + 1);
 
         vm.expectEmit(true, true, true, true);
-        emit Withdrawal(address(vault).balance, vault.recipient(), address(this));
+        emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
 
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,

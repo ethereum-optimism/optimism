@@ -27,8 +27,9 @@ contract SequencerFeeVault is FeeVault, Semver {
 
     /**
      * @custom:legacy
+     * @notice: Legacy getter for the recipient
      */
     function l1FeeWallet() public view returns (address) {
-        return recipient;
+        return RECIPIENT;
     }
 }

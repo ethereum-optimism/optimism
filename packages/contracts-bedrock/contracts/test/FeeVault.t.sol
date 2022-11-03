@@ -17,13 +17,13 @@ contract BFeeVault_Test is Bridge_Initializer {
 
     function setUp() public override {
         super.setUp();
-        vm.etch(Predeploys.BASE_FEE_VAULT , address(new BaseFeeVault(recipient)).code);
-        vm.etch(Predeploys.L1_FEE_VAULT , address(new L1FeeVault(recipient)).code);
+        vm.etch(Predeploys.BASE_FEE_VAULT, address(new BaseFeeVault(recipient)).code);
+        vm.etch(Predeploys.L1_FEE_VAULT, address(new L1FeeVault(recipient)).code);
     }
 
     function test_constructor() external {
-        assertEq(baseFeeVault.recipient(), recipient);
-        assertEq(l1FeeVault.recipient(), recipient);
+        assertEq(baseFeeVault.RECIPIENT(), recipient);
+        assertEq(l1FeeVault.RECIPIENT(), recipient);
     }
 
     function test_minWithdrawalAmount() external {

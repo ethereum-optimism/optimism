@@ -22,7 +22,7 @@ contract FeeVault {
     /**
      * @notice Wallet that will receive the fees on L1.
      */
-    address public immutable recipient;
+    address public immutable RECIPIENT;
 
     /**
      * @param _recipient - The L1 account that funds can be withdrawn to.
@@ -31,7 +31,7 @@ contract FeeVault {
      */
     constructor(address _recipient, uint256 _minWithdrawalAmount) {
         MIN_WITHDRAWAL_AMOUNT = _minWithdrawalAmount;
-        recipient = _recipient;
+        RECIPIENT = _recipient;
     }
 
     /**
@@ -49,13 +49,12 @@ contract FeeVault {
         );
 
         uint256 value = address(this).balance;
+        emit Withdrawal(value, RECIPIENT, msg.sender);
 
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
-            recipient,
+            RECIPIENT,
             20000,
             bytes("")
         );
-
-        emit Withdrawal(value, recipient, msg.sender);
     }
 }
