@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 /* Testing utilities */
-import { Test } from "forge-std/Test.sol";
+import { Test, StdUtils } from "forge-std/Test.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
