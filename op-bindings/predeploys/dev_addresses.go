@@ -40,5 +40,5 @@ func init() {
 	DevPredeploys["Admin"] = &DevProxyAdminAddr
 	DevPredeploys["WETH9"] = &DevWETH9Addr
 	DevPredeploys["L1ERC721Bridge"] = &DevL1ERC721BridgeAddr
-	//DevPredeploys["SystemConfig"] = &DevSystemConfigAddr TODO need to introduce SystemConfig contract
+	DevPredeploys["SystemConfig"] = &DevSystemConfigAddr
 }

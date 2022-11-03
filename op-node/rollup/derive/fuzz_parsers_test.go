@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
@@ -71,17 +72,16 @@ func FuzzL1InfoRoundTrip(f *testing.F) {
 // FuzzL1InfoAgainstContract checks the custom marshalling functions against the contract
 // bindings to ensure that our functions are up to date and match the bindings.
 func FuzzL1InfoAgainstContract(f *testing.F) {
-	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, hash []byte, seqNumber uint64, batcher []byte, l1FeeOverhead []byte, l1FeeScalar []byte) {
+	f.Fuzz(func(t *testing.T, number, time uint64, baseFee, hash []byte, seqNumber uint64, batcherHash []byte, l1FeeOverhead []byte, l1FeeScalar []byte) {
 		expected := L1BlockInfo{
 			Number:         number,
 			Time:           time,
 			BaseFee:        BytesToBigInt(baseFee),
 			BlockHash:      common.BytesToHash(hash),
 			SequenceNumber: seqNumber,
-			// TODO need SystemConfig contract
-			//BatcherAddr:    common.BytesToAddress(batcher),
-			//L1FeeOverhead:  common.BytesToHash(l1FeeOverhead),
-			//L1FeeScalar:    common.BytesToHash(l1FeeScalar),
+			BatcherAddr:    common.BytesToAddress(batcherHash),
+			L1FeeOverhead:  eth.Bytes32(common.BytesToHash(l1FeeOverhead)),
+			L1FeeScalar:    eth.Bytes32(common.BytesToHash(l1FeeScalar)),
 		}
 
 		// Setup opts
@@ -97,10 +97,9 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			BytesToBigInt(baseFee),
 			common.BytesToHash(hash),
 			seqNumber,
-			// TODO need SystemConfig contract
-			//common.BytesToAddress(batcher),
-			//common.BytesToHash(l1FeeOverhead).Big(),
-			//common.BytesToHash(l1FeeScalar).Big(),
+			common.BytesToHash(batcherHash),
+			common.BytesToHash(l1FeeOverhead).Big(),
+			common.BytesToHash(l1FeeScalar).Big(),
 		)
 		if err != nil {
 			t.Fatalf("Failed to create the transaction: %v", err)
@@ -113,6 +112,8 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			t.Fatalf("Failed to marshal binary: %v", err)
 		}
 		if !bytes.Equal(enc, tx.Data()) {
+			t.Logf("encoded  %x", enc)
+			t.Logf("expected %x", tx.Data())
 			t.Fatalf("Custom marshal does not match contract bindings")
 		}
 

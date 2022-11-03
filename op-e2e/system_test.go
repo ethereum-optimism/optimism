@@ -475,6 +475,24 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 		return derive.L1BlockInfo{}, fmt.Errorf("failed to get sequence number: %w", err)
 	}
 
+	overhead, err := contract.L1FeeOverhead(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee overhead: %w", err)
+	}
+	out.L1FeeOverhead = eth.Bytes32(common.BigToHash(overhead))
+
+	scalar, err := contract.L1FeeScalar(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get l1 fee scalar: %w", err)
+	}
+	out.L1FeeScalar = eth.Bytes32(common.BigToHash(scalar))
+
+	batcherHash, err := contract.BatcherHash(&opts)
+	if err != nil {
+		return derive.L1BlockInfo{}, fmt.Errorf("failed to get batch sender: %w", err)
+	}
+	out.BatcherAddr = common.BytesToAddress(batcherHash[:])
+
 	return out, nil
 }
 
@@ -616,10 +634,9 @@ func TestL1InfoContract(t *testing.T) {
 			BaseFee:        b.BaseFee(),
 			BlockHash:      h,
 			SequenceNumber: 0, // ignored, will be overwritten
-			// TODO: need system config contract
-			//BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
-			//L1FeeOverhead:  sys.RollupConfig.Genesis.SystemConfig.Overhead,
-			//L1FeeScalar:    sys.RollupConfig.Genesis.SystemConfig.Scalar,
+			BatcherAddr:    sys.RollupConfig.Genesis.SystemConfig.BatcherAddr,
+			L1FeeOverhead:  sys.RollupConfig.Genesis.SystemConfig.Overhead,
+			L1FeeScalar:    sys.RollupConfig.Genesis.SystemConfig.Scalar,
 		}
 
 		h = b.ParentHash()
@@ -673,6 +690,9 @@ func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 	l1Gas := new(big.Int).SetUint64(zeroesGas + onesGas)
 	return new(big.Int).Add(l1Gas, overhead)
 }
+
+// TODO: temp until TestFees is unskipped
+var _ = calcL1GasUsed
 
 // TestWithdrawals checks that a deposit and then withdrawal execution succeeds. It verifies the
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
@@ -859,7 +879,6 @@ func TestFees(t *testing.T) {
 	// we can pull in l1 costs into every e2e test and account for it in assertions easily etc.
 	cfg.DeployConfig.GasPriceOracleOverhead = 2100
 	cfg.DeployConfig.GasPriceOracleScalar = 1000_000
-	cfg.DeployConfig.GasPriceOracleDecimals = 6
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
@@ -878,7 +897,8 @@ func TestFees(t *testing.T) {
 
 	overhead, err := gpoContract.Overhead(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo overhead")
-	decimals := big.NewInt(6) // protocol constant
+	decimals, err := gpoContract.Decimals(&bind.CallOpts{})
+	require.Nil(t, err, "reading gpo decimals")
 	scalar, err := gpoContract.Scalar(&bind.CallOpts{})
 	require.Nil(t, err, "reading gpo scalar")
 
@@ -983,6 +1003,7 @@ func TestFees(t *testing.T) {
 	l1Fee := new(big.Int).Mul(l1GasUsed, l1Header.BaseFee)
 	l1Fee = l1Fee.Mul(l1Fee, scalar)
 	l1Fee = l1Fee.Div(l1Fee, divisor)
+
 	require.Equal(t, l1Fee, l1FeeRecipientDiff, "l1 fee mismatch")
 
 	// Tally L1 fee against GasPriceOracle
@@ -1001,3 +1022,6 @@ func TestFees(t *testing.T) {
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
 }
+
+// TODO: temp until TestFees is unskipped
+var _ = safeAddBig
