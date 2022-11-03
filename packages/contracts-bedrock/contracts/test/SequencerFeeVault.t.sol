@@ -4,27 +4,22 @@ pragma solidity 0.8.15;
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 
 import { SequencerFeeVault } from "../L2/SequencerFeeVault.sol";
-import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
+import { StandardBridge } from "../universal/StandardBridge.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 
 contract SequencerFeeVault_Test is Bridge_Initializer {
     SequencerFeeVault vault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
     address constant recipient = address(256);
 
+    event Withdrawal(uint256 value, address to, address from);
+
     function setUp() public override {
         super.setUp();
-
-        vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(new SequencerFeeVault()).code);
-
-        vm.store(
-            Predeploys.SEQUENCER_FEE_WALLET,
-            bytes32(uint256(0)),
-            bytes32(uint256(uint160(recipient)))
-        );
+        vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(new SequencerFeeVault(recipient)).code);
     }
 
     function test_minWithdrawalAmount() external {
-        assertEq(vault.MIN_WITHDRAWAL_AMOUNT(), 15 ether);
+        assertEq(vault.MIN_WITHDRAWAL_AMOUNT(), 10 ether);
     }
 
     function test_constructor() external {
@@ -45,7 +40,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         assert(address(vault).balance < vault.MIN_WITHDRAWAL_AMOUNT());
 
         vm.expectRevert(
-            "SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
+            "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
         );
         vault.withdraw();
     }
@@ -53,14 +48,16 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
     function test_withdraw() external {
         vm.deal(address(vault), vault.MIN_WITHDRAWAL_AMOUNT() + 1);
 
+        vm.expectEmit(true, true, true, true);
+        emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
+
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,
+            address(vault).balance,
             abi.encodeWithSelector(
-                L2StandardBridge.withdrawTo.selector,
-                Predeploys.LEGACY_ERC20_ETH,
+                StandardBridge.bridgeETHTo.selector,
                 vault.l1FeeWallet(),
-                address(vault).balance,
-                0,
+                20000,
                 bytes("")
             )
         );

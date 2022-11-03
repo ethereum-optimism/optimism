@@ -11,6 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	geth_eth "github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/require"
+
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -24,16 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	geth_eth "github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -92,8 +93,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			L2GenesisBlockParentHash:    common.Hash{},
 			L2GenesisBlockBaseFeePerGas: uint642big(7),
 
-			OptimismBaseFeeRecipient:    common.Address{0: 0x52, 19: 0xf0}, // tbd
-			OptimismL1FeeRecipient:      common.Address{0: 0x52, 19: 0xf1},
+			OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
+			OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
 			L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
 			GasPriceOracleOwner:         addresses.Alice,                   // tbd
 			GasPriceOracleOverhead:      0,
@@ -139,7 +140,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		P2PTopology: nil, // no P2P connectivity by default
+		P2PTopology:           nil, // no P2P connectivity by default
+		NonFinalizedProposals: false,
 	}
 }
 
@@ -181,6 +183,9 @@ type SystemConfig struct {
 	// A nil map disables P2P completely.
 	// Any node name not in the topology will not have p2p enabled.
 	P2PTopology map[string][]string
+
+	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
+	NonFinalizedProposals bool
 }
 
 type System struct {
@@ -479,13 +484,13 @@ func (cfg SystemConfig) Start() (*System, error) {
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       3 * time.Second,
 		SafeAbortNonceTooLowCount: 3,
+		AllowNonFinalized:         cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
