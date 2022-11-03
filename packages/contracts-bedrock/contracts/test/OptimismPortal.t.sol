@@ -439,9 +439,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: finalizeWithdrawalTransaction reverts if the output root proven is not the same as the
     // output root at the time of finalization.
-    function test_finalizeWithdrawalTransaction_ifOutputChanges_reverts() external {
+    function test_finalizeWithdrawalTransaction_ifOutputRootChanges_reverts() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
+        // Prove our withdrawal
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash);
         op.proveWithdrawalTransaction(
@@ -451,12 +452,56 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             _withdrawalProof
         );
 
+        // Warp to after the finalization period
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
-        vm.expectEmit(true, true, false, true);
-        emit WithdrawalFinalized(_withdrawalHash, true);
+
+        // Mock an outputRoot change on the output proposal before attempting
+        // to finalize the withdrawal.
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(Types.OutputProposal(bytes32(uint256(0)), _proposedBlockNumber))
+        );
+
+        vm.expectRevert(
+            "OptimismPortal: output root proven is not the same as current output root"
+        );
         op.finalizeWithdrawalTransaction(_defaultTx);
 
-        assert(address(bob).balance == bobBalanceBefore + 100);
+        // Ensure that bob's balance has remained the same
+        assertEq(bobBalanceBefore, address(bob).balance);
+    }
+
+    // Test: finalizeWithdrawalTransaction reverts if the output root proven is not the same as the
+    // output root at the time of finalization.
+    function test_finalizeWithdrawalTransaction_ifOutputTimestampChanges_reverts() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+
+        // Prove our withdrawal
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Warp to after the finalization period
+        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Mock a timestamp change on the output proposal that has not passed the
+        // finalization period.
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encode(Types.OutputProposal(_outputRoot, block.timestamp + 1))
+        );
+
+        vm.expectRevert("OptimismPortal: output proposal finalization period has not elapsed");
+        op.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(bobBalanceBefore, address(bob).balance);
     }
 
     // Test: finalizeWithdrawalTransaction fails because the target reverts,
