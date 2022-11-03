@@ -8,7 +8,7 @@ import { Predeploys } from "../libraries/Predeploys.sol";
  * @title FeeVault
  * @notice The FeeVault contract has the base logic for handling transaction fees.
  */
-contract FeeVault {
+abstract contract FeeVault {
     /**
      * @notice Emits each time that a withdrawal occurs
      */
