@@ -1,6 +1,6 @@
 # `merkle-trie-fuzzer`
 
-A lightweight, efficient Merkle Trie fuzzer for use in Optimism bedrock's [Merkle Trie Verifier](https://google.com).
+A lightweight, efficient Merkle Trie fuzzer for use in Optimism bedrock's [Merkle Trie Verifier](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/trie/MerkleTrie.sol).
 
 ## Usage
 

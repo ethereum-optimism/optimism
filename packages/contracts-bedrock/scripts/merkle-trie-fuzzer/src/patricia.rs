@@ -98,14 +98,8 @@ fn main() -> Result<(), TrieError> {
     // Spawn a threaded random number generator.
     let mut thread_rng = rand::thread_rng();
 
-    // Generate a random *even* value between 2 and 1024.
-    let rand_n = {
-        let mut i = thread_rng.gen_range(2..=1024);
-        if i % 2 == 0 {
-            i += 1;
-        }
-        i
-    };
+    // Generate a random value between 2 and 1024.
+    let rand_n = thread_rng.gen_range(2..=1024);
     // Choose a random element to grab an inclusion proof for.
     let rand_elem = thread_rng.gen_range(0..=rand_n);
     // Create a blank test case
@@ -126,9 +120,14 @@ fn main() -> Result<(), TrieError> {
         trie.insert(a.as_bytes(), b.as_bytes()).unwrap();
     });
 
-    // Assign the [TrieTestCase]'s root and proof
-    test_case.root = trie.root_hash()?.as_bytes().to_vec();
-    test_case.proof = trie.get_proof(test_case.key.as_slice()).unwrap();
+    match args.mode {
+        Some(Mode::Valid) => {
+            // Assign the [TrieTestCase]'s root and proof
+            test_case.root = trie.root_hash()?.as_bytes().to_vec();
+            test_case.proof = trie.get_proof(test_case.key.as_slice()).unwrap();
+        }
+        None => eprintln!("Mode not supplied!"),
+    }
 
     if args.pretty_print {
         print!("{}", test_case);

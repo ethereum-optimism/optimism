@@ -5,6 +5,11 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { MerkleTrie } from "../libraries/trie/MerkleTrie.sol";
 
 contract MerkleTrie_Test is CommonTest {
+    function setUp() public {
+        // Perform `CommonTest` setup to instantiate `FFIInterface`
+        _setUp();
+    }
+
     function test_get_validProofSucceeds1() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579326262";
@@ -367,15 +372,11 @@ contract MerkleTrie_Test is CommonTest {
 
     function testFuzzTrie_validProofs() external {
         for (uint256 i = 0; i < 1024; ++i) {
-            // TODO: Make sure that the `merkle-trie-fuzzer` is built before running
-            //       the CI tests.
-            string[] memory cmds = new string[](1);
-            cmds[0] = "./scripts/merkle-trie-fuzzer/target/release/patricia";
-            bytes memory res = vm.ffi(cmds);
-            (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = abi.decode(
-                res,
-                (bytes32, bytes, bytes, bytes[])
-            );
+            // TODO: Make sure that the `merkle-trie-fuzzer` script/crate is built
+            // before the test suite is run in the CI workflows.
+            // TODO: Determine the impl we'll use.
+            (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) =
+                ffi.getMerkleTrieFuzzCase();
 
             // Assert that our expected value is equal to our actual value.
             assertEq(val, MerkleTrie.get(key, proof, root));

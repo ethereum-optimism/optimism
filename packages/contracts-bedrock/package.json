@@ -25,6 +25,7 @@
     "coverage": "yarn build:differential && forge coverage",
     "coverage:lcov": "yarn build:differential && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && forge snapshot",
+    "build-fuzzers": "tsc scripts/merkle-trie-fuzz.ts --outDir scripts/fuzzers --moduleResolution node --esModuleInterop",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-spacers": "hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
