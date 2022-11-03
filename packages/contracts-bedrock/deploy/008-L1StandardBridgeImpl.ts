@@ -29,12 +29,12 @@ const deployFn: DeployFunction = async (hre) => {
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'messenger',
+        'MESSENGER',
         L1CrossDomainMessengerProxy.address
       )
       await assertContractVariable(
         contract,
-        'otherBridge',
+        'OTHER_BRIDGE',
         predeploys.L2StandardBridge
       )
     },

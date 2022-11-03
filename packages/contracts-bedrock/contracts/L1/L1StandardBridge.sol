@@ -246,7 +246,7 @@ contract L1StandardBridge is StandardBridge, Semver {
      * @return Address of the corresponding L2 bridge contract.
      */
     function l2TokenBridge() external view returns (address) {
-        return address(otherBridge);
+        return address(OTHER_BRIDGE);
     }
 
     /**
