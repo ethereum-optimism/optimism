@@ -319,7 +319,11 @@ var _ ReceiptsFetcher = (FetchedReceipts)(nil)
 // and may be changed through L1 system config events.
 // The initial SystemConfig at rollup genesis is embedded in the rollup configuration.
 type SystemConfig struct {
+	// BatcherAddr identifies the batch-sender address used in batch-inbox data-transaction filtering.
 	BatcherAddr common.Address `json:"batcherAddr"`
+	// Overhead identifies the L1 fee overhead, and is passed through opaquely to op-geth.
 	Overhead    Bytes32        `json:"overhead"`
+	// Scalar identifies the L1 fee scalar, and is passed through opaquely to op-geth.
 	Scalar      Bytes32        `json:"scalar"`
+	// More fields can be added for future SystemConfig versions.
 }
