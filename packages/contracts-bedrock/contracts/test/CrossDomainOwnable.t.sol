@@ -66,7 +66,7 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         // Only 1 log emitted
         assertEq(logs.length, 1);
 
-        Vm.Log memory log = logs[0];
+        VmSafe.Log memory log = logs[0];
 
         // It is the expected topic
         bytes32 topic = log.topics[0];
