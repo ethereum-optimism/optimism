@@ -34,7 +34,7 @@ const parseVariableInfo = (
 
   return {
     name: variable.label,
-    slot: parseInt(variable.slot),
+    slot: parseInt(variable.slot, 10),
     offset: variable.offset,
     length: variableLength,
   }
