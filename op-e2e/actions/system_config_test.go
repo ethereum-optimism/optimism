@@ -225,9 +225,9 @@ func TestGPOParamsChange(gt *testing.T) {
 	require.NoError(t, err)
 
 	// overhead changes from 2100 (default) to 1000
-	// scalar changes from 1000_000 (default) to 2300_000
+	// scalar changes from 1_000_000 (default) to 2_300_000
 	// e.g. if system operator determines that l2 txs need to be more expensive, but small ones less
-	_, err = sysCfgContract.SetGasConfig(sysCfgOwner, big.NewInt(1000), big.NewInt(2300_000))
+	_, err = sysCfgContract.SetGasConfig(sysCfgOwner, big.NewInt(1000), big.NewInt(2_300_000))
 	require.NoError(t, err)
 
 	// include the GPO change tx in L1
@@ -259,14 +259,14 @@ func TestGPOParamsChange(gt *testing.T) {
 	sysCfg, err = derive.PayloadToSystemConfig(payload, sd.RollupCfg)
 	require.NoError(t, err)
 	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(1000))), sysCfg.Overhead, "overhead changed")
-	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(2300_000))), sysCfg.Scalar, "scalar changed")
+	require.Equal(t, eth.Bytes32(common.BigToHash(big.NewInt(2_300_000))), sysCfg.Scalar, "scalar changed")
 
 	receipt = alice.LastTxReceipt(t)
 	require.Equal(t, basefeeGPOUpdate, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
 	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
-	l1Cost = types.L1Cost(receipt.L1GasUsed.Uint64(), basefeeGPOUpdate, big.NewInt(1000), big.NewInt(2300_000))
+	l1Cost = types.L1Cost(receipt.L1GasUsed.Uint64(), basefeeGPOUpdate, big.NewInt(1000), big.NewInt(2_300_000))
 	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
-	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2300_000 divided by 6 decimals = float(2.3)")
+	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2_300_000 divided by 6 decimals = float(2.3)")
 
 	// build more L2 blocks, with new L1 origin
 	miner.ActEmptyBlock(t)
@@ -284,7 +284,7 @@ func TestGPOParamsChange(gt *testing.T) {
 	receipt = alice.LastTxReceipt(t)
 	require.Equal(t, basefee, receipt.L1GasPrice, "L1 gas price matches basefee of L1 origin")
 	require.NotZero(t, receipt.L1GasUsed, "L2 tx uses L1 data")
-	l1Cost = types.L1Cost(receipt.L1GasUsed.Uint64(), basefee, big.NewInt(1000), big.NewInt(2300_000))
+	l1Cost = types.L1Cost(receipt.L1GasUsed.Uint64(), basefee, big.NewInt(1000), big.NewInt(2_300_000))
 	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
-	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2300_000 divided by 6 decimals = float(2.3)")
+	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2_300_000 divided by 6 decimals = float(2.3)")
 }
