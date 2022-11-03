@@ -110,7 +110,10 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err = l1XDMABI.Pack("initialize")
+	data, err = l1XDMABI.Pack(
+		"initialize",
+		config.ProxyAdminOwner,
+	)
 	if err != nil {
 		return nil, err
 	}
