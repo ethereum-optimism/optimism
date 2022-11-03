@@ -60,12 +60,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     /**
      * @notice Represents a proven withdrawal
-     *
-     * TODO: Sanity check packing the vars as u128.
-     * 2^128 - 1 should be more than large enough to be a viable
-     * max for the L2 transaction index going forward, and the
-     * sun will have exploded by the time the unix timestamp
-     * hits this value.
      */
     struct ProvenWithdrawal {
         bytes32 outputRoot;

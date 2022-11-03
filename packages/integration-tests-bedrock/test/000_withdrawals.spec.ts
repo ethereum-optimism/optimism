@@ -35,7 +35,7 @@ const getTargetOutput = async (
   const submissionInterval = (await oracle.SUBMISSION_INTERVAL()).toNumber()
   const startingTimestamp = (await oracle.STARTING_TIMESTAMP()).toNumber()
   const nextTimestamp = (await oracle.nextTimestamp()).toNumber()
-  let targetOutputTimestamp
+  let targetOutputTimestamp: number
   if (withdrawalTimestamp < nextTimestamp) {
     // Just use the next timestamp
     targetOutputTimestamp = nextTimestamp
@@ -220,6 +220,30 @@ describe('Withdrawals', () => {
           false,
         ])
 
+      logger.info('Proving withdrawal')
+      const proveTx = await portal.proveWithdrawalTransaction(
+        {
+          nonce,
+          sender: recipient.address,
+          target: recipient.address,
+          value,
+          gasLimit,
+          data: '0x',
+        },
+        targetOutputTimestamp,
+        {
+          version: constants.HashZero,
+          stateRoot: targetStateRoot,
+          messagePasserStorageRoot: proof.storageHash,
+          latestBlockhash: targetHash,
+        },
+        rlp.encode(proof.storageProof[0].proof),
+        {
+          gasLimit,
+        }
+      )
+      await proveTx.wait()
+
       const finalizationPeriod = (await portal.FINALIZATION_PERIOD()).toNumber()
       logger.info('Waiting finalization period', {
         seconds: finalizationPeriod,
@@ -230,7 +254,7 @@ describe('Withdrawals', () => {
 
       logger.info('Finalizing withdrawal')
       const initialBal = await recipient.getBalance()
-      const tx = await portal.finalizeWithdrawalTransaction(
+      const finalizeTx = await portal.finalizeWithdrawalTransaction(
         nonce,
         recipient.address,
         recipient.address,
@@ -249,7 +273,7 @@ describe('Withdrawals', () => {
           gasLimit,
         }
       )
-      await tx.wait()
+      await finalizeTx.wait()
       const finalBal = await recipient.getBalance()
       expect(finalBal.gte(initialBal)).to.be.true
     }).timeout(180_000)
