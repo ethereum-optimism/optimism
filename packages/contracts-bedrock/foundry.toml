@@ -13,7 +13,6 @@ remappings = [
   'ds-test/=node_modules/ds-test/src'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
-bytecode_hash = 'none'
 build_info = true
 build_info_path = 'artifacts/build-info'
 ffi = true

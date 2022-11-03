@@ -274,7 +274,34 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Emit a TransactionDeposited event so that the rollup node can derive a deposit
         // transaction for this deposit.
         emit TransactionDeposited(from, _to, DEPOSIT_VERSION, opaqueData);
+
+        // Call our post-deposit test hook
+        depositTransactionTestInternal(from, _to, DEPOSIT_VERSION, msg.value, _value, _gasLimit, _isCreation, _data);
     }
+
+
+    /**
+     * @notice A helper function which can be overridden to capture properties of a deposit.
+     *
+     * @param from        The address registered for the deposit (aliased if a contract).
+     * @param to          Target address on L2.
+     * @param version     Version of the encoded deposit data.
+     * @param mintValue    ETH value to be minted.
+     * @param sendValue   ETH value to be transferred.
+     * @param gasLimit    Minimum L2 gas limit (can be greater than or equal to this value).
+     * @param isCreation  Whether or not the transaction is a contract creation.
+     * @param data        Data to trigger the recipient with.
+     */
+    function depositTransactionTestInternal(
+        address from,
+        address to,
+        uint256 version,
+        uint256 mintValue,
+        uint256 sendValue,
+        uint64 gasLimit,
+        bool isCreation,
+        bytes memory data
+    ) virtual internal {}
 
     /**
      * @notice Determine if an L2 Output is finalized.
