@@ -42,7 +42,8 @@ func (s *channelManager) Clear() {
 // TxData returns the next tx.data that should be submitted to L1.
 // It is very simple & currently ignores the l1Head provided (this will change).
 // It may buffer very large channels as well.
-func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
+// SYSCOIN
+func (s *channelManager) TxData(l1Head eth.L1BlockRef, maxSize uint64) ([]byte, txID, error) {
 	// Note: l1Head is not actually used in this function.
 
 	// Return a pre-existing frame if we have it.
@@ -87,7 +88,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	for {
 		var buf bytes.Buffer
 		buf.WriteByte(derive.DerivationVersion0)
-		err := ch.OutputFrame(&buf, 120_000)
+		err := ch.OutputFrame(&buf, maxSize)
 		if err != io.EOF && err != nil {
 			return nil, txID{}, err
 		}

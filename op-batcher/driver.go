@@ -283,7 +283,7 @@ func (l *BatchSubmitter) loop() {
 			// Empty the state after loading into it on every iteration.
 			for {
 				// Collect the output frame
-				data, _, err := l.state.TxData(eth.L1BlockRef{})
+				data, _, err := l.state.TxData(eth.L1BlockRef{}, l.cfg.MaxL1TxSize-1)
 				if err == io.EOF {
 					break // local for loop
 				} else if err != nil {
