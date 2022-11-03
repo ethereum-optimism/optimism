@@ -55,6 +55,21 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 		},
 		{
 			Name: "SequencerFeeVault",
+			Args: []interface{}{
+				immutable["SequencerFeeVault"]["recipient"],
+			},
+		},
+		{
+			Name: "BaseFeeVault",
+			Args: []interface{}{
+				immutable["BaseFeeVault"]["recipient"],
+			},
+		},
+		{
+			Name: "L1FeeVault",
+			Args: []interface{}{
+				immutable["L1FeeVault"]["recipient"],
+			},
 		},
 		{
 			Name: "OptimismMintableERC20Factory",
@@ -129,8 +144,23 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		// No arguments required for L2ToL1MessagePasser
 		_, tx, _, err = bindings.DeployL2ToL1MessagePasser(opts, backend)
 	case "SequencerFeeVault":
-		// No arguments to SequencerFeeVault
-		_, tx, _, err = bindings.DeploySequencerFeeVault(opts, backend)
+		recipient, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for recipient")
+		}
+		_, tx, _, err = bindings.DeploySequencerFeeVault(opts, backend, recipient)
+	case "BaseFeeVault":
+		recipient, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for recipient")
+		}
+		_, tx, _, err = bindings.DeployBaseFeeVault(opts, backend, recipient)
+	case "L1FeeVault":
+		recipient, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for recipient")
+		}
+		_, tx, _, err = bindings.DeployL1FeeVault(opts, backend, recipient)
 	case "OptimismMintableERC20Factory":
 		_, tx, _, err = bindings.DeployOptimismMintableERC20Factory(opts, backend, predeploys.L2StandardBridgeAddr)
 	case "DeployerWhitelist":

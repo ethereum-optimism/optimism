@@ -130,6 +130,15 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, l2Addrs *L2A
 		"bridge":        predeploys.L2ERC721BridgeAddr,
 		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
 	}
+	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
+		"recipient": l2Addrs.SequencerFeeVaultRecipient,
+	}
+	immutable["L1FeeVault"] = immutables.ImmutableValues{
+		"recipient": l2Addrs.L1FeeVaultRecipient,
+	}
+	immutable["BaseFeeVault"] = immutables.ImmutableValues{
+		"recipient": l2Addrs.BaseFeeVaultRecipient,
+	}
 
 	return immutable, nil
 }
@@ -167,9 +176,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 		"overhead": config.GasPriceOracleOverhead,
 		"scalar":   config.GasPriceOracleScalar,
 		"decimals": config.GasPriceOracleDecimals,
-	}
-	storage["SequencerFeeVault"] = state.StorageValues{
-		"l1FeeWallet": config.OptimismL1FeeRecipient,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
