@@ -33,8 +33,8 @@ github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1/go.mod h1:hyedUtir6IdtD/7lIxGeC
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/edsrzf/mmap-go v1.0.0 h1:CEBF7HpRnUCSJgGUb5h1Gm7e3VkmVDrR8lvWVLtrOFw=
 github.com/edsrzf/mmap-go v1.0.0/go.mod h1:YO35OhQPt3KJa3ryjFM5Bs14WD66h8eGKpfaBNrHW5M=
-github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd h1:NchOnosWOkH9wlix8QevGHE+6vuRa+OMGvDNsczv2kQ=
-github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd/go.mod h1:/6CsT5Ceen2WPLI/oCA3xMcZ5sWMF/D46SjM/ayY0Oo=
+github.com/ethereum-optimism/op-geth v0.0.0-20221101003447-b6cc499f3e33 h1:UOybCb34mL2rw2cXcFfKsu9134OtvtkR4EU2ZLfbT9A=
+github.com/ethereum-optimism/op-geth v0.0.0-20221101003447-b6cc499f3e33/go.mod h1:/6CsT5Ceen2WPLI/oCA3xMcZ5sWMF/D46SjM/ayY0Oo=
 github.com/ethereum-optimism/optimism/op-bindings v0.8.10 h1:aSAWCQwBQnbmv03Gvtuvn3qfTWrZu/sTlRAWrpQhiHc=
 github.com/ethereum-optimism/optimism/op-bindings v0.8.10/go.mod h1:pyTCbh2o/SY+5/AL2Qo5GgAao3Gtt9Ff6tfK9Pa9emM=
 github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5 h1:FtmdgXiUlNeRsoNMFlKLDt+S+6hbjVMEW6RGQ7aUf7c=
