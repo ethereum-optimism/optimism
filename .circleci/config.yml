@@ -167,10 +167,6 @@ jobs:
           command: yarn lint:check
           working_directory: packages/contracts-bedrock
       - run:
-          name: validate spacers
-          command: yarn validate-spacers
-          working_directory: packages/contracts-bedrock
-      - run:
           name: slither
           command: |
             slither --version
@@ -198,6 +194,10 @@ jobs:
             forge snapshot --check
           environment:
             FOUNDRY_PROFILE: ci
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: validate spacers
+          command: yarn validate-spacers
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
