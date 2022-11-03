@@ -44,6 +44,7 @@
   - [Channel Timeout](#channel-timeout)
 - [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
+  - [System Configuration](#system-configuration)
   - [Payload Attributes](#payload-attributes)
   - [L2 Genesis Block](#l2-genesis-block)
   - [L2 Chain Inception](#l2-chain-inception)
@@ -524,6 +525,16 @@ L2 derivation inputs include:
   - basefee
 - [deposits] (as log data)
 - [sequencer batches][sequencer-batch] (as transaction data)
+- [System configuration][system-config] updates (as log data)
+
+## System Configuration
+
+[system-config]: glossary.md#system-configuration
+
+This term refers to the collection of dynamically configurable rollup parameters maintained
+by the [`SystemConfig`](./system_config.md) contract on L1 and read by the L2 [derivation] process.
+These parameters enable keys to be rotated regularly and external cost parameters to be adjusted
+without the network upgrade overhead of a hardfork.
 
 ## Payload Attributes
 
