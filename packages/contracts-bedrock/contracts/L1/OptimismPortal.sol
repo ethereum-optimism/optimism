@@ -220,7 +220,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Finalizes a withdrawal transaction.
      *
-     * @param _tx              Withdrawal transaction to finalize.
+     * @param _tx Withdrawal transaction to finalize.
      */
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         // Prevent nested withdrawals within withdrawals.
@@ -241,8 +241,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Ensure that the withdrawal's finalization period has elapsed.
         require(
-            _isOutputFinalized(provenWithdrawal.timestamp),
-            "OptimismPortal: withdrawal finalization period has not elapsed"
+            _isFinalizationPeriodElapsed(provenWithdrawal.timestamp),
+            "OptimismPortal: proven withdrawal finalization period has not elapsed"
         );
 
         // Grab the OutputProposal from the L2 Oracle
@@ -259,8 +259,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Perform a second check on the withdrawal's finalization period, this time with
         // the `OutputProposal`'s timestamp fetched from the L2 Oracle.
         require(
-            _isOutputFinalized(proposal.timestamp),
-            "OptimismPortal: withdrawal finalization period has not elapsed"
+            _isFinalizationPeriodElapsed(proposal.timestamp),
+            "OptimismPortal: output proposal finalization period has not elapsed"
         );
 
         // Check that this withdrawal has not already been finalized, this is replay protection.
@@ -303,7 +303,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @param _l2BlockNumber The number of the L2 block.
      */
     function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        return _isOutputFinalized(L2_ORACLE.getL2Output(_l2BlockNumber).timestamp);
+        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2BlockNumber).timestamp);
     }
 
     /**
@@ -354,11 +354,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Determine if an L2 Output is finalized.
+     * @notice Determine if the finalization period has elapsed with respect to the
+     * passed timestamp.
      *
      * @param _timestamp The timestamp to check.
      */
-    function _isOutputFinalized(uint256 _timestamp) internal view returns (bool) {
+    function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
         return block.timestamp > _timestamp + FINALIZATION_PERIOD_SECONDS;
     }
 
