@@ -160,6 +160,9 @@ var Subcommands = cli.Commands{
 				L1StandardBridgeProxy:       l1SBP.Address,
 				L1CrossDomainMessengerProxy: l1XDMP.Address,
 				L1ERC721BridgeProxy:         l1ERC721BP.Address,
+				BaseFeeVaultRecipient:       config.BaseFeeVaultRecipient,
+				L1FeeVaultRecipient:         config.L1FeeVaultRecipient,
+				SequencerFeeVaultRecipient:  config.SequencerFeeVaultRecipient,
 			}
 			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
 			if err != nil {

@@ -65,10 +65,16 @@ type DeployConfig struct {
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
-	ProxyAdminOwner             common.Address `json:"proxyAdminOwner"`
+	// Owner of the ProxyAdmin predeploy
+	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
+	// Owner of the L1CrossDomainMessenger predeploy
 	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
-	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
-	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
+	// L1 recipient of fees accumulated in the BaseFeeVault
+	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
+	// L1 recipient of fees accumulated in the L1FeeVault
+	L1FeeVaultRecipient common.Address `json:"l1FeeVaultRecipient"`
+	// L1 recipient of fees accumulated in the SequencerFeeVault
+	SequencerFeeVaultRecipient common.Address `json:"sequencerFeeVaultRecipient"`
 
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	GasPriceOracleScalar   uint64 `json:"gasPriceOracleScalar"`

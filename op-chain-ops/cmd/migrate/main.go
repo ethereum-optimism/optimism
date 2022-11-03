@@ -162,6 +162,9 @@ func main() {
 				L1StandardBridgeProxy:       l1StandardBridgeProxyDeployment.Address,
 				L1CrossDomainMessengerProxy: l1CrossDomainMessengerProxyDeployment.Address,
 				L1ERC721BridgeProxy:         l1ERC721BridgeProxyDeployment.Address,
+				BaseFeeVaultRecipient:       config.BaseFeeVaultRecipient,
+				L1FeeVaultRecipient:         config.L1FeeVaultRecipient,
+				SequencerFeeVaultRecipient:  config.SequencerFeeVaultRecipient,
 			}
 
 			dryRun := ctx.Bool("dry-run")
