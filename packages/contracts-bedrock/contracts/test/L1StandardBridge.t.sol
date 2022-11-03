@@ -13,8 +13,9 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 contract L1StandardBridge_Getter_Test is Bridge_Initializer {
     function test_getters_success() external {
         assert(L1Bridge.l2TokenBridge() == address(L2Bridge));
-        assert(L1Bridge.otherBridge() == L2Bridge);
+        assert(L1Bridge.OTHER_BRIDGE() == L2Bridge);
         assert(L1Bridge.messenger() == L1Messenger);
+        assert(L1Bridge.MESSENGER() == L1Messenger);
         assertEq(L1Bridge.version(), "0.0.2");
     }
 }
@@ -23,7 +24,7 @@ contract L1StandardBridge_Initialize_Test is Bridge_Initializer {
     function test_initialize_success() external {
         assertEq(address(L1Bridge.messenger()), address(L1Messenger));
 
-        assertEq(address(L1Bridge.otherBridge()), Predeploys.L2_STANDARD_BRIDGE);
+        assertEq(address(L1Bridge.OTHER_BRIDGE()), Predeploys.L2_STANDARD_BRIDGE);
 
         assertEq(address(L2Bridge), Predeploys.L2_STANDARD_BRIDGE);
     }
@@ -248,7 +249,7 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
         vm.mockCall(
             address(L1Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         // ensure that the messenger has ETH to call with
         vm.deal(address(L1Bridge.messenger()), 100);
@@ -294,7 +295,7 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is Bridge_Initializer {
         vm.mockCall(
             address(L1Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         vm.prank(address(L1Bridge.messenger()));
         L1Bridge.finalizeERC20Withdrawal(
@@ -316,7 +317,7 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_TestFail is Bridge_Initializer
         vm.mockCall(
             address(L1Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         vm.prank(address(28));
         vm.expectRevert("StandardBridge: function can only be called from the other bridge");
@@ -361,7 +362,7 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.mockCall(
             messenger,
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         vm.deal(messenger, 100);
         vm.prank(messenger);
@@ -374,7 +375,7 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.mockCall(
             messenger,
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         vm.deal(messenger, 100);
         vm.prank(messenger);
@@ -387,7 +388,7 @@ contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
         vm.mockCall(
             messenger,
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
-            abi.encode(address(L1Bridge.otherBridge()))
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
         );
         vm.deal(messenger, 100);
         vm.prank(messenger);
