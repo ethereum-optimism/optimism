@@ -12,6 +12,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
+// TestCrossLayerUser tests that common actions of the CrossLayerUser actor work:
+// - transact on L1
+// - transact on L2
+// - deposit on L1
+// - withdraw from L2
+// - finalize withdrawal on L1
 func TestCrossLayerUser(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
