@@ -12,12 +12,12 @@ abstract contract ERC721Bridge {
     /**
      * @notice Messenger contract on this domain.
      */
-    CrossDomainMessenger public immutable messenger;
+    CrossDomainMessenger public immutable MESSENGER;
 
     /**
      * @notice Address of the bridge on the other network.
      */
-    address public immutable otherBridge;
+    address public immutable OTHER_BRIDGE;
 
     /**
      * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
@@ -67,7 +67,7 @@ abstract contract ERC721Bridge {
      */
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) && messenger.xDomainMessageSender() == otherBridge,
+            msg.sender == address(MESSENGER) && MESSENGER.xDomainMessageSender() == OTHER_BRIDGE,
             "ERC721Bridge: function can only be called from the other bridge"
         );
         _;
@@ -81,8 +81,28 @@ abstract contract ERC721Bridge {
         require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
         require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
 
-        messenger = CrossDomainMessenger(_messenger);
-        otherBridge = _otherBridge;
+        MESSENGER = CrossDomainMessenger(_messenger);
+        OTHER_BRIDGE = _otherBridge;
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Legacy getter for messenger contract.
+     *
+     * @return Messenger contract on this domain.
+     */
+    function messenger() external view returns (CrossDomainMessenger) {
+        return MESSENGER;
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Legacy getter for other bridge address.
+     *
+     * @return Address of the bridge on the other network.
+     */
+    function otherBridge() external view returns (address) {
+        return OTHER_BRIDGE;
     }
 
     /**

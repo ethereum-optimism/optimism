@@ -12,19 +12,19 @@ contract PortalSender {
     /**
      * @notice Address of the OptimismPortal contract.
      */
-    OptimismPortal public immutable portal;
+    OptimismPortal public immutable PORTAL;
 
     /**
      * @param _portal Address of the OptimismPortal contract.
      */
     constructor(OptimismPortal _portal) {
-        portal = _portal;
+        PORTAL = _portal;
     }
 
     /**
      * @notice Sends balance of this contract to the OptimismPortal.
      */
     function donate() public {
-        portal.donateETH{ value: address(this).balance }();
+        PORTAL.donateETH{ value: address(this).balance }();
     }
 }

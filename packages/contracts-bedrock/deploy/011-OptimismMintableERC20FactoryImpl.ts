@@ -28,7 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'bridge',
+        'BRIDGE',
         L1StandardBridgeProxy.address
       )
     },
