@@ -221,7 +221,7 @@ const deployFn: DeployFunction = async (hre) => {
 
     await awaitCondition(async () => {
       const step = await MigrationSystemDictator.currentStep()
-      return step.toNumber() === i + 1
+      return Number(step) === i + 1
     })
   }
 }

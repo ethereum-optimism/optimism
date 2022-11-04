@@ -5,8 +5,8 @@
   "l2ChainID": 10,
   "l2BlockTime": 2,
 
-  "maxSequencerDrift": 100,
-  "sequencerWindowSize": 4,
+  "maxSequencerDrift": 3600,
+  "sequencerWindowSize": 100,
   "channelTimeout": 40,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "optimismL2FeeRecipient": "0xd9c09e21b57c98e58a80552c170989b426766aa7",
