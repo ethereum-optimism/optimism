@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-governance",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "author": "Optimism PBC",
   "license": "MIT",
   "main": "dist/index",
@@ -28,8 +28,8 @@
     "deploy:mainnet": "hardhat deploy-token --network 'optimism-mainnet'"
   },
   "dependencies": {
-    "@eth-optimism/core-utils": "^0.10.1",
-    "@eth-optimism/sdk": "^1.6.4",
+    "@eth-optimism/core-utils": "^0.11.0",
+    "@eth-optimism/sdk": "^1.6.10",
     "@eth-optimism/hardhat-deploy-config": "^0.2.3",
     "@ethersproject/hardware-wallets": "^5.7.0",
     "@nomiclabs/hardhat-ethers": "^2.0.2",

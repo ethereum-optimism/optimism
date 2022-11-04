@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-node
 
+## 0.2.2
+
+### Patch Changes
+
+- 8333f0f2c: Upgrade dependencies, add fork chain ID support
+
 ## 0.2.1
 
 ### Patch Changes
