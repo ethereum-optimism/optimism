@@ -28,18 +28,25 @@ func NewStateDumper() StateDumper {
 	}
 
 	return &FileStateDumper{
-		f: f,
+		f:        f,
+		ethCache: make(map[common.Address]bool),
 	}
 }
 
 type FileStateDumper struct {
-	f   io.Writer
-	mtx sync.Mutex
+	f        io.Writer
+	ethCache map[common.Address]bool
+	mtx      sync.Mutex
 }
 
 func (s *FileStateDumper) WriteETH(address common.Address) {
 	s.mtx.Lock()
 	defer s.mtx.Unlock()
+	if s.ethCache[address] {
+		return
+	}
+	s.ethCache[address] = true
+
 	if _, err := s.f.Write([]byte(fmt.Sprintf("ETH|%s\n", address.Hex()))); err != nil {
 		panic(err)
 	}

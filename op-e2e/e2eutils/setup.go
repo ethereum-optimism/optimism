@@ -58,18 +58,19 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2ChainID:   902,
 		L2BlockTime: 2,
 
-		MaxSequencerDrift:      tp.MaxSequencerDrift,
-		SequencerWindowSize:    tp.SequencerWindowSize,
-		ChannelTimeout:         tp.ChannelTimeout,
-		P2PSequencerAddress:    addresses.SequencerP2P,
-		OptimismL2FeeRecipient: common.Address{0: 0x42, 19: 0xf0}, // tbd
-		BatchInboxAddress:      common.Address{0: 0x42, 19: 0xff}, // tbd
-		BatchSenderAddress:     addresses.Batcher,
+		MaxSequencerDrift:   tp.MaxSequencerDrift,
+		SequencerWindowSize: tp.SequencerWindowSize,
+		ChannelTimeout:      tp.ChannelTimeout,
+		P2PSequencerAddress: addresses.SequencerP2P,
+		BatchInboxAddress:   common.Address{0: 0x42, 19: 0xff}, // tbd
+		BatchSenderAddress:  addresses.Batcher,
 
 		L2OutputOracleSubmissionInterval: 6,
 		L2OutputOracleStartingTimestamp:  -1,
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleOwner:              common.Address{}, // tbd
+
+		SystemConfigOwner: addresses.SysCfgOwner,
 
 		L1BlockTime:                 15,
 		L1GenesisBlockNonce:         0,
@@ -89,19 +90,20 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2GenesisBlockGasLimit:      15_000_000,
 		L2GenesisBlockDifficulty:    uint64ToBig(0),
 		L2GenesisBlockMixHash:       common.Hash{},
-		L2GenesisBlockCoinbase:      common.Address{0: 0x42, 19: 0xf0}, // matching OptimismL2FeeRecipient
+		L2GenesisBlockCoinbase:      predeploys.SequencerFeeVaultAddr,
 		L2GenesisBlockNumber:        0,
 		L2GenesisBlockGasUsed:       0,
 		L2GenesisBlockParentHash:    common.Hash{},
 		L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
 
-		OptimismBaseFeeRecipient:    common.Address{0: 0x42, 19: 0xf1}, // tbd
-		OptimismL1FeeRecipient:      addresses.Batcher,
+		// TODO: remove these config values once the addresses are hardcoded in
+		// geth
+		OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
+		OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
 		L2CrossDomainMessengerOwner: common.Address{0: 0x42, 19: 0xf2}, // tbd
 		GasPriceOracleOwner:         common.Address{0: 0x42, 19: 0xf3}, // tbd
 		GasPriceOracleOverhead:      2100,
 		GasPriceOracleScalar:        1000_000,
-		GasPriceOracleDecimals:      6,
 		DeploymentWaitConfirmations: 1,
 
 		EIP1559Elasticity:  10,
@@ -125,6 +127,7 @@ type DeploymentsL1 struct {
 	L1StandardBridgeProxy       common.Address
 	L2OutputOracleProxy         common.Address
 	OptimismPortalProxy         common.Address
+	SystemConfigProxy           common.Address
 }
 
 // SetupData bundles the L1, L2, rollup and deployment configuration data: everything for a full test setup.
@@ -192,7 +195,8 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 				Hash:   l2Genesis.ToBlock().Hash(),
 				Number: 0,
 			},
-			L2Time: uint64(deployConf.L1GenesisBlockTimestamp),
+			L2Time:       uint64(deployConf.L1GenesisBlockTimestamp),
+			SystemConfig: SystemConfigFromDeployConfig(deployConf),
 		},
 		BlockTime:              deployConf.L2BlockTime,
 		MaxSequencerDrift:      deployConf.MaxSequencerDrift,
@@ -201,10 +205,9 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1ChainID:              new(big.Int).SetUint64(deployConf.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(deployConf.L2ChainID),
 		P2PSequencerAddress:    deployConf.P2PSequencerAddress,
-		FeeRecipientAddress:    deployConf.OptimismL2FeeRecipient,
 		BatchInboxAddress:      deployConf.BatchInboxAddress,
-		BatchSenderAddress:     deployConf.BatchSenderAddress,
 		DepositContractAddress: predeploys.DevOptimismPortalAddr,
+		L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 	}
 
 	deploymentsL1 := DeploymentsL1{
@@ -212,6 +215,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
 		L2OutputOracleProxy:         predeploys.DevL2OutputOracleAddr,
 		OptimismPortalProxy:         predeploys.DevOptimismPortalAddr,
+		SystemConfigProxy:           predeploys.DevSystemConfigAddr,
 	}
 
 	return &SetupData{
@@ -219,5 +223,13 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 		L2Cfg:         l2Genesis,
 		RollupCfg:     rollupCfg,
 		DeploymentsL1: deploymentsL1,
+	}
+}
+
+func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.SystemConfig {
+	return eth.SystemConfig{
+		BatcherAddr: deployConfig.BatchSenderAddress,
+		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleOverhead))),
+		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
 	}
 }

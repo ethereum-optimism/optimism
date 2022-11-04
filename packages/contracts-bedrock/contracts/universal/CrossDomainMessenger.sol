@@ -90,7 +90,7 @@ abstract contract CrossDomainMessenger is
     /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
-    address public immutable otherMessenger;
+    address public immutable OTHER_MESSENGER;
 
     /**
      * @custom:legacy
@@ -187,7 +187,7 @@ abstract contract CrossDomainMessenger is
      * @param _otherMessenger Address of the messenger on the paired chain.
      */
     constructor(address _otherMessenger) {
-        otherMessenger = _otherMessenger;
+        OTHER_MESSENGER = _otherMessenger;
     }
 
     /**
@@ -226,7 +226,7 @@ abstract contract CrossDomainMessenger is
         // guarantee the property that the call to the target contract will always have at least
         // the minimum gas limit specified by the user.
         _sendMessage(
-            otherMessenger,
+            OTHER_MESSENGER,
             baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
@@ -288,9 +288,10 @@ abstract contract CrossDomainMessenger is
         );
 
         if (_isOtherMessenger()) {
-            // This property should always hold when the message is first submitted (as opposed to
-            // being replayed).
+            // These properties should always hold when the message is first submitted (as
+            // opposed to being replayed).
             assert(msg.value == _value);
+            assert(!receivedMessages[versionedHash]);
         } else {
             require(
                 msg.value == 0,

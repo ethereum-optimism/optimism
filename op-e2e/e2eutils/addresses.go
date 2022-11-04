@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 )
 
@@ -41,9 +42,9 @@ func CollectAddresses(sd *SetupData, dp *DeployParams) (out []common.Address) {
 		sd.L1Cfg.Coinbase,
 		sd.L2Cfg.Coinbase,
 		sd.RollupCfg.P2PSequencerAddress,
-		sd.RollupCfg.FeeRecipientAddress,
+		predeploys.SequencerFeeVaultAddr,
 		sd.RollupCfg.BatchInboxAddress,
-		sd.RollupCfg.BatchSenderAddress,
+		sd.RollupCfg.Genesis.SystemConfig.BatcherAddr,
 		sd.RollupCfg.DepositContractAddress,
 	)
 	//  - precompiles

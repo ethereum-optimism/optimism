@@ -55,6 +55,10 @@ npm install @eth-optimism/contracts-bedrock
 We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
 
 1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
+   A specific version must be used.
+   ```shell
+   foundryup -C c06b53287dc23c4e5b1b3e57c937a90114bbe166
+   ```
 2. Install node modules with yarn (v1) and Node.js (16+):
 
    ```shell
@@ -86,6 +90,29 @@ yarn test
 2. Fill out the `L1_RPC` and `PRIVATE_KEY_DEPLOYER` environment variables in `.env`
 3. Run `npx hardhat deploy --network <network-name>` to deploy the L1 contracts
 4. Run `npx hardhat etherscan-verify --network <network-name> --sleep` to verify contracts on Etherscan
+
+## Tools
+
+### Layout Locking
+
+We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
+To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
+
+```json
+{
+  "MyContractName": {
+    "myVariableName": {
+      "slot": 1,
+      "offset": 0,
+      "length": 32
+    }
+  }
+}
+```
+
+With the above config, the `validate-spacers` hardhat task will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
+You should add things to the `layout-lock.json` file when you want those variables to **never** change.
+Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
 
 ## Standards and Conventions
 

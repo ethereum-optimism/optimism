@@ -23,6 +23,15 @@ func TestBuildOptimism(t *testing.T) {
 		"OptimismMintableERC721Factory": {
 			"remoteChainId": big.NewInt(1),
 		},
+		"SequencerFeeVault": {
+			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		"L1FeeVault": {
+			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
+		"BaseFeeVault": {
+			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+		},
 	})
 	require.Nil(t, err)
 	require.NotNil(t, results)
@@ -34,6 +43,8 @@ func TestBuildOptimism(t *testing.T) {
 		"L2StandardBridge":              true,
 		"L2ToL1MessagePasser":           true,
 		"SequencerFeeVault":             true,
+		"BaseFeeVault":                  true,
+		"L1FeeVault":                    true,
 		"OptimismMintableERC20Factory":  true,
 		"DeployerWhitelist":             true,
 		"LegacyMessagePasser":           true,

@@ -3,12 +3,12 @@ module github.com/ethereum-optimism/optimism/op-e2e
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-batcher v0.8.10
-	github.com/ethereum-optimism/optimism/op-bindings v0.8.10
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.8.10
-	github.com/ethereum-optimism/optimism/op-node v0.8.10
-	github.com/ethereum-optimism/optimism/op-proposer v0.8.10
-	github.com/ethereum-optimism/optimism/op-service v0.8.10
+	github.com/ethereum-optimism/optimism/op-batcher v0.9.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.9.0
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.9.0
+	github.com/ethereum-optimism/optimism/op-node v0.9.0
+	github.com/ethereum-optimism/optimism/op-proposer v0.9.0
+	github.com/ethereum-optimism/optimism/op-service v0.9.0
 	github.com/ethereum/go-ethereum v1.10.23
 	github.com/libp2p/go-libp2p v0.21.0
 	github.com/libp2p/go-libp2p-core v0.19.1
@@ -157,4 +157,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20221104021113-befc264446fa

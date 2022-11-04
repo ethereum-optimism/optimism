@@ -32,13 +32,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
-    // solhint-disable-next-line var-name-mixedcase
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /**
      * @notice Address of the L2OutputOracle.
      */
-    // solhint-disable-next-line var-name-mixedcase
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
@@ -113,8 +111,17 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *         function for EOAs. Contracts should call the depositTransaction() function directly
      *         otherwise any deposited funds will be lost due to address aliasing.
      */
+    // solhint-disable-next-line ordering
     receive() external payable {
         depositTransaction(msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, false, bytes(""));
+    }
+
+    /**
+     * @notice Accepts ETH value without triggering a deposit to L2. This function mainly exists
+     *         for the sake of the migration between the legacy Optimism system and Bedrock.
+     */
+    function donateETH() external payable {
+        // Intentionally empty.
     }
 
     /**

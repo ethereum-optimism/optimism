@@ -102,3 +102,17 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 		s.ActL2EndBlock(t)
 	}
 }
+
+// ActBuildToL1HeadExcl builds empty blocks until (excl.) the L1 head becomes the L2 origin
+func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
+	for {
+		s.ActL2PipelineFull(t)
+		nextOrigin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), s.derivation.UnsafeL2Head())
+		require.NoError(t, err)
+		if nextOrigin.Number >= s.l1State.L1Head().Number {
+			break
+		}
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}

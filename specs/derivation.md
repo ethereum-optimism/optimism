@@ -44,6 +44,7 @@
 [g-l1-origin]: glossary.md#l1-origin
 [g-deposit-tx-type]: glossary.md#deposited-transaction-type
 [g-finalized-l2-head]: glossary.md#finalized-l2-head
+[g-system-config]: glossary.md#system-configuration
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -302,8 +303,9 @@ Unknown versions make the batcher transaction invalid (it must be ignored by the
 All frames in a batcher transaction must be parseable. If any one frame fails to parse, the all frames in the
 transaction are rejected.
 
-> **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher
-> signers)
+Batch transactions are authenticated by verifying that the `to` address of the transaction matches the batch inbox
+address, and the `from` address matches the batch-sender address in the [system configuration][g-system-config] at the
+time of the L1 block that the transaction data is read from.
 
 ### Frame Format
 
@@ -457,6 +459,9 @@ Let's briefly describe each stage of the pipeline.
 In the *L1 Traversal* stage, we simply read the header of the next L1 block. In normal operations, these will be new
 L1 blocks as they get created, though we can also read old blocks while syncing, or in case of an L1 [re-org][g-reorg].
 
+Upon traversal of the L1 block, the [system configuration][g-system-config] copy used by the L1 retrieval stage is
+updated, such that the batch-sender authentication is always accurate to the exact L1 block that is read by the stage.
+
 ### L1 Retrieval
 
 In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and extract data for it. In
@@ -464,18 +469,18 @@ particular we extract a byte string that corresponds to the concatenation of the
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
-These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
+These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*. When
+adding frames the the channel, individual frames may be invalid, but the channel does not have a notion of validity
+until the channel timeout is up. This enables adding the option to do a partial read from the channel in the future.
 
 Some frames are ignored:
 
-- Frames where `frame.frame_number <= highest_frame_number`, where `highest_frame_number` is the highest frame number
-  that was previously encountered for this channel.
-  - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
-- Frames with a higher number than that of the final frame of the channel (i.e. the first frame marked with
-  `frame.is_last == 1`) are ignored.
-  - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
-      never be read out from the channel bank.
-- Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears.
+- Frames with the same frame number as an existing frame in the channel (a duplicate). The first seen frame is used.
+- Frames that attempt to close an already closed channel. This would be the second frame with `frame.is_last == 1` even
+  if the frame number of the second frame is not the same as the first frame which closed the channel.
+
+If a frame with `is_last == 1` is added to a channel, all frames with a higher frame number are removed from the
+channel.
 
 Channels are also recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
 queue the first time a frame belonging to the channel is seen. This structure is used in the next stage.
@@ -621,6 +626,9 @@ In the *Payload Attributes Derivation* stage, we convert the batches we get from
 the [`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes the transactions that need to figure into
 a block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
 section [Deriving Payload Attributes section][deriving-payload-attr] below.
+
+This stage maintains its own copy of the [system configuration][g-system-config], independent of the L1 retrieval stage.
+The system configuration is updated with L1 log events whenever the L1 epoch referenced by the batch input changes.
 
 ### Engine Queue
 

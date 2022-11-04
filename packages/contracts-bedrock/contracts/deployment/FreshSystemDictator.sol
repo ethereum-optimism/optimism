@@ -1,14 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
-import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
-import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
+import { SystemConfig } from "./DeployConfig.sol";
+import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**
  * @title FreshSystemDictator
@@ -16,52 +13,16 @@ import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20
  *         deployment of the Optimism system. We expect that all proxies and implementations
  *         already be deployed before this contract is used.
  */
-contract FreshSystemDictator is Ownable {
-    struct GlobalConfig {
-        ProxyAdmin proxyAdmin;
-        address controller;
-        address finalOwner;
-    }
+contract FreshSystemDictator is BaseSystemDictator {
+    /**
+     * @param _config System configuration.
+     */
+    constructor(SystemConfig memory _config) BaseSystemDictator(_config) {}
 
-    struct ProxyAddressConfig {
-        address l2OutputOracleProxy;
-        address optimismPortalProxy;
-        address l1CrossDomainMessengerProxy;
-        address l1StandardBridgeProxy;
-        address optimismMintableERC20FactoryProxy;
-        address l1ERC721BridgeProxy;
-    }
-
-    struct ImplementationAddressConfig {
-        L2OutputOracle l2OutputOracleImpl;
-        OptimismPortal optimismPortalImpl;
-        L1CrossDomainMessenger l1CrossDomainMessengerImpl;
-        L1StandardBridge l1StandardBridgeImpl;
-        OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
-        L1ERC721Bridge l1ERC721BridgeImpl;
-    }
-
-    struct L2OutputOracleConfig {
-        bytes32 l2OutputOracleGenesisL2Output;
-        address l2OutputOracleProposer;
-        address l2OutputOracleOwner;
-    }
-
-    struct Config {
-        GlobalConfig globalConfig;
-        ProxyAddressConfig proxyAddressConfig;
-        ImplementationAddressConfig implementationAddressConfig;
-        L2OutputOracleConfig l2OutputOracleConfig;
-    }
-
-    Config public config;
-
-    constructor(Config memory _config) Ownable() {
-        config = _config;
-        _transferOwnership(config.globalConfig.controller);
-    }
-
-    function step1() external onlyOwner {
+    /**
+     * @notice Upgrades and initializes proxy contracts.
+     */
+    function step1() external onlyOwner step(1) {
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l2OutputOracleProxy),
@@ -87,7 +48,7 @@ contract FreshSystemDictator is Ownable {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             address(config.implementationAddressConfig.l1CrossDomainMessengerImpl),
-            abi.encodeCall(L1CrossDomainMessenger.initialize, ())
+            abi.encodeCall(L1CrossDomainMessenger.initialize, (config.globalConfig.finalOwner))
         );
 
         // Upgrade the L1StandardBridge (no initializer).
@@ -109,7 +70,10 @@ contract FreshSystemDictator is Ownable {
         );
     }
 
-    function step2() external onlyOwner {
+    /**
+     * @notice Transfers ownership to final owner.
+     */
+    function step2() external onlyOwner step(2) {
         // Transfer ownership of the ProxyAdmin to the final owner.
         config.globalConfig.proxyAdmin.setOwner(config.globalConfig.finalOwner);
     }

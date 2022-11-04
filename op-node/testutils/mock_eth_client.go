@@ -5,10 +5,10 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type MockEthClient struct {
@@ -40,15 +40,6 @@ func (m *MockEthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (
 
 func (m *MockEthClient) ExpectInfoByLabel(label eth.BlockLabel, info eth.BlockInfo, err error) {
 	m.Mock.On("InfoByLabel", label).Once().Return(&info, &err)
-}
-
-func (m *MockEthClient) InfoByRpcNumber(ctx context.Context, num rpc.BlockNumber) (eth.BlockInfo, error) {
-	out := m.Mock.MethodCalled("InfoByRpcNumber", num)
-	return *out[0].(*eth.BlockInfo), *out[1].(*error)
-}
-
-func (m *MockEthClient) ExpectInfoByRpcNumber(num rpc.BlockNumber, info eth.BlockInfo, err error) {
-	m.Mock.On("InfoByRpcNumber", num).Once().Return(&info, &err)
 }
 
 func (m *MockEthClient) InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error) {

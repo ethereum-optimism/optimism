@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type Metrics interface {
@@ -25,18 +26,20 @@ type L1Fetcher interface {
 }
 
 type ResetableStage interface {
-	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to.
-	Reset(ctx context.Context, base eth.L1BlockRef) error
+	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
+	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
 }
 
 type EngineQueueStage interface {
+	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
+	SystemConfig() eth.SystemConfig
 	SetUnsafeHead(head eth.L2BlockRef)
 
-	Finalize(l1Origin eth.BlockID)
+	Finalize(l1Origin eth.L1BlockRef)
 	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Step(context.Context) error
@@ -64,14 +67,14 @@ type DerivationPipeline struct {
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
 
 	// Pull stages
-	l1Traversal := NewL1Traversal(log, l1Fetcher)
+	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher)
 	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher)
 	chInReader := NewChannelInReader(log, bank)
 	batchQueue := NewBatchQueue(log, cfg, chInReader)
-	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, batchQueue)
+	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, engine, batchQueue)
 
 	// Step stages
 	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher)
@@ -97,12 +100,20 @@ func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
 
+// Origin is the L1 block of the inner-most stage of the derivation pipeline,
+// i.e. the L1 chain up to and including this point included and/or produced all the safe L2 blocks.
 func (dp *DerivationPipeline) Origin() eth.L1BlockRef {
 	return dp.eng.Origin()
 }
 
-func (dp *DerivationPipeline) Finalize(l1Origin eth.BlockID) {
+func (dp *DerivationPipeline) Finalize(l1Origin eth.L1BlockRef) {
 	dp.eng.Finalize(l1Origin)
+}
+
+// FinalizedL1 is the L1 finalization of the inner-most stage of the derivation pipeline,
+// i.e. the L1 chain up to and including this point included and/or produced all the finalized L2 blocks.
+func (dp *DerivationPipeline) FinalizedL1() eth.L1BlockRef {
+	return dp.eng.FinalizedL1()
 }
 
 func (dp *DerivationPipeline) Finalized() eth.L2BlockRef {
@@ -138,7 +149,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
-		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin()); err == io.EOF {
+		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin(), dp.eng.SystemConfig()); err == io.EOF {
 			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Origin())
 			dp.resetting += 1
 			return nil

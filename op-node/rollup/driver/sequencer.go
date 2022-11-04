@@ -50,7 +50,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l2Head eth.L2BlockRe
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.config, d.l1, l2Head, l2Head.Time+d.config.BlockTime, l1Origin.ID())
+	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.config, d.l1, d.l2, l2Head, l2Head.Time+d.config.BlockTime, l1Origin.ID())
 	if err != nil {
 		return err
 	}

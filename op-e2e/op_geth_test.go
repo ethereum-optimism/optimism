@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -52,7 +53,8 @@ func TestInvalidDepositInFCU(t *testing.T) {
 			Hash:   l2GenesisBlock.Hash(),
 			Number: l2GenesisBlock.NumberU64(),
 		},
-		L2Time: l2GenesisBlock.Time(),
+		L2Time:       l2GenesisBlock.Time(),
+		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
 	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t))
@@ -76,7 +78,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Nil(t, err)
 
 	// Create the test data (L1 Info Tx and then always failing deposit)
-	l1Info, err := derive.L1InfoDepositBytes(1, l1Block)
+	l1Info, err := derive.L1InfoDepositBytes(1, l1Block, rollupGenesis.SystemConfig)
 	require.Nil(t, err)
 
 	// Create a deposit from alice that will always fail (not enough funds)

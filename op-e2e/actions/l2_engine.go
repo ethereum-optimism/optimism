@@ -3,6 +3,7 @@ package actions
 import (
 	"errors"
 
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -117,6 +118,11 @@ func (s *L2Engine) EthClient() *ethclient.Client {
 	return ethclient.NewClient(cl)
 }
 
+func (s *L2Engine) GethClient() *gethclient.Client {
+	cl, _ := s.node.Attach() // never errors
+	return gethclient.New(cl)
+}
+
 func (e *L2Engine) RPCClient() client.RPC {
 	cl, _ := e.node.Attach() // never errors
 	return testutils.RPCErrFaker{
@@ -175,7 +181,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {
 			e.l2TxFailed = append(e.l2TxFailed, tx)
-			t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(e.l2Transactions), err)
+			t.Fatalf("failed to apply transaction to L2 block (tx %d): %v", len(e.l2Transactions), err)
 		}
 		e.l2Receipts = append(e.l2Receipts, receipt)
 		e.l2Transactions = append(e.l2Transactions, tx)

@@ -16,6 +16,7 @@
     "event-name-camelcase": "off",
     "reason-string": "off",
     "avoid-tx-origin": "off",
+    "var-name-mixedcase": "off",
     "func-visibility": ["warn", { "ignoreConstructors": true }]
   }
 }

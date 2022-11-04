@@ -105,7 +105,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         IERC721(_localToken).transferFrom(_from, address(this), _tokenId);
 
         // Send calldata into L2
-        messenger.sendMessage(otherBridge, message, _minGasLimit);
+        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
         emit ERC721BridgeInitiated(_localToken, _remoteToken, _from, _to, _tokenId, _extraData);
     }
 }
