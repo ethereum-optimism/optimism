@@ -317,10 +317,6 @@ const config: HardhatUserConfig = {
       type: 'address',
       default: ethers.constants.AddressZero,
     },
-    gasPriceOracleOwner: {
-      type: 'address',
-      default: ethers.constants.AddressZero,
-    },
     gasPriceOracleOverhead: {
       type: 'number',
       default: 2100,
