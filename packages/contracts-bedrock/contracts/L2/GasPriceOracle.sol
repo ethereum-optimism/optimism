@@ -21,7 +21,7 @@ contract GasPriceOracle is Semver {
      * @custom:spacer _owner
      * @notice Spacer for backwards compatibility.
      */
-    uint256 private spacer_0_0_32;
+    address private spacer_0_0_20;
 
     /**
      * @custom:legacy
