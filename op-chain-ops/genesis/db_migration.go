@@ -27,46 +27,46 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 
 	db, err := state.New(header.Root, state.NewDatabase(ldb), nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
 	// Convert all of the messages into legacy withdrawals
 	withdrawals, err := migrationData.ToWithdrawals()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
 
 	if err := CheckWithdrawals(db, withdrawals); err != nil {
-		return err
+		return fmt.Errorf("withdrawals mismatch: %w", err)
 	}
 
 	// Now start the migration
 	if err := SetL2Proxies(db); err != nil {
-		return err
+		return fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
 	storage, err := NewL2StorageConfig(config, l1Block, l2Addrs)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create storage config: %w", err)
 	}
 
 	immutable, err := NewL2ImmutableConfig(config, l1Block, l2Addrs)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot create immutable config: %w", err)
 	}
 
 	if err := SetImplementations(db, storage, immutable); err != nil {
-		return err
+		return fmt.Errorf("cannot set implementations: %w", err)
 	}
 
 	err = crossdomain.MigrateWithdrawals(withdrawals, db, &l2Addrs.L1CrossDomainMessengerProxy, &l2Addrs.L1StandardBridgeProxy)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
 
 	addrs := migrationData.Addresses()
 	if err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID)); err != nil {
-		return err
+		return fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
 
 	if !commit {
@@ -75,7 +75,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 
 	root, err := db.Commit(true)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot commit state db: %w", err)
 	}
 
 	// Create the bedrock transition block
