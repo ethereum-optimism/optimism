@@ -42,7 +42,7 @@ contract FuzzOptimismPortalWithdrawals{
     Types.WithdrawalTransaction cachedTx;
     uint256 cachedL2BlockNumber;
     Types.OutputRootProof cachedOutputRootProof;
-    bytes cachedWithdrawalProof;
+    bytes[] cachedWithdrawalProof;
 
     uint256 offset;
 
@@ -76,7 +76,7 @@ contract FuzzOptimismPortalWithdrawals{
         Types.WithdrawalTransaction calldata _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes[] memory _withdrawalProof
     ) public {
         // TODO: craft a valid call to oracle.proposeL2Output for this generated withdrawal
 
@@ -99,7 +99,7 @@ contract FuzzOptimismPortalWithdrawals{
         Types.WithdrawalTransaction calldata _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes[] calldata _withdrawalProof
     ) public {
         // TODO: craft a valid call to oracle.proposeL2Output, still within the finalization period
 

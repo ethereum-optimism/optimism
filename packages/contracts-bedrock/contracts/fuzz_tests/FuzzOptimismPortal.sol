@@ -55,6 +55,9 @@ contract FuzzOptimismPortal is OptimismPortal {
     /**
      * @notice This override is called at the end of OptimismPortal.depositTransaction()
      * so that we can sanity check all of the input and omitted data.
+     *
+     * Note: This is currently unused as it required modifying the target contracts.
+     *       We keep it here for posterity.
      */
     function depositTransactionTestInternal(
         address from,
@@ -65,7 +68,7 @@ contract FuzzOptimismPortal is OptimismPortal {
         uint64 gasLimit,
         bool isCreation,
         bytes memory data
-    ) override internal {
+    ) internal {
         // Check if the caller is a contract and confirm our address aliasing properties
         if (msg.sender != tx.origin) {
             // If the caller is a contract, we expect the address to be aliased.
