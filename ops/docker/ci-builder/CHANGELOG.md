@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.3.5
+
+### Patch Changes
+
+- c44ff357f: Update foundry in ci-builder
+
 ## 0.3.4
 
 ### Patch Changes
