@@ -55,6 +55,9 @@ contract FuzzOptimismPortal is OptimismPortal {
     /**
      * @notice This override is called at the end of OptimismPortal.depositTransaction()
      * so that we can sanity check all of the input and omitted data.
+     *
+     * Note: This is currently disabled (by setting the visibility to internal), as it required
+     *       modifying the target contracts. We keep it here for posterity.
      */
     function depositTransactionTestInternal(
         address from,
