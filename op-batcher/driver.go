@@ -269,6 +269,7 @@ func (l *BatchSubmitter) loop() {
 			l.loadBlocksIntoState(l.ctx)
 
 			// Empty the state after loading into it on every iteration.
+		blockLoop:
 			for {
 				// Collect the output frame
 				data, id, err := l.state.TxData(eth.L1BlockRef{})
@@ -286,6 +287,15 @@ func (l *BatchSubmitter) loop() {
 				} else {
 					l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
 					l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
+				}
+
+				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
+				// from the channel manager rather than sending the channel in a loop. This stalls b/c if the
+				// context is cancelled while sending, it will never fuilly clearing the pending txns.
+				select {
+				case <-l.ctx.Done():
+					break blockLoop
+				default:
 				}
 			}
 
