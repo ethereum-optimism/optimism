@@ -7,7 +7,7 @@
 - [System config contents (version 0)](#system-config-contents-version-0)
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [`l1FeeOverhead` and `l1FeeScalar` (`uint256,uint256`)](#l1feeoverhead-and-l1feescalar-uint256uint256)
-  - [`gasLimit` (`uint256`)](#gaslimit-uint256)
+  - [`gasLimit` (`uint64`)](#gaslimit-uint64)
 - [Writing the system config](#writing-the-system-config)
 - [Reading the system config](#reading-the-system-config)
 
@@ -35,7 +35,7 @@ to enable more extensive redundancy and/or rotation configurations.
 The L1 fee parameters, also known as Gas Price Oracle (GPO) parameters,
 are updated in conjunction and apply new L1 costs to the L2 transactions.
 
-### `gasLimit` (`uint256`)
+### `gasLimit` (`uint64`)
 
 The gas limit of the L2 blocks is configured through the system config.
 Changes to the L2 gas limit are fully applied in the first L2 block with the L1 origin that introduced the change,
@@ -73,7 +73,7 @@ The contained log events are filtered and processed as follows:
   and encodes the configuration update. In version `0` the following types are supported:
   - type `0`: `batcherHash` overwrite, as `bytes32` payload.
   - type `1`: `l1FeeOverhead` and `l1FeeScalar` overwrite, as two packed `uint256` entries.
-  - type `2`: `gasLimit` overwrite, as `uint256` payload.
+  - type `2`: `gasLimit` overwrite, as `uint64` payload.
 
 Note that individual derivation stages may be processing different L1 blocks,
 and should thus maintain individual system configuration copies,
