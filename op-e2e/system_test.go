@@ -350,7 +350,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
 
@@ -747,7 +747,7 @@ func TestWithdrawals(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
