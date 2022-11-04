@@ -4,11 +4,11 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	hdwallet "github.com/tynes/go-ethereum-hdwallet"
 )
 
 // DefaultMnemonicConfig is the default mnemonic used in testing.

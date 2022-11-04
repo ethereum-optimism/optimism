@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum-optimism/optimism/op-batcher/sequencer"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
@@ -18,7 +19,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	hdwallet "github.com/tynes/go-ethereum-hdwallet"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx

@@ -9,6 +9,7 @@ replace (
 )
 
 require (
+	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/optimism/op-batcher v0.9.0
 	github.com/ethereum-optimism/optimism/op-bindings v0.9.0
 	github.com/ethereum-optimism/optimism/op-chain-ops v0.9.0
@@ -19,7 +20,6 @@ require (
 	github.com/libp2p/go-libp2p v0.21.0
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/stretchr/testify v1.8.0
-	github.com/tynes/go-ethereum-hdwallet v0.1.2
 )
 
 require (
