@@ -177,3 +177,42 @@ func TestOriginSelectorRespectsMaxSeqDrift(t *testing.T) {
 	require.Nil(t, err)
 	require.Equal(t, b, next)
 }
+
+// TestOriginSelectorSeqDriftRespectsNextOriginTime
+//
+// There are 2 L1 blocks at time 20 & 100. The L2 Head is at time 27.
+// The next L2 time is 29. Even though the next L2 time is past the seq
+// drift, the origin should remain on block `a` because the next origin's
+// time is greater than the next L2 time.
+func TestOriginSelectorSeqDriftRespectsNextOriginTime(t *testing.T) {
+	log := testlog.Logger(t, log.LvlCrit)
+	cfg := &rollup.Config{
+		MaxSequencerDrift: 8,
+		BlockTime:         2,
+	}
+	l1 := &testutils.MockL1Source{}
+	a := eth.L1BlockRef{
+		Hash:   common.Hash{'a'},
+		Number: 10,
+		Time:   20,
+	}
+	b := eth.L1BlockRef{
+		Hash:       common.Hash{'b'},
+		Number:     11,
+		Time:       100,
+		ParentHash: a.Hash,
+	}
+	l2Head := eth.L2BlockRef{
+		L1Origin: a.ID(),
+		Time:     27,
+	}
+
+	l1.ExpectL1BlockRefByHash(a.Hash, a, nil)
+	l1.ExpectL1BlockRefByNumber(b.Number, b, nil)
+
+	s := NewL1OriginSelector(log, cfg, l1, 10)
+
+	next, err := s.FindL1Origin(context.Background(), b, l2Head)
+	require.Nil(t, err)
+	require.Equal(t, a, next)
+}
