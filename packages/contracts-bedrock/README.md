@@ -55,6 +55,10 @@ npm install @eth-optimism/contracts-bedrock
 We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
 
 1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
+   A specific version must be used.
+   ```shell
+   foundryup -C c06b53287dc23c4e5b1b3e57c937a90114bbe166
+   ```
 2. Install node modules with yarn (v1) and Node.js (16+):
 
    ```shell

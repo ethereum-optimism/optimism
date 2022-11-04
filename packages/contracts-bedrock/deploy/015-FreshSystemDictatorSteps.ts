@@ -182,6 +182,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['FreshSystemDictator', 'fresh']
+deployFn.tags = ['FreshSystemDictatorSteps', 'fresh']
 
 export default deployFn
