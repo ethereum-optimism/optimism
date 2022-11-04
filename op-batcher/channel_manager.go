@@ -116,6 +116,11 @@ func (s *channelManager) pendingChannelIsTimedOut() bool {
 	if s.pendingChannel == (derive.ChannelID{}) {
 		return false // no channel to be timed out
 	}
+	// No confirmed transactions => not timed out
+	if len(s.confirmedTransactions) == 0 {
+		return false
+	}
+	// If there are confirmed transactions, find the first + last confirmed block numbers
 	min := uint64(math.MaxUint64)
 	max := uint64(0)
 	for _, inclusionBlock := range s.confirmedTransactions {
