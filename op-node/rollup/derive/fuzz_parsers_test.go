@@ -97,7 +97,7 @@ func FuzzL1InfoAgainstContract(f *testing.F) {
 			BytesToBigInt(baseFee),
 			common.BytesToHash(hash),
 			seqNumber,
-			common.BytesToHash(batcherHash),
+			common.BytesToAddress(batcherHash).Hash(),
 			common.BytesToHash(l1FeeOverhead).Big(),
 			common.BytesToHash(l1FeeScalar).Big(),
 		)
