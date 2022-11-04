@@ -1504,28 +1504,20 @@ describe('CrossChainMessenger', () => {
   describe('finalizeMessage', () => {
     describe('when the message being finalized exists', () => {
       describe('when the message is ready to be finalized', () => {
-        it('should finalize the message', async () => {
-          // TODO
-        })
+        it('should finalize the message')
       })
 
       describe('when the message is not ready to be finalized', () => {
-        it('should throw an error', async () => {
-          // TODO
-        })
+        it('should throw an error')
       })
 
       describe('when the message has already been finalized', () => {
-        it('should throw an error', async () => {
-          // TODO
-        })
+        it('should throw an error')
       })
     })
 
     describe('when the message being finalized does not exist', () => {
-      it('should throw an error', async () => {
-        // TODO
-      })
+      it('should throw an error')
     })
   })
 

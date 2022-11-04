@@ -96,7 +96,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param withdrawalHash Hash of the withdrawal transaction.
      */
-    event WithdrawalProven(bytes32 indexed withdrawalHash);
+    event WithdrawalProven(
+        bytes32 indexed withdrawalHash,
+        address indexed from,
+        address indexed to
+    );
 
     /**
      * @notice Emitted when a withdrawal transaction is finalized.
@@ -207,7 +211,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         });
 
         // Emit a `WithdrawalProven` event.
-        emit WithdrawalProven(withdrawalHash);
+        emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
     }
 
     /**
@@ -249,8 +253,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             "OptimismPortal: output root proven is not the same as current output root"
         );
 
-        // Perform a second check on the withdrawal's finalization period, this time with
+        // Perform second checks on the withdrawal's finalization period, this time with
         // the `OutputProposal`'s timestamp fetched from the L2 Oracle.
+        //
+        // TODO: Add a check for whether or not the proposal's timestamp is >= the proven
+        // withdrawal's timestamp.
         require(
             _isFinalizationPeriodElapsed(proposal.timestamp),
             "OptimismPortal: output proposal finalization period has not elapsed"

@@ -273,7 +273,11 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     Types.OutputRootProof internal _outputRootProof;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
-    event WithdrawalProven(bytes32 indexed withdrawalHash);
+    event WithdrawalProven(
+        bytes32 indexed withdrawalHash,
+        address indexed from,
+        address indexed to
+    );
 
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
@@ -370,7 +374,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     // Test: proveWithdrawalTransaction succeeds and emits the WithdrawalProven event.
     function test_proveWithdrawalTransaction_validWithdrawalProof_success() external {
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -384,7 +388,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 bobBalanceBefore = address(bob).balance;
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -415,7 +419,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 bobBalanceBefore = address(bob).balance;
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -444,7 +448,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         // Prove our withdrawal
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -463,6 +467,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             abi.encode(Types.OutputProposal(bytes32(uint256(0)), _proposedBlockNumber))
         );
 
+        // Attempt to finalize the withdrawal
         vm.expectRevert(
             "OptimismPortal: output root proven is not the same as current output root"
         );
@@ -474,12 +479,12 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: finalizeWithdrawalTransaction reverts if the output proposal's timestamp has
     // not passed the finalization period.
-    function test_finalizeWithdrawalTransaction_ifOutputTimestampChanges_reverts() external {
+    function test_finalizeWithdrawalTransaction_ifOutputTimestampIsNotFinalized_reverts() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
         // Prove our withdrawal
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -498,11 +503,54 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             abi.encode(Types.OutputProposal(_outputRoot, block.timestamp + 1))
         );
 
+        // Attempt to finalize the withdrawal
         vm.expectRevert("OptimismPortal: output proposal finalization period has not elapsed");
         op.finalizeWithdrawalTransaction(_defaultTx);
 
+        // Ensure that bob's balance has remained the same
         assertEq(bobBalanceBefore, address(bob).balance);
     }
+
+    // TODO: Add logic for this test
+    // // Test: finalizeWithdrawalTransaction reverts if the output proposal's timestamp is
+    // // less than the proven withdrawal's timestamp.
+    // function test_finalizeWithdrawalTransaction_ifOutputTimestampIsLtProvedTimestamp_reverts()
+    //     external
+    // {
+    //     uint256 bobBalanceBefore = address(bob).balance;
+    //
+    //     // Prove our withdrawal
+    //     vm.expectEmit(true, true, true, true);
+    //     emit WithdrawalProven(_withdrawalHash, alice, bob);
+    //     op.proveWithdrawalTransaction(
+    //         _defaultTx,
+    //         _proposedBlockNumber,
+    //         _outputRootProof,
+    //         _withdrawalProof
+    //     );
+    //
+    //     uint256 initTimestamp = block.timestamp;
+    //
+    //     // Warp to after the finalization period
+    //     vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+    //
+    //     // Mock a timestamp change on the output proposal that has not passed the
+    //     // finalization period.
+    //     vm.mockCall(
+    //         address(op.L2_ORACLE()),
+    //         abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+    //         abi.encode(Types.OutputProposal(_outputRoot, initTimestamp - 1))
+    //     );
+    //
+    //     // Attempt to finalize the withdrawal
+    //     vm.expectRevert(
+    //         "OptimismPortal: output proposal timestamp is less than proven withdrawal timestamp"
+    //     );
+    //     op.finalizeWithdrawalTransaction(_defaultTx);
+    //
+    //     // Ensure that bob's balance has remained the same
+    //     assertEq(bobBalanceBefore, address(bob).balance);
+    // }
 
     // Test: finalizeWithdrawalTransaction fails because the target reverts,
     // and emits the WithdrawalFinalized event with success=false.
@@ -511,7 +559,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.etch(bob, hex"fe"); // Contract with just the invalid opcode.
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -551,7 +599,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     // Test: finalizeWithdrawalTransaction reverts if the withdrawal has already been finalized.
     function test_finalizeWithdrawalTransaction_onReplay_reverts() external {
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(_withdrawalHash);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
@@ -644,7 +692,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalProven(withdrawalHash);
+        emit WithdrawalProven(withdrawalHash, alice, address(this));
         op.proveWithdrawalTransaction(
             _testTx,
             _proposedBlockNumber,

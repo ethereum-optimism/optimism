@@ -1735,7 +1735,8 @@ export class CrossChainMessenger {
             withdrawalTx.value,
             withdrawalTx.minGasLimit,
             withdrawalTx.message,
-          ]
+          ],
+          opts?.overrides || {}
         )
       } else {
         // L1CrossDomainMessenger relayMessage is the only method that isn't fully backwards

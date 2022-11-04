@@ -197,10 +197,11 @@ func TestBedrockIndexer(t *testing.T) {
 		rpcClient, err := rpc.Dial(sys.Nodes["sequencer"].HTTPEndpoint())
 		require.NoError(t, err)
 		proofClient := withdrawals.NewClient(rpcClient)
-		wParams, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofClient, wdTx.Hash(), finHeader)
+		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofClient, wdTx.Hash(), finHeader)
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
+		// TODO: Fix these tests in accordance w/ changes in `op-e2e`
 		finTx, err := portal.FinalizeWithdrawalTransaction(
 			l1Opts,
 			bindings.TypesWithdrawalTransaction{
