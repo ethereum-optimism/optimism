@@ -71,13 +71,17 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
+	gasLimit := uint64(config.L2GenesisBlockGasLimit)
+	if gasLimit == 0 {
+		gasLimit = defaultL2GasLimit
+	}
 	data, err := sysCfgABI.Pack(
 		"initialize",
 		config.SystemConfigOwner,
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
-		uint64(config.L2GenesisBlockGasLimit),
+		gasLimit,
 	)
 	if err != nil {
 		return nil, err
