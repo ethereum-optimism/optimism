@@ -2,6 +2,12 @@ module github.com/ethereum-optimism/optimism/op-e2e
 
 go 1.18
 
+// temporary, until we do another set of releases
+replace (
+	github.com/ethereum-optimism/optimism/op-batcher v0.9.0 => ../op-batcher
+	github.com/ethereum-optimism/optimism/op-proposer v0.9.0 => ../op-proposer
+)
+
 require (
 	github.com/ethereum-optimism/optimism/op-batcher v0.9.0
 	github.com/ethereum-optimism/optimism/op-bindings v0.9.0
@@ -9,21 +15,21 @@ require (
 	github.com/ethereum-optimism/optimism/op-node v0.9.0
 	github.com/ethereum-optimism/optimism/op-proposer v0.9.0
 	github.com/ethereum-optimism/optimism/op-service v0.9.0
-	github.com/ethereum/go-ethereum v1.10.23
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/libp2p/go-libp2p v0.21.0
 	github.com/libp2p/go-libp2p-core v0.19.1
-	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.8.0
+	github.com/tynes/go-ethereum-hdwallet v0.1.2
 )
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/btcsuite/btcd v0.22.1 // indirect
+	github.com/btcsuite/btcd v0.23.3 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
+	github.com/btcsuite/btcd/btcutil v1.1.0 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/coreos/go-systemd/v22 v22.3.2 // indirect

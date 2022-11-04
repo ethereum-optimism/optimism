@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	hdwallet "github.com/tynes/go-ethereum-hdwallet"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"

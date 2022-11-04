@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
+	hdwallet "github.com/tynes/go-ethereum-hdwallet"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
