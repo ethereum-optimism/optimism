@@ -14,6 +14,7 @@ contracts=(
   contracts/L1/L1StandardBridge.sol:L1StandardBridge
   contracts/L1/L2OutputOracle.sol:L2OutputOracle
   contracts/L1/OptimismPortal.sol:OptimismPortal
+  contracts/L1/SystemConfig.sol:SystemConfig
   contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist
   contracts/L2/GasPriceOracle.sol:GasPriceOracle
   contracts/L2/L1Block.sol:L1Block

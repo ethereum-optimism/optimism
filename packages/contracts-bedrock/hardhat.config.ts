@@ -203,6 +203,10 @@ const config: HardhatUserConfig = {
       default: 2,
     },
 
+    systemConfigOwner: {
+      type: 'address',
+    },
+
     // Optional L1 genesis block values. These must ONLY be used by the L1 genesis config script.
     // Not all deployments may create a new L1 chain, but instead attach to an existing L1 chain, like Goerli.
     // -------------------------------------------------

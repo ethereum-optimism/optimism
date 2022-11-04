@@ -49,7 +49,7 @@ func TestReorgOrphanBlock(gt *testing.T) {
 
 	// new L1 block with L2 batch
 	miner.ActL1StartBlock(12)(t)
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	batchTx := miner.l1Transactions[0]
 	miner.ActL1EndBlock(t)
 
@@ -81,7 +81,7 @@ func TestReorgOrphanBlock(gt *testing.T) {
 	// and there's no way to manually trigger runReorg, so we re-insert it ourselves.
 	require.NoError(t, miner.eth.TxPool().AddLocal(batchTx))
 	// need to re-insert previously included tx into the block
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
 	// sync the verifier again: now it should be safe again
@@ -134,7 +134,7 @@ func TestReorgFlipFlop(gt *testing.T) {
 	// new L1 block A1 with L2 batch
 	miner.ActL1SetFeeRecipient(common.Address{'A', 1})
 	miner.ActL1StartBlock(12)(t)
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	batchTxA := miner.l1Transactions[0]
 	miner.ActL1EndBlock(t)
 
@@ -159,7 +159,7 @@ func TestReorgFlipFlop(gt *testing.T) {
 	miner.ActL1SetFeeRecipient(common.Address{'B', 1})
 	miner.ActL1StartBlock(12)(t)
 	require.NoError(t, miner.eth.TxPool().AddLocal(batchTxA))
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
 	// make B2, the reorg is picked up when we have a new longer chain
@@ -188,7 +188,7 @@ func TestReorgFlipFlop(gt *testing.T) {
 	batcher.ActSubmitAll(t)
 	miner.ActL1SetFeeRecipient(common.Address{'B', 3})
 	miner.ActL1StartBlock(12)(t)
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
 	// sync the verifier to the L2 chain with origin B2
@@ -215,7 +215,7 @@ func TestReorgFlipFlop(gt *testing.T) {
 	miner.ActL1SetFeeRecipient(common.Address{'A', 2})
 	miner.ActL1StartBlock(12)(t)
 	require.NoError(t, miner.eth.TxPool().AddLocal(batchTxA)) // replay chain A batches, but now in A2 instead of A1
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
 	// build more L1 blocks, so the chain is long enough for reorg to be picked up
@@ -244,7 +244,7 @@ func TestReorgFlipFlop(gt *testing.T) {
 	batcher.ActSubmitAll(t)
 	miner.ActL1SetFeeRecipient(common.Address{'A', 5})
 	miner.ActL1StartBlock(12)(t)
-	miner.ActL1IncludeTx(sd.RollupCfg.BatchSenderAddress)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
 	miner.ActL1EndBlock(t)
 
 	// sync verifier to what ths sequencer submitted

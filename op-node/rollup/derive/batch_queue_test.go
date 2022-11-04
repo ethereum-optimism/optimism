@@ -7,14 +7,15 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 type fakeBatchQueueInput struct {
@@ -102,7 +103,7 @@ func TestBatchQueueNewOrigin(t *testing.T) {
 	}
 
 	bq := NewBatchQueue(log, cfg, input)
-	_ = bq.Reset(context.Background(), l1[0])
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
 	require.Equal(t, []eth.L1BlockRef{l1[0]}, bq.l1Blocks)
 
 	// Prev Origin: 0; Safehead Origin: 2; Internal Origin: 0
@@ -164,7 +165,7 @@ func TestBatchQueueEager(t *testing.T) {
 	}
 
 	bq := NewBatchQueue(log, cfg, input)
-	_ = bq.Reset(context.Background(), l1[0])
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
 	// Advance the origin
 	input.origin = l1[1]
 
@@ -215,7 +216,7 @@ func TestBatchQueueMissing(t *testing.T) {
 	}
 
 	bq := NewBatchQueue(log, cfg, input)
-	_ = bq.Reset(context.Background(), l1[0])
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
 
 	for i := 0; i < len(batches); i++ {
 		b, e := bq.NextBatch(context.Background(), safeHead)

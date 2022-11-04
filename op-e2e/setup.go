@@ -69,6 +69,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			L2OutputOracleProposer:           addresses.Proposer,
 			L2OutputOracleOwner:              common.Address{}, // tbd
 
+			SystemConfigOwner: addresses.SysCfgOwner,
+
 			L1BlockTime:                 2,
 			L1GenesisBlockNonce:         4660,
 			CliqueSignerAddress:         addresses.CliqueSigner,
@@ -99,7 +101,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			GasPriceOracleOwner:         addresses.Alice,                   // tbd
 			GasPriceOracleOverhead:      0,
 			GasPriceOracleScalar:        0,
-			GasPriceOracleDecimals:      0,
 			DeploymentWaitConfirmations: 1,
 
 			EIP1559Elasticity:  2,
@@ -278,7 +279,8 @@ func (cfg SystemConfig) Start() (*System, error) {
 					Hash:   l2Genesis.ToBlock().Hash(),
 					Number: 0,
 				},
-				L2Time: uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				L2Time:       uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 			},
 			BlockTime:              cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:      cfg.DeployConfig.MaxSequencerDrift,
@@ -288,8 +290,8 @@ func (cfg SystemConfig) Start() (*System, error) {
 			L2ChainID:              cfg.L2ChainIDBig(),
 			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
-			BatchSenderAddress:     cfg.DeployConfig.BatchSenderAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
+			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 		}
 	}
 	defaultConfig := makeRollupConfig()

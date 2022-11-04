@@ -44,7 +44,7 @@ func CollectAddresses(sd *SetupData, dp *DeployParams) (out []common.Address) {
 		sd.RollupCfg.P2PSequencerAddress,
 		predeploys.SequencerFeeVaultAddr,
 		sd.RollupCfg.BatchInboxAddress,
-		sd.RollupCfg.BatchSenderAddress,
+		sd.RollupCfg.Genesis.SystemConfig.BatcherAddr,
 		sd.RollupCfg.DepositContractAddress,
 	)
 	//  - precompiles

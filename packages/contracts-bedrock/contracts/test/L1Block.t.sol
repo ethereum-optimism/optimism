@@ -13,7 +13,16 @@ contract L1BlockTest is CommonTest {
         lb = new L1Block();
         depositor = lb.DEPOSITOR_ACCOUNT();
         vm.prank(depositor);
-        lb.setL1BlockValues(uint64(1), uint64(2), 3, NON_ZERO_HASH, uint64(4));
+        lb.setL1BlockValues({
+            _number: uint64(1),
+            _timestamp: uint64(2),
+            _basefee: 3,
+            _hash: NON_ZERO_HASH,
+            _sequenceNumber: uint64(4),
+            _batcherHash: bytes32(0),
+            _l1FeeOverhead: 2,
+            _l1FeeScalar: 3
+        });
     }
 
     function test_updatesValues(
@@ -21,15 +30,21 @@ contract L1BlockTest is CommonTest {
         uint64 t,
         uint256 b,
         bytes32 h,
-        uint64 s
+        uint64 s,
+        bytes32 bt,
+        uint256 fo,
+        uint256 fs
     ) external {
         vm.prank(depositor);
-        lb.setL1BlockValues(n, t, b, h, s);
+        lb.setL1BlockValues(n, t, b, h, s, bt, fo, fs);
         assertEq(lb.number(), n);
         assertEq(lb.timestamp(), t);
         assertEq(lb.basefee(), b);
         assertEq(lb.hash(), h);
         assertEq(lb.sequenceNumber(), s);
+        assertEq(lb.batcherHash(), bt);
+        assertEq(lb.l1FeeOverhead(), fo);
+        assertEq(lb.l1FeeScalar(), fs);
     }
 
     function test_number() external {
@@ -54,12 +69,15 @@ contract L1BlockTest is CommonTest {
 
     function test_updateValues() external {
         vm.prank(depositor);
-        lb.setL1BlockValues(
-            type(uint64).max,
-            type(uint64).max,
-            type(uint256).max,
-            keccak256(abi.encode(1)),
-            type(uint64).max
-        );
+        lb.setL1BlockValues({
+            _number: type(uint64).max,
+            _timestamp: type(uint64).max,
+            _basefee: type(uint256).max,
+            _hash: keccak256(abi.encode(1)),
+            _sequenceNumber: type(uint64).max,
+            _batcherHash: bytes32(type(uint256).max),
+            _l1FeeOverhead: type(uint256).max,
+            _l1FeeScalar: type(uint256).max
+        });
     }
 }

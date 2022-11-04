@@ -8,15 +8,16 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 type testTx struct {
@@ -54,10 +55,10 @@ func TestDataFromEVMTransactions(t *testing.T) {
 	inboxPriv := testutils.RandomKey()
 	batcherPriv := testutils.RandomKey()
 	cfg := &rollup.Config{
-		L1ChainID:          big.NewInt(100),
-		BatchInboxAddress:  crypto.PubkeyToAddress(inboxPriv.PublicKey),
-		BatchSenderAddress: crypto.PubkeyToAddress(batcherPriv.PublicKey),
+		L1ChainID:         big.NewInt(100),
+		BatchInboxAddress: crypto.PubkeyToAddress(inboxPriv.PublicKey),
 	}
+	batcherAddr := crypto.PubkeyToAddress(batcherPriv.PublicKey)
 
 	altInbox := testutils.RandomAddress(rand.New(rand.NewSource(1234)))
 	altAuthor := testutils.RandomKey()
@@ -78,7 +79,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			txs:  []testTx{{to: &cfg.BatchInboxAddress, dataLen: 1234, author: inboxPriv, good: false}}},
 		{
 			name: "author is inbox",
-			txs:  []testTx{{to: &cfg.BatchSenderAddress, dataLen: 1234, author: batcherPriv, good: false}}},
+			txs:  []testTx{{to: &batcherAddr, dataLen: 1234, author: batcherPriv, good: false}}},
 		{
 			name: "unrelated",
 			txs:  []testTx{{to: &altInbox, dataLen: 1234, author: altAuthor, good: false}}},
@@ -103,6 +104,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 				{to: &altInbox, dataLen: 2020, value: 12, author: batcherPriv, good: false},
 			},
 		},
+		// TODO: test with different batcher key, i.e. when it's changed from initial config value by L1 contract
 	}
 
 	for i, tc := range testCases {
@@ -118,7 +120,7 @@ func TestDataFromEVMTransactions(t *testing.T) {
 			}
 		}
 
-		out := DataFromEVMTransactions(cfg, txs, testlog.Logger(t, log.LvlCrit))
+		out := DataFromEVMTransactions(cfg, batcherAddr, txs, testlog.Logger(t, log.LvlCrit))
 		require.ElementsMatch(t, expectedData, out)
 	}
 
