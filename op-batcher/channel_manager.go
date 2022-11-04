@@ -3,6 +3,7 @@ package op_batcher
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math"
 
@@ -14,9 +15,22 @@ import (
 
 var ErrReorg = errors.New("block does not extend existing chain")
 
+// txID is an opaque identifier for a transaction.
+// It's internal fields should not be inspected after creation & are subject to change.
+// This ID must be trivially comparable & work as a map key.
 type txID struct {
 	chID        derive.ChannelID
 	frameNumber uint16
+}
+
+func (id txID) String() string {
+	return fmt.Sprintf("%s:%d", id.chID.String(), id.frameNumber)
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (id txID) TerminalString() string {
+	return fmt.Sprintf("%s:%d", id.chID.TerminalString(), id.frameNumber)
 }
 
 type taggedData struct {
