@@ -1,3 +1,5 @@
+pragma solidity 0.8.15;
+
 import { Burn } from "../libraries/Burn.sol";
 
 contract FuzzBurn {
@@ -27,7 +29,7 @@ contract FuzzBurn {
      * updates the contract state if at least that amount of gas was not burned
      * by the library
      */
-    function testGas(uint256 _value) public {
+    function testGas(uint256 _value) public view {
         // cache the contract's current remaining gas
         uint256 preBurnGas = gasleft();
 
@@ -43,7 +45,7 @@ contract FuzzBurn {
         }
     }
 
-    function echidna_burn_eth() public view returns(bool) {
+    function echidna_burn_eth() public view returns (bool) {
         // ASSERTION: The amount burned should always match the amount passed exactly
         return !failedEthBurn;
     }

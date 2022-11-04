@@ -1,14 +1,15 @@
+pragma solidity 0.8.15;
+
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 
 contract FuzzOptimismPortal is OptimismPortal {
-    uint reinitializedCount;
+    uint256 reinitializedCount;
     bool failedDepositCreationNonZeroAddr;
     bool failedAliasingContractFromAddr;
     bool failedNoAliasingFromEOA;
     bool failedMintedLessThanTaken;
-
 
     constructor() OptimismPortal(L2OutputOracle(address(0)), 10) {
         // Note: The base constructor will call initialize() once here.
@@ -28,13 +29,17 @@ contract FuzzOptimismPortal is OptimismPortal {
      * a deposit with _isCreation set to true never succeeds with a _to address that
      * has a non-zero value.
      */
-    function depositTransactionIsCreation(address _to, uint256 _value, uint64 _gasLimit, bytes memory _data) public {
+    function depositTransactionIsCreation(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bytes memory _data
+    ) public {
         // Deposit with our given fuzz parameters and _isCreation set to true
         depositTransaction(_to, _value, _gasLimit, true, _data);
 
         // If we did not revert and our _to address is not zero, flag a failure.
-        if (_to != address(0x0))
-        {
+        if (_to != address(0x0)) {
             failedDepositCreationNonZeroAddr = true;
         }
     }
@@ -44,12 +49,25 @@ contract FuzzOptimismPortal is OptimismPortal {
      * contract address (itself, it performs an external call) to ensure contract
      * aliasing is tested by depositTransactionTestInternal.
      */
-    function depositTransactionFromContract(address _to, uint256 _value, uint64 _gasLimit, bool _isCreation, bytes memory _data) public payable {
-        // We perform an external call to our own address to trigger the conditions for a deposit by a contract address.
-        // This is because when we perform an external call, the receiving function will see msg.sender as the caller's address.
-        // Because we provide a function to ensure a call from a contract address, we'll be sure the fuzzer tested
-        // this case.
-        OptimismPortal(payable(this)).depositTransaction{value: msg.value}(_to, _value, _gasLimit, _isCreation, _data);
+    function depositTransactionFromContract(
+        address _to,
+        uint256 _value,
+        uint64 _gasLimit,
+        bool _isCreation,
+        bytes memory _data
+    ) public payable {
+        // We perform an external call to our own address to trigger the conditions for a deposit
+        // by a contract address. This is because when we perform an external call, the receiving
+        // function will see msg.sender as the caller's address.
+        // Because we provide a function to ensure a call from a contract address, we'll be sure the
+        // fuzzer tested this case.
+        OptimismPortal(payable(this)).depositTransaction{ value: msg.value }(
+            _to,
+            _value,
+            _gasLimit,
+            _isCreation,
+            _data
+        );
     }
 
     /**
@@ -61,18 +79,18 @@ contract FuzzOptimismPortal is OptimismPortal {
      */
     function depositTransactionTestInternal(
         address from,
-        address to,
-        uint256 version,
+        address,
+        uint256,
         uint256 mintValue,
-        uint256 sendValue,
-        uint64 gasLimit,
-        bool isCreation,
-        bytes memory data
-    ) override internal {
+        uint256,
+        uint64,
+        bool,
+        bytes memory
+    ) internal {
         // Check if the caller is a contract and confirm our address aliasing properties
         if (msg.sender != tx.origin) {
             // If the caller is a contract, we expect the address to be aliased.
-            if(AddressAliasHelper.undoL1ToL2Alias(from) != msg.sender) {
+            if (AddressAliasHelper.undoL1ToL2Alias(from) != msg.sender) {
                 failedAliasingContractFromAddr = true;
             }
         } else {
@@ -107,6 +125,4 @@ contract FuzzOptimismPortal is OptimismPortal {
     function echidna_mint_less_than_taken() public view returns (bool) {
         return !failedMintedLessThanTaken;
     }
-
-
 }

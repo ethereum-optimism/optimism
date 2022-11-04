@@ -1,3 +1,5 @@
+pragma solidity 0.8.15;
+
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 
 contract FuzzAddressAliasing {
@@ -24,7 +26,7 @@ contract FuzzAddressAliasing {
     /**
      * @notice Verifies that testRoundTrip(...) did not ever fail.
      */
-    function echidna_round_trip_aliasing() public view returns(bool) {
+    function echidna_round_trip_aliasing() public view returns (bool) {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.
         return !failedRoundtrip;
     }

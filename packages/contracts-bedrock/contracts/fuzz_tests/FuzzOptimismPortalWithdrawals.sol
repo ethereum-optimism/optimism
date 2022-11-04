@@ -1,3 +1,5 @@
+pragma solidity 0.8.15;
+
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
@@ -11,16 +13,18 @@ contract EchidnaL2OutputOracle is L2OutputOracle {
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         uint256 _l2BlockTime
-    ) L2OutputOracle(
-        _submissionInterval,
-        _genesisL2Output,
-        _historicalTotalBlocks,
-        _startingBlockNumber,
-        _startingTimestamp,
-        _l2BlockTime,
-        address(0xAbBa),
-        address(0xACDC)
-    ) {
+    )
+        L2OutputOracle(
+            _submissionInterval,
+            _genesisL2Output,
+            _historicalTotalBlocks,
+            _startingBlockNumber,
+            _startingTimestamp,
+            _l2BlockTime,
+            address(0xAbBa),
+            address(0xACDC)
+        )
+    {
         // standard initialization migrates both proposer and owner from the
         // deployer to new addresses and prevents them from being the same
         // address. however, we need the Fuzz[...] contract, the deployer in
@@ -32,7 +36,7 @@ contract EchidnaL2OutputOracle is L2OutputOracle {
     }
 }
 
-contract FuzzOptimismPortalWithdrawals{
+contract FuzzOptimismPortalWithdrawals {
     // since portal.finalizedWithdrawals is declared `external`, we can't use helper
     // functions to check state before/after withdrawals, so we split these tests
     // into a separate contract that only interacts externally
@@ -42,7 +46,7 @@ contract FuzzOptimismPortalWithdrawals{
     Types.WithdrawalTransaction cachedTx;
     uint256 cachedL2BlockNumber;
     Types.OutputRootProof cachedOutputRootProof;
-    bytes cachedWithdrawalProof;
+    bytes[] cachedWithdrawalProof;
 
     uint256 offset;
 
@@ -60,7 +64,7 @@ contract FuzzOptimismPortalWithdrawals{
      */
     function proposeL2Output(
         bytes32 _outputRoot,
-        bytes32 _l2BlockNumber,
+        bytes32,
         bytes32 _l1Blockhash,
         uint256 _l1BlockNumber
     ) public {
@@ -76,11 +80,16 @@ contract FuzzOptimismPortalWithdrawals{
         Types.WithdrawalTransaction calldata _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes[] memory _withdrawalProof
     ) public {
         // TODO: craft a valid call to oracle.proposeL2Output for this generated withdrawal
 
-        portal.finalizeWithdrawalTransaction(_tx, _l2BlockNumber, _outputRootProof, _withdrawalProof);
+        portal.finalizeWithdrawalTransaction(
+            _tx,
+            _l2BlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
 
         // if we haven't reverted, we have a valid withdrawal transaction.
         // save it so we can test for replay protection
@@ -99,13 +108,19 @@ contract FuzzOptimismPortalWithdrawals{
         Types.WithdrawalTransaction calldata _tx,
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        bytes[] calldata _withdrawalProof
     ) public {
         // TODO: craft a valid call to oracle.proposeL2Output, still within the finalization period
 
-        portal.finalizeWithdrawalTransaction(_tx, _l2BlockNumber, _outputRootProof, _withdrawalProof);
+        portal.finalizeWithdrawalTransaction(
+            _tx,
+            _l2BlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
 
-        // Execution should have reverted prior to this since we're still within the finalization window
+        // Execution should have reverted prior to this since we're still within the finalization
+        // window
         failedFinalizeEarly = true;
     }
 
@@ -122,7 +137,12 @@ contract FuzzOptimismPortalWithdrawals{
 
     function echidna_never_finalize_twice() public returns (bool) {
         if (cachedL2BlockNumber != 0) {
-            portal.finalizeWithdrawalTransaction(cachedTx, cachedL2BlockNumber, cachedOutputRootProof, cachedWithdrawalProof);
+            portal.finalizeWithdrawalTransaction(
+                cachedTx,
+                cachedL2BlockNumber,
+                cachedOutputRootProof,
+                cachedWithdrawalProof
+            );
             return false;
         }
         return true;
@@ -130,7 +150,12 @@ contract FuzzOptimismPortalWithdrawals{
 
     function echidna_never_finalize_no_oracle_data() public returns (bool) {
         if (cachedL2BlockNumber != 0) {
-            portal.finalizeWithdrawalTransaction(cachedTx, (oracle.nextBlockNumber() + (offset % 5000)), cachedOutputRootProof, cachedWithdrawalProof);
+            portal.finalizeWithdrawalTransaction(
+                cachedTx,
+                (oracle.nextBlockNumber() + (offset % 5000)),
+                cachedOutputRootProof,
+                cachedWithdrawalProof
+            );
             return false;
         }
         return true;

@@ -1,3 +1,5 @@
+pragma solidity 0.8.15;
+
 import { Encoding } from "../libraries/Encoding.sol";
 
 contract FuzzEncoding {
@@ -9,7 +11,7 @@ contract FuzzEncoding {
      *         Encoding library and then decoded and updates the test contract's state
      *         indicating if the round trip encoding failed.
      */
-    function testRoundTripAToB(uint240 _nonce,  uint16 _version) public {
+    function testRoundTripAToB(uint240 _nonce, uint16 _version) public {
         // encode the address
         uint256 encodedVersionedNonce = Encoding.encodeVersionedNonce(_nonce, _version);
 
@@ -31,7 +33,6 @@ contract FuzzEncoding {
      *         the test contract's state indicating if the round trip encoding failed.
      */
     function testRoundTripBToA(uint256 _versionedNonce) public {
-
         // Unalias our address
         uint240 decodedNonce;
         uint16 decodedVersion;
@@ -50,8 +51,9 @@ contract FuzzEncoding {
     /**
      * @notice Verifies that testRoundTrip(...) did not ever fail.
      */
-    function echidna_round_trip_encoding() public view returns(bool) {
-        // ASSERTION: The round trip encoding done in testRoundTripAToB(...)/BToA(...) should never fail.
+    function echidna_round_trip_encoding() public view returns (bool) {
+        // ASSERTION: The round trip encoding done in testRoundTripAToB(...)/BToA(...) should never
+        // fail.
         return !failedRoundtripAToB && !failedRoundtripBToA;
     }
 }

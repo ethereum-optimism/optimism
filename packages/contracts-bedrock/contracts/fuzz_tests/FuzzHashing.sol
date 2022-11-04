@@ -1,3 +1,5 @@
+pragma solidity 0.8.15;
+
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
@@ -22,8 +24,8 @@ contract FuzzHashing {
         // generate the versioned nonce
         uint256 encodedNonce = Encoding.encodeVersionedNonce(_nonce, _version);
 
-        // hash the cross domain message. we don't need to store the result since the function validates
-        // and should revert if an invalid version (>1) is encoded
+        // hash the cross domain message. we don't need to store the result since the function
+        // validates and should revert if an invalid version (>1) is encoded
         Hashing.hashCrossDomainMessage(encodedNonce, _sender, _target, _value, _gasLimit, _data);
 
         // check that execution never makes it this far for an invalid version
@@ -47,9 +49,22 @@ contract FuzzHashing {
         // generate the versioned nonce with the version set to 0
         uint256 encodedNonce = Encoding.encodeVersionedNonce(_nonce, 0);
 
-        // hash the cross domain message using the unversioned and versioned functions for comparison
-        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(encodedNonce, _sender, _target, _value, _gasLimit, _data);
-        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV0(_target, _sender, _data, encodedNonce);
+        // hash the cross domain message using the unversioned and versioned functions for
+        // comparison
+        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(
+            encodedNonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
+        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV0(
+            _target,
+            _sender,
+            _data,
+            encodedNonce
+        );
 
         // check that the output of both functions matches
         if (sampleHash1 != sampleHash2) {
@@ -57,7 +72,7 @@ contract FuzzHashing {
         }
     }
 
-        /**
+    /**
      * @notice Takes the necessary parameters to perform a cross domain hash using the v1 schema
      * and compares the output of a call to the unversioned function to the v1 function directly
      */
@@ -72,9 +87,24 @@ contract FuzzHashing {
         // generate the versioned nonce with the version set to 1
         uint256 encodedNonce = Encoding.encodeVersionedNonce(_nonce, 1);
 
-        // hash the cross domain message using the unversioned and versioned functions for comparison
-        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(encodedNonce, _sender, _target, _value, _gasLimit, _data);
-        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV1(encodedNonce, _sender, _target, _value, _gasLimit, _data);
+        // hash the cross domain message using the unversioned and versioned functions for
+        // comparison
+        bytes32 sampleHash1 = Hashing.hashCrossDomainMessage(
+            encodedNonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
+        bytes32 sampleHash2 = Hashing.hashCrossDomainMessageV1(
+            encodedNonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
 
         // check that the output of both functions matches
         if (sampleHash1 != sampleHash2) {
@@ -82,8 +112,7 @@ contract FuzzHashing {
         }
     }
 
-
-    function echidna_hash_xdomain_msg_high_version() public view returns(bool) {
+    function echidna_hash_xdomain_msg_high_version() public view returns (bool) {
         // ASSERTION: A call to hashCrossDomainMessage will never succeed for a version > 1
         return !failedCrossDomainHashHighVersion;
     }
