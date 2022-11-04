@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
+const defaultL2GasLimit = 15_000_000
+
 // NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, error) {
 	if config.L2ChainID == 0 {
@@ -63,7 +65,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 	}
 	gasLimit := config.L2GenesisBlockGasLimit
 	if gasLimit == 0 {
-		gasLimit = 15_000_000
+		gasLimit = defaultL2GasLimit
 	}
 	baseFee := config.L2GenesisBlockBaseFeePerGas
 	if baseFee == nil {

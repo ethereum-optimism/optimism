@@ -144,6 +144,8 @@ github.com/ethereum-optimism/op-geth v0.0.0-20221025133509-99f188dc2f4a h1:qxa/c
 github.com/ethereum-optimism/op-geth v0.0.0-20221025133509-99f188dc2f4a/go.mod h1:/6CsT5Ceen2WPLI/oCA3xMcZ5sWMF/D46SjM/ayY0Oo=
 github.com/ethereum-optimism/op-geth v0.0.0-20221028165624-03aeaf2c39a5 h1:b0ySUX1hwS14+VDdXRS90eKA2S0IANYMftAP0CQGpoU=
 github.com/ethereum-optimism/op-geth v0.0.0-20221028165624-03aeaf2c39a5/go.mod h1:/6CsT5Ceen2WPLI/oCA3xMcZ5sWMF/D46SjM/ayY0Oo=
+github.com/ethereum-optimism/op-geth v0.0.0-20221104125741-d6c1bb9a110d h1:rDRvYVDftip53l1igBiLa3+CLPmIH2r0of2GTArMC60=
+github.com/ethereum-optimism/op-geth v0.0.0-20221104125741-d6c1bb9a110d/go.mod h1:/6CsT5Ceen2WPLI/oCA3xMcZ5sWMF/D46SjM/ayY0Oo=
 github.com/evanphx/json-patch v4.9.0+incompatible h1:kLcOMZeuLAJvL2BPWLMIj5oaZQobrkAqrL+WFZwQses=
 github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072 h1:DddqAaWDpywytcG8w/qoQ5sAN8X12d3Z3koB0C3Rxsc=
 github.com/fatih/structs v1.1.0 h1:Q7juDM0QtcnhCpeyLGQKyg4TOIghuNXrkL32pHAUMxo=

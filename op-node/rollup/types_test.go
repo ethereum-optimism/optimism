@@ -32,6 +32,7 @@ func randConfig() *Config {
 				BatcherAddr: randAddr(),
 				Overhead:    randHash(),
 				Scalar:      randHash(),
+				GasLimit:    1234567,
 			},
 		},
 		BlockTime:              2,

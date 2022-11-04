@@ -71,12 +71,17 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
+	gasLimit := uint64(config.L2GenesisBlockGasLimit)
+	if gasLimit == 0 {
+		gasLimit = defaultL2GasLimit
+	}
 	data, err := sysCfgABI.Pack(
 		"initialize",
 		config.SystemConfigOwner,
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
+		gasLimit,
 	)
 	if err != nil {
 		return nil, err
@@ -251,6 +256,10 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: proxy,
 		})
 	}
+	gasLimit := uint64(config.L2GenesisBlockGasLimit)
+	if gasLimit == 0 {
+		gasLimit = defaultL2GasLimit
+	}
 	constructors = append(constructors, []deployer.Constructor{
 		{
 			Name: "SystemConfig",
@@ -259,6 +268,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				uint642Big(config.GasPriceOracleOverhead),
 				uint642Big(config.GasPriceOracleScalar),
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
+				gasLimit,
 			},
 		},
 		{
@@ -321,6 +331,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[1].(*big.Int),
 			deployment.Args[2].(*big.Int),
 			deployment.Args[3].(common.Hash),
+			deployment.Args[4].(uint64),
 		)
 	case "L2OutputOracle":
 		_, tx, _, err = bindings.DeployL2OutputOracle(

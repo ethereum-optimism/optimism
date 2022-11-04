@@ -93,5 +93,6 @@ func PreparePayloadAttributes(ctx context.Context, cfg *rollup.Config, dl L1Rece
 		SuggestedFeeRecipient: predeploys.SequencerFeeVaultAddr,
 		Transactions:          txs,
 		NoTxPool:              true,
+		GasLimit:              (*eth.Uint64Quantity)(&sysConfig.GasLimit),
 	}, nil
 }
