@@ -54,8 +54,6 @@ type channelManager struct {
 	datas  []taggedData
 
 	// Pending data returned by TxData waiting on Tx Confirmed/Failed
-	// channelPending is true if there is an unconfirmed channel
-	channelPending bool
 	// id of the pending channel
 	pendingChannel derive.ChannelID
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
@@ -70,7 +68,6 @@ func NewChannelManager(log log.Logger, channelTimeout uint64) *channelManager {
 	return &channelManager{
 		log:                   log,
 		channelTimeout:        channelTimeout,
-		channelPending:        false,
 		pendingTransactions:   make(map[txID][]byte),
 		confirmedTransactions: make(map[txID]eth.BlockID),
 	}
@@ -109,7 +106,6 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 
 // TODO: Create separate "pending" state
 func (s *channelManager) clearPendingChannel() {
-	s.channelPending = false
 	s.pendingChannel = derive.ChannelID{}
 	s.pendingBlocks = nil
 	s.pendingTransactions = make(map[txID][]byte)
@@ -117,7 +113,7 @@ func (s *channelManager) clearPendingChannel() {
 }
 
 func (s *channelManager) pendingChannelIsTimedOut() bool {
-	if !s.channelPending {
+	if s.pendingChannel == (derive.ChannelID{}) {
 		return false // no channel to be timed out
 	}
 	min := uint64(math.MaxUint64)
@@ -134,7 +130,7 @@ func (s *channelManager) pendingChannelIsTimedOut() bool {
 }
 
 func (s *channelManager) pendingChannelIsFullySubmitted() bool {
-	if !s.channelPending {
+	if s.pendingChannel == (derive.ChannelID{}) {
 		return false // todo: can decide either way here. Nonsensical answer though
 	}
 	return len(s.pendingTransactions)+len(s.datas) == 0
@@ -206,7 +202,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 
 	// Short circuit if there is a pending channel.
 	// We either submit the next frame from that channel or
-	if s.channelPending {
+	if s.pendingChannel != (derive.ChannelID{}) {
 		return s.nextTxData()
 	}
 	// If we have no saved blocks, we will not be able to create valid frames
@@ -239,7 +235,6 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 
 	// Load up pending state. Note: pending transactions is taken care of by nextTxData
 	s.datas = t
-	s.channelPending = true
 	s.pendingChannel = chID
 	s.pendingBlocks = blocks[:len(leftOverBlocks)]
 
