@@ -279,11 +279,12 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
-				// Drop receipt + error for now
+				// Record TX Status
 				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
 					l.log.Error("Failed to send transaction", "err", err)
 					l.state.TxFailed(id)
 				} else {
+					l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
 					l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
 				}
 			}
