@@ -48,7 +48,7 @@ jobs:
   yarn-monorepo:
     docker:
       - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - checkout
       - run:
@@ -150,7 +150,7 @@ jobs:
   contracts-bedrock-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
-    resource_class: large
+    resource_class: 2xlarge
     steps:
       - checkout
       - attach_workspace: {at: "."}
