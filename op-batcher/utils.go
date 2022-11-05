@@ -62,8 +62,7 @@ func dialPoDAClientWithTimeout(ctx context.Context, url string) (*sources.PoDACl
 		return nil, err
 	}
 
-	r
-	eturn sources.NewPoDAClient(client.NewBaseRPCClient(rpcCl)), nil
+	return sources.NewPoDAClient(client.NewBaseRPCClient(rpcCl)), nil
 }
 // parseAddress parses an ETH address from a hex string. This method will fail if
 // the address is not a valid hexadecimal address.

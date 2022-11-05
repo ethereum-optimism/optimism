@@ -291,7 +291,7 @@ func (l *BatchSubmitter) loop() {
 					break
 				}
 				// post data.Bytes() into SYS RPC to get version hash
-				vh, err := l.cfg.SyscoinNode.CreatePoDA(ctx, data.Bytes())
+				vh, err := l.cfg.SyscoinNode.CreatePoDA(l.ctx, data)
 				if err != nil {
 					l.log.Error("unable to create PoDA tx", "err", err)
 					break
@@ -301,7 +301,7 @@ func (l *BatchSubmitter) loop() {
 			vhBytes := make([]byte, 0)
 			for _, vh := range VHs {
 				// wait for VH to confirm (MTP > 0)
-				podaCreateStatus, err := l.cfg.SyscoinNode.IsPoDAConfirmed(ctx, vh)
+				podaCreateStatus, err := l.cfg.SyscoinNode.IsPoDAConfirmed(l.ctx, vh)
 				if err != nil {
 					l.log.Error("unable to check for PoDA confirmation", "err", err)
 					break
@@ -312,45 +312,14 @@ func (l *BatchSubmitter) loop() {
 				}
 				vhBytes = append(vhBytes, vh.Bytes()...)
 			}
-			// Query for the submitter's current nonce.
-			walletAddr := crypto.PubkeyToAddress(l.cfg.PrivKey.PublicKey)
-			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
-			nonce, err := l.cfg.L1Client.NonceAt(ctx, walletAddr, nil)
-			cancel()
-			if err != nil {
-				l.log.Error("unable to get current nonce", "err", err)
-				break
-			}
 			// Create the transaction
-			ctx, cancel = context.WithTimeout(l.ctx, time.Second*10)
 			// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
 			sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
 			calldata := append(sig, vhBytes...)
-			tx, err := l.CraftTx(ctx, calldata, nonce)
-			cancel()
-			if err != nil {
-				l.log.Error("unable to craft tx", "err", err)
-				break
-			}
 
-			// Construct the a closure that will update the txn with the current gas prices.
-			updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-				l.log.Debug("updating batch tx gas price")
-				return l.UpdateGasPrice(ctx, tx, uint64(len(VHs))*1800)
-			}
-
-			// Wait until one of our submitted transactions confirms. If no
-			// receipt is received it's likely our gas price was too low.
-			// TODO: does the tx manager nicely replace the tx?
-			//  (submit a new one, that's within the channel timeout, but higher fee than previously submitted tx? Or use a cheap cancel tx?)
-			ctx, cancel = context.WithTimeout(l.ctx, time.Second*time.Duration(l.cfg.ChannelTimeout))
-			receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.cfg.L1Client.SendTransaction)
-			cancel()
+			_, err := l.txMgr.SendTransaction(l.ctx, calldata, uint64(len(VHs))*1800)
 			if err != nil {
 				l.log.Error("Failed to send transaction", "err", err)
-			} else {
-				// The transaction was successfully submitted.
-				l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "channel_id", l.ch.ID())
 			}
 
 		case <-l.done:

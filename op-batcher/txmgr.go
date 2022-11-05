@@ -52,14 +52,14 @@ func NewTransactionManger(log log.Logger, txMgrConfg txmgr.Config, batchInboxAdd
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
-func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, updateGasPriceExtra uint64) (*types.Receipt, error) {
 	tx, err := t.CraftTx(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
 	// Construct a closure that will update the txn with the current gas prices.
 	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-		return t.UpdateGasPrice(ctx, tx)
+		return t.UpdateGasPrice(ctx, tx, updateGasPriceExtra)
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 100*time.Second) // TODO: Select a timeout that makes sense here.

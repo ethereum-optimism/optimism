@@ -25,14 +25,32 @@ RUN apk --no-cache add \
 # pruned within minutes of starting the tanenbaum.
 RUN echo $'mkdir -p ${SYSCOIN_DATA}/testnet3/geth/keystore/' >> geth.sh
 RUN echo $'syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DATA} \
+	--server=1 \
+	--rpcuser=u \
+	--rpcpassword=p \
     --gethcommandline=--exitwhensynced \
 	--gethcommandline=--datadir="$GETH_DATA_DIR" \
+	--gethcommandline=--verbosity="$VERBOSITY" \
+	--gethcommandline=--http \
+	--gethcommandline=--http.corsdomain="*" \
+	--gethcommandline=--http.vhosts="*" \
+	--gethcommandline=--http.addr=0.0.0.0 \
+	--gethcommandline=--http.port="$RPC_PORT" \
+	--gethcommandline=--http.api=web3,debug,eth,txpool,net,engine \
+	--gethcommandline=--ws \
+	--gethcommandline=--ws.addr=0.0.0.0 \
+	--gethcommandline=--ws.port="$WS_PORT" \
+	--gethcommandline=--ws.origins="*" \
+	--gethcommandline=--ws.api=debug,eth,txpool,net,engine \
 	--gethcommandline=--syncmode=full \
 	--gethcommandline=--nodiscover \
 	--gethcommandline=--maxpeers=1 \
 	--gethcommandline=--allow-insecure-unlock \
 	--gethcommandline=--gcmode=archive' >> geth.sh
 RUN echo $'exec syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DATA} \
+	--server=1 \
+	--rpcuser=u \
+	--rpcpassword=p \
 	--gethcommandline=--datadir="$GETH_DATA_DIR" \
 	--gethcommandline=--verbosity="$VERBOSITY" \
 	--gethcommandline=--http \

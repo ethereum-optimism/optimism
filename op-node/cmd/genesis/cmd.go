@@ -217,7 +217,6 @@ func makeRollupConfig(
 		L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
 		P2PSequencerAddress:    config.P2PSequencerAddress,
 		BatchInboxAddress:      batchInboxAddr,
-		BatchSenderAddress:     config.BatchSenderAddress,
 		DepositContractAddress: portalAddr,
 		L2OutputOracleAddress:  outputOracleAddr,
 		L1SystemConfigAddress:  sysConfigAddr,
