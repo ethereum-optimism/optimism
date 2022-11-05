@@ -3,7 +3,8 @@ import time
 DEV_ACCOUNTS = [
     '3c44cdddb6a900fa2b585dd299e03d12fa4293bc',
     '70997970c51812dc3a010c7d01b50e0d17dc79c8',
-    'f39fd6e51aad88f6f4ce6ab8827279cfffb92266'
+    'f39fd6e51aad88f6f4ce6ab8827279cfffb92266',
+    '3fab184622dc19b6109349b94811493bf2a45362'
 ]
 
 GENESIS_TMPL = {

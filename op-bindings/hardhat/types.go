@@ -40,6 +40,7 @@ type Receipt struct {
 	Logs              []Log           `json:"logs"`
 	BlockNumber       uint            `json:"blockNumber"`
 	CumulativeGasUsed uint            `json:"cumulativeGasUsed,string"`
+	EffectiveGasPrice uint            `json:"effectiveGasPrice,string"`
 	Status            uint            `json:"status"`
 	Byzantium         bool            `json:"byzantium"`
 }

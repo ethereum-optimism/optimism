@@ -64,6 +64,8 @@
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/abstract-signer": "^5.7.0",
     "ethereumjs-wallet": "^1.0.2",
+    "@chugsplash/core": "^0.4.2",
+    "@chugsplash/plugins": "^0.9.0",
     "@defi-wonderland/smock": "^2.0.2",
     "@foundry-rs/hardhat-forge": "^0.1.17",
     "@foundry-rs/easy-foundryup": "^0.1.3",

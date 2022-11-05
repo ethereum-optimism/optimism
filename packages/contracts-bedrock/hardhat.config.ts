@@ -7,6 +7,7 @@ import '@eth-optimism/hardhat-deploy-config'
 import '@foundry-rs/hardhat-forge'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
+import '@chugsplash/plugins'
 
 // Hardhat tasks
 import './tasks'

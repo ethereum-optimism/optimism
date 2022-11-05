@@ -36,9 +36,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         new L2OutputOracle(
             submissionInterval,
             l2BlockTime,
-            startingBlockNumber,
-            // startingTimestamp is in the future
-            block.timestamp + 1,
             proposer,
             owner
         );

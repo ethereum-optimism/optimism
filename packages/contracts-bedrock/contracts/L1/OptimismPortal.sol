@@ -119,7 +119,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(1, 0, 0) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        initialize();
     }
 
     /**

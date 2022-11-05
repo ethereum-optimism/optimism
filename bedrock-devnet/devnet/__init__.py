@@ -61,7 +61,7 @@ def main():
         addresses = read_json(addresses_json_path)
     else:
         log.info('Deploying contracts.')
-        run_command(['yarn', 'hardhat', '--network', 'devnetL1', 'deploy'], env={
+        run_command(['npx', 'hardhat', '--network', 'devnetL1', 'chugsplash-deploy', './chugsplash/mainnet.ts'], env={
             'CHAIN_ID': '900',
             'L1_RPC': 'http://localhost:8545',
             'PRIVATE_KEY_DEPLOYER': 'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'

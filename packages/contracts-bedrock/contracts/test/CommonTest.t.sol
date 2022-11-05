@@ -120,8 +120,6 @@ contract L2OutputOracle_Initializer is CommonTest {
         oracleImpl = new L2OutputOracle(
             submissionInterval,
             l2BlockTime,
-            startingBlockNumber,
-            startingTimestamp,
             proposer,
             owner
         );

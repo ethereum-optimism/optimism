@@ -889,6 +889,9 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
+      - bedrock-go-tests
+      - fuzz-op-node
+      - bedrock-markdown
       - devnet:
           name: devnet (with deployed contracts)
           deploy: true

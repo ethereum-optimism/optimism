@@ -8,14 +8,7 @@ contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
 
     function setUp() external {
-        sysConf = new SystemConfig({
-            _owner: alice,
-            _overhead: 2100,
-            _scalar: 1000000,
-            _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 9_000_000,
-            _unsafeBlockSigner: address(1)
-        });
+        sysConf = new SystemConfig();
     }
 }
 
@@ -25,14 +18,7 @@ contract SystemConfig_Initialize_TestFail is CommonTest {
 
         // The minimum gas limit defined in SystemConfig:
         uint64 MINIMUM_GAS_LIMIT = 8_000_000;
-        new SystemConfig({
-            _owner: alice,
-            _overhead: 0,
-            _scalar: 0,
-            _batcherHash: bytes32(hex""),
-            _gasLimit: MINIMUM_GAS_LIMIT - 1,
-            _unsafeBlockSigner: address(1)
-        });
+        new SystemConfig();
     }
 }
 

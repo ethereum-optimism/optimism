@@ -78,9 +78,6 @@ abstract contract ERC721Bridge {
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
     constructor(address _messenger, address _otherBridge) {
-        require(_messenger != address(0), "ERC721Bridge: messenger cannot be address(0)");
-        require(_otherBridge != address(0), "ERC721Bridge: other bridge cannot be address(0)");
-
         MESSENGER = CrossDomainMessenger(_messenger);
         OTHER_BRIDGE = _otherBridge;
     }

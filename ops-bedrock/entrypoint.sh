@@ -56,6 +56,7 @@ exec geth \
 	--maxpeers=1 \
 	--networkid=$CHAIN_ID \
 	--unlock=$BLOCK_SIGNER_ADDRESS \
+  --rpc.allow-unprotected-txs \
 	--mine \
 	--miner.etherbase=$BLOCK_SIGNER_ADDRESS \
 	--password="$GETH_DATA_DIR"/password \

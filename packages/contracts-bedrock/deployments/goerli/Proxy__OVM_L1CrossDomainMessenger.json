@@ -1,0 +1,1140 @@
+{
+	"contractName": "L1CrossDomainMessenger",
+	"address": "0x878308966A9011155E4e0Ae6895eD53e4e6f7A20",
+	"abi": [
+		{
+			"inputs": [
+				{
+					"internalType": "contract OptimismPortal",
+					"name": "_portal",
+					"type": "address"
+				}
+			],
+			"stateMutability": "nonpayable",
+			"type": "constructor"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "bytes32",
+					"name": "msgHash",
+					"type": "bytes32"
+				}
+			],
+			"name": "FailedRelayedMessage",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": false,
+					"internalType": "uint8",
+					"name": "version",
+					"type": "uint8"
+				}
+			],
+			"name": "Initialized",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "address",
+					"name": "previousOwner",
+					"type": "address"
+				},
+				{
+					"indexed": true,
+					"internalType": "address",
+					"name": "newOwner",
+					"type": "address"
+				}
+			],
+			"name": "OwnershipTransferred",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": false,
+					"internalType": "address",
+					"name": "account",
+					"type": "address"
+				}
+			],
+			"name": "Paused",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "bytes32",
+					"name": "msgHash",
+					"type": "bytes32"
+				}
+			],
+			"name": "RelayedMessage",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "address",
+					"name": "target",
+					"type": "address"
+				},
+				{
+					"indexed": false,
+					"internalType": "address",
+					"name": "sender",
+					"type": "address"
+				},
+				{
+					"indexed": false,
+					"internalType": "bytes",
+					"name": "message",
+					"type": "bytes"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "messageNonce",
+					"type": "uint256"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "gasLimit",
+					"type": "uint256"
+				}
+			],
+			"name": "SentMessage",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": true,
+					"internalType": "address",
+					"name": "sender",
+					"type": "address"
+				},
+				{
+					"indexed": false,
+					"internalType": "uint256",
+					"name": "value",
+					"type": "uint256"
+				}
+			],
+			"name": "SentMessageExtension1",
+			"type": "event"
+		},
+		{
+			"anonymous": false,
+			"inputs": [
+				{
+					"indexed": false,
+					"internalType": "address",
+					"name": "account",
+					"type": "address"
+				}
+			],
+			"name": "Unpaused",
+			"type": "event"
+		},
+		{
+			"inputs": [],
+			"name": "MESSAGE_VERSION",
+			"outputs": [
+				{
+					"internalType": "uint16",
+					"name": "",
+					"type": "uint16"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "MIN_GAS_CALLDATA_OVERHEAD",
+			"outputs": [
+				{
+					"internalType": "uint64",
+					"name": "",
+					"type": "uint64"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "MIN_GAS_CONSTANT_OVERHEAD",
+			"outputs": [
+				{
+					"internalType": "uint64",
+					"name": "",
+					"type": "uint64"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR",
+			"outputs": [
+				{
+					"internalType": "uint64",
+					"name": "",
+					"type": "uint64"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR",
+			"outputs": [
+				{
+					"internalType": "uint64",
+					"name": "",
+					"type": "uint64"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "OTHER_MESSENGER",
+			"outputs": [
+				{
+					"internalType": "address",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "PORTAL",
+			"outputs": [
+				{
+					"internalType": "contract OptimismPortal",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "bytes",
+					"name": "_message",
+					"type": "bytes"
+				},
+				{
+					"internalType": "uint32",
+					"name": "_minGasLimit",
+					"type": "uint32"
+				}
+			],
+			"name": "baseGas",
+			"outputs": [
+				{
+					"internalType": "uint64",
+					"name": "",
+					"type": "uint64"
+				}
+			],
+			"stateMutability": "pure",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "",
+					"type": "bytes32"
+				}
+			],
+			"name": "failedMessages",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "_owner",
+					"type": "address"
+				}
+			],
+			"name": "initialize",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "messageNonce",
+			"outputs": [
+				{
+					"internalType": "uint256",
+					"name": "",
+					"type": "uint256"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "owner",
+			"outputs": [
+				{
+					"internalType": "address",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "pause",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "paused",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "uint256",
+					"name": "_nonce",
+					"type": "uint256"
+				},
+				{
+					"internalType": "address",
+					"name": "_sender",
+					"type": "address"
+				},
+				{
+					"internalType": "address",
+					"name": "_target",
+					"type": "address"
+				},
+				{
+					"internalType": "uint256",
+					"name": "_value",
+					"type": "uint256"
+				},
+				{
+					"internalType": "uint256",
+					"name": "_minGasLimit",
+					"type": "uint256"
+				},
+				{
+					"internalType": "bytes",
+					"name": "_message",
+					"type": "bytes"
+				}
+			],
+			"name": "relayMessage",
+			"outputs": [],
+			"stateMutability": "payable",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "renounceOwnership",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "_target",
+					"type": "address"
+				},
+				{
+					"internalType": "bytes",
+					"name": "_message",
+					"type": "bytes"
+				},
+				{
+					"internalType": "uint32",
+					"name": "_minGasLimit",
+					"type": "uint32"
+				}
+			],
+			"name": "sendMessage",
+			"outputs": [],
+			"stateMutability": "payable",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "bytes32",
+					"name": "",
+					"type": "bytes32"
+				}
+			],
+			"name": "successfulMessages",
+			"outputs": [
+				{
+					"internalType": "bool",
+					"name": "",
+					"type": "bool"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [
+				{
+					"internalType": "address",
+					"name": "newOwner",
+					"type": "address"
+				}
+			],
+			"name": "transferOwnership",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "unpause",
+			"outputs": [],
+			"stateMutability": "nonpayable",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "version",
+			"outputs": [
+				{
+					"internalType": "string",
+					"name": "",
+					"type": "string"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		},
+		{
+			"inputs": [],
+			"name": "xDomainMessageSender",
+			"outputs": [
+				{
+					"internalType": "address",
+					"name": "",
+					"type": "address"
+				}
+			],
+			"stateMutability": "view",
+			"type": "function"
+		}
+	],
+	"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+	"solcInputHash": "099197f6ea66c426d16dfded79bfadc9",
+	"receipt": {
+		"to": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+		"from": "0x42761FAcF5e6091fcA0e38F450adfB1E22bD8c3C",
+		"contractAddress": null,
+		"transactionIndex": 32,
+		"gasUsed": "396541",
+		"logsBloom": "0x000000004000000000000000010000004002040000000000000420300000040080000040000000000000002000020000409000000000000100000000c202000000080002004000000000000010000a02880000400000024000002001000408008002080000000088000000000200000000000040100000000800100000000000000000000000040100000000000000220000000000000022008008800001020482000000000040002000500000440000000200000000000000000002000001011000042000804000021000488800000000020000000080202000000000200040000000000050a000208010020010000000000200020000a00040004000000040",
+		"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5",
+		"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+		"logs": [
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x921c7F6A0eB0f58500d9EF219Cb7C8393F013A5E",
+				"topics": [
+					"0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+					"0x000000000000000000000000c65e542e0d4e6b66b947e17bb74078e3ff6abc48"
+				],
+				"data": "0x",
+				"logIndex": 99,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x5bf13564eaf23d72e0f932b103ae464729ba2faaa9ec8a9449eed9dec9b8b9f2",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x000000000000000000000000921c7f6a0eb0f58500d9ef219cb7c8393f013a5e",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x000000000000000000000000000000000000000000000000000000000000001b",
+				"logIndex": 100,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x524ccd226c22cefbc337f02a4ec771a77e2df0925309645b4e79d650f11e2aa0",
+					"0x53322a642a37000c1b8bc2594a58ec5f0d6fa5d0f211fb7f1a2af55e21313e18",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b",
+					"0x2945fd49e6a5969a6a4bb791aa97b2ad9b395b7c0cac4b255d762699fef69c12"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000184368756753706c617368416374696f6e457865637574656400000000000000000000000000000000000000000000000000000000000000000000000000000014921c7f6a0eb0f58500d9ef219cb7c8393f013a5e000000000000000000000000",
+				"logIndex": 101,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3aF7bB16F10040091764Aa060835412D35e73a7A",
+				"topics": [
+					"0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+					"0x00000000000000000000000084e1bd6273a80e44dfedeeace7bb3b33b54642e5"
+				],
+				"data": "0x",
+				"logIndex": 102,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x5bf13564eaf23d72e0f932b103ae464729ba2faaa9ec8a9449eed9dec9b8b9f2",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x0000000000000000000000003af7bb16f10040091764aa060835412d35e73a7a",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x000000000000000000000000000000000000000000000000000000000000001c",
+				"logIndex": 103,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x524ccd226c22cefbc337f02a4ec771a77e2df0925309645b4e79d650f11e2aa0",
+					"0x53322a642a37000c1b8bc2594a58ec5f0d6fa5d0f211fb7f1a2af55e21313e18",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b",
+					"0x4f7181061e1fcac0cd31a7f6fcbb98b4023c1b52e1e708ea01e2f5105dc53456"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000184368756753706c617368416374696f6e4578656375746564000000000000000000000000000000000000000000000000000000000000000000000000000000143af7bb16f10040091764aa060835412d35e73a7a000000000000000000000000",
+				"logIndex": 104,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x5e5429E484103BFc474E3ba09E5d8ccdEf905BDD",
+				"topics": [
+					"0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+					"0x000000000000000000000000970437bfb04349c8d0cb5824b70072b56d2a149e"
+				],
+				"data": "0x",
+				"logIndex": 105,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x5bf13564eaf23d72e0f932b103ae464729ba2faaa9ec8a9449eed9dec9b8b9f2",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x0000000000000000000000005e5429e484103bfc474e3ba09e5d8ccdef905bdd",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x000000000000000000000000000000000000000000000000000000000000001d",
+				"logIndex": 106,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x524ccd226c22cefbc337f02a4ec771a77e2df0925309645b4e79d650f11e2aa0",
+					"0x53322a642a37000c1b8bc2594a58ec5f0d6fa5d0f211fb7f1a2af55e21313e18",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b",
+					"0xb869a6111b375934cc91cd6a2d7a6d0db9d420c05e08c851704d1471b8f2ccf1"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000184368756753706c617368416374696f6e4578656375746564000000000000000000000000000000000000000000000000000000000000000000000000000000145e5429e484103bfc474e3ba09e5d8ccdef905bdd000000000000000000000000",
+				"logIndex": 107,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x9f977046Fe6Fe53f3a1923622a3eC10B88Cb19A5",
+				"topics": [
+					"0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+					"0x00000000000000000000000026c09ab68e9379e065821e48d980a91a0fa1ae32"
+				],
+				"data": "0x",
+				"logIndex": 108,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x5bf13564eaf23d72e0f932b103ae464729ba2faaa9ec8a9449eed9dec9b8b9f2",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x0000000000000000000000009f977046fe6fe53f3a1923622a3ec10b88cb19a5",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x000000000000000000000000000000000000000000000000000000000000001e",
+				"logIndex": 109,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x524ccd226c22cefbc337f02a4ec771a77e2df0925309645b4e79d650f11e2aa0",
+					"0x53322a642a37000c1b8bc2594a58ec5f0d6fa5d0f211fb7f1a2af55e21313e18",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b",
+					"0x42ce8221b79808a3081a2c00ab2bbdacf78d79787e2d18880f9899415613b857"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000184368756753706c617368416374696f6e4578656375746564000000000000000000000000000000000000000000000000000000000000000000000000000000149f977046fe6fe53f3a1923622a3ec10b88cb19a5000000000000000000000000",
+				"logIndex": 110,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xC52f14c4B82eBB8664e120658025E57C60e098EC",
+				"topics": [
+					"0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+					"0x0000000000000000000000008d3bbc7a04ba65a3ee4481dd46b3677b96ac1761"
+				],
+				"data": "0x",
+				"logIndex": 111,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x5bf13564eaf23d72e0f932b103ae464729ba2faaa9ec8a9449eed9dec9b8b9f2",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x000000000000000000000000c52f14c4b82ebb8664e120658025e57c60e098ec",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x000000000000000000000000000000000000000000000000000000000000001f",
+				"logIndex": 112,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x524ccd226c22cefbc337f02a4ec771a77e2df0925309645b4e79d650f11e2aa0",
+					"0x53322a642a37000c1b8bc2594a58ec5f0d6fa5d0f211fb7f1a2af55e21313e18",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b",
+					"0xc5f3a9d7667409808d26370fc55e9b7331d1263e39c3017aaf42d60f62f08f12"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000184368756753706c617368416374696f6e457865637574656400000000000000000000000000000000000000000000000000000000000000000000000000000014c52f14c4b82ebb8664e120658025e57c60e098ec000000000000000000000000",
+				"logIndex": 113,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x878308966A9011155E4e0Ae6895eD53e4e6f7A20",
+				"topics": [
+					"0xbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b",
+					"0x0000000000000000000000009cf3bdb07a1ec3c2b8ebe8681d825e71044addf5"
+				],
+				"data": "0x",
+				"logIndex": 114,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x5bf13564eaf23d72e0f932b103ae464729ba2faaa9ec8a9449eed9dec9b8b9f2",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x000000000000000000000000878308966a9011155e4e0ae6895ed53e4e6f7a20",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000020",
+				"logIndex": 115,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x524ccd226c22cefbc337f02a4ec771a77e2df0925309645b4e79d650f11e2aa0",
+					"0x53322a642a37000c1b8bc2594a58ec5f0d6fa5d0f211fb7f1a2af55e21313e18",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b",
+					"0x6d2d85d62f2402ce9a1b3392f306f4a50bdde4c5f534c4cd86a6c32953d2b394"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000040000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000184368756753706c617368416374696f6e457865637574656400000000000000000000000000000000000000000000000000000000000000000000000000000014878308966a9011155e4e0ae6895ed53e4e6f7a20000000000000000000000000",
+				"logIndex": 116,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0x3cE48782D61558d94223BFC75001219fd5A59e2b",
+				"topics": [
+					"0x3340c852fb0c3d71565cea9b0ec2a6b4ff68cd164b3d30298b0d442917a864e9",
+					"0xa9912a3d772b15afd24cdbed8a869e6a1da5ea7cd7614b19b44d6c96df0e830a",
+					"0x00000000000000000000000042761facf5e6091fca0e38f450adfb1e22bd8c3c"
+				],
+				"data": "0x0000000000000000000000000000000000000000000000000000000000000021",
+				"logIndex": 117,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			},
+			{
+				"transactionIndex": 32,
+				"blockNumber": 8386830,
+				"transactionHash": "0xd51e325ac2739dcc3ff1dd8a23707928e4f45eb41e7d5b2be87a39c0566e8ddf",
+				"address": "0xEF8a9a05f97983711F0F23Eaf79116aFde3dEcB7",
+				"topics": [
+					"0x795f66a5da2addfeb09f1b32396ff2be31a38ebe0f85fae32133a226dbe065b3",
+					"0x324611fa8f5b7c09cdaf9658ec8ffe494dc0e6583f73a6c89102d7412cfa43d1",
+					"0x0000000000000000000000003ce48782d61558d94223bfc75001219fd5a59e2b"
+				],
+				"data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000194368756753706c61736842756e646c65436f6d706c6574656400000000000000",
+				"logIndex": 118,
+				"blockHash": "0xea07c00561e7acaa4abc5e67e36696e3b82466c5a113a5c7d83c89cf725022b5"
+			}
+		],
+		"blockNumber": 8386830,
+		"confirmations": 2,
+		"cumulativeGasUsed": "5221471",
+		"effectiveGasPrice": "19050791527",
+		"status": 1,
+		"type": 2,
+		"byzantium": true
+	},
+	"numDeployments": 1,
+	"metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"contract OptimismPortal\",\"name\":\"_portal\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"msgHash\",\"type\":\"bytes32\"}],\"name\":\"FailedRelayedMessage\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"Paused\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"msgHash\",\"type\":\"bytes32\"}],\"name\":\"RelayedMessage\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"target\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"message\",\"type\":\"bytes\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"messageNonce\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gasLimit\",\"type\":\"uint256\"}],\"name\":\"SentMessage\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"sender\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"name\":\"SentMessageExtension1\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"account\",\"type\":\"address\"}],\"name\":\"Unpaused\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MESSAGE_VERSION\",\"outputs\":[{\"internalType\":\"uint16\",\"name\":\"\",\"type\":\"uint16\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_GAS_CALLDATA_OVERHEAD\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_GAS_CONSTANT_OVERHEAD\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"OTHER_MESSENGER\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"PORTAL\",\"outputs\":[{\"internalType\":\"contract OptimismPortal\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"}],\"name\":\"baseGas\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"pure\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"failedMessages\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"messageNonce\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"pause\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"paused\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_nonce\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_sender\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_minGasLimit\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"}],\"name\":\"relayMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_message\",\"type\":\"bytes\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"}],\"name\":\"sendMessage\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"successfulMessages\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"unpause\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"xDomainMessageSender\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:proxied\":\"@title L1CrossDomainMessenger\",\"kind\":\"dev\",\"methods\":{\"baseGas(bytes,uint32)\":{\"params\":{\"_message\":\"Message to compute the amount of required gas for.\",\"_minGasLimit\":\"Minimum desired gas limit when message goes to target.\"},\"returns\":{\"_0\":\"Amount of gas required to guarantee message receipt.\"}},\"constructor\":{\"custom:semver\":\"1.0.0\",\"params\":{\"_portal\":\"Address of the OptimismPortal contract on this network.\"}},\"initialize(address)\":{\"params\":{\"_owner\":\"Address of the initial owner of this contract.\"}},\"messageNonce()\":{\"returns\":{\"_0\":\"Nonce of the next message to be sent, with added message version.\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"paused()\":{\"details\":\"Returns true if the contract is paused, and false otherwise.\"},\"relayMessage(uint256,address,address,uint256,uint256,bytes)\":{\"params\":{\"_message\":\"Message to send to the target.\",\"_minGasLimit\":\"Minimum amount of gas that the message can be executed with.\",\"_nonce\":\"Nonce of the message being relayed.\",\"_sender\":\"Address of the user who sent the message.\",\"_target\":\"Address that the message is targeted at.\",\"_value\":\"ETH value to send with the message.\"}},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"sendMessage(address,bytes,uint32)\":{\"params\":{\"_message\":\"Message to trigger the target address with.\",\"_minGasLimit\":\"Minimum gas limit that the message can be executed with.\",\"_target\":\"Target contract or wallet address.\"}},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}},\"xDomainMessageSender()\":{\"returns\":{\"_0\":\"Address of the sender of the currently executing message on the other chain.\"}}},\"version\":1},\"userdoc\":{\"events\":{\"FailedRelayedMessage(bytes32)\":{\"notice\":\"Emitted whenever a message fails to be relayed on this chain.\"},\"RelayedMessage(bytes32)\":{\"notice\":\"Emitted whenever a message is successfully relayed on this chain.\"},\"SentMessage(address,address,bytes,uint256,uint256)\":{\"notice\":\"Emitted whenever a message is sent to the other chain.\"},\"SentMessageExtension1(address,uint256)\":{\"notice\":\"Additional event data to emit, required as of Bedrock. Cannot be merged with the         SentMessage event without breaking the ABI of this contract, this is good enough.\"}},\"kind\":\"user\",\"methods\":{\"MESSAGE_VERSION()\":{\"notice\":\"Current message version identifier.\"},\"MIN_GAS_CALLDATA_OVERHEAD()\":{\"notice\":\"Extra gas added to base gas for each byte of calldata in a message.\"},\"MIN_GAS_CONSTANT_OVERHEAD()\":{\"notice\":\"Constant overhead added to the base gas for a message.\"},\"MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()\":{\"notice\":\"Denominator for dynamic overhead added to the base gas for a message.\"},\"MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()\":{\"notice\":\"Numerator for dynamic overhead added to the base gas for a message.\"},\"OTHER_MESSENGER()\":{\"notice\":\"Address of the paired CrossDomainMessenger contract on the other chain.\"},\"PORTAL()\":{\"notice\":\"Address of the OptimismPortal.\"},\"baseGas(bytes,uint32)\":{\"notice\":\"Computes the amount of gas required to guarantee that a given message will be         received on the other chain without running out of gas. Guaranteeing that a message         will not run out of gas is important because this ensures that a message can always         be replayed on the other chain if it fails to execute completely.\"},\"failedMessages(bytes32)\":{\"notice\":\"Mapping of message hashes to a boolean if and only if the message has failed to be         executed at least once. A message will not be present in this mapping if it         successfully executed on the first attempt.\"},\"initialize(address)\":{\"notice\":\"Initializer.\"},\"messageNonce()\":{\"notice\":\"Retrieves the next message nonce. Message version will be added to the upper two         bytes of the message nonce. Message version allows us to treat messages as having         different structures.\"},\"pause()\":{\"notice\":\"Allows the owner of this contract to temporarily pause message relaying. Backup         security mechanism just in case. Owner should be the same as the upgrade wallet to         maintain the security model of the system as a whole.\"},\"relayMessage(uint256,address,address,uint256,uint256,bytes)\":{\"notice\":\"Relays a message that was sent by the other CrossDomainMessenger contract. Can only         be executed via cross-chain call from the other messenger OR if the message was         already received once and is currently being replayed.\"},\"sendMessage(address,bytes,uint32)\":{\"notice\":\"Sends a message to some target address on the other chain. Note that if the call         always reverts, then the message will be unrelayable, and any ETH sent will be         permanently locked. The same will occur if the target on the other chain is         considered unsafe (see the _isUnsafeTarget() function).\"},\"successfulMessages(bytes32)\":{\"notice\":\"Mapping of message hashes to boolean receipt values. Note that a message will only         be present in this mapping if it has successfully been relayed on this chain, and         can therefore not be relayed again.\"},\"unpause()\":{\"notice\":\"Allows the owner of this contract to resume message relaying once paused.\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"},\"xDomainMessageSender()\":{\"notice\":\"Retrieves the address of the contract or wallet that initiated the currently         executing message on the other chain. Will throw an error if there is no message         currently being executed. Allows the recipient of a call to see who triggered it.\"}},\"notice\":\"The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible         for sending and receiving data on the L1 side. Users are encouraged to use this         interface instead of interacting with lower-level contracts directly.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/L1CrossDomainMessenger.sol\":\"L1CrossDomainMessenger\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\"]},\"sources\":{\"contracts/L1/L1CrossDomainMessenger.sol\":{\"keccak256\":\"0x17cb43f47fb299f0e86a1b1b8d1557a4cea3ad9c399cae40faf81e68a0faba5e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://1e66361c5c68eaa8c7b4525fe86769b3ca64d35be09f085cace6199fce0be806\",\"dweb:/ipfs/QmTheLffafY8DMtiUVUmT8NYY4TQbnppuZ46gd9p33DAUj\"]},\"contracts/L1/L2OutputOracle.sol\":{\"keccak256\":\"0x8a0bc6cad854df4ccf6d3136bef9cf23861f24bd5ef4a288256bea7971ff228c\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f795edf857461c71a9000d68f6b8cd46048e9111dadc207255aad6201ac503fc\",\"dweb:/ipfs/QmWUs7Mk8Rv9FWGhYA8gHQbmQcdxXHnu1D91YP2ML1S7t3\"]},\"contracts/L1/OptimismPortal.sol\":{\"keccak256\":\"0x49cee76d89e931694003e67ea8f0b54aca0907a2954493b22cba8138b8dc4c49\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://56f6c18a8098f88c3c21dd4c421856193036d9dfadf2688e574e61e3f32ab6db\",\"dweb:/ipfs/QmNdfa36fN4xyYsEy8cjFGxQcNiWGGGAVWLBGv9WFdfk8w\"]},\"contracts/L1/ResourceMetering.sol\":{\"keccak256\":\"0x23045734df51c2f237d0def7f5e6dda69304bb3cfb554c6c1e934c4c8b07cecc\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://e6f84a34b842702c3ab4b06da997903046556f3f809716763a351b9f379b7e07\",\"dweb:/ipfs/QmQPyWcbuAMhghZdGSPwSBQdQgZi5hk6Bdg4s7qxaHpcMw\"]},\"contracts/libraries/Arithmetic.sol\":{\"keccak256\":\"0xc8858039f87e48e6f18c1af8bc0b03e57cfef564acddfd06e4d91e3db7ac5ed6\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://2fc79af1e844aa6dc1c68067bfe1d359df8d4e9a3e8881afb3bcfcbf68071714\",\"dweb:/ipfs/QmcNC4k8zmvwj4kZizSenTiWbx2DJQPbwqXXLF4iMbkRVD\"]},\"contracts/libraries/Burn.sol\":{\"keccak256\":\"0x54233b226ba6919dc46d438bc790108d8f855001002a1b9c3c37aed7a83e5f3f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://4051a4baca357a9191a6c9e3aa1593a17b69dd7915966e23e4cb269e9c1d9ed4\",\"dweb:/ipfs/QmadKjGKvxm53abVHQdsxrXBc8e9jXywu6vvhkAgjsx59J\"]},\"contracts/libraries/Bytes.sol\":{\"keccak256\":\"0x7aca6593fadf438ee9cd090d8fdc8f94a5202a2eb7f764c9a86f207712d87a48\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://aac32157885c5a08bd0bc7dcd5511f66db12bb20d0c263dd7be9f58b91538fc1\",\"dweb:/ipfs/Qmb1iG11Z53yt9wNbGsuTvoydJXFosDDpWwRSADKyqiCjw\"]},\"contracts/libraries/Constants.sol\":{\"keccak256\":\"0x50a2b69a5e9246945ee1588278753feae90285ff7e675369f0cc5b64acea333c\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://75153213766bd271cce59d5284a4a0d2f6283e3c6a9dc31b8ce20a3a4c28c066\",\"dweb:/ipfs/QmcbpwMLYuKUPahVYJ3W7sfntQgHk9RTuR2DUzFMrfPMQr\"]},\"contracts/libraries/Encoding.sol\":{\"keccak256\":\"0x170cd0821cec37976a6391da20f1dcdcb1ea9ffada96ccd3c57ff2e357589418\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f18156216c1f9457c2e032a812ad70f2babbc5b89997554ff014d64c483fb2ff\",\"dweb:/ipfs/Qmc5rjMaBFn3jV7XqDrEvRbmatQvJxeVJYA5B5rdcKPkcJ\"]},\"contracts/libraries/Hashing.sol\":{\"keccak256\":\"0x5d4988987899306d2785b3de068194a39f8e829a7864762a07a0016db5189f5e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6746ed0d26d603568818cc52a29d0209effd69f7e55bd0017a6b91bd6cf319fe\",\"dweb:/ipfs/QmPebCmCELMBRtDDxt5ziEPfRXUh6tfm2qJdwz3iyrDdWN\"]},\"contracts/libraries/Predeploys.sol\":{\"keccak256\":\"0xbf404ace304548f9824262f3efa079191f4fe9d475518c45f37626f3596a6c4b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://43122a0cd40564a776ea49186c4a3c9bf1a0fc74a542d850ff0bacfb072d013f\",\"dweb:/ipfs/QmWkwNAywCZGhTrXtNbkRq3gzdm9MRBPiRVVtBhH9sHyAk\"]},\"contracts/libraries/SafeCall.sol\":{\"keccak256\":\"0xbb0621c028c18e9d5a54cf1a8136cf2e77f161de48aeb8d911e230f6b280c9ed\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://924ecc629c7642bc19e2f8a390f1b946d22862c8889453da681b5bc1a45d7703\",\"dweb:/ipfs/QmbNknQ8pzssXDXGVjXxzZ8zh1YnNCWtRJVepiM1TnqoqQ\"]},\"contracts/libraries/Types.sol\":{\"keccak256\":\"0x822e7c7ac5d45eac20551ba602d8bff3d22db3538fb32be42c1ab12d7bfca110\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://970823854723de895ca7a24d34269e886a20824c75f706cb41541893b7c78838\",\"dweb:/ipfs/QmSQbEECeTxgUT65pK7Czc4ovAv2FdQ9EHyi5Z8mZgNkXc\"]},\"contracts/libraries/rlp/RLPReader.sol\":{\"keccak256\":\"0x50763c897f0fe84cb067985ec4d7c5721ce9004a69cf0327f96f8982ee8ca412\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://603af847b43933b075f9aac3a7b3cd65041ffe6d732826695458ca9575e1a809\",\"dweb:/ipfs/QmfByFEaCxT9y1VtqoLi5EsXZ9ihkPfj6g5x7pcPoQ7q2K\"]},\"contracts/libraries/rlp/RLPWriter.sol\":{\"keccak256\":\"0x5aa9d21c5b41c9786f23153f819d561ae809a1d55c7b0d423dfeafdfbacedc78\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://921c44e6a0982b9a4011900fda1bda2c06b7a85894967de98b407a83fe9f90c0\",\"dweb:/ipfs/QmSsHLKDUQ82kpKdqB6VntVGKuPDb4W9VdotsubuqWBzio\"]},\"contracts/libraries/trie/MerkleTrie.sol\":{\"keccak256\":\"0xd27fc945d6dd2821636d840f3766f817823c8e9fbfdb87c2da7c73e4292d2f7f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://497cec37d09ebcdc8d1cccac608a4a0b9b9d83eac6cc7c9e8b73c4c6644e2209\",\"dweb:/ipfs/QmUYMsCcgU6epspvKV9Y6anHyyMb4hd1xVzUZheBY9mfG7\"]},\"contracts/libraries/trie/SecureMerkleTrie.sol\":{\"keccak256\":\"0x61b03a03779cb1f75cea3b88af16fdfd10629029b4b2d6be5238e71af8ef1b5f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://1212951af291c0e033a7119b42de5cad6b6bf32da26777da7c2419e76fa8f314\",\"dweb:/ipfs/QmYbnifDmL6UkP9D1X9GaNLR1Q8wYwmDNeYqkJ71bycaE5\"]},\"contracts/universal/CrossDomainMessenger.sol\":{\"keccak256\":\"0xa8efcda6e2fec4edc379fa9128d9ae9c257c278f94c6b265fc267764d4006213\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://56f739b6a7ed1d2eda132365c112edbf5646c36ffbac1d85f753311d11df421b\",\"dweb:/ipfs/QmaCXcw3tSKHuQm3VqAggSEAGqr3k6Ru5cfLZyGpCShhQz\"]},\"contracts/universal/Semver.sol\":{\"keccak256\":\"0x979b13465de4996a1105850abbf48abe7f71d5e18a8d4af318597ee14c165fdf\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d0881ed7d8371fe1c12b931334e107746fa97d9ecd6aa3c0fca0c0db8581474e\",\"dweb:/ipfs/QmQ9UFwZgWkyFAHrzTtS7m6rghZ8nP9QybEuJ5y9vux5Gv\"]},\"contracts/vendor/AddressAliasHelper.sol\":{\"keccak256\":\"0x6ecb83b4ec80fbe49c22f4f95d90482de64660ef5d422a19f4d4b04df31c1237\",\"license\":\"Apache-2.0\",\"urls\":[\"bzz-raw://1d0885be6e473962f9a0622176a22300165ac0cc1a1d7f2e22b11c3d656ace88\",\"dweb:/ipfs/QmPRa3KmRpXW5P9ykveKRDgYN5zYo4cYLAYSnoqHX3KnXR\"]},\"node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol\":{\"keccak256\":\"0x247c62047745915c0af6b955470a72d1696ebad4352d7d3011aef1a2463cd888\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d7fc8396619de513c96b6e00301b88dd790e83542aab918425633a5f7297a15a\",\"dweb:/ipfs/QmXbP4kiZyp7guuS7xe8KaybnwkRPGrBc2Kbi3vhcTfpxb\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x0203dcadc5737d9ef2c211d6fa15d18ebc3b30dfa51903b64870b01a062b0b4e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6eb2fd1e9894dbe778f4b8131adecebe570689e63cf892f4e21257bfe1252497\",\"dweb:/ipfs/QmXgUGNfZvrn6N2miv3nooSs7Jm34A41qz94fu2GtDFcx8\"]},\"node_modules/@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol\":{\"keccak256\":\"0x40c636b4572ff5f1dc50cf22097e93c0723ee14eff87e99ac2b02636eeca1250\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9c7d1f5e15633ab912b74c2f57e24559e66b03232300d4b27ff0f25bc452ecad\",\"dweb:/ipfs/QmYTJkc1cntYkKQ1Tu11nBcJLakiy93Tjytc4XHELo4GmR\"]},\"node_modules/@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol\":{\"keccak256\":\"0x8cc03c5ac17e8a7396e487cda41fc1f1dfdb91db7d528e6da84bee3b6dd7e167\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://607818f1b44548c2d8268176f73cdb290e1faed971b1061930d92698366e2a11\",\"dweb:/ipfs/QmQibMe3r5no95b6q7isGT5R75V8xSofWEDLXzp95b7LgZ\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol\":{\"keccak256\":\"0x611aa3f23e59cfdd1863c536776407b3e33d695152a266fa7cfb34440a29a8a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9b4b2110b7f2b3eb32951bc08046fa90feccffa594e1176cb91cdfb0e94726b4\",\"dweb:/ipfs/QmSxLwYjicf9zWFuieRc8WQwE4FisA1Um5jp1iSa731TGt\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol\":{\"keccak256\":\"0x963ea7f0b48b032eef72fe3a7582edf78408d6f834115b9feadd673a4d5bd149\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d6520943ea55fdf5f0bafb39ed909f64de17051bc954ff3e88c9e5621412c79c\",\"dweb:/ipfs/QmWZ4rAKTQbNG2HxGs46AcTXShsVytKeLs7CUCdCSv5N7a\"]},\"node_modules/@openzeppelin/contracts/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x2a21b14ff90012878752f230d3ffd5c3405e5938d06c97a7d89c0a64561d0d66\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://3313a8f9bb1f9476857c9050067b31982bf2140b83d84f3bc0cec1f62bbe947f\",\"dweb:/ipfs/Qma17Pk8NRe7aB4UD3jjVxk7nSFaov3eQyv86hcyqkwJRV\"]},\"node_modules/@openzeppelin/contracts/utils/Address.sol\":{\"keccak256\":\"0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487\",\"dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]},\"node_modules/@openzeppelin/contracts/utils/math/Math.sol\":{\"keccak256\":\"0xd15c3e400531f00203839159b2b8e7209c5158b35618f570c695b7e47f12e9f0\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://b600b852e0597aa69989cc263111f02097e2827edc1bdc70306303e3af5e9929\",\"dweb:/ipfs/QmU4WfM28A1nDqghuuGeFmN3CnVrk6opWtiF65K4vhFPeC\"]},\"node_modules/@openzeppelin/contracts/utils/math/SignedMath.sol\":{\"keccak256\":\"0xb3ebde1c8d27576db912d87c3560dab14adfb9cd001be95890ec4ba035e652e7\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a709421c4f5d4677db8216055d2d4dac96a613efdb08178a9f7041f0c5cef689\",\"dweb:/ipfs/QmYs2rStvVLDnSJs8HgaMD1ABwoKKWdiVbQyNfLfFWTjTy\"]},\"node_modules/@rari-capital/solmate/src/utils/FixedPointMathLib.sol\":{\"keccak256\":\"0x622fcd8a49e132df5ec7651cc6ae3aaf0cf59bdcd67a9a804a1b9e2485113b7d\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://af77088eb606427d4c55e578984a615779c86bc30646a20f7bb27299ba390f7c\",\"dweb:/ipfs/QmZGQdhdQDtHc7gZXWrKXgA3govc74X8U63BiWhPQK3mK8\"]}},\"version\":1}",
+	"args": [
+		"0x3aF7bB16F10040091764Aa060835412D35e73a7A"
+	],
+	"bytecode": "0x6101206040523480156200001257600080fd5b50604051620028053803806200280583398101604081905262000035916200006f565b734200000000000000000000000000000000000007608052600160a052600060c081905260e0526001600160a01b031661010052620000a1565b6000602082840312156200008257600080fd5b81516001600160a01b03811681146200009a57600080fd5b9392505050565b60805160a05160c05160e051610100516126f562000110600039600081816101d501528181611478015281816119b501528181611a160152611ae2015260006107860152600061075d0152600061073401526000818161035d015281816104bc01526119df01526126f56000f3fe6080604052600436106101755760003560e01c80637dea7cc3116100cb578063b1b1b2091161007f578063d764ad0b11610059578063d764ad0b1461041f578063ecc7042814610432578063f2fde38b1461049757600080fd5b8063b1b1b209146103af578063b28ade25146103df578063c4d66de8146103ff57600080fd5b80638da5cb5b116100b05780638da5cb5b146103205780639fce812c1461034b578063a4e7f8bd1461037f57600080fd5b80637dea7cc3146102f45780638456cb591461030b57600080fd5b80633f4ba83a1161012d5780635c975abb116101075780635c975abb146102a65780636e296e45146102ca578063715018a6146102df57600080fd5b80633f4ba83a146102475780633f827a5a1461025c57806354fd4d501461028457600080fd5b80630ff754ea1161015e5780630ff754ea146101c35780632828d7e81461021c5780633dbb202b1461023257600080fd5b8063028f85f71461017a5780630c568498146101ad575b600080fd5b34801561018657600080fd5b5061018f601081565b60405167ffffffffffffffff90911681526020015b60405180910390f35b3480156101b957600080fd5b5061018f6103e881565b3480156101cf57600080fd5b506101f77f000000000000000000000000000000000000000000000000000000000000000081565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016101a4565b34801561022857600080fd5b5061018f6103f881565b61024561024036600461205e565b6104b7565b005b34801561025357600080fd5b5061024561071b565b34801561026857600080fd5b50610271600181565b60405161ffff90911681526020016101a4565b34801561029057600080fd5b5061029961072d565b6040516101a4919061213f565b3480156102b257600080fd5b5060655460ff165b60405190151581526020016101a4565b3480156102d657600080fd5b506101f76107d0565b3480156102eb57600080fd5b506102456108bc565b34801561030057600080fd5b5061018f62030d4081565b34801561031757600080fd5b506102456108ce565b34801561032c57600080fd5b5060335473ffffffffffffffffffffffffffffffffffffffff166101f7565b34801561035757600080fd5b506101f77f000000000000000000000000000000000000000000000000000000000000000081565b34801561038b57600080fd5b506102ba61039a366004612159565b60ce6020526000908152604090205460ff1681565b3480156103bb57600080fd5b506102ba6103ca366004612159565b60cb6020526000908152604090205460ff1681565b3480156103eb57600080fd5b5061018f6103fa366004612172565b6108de565b34801561040b57600080fd5b5061024561041a3660046121c6565b61092a565b61024561042d3660046121e3565b610b31565b34801561043e57600080fd5b5061048960cd547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b6040519081526020016101a4565b3480156104a357600080fd5b506102456104b23660046121c6565b611384565b6105f07f00000000000000000000000000000000000000000000000000000000000000006104e68585856108de565b347fd764ad0b0000000000000000000000000000000000000000000000000000000061055260cd547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b338a34898c8c60405160240161056e97969594939291906122b2565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529190526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fffffffff000000000000000000000000000000000000000000000000000000009093169290921790915261143b565b8373ffffffffffffffffffffffffffffffffffffffff167fcb0f7ffd78f9aee47a248fae8db181db6eee833039123e026dcbff529522e52a33858561067560cd547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff167e010000000000000000000000000000000000000000000000000000000000001790565b86604051610687959493929190612311565b60405180910390a260405134815233907f8ebb2ec2465bdb2a06a66fc37a0963af8a2a6a1479d81d56fdb8cbb98096d5469060200160405180910390a2505060cd80547dffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff808216600101167fffff0000000000000000000000000000000000000000000000000000000000009091161790555050565b6107236114f0565b61072b611571565b565b60606107587f00000000000000000000000000000000000000000000000000000000000000006115ee565b6107817f00000000000000000000000000000000000000000000000000000000000000006115ee565b6107aa7f00000000000000000000000000000000000000000000000000000000000000006115ee565b6040516020016107bc9392919061235f565b604051602081830303815290604052905090565b60cc5460009073ffffffffffffffffffffffffffffffffffffffff167fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff21530161089f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603560248201527f43726f7373446f6d61696e4d657373656e6765723a2078446f6d61696e4d657360448201527f7361676553656e646572206973206e6f7420736574000000000000000000000060648201526084015b60405180910390fd5b5060cc5473ffffffffffffffffffffffffffffffffffffffff1690565b6108c46114f0565b61072b6000611723565b6108d66114f0565b61072b61179a565b600062030d406108ef601085612404565b6103e86109046103f863ffffffff8716612404565b61090e9190612463565b610918919061248a565b610922919061248a565b949350505050565b6000547501000000000000000000000000000000000000000000900460ff1615808015610975575060005460017401000000000000000000000000000000000000000090910460ff16105b806109a75750303b1580156109a7575060005474010000000000000000000000000000000000000000900460ff166001145b610a33576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a65640000000000000000000000000000000000006064820152608401610896565b600080547fffffffffffffffffffffff00ffffffffffffffffffffffffffffffffffffffff16740100000000000000000000000000000000000000001790558015610ab957600080547fffffffffffffffffffff00ffffffffffffffffffffffffffffffffffffffffff1675010000000000000000000000000000000000000000001790555b610ac16117f5565b610aca82611723565b8015610b2d57600080547fffffffffffffffffffff00ffffffffffffffffffffffffffffffffffffffffff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050565b600260975403610b9d576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601f60248201527f5265656e7472616e637947756172643a207265656e7472616e742063616c6c006044820152606401610896565b6002609755610baa6118ec565b60f087901c60028110610c65576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604d60248201527f43726f7373446f6d61696e4d657373656e6765723a206f6e6c7920766572736960448201527f6f6e2030206f722031206d657373616765732061726520737570706f7274656460648201527f20617420746869732074696d6500000000000000000000000000000000000000608482015260a401610896565b8061ffff16600003610d5a576000610cb6878986868080601f0160208091040260200160405190810160405280939291908181526020018383808284376000920191909152508f9250611959915050565b600081815260cb602052604090205490915060ff1615610d58576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f43726f7373446f6d61696e4d657373656e6765723a206c65676163792077697460448201527f6864726177616c20616c72656164792072656c617965640000000000000000006064820152608401610896565b505b6000610da0898989898989898080601f01602080910402602001604051908101604052809392919081815260200183838082843760009201919091525061197892505050565b9050610daa61199b565b15610de257853414610dbe57610dbe6124b6565b600081815260ce602052604090205460ff1615610ddd57610ddd6124b6565b610f34565b3415610e96576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605060248201527f43726f7373446f6d61696e4d657373656e6765723a2076616c7565206d75737460448201527f206265207a65726f20756e6c657373206d6573736167652069732066726f6d2060648201527f612073797374656d206164647265737300000000000000000000000000000000608482015260a401610896565b600081815260ce602052604090205460ff16610f34576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603060248201527f43726f7373446f6d61696e4d657373656e6765723a206d65737361676520636160448201527f6e6e6f74206265207265706c61796564000000000000000000000000000000006064820152608401610896565b610f3d87611abf565b15610ff0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604360248201527f43726f7373446f6d61696e4d657373656e6765723a2063616e6e6f742073656e60448201527f64206d65737361676520746f20626c6f636b65642073797374656d206164647260648201527f6573730000000000000000000000000000000000000000000000000000000000608482015260a401610896565b600081815260cb602052604090205460ff161561108f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f43726f7373446f6d61696e4d657373656e6765723a206d65737361676520686160448201527f7320616c7265616479206265656e2072656c61796564000000000000000000006064820152608401610896565b61109b61afc8866124e5565b5a101561112a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f43726f7373446f6d61696e4d657373656e6765723a20696e737566666963696560448201527f6e742067617320746f2072656c6179206d6573736167650000000000000000006064820152608401610896565b60cc80547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff8a1617905560006111c68861117e61138861afc86124fd565b5a61118991906124fd565b8988888080601f016020809104026020016040519081016040528093929190818152602001838380828437600092019190915250611b3692505050565b60cc80547fffffffffffffffffffffffff00000000000000000000000000000000000000001661dead179055905080151560010361126157600082815260cb602052604080822080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790555183917f4641df4a962071e12719d8c8c8e5ac7fc4d97b927346a3d7a335b1f7517e133c91a261136e565b600082815260ce602052604080822080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790555183917f99d0e048484baa1b1540b1367cb128acd7ab2946d1ed91ec10e3c85e4bf51b8f91a27fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff320161136e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602d60248201527f43726f7373446f6d61696e4d657373656e6765723a206661696c656420746f2060448201527f72656c6179206d657373616765000000000000000000000000000000000000006064820152608401610896565b505060016097555050505050505050565b905090565b61138c6114f0565b73ffffffffffffffffffffffffffffffffffffffff811661142f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f64647265737300000000000000000000000000000000000000000000000000006064820152608401610896565b61143881611723565b50565b6040517fe9e05c4200000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff7f0000000000000000000000000000000000000000000000000000000000000000169063e9e05c429084906114b8908890839089906000908990600401612514565b6000604051808303818588803b1580156114d157600080fd5b505af11580156114e5573d6000803e3d6000fd5b505050505050505050565b60335473ffffffffffffffffffffffffffffffffffffffff16331461072b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401610896565b611579611b50565b606580547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001690557f5db9ee0a495bf2e6ff9c91a7834c1ba4fdd244a5e8aa4e537bd38aeae4b073aa335b60405173ffffffffffffffffffffffffffffffffffffffff909116815260200160405180910390a1565b60608160000361163157505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561165b57806116458161256c565b91506116549050600a836125a4565b9150611635565b60008167ffffffffffffffff811115611676576116766125b8565b6040519080825280601f01601f1916602001820160405280156116a0576020820181803683370190505b5090505b8415610922576116b56001836124fd565b91506116c2600a866125e7565b6116cd9060306124e5565b60f81b8183815181106116e2576116e26125fb565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a90535061171c600a866125a4565b94506116a4565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b6117a26118ec565b606580547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff001660011790557f62e78cea01bee320cd4e420270b5ea74000d11b0c9f74754ebdbfc544b05a2586115c43390565b6000547501000000000000000000000000000000000000000000900460ff166118a0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610896565b60cc80547fffffffffffffffffffffffff00000000000000000000000000000000000000001661dead1790556118d4611bbc565b6118dc611c67565b6118e4611d1b565b61072b611df0565b60655460ff161561072b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601060248201527f5061757361626c653a20706175736564000000000000000000000000000000006044820152606401610896565b600061196785858585611ea2565b805190602001209050949350505050565b6000611988878787878787611f3b565b8051906020012090509695505050505050565b60003373ffffffffffffffffffffffffffffffffffffffff7f00000000000000000000000000000000000000000000000000000000000000001614801561137f57507f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff167f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16639bf62d826040518163ffffffff1660e01b8152600401602060405180830381865afa158015611a7f573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190611aa3919061262a565b73ffffffffffffffffffffffffffffffffffffffff1614905090565b600073ffffffffffffffffffffffffffffffffffffffff8216301480611b3057507f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff16145b92915050565b600080600080845160208601878a8af19695505050505050565b60655460ff1661072b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152601460248201527f5061757361626c653a206e6f74207061757365640000000000000000000000006044820152606401610896565b6000547501000000000000000000000000000000000000000000900460ff1661072b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610896565b6000547501000000000000000000000000000000000000000000900460ff16611d12576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610896565b61072b33611723565b6000547501000000000000000000000000000000000000000000900460ff16611dc6576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610896565b606580547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169055565b6000547501000000000000000000000000000000000000000000900460ff16611e9b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e670000000000000000000000000000000000000000006064820152608401610896565b6001609755565b606084848484604051602401611ebb9493929190612647565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529190526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fcbd4ece9000000000000000000000000000000000000000000000000000000001790529050949350505050565b6060868686868686604051602401611f5896959493929190612691565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08184030181529190526020810180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fd764ad0b0000000000000000000000000000000000000000000000000000000017905290509695505050505050565b73ffffffffffffffffffffffffffffffffffffffff8116811461143857600080fd5b60008083601f84011261200e57600080fd5b50813567ffffffffffffffff81111561202657600080fd5b60208301915083602082850101111561203e57600080fd5b9250929050565b803563ffffffff8116811461205957600080fd5b919050565b6000806000806060858703121561207457600080fd5b843561207f81611fda565b9350602085013567ffffffffffffffff81111561209b57600080fd5b6120a787828801611ffc565b90945092506120ba905060408601612045565b905092959194509250565b60005b838110156120e05781810151838201526020016120c8565b838111156120ef576000848401525b50505050565b6000815180845261210d8160208601602086016120c5565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061215260208301846120f5565b9392505050565b60006020828403121561216b57600080fd5b5035919050565b60008060006040848603121561218757600080fd5b833567ffffffffffffffff81111561219e57600080fd5b6121aa86828701611ffc565b90945092506121bd905060208501612045565b90509250925092565b6000602082840312156121d857600080fd5b813561215281611fda565b600080600080600080600060c0888a0312156121fe57600080fd5b87359650602088013561221081611fda565b9550604088013561222081611fda565b9450606088013593506080880135925060a088013567ffffffffffffffff81111561224a57600080fd5b6122568a828b01611ffc565b989b979a50959850939692959293505050565b8183528181602085013750600060208284010152600060207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f840116840101905092915050565b878152600073ffffffffffffffffffffffffffffffffffffffff808916602084015280881660408401525085606083015263ffffffff8516608083015260c060a083015261230460c083018486612269565b9998505050505050505050565b73ffffffffffffffffffffffffffffffffffffffff86168152608060208201526000612341608083018688612269565b905083604083015263ffffffff831660608301529695505050505050565b600084516123718184602089016120c5565b80830190507f2e0000000000000000000000000000000000000000000000000000000000000080825285516123ad816001850160208a016120c5565b600192019182015283516123c88160028401602088016120c5565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600067ffffffffffffffff8083168185168183048111821515161561242b5761242b6123d5565b02949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600067ffffffffffffffff8084168061247e5761247e612434565b92169190910492915050565b600067ffffffffffffffff8083168185168083038211156124ad576124ad6123d5565b01949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052600160045260246000fd5b600082198211156124f8576124f86123d5565b500190565b60008282101561250f5761250f6123d5565b500390565b73ffffffffffffffffffffffffffffffffffffffff8616815284602082015267ffffffffffffffff84166040820152821515606082015260a06080820152600061256160a08301846120f5565b979650505050505050565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361259d5761259d6123d5565b5060010190565b6000826125b3576125b3612434565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000826125f6576125f6612434565b500690565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60006020828403121561263c57600080fd5b815161215281611fda565b600073ffffffffffffffffffffffffffffffffffffffff80871683528086166020840152506080604083015261268060808301856120f5565b905082606083015295945050505050565b868152600073ffffffffffffffffffffffffffffffffffffffff808816602084015280871660408401525084606083015283608083015260c060a08301526126dc60c08301846120f5565b9897505050505050505056fea164736f6c634300080f000a",
+	"deployedBytecode": "0x60806040526004361061004e5760003560e01c80633659cfe6146100655780634f1ef286146100855780635c60da1b146100ae5780638f283970146100db578063f851a440146100fb5761005d565b3661005d5761005b610110565b005b61005b610110565b34801561007157600080fd5b5061005b61008036600461051d565b6101c8565b610098610093366004610538565b61020e565b6040516100a591906105bb565b60405180910390f35b3480156100ba57600080fd5b506100c361033e565b6040516001600160a01b0390911681526020016100a5565b3480156100e757600080fd5b5061005b6100f636600461051d565b6103a9565b34801561010757600080fd5b506100c36103e4565b600061013a7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b90506001600160a01b0381166101a55760405162461bcd60e51b815260206004820152602560248201527f50726f78793a20696d706c656d656e746174696f6e206e6f7420696e697469616044820152641b1a5e995960da1b60648201526084015b60405180910390fd5b3660008037600080366000845af43d6000803e806101c2573d6000fd5b503d6000f35b600080516020610621833981519152546001600160a01b0316336001600160a01b031614806101f5575033155b156102065761020381610432565b50565b610203610110565b60606102266000805160206106218339815191525490565b6001600160a01b0316336001600160a01b03161480610243575033155b1561032f5761025184610432565b600080856001600160a01b0316858560405161026e929190610610565b600060405180830381855af49150503d80600081146102a9576040519150601f19603f3d011682016040523d82523d6000602084013e6102ae565b606091505b5091509150816103265760405162461bcd60e51b815260206004820152603960248201527f50726f78793a2064656c656761746563616c6c20746f206e657720696d706c6560448201527f6d656e746174696f6e20636f6e7472616374206661696c656400000000000000606482015260840161019c565b91506103379050565b610337610110565b9392505050565b60006103566000805160206106218339815191525490565b6001600160a01b0316336001600160a01b03161480610373575033155b1561039e57507f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc5490565b6103a6610110565b90565b600080516020610621833981519152546001600160a01b0316336001600160a01b031614806103d6575033155b15610206576102038161048d565b60006103fc6000805160206106218339815191525490565b6001600160a01b0316336001600160a01b03161480610419575033155b1561039e57506000805160206106218339815191525490565b7f360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc8190556040516001600160a01b038216907fbc7cd75a20ee27fd9adebab32041f755214dbc6bffa90cc0225b39da2e5c2d3b90600090a250565b60006104a56000805160206106218339815191525490565b600080516020610621833981519152839055604080516001600160a01b038084168252851660208201529192507f7e644d79422f17c01e4894b5f4f588d331ebfa28653d42ae832dc59e38c9798f910160405180910390a15050565b80356001600160a01b038116811461051857600080fd5b919050565b60006020828403121561052f57600080fd5b61033782610501565b60008060006040848603121561054d57600080fd5b61055684610501565b9250602084013567ffffffffffffffff8082111561057357600080fd5b818601915086601f83011261058757600080fd5b81358181111561059657600080fd5b8760208285010111156105a857600080fd5b6020830194508093505050509250925092565b600060208083528351808285015260005b818110156105e8578581018301518582016040015282016105cc565b818111156105fa576000604083870101525b50601f01601f1916929092016040019392505050565b818382376000910190815291905056feb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103a26469706673582212202bd1f0b5e6fde550b88238730ef8a1aca50c563a9964646d6babc0ad93dbcf3b64736f6c634300080f0033",
+	"devdoc": {
+		"custom:proxied": "@title L1CrossDomainMessenger",
+		"kind": "dev",
+		"methods": {
+			"baseGas(bytes,uint32)": {
+				"params": {
+					"_message": "Message to compute the amount of required gas for.",
+					"_minGasLimit": "Minimum desired gas limit when message goes to target."
+				},
+				"returns": {
+					"_0": "Amount of gas required to guarantee message receipt."
+				}
+			},
+			"constructor": {
+				"custom:semver": "1.0.0",
+				"params": {
+					"_portal": "Address of the OptimismPortal contract on this network."
+				}
+			},
+			"initialize(address)": {
+				"params": {
+					"_owner": "Address of the initial owner of this contract."
+				}
+			},
+			"messageNonce()": {
+				"returns": {
+					"_0": "Nonce of the next message to be sent, with added message version."
+				}
+			},
+			"owner()": {
+				"details": "Returns the address of the current owner."
+			},
+			"paused()": {
+				"details": "Returns true if the contract is paused, and false otherwise."
+			},
+			"relayMessage(uint256,address,address,uint256,uint256,bytes)": {
+				"params": {
+					"_message": "Message to send to the target.",
+					"_minGasLimit": "Minimum amount of gas that the message can be executed with.",
+					"_nonce": "Nonce of the message being relayed.",
+					"_sender": "Address of the user who sent the message.",
+					"_target": "Address that the message is targeted at.",
+					"_value": "ETH value to send with the message."
+				}
+			},
+			"renounceOwnership()": {
+				"details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+			},
+			"sendMessage(address,bytes,uint32)": {
+				"params": {
+					"_message": "Message to trigger the target address with.",
+					"_minGasLimit": "Minimum gas limit that the message can be executed with.",
+					"_target": "Target contract or wallet address."
+				}
+			},
+			"transferOwnership(address)": {
+				"details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+			},
+			"version()": {
+				"returns": {
+					"_0": "Semver contract version as a string."
+				}
+			},
+			"xDomainMessageSender()": {
+				"returns": {
+					"_0": "Address of the sender of the currently executing message on the other chain."
+				}
+			}
+		},
+		"version": 1
+	},
+	"userdoc": {
+		"events": {
+			"FailedRelayedMessage(bytes32)": {
+				"notice": "Emitted whenever a message fails to be relayed on this chain."
+			},
+			"RelayedMessage(bytes32)": {
+				"notice": "Emitted whenever a message is successfully relayed on this chain."
+			},
+			"SentMessage(address,address,bytes,uint256,uint256)": {
+				"notice": "Emitted whenever a message is sent to the other chain."
+			},
+			"SentMessageExtension1(address,uint256)": {
+				"notice": "Additional event data to emit, required as of Bedrock. Cannot be merged with the         SentMessage event without breaking the ABI of this contract, this is good enough."
+			}
+		},
+		"kind": "user",
+		"methods": {
+			"MESSAGE_VERSION()": {
+				"notice": "Current message version identifier."
+			},
+			"MIN_GAS_CALLDATA_OVERHEAD()": {
+				"notice": "Extra gas added to base gas for each byte of calldata in a message."
+			},
+			"MIN_GAS_CONSTANT_OVERHEAD()": {
+				"notice": "Constant overhead added to the base gas for a message."
+			},
+			"MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR()": {
+				"notice": "Denominator for dynamic overhead added to the base gas for a message."
+			},
+			"MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR()": {
+				"notice": "Numerator for dynamic overhead added to the base gas for a message."
+			},
+			"OTHER_MESSENGER()": {
+				"notice": "Address of the paired CrossDomainMessenger contract on the other chain."
+			},
+			"PORTAL()": {
+				"notice": "Address of the OptimismPortal."
+			},
+			"baseGas(bytes,uint32)": {
+				"notice": "Computes the amount of gas required to guarantee that a given message will be         received on the other chain without running out of gas. Guaranteeing that a message         will not run out of gas is important because this ensures that a message can always         be replayed on the other chain if it fails to execute completely."
+			},
+			"failedMessages(bytes32)": {
+				"notice": "Mapping of message hashes to a boolean if and only if the message has failed to be         executed at least once. A message will not be present in this mapping if it         successfully executed on the first attempt."
+			},
+			"initialize(address)": {
+				"notice": "Initializer."
+			},
+			"messageNonce()": {
+				"notice": "Retrieves the next message nonce. Message version will be added to the upper two         bytes of the message nonce. Message version allows us to treat messages as having         different structures."
+			},
+			"pause()": {
+				"notice": "Allows the owner of this contract to temporarily pause message relaying. Backup         security mechanism just in case. Owner should be the same as the upgrade wallet to         maintain the security model of the system as a whole."
+			},
+			"relayMessage(uint256,address,address,uint256,uint256,bytes)": {
+				"notice": "Relays a message that was sent by the other CrossDomainMessenger contract. Can only         be executed via cross-chain call from the other messenger OR if the message was         already received once and is currently being replayed."
+			},
+			"sendMessage(address,bytes,uint32)": {
+				"notice": "Sends a message to some target address on the other chain. Note that if the call         always reverts, then the message will be unrelayable, and any ETH sent will be         permanently locked. The same will occur if the target on the other chain is         considered unsafe (see the _isUnsafeTarget() function)."
+			},
+			"successfulMessages(bytes32)": {
+				"notice": "Mapping of message hashes to boolean receipt values. Note that a message will only         be present in this mapping if it has successfully been relayed on this chain, and         can therefore not be relayed again."
+			},
+			"unpause()": {
+				"notice": "Allows the owner of this contract to resume message relaying once paused."
+			},
+			"version()": {
+				"notice": "Returns the full semver contract version."
+			},
+			"xDomainMessageSender()": {
+				"notice": "Retrieves the address of the contract or wallet that initiated the currently         executing message on the other chain. Will throw an error if there is no message         currently being executed. Allows the recipient of a call to see who triggered it."
+			}
+		},
+		"notice": "The L1CrossDomainMessenger is a message passing interface between L1 and L2 responsible         for sending and receiving data on the L1 side. Users are encouraged to use this         interface instead of interacting with lower-level contracts directly.",
+		"version": 1
+	},
+	"storageLayout": {
+		"storage": [
+			{
+				"astId": 38215,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "spacer_0_0_20",
+				"offset": 0,
+				"slot": "0",
+				"type": "t_address"
+			},
+			{
+				"astId": 41386,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "_initialized",
+				"offset": 20,
+				"slot": "0",
+				"type": "t_uint8"
+			},
+			{
+				"astId": 41389,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "_initializing",
+				"offset": 21,
+				"slot": "0",
+				"type": "t_bool"
+			},
+			{
+				"astId": 42000,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "__gap",
+				"offset": 0,
+				"slot": "1",
+				"type": "t_array(t_uint256)50_storage"
+			},
+			{
+				"astId": 41258,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "_owner",
+				"offset": 0,
+				"slot": "51",
+				"type": "t_address"
+			},
+			{
+				"astId": 41378,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "__gap",
+				"offset": 0,
+				"slot": "52",
+				"type": "t_array(t_uint256)49_storage"
+			},
+			{
+				"astId": 41551,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "_paused",
+				"offset": 0,
+				"slot": "101",
+				"type": "t_bool"
+			},
+			{
+				"astId": 41656,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "__gap",
+				"offset": 0,
+				"slot": "102",
+				"type": "t_array(t_uint256)49_storage"
+			},
+			{
+				"astId": 41671,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "_status",
+				"offset": 0,
+				"slot": "151",
+				"type": "t_uint256"
+			},
+			{
+				"astId": 41715,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "__gap",
+				"offset": 0,
+				"slot": "152",
+				"type": "t_array(t_uint256)49_storage"
+			},
+			{
+				"astId": 38263,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "spacer_201_0_32",
+				"offset": 0,
+				"slot": "201",
+				"type": "t_mapping(t_bytes32,t_bool)"
+			},
+			{
+				"astId": 38268,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "spacer_202_0_32",
+				"offset": 0,
+				"slot": "202",
+				"type": "t_mapping(t_bytes32,t_bool)"
+			},
+			{
+				"astId": 38273,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "successfulMessages",
+				"offset": 0,
+				"slot": "203",
+				"type": "t_mapping(t_bytes32,t_bool)"
+			},
+			{
+				"astId": 38276,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "xDomainMsgSender",
+				"offset": 0,
+				"slot": "204",
+				"type": "t_address"
+			},
+			{
+				"astId": 38279,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "msgNonce",
+				"offset": 0,
+				"slot": "205",
+				"type": "t_uint240"
+			},
+			{
+				"astId": 38284,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "failedMessages",
+				"offset": 0,
+				"slot": "206",
+				"type": "t_mapping(t_bytes32,t_bool)"
+			},
+			{
+				"astId": 38289,
+				"contract": "contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger",
+				"label": "__gap",
+				"offset": 0,
+				"slot": "207",
+				"type": "t_array(t_uint256)42_storage"
+			}
+		],
+		"types": {
+			"t_address": {
+				"encoding": "inplace",
+				"label": "address",
+				"numberOfBytes": "20"
+			},
+			"t_array(t_uint256)42_storage": {
+				"encoding": "inplace",
+				"label": "uint256[42]",
+				"numberOfBytes": "1344",
+				"base": "t_uint256"
+			},
+			"t_array(t_uint256)49_storage": {
+				"encoding": "inplace",
+				"label": "uint256[49]",
+				"numberOfBytes": "1568",
+				"base": "t_uint256"
+			},
+			"t_array(t_uint256)50_storage": {
+				"encoding": "inplace",
+				"label": "uint256[50]",
+				"numberOfBytes": "1600",
+				"base": "t_uint256"
+			},
+			"t_bool": {
+				"encoding": "inplace",
+				"label": "bool",
+				"numberOfBytes": "1"
+			},
+			"t_bytes32": {
+				"encoding": "inplace",
+				"label": "bytes32",
+				"numberOfBytes": "32"
+			},
+			"t_mapping(t_bytes32,t_bool)": {
+				"encoding": "mapping",
+				"key": "t_bytes32",
+				"label": "mapping(bytes32 => bool)",
+				"numberOfBytes": "32",
+				"value": "t_bool"
+			},
+			"t_uint240": {
+				"encoding": "inplace",
+				"label": "uint240",
+				"numberOfBytes": "30"
+			},
+			"t_uint256": {
+				"encoding": "inplace",
+				"label": "uint256",
+				"numberOfBytes": "32"
+			},
+			"t_uint8": {
+				"encoding": "inplace",
+				"label": "uint8",
+				"numberOfBytes": "1"
+			}
+		}
+	}
+}

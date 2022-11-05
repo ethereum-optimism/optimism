@@ -29,7 +29,6 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
         CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
     {
         PORTAL = _portal;
-        initialize(address(0));
     }
 
     /**
