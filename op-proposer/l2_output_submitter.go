@@ -12,13 +12,13 @@ import (
 	"syscall"
 	"time"
 
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"

@@ -3,11 +3,11 @@ module github.com/ethereum-optimism/optimism/op-proposer
 go 1.18
 
 require (
+	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/optimism/op-bindings v0.9.0
 	github.com/ethereum-optimism/optimism/op-node v0.9.0
 	github.com/ethereum-optimism/optimism/op-service v0.9.0
-	github.com/ethereum/go-ethereum v1.10.23
-	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli v1.22.9
 )
@@ -16,10 +16,10 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/btcsuite/btcd v0.22.1 // indirect
+	github.com/btcsuite/btcd v0.23.3 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
+	github.com/btcsuite/btcd/btcutil v1.1.0 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
-	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
@@ -97,4 +97,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20221104201324-9a6cc90a279b
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221104201324-9a6cc90a279b
