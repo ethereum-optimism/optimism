@@ -230,7 +230,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize();
+        L1Messenger.initialize(alice);
 
         vm.etch(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,

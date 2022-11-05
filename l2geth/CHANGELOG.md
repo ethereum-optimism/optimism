@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.29
+
+### Patch Changes
+
+- 4e65ceb9d: Dedupe dumper addresses in memory
+
 ## 0.5.28
 
 ### Patch Changes

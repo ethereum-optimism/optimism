@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
+import { SystemConfig } from "./DeployConfig.sol";
 import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**
@@ -36,6 +37,19 @@ contract FreshSystemDictator is BaseSystemDictator {
             )
         );
 
+        // Upgrade and initialize the BatchInbox.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.batchInboxProxy),
+            address(config.implementationAddressConfig.batchInboxImpl),
+            abi.encodeCall(
+                BatchInbox.initialize,
+                (
+                    config.batchInboxConfig.batchInboxProposer,
+                    config.batchInboxConfig.batchInboxOwner
+                )
+            )
+        );
+
         // Upgrade and initialize the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.optimismPortalProxy),
@@ -47,7 +61,7 @@ contract FreshSystemDictator is BaseSystemDictator {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             address(config.implementationAddressConfig.l1CrossDomainMessengerImpl),
-            abi.encodeCall(L1CrossDomainMessenger.initialize, ())
+            abi.encodeCall(L1CrossDomainMessenger.initialize, (config.globalConfig.finalOwner))
         );
 
         // Upgrade the L1StandardBridge (no initializer).

@@ -11,15 +11,16 @@ import (
 
 	"github.com/urfave/cli"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 )
 
 var Subcommands = cli.Commands{
@@ -62,7 +63,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 			// SYSCOIN
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr, predeploys.DevL2OutputOracleAddr, config.BatchInboxAddress)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr, predeploys.DevSystemConfigAddr, predeploys.DevL2OutputOracleAddr, config.BatchInboxAddress)
 
 			if err := writeGenesisFile(ctx.String("outfile.l1"), l1Genesis); err != nil {
 				return err
@@ -150,6 +151,10 @@ var Subcommands = cli.Commands{
 			if err != nil {
 				return err
 			}
+			sysCfgProxy, err := hh.GetDeployment("SystemConfigProxy")
+			if err != nil {
+				return err
+			}
 			l1ERC721BP, err := hh.GetDeployment("L1ERC721BridgeProxy")
 			if err != nil {
 				return err
@@ -166,7 +171,8 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, outputOracle.Address, batchInboxAddr.Address)
+			// SYSCOIN
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, sysCfgProxy.Address, outputOracle.Address, batchInboxAddr.Address)
 
 			if err := writeGenesisFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err
@@ -183,6 +189,7 @@ func makeRollupConfig(
 	portalAddr common.Address,
 	outputOracleAddr common.Address,
 	batchInboxAddr common.Address,
+	sysConfigAddr common.Address,
 ) *rollup.Config {
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
@@ -195,6 +202,12 @@ func makeRollupConfig(
 				Number: 0,
 			},
 			L2Time: l1StartBlock.Time(),
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: config.BatchSenderAddress,
+				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleOverhead))),
+				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleScalar))),
+				GasLimit:    uint64(config.L2GenesisBlockGasLimit),
+			},
 		},
 		BlockTime:              config.L2BlockTime,
 		MaxSequencerDrift:      config.MaxSequencerDrift,
@@ -207,6 +220,7 @@ func makeRollupConfig(
 		BatchSenderAddress:     config.BatchSenderAddress,
 		DepositContractAddress: portalAddr,
 		L2OutputOracleAddress:  outputOracleAddr,
+		L1SystemConfigAddress:  sysConfigAddr,
 	}
 }
 

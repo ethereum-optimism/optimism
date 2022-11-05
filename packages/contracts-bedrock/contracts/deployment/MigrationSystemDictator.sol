@@ -2,11 +2,13 @@
 pragma solidity 0.8.15;
 
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { BatchInbox } from "../L1/BatchInbox.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { PortalSender } from "./PortalSender.sol";
+import { SystemConfig } from "./DeployConfig.sol";
 import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**
@@ -111,6 +113,19 @@ contract MigrationSystemDictator is BaseSystemDictator {
                     config.l2OutputOracleConfig.l2OutputOracleGenesisL2Output,
                     config.l2OutputOracleConfig.l2OutputOracleProposer,
                     config.l2OutputOracleConfig.l2OutputOracleOwner
+                )
+            )
+        );
+
+        // Upgrade and initialize the BatchInbox.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.batchInboxProxy),
+            address(config.implementationAddressConfig.batchInboxImpl),
+            abi.encodeCall(
+                BatchInbox.initialize,
+                (
+                    config.batchInboxConfig.batchInboxProposer,
+                    config.batchInboxConfig.batchInboxOwner
                 )
             )
         );

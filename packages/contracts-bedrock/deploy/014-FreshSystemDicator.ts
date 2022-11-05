@@ -6,7 +6,6 @@ import 'hardhat-deploy'
 import {
   getDeploymentAddress,
   deployAndVerifyAndThen,
-  getContractFromArtifact,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -18,8 +17,8 @@ const deployFn: DeployFunction = async (hre) => {
       {
         globalConfig: {
           proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-          controller: deployer, // TODO
-          finalOwner: hre.deployConfig.proxyAdminOwner,
+          controller: deployer,
+          finalOwner: hre.deployConfig.finalSystemOwner,
           addressManager: ethers.constants.AddressZero,
         },
         proxyAddressConfig: {
@@ -47,10 +46,15 @@ const deployFn: DeployFunction = async (hre) => {
             hre,
             'L1ERC721BridgeProxy'
           ),
+          batchInboxProxy: await getDeploymentAddress(
+            hre,
+            'BatchInboxProxy'
+          ),
         },
         implementationAddressConfig: {
           l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
           optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
+          batchInboxImpl: await getDeploymentAddress(hre, 'BatchInbox'),
           l1CrossDomainMessengerImpl: await getDeploymentAddress(
             hre,
             'L1CrossDomainMessenger'
@@ -72,27 +76,16 @@ const deployFn: DeployFunction = async (hre) => {
           l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
           l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
         },
+        batchInboxConfig: {
+          batchInboxProposer: hre.deployConfig.batchSenderAddress,
+          batchInboxOwner: hre.deployConfig.batchInboxAddress,
+        },
       },
     ],
     postDeployAction: async () => {
       // TODO: Assert all the config was set correctly.
     },
   })
-
-  const ProxyAdmin = await getContractFromArtifact(hre, 'ProxyAdmin', {
-    signerOrProvider: deployer,
-  })
-  const FreshSystemDictator = await getContractFromArtifact(
-    hre,
-    'FreshSystemDictator',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-
-  await ProxyAdmin.setOwner(FreshSystemDictator.address)
-  await FreshSystemDictator.step1()
-  await FreshSystemDictator.step2()
 }
 
 deployFn.tags = ['FreshSystemDictator', 'fresh']

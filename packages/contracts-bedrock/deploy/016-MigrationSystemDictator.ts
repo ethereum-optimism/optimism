@@ -1,4 +1,3 @@
-import { awaitCondition } from '@eth-optimism/core-utils'
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
@@ -7,13 +6,11 @@ import 'hardhat-deploy'
 import {
   getDeploymentAddress,
   deployAndVerifyAndThen,
-  getContractFromArtifact,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
-  let isLiveDeployer = false
   let controller = hre.deployConfig.controller
   if (controller === ethers.constants.AddressZero) {
     if (hre.network.config.live === false) {
@@ -25,7 +22,6 @@ const deployFn: DeployFunction = async (hre) => {
         `WARNING!!! Make sure you are ONLY doing this on a test network.`
       )
       controller = deployer
-      isLiveDeployer = true
     } else {
       throw new Error(
         `controller address MUST NOT be the deployer on live networks`
@@ -33,7 +29,7 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
-  let finalOwner = hre.deployConfig.proxyAdminOwner
+  let finalOwner = hre.deployConfig.finalSystemOwner
   if (finalOwner === ethers.constants.AddressZero) {
     if (hre.network.config.live === false) {
       console.log(`WARNING!!!`)
@@ -45,7 +41,7 @@ const deployFn: DeployFunction = async (hre) => {
       )
       finalOwner = deployer
     } else {
-      throw new Error(`must specify the proxyAdminOwner on live networks`)
+      throw new Error(`must specify the finalSystemOwner on live networks`)
     }
   }
 
@@ -64,6 +60,10 @@ const deployFn: DeployFunction = async (hre) => {
           l2OutputOracleProxy: await getDeploymentAddress(
             hre,
             'L2OutputOracleProxy'
+          ),
+          batchInboxProxy: await getDeploymentAddress(
+            hre,
+            'BatchInboxProxy'
           ),
           optimismPortalProxy: await getDeploymentAddress(
             hre,
@@ -88,6 +88,7 @@ const deployFn: DeployFunction = async (hre) => {
         },
         implementationAddressConfig: {
           l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
+          batchInboxImpl: await getDeploymentAddress(hre, 'BatchInbox'),
           optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
           l1CrossDomainMessengerImpl: await getDeploymentAddress(
             hre,
@@ -110,120 +111,16 @@ const deployFn: DeployFunction = async (hre) => {
           l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
           l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
         },
+        batchInboxConfig: {
+          batchInboxProposer: hre.deployConfig.batchSenderAddress,
+          batchInboxOwner: hre.deployConfig.batchInboxAddress,
+        },
       },
     ],
     postDeployAction: async () => {
       // TODO: Assert all the config was set correctly.
     },
   })
-
-  const ProxyAdmin = await getContractFromArtifact(hre, 'ProxyAdmin', {
-    signerOrProvider: deployer,
-  })
-  const MigrationSystemDictator = await getContractFromArtifact(
-    hre,
-    'MigrationSystemDictator',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-
-  console.log(
-    `Transferring ownership of ProxyAdmin to MigrationSystemDictator...`
-  )
-  await ProxyAdmin.setOwner(MigrationSystemDictator.address)
-
-  // Transfer ownership of the AddressManager to MigrationSystemDictator.
-  const AddressManager = await getContractFromArtifact(
-    hre,
-    'Lib_AddressManager',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-  if (isLiveDeployer) {
-    console.log(
-      `Transferring ownership of AddressManager to the MigrationSystemDictator...`
-    )
-    await AddressManager.transferOwnership(MigrationSystemDictator.address)
-  } else {
-    console.log(
-      `Please transfer ownership of the AddressManager to the MigrationSystemDictator located at: ${MigrationSystemDictator.address}`
-    )
-  }
-  await awaitCondition(async () => {
-    const owner = await AddressManager.owner()
-    return owner === MigrationSystemDictator.address
-  })
-
-  // Transfer ownership of the L1CrossDomainMessenger to MigrationSystemDictator.
-  const L1CrossDomainMessenger = await getContractFromArtifact(
-    hre,
-    'Proxy__OVM_L1CrossDomainMessenger',
-    {
-      iface: 'L1CrossDomainMessenger',
-      signerOrProvider: deployer,
-    }
-  )
-  if (isLiveDeployer) {
-    console.log(
-      `Transferring ownership of L1CrossDomainMessenger to the MigrationSystemDictator...`
-    )
-    await L1CrossDomainMessenger.transferOwnership(
-      MigrationSystemDictator.address
-    )
-  } else {
-    console.log(
-      `Please transfer ownership of the L1CrossDomainMessenger to the MigrationSystemDictator located at: ${MigrationSystemDictator.address}`
-    )
-  }
-  await awaitCondition(async () => {
-    const owner = await L1CrossDomainMessenger.owner()
-    return owner === MigrationSystemDictator.address
-  })
-
-  // Transfer ownership of the L1StandardBridge (proxy) to MigrationSystemDictator.
-  const L1StandardBridge = await getContractFromArtifact(
-    hre,
-    'Proxy__OVM_L1StandardBridge',
-    {
-      signerOrProvider: deployer,
-    }
-  )
-  if (isLiveDeployer) {
-    console.log(
-      `Transferring ownership of L1StandardBridge to the MigrationSystemDictator...`
-    )
-    await L1StandardBridge.setOwner(MigrationSystemDictator.address)
-  } else {
-    console.log(
-      `Please transfer ownership of the L1StandardBridge (proxy) to the MigrationSystemDictator located at: ${MigrationSystemDictator.address}`
-    )
-  }
-  const noSigner = await getContractFromArtifact(
-    hre,
-    'Proxy__OVM_L1StandardBridge'
-  )
-  await awaitCondition(async () => {
-    const owner = await noSigner.callStatic.getOwner({
-      from: ethers.constants.AddressZero,
-    })
-    return owner === MigrationSystemDictator.address
-  })
-
-  for (let i = 1; i <= 6; i++) {
-    if (isLiveDeployer) {
-      console.log(`Executing step ${i}...`)
-      await MigrationSystemDictator[`step${i}`]()
-    } else {
-      console.log(`Please execute step ${i}...`)
-    }
-
-    await awaitCondition(async () => {
-      const step = await MigrationSystemDictator.currentStep()
-      return step.toNumber() === i + 1
-    })
-  }
 }
 
 deployFn.tags = ['MigrationSystemDictator', 'migration']

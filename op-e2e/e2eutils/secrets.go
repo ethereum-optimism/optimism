@@ -4,11 +4,11 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
-	hdwallet "github.com/miguelmota/go-ethereum-hdwallet"
 )
 
 // DefaultMnemonicConfig is the default mnemonic used in testing.
@@ -24,6 +24,7 @@ var DefaultMnemonicConfig = &MnemonicConfig{
 	Alice:        "m/44'/60'/0'/0/6",
 	Bob:          "m/44'/60'/0'/0/7",
 	Mallory:      "m/44'/60'/0'/0/8",
+	SysCfgOwner:  "m/44'/60'/0'/0/9",
 }
 
 // MnemonicConfig configures the private keys for the hive testnet.
@@ -33,6 +34,7 @@ type MnemonicConfig struct {
 
 	Deployer     string
 	CliqueSigner string
+	SysCfgOwner  string
 
 	// rollup actors
 	Proposer     string
@@ -64,6 +66,10 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	if err != nil {
 		return nil, err
 	}
+	sysCfgOwner, err := wallet.PrivateKey(account(m.SysCfgOwner))
+	if err != nil {
+		return nil, err
+	}
 	proposer, err := wallet.PrivateKey(account(m.Proposer))
 	if err != nil {
 		return nil, err
@@ -92,6 +98,7 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 	return &Secrets{
 		Deployer:     deployer,
 		CliqueSigner: cliqueSigner,
+		SysCfgOwner:  sysCfgOwner,
 		Proposer:     proposer,
 		Batcher:      batcher,
 		SequencerP2P: sequencerP2P,
@@ -105,6 +112,7 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 type Secrets struct {
 	Deployer     *ecdsa.PrivateKey
 	CliqueSigner *ecdsa.PrivateKey
+	SysCfgOwner  *ecdsa.PrivateKey
 
 	// rollup actors
 	Proposer     *ecdsa.PrivateKey
@@ -131,6 +139,7 @@ func (s *Secrets) Addresses() *Addresses {
 	return &Addresses{
 		Deployer:     crypto.PubkeyToAddress(s.Deployer.PublicKey),
 		CliqueSigner: crypto.PubkeyToAddress(s.CliqueSigner.PublicKey),
+		SysCfgOwner:  crypto.PubkeyToAddress(s.SysCfgOwner.PublicKey),
 		Proposer:     crypto.PubkeyToAddress(s.Proposer.PublicKey),
 		Batcher:      crypto.PubkeyToAddress(s.Batcher.PublicKey),
 		SequencerP2P: crypto.PubkeyToAddress(s.SequencerP2P.PublicKey),
@@ -144,6 +153,7 @@ func (s *Secrets) Addresses() *Addresses {
 type Addresses struct {
 	Deployer     common.Address
 	CliqueSigner common.Address
+	SysCfgOwner  common.Address
 
 	// rollup actors
 	Proposer     common.Address
@@ -160,6 +170,7 @@ func (a *Addresses) All() []common.Address {
 	return []common.Address{
 		a.Deployer,
 		a.CliqueSigner,
+		a.SysCfgOwner,
 		a.Proposer,
 		a.Batcher,
 		a.SequencerP2P,

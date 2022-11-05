@@ -61,7 +61,7 @@ const config: HardhatUserConfig = {
   },
   deployConfigSpec: {
     // Address of the L1 proxy admin owner.
-    proxyAdminOwner: {
+    finalSystemOwner: {
       type: 'address',
       default: ethers.constants.AddressZero,
     },
@@ -201,6 +201,10 @@ const config: HardhatUserConfig = {
     finalizationPeriodSeconds: {
       type: 'number',
       default: 2,
+    },
+
+    systemConfigOwner: {
+      type: 'address',
     },
 
     // Optional L1 genesis block values. These must ONLY be used by the L1 genesis config script.
@@ -352,7 +356,7 @@ const config: HardhatUserConfig = {
   solidity: {
     compilers: [
       {
-        version: '0.8.10',
+        version: '0.8.15',
         settings: {
           optimizer: { enabled: true, runs: 10_000 },
         },

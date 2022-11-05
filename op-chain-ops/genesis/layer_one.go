@@ -9,19 +9,21 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
 
 var proxies = []string{
+	"SystemConfigProxy",
 	"L2OutputOracleProxy",
 	"L1CrossDomainMessengerProxy",
 	"L1StandardBridgeProxy",
@@ -65,12 +67,40 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
+	sysCfgABI, err := bindings.SystemConfigMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	gasLimit := uint64(config.L2GenesisBlockGasLimit)
+	if gasLimit == 0 {
+		gasLimit = defaultL2GasLimit
+	}
+	data, err := sysCfgABI.Pack(
+		"initialize",
+		config.SystemConfigOwner,
+		uint642Big(config.GasPriceOracleOverhead),
+		uint642Big(config.GasPriceOracleScalar),
+		config.BatchSenderAddress.Hash(),
+		gasLimit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := upgradeProxy(
+		backend,
+		opts,
+		depsByName["SystemConfigProxy"].Address,
+		depsByName["SystemConfig"].Address,
+		data,
+	); err != nil {
+		return nil, err
+	}
 
 	l2ooABI, err := bindings.L2OutputOracleMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	data, err := l2ooABI.Pack(
+	data, err = l2ooABI.Pack(
 		"initialize",
 		config.L2OutputOracleGenesisL2Output,
 		config.L2OutputOracleProposer,
@@ -110,7 +140,10 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err = l1XDMABI.Pack("initialize")
+	data, err = l1XDMABI.Pack(
+		"initialize",
+		config.ProxyAdminOwner,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +256,21 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: proxy,
 		})
 	}
+	gasLimit := uint64(config.L2GenesisBlockGasLimit)
+	if gasLimit == 0 {
+		gasLimit = defaultL2GasLimit
+	}
 	constructors = append(constructors, []deployer.Constructor{
+		{
+			Name: "SystemConfig",
+			Args: []interface{}{
+				config.SystemConfigOwner,
+				uint642Big(config.GasPriceOracleOverhead),
+				uint642Big(config.GasPriceOracleScalar),
+				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
+				gasLimit,
+			},
+		},
 		{
 			Name: "L2OutputOracle",
 			Args: []interface{}{
@@ -276,6 +323,16 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	var err error
 
 	switch deployment.Name {
+	case "SystemConfig":
+		_, tx, _, err = bindings.DeploySystemConfig(
+			opts,
+			backend,
+			deployment.Args[0].(common.Address),
+			deployment.Args[1].(*big.Int),
+			deployment.Args[2].(*big.Int),
+			deployment.Args[3].(common.Hash),
+			deployment.Args[4].(uint64),
+		)
 	case "L2OutputOracle":
 		_, tx, _, err = bindings.DeployL2OutputOracle(
 			opts,

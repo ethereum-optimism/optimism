@@ -26,8 +26,8 @@ type L1Fetcher interface {
 }
 
 type ResetableStage interface {
-	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to.
-	Reset(ctx context.Context, base eth.L1BlockRef) error
+	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
+	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
 }
 
 type EngineQueueStage interface {
@@ -36,6 +36,7 @@ type EngineQueueStage interface {
 	UnsafeL2Head() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
+	SystemConfig() eth.SystemConfig
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.L1BlockRef)
@@ -66,14 +67,14 @@ type DerivationPipeline struct {
 func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetcher, engine Engine, metrics Metrics) *DerivationPipeline {
 
 	// Pull stages
-	l1Traversal := NewL1Traversal(log, l1Fetcher)
+	l1Traversal := NewL1Traversal(log, cfg, l1Fetcher)
 	dataSrc := NewDataSourceFactory(log, cfg, l1Fetcher) // auxiliary stage for L1Retrieval
 	l1Src := NewL1Retrieval(log, dataSrc, l1Traversal)
 	frameQueue := NewFrameQueue(log, l1Src)
 	bank := NewChannelBank(log, cfg, frameQueue, l1Fetcher)
 	chInReader := NewChannelInReader(log, bank)
 	batchQueue := NewBatchQueue(log, cfg, chInReader)
-	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, batchQueue)
+	attributesQueue := NewAttributesQueue(log, cfg, l1Fetcher, engine, batchQueue)
 
 	// Step stages
 	eng := NewEngineQueue(log, cfg, engine, metrics, attributesQueue, l1Fetcher)
@@ -148,7 +149,7 @@ func (dp *DerivationPipeline) Step(ctx context.Context) error {
 
 	// if any stages need to be reset, do that first.
 	if dp.resetting < len(dp.stages) {
-		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin()); err == io.EOF {
+		if err := dp.stages[dp.resetting].Reset(ctx, dp.eng.Origin(), dp.eng.SystemConfig()); err == io.EOF {
 			dp.log.Debug("reset of stage completed", "stage", dp.resetting, "origin", dp.eng.Origin())
 			dp.resetting += 1
 			return nil

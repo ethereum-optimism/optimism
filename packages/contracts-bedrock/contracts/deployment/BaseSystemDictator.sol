@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { BatchInbox } from "../L1/BatchInbox.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
@@ -11,6 +12,7 @@ import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { SystemConfig } from "./DeployConfig.sol";
 
 /**
  * @title BaseSystemDictator
@@ -32,6 +34,7 @@ contract BaseSystemDictator is Ownable {
      */
     struct ProxyAddressConfig {
         address l2OutputOracleProxy;
+        address batchInboxProxy;
         address optimismPortalProxy;
         address l1CrossDomainMessengerProxy;
         address l1StandardBridgeProxy;
@@ -44,6 +47,7 @@ contract BaseSystemDictator is Ownable {
      */
     struct ImplementationAddressConfig {
         L2OutputOracle l2OutputOracleImpl;
+        BatchInbox batchInboxImpl;
         OptimismPortal optimismPortalImpl;
         L1CrossDomainMessenger l1CrossDomainMessengerImpl;
         L1StandardBridge l1StandardBridgeImpl;
@@ -61,6 +65,11 @@ contract BaseSystemDictator is Ownable {
         address l2OutputOracleOwner;
     }
 
+    struct BatchInboxConfig {
+        address batchInboxProposer;
+        address batchInboxOwner;
+    }
+
     /**
      * @notice Combined system configuration.
      */
@@ -69,6 +78,7 @@ contract BaseSystemDictator is Ownable {
         ProxyAddressConfig proxyAddressConfig;
         ImplementationAddressConfig implementationAddressConfig;
         L2OutputOracleConfig l2OutputOracleConfig;
+        BatchInboxConfig batchInboxConfig;
     }
 
     /**
@@ -79,14 +89,14 @@ contract BaseSystemDictator is Ownable {
     /**
      * @notice Current step;
      */
-    uint256 public currentStep = 1;
+    uint8 public currentStep = 1;
 
     /**
      * @notice Checks that the current step is the expected step, then bumps the current step.
      *
      * @param _step Current step.
      */
-    modifier step(uint256 _step) {
+    modifier step(uint8 _step) {
         require(currentStep == _step, "BaseSystemDictator: incorrect step");
         _;
         currentStep++;

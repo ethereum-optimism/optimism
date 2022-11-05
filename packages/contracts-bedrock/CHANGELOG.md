@@ -1,5 +1,21 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.9.0
+
+### Minor Changes
+
+- 87702c741: Use SCREAMING_SNAKE_CASE for immutables
+
+### Patch Changes
+
+- c02831144: Introduces layout lock and more storage layout verification
+- d58b0a397: Cleans up remaining lint warnings
+- ff860ecf3: Introduces the MigrationSystemDictator for the Bedrock migration
+- cc5adbc61: Updates function ordering in ProxyAdmin to match original contract
+- 31c91ea74: Adds another assertion in the CrossDomainMessenger to explicitly identify an invariant which was previously implicit.
+- Updated dependencies [1e76cdb86]
+  - @eth-optimism/core-utils@0.11.0
+
 ## 0.8.3
 
 ### Patch Changes

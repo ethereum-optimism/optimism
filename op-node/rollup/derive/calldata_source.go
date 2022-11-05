@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type DataIter interface {
@@ -37,8 +38,8 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Transact
 }
 
 // OpenData returns a CalldataSourceImpl. This struct implements the `Next` function.
-func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID) DataIter {
-	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id)
+func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID, batcherAddr common.Address) DataIter {
+	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id, batcherAddr)
 }
 
 // DataSource is a fault tolerant approach to fetching data.
@@ -53,19 +54,23 @@ type DataSource struct {
 	cfg     *rollup.Config // TODO: `DataFromEVMTransactions` should probably not take the full config
 	fetcher L1TransactionFetcher
 	log     log.Logger
+
+	batcherAddr common.Address
 }
 
 // NewDataSource creates a new calldata source. It suppresses errors in fetching the L1 block if they occur.
 // If there is an error, it will attempt to fetch the result on the next call to `Next`.
-func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID) DataIter {
+func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetcher L1TransactionFetcher, block eth.BlockID, batcherAddr common.Address) DataIter {
+	// SYSCOIN info
 	info, txs, err := fetcher.InfoAndTxsByHash(ctx, block.Hash)
 	if err != nil {
 		return &DataSource{
-			open:    false,
-			id:      block,
-			cfg:     cfg,
-			fetcher: fetcher,
-			log:     log,
+			open:        false,
+			id:          block,
+			cfg:         cfg,
+			fetcher:     fetcher,
+			log:         log,
+			batcherAddr: batcherAddr,
 		}
 	} else {
 		return &DataSource{
@@ -106,6 +111,16 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 	var txsToCheck types.Transactions
 	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
+			/*seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
+			if err != nil {
+				log.Warn("tx in inbox with invalid signature", "index", j, "err", err)
+				continue // bad signature, ignore
+			}
+			// some random L1 user might have sent a transaction to our batch inbox, ignore them
+			if seqDataSubmitter != batcherAddr {
+				log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
+				continue // not an authorized batch submitter, ignore
+			}*/
 			txsToCheck = append(txsToCheck, tx)
 		}
 	}

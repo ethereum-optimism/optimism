@@ -1,8 +1,6 @@
 import './deposits'
 import './rekey'
-import './rollup-config'
 import './check-op-node'
-import './check-l2-config'
 import './watch'
 import './forge-verify'
 import './validate-spacers'

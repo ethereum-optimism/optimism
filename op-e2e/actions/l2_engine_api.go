@@ -42,13 +42,13 @@ func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) 
 	_ = binary.Write(hasher, binary.BigEndian, params.Timestamp)
 	hasher.Write(params.PrevRandao[:])
 	hasher.Write(params.SuggestedFeeRecipient[:])
+	_ = binary.Write(hasher, binary.BigEndian, params.NoTxPool)
+	_ = binary.Write(hasher, binary.BigEndian, uint64(len(params.Transactions)))
 	for _, tx := range params.Transactions {
 		_ = binary.Write(hasher, binary.BigEndian, uint64(len(tx))) // length-prefix to avoid collisions
 		hasher.Write(tx)
 	}
-	if params.NoTxPool {
-		hasher.Write([]byte{1})
-	}
+	_ = binary.Write(hasher, binary.BigEndian, *params.GasLimit)
 	var out beacon.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
@@ -73,7 +73,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 		Coinbase:   params.SuggestedFeeRecipient,
 		Difficulty: common.Big0,
 		Number:     new(big.Int).Add(parentHeader.Number, common.Big1),
-		GasLimit:   parentHeader.GasLimit,
+		GasLimit:   uint64(*params.GasLimit),
 		Time:       uint64(params.Timestamp),
 		Extra:      nil,
 		MixDigest:  common.Hash(params.PrevRandao),

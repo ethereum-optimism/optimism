@@ -6,9 +6,10 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // The batch queue is responsible for ordering unordered batches & generating empty batches
@@ -113,7 +114,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 	return batch, nil
 }
 
-func (bq *BatchQueue) Reset(ctx context.Context, base eth.L1BlockRef) error {
+func (bq *BatchQueue) Reset(ctx context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
 	// Copy over the Origin from the next stage
 	// It is set in the engine queue (two stages away) such that the L2 Safe Head origin is the progress
 	bq.origin = base
