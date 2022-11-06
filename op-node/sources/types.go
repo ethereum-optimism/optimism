@@ -32,16 +32,16 @@ type BatchCallContextFn func(ctx context.Context, b []rpc.BatchElem) error
 // HeaderInfo contains all the header-info required to implement the eth.BlockInfo interface,
 // used in the rollup state-transition, with pre-computed block hash.
 type HeaderInfo struct {
-	hash        common.Hash
-	parentHash  common.Hash
-	coinbase    common.Address
-	root        common.Hash
+	baseFee     *big.Int
 	number      uint64
 	time        uint64
+	hash        common.Hash
+	parentHash  common.Hash
+	root        common.Hash
 	mixDigest   common.Hash // a.k.a. the randomness field post-merge.
-	baseFee     *big.Int
 	txHash      common.Hash
 	receiptHash common.Hash
+	coinbase    common.Address
 }
 
 var _ eth.BlockInfo = (*HeaderInfo)(nil)
