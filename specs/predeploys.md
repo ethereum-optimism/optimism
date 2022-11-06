@@ -65,10 +65,10 @@ or `Bedrock`. Deprecated contracts should not be used.
 | BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         | Yes     |
 | L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         | Yes     |
 
-
 ## LegacyMessagePasser
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/LegacyMessagePasser.sol)
+
 Address: `0x4200000000000000000000000000000000000000`
 
 The `LegacyMessagePasser` contract stores commitments to withdrawal
@@ -84,10 +84,10 @@ Any pending withdrawals that have not been finalized are migrated to the
 `L2ToL1MessagePasser` as part of the upgrade so that they can still be
 finalized.
 
-
 ## L2ToL1MessagePasser
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L2ToL1MessagePasser.sol)
+
 Address: `0x4200000000000000000000000000000000000016`
 
 The `L2ToL1MessagePasser` stores commitments to withdrawal transactions.
@@ -101,6 +101,7 @@ permissionlessly removed from the L2 supply by calling the `burn()` function.
 ## DeployerWhitelist
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/DeployerWhitelist.sol)
+
 Address: `0x4200000000000000000000000000000000000002`
 
 The `DeployerWhitelist` is a predeploy used to provide additional
@@ -120,6 +121,7 @@ This contract is deprecated and its usage should be avoided.
 ## LegacyERC20ETH
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/LegacyERC20ETH.sol)
+
 Address: `0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000`
 
 The `LegacyERC20ETH` predeploy represents all ether in the system before the
@@ -135,6 +137,7 @@ This contract is deprecated and its usage should be avoided.
 ## WETH9
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/vendor/WETH9.sol)
+
 Address: `0x4200000000000000000000000000000000000006`
 
 `WETH9` is the standard implementation of Wrapped Ether on Optimism. It is a
@@ -144,6 +147,7 @@ deterministic address across chains.
 ## L2CrossDomainMessenger
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L2CrossDomainMessenger.sol)
+
 Address: `0x4200000000000000000000000000000000000007`
 
 The `L2CrossDomainMessenger` gives a higher level API for sending cross domain
@@ -161,6 +165,7 @@ domain through the remote domain's `relayMessage` function.
 ## L2StandardBridge
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L2StandardBridge.sol)
+
 Address: `0x4200000000000000000000000000000000000010`
 
 The `L2StandardBridge` is a higher level API built on top of the
@@ -178,6 +183,7 @@ unlock the underlying token and transfer it to the specified account.
 ## SequencerFeeVault
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/SequencerFeeVault.sol)
+
 Address: `0x4200000000000000000000000000000000000011`
 
 The `SequencerFeeVault` accumulates any transaction tips and is the value of
@@ -190,6 +196,7 @@ upgraded by changing its proxy's implementation key.
 ## OptimismMintableERC20Factory
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/OptimismMintableERC721Factory.sol)
+
 Address: `0x4200000000000000000000000000000000000012`
 
 The `OptimismMintableERC20Factory` can be used to create an ERC20 token contract
@@ -204,6 +211,7 @@ withdrawn to L1.
 ## L1BlockNumber
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/L1BlockNumber.sol)
+
 Address: `0x4200000000000000000000000000000000000013`
 
 The `L1BlockNumber` returns the last known L1 block number. This contract was
@@ -216,6 +224,7 @@ L1 on L2.
 ## GasPriceOracle
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/GasPriceOracle.sol)
+
 Address: `0x420000000000000000000000000000000000000F`
 
 In the legacy system, the `GasPriceOracle` was a permissioned contract
@@ -232,6 +241,7 @@ layer and should be added to the L2 portion of the fee, which pays for
 execution, to compute the total transaction fee.
 
 The values used to compute the L2 portion of the fee are:
+
 - scalar
 - overhead
 - decimals
@@ -244,6 +254,7 @@ has been hardcoded to 6.
 ## L1Block
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L1Block.sol)
+
 Address: `0x4200000000000000000000000000000000000015`
 
 [l1-block-predeploy]: glossary.md#l1-attributes-predeployed-contract
@@ -263,6 +274,7 @@ have the ability to upgrade any of the other predeploy contracts.
 ## BaseFeeVault
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/BaseFeeVault.sol)
+
 Address: `0x4200000000000000000000000000000000000019`
 
 The `BaseFeeVault` predeploy receives the basefees on L2. The basefee is not
@@ -273,6 +285,7 @@ L1.
 ## L1FeeVault
 
 [Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L1FeeVault.sol)
+
 Address: `0x420000000000000000000000000000000000001a`
 
 The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
