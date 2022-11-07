@@ -54,62 +54,64 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 	require.NoError(t, err)
 	addresses := secrets.Addresses()
 	deployConfig := &genesis.DeployConfig{
-		L1ChainID:   901,
-		L2ChainID:   902,
-		L2BlockTime: 2,
+		JSONDeployConfig: genesis.JSONDeployConfig{
+			L1ChainID:   901,
+			L2ChainID:   902,
+			L2BlockTime: 2,
 
-		MaxSequencerDrift:   tp.MaxSequencerDrift,
-		SequencerWindowSize: tp.SequencerWindowSize,
-		ChannelTimeout:      tp.ChannelTimeout,
-		P2PSequencerAddress: addresses.SequencerP2P,
-		BatchInboxAddress:   common.Address{0: 0x42, 19: 0xff}, // tbd
-		BatchSenderAddress:  addresses.Batcher,
+			MaxSequencerDrift:   tp.MaxSequencerDrift,
+			SequencerWindowSize: tp.SequencerWindowSize,
+			ChannelTimeout:      tp.ChannelTimeout,
+			P2PSequencerAddress: addresses.SequencerP2P,
+			BatchInboxAddress:   common.Address{0: 0x42, 19: 0xff}, // tbd
+			BatchSenderAddress:  addresses.Batcher,
 
-		L2OutputOracleSubmissionInterval: 6,
-		L2OutputOracleStartingTimestamp:  -1,
-		L2OutputOracleProposer:           addresses.Proposer,
-		L2OutputOracleOwner:              common.Address{}, // tbd
+			L2OutputOracleSubmissionInterval: 6,
+			L2OutputOracleStartingTimestamp:  -1,
+			L2OutputOracleProposer:           addresses.Proposer,
+			L2OutputOracleOwner:              common.Address{}, // tbd
 
-		SystemConfigOwner: addresses.SysCfgOwner,
+			SystemConfigOwner: addresses.SysCfgOwner,
 
-		L1BlockTime:                 15,
-		L1GenesisBlockNonce:         0,
-		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
-		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-		L1GenesisBlockGasLimit:      15_000_000,
-		L1GenesisBlockDifficulty:    uint64ToBig(1),
-		L1GenesisBlockMixHash:       common.Hash{},
-		L1GenesisBlockCoinbase:      common.Address{},
-		L1GenesisBlockNumber:        0,
-		L1GenesisBlockGasUsed:       0,
-		L1GenesisBlockParentHash:    common.Hash{},
-		L1GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000), // 1 gwei
+			L1BlockTime:                 15,
+			L1GenesisBlockNonce:         0,
+			CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
+			L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
+			L1GenesisBlockGasLimit:      15_000_000,
+			L1GenesisBlockDifficulty:    uint64ToBig(1),
+			L1GenesisBlockMixHash:       common.Hash{},
+			L1GenesisBlockCoinbase:      common.Address{},
+			L1GenesisBlockNumber:        0,
+			L1GenesisBlockGasUsed:       0,
+			L1GenesisBlockParentHash:    common.Hash{},
+			L1GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000), // 1 gwei
 
-		L2GenesisBlockNonce:         0,
-		L2GenesisBlockExtraData:     []byte{},
-		L2GenesisBlockGasLimit:      15_000_000,
-		L2GenesisBlockDifficulty:    uint64ToBig(0),
-		L2GenesisBlockMixHash:       common.Hash{},
-		L2GenesisBlockCoinbase:      predeploys.SequencerFeeVaultAddr,
-		L2GenesisBlockNumber:        0,
-		L2GenesisBlockGasUsed:       0,
-		L2GenesisBlockParentHash:    common.Hash{},
-		L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
+			L2GenesisBlockNonce:         0,
+			L2GenesisBlockExtraData:     []byte{},
+			L2GenesisBlockGasLimit:      15_000_000,
+			L2GenesisBlockDifficulty:    uint64ToBig(0),
+			L2GenesisBlockMixHash:       common.Hash{},
+			L2GenesisBlockCoinbase:      predeploys.SequencerFeeVaultAddr,
+			L2GenesisBlockNumber:        0,
+			L2GenesisBlockGasUsed:       0,
+			L2GenesisBlockParentHash:    common.Hash{},
+			L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
 
-		// TODO: remove these config values once the addresses are hardcoded in
-		// geth
-		OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
-		OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
-		L2CrossDomainMessengerOwner: common.Address{0: 0x42, 19: 0xf2}, // tbd
-		GasPriceOracleOwner:         common.Address{0: 0x42, 19: 0xf3}, // tbd
-		GasPriceOracleOverhead:      2100,
-		GasPriceOracleScalar:        1000_000,
-		DeploymentWaitConfirmations: 1,
+			// TODO: remove these config values once the addresses are hardcoded in
+			// geth
+			OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
+			OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
+			L2CrossDomainMessengerOwner: common.Address{0: 0x42, 19: 0xf2}, // tbd
+			GasPriceOracleOwner:         common.Address{0: 0x42, 19: 0xf3}, // tbd
+			GasPriceOracleOverhead:      2100,
+			GasPriceOracleScalar:        1000_000,
+			DeploymentWaitConfirmations: 1,
 
-		EIP1559Elasticity:  10,
-		EIP1559Denominator: 50,
+			EIP1559Elasticity:  10,
+			EIP1559Denominator: 50,
 
-		FundDevAccounts: false,
+			FundDevAccounts: false,
+		},
 	}
 	return &DeployParams{
 		DeployConfig:   deployConfig,

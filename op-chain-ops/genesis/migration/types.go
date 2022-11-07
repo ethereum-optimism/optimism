@@ -41,7 +41,7 @@ func NewSentMessage(path string) ([]*SentMessage, error) {
 // struct. This is useful because the LegacyWithdrawal struct has helper
 // functions on it that can compute the withdrawal hash and the storage slot.
 func (s *SentMessage) ToLegacyWithdrawal() (*crossdomain.LegacyWithdrawal, error) {
-	data := make([]byte, 0, len(s.Who)+len(s.Msg))
+	data := make([]byte, len(s.Who)+len(s.Msg))
 	copy(data, s.Msg)
 	copy(data[len(s.Msg):], s.Who[:])
 
@@ -144,7 +144,7 @@ func (m *MigrationData) Addresses() []common.Address {
 	for addr := range m.EvmAddresses {
 		addresses = append(addresses, addr)
 	}
-	for addr := range m.EvmAddresses {
+	for addr := range m.OvmAddresses {
 		addresses = append(addresses, addr)
 	}
 	return addresses

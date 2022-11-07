@@ -8,76 +8,110 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 // DeployConfig represents the deployment configuration for Optimism
 type DeployConfig struct {
-	L1StartingBlockTag *rpc.BlockNumberOrHash `json:"l1StartingBlockTag"`
-	L1ChainID          uint64                 `json:"l1ChainID"`
-	L2ChainID          uint64                 `json:"l2ChainID"`
-	L2BlockTime        uint64                 `json:"l2BlockTime"`
+	JSONDeployConfig
 
-	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds"`
-	MaxSequencerDrift         uint64         `json:"maxSequencerDrift"`
-	SequencerWindowSize       uint64         `json:"sequencerWindowSize"`
-	ChannelTimeout            uint64         `json:"channelTimeout"`
-	P2PSequencerAddress       common.Address `json:"p2pSequencerAddress"`
-	BatchInboxAddress         common.Address `json:"batchInboxAddress"`
-	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
+	L1StartingBlockTag *rpc.BlockNumberOrHash `json:"-"`
+}
 
-	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
-	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
-	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
-	L2OutputOracleOwner              common.Address `json:"l2OutputOracleOwner"`
-	L2OutputOracleGenesisL2Output    common.Hash    `json:"l2OutputOracleGenesisL2Output"`
+func (d *DeployConfig) MarshalJSON() ([]byte, error) {
+	return json.Marshal(d.JSONDeployConfig)
+}
 
-	SystemConfigOwner common.Address `json:"systemConfigOwner"`
+func (d *DeployConfig) UnmarshalJSON(b []byte) error {
+	if err := json.Unmarshal(b, &d.JSONDeployConfig); err != nil {
+		return nil
+	}
 
-	L1BlockTime                 uint64         `json:"l1BlockTime"`
-	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
-	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
-	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress"` // proof of stake genesis if left zeroed.
-	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit"`
-	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty"`
-	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash"`
-	L1GenesisBlockCoinbase      common.Address `json:"l1GenesisBlockCoinbase"`
-	L1GenesisBlockNumber        hexutil.Uint64 `json:"l1GenesisBlockNumber"`
-	L1GenesisBlockGasUsed       hexutil.Uint64 `json:"l1GenesisBlockGasUsed"`
-	L1GenesisBlockParentHash    common.Hash    `json:"l1GenesisBlockParentHash"`
-	L1GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l1GenesisBlockBaseFeePerGas"`
+	return json.Unmarshal(d.RawL1StartingBlockTag, &d.L1StartingBlockTag)
+}
 
-	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce"`
-	L2GenesisBlockExtraData     hexutil.Bytes  `json:"l2GenesisBlockExtraData"`
-	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
-	L2GenesisBlockDifficulty    *hexutil.Big   `json:"l2GenesisBlockDifficulty"`
-	L2GenesisBlockMixHash       common.Hash    `json:"l2GenesisBlockMixHash"`
-	L2GenesisBlockCoinbase      common.Address `json:"l2GenesisBlockCoinbase"`
-	L2GenesisBlockNumber        hexutil.Uint64 `json:"l2GenesisBlockNumber"`
-	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
-	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
-	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
+func (d *DeployConfig) SetL1StartingBlockTag(tag *rpc.BlockNumberOrHash) {
+	d.L1StartingBlockTag = tag
 
-	ProxyAdminOwner             common.Address `json:"proxyAdminOwner"`
-	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
-	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
-	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
+	var val any
+	if n, ok := tag.Number(); ok {
+		val = n
+	} else if hash, ok := tag.Hash(); ok {
+		val = hash
+	} else {
+		panic("invalid tag")
+	}
 
-	GasPriceOracleOwner    common.Address `json:"gasPriceOracleOwner"`
-	GasPriceOracleOverhead uint64         `json:"gasPriceOracleOverhead"`
-	GasPriceOracleScalar   uint64         `json:"gasPriceOracleScalar"`
+	d.RawL1StartingBlockTag, _ = json.Marshal(val)
+}
 
-	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
+type JSONDeployConfig struct {
+	RawL1StartingBlockTag json.RawMessage `json:"l1StartingBlockTag"`
 
-	EIP1559Elasticity  uint64 `json:"eip1559Elasticity"`
-	EIP1559Denominator uint64 `json:"eip1559Denominator"`
+	L1ChainID   uint64 `json:"l1ChainID"`
+	L2ChainID   uint64 `json:"l2ChainID"`
+	L2BlockTime uint64 `json:"l2BlockTime"`
+
+	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds,omitempty"`
+	MaxSequencerDrift         uint64         `json:"maxSequencerDrift,omitempty"`
+	SequencerWindowSize       uint64         `json:"sequencerWindowSize,omitempty"`
+	ChannelTimeout            uint64         `json:"channelTimeout,omitempty"`
+	P2PSequencerAddress       common.Address `json:"p2pSequencerAddress,omitempty"`
+	BatchInboxAddress         common.Address `json:"batchInboxAddress,omitempty"`
+	BatchSenderAddress        common.Address `json:"batchSenderAddress,omitempty"`
+
+	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval,omitempty"`
+	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp,omitempty"`
+	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer,omitempty"`
+	L2OutputOracleOwner              common.Address `json:"l2OutputOracleOwner,omitempty"`
+	L2OutputOracleGenesisL2Output    common.Hash    `json:"l2OutputOracleGenesisL2Output,omitempty"`
+
+	SystemConfigOwner common.Address `json:"systemConfigOwner,omitempty"`
+
+	L1BlockTime                 uint64         `json:"l1BlockTime,omitempty"`
+	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp,omitempty"`
+	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce,omitempty"`
+	CliqueSignerAddress         common.Address `json:"cliqueSignerAddress,omitempty"` // proof of stake genesis if left zeroed.
+	L1GenesisBlockGasLimit      hexutil.Uint64 `json:"l1GenesisBlockGasLimit,omitempty"`
+	L1GenesisBlockDifficulty    *hexutil.Big   `json:"l1GenesisBlockDifficulty,omitempty"`
+	L1GenesisBlockMixHash       common.Hash    `json:"l1GenesisBlockMixHash,omitempty"`
+	L1GenesisBlockCoinbase      common.Address `json:"l1GenesisBlockCoinbase,omitempty"`
+	L1GenesisBlockNumber        hexutil.Uint64 `json:"l1GenesisBlockNumber,omitempty"`
+	L1GenesisBlockGasUsed       hexutil.Uint64 `json:"l1GenesisBlockGasUsed,omitempty"`
+	L1GenesisBlockParentHash    common.Hash    `json:"l1GenesisBlockParentHash,omitempty"`
+	L1GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l1GenesisBlockBaseFeePerGas,omitempty"`
+
+	L2GenesisBlockNonce         hexutil.Uint64 `json:"l2GenesisBlockNonce,omitempty"`
+	L2GenesisBlockExtraData     hexutil.Bytes  `json:"l2GenesisBlockExtraData,omitempty"`
+	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit,omitempty"`
+	L2GenesisBlockDifficulty    *hexutil.Big   `json:"l2GenesisBlockDifficulty,omitempty"`
+	L2GenesisBlockMixHash       common.Hash    `json:"l2GenesisBlockMixHash,omitempty"`
+	L2GenesisBlockCoinbase      common.Address `json:"l2GenesisBlockCoinbase,omitempty"`
+	L2GenesisBlockNumber        hexutil.Uint64 `json:"l2GenesisBlockNumber,omitempty"`
+	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed,omitempty"`
+	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash,omitempty"`
+	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas,omitempty"`
+
+	ProxyAdminOwner             common.Address `json:"proxyAdminOwner,omitempty"`
+	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner,omitempty"`
+	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient,omitempty"`
+	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient,omitempty"`
+
+	GasPriceOracleOwner    common.Address `json:"gasPriceOracleOwner,omitempty"`
+	GasPriceOracleOverhead uint64         `json:"gasPriceOracleOverhead,omitempty"`
+	GasPriceOracleScalar   uint64         `json:"gasPriceOracleScalar,omitempty"`
+
+	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations,omitempty"`
+
+	EIP1559Elasticity  uint64 `json:"eip1559Elasticity,omitempty"`
+	EIP1559Denominator uint64 `json:"eip1559Denominator,omitempty"`
 
 	FundDevAccounts bool `json:"fundDevAccounts"`
 }

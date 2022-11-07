@@ -165,7 +165,7 @@ func main() {
 			}
 
 			dryRun := ctx.Bool("dry-run")
-			if err := genesis.MigrateDB(ldb, config, block, &l2Addrs, &migrationData, !dryRun); err != nil {
+			if _, err := genesis.MigrateDB(ldb, config, block, &l2Addrs, &migrationData, !dryRun); err != nil {
 				return err
 			}
 
