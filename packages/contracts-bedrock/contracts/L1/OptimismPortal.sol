@@ -168,7 +168,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // In the context of the proxy delegate calling to this implementation,
         // address(this) will return the address of the proxy.
         //
-        // Because this is checked here, we do not need to check again in `finalizeWithdrawalTransaction`
+        // Because this is checked here, we do not need to check again in
+        // `finalizeWithdrawalTransaction`
         require(
             _tx.target != address(this),
             "OptimismPortal: you cannot send messages to the portal contract"
