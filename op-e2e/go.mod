@@ -10,12 +10,12 @@ replace (
 
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-batcher v0.9.0
-	github.com/ethereum-optimism/optimism/op-bindings v0.9.0
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.9.0
-	github.com/ethereum-optimism/optimism/op-node v0.9.0
-	github.com/ethereum-optimism/optimism/op-proposer v0.9.0
-	github.com/ethereum-optimism/optimism/op-service v0.9.0
+	github.com/ethereum-optimism/optimism/op-batcher v0.10.0
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.0
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.0
+	github.com/ethereum-optimism/optimism/op-node v0.10.0
+	github.com/ethereum-optimism/optimism/op-proposer v0.10.0
+	github.com/ethereum-optimism/optimism/op-service v0.10.0
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/libp2p/go-libp2p v0.23.3
 	github.com/stretchr/testify v1.8.0
@@ -29,6 +29,7 @@ require (
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
 	github.com/btcsuite/btcd/btcutil v1.1.0 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
+	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/cgroups v1.0.4 // indirect
 	github.com/coreos/go-systemd/v22 v22.4.0 // indirect
@@ -36,6 +37,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/davidlazar/go-crypto v0.0.0-20200604182044-b73af7476f6c // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
+	github.com/decred/dcrd/crypto/blake256 v1.0.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -80,10 +82,7 @@ require (
 	github.com/libp2p/go-cidranger v1.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect
 	github.com/libp2p/go-libp2p-asn-util v0.2.0 // indirect
-	github.com/libp2p/go-libp2p-core v0.19.1 // indirect
-	github.com/libp2p/go-libp2p-discovery v0.7.0 // indirect
-	github.com/libp2p/go-libp2p-peerstore v0.7.1 // indirect
-	github.com/libp2p/go-libp2p-pubsub v0.7.1 // indirect
+	github.com/libp2p/go-libp2p-pubsub v0.8.1 // indirect
 	github.com/libp2p/go-libp2p-testing v0.12.0 // indirect
 	github.com/libp2p/go-mplex v0.7.0 // indirect
 	github.com/libp2p/go-msgio v0.2.0 // indirect
