@@ -26,7 +26,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   if ((await ProxyAdmin.owner()) !== FreshSystemDictator.address) {
     console.log(`Transferring proxy admin ownership to the FreshSystemDictator`)
-    await ProxyAdmin.setOwner(FreshSystemDictator.address)
+    await ProxyAdmin.transferOwnership(FreshSystemDictator.address)
   } else {
     console.log(`Proxy admin already owned by the FreshSystemDictator`)
   }
