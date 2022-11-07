@@ -2,12 +2,6 @@ module github.com/ethereum-optimism/optimism/op-e2e
 
 go 1.18
 
-// temporary, until we do another set of releases
-replace (
-	github.com/ethereum-optimism/optimism/op-batcher v0.9.0 => ../op-batcher
-	github.com/ethereum-optimism/optimism/op-proposer v0.9.0 => ../op-proposer
-)
-
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
 	github.com/ethereum-optimism/optimism/op-batcher v0.10.0
