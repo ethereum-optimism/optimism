@@ -205,6 +205,7 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
+		// Prove our withdrawal
 		proveTx, err := portal.ProveWithdrawalTransaction(
 			l1Opts,
 			bindings.TypesWithdrawalTransaction{
@@ -224,6 +225,7 @@ func TestBedrockIndexer(t *testing.T) {
 		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
 		require.NoError(t, err)
 
+		// Wait for the finalization period to elapse
 		_, err = withdrawals.WaitForFinalizationPeriod(
 			e2eutils.TimeoutCtx(t, time.Minute),
 			l1Client,
@@ -232,6 +234,7 @@ func TestBedrockIndexer(t *testing.T) {
 		)
 		require.NoError(t, err)
 
+		// Send our finalize withdrawal transaction
 		finTx, err := portal.FinalizeWithdrawalTransaction(
 			l1Opts,
 			bindings.TypesWithdrawalTransaction{
