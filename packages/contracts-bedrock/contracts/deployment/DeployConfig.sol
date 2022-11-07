@@ -7,6 +7,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { PortalSender } from "./PortalSender.sol";
@@ -25,6 +26,7 @@ struct ProxyAddressConfig {
     address l1StandardBridgeProxy;
     address optimismMintableERC20FactoryProxy;
     address l1ERC721BridgeProxy;
+    address systemConfigProxy;
 }
 
 struct ImplementationAddressConfig {
@@ -35,6 +37,7 @@ struct ImplementationAddressConfig {
     OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
     L1ERC721Bridge l1ERC721BridgeImpl;
     PortalSender portalSenderImpl;
+    SystemConfig systemConfigImpl;
 }
 
 struct L2OutputOracleConfig {
@@ -43,9 +46,17 @@ struct L2OutputOracleConfig {
     address l2OutputOracleOwner;
 }
 
-struct SystemConfig {
+struct SystemConfigConfig {
+    address owner;
+    uint256 overhead;
+    uint256 scalar;
+    bytes32 batcherHash;
+}
+
+struct DeployConfig {
     GlobalConfig globalConfig;
     ProxyAddressConfig proxyAddressConfig;
     ImplementationAddressConfig implementationAddressConfig;
     L2OutputOracleConfig l2OutputOracleConfig;
+    SystemConfigConfig systemConfigConfig;
 }

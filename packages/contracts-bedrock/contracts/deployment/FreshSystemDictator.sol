@@ -3,8 +3,9 @@ pragma solidity 0.8.15;
 
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-import { SystemConfig } from "./DeployConfig.sol";
+import { DeployConfig } from "./DeployConfig.sol";
 import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**
@@ -17,7 +18,7 @@ contract FreshSystemDictator is BaseSystemDictator {
     /**
      * @param _config System configuration.
      */
-    constructor(SystemConfig memory _config) BaseSystemDictator(_config) {}
+    constructor(DeployConfig memory _config) BaseSystemDictator(_config) {}
 
     /**
      * @notice Upgrades and initializes proxy contracts.
@@ -67,6 +68,22 @@ contract FreshSystemDictator is BaseSystemDictator {
         config.globalConfig.proxyAdmin.upgrade(
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
+        );
+
+        // Upgrade and initialize the SystemConfig.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.systemConfigProxy),
+            address(config.implementationAddressConfig.systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    config.systemConfigConfig.owner,
+                    config.systemConfigConfig.overhead,
+                    config.systemConfigConfig.scalar,
+                    config.systemConfigConfig.batcherHash,
+                    config.systemConfigConfig.gasLimit
+                )
+            )
         );
     }
 

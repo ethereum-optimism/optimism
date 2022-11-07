@@ -10,16 +10,51 @@ import {
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
+
+  let controller = hre.deployConfig.controller
+  if (controller === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A controller address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      controller = deployer
+    } else {
+      throw new Error(
+        `controller address MUST NOT be the deployer on live networks`
+      )
+    }
+  }
+
+  let finalOwner = hre.deployConfig.finalSystemOwner
+  if (finalOwner === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      finalOwner = deployer
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+
   await deployAndVerifyAndThen({
     hre,
-    name: 'FreshSystemDictator',
+    name: 'MigrationSystemDictator',
     args: [
       {
         globalConfig: {
           proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-          controller: deployer,
-          finalOwner: hre.deployConfig.finalSystemOwner,
-          addressManager: ethers.constants.AddressZero,
+          controller,
+          finalOwner,
+          addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
         },
         proxyAddressConfig: {
           l2OutputOracleProxy: await getDeploymentAddress(
@@ -32,11 +67,11 @@ const deployFn: DeployFunction = async (hre) => {
           ),
           l1CrossDomainMessengerProxy: await getDeploymentAddress(
             hre,
-            'L1CrossDomainMessengerProxy'
+            'Proxy__OVM_L1CrossDomainMessenger'
           ),
           l1StandardBridgeProxy: await getDeploymentAddress(
             hre,
-            'L1StandardBridgeProxy'
+            'Proxy__OVM_L1StandardBridge'
           ),
           optimismMintableERC20FactoryProxy: await getDeploymentAddress(
             hre,
@@ -45,6 +80,10 @@ const deployFn: DeployFunction = async (hre) => {
           l1ERC721BridgeProxy: await getDeploymentAddress(
             hre,
             'L1ERC721BridgeProxy'
+          ),
+          systemConfigProxy: await getDeploymentAddress(
+            hre,
+            'SystemConfigProxy'
           ),
         },
         implementationAddressConfig: {
@@ -64,12 +103,23 @@ const deployFn: DeployFunction = async (hre) => {
           ),
           l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
           portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
+          systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
         },
         l2OutputOracleConfig: {
           l2OutputOracleGenesisL2Output:
             hre.deployConfig.l2OutputOracleGenesisL2Output,
           l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
           l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
+        },
+        systemConfigConfig: {
+          owner: hre.deployConfig.systemConfigOwner,
+          overhead: hre.deployConfig.gasPriceOracleOverhead,
+          scalar: hre.deployConfig.gasPriceOracleDecimals,
+          batcherHash: hre.ethers.utils.hexZeroPad(
+            hre.deployConfig.batchSenderAddress,
+            32
+          ),
+          gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
         },
       },
     ],
@@ -79,6 +129,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['FreshSystemDictator', 'fresh']
+deployFn.tags = ['MigrationSystemDictator', 'migration']
 
 export default deployFn
