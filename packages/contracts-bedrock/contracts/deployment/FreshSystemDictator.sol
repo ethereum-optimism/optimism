@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-import { SystemConfig } from "./DeployConfig.sol";
 import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**
