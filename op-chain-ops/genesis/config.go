@@ -70,9 +70,8 @@ type DeployConfig struct {
 	OptimismBaseFeeRecipient    common.Address `json:"optimismBaseFeeRecipient"`
 	OptimismL1FeeRecipient      common.Address `json:"optimismL1FeeRecipient"`
 
-	GasPriceOracleOwner    common.Address `json:"gasPriceOracleOwner"`
-	GasPriceOracleOverhead uint64         `json:"gasPriceOracleOverhead"`
-	GasPriceOracleScalar   uint64         `json:"gasPriceOracleScalar"`
+	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
+	GasPriceOracleScalar   uint64 `json:"gasPriceOracleScalar"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
@@ -172,10 +171,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 		"_paused":          false,
 		"xDomainMsgSender": "0x000000000000000000000000000000000000dEaD",
 		"msgNonce":         0,
-	}
-	storage["GasPriceOracle"] = state.StorageValues{
-		// TODO: remove this in the future
-		"_owner": config.GasPriceOracleOwner,
 	}
 	storage["L1Block"] = state.StorageValues{
 		"number":         block.Number(),
