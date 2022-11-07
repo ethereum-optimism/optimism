@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
 
+	"github.com/btcsuite/btcd/blockchain"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -31,6 +32,10 @@ import (
 
 // force to use the new chainhash module, and not the legacy chainhash package btcd module
 const _ = chainhash.HashSize
+
+// force to use the btcd module, while the keycard dependency in geth still depends on it,
+// for go mod tidy to not clean up our explicit usage of v0.23.3, which resolves conflicts with the chainhash module
+const _ = blockchain.CoinbaseWitnessDataLen
 
 const (
 	discoverIntervalFast   = time.Second * 5
