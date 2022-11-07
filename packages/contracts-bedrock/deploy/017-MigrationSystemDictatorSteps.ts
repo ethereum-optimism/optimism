@@ -45,7 +45,7 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(
       `Transferring proxy admin ownership to the MigrationSystemDictator`
     )
-    await ProxyAdmin.setOwner(MigrationSystemDictator.address)
+    await ProxyAdmin.transferOwnership(MigrationSystemDictator.address)
   } else {
     console.log(`Proxy admin already owned by the MigrationSystemDictator`)
   }
