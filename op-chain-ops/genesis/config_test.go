@@ -14,13 +14,6 @@ import (
 )
 
 func TestConfigMarshalUnmarshal(t *testing.T) {
-	// NOTE: the l1 starting block tag is set to null
-	// in the test since the type is not JSON serializable.
-	// Rather than bloat the code by introducing a marshalable
-	// block tag type that's only used in test, I created a separate
-	// test to validate that the starting block tag unmarshals
-	// correctly.
-
 	b, err := os.ReadFile("testdata/test-deploy-config-full.json")
 	require.NoError(t, err)
 	dec := json.NewDecoder(bytes.NewReader(b))

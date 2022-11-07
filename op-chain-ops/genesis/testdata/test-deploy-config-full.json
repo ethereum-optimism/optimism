@@ -1,5 +1,5 @@
 {
-  "l1StartingBlockTag": null,
+  "l1StartingBlockTag": "earliest",
   "l1ChainID": 901,
   "l2ChainID": 902,
   "l2BlockTime": 2,
