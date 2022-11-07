@@ -1366,6 +1366,16 @@ export class CrossChainMessenger {
     )
   }
 
+  /**
+   * Proves a cross chain message that was sent from L2 to L1. Only applicable for L2 to L1
+   * messages.
+   *
+   * @param message Message to finalize.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the finalization transaction.
+   */
   public async proveMessage(
     message: MessageLike,
     opts?: {
@@ -1653,8 +1663,7 @@ export class CrossChainMessenger {
 
     /**
      * Generates a message proving transaction that can be signed and executed. Only
-     * applicable for L2 to L1 messages. Will throw an error if the message has not completed
-     * its challenge period yet.
+     * applicable for L2 to L1 messages.
      *
      * @param message Message to generate the proving transaction for.
      * @param opts Additional options.

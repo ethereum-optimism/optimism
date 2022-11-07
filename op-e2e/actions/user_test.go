@@ -17,6 +17,8 @@ import (
 // - transact on L2
 // - deposit on L1
 // - withdraw from L2
+// - prove tx on L1
+// - wait 1 week + 1 second
 // - finalize withdrawal on L1
 func TestCrossLayerUser(gt *testing.T) {
 	t := NewDefaultTesting(gt)
@@ -135,13 +137,16 @@ func TestCrossLayerUser(gt *testing.T) {
 
 	// prove our withdrawal on L1
 	alice.ActProveWithdrawal(t)
-	// mine a block with a time delta of 7 days + 1 second
-	// TODO: this doesn't work for some reason :hmmm:
+	// mine a block with a time delta of 7 days + 1 second that has alice's
+	// proveWithdrawal tx in it.
 	miner.ActL1StartBlock(604801)(t)
+	miner.ActL1IncludeTx(alice.Address())(t)
 	miner.ActL1EndBlock(t)
+	// check withdrawal succeeded
+	alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+
 	// make the L1 finalize withdrawal tx
 	alice.ActCompleteWithdrawal(t)
-
 	// include completed withdrawal in new L1 block
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(alice.Address())(t)
