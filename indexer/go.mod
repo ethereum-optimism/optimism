@@ -6,7 +6,7 @@ replace github.com/ethereum-optimism/optimism/op-bindings v0.0.0 => ../op-bindin
 
 require (
 	github.com/ethereum-optimism/optimism/op-bindings v0.0.0
-	github.com/ethereum/go-ethereum v1.10.23
+	github.com/ethereum/go-ethereum v1.10.26
 	github.com/getsentry/sentry-go v0.12.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0

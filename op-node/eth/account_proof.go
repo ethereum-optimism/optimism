@@ -46,7 +46,7 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 	trieDB := trie.NewDatabase(db)
 
 	// wrap our DB of trie nodes with a Trie interface, and anchor it at the trusted state root
-	proofTrie, err := trie.New(stateRoot, stateRoot, trieDB)
+	proofTrie, err := trie.New(trie.StateTrieID(stateRoot), trieDB)
 	if err != nil {
 		return fmt.Errorf("failed to load db wrapper around kv store")
 	}
