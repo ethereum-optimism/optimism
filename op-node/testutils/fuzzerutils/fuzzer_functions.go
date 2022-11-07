@@ -1,9 +1,10 @@
 package fuzzerutils
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	fuzz "github.com/google/gofuzz"
-	"math/big"
 )
 
 // AddFuzzerFunctions takes a fuzz.Fuzzer and adds a list of functions to handle different

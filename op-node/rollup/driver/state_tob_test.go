@@ -3,6 +3,9 @@ package driver
 import (
 	"context"
 	"errors"
+	"math/rand"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -12,8 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
-	"math/rand"
-	"testing"
 )
 
 type TestDummyOutputImpl struct {

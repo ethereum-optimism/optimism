@@ -1,14 +1,15 @@
 package derive
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
 )
 
 // fuzzReceipts is similar to makeReceipts except it uses the fuzzer to populate DepositTx fields.

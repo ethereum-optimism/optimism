@@ -1,10 +1,11 @@
 package derive
 
 import (
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
-	"testing"
 )
 
 // FuzzBatchRoundTrip executes a fuzz test similar to TestBatchRoundTrip, which tests that arbitrary BatchData will be
