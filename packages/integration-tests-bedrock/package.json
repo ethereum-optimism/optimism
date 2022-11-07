@@ -27,9 +27,9 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "devDependencies": {
-    "@eth-optimism/contracts": "0.5.37",
-    "@eth-optimism/core-utils": "0.10.1",
-    "@eth-optimism/sdk": "1.6.9",
+    "@eth-optimism/contracts": "0.5.38",
+    "@eth-optimism/core-utils": "0.11.0",
+    "@eth-optimism/sdk": "1.6.10",
     "@ethersproject/abstract-provider": "^5.7.0",
     "chai-as-promised": "^7.1.1",
     "chai": "^4.3.4",

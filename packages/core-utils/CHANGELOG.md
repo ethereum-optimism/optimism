@@ -1,5 +1,11 @@
 # @eth-optimism/core-utils
 
+## 0.11.0
+
+### Minor Changes
+
+- 1e76cdb86: Changes the type for Bedrock withdrawal proofs
+
 ## 0.10.1
 
 ### Patch Changes

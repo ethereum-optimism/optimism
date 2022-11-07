@@ -130,6 +130,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			SuggestedFeeRecipient: common.Address{'C'},
 			Transactions:          nil,
 			NoTxPool:              false,
+			GasLimit:              (*eth.Uint64Quantity)(&sd.RollupCfg.Genesis.SystemConfig.GasLimit),
 		})
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)

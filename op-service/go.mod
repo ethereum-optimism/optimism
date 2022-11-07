@@ -65,4 +65,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20220926184707-53d23c240afd
+replace github.com/ethereum/go-ethereum v1.10.23 => github.com/ethereum-optimism/op-geth v0.0.0-20221104201324-9a6cc90a279b

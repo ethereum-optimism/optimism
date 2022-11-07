@@ -11,6 +11,8 @@
   "batchInboxAddress": "0xff00000000000000000000000000000000000002",
   "batchSenderAddress": "0xa11d2b908470e17923fff184d48269bebbd9b2a5",
 
+  "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x6c23a0dcdfc44b7a57bed148de598895e398d984",

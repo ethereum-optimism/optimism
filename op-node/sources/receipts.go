@@ -30,6 +30,9 @@ func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []
 			if r.TransactionIndex != uint(i) {
 				return nil, fmt.Errorf("receipt %d has unexpected tx index %d", i, r.TransactionIndex)
 			}
+			if r.BlockNumber == nil {
+				return nil, fmt.Errorf("receipt %d has unexpected nil block number, expected %d", i, block.Number)
+			}
 			if r.BlockNumber.Uint64() != block.Number {
 				return nil, fmt.Errorf("receipt %d has unexpected block number %d, expected %d", i, r.BlockNumber, block.Number)
 			}

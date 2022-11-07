@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type Genesis struct {
@@ -17,6 +18,10 @@ type Genesis struct {
 	L2 eth.BlockID `json:"l2"`
 	// Timestamp of L2 block
 	L2Time uint64 `json:"l2_time"`
+	// Initial system configuration values.
+	// The L2 genesis block may not include transactions, and thus cannot encode the config values,
+	// unlike later L2 blocks.
+	SystemConfig eth.SystemConfig `json:"system_config"`
 }
 
 type Config struct {
@@ -47,10 +52,10 @@ type Config struct {
 
 	// L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
-	// Acceptable batch-sender address
-	BatchSenderAddress common.Address `json:"batch_sender_address"`
 	// L1 Deposit Contract Address
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
+	// L1 System Config Address
+	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
 }
 
 // Check verifies that the given configuration makes sense
@@ -81,9 +86,6 @@ func (cfg *Config) Check() error {
 	}
 	if cfg.BatchInboxAddress == (common.Address{}) {
 		return errors.New("missing batch inbox address")
-	}
-	if cfg.BatchSenderAddress == (common.Address{}) {
-		return errors.New("missing batch sender address")
 	}
 	if cfg.DepositContractAddress == (common.Address{}) {
 		return errors.New("missing deposit contract address")
