@@ -511,47 +511,6 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(bobBalanceBefore, address(bob).balance);
     }
 
-    // TODO: Add logic for this test
-    // // Test: finalizeWithdrawalTransaction reverts if the output proposal's timestamp is
-    // // less than the proven withdrawal's timestamp.
-    // function test_finalizeWithdrawalTransaction_ifOutputTimestampIsLtProvedTimestamp_reverts()
-    //     external
-    // {
-    //     uint256 bobBalanceBefore = address(bob).balance;
-    //
-    //     // Prove our withdrawal
-    //     vm.expectEmit(true, true, true, true);
-    //     emit WithdrawalProven(_withdrawalHash, alice, bob);
-    //     op.proveWithdrawalTransaction(
-    //         _defaultTx,
-    //         _proposedBlockNumber,
-    //         _outputRootProof,
-    //         _withdrawalProof
-    //     );
-    //
-    //     uint256 initTimestamp = block.timestamp;
-    //
-    //     // Warp to after the finalization period
-    //     vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
-    //
-    //     // Mock a timestamp change on the output proposal that has not passed the
-    //     // finalization period.
-    //     vm.mockCall(
-    //         address(op.L2_ORACLE()),
-    //         abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-    //         abi.encode(Types.OutputProposal(_outputRoot, initTimestamp - 1))
-    //     );
-    //
-    //     // Attempt to finalize the withdrawal
-    //     vm.expectRevert(
-    //         "OptimismPortal: output proposal timestamp is less than proven withdrawal timestamp"
-    //     );
-    //     op.finalizeWithdrawalTransaction(_defaultTx);
-    //
-    //     // Ensure that bob's balance has remained the same
-    //     assertEq(bobBalanceBefore, address(bob).balance);
-    // }
-
     // Test: finalizeWithdrawalTransaction fails because the target reverts,
     // and emits the WithdrawalFinalized event with success=false.
     function test_finalizeWithdrawalTransaction_targetFails_fails() external {

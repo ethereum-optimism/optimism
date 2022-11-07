@@ -255,9 +255,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Perform second checks on the withdrawal's finalization period, this time with
         // the `OutputProposal`'s timestamp fetched from the L2 Oracle.
-        //
-        // TODO: Add a check for whether or not the proposal's timestamp is >= the proven
-        // withdrawal's timestamp.
         require(
             _isFinalizationPeriodElapsed(proposal.timestamp),
             "OptimismPortal: output proposal finalization period has not elapsed"
