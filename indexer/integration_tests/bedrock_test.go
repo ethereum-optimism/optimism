@@ -201,8 +201,7 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
-		// TODO: Fix these tests in accordance w/ changes in `op-e2e`
-		finTx, err := portal.FinalizeWithdrawalTransaction(
+		proveTx, err := portal.ProveWithdrawalTransaction(
 			l1Opts,
 			bindings.TypesWithdrawalTransaction{
 				Nonce:    wParams.Nonce,
@@ -215,6 +214,30 @@ func TestBedrockIndexer(t *testing.T) {
 			wParams.BlockNumber,
 			wParams.OutputRootProof,
 			wParams.WithdrawalProof,
+		)
+		require.NoError(t, err)
+
+		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
+		require.NoError(t, err)
+
+		_, err = withdrawals.WaitForFinalizationPeriod(
+			e2eutils.TimeoutCtx(t, time.Minute),
+			l1Client,
+			predeploys.DevOptimismPortalAddr,
+			wParams.BlockNumber,
+		)
+		require.NoError(t, err)
+
+		finTx, err := portal.FinalizeWithdrawalTransaction(
+			l1Opts,
+			bindings.TypesWithdrawalTransaction{
+				Nonce:    wParams.Nonce,
+				Sender:   wParams.Sender,
+				Target:   wParams.Target,
+				Value:    wParams.Value,
+				GasLimit: wParams.GasLimit,
+				Data:     wParams.Data,
+			},
 		)
 		require.NoError(t, err)
 

@@ -255,20 +255,14 @@ describe('Withdrawals', () => {
       logger.info('Finalizing withdrawal')
       const initialBal = await recipient.getBalance()
       const finalizeTx = await portal.finalizeWithdrawalTransaction(
-        nonce,
-        recipient.address,
-        recipient.address,
-        value,
-        gasLimit,
-        '0x',
-        targetOutputTimestamp,
         {
-          version: constants.HashZero,
-          stateRoot: targetStateRoot,
-          messagePasserStorageRoot: proof.storageHash,
-          latestBlockhash: targetHash,
+          nonce,
+          sender: recipient.address,
+          target: recipient.address,
+          value,
+          gasLimit,
+          data: '0x',
         },
-        rlp.encode(proof.storageProof[0].proof),
         {
           gasLimit,
         }
