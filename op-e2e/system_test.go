@@ -665,6 +665,7 @@ func TestL1InfoContract(t *testing.T) {
 }
 
 // calcGasFees determines the actual cost of the transaction given a specific basefee
+// This does not include the L1 data fee charged from L2 transactions.
 func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
 	x := new(big.Int).Add(gasTipCap, baseFee)
 	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
@@ -793,6 +794,7 @@ func TestWithdrawals(t *testing.T) {
 	// Take fee into account
 	diff = new(big.Int).Sub(startBalance, endBalance)
 	fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	fees = fees.Add(fees, receipt.L1Fee)
 	diff = diff.Sub(diff, fees)
 	require.Equal(t, withdrawAmount, diff)
 
