@@ -133,8 +133,15 @@ func TestCrossLayerUser(gt *testing.T) {
 		require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "proposal failed")
 	}
 
-	// make the L1 side of the withdrawal tx
+	// prove our withdrawal on L1
+	alice.ActProveWithdrawal(t)
+	// mine a block with a time delta of 7 days + 1 second
+	// TODO: this doesn't work for some reason :hmmm:
+	miner.ActL1StartBlock(604801)(t)
+	miner.ActL1EndBlock(t)
+	// make the L1 finalize withdrawal tx
 	alice.ActCompleteWithdrawal(t)
+
 	// include completed withdrawal in new L1 block
 	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(alice.Address())(t)

@@ -201,7 +201,7 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NoError(t, err)
 		proofCl := gethclient.New(rpcClient)
 		receiptCl := ethclient.NewClient(rpcClient)
-		wParams, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
+		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)

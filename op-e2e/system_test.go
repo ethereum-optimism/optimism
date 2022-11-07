@@ -819,7 +819,7 @@ func TestWithdrawals(t *testing.T) {
 	receiptCl := ethclient.NewClient(rpcClient)
 
 	// Now create withdrawal
-	params, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
+	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)

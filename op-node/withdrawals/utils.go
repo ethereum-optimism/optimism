@@ -129,7 +129,8 @@ type ReceiptClient interface {
 	TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error)
 }
 
-// ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawal and  function
+// ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
+// and FinalizeWithdrawalTransaction functions
 type ProvenWithdrawalParameters struct {
 	Nonce           *big.Int
 	Sender          common.Address
@@ -145,7 +146,7 @@ type ProvenWithdrawalParameters struct {
 // ProveWithdrawalParameters queries L2 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
 // The header provided is very important. It should be a block (timestamp) for which there is a submitted output in the L2 Output Oracle
 // contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
-func FinalizeWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, txHash common.Hash, header *types.Header) (FinalizedWithdrawalParameters, error) {
+func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, txHash common.Hash, header *types.Header) (ProvenWithdrawalParameters, error) {
 	// Transaction receipt
 	receipt, err := l2ReceiptCl.TransactionReceipt(ctx, txHash)
 	if err != nil {
