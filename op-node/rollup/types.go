@@ -81,6 +81,18 @@ func (cfg *Config) Check() error {
 	if cfg.Genesis.L2Time == 0 {
 		return errors.New("missing L2 genesis time")
 	}
+	if cfg.Genesis.SystemConfig.BatcherAddr == (common.Address{}) {
+		return errors.New("missing genesis system config batcher address")
+	}
+	if cfg.Genesis.SystemConfig.Overhead == (eth.Bytes32{}) {
+		return errors.New("missing genesis system config overhead")
+	}
+	if cfg.Genesis.SystemConfig.Scalar == (eth.Bytes32{}) {
+		return errors.New("missing genesis system config scalar")
+	}
+	if cfg.Genesis.SystemConfig.GasLimit == 0 {
+		return errors.New("missing genesis system config gas limit")
+	}
 	if cfg.P2PSequencerAddress == (common.Address{}) {
 		return errors.New("missing p2p sequencer address")
 	}

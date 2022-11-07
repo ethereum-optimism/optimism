@@ -99,8 +99,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
 			L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
 			GasPriceOracleOwner:         addresses.Alice,                   // tbd
-			GasPriceOracleOverhead:      0,
-			GasPriceOracleScalar:        0,
+			GasPriceOracleOverhead:      2100,
+			GasPriceOracleScalar:        1_000_000,
 			DeploymentWaitConfirmations: 1,
 
 			EIP1559Elasticity:  2,
