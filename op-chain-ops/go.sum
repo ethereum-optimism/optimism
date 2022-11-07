@@ -76,8 +76,8 @@ github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.m
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/ethereum-optimism/op-geth v0.0.0-20221104231810-30db39cae2be h1:8TdM3M7FjZkrYeGGX9nEVtDDlZ5RiuHtc0mbi5bGKyY=
 github.com/ethereum-optimism/op-geth v0.0.0-20221104231810-30db39cae2be/go.mod h1:1g9UmZgEINqvYfXmWOUCRJX9fxegeOHudVkLCRAXO5Y=
-github.com/ethereum-optimism/optimism/op-bindings v0.9.0 h1:CZmeC5Jq5T7ijjUor+ylWCfgYOmIvYlB9rhJ8VO6rRY=
-github.com/ethereum-optimism/optimism/op-bindings v0.9.0/go.mod h1:ahYJOfSx0e0kwDq7doROfxMa00CXuklAGC5uS9kKdTU=
+github.com/ethereum-optimism/optimism/op-bindings v0.10.0 h1:M2nwcOXH9YiRDH6UXnzHI+/eAM5UoFWp7HTlAWrZ4Os=
+github.com/ethereum-optimism/optimism/op-bindings v0.10.0/go.mod h1:UeTZlpZyhOL3y9Sogzvbn8Z3q1tDmZEv1VmGxMiZYCg=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fjl/memsize v0.0.1 h1:+zhkb+dhUgx0/e+M8sF0QqiouvMQUiKR+QYvdxIOKcQ=
 github.com/fjl/memsize v0.0.1/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
