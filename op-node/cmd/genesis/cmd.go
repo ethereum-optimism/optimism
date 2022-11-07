@@ -109,6 +109,9 @@ var Subcommands = cli.Commands{
 			if config.L1StartingBlockTag == nil {
 				return errors.New("must specify a starting block tag in genesis")
 			}
+			if config.L2GenesisBlockGasLimit == 0 { // TODO: this is a hotfix, need to set default values in more clean way + sanity check the config
+				config.L2GenesisBlockGasLimit = 15_000_000
+			}
 
 			client, err := ethclient.Dial(ctx.String("l1-rpc"))
 			if err != nil {
@@ -164,6 +167,9 @@ var Subcommands = cli.Commands{
 			}
 
 			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, sysCfgProxy.Address)
+			if err := rollupConfig.Check(); err != nil {
+				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
+			}
 
 			if err := writeGenesisFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err
