@@ -6,15 +6,16 @@ import (
 	"path"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/stretchr/testify/require"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
 )
 
 var testingJWTSecret = [32]byte{123}
@@ -235,4 +236,48 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
 		GasLimit:    uint64(deployConfig.L2GenesisBlockGasLimit),
 	}
+}
+
+// ForkedDeployConfig returns a deploy config that's suitable for use with a
+// forked L1.
+func ForkedDeployConfig(t require.TestingT, mnemonicCfg *MnemonicConfig, startBlock *types.Block) *genesis.DeployConfig {
+	startTag := rpc.BlockNumberOrHashWithHash(startBlock.Hash(), true)
+	secrets, err := mnemonicCfg.Secrets()
+	require.NoError(t, err)
+	addrs := secrets.Addresses()
+	marshalable := genesis.MarshalableRPCBlockNumberOrHash(startTag)
+	out := &genesis.DeployConfig{
+		L1StartingBlockTag:               &marshalable,
+		L1ChainID:                        1,
+		L2ChainID:                        10,
+		L2BlockTime:                      2,
+		MaxSequencerDrift:                3600,
+		SequencerWindowSize:              100,
+		ChannelTimeout:                   40,
+		P2PSequencerAddress:              addrs.SequencerP2P,
+		BatchInboxAddress:                common.HexToAddress("0xff00000000000000000000000000000000000000"),
+		BatchSenderAddress:               addrs.Batcher,
+		SystemConfigOwner:                addrs.SysCfgOwner,
+		L1GenesisBlockDifficulty:         uint64ToBig(0),
+		L1GenesisBlockBaseFeePerGas:      uint64ToBig(0),
+		L2OutputOracleSubmissionInterval: 10,
+		L2OutputOracleStartingTimestamp:  int(startBlock.Time()),
+		L2OutputOracleProposer:           addrs.Proposer,
+		L2OutputOracleOwner:              addrs.Deployer,
+		L2GenesisBlockCoinbase:           common.HexToAddress("0x42000000000000000000000000000000000000f0"),
+		L2GenesisBlockGasLimit:           hexutil.Uint64(15_000_000),
+		// taken from devnet, need to check this
+		L2GenesisBlockBaseFeePerGas: uint64ToBig(0x3B9ACA00),
+		L2GenesisBlockDifficulty:    uint64ToBig(0),
+		L1BlockTime:                 12,
+		CliqueSignerAddress:         addrs.CliqueSigner,
+		FinalizationPeriodSeconds:   2,
+		DeploymentWaitConfirmations: 1,
+		EIP1559Elasticity:           10,
+		EIP1559Denominator:          50,
+		GasPriceOracleOverhead:      2100,
+		GasPriceOracleScalar:        1_000_000,
+		FundDevAccounts:             true,
+	}
+	return out
 }
