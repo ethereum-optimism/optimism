@@ -35,7 +35,7 @@ contract GasPriceOracle_Test is CommonTest {
         // We are not setting the gas oracle at its predeploy
         // address for simplicity purposes. Nothing in this test
         // requires it to be at a particular address
-        gasOracle = new GasPriceOracle(alice);
+        gasOracle = new GasPriceOracle();
 
         vm.prank(depositor);
         l1Block.setL1BlockValues({
@@ -48,11 +48,6 @@ contract GasPriceOracle_Test is CommonTest {
             _l1FeeOverhead: l1FeeOverhead,
             _l1FeeScalar: l1FeeScalar
         });
-    }
-
-    function test_owner() external {
-        // alice is passed into the constructor of the gasOracle
-        assertEq(gasOracle.owner(), alice);
     }
 
     function test_l1BaseFee() external {
@@ -80,7 +75,6 @@ contract GasPriceOracle_Test is CommonTest {
     }
 
     function test_setGasPriceReverts() external {
-        vm.prank(gasOracle.owner());
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature("setGasPrice(uint256)", 1)
         );
@@ -90,7 +84,6 @@ contract GasPriceOracle_Test is CommonTest {
     }
 
     function test_setL1BaseFeeReverts() external {
-        vm.prank(gasOracle.owner());
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature("setL1BaseFee(uint256)", 1)
         );

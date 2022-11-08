@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Semver } from "../universal/Semver.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
@@ -16,7 +15,14 @@ import { L1Block } from "../L2/L1Block.sol";
  *         contract exposes an API that is useful for knowing how large the L1 portion of their
  *         transaction fee will be.
  */
-contract GasPriceOracle is Ownable, Semver {
+contract GasPriceOracle is Semver {
+    /**
+     * @custom:legacy
+     * @custom:spacer _owner
+     * @notice Spacer for backwards compatibility.
+     */
+    address private spacer_0_0_20;
+
     /**
      * @custom:legacy
      * @custom:spacer gasPrice
@@ -67,12 +73,8 @@ contract GasPriceOracle is Ownable, Semver {
 
     /**
      * @custom:semver 0.0.1
-     *
-     * @param _owner Address that will initially own this contract.
      */
-    constructor(address _owner) Ownable() Semver(0, 0, 1) {
-        transferOwnership(_owner);
-    }
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input

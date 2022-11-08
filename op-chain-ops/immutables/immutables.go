@@ -121,10 +121,7 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 	var err error
 	switch deployment.Name {
 	case "GasPriceOracle":
-		// The owner of the gas price oracle is not immutable, not required
-		// to be set here. It cannot be `address(0)`
-		owner := common.Address{1}
-		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend, owner)
+		_, tx, _, err = bindings.DeployGasPriceOracle(opts, backend)
 	case "L1Block":
 		// No arguments required for the L1Block contract
 		_, tx, _, err = bindings.DeployL1Block(opts, backend)
