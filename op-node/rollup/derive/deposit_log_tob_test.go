@@ -1,14 +1,15 @@
 package derive
 
 import (
+	"math/big"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"testing"
 )
 
 // fuzzReceipts is similar to makeReceipts except it uses the fuzzer to populate DepositTx fields.
@@ -42,6 +43,7 @@ func fuzzReceipts(typeProvider *fuzz.Fuzzer, blockHash common.Hash, depositContr
 		// Determine if this log will be a deposit log or not and generate it accordingly
 		for _, isDeposit := range txReceiptValues.DepositLogs {
 			var ev *types.Log
+			var err error
 			if isDeposit {
 				// Generate a user deposit source
 				source := UserDepositSource{L1BlockHash: blockHash, LogIndex: uint64(logIndex)}
@@ -70,7 +72,11 @@ func fuzzReceipts(typeProvider *fuzz.Fuzzer, blockHash common.Hash, depositContr
 				}
 
 				// Marshal our actual log event
-				ev = MarshalDepositLogEvent(depositContractAddr, dep)
+				ev, err = MarshalDepositLogEvent(depositContractAddr, dep)
+				if err != nil {
+					// fmt.Println(err)
+					panic(err)
+				}
 
 				// If we have a good version and our tx succeeded, we add this to our list of expected deposits to
 				// return.
