@@ -52,6 +52,10 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
+			if err := config.Check(); err != nil {
+				return err
+			}
+
 			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config)
 			if err != nil {
 				return err
@@ -134,42 +138,31 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			l1SBP, err := hh.GetDeployment("L1StandardBridgeProxy")
-			if err != nil {
-				return err
-			}
-			l1XDMP, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
-			if err != nil {
-				return err
-			}
-			portalProxy, err := hh.GetDeployment("OptimismPortalProxy")
-			if err != nil {
-				return err
-			}
-			sysCfgProxy, err := hh.GetDeployment("SystemConfigProxy")
-			if err != nil {
-				return err
-			}
-			l1ERC721BP, err := hh.GetDeployment("L1ERC721BridgeProxy")
-			if err != nil {
+			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
 
+			if err := config.Check(); err != nil {
+				return err
+			}
+
+			// TODO: delete this struct as everything is now in the DeployConfig
 			l2Addrs := &genesis.L2Addresses{
 				ProxyAdminOwner:             config.ProxyAdminOwner,
-				L1StandardBridgeProxy:       l1SBP.Address,
-				L1CrossDomainMessengerProxy: l1XDMP.Address,
-				L1ERC721BridgeProxy:         l1ERC721BP.Address,
+				L1StandardBridgeProxy:       config.L1StandardBridgeProxy,
+				L1CrossDomainMessengerProxy: config.L1CrossDomainMessengerProxy,
+				L1ERC721BridgeProxy:         config.L1ERC721BridgeProxy,
 				BaseFeeVaultRecipient:       config.BaseFeeVaultRecipient,
 				L1FeeVaultRecipient:         config.L1FeeVaultRecipient,
 				SequencerFeeVaultRecipient:  config.SequencerFeeVaultRecipient,
+				SystemConfigProxy:           config.SystemConfigProxy,
 			}
 			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
 			if err != nil {
 				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, sysCfgProxy.Address)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, config.OptimismPortalProxy, config.SystemConfigProxy)
 			if err := rollupConfig.Check(); err != nil {
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
