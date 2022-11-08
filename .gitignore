@@ -15,6 +15,7 @@ yarn-error.log
 dist
 artifacts
 cache
+./.idea
 
 l2geth/build/bin
 packages/contracts/deployments/custom
