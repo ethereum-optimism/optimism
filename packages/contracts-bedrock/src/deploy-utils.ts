@@ -6,6 +6,44 @@ import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, awaitCondition, getChainId } from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
 
+export interface DictatorConfig {
+  globalConfig: {
+    proxyAdmin: string
+    controller: string
+    finalOwner: string
+    addressManager: string
+  }
+  proxyAddressConfig: {
+    l2OutputOracleProxy: string
+    optimismPortalProxy: string
+    l1CrossDomainMessengerProxy: string
+    l1StandardBridgeProxy: string
+    optimismMintableERC20FactoryProxy: string
+    l1ERC721BridgeProxy: string
+  }
+  implementationAddressConfig: {
+    l2OutputOracleImpl: string
+    optimismPortalImpl: string
+    l1CrossDomainMessengerImpl: string
+    l1StandardBridgeImpl: string
+    optimismMintableERC20FactoryImpl: string
+    l1ERC721BridgeImpl: string
+    portalSenderImpl: string
+  }
+  l2OutputOracleConfig: {
+    l2OutputOracleGenesisL2Output: string
+    l2OutputOracleProposer: string
+    l2OutputOracleOwner: string
+  }
+  systemConfigConfig: {
+    owner: string
+    overhead: number
+    scalar: number
+    batcherHash: string
+    gasLimit: number
+  }
+}
+
 export const deployAndVerifyAndThen = async ({
   hre,
   name,
@@ -300,6 +338,100 @@ export const getDeploymentAddress = async (
 ): Promise<string> => {
   const deployment = await hre.deployments.get(name)
   return deployment.address
+}
+
+export const makeDictatorConfig = async (
+  hre: any,
+  controller: string,
+  finalOwner: string,
+  fresh: boolean
+): Promise<DictatorConfig> => {
+  return {
+    globalConfig: {
+      proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
+      controller,
+      finalOwner,
+      addressManager: fresh
+        ? ethers.constants.AddressZero
+        : await getDeploymentAddress(hre, 'Lib_AddressManager'),
+    },
+    proxyAddressConfig: {
+      l2OutputOracleProxy: await getDeploymentAddress(
+        hre,
+        'L2OutputOracleProxy'
+      ),
+      optimismPortalProxy: await getDeploymentAddress(
+        hre,
+        'OptimismPortalProxy'
+      ),
+      l1CrossDomainMessengerProxy: await getDeploymentAddress(
+        hre,
+        fresh
+          ? 'L1CrossDomainMessengerProxy'
+          : 'Proxy__OVM_L1CrossDomainMessenger'
+      ),
+      l1StandardBridgeProxy: await getDeploymentAddress(
+        hre,
+        fresh ? 'L1StandardBridgeProxy' : 'Proxy__OVM_L1StandardBridge'
+      ),
+      optimismMintableERC20FactoryProxy: await getDeploymentAddress(
+        hre,
+        'OptimismMintableERC20FactoryProxy'
+      ),
+      l1ERC721BridgeProxy: await getDeploymentAddress(
+        hre,
+        'L1ERC721BridgeProxy'
+      ),
+    },
+    implementationAddressConfig: {
+      l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
+      optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
+      l1CrossDomainMessengerImpl: await getDeploymentAddress(
+        hre,
+        'L1CrossDomainMessenger'
+      ),
+      l1StandardBridgeImpl: await getDeploymentAddress(hre, 'L1StandardBridge'),
+      optimismMintableERC20FactoryImpl: await getDeploymentAddress(
+        hre,
+        'OptimismMintableERC20Factory'
+      ),
+      l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
+      portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
+    },
+    l2OutputOracleConfig: {
+      l2OutputOracleGenesisL2Output:
+        hre.deployConfig.l2OutputOracleGenesisL2Output,
+      l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
+      l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
+    },
+    systemConfigConfig: {
+      owner: hre.deployConfig.systemConfigOwner,
+      overhead: hre.deployConfig.gasPriceOracleOverhead,
+      scalar: hre.deployConfig.gasPriceOracleDecimals,
+      batcherHash: hre.ethers.utils.hexZeroPad(
+        hre.deployConfig.batchSenderAddress,
+        32
+      ),
+      gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
+    },
+  }
+}
+
+export const assertDictatorConfig = async (
+  dictator: Contract,
+  config: DictatorConfig
+) => {
+  const dictatorConfig = await dictator.config()
+  for (const [outerConfigKey, outerConfigValue] of Object.entries(config)) {
+    for (const [innerConfigKey, innerConfigValue] of Object.entries(
+      outerConfigValue
+    )) {
+      assert(
+        dictatorConfig[outerConfigKey][innerConfigKey] === innerConfigValue,
+        `incorrect config for ${outerConfigKey}.${innerConfigKey}`
+      )
+    }
+  }
 }
 
 // Large balance to fund accounts with.
