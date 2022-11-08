@@ -1,5 +1,10 @@
 {
   "GasPriceOracle": {
+    "spacer_0_0_20": {
+      "slot": 0,
+      "offset": 0,
+      "length": 20
+    },
     "spacer_1_0_32": {
       "slot": 1,
       "offset": 0,
