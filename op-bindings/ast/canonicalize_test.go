@@ -28,6 +28,10 @@ func TestCanonicalize(t *testing.T) {
 			"remap public variables",
 			"public-variables.json",
 		},
+		{
+			"values in storage",
+			"values-in-storage.json",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
