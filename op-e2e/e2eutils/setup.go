@@ -106,6 +106,13 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 
 		FundDevAccounts: false,
 	}
+
+	// Configure the DeployConfig with the expected developer L1
+	// addresses.
+	if err := deployConfig.GetDeveloperDeployedAddresses(); err != nil {
+		panic(err)
+	}
+
 	return &DeployParams{
 		DeployConfig:   deployConfig,
 		MnemonicConfig: mnemonicCfg,
@@ -167,7 +174,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(deployConf, l1Block, nil)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(deployConf, l1Block)
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {

@@ -39,7 +39,7 @@ func TestMissingGasLimit(t *testing.T) {
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, nil)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -109,7 +109,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, nil)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
