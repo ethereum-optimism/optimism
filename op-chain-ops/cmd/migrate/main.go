@@ -84,10 +84,6 @@ func main() {
 				return err
 			}
 
-			if err := config.Check(); err != nil {
-				return err
-			}
-
 			ovmAddresses, err := migration.NewAddresses(ctx.String("ovm-addresses"))
 			if err != nil {
 				return err
@@ -149,6 +145,10 @@ func main() {
 
 			// Read the required deployment addresses from disk if required
 			if err := config.GetDeployedAddresses(hh); err != nil {
+				return err
+			}
+
+			if err := config.Check(); err != nil {
 				return err
 			}
 
