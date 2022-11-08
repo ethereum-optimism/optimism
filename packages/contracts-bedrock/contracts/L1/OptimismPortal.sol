@@ -30,6 +30,16 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
+     * @notice The L2 gas limit set when eth is deposited using the receive() function.
+     */
+    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
+
+    /**
+     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
+     */
+    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
+
+    /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
@@ -45,16 +55,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *         to finalizeWithdrawalTransaction.
      */
     address public l2Sender;
-
-    /**
-     * @notice The L2 gas limit set when eth is deposited using the receive() function.
-     */
-    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
-
-    /**
-     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
-     */
-    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
     /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
