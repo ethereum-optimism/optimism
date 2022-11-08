@@ -74,6 +74,6 @@ contract FreshSystemDictator is BaseSystemDictator {
      */
     function step2() external onlyOwner step(2) {
         // Transfer ownership of the ProxyAdmin to the final owner.
-        config.globalConfig.proxyAdmin.setOwner(config.globalConfig.finalOwner);
+        config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
     }
 }

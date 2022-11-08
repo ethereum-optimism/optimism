@@ -66,17 +66,17 @@ contract ProxyAdmin_Test is Test {
     }
 
     function test_onlyOwnerSetAddressManager() external {
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
         admin.setAddressManager(AddressManager((address(0))));
     }
 
     function test_onlyOwnerSetImplementationName() external {
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
         admin.setImplementationName(address(0), "foo");
     }
 
     function test_onlyOwnerSetProxyType() external {
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
         admin.setProxyType(address(0), ProxyAdmin.ProxyType.CHUGSPLASH);
     }
 
@@ -236,13 +236,13 @@ contract ProxyAdmin_Test is Test {
     }
 
     function test_onlyOwner() external {
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
         admin.changeProxyAdmin(payable(proxy), address(0));
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
         admin.upgrade(payable(proxy), address(implementation));
 
-        vm.expectRevert("UNAUTHORIZED");
+        vm.expectRevert("Ownable: caller is not the owner");
         admin.upgradeAndCall(payable(proxy), address(implementation), hex"");
     }
 
