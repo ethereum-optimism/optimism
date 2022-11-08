@@ -11,21 +11,31 @@ import (
 	"net"
 	"time"
 
-	"github.com/btcsuite/btcd/btcec/v2"
 	decredSecp "github.com/decred/dcrd/dcrec/secp256k1/v4"
-	"github.com/libp2p/go-libp2p-core/crypto"
-	"github.com/libp2p/go-libp2p-core/network"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/network"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/multiformats/go-multiaddr"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	gcrypto "github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/rlp"
+
+	"github.com/btcsuite/btcd/blockchain"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
+
+// force to use the new chainhash module, and not the legacy chainhash package btcd module
+const _ = chainhash.HashSize
+
+// force to use the btcd module, while the keycard dependency in geth still depends on it,
+// for go mod tidy to not clean up our explicit usage of v0.23.3, which resolves conflicts with the chainhash module
+const _ = blockchain.CoinbaseWitnessDataLen
 
 const (
 	discoverIntervalFast   = time.Second * 5
@@ -111,7 +121,7 @@ func (v Secp256k1) ENRKey() string { return "secp256k1" }
 
 // EncodeRLP implements rlp.Encoder.
 func (v Secp256k1) EncodeRLP(w io.Writer) error {
-	return rlp.Encode(w, (*btcec.PublicKey)(&v).SerializeCompressed())
+	return rlp.Encode(w, (*decredSecp.PublicKey)(&v).SerializeCompressed())
 }
 
 // DecodeRLP implements rlp.Decoder.
@@ -120,7 +130,7 @@ func (v *Secp256k1) DecodeRLP(s *rlp.Stream) error {
 	if err != nil {
 		return err
 	}
-	pk, err := btcec.ParsePubKey(buf)
+	pk, err := decredSecp.ParsePubKey(buf)
 	if err != nil {
 		return err
 	}

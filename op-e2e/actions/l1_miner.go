@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -70,7 +69,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			header.BaseFee = misc.CalcBaseFee(s.l1Cfg.Config, parent)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
-				header.GasLimit = parent.GasLimit * params.ElasticityMultiplier
+				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
 			}
 		}
 
