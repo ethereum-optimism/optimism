@@ -143,25 +143,23 @@ func main() {
 				return err
 			}
 
-			// Get the addresses from the hardhat deploy artifacts
-			l1StandardBridgeProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1StandardBridge")
-			if err != nil {
+			// Read the required deployment addresses from disk if required
+			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
-			l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1CrossdomainMessenger")
-			if err != nil {
-				return err
-			}
-			l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
-			if err != nil {
+
+			if err := config.Check(); err != nil {
 				return err
 			}
 
 			l2Addrs := genesis.L2Addresses{
 				ProxyAdminOwner:             config.ProxyAdminOwner,
-				L1StandardBridgeProxy:       l1StandardBridgeProxyDeployment.Address,
-				L1CrossDomainMessengerProxy: l1CrossDomainMessengerProxyDeployment.Address,
-				L1ERC721BridgeProxy:         l1ERC721BridgeProxyDeployment.Address,
+				L1StandardBridgeProxy:       config.L1StandardBridgeProxy,
+				L1CrossDomainMessengerProxy: config.L1CrossDomainMessengerProxy,
+				L1ERC721BridgeProxy:         config.L1ERC721BridgeProxy,
+				BaseFeeVaultRecipient:       config.BaseFeeVaultRecipient,
+				L1FeeVaultRecipient:         config.L1FeeVaultRecipient,
+				SequencerFeeVaultRecipient:  config.SequencerFeeVaultRecipient,
 			}
 
 			dryRun := ctx.Bool("dry-run")

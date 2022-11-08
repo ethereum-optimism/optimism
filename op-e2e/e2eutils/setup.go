@@ -96,10 +96,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2GenesisBlockParentHash:    common.Hash{},
 		L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
 
-		// TODO: remove these config values once the addresses are hardcoded in
-		// geth
-		OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
-		OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
 		L2CrossDomainMessengerOwner: common.Address{0: 0x42, 19: 0xf2}, // tbd
 		GasPriceOracleOverhead:      2100,
 		GasPriceOracleScalar:        1000_000,

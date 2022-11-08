@@ -18,8 +18,9 @@
   "l2OutputOracleProposer": "0x6c23a0dcdfc44b7a57bed148de598895e398d984",
   "l2OutputOracleOwner": "0x6925b8704ff96dee942623d6fb5e946ef5884b63",
 
-  "optimismBaseFeeRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
-  "optimismL1FeeRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
+  "baseFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
+  "l1FeeVaultRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
+  "sequencerFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
 
   "deploymentWaitConfirmations": 1
 }

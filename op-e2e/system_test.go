@@ -910,13 +910,13 @@ func TestFees(t *testing.T) {
 	// BaseFee Recipient
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismBaseFeeRecipient, nil)
+	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, nil)
 	require.Nil(t, err)
 
 	// L1Fee Recipient
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL1FeeRecipient, nil)
+	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, predeploys.L1FeeVaultAddr, nil)
 	require.Nil(t, err)
 
 	// Simple transfer from signer to random account
@@ -972,7 +972,7 @@ func TestFees(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismBaseFeeRecipient, header.Number)
+	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
 	l1Header, err := sys.Clients["l1"].HeaderByNumber(ctx, nil)
@@ -980,7 +980,7 @@ func TestFees(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL1FeeRecipient, header.Number)
+	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, predeploys.L1FeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
 	// Diff fee recipient + coinbase balances
