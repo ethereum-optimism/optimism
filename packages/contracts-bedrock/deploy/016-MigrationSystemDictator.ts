@@ -6,6 +6,8 @@ import 'hardhat-deploy'
 import {
   getDeploymentAddress,
   deployAndVerifyAndThen,
+  DictatorConfig,
+  assertDictatorConfig,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -45,71 +47,73 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
+  const config: DictatorConfig = {
+    globalConfig: {
+      proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
+      controller,
+      finalOwner,
+      addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
+    },
+    proxyAddressConfig: {
+      l2OutputOracleProxy: await getDeploymentAddress(
+        hre,
+        'L2OutputOracleProxy'
+      ),
+      optimismPortalProxy: await getDeploymentAddress(
+        hre,
+        'OptimismPortalProxy'
+      ),
+      l1CrossDomainMessengerProxy: await getDeploymentAddress(
+        hre,
+        'Proxy__OVM_L1CrossDomainMessenger'
+      ),
+      l1StandardBridgeProxy: await getDeploymentAddress(
+        hre,
+        'Proxy__OVM_L1StandardBridge'
+      ),
+      optimismMintableERC20FactoryProxy: await getDeploymentAddress(
+        hre,
+        'OptimismMintableERC20FactoryProxy'
+      ),
+      l1ERC721BridgeProxy: await getDeploymentAddress(
+        hre,
+        'L1ERC721BridgeProxy'
+      ),
+    },
+    implementationAddressConfig: {
+      l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
+      optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
+      l1CrossDomainMessengerImpl: await getDeploymentAddress(
+        hre,
+        'L1CrossDomainMessenger'
+      ),
+      l1StandardBridgeImpl: await getDeploymentAddress(
+        hre,
+        'L1StandardBridge'
+      ),
+      optimismMintableERC20FactoryImpl: await getDeploymentAddress(
+        hre,
+        'OptimismMintableERC20Factory'
+      ),
+      l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
+      portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
+    },
+    l2OutputOracleConfig: {
+      l2OutputOracleGenesisL2Output:
+        hre.deployConfig.l2OutputOracleGenesisL2Output,
+      l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
+      l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
+    },
+  }
+
   await deployAndVerifyAndThen({
     hre,
     name: 'MigrationSystemDictator',
     args: [
-      {
-        globalConfig: {
-          proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-          controller,
-          finalOwner,
-          addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
-        },
-        proxyAddressConfig: {
-          l2OutputOracleProxy: await getDeploymentAddress(
-            hre,
-            'L2OutputOracleProxy'
-          ),
-          optimismPortalProxy: await getDeploymentAddress(
-            hre,
-            'OptimismPortalProxy'
-          ),
-          l1CrossDomainMessengerProxy: await getDeploymentAddress(
-            hre,
-            'Proxy__OVM_L1CrossDomainMessenger'
-          ),
-          l1StandardBridgeProxy: await getDeploymentAddress(
-            hre,
-            'Proxy__OVM_L1StandardBridge'
-          ),
-          optimismMintableERC20FactoryProxy: await getDeploymentAddress(
-            hre,
-            'OptimismMintableERC20FactoryProxy'
-          ),
-          l1ERC721BridgeProxy: await getDeploymentAddress(
-            hre,
-            'L1ERC721BridgeProxy'
-          ),
-        },
-        implementationAddressConfig: {
-          l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
-          optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
-          l1CrossDomainMessengerImpl: await getDeploymentAddress(
-            hre,
-            'L1CrossDomainMessenger'
-          ),
-          l1StandardBridgeImpl: await getDeploymentAddress(
-            hre,
-            'L1StandardBridge'
-          ),
-          optimismMintableERC20FactoryImpl: await getDeploymentAddress(
-            hre,
-            'OptimismMintableERC20Factory'
-          ),
-          l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
-          portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
-        },
-        l2OutputOracleConfig: {
-          l2OutputOracleGenesisL2Output:
-            hre.deployConfig.l2OutputOracleGenesisL2Output,
-          l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
-          l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
-        },
-      },
+      config
     ],
-    postDeployAction: async () => {
-      // TODO: Assert all the config was set correctly.
+    postDeployAction: async (contract) => {
+      await assertDictatorConfig(contract, config)
     },
   })
 }

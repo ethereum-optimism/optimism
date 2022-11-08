@@ -6,6 +6,37 @@ import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, awaitCondition, getChainId } from '@eth-optimism/core-utils'
 import { HttpNetworkConfig } from 'hardhat/types'
 
+export interface DictatorConfig {
+  globalConfig: {
+    proxyAdmin: string
+    controller: string,
+    finalOwner: string
+    addressManager: string
+  },
+  proxyAddressConfig: {
+    l2OutputOracleProxy: string,
+    optimismPortalProxy: string,
+    l1CrossDomainMessengerProxy: string,
+    l1StandardBridgeProxy: string,
+    optimismMintableERC20FactoryProxy: string,
+    l1ERC721BridgeProxy: string,
+  },
+  implementationAddressConfig: {
+    l2OutputOracleImpl: string,
+    optimismPortalImpl: string,
+    l1CrossDomainMessengerImpl: string,
+    l1StandardBridgeImpl: string,
+    optimismMintableERC20FactoryImpl: string,
+    l1ERC721BridgeImpl: string,
+    portalSenderImpl: string,
+  },
+  l2OutputOracleConfig: {
+    l2OutputOracleGenesisL2Output: string,
+    l2OutputOracleProposer: string,
+    l2OutputOracleOwner: string,
+  },
+}
+
 export const deployAndVerifyAndThen = async ({
   hre,
   name,
@@ -292,6 +323,18 @@ export const getDeploymentAddress = async (
 ): Promise<string> => {
   const deployment = await hre.deployments.get(name)
   return deployment.address
+}
+
+export const assertDictatorConfig = async (dictator: Contract, config: DictatorConfig) => {
+  const dictatorConfig = await dictator.config()
+  for (const [outerConfigKey, outerConfigValue] of Object.entries(config)) {
+    for (const [innerConfigKey, innerConfigValue] of Object.entries(outerConfigValue)) {
+      assert(
+        dictatorConfig[outerConfigKey][innerConfigKey] === innerConfigValue,
+        `incorrect config for ${outerConfigKey}.${innerConfigKey}`
+      )
+    }
+  }
 }
 
 // Large balance to fund accounts with.
