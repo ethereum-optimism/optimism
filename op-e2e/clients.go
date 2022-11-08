@@ -72,6 +72,7 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 	}
 }
 
+// No separate Erigon version needed
 func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: cfg.DeployConfig.L1ChainID,
@@ -87,7 +88,7 @@ func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethe
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
-	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner})
+	l1Node, l1Eth, err := createClientNode(Geth, false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -143,14 +144,21 @@ func (f *fakeSafeFinalizedL1) Stop() error {
 	return nil
 }
 
-// init a geth node.
-func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string) (*node.Node, *eth.Ethereum, error) {
+type ClientType string
+
+const (
+	Geth   ClientType = "geth"
+	Erigon ClientType = "erigon"
+)
+
+// init a geth|erigon|.. node.
+func initL2Client(clientType ClientType, name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: l2ChainID.Uint64(),
 		Genesis:   genesis,
 	}
 	nodeConfig := &node.Config{
-		Name:        fmt.Sprintf("l2-geth-%v", name),
+		Name:        fmt.Sprintf("l2-%s-%v", clientType, name),
 		WSHost:      "127.0.0.1",
 		WSPort:      0,
 		AuthAddr:    "127.0.0.1",
@@ -161,61 +169,117 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		JWTSecret:   jwtPath,
 	}
-	return createGethNode(true, nodeConfig, ethConfig, nil)
+	return createClientNode(clientType, true, nodeConfig, ethConfig, nil)
 }
 
-// createGethNode creates an in-memory geth node based on the configuration.
+// createClientNode creates an in-memory geth node based on the configuration.
 // The private keys are added to the keystore and are unlocked.
 // If the node is l2, catalyst is enabled.
 // The node should be started and then closed when done.
-func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey) (*node.Node, *eth.Ethereum, error) {
+func createClientNode(clientType ClientType, l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey) (*node.Node, *eth.Ethereum, error) {
 	ethCfg.NoPruning = true // force everything to be an archive node
-	n, err := node.New(nodeCfg)
-	if err != nil {
-		n.Close()
-		return nil, nil, err
-	}
 
-	keydir := n.KeyStoreDir()
-	scryptN := 2
-	scryptP := 1
-	n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
-	ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+	switch clientType {
+	case Geth:
 
-	password := "foobar"
-	for _, pk := range privateKeys {
-		act, err := ks.ImportECDSA(pk, password)
+		n, err := node.New(nodeCfg)
 		if err != nil {
 			n.Close()
 			return nil, nil, err
 		}
-		err = ks.Unlock(act, password)
+
+		keydir := n.KeyStoreDir()
+		scryptN := 2
+		scryptP := 1
+		n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
+		ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
+
+		password := "foobar"
+		for _, pk := range privateKeys {
+			act, err := ks.ImportECDSA(pk, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+			err = ks.Unlock(act, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+		}
+
+		backend, err := eth.New(n, ethCfg)
+		if err != nil {
+			n.Close()
+			return nil, nil, err
+
+		}
+
+		// PR 25459 changed this to only default in CLI, but not in default programmatic RPC selection.
+		// PR 25642 fixed it for the mobile version only...
+		utils.RegisterFilterAPI(n, backend.APIBackend, ethCfg)
+
+		n.RegisterAPIs(tracers.APIs(backend.APIBackend))
+
+		// Enable catalyst if l2
+		if l2 {
+			if err := catalyst.Register(n, backend); err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+		}
+		return n, backend, nil
+
+	case Erigon:
+
+		n, err := node.New(nodeCfg)
 		if err != nil {
 			n.Close()
 			return nil, nil, err
 		}
-	}
 
-	backend, err := eth.New(n, ethCfg)
-	if err != nil {
-		n.Close()
-		return nil, nil, err
+		keydir := n.KeyStoreDir()
+		scryptN := 2
+		scryptP := 1
+		n.AccountManager().AddBackend(keystore.NewKeyStore(keydir, scryptN, scryptP))
+		ks := n.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	}
+		password := "foobar"
+		for _, pk := range privateKeys {
+			act, err := ks.ImportECDSA(pk, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+			err = ks.Unlock(act, password)
+			if err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+		}
 
-	// PR 25459 changed this to only default in CLI, but not in default programmatic RPC selection.
-	// PR 25642 fixed it for the mobile version only...
-	utils.RegisterFilterAPI(n, backend.APIBackend, ethCfg)
-
-	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
-
-	// Enable catalyst if l2
-	if l2 {
-		if err := catalyst.Register(n, backend); err != nil {
+		backend, err := eth.New(n, ethCfg)
+		if err != nil {
 			n.Close()
 			return nil, nil, err
-		}
-	}
-	return n, backend, nil
 
+		}
+
+		// PR 25459 changed this to only default in CLI, but not in default programmatic RPC selection.
+		// PR 25642 fixed it for the mobile version only...
+		utils.RegisterFilterAPI(n, backend.APIBackend, ethCfg)
+
+		n.RegisterAPIs(tracers.APIs(backend.APIBackend))
+
+		// Enable catalyst if l2
+		if l2 {
+			if err := catalyst.Register(n, backend); err != nil {
+				n.Close()
+				return nil, nil, err
+			}
+		}
+		return n, backend, nil
+	}
+
+	return nil, nil, errors.New("unknown client type")
 }

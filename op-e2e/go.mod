@@ -14,7 +14,10 @@ require (
 	github.com/libp2p/go-libp2p-core v0.19.1
 	github.com/miguelmota/go-ethereum-hdwallet v0.1.1
 	github.com/stretchr/testify v1.8.0
+	github.com/ledgerwatch/erigon v1.0.0
 )
+
+replace github.com/ledgerwatch/erigon => ../op-erigon
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.10.0 // indirect

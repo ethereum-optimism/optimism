@@ -306,7 +306,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	sys.Backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
-		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		node, backend, err := initL2Client(Geth, name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 		if err != nil {
 			return nil, err
 		}
