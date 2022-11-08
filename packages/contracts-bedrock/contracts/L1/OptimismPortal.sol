@@ -66,14 +66,14 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
-     */
-    mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
-
-    /**
      * @notice A list of withdrawal hashes which have been successfully finalized.
      */
     mapping(bytes32 => bool) public finalizedWithdrawals;
+
+    /**
+     * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
+     */
+    mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
