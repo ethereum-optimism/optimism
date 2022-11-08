@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const OptimismMintableERC20FactoryStorageLayoutJSON = "{\"storage\":null,\"types\":null}"
+const OptimismMintableERC20FactoryStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"
 
 var OptimismMintableERC20FactoryStorageLayout = new(solc.StorageLayout)
 
