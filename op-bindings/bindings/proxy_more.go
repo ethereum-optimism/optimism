@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const ProxyStorageLayoutJSON = "{\"storage\":null,\"types\":null}"
+const ProxyStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"
 
 var ProxyStorageLayout = new(solc.StorageLayout)
 
