@@ -63,7 +63,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 			// SYSCOIN
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr, predeploys.DevSystemConfigAddr, predeploys.DevL2OutputOracleAddr, config.BatchInboxAddress)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr, predeploys.DevL2OutputOracleAddr, config.BatchInboxAddress, predeploys.DevSystemConfigAddr)
 
 			if err := writeGenesisFile(ctx.String("outfile.l1"), l1Genesis); err != nil {
 				return err
@@ -151,9 +151,11 @@ var Subcommands = cli.Commands{
 			if err != nil {
 				return err
 			}
+			sysCfgProxyAddress := common.Address{}
 			sysCfgProxy, err := hh.GetDeployment("SystemConfigProxy")
-			if err != nil {
-				return err
+			if err == nil {
+				//return err
+				sysCfgProxyAddress = sysCfgProxy.Address
 			}
 			l1ERC721BP, err := hh.GetDeployment("L1ERC721BridgeProxy")
 			if err != nil {
@@ -172,7 +174,7 @@ var Subcommands = cli.Commands{
 			}
 
 			// SYSCOIN
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, sysCfgProxy.Address, outputOracle.Address, batchInboxAddr.Address)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address, outputOracle.Address, batchInboxAddr.Address, sysCfgProxyAddress)
 
 			if err := writeGenesisFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err

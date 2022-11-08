@@ -9,17 +9,17 @@ import {
 
 const deployFn: DeployFunction = async (hre) => {
   let L1StandardBridgeProxy: ethers.Contract
-  try {
+  /*try {
     L1StandardBridgeProxy = await getContractFromArtifact(
       hre,
       'Proxy__OVM_L1StandardBridge'
     )
-  } catch (e) {
+  } catch (e) {*/
     L1StandardBridgeProxy = await getContractFromArtifact(
       hre,
       'L1StandardBridgeProxy'
     )
-  }
+  //}
 
   await deployAndVerifyAndThen({
     hre,

@@ -99,7 +99,6 @@ export const getAdvancedContract = (opts: {
 
   // Now reset Object.defineProperty
   Object.defineProperty = def
-
   // Override each function call to also `.wait()` so as to simplify the deploy scripts' syntax.
   for (const fnName of Object.keys(contract.functions)) {
     const fn = contract[fnName].bind(contract)
@@ -117,7 +116,6 @@ export const getAdvancedContract = (opts: {
       if (contract.interface.getFunction(fnName).constant) {
         gasPrice = 0
       }
-
       const tx = await fn(...args, {
         gasPrice,
       })
@@ -130,7 +128,7 @@ export const getAdvancedContract = (opts: {
       // (1) handling confirmations
       // (2) handling an issue on Kovan specifically where transactions get dropped for no
       //     apparent reason.
-      const maxTimeout = 120
+      const maxTimeout = 1200
       let timeout = 0
       while (true) {
         await sleep(1000)

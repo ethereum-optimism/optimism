@@ -6,6 +6,7 @@ RUN apk add --no-cache jq
 ENV VERBOSITY=${GETH_VERBOSITY:-3}
 ENV RPC_PORT="${RPC_PORT:-8545}"
 ENV WS_PORT="${WS_PORT:-8546}"
+ENV SYSRPC_PORT="${SYSRPC_PORT:-18370}"
 ENV SYSCOIN_DATA=/home/syscoin/.syscoin
 ENV SYSCOIN_PREFIX=/opt/syscoin
 COPY --from=syscoin-alpine ${SYSCOIN_PREFIX}/bin/syscoind /usr/local/bin/syscoind
@@ -28,6 +29,7 @@ RUN echo $'syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DATA} \
 	--server=1 \
 	--rpcuser=u \
 	--rpcpassword=p \
+	--rpcport="$SYSRPC_PORT" \
     --gethcommandline=--exitwhensynced \
 	--gethcommandline=--datadir="$GETH_DATA_DIR" \
 	--gethcommandline=--verbosity="$VERBOSITY" \
@@ -51,6 +53,7 @@ RUN echo $'exec syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DA
 	--server=1 \
 	--rpcuser=u \
 	--rpcpassword=p \
+	--rpcport="$SYSRPC_PORT" \
 	--gethcommandline=--datadir="$GETH_DATA_DIR" \
 	--gethcommandline=--verbosity="$VERBOSITY" \
 	--gethcommandline=--http \
@@ -69,6 +72,7 @@ RUN echo $'exec syscoind --testnet --addnode=3.143.67.237 --datadir=${SYSCOIN_DA
 	--gethcommandline=--maxpeers=1 \
 	--gethcommandline=--allow-insecure-unlock \
 	--gethcommandline=--gcmode=archive' >> geth.sh
-RUN echo $'exec syscoin-cli --testnet --datadir=${SYSCOIN_DATA} createnewwallet walletA' >> geth.sh
-RUN echo $'exec syscoin-cli --testnet --datadir=${SYSCOIN_DATA} importdescriptors "[{\"desc\": \"$SYS_DESC\", \"timestamp\": \"now\", \"range\": [0,0], \"active\": \'true\'}]"' >> geth.sh
+RUN echo $'syscoin-cli --testnet --datadir=${SYSCOIN_DATA} createwallet wallet' >> geth.sh
+RUN echo $'syscoin-cli --testnet --datadir=${SYSCOIN_DATA} --rpcwallet=wallet importdescriptors "[{\"desc\": \"$SYS_DESC\", \"timestamp\": \"now\", \"active\": \'true\'}]"' >> geth.sh
+RUN echo $'syscoin-cli --testnet --datadir=${SYSCOIN_DATA} --rpcwallet=wallet importdescriptors "[{\"desc\": \"$SYS_DESC_INTERNAL\", \"timestamp\": \"now\", \"internal\": \'true\', \"active\": \'true\'}]"' >> geth.sh
 ENTRYPOINT ["/bin/sh", "geth.sh"]

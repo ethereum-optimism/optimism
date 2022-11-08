@@ -1,5 +1,8 @@
 {
-  "l1StartingBlockTag": "0x57498df824c0e9a5842830330120a960c5f635730489918ec6f5c951e12b9e98",
+  "finalSystemOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
+  "controller": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
+
+  "l1StartingBlockTag": "0x46814b3a7d8a89d5e0497d2b02f2cdf1841b09dca8a0c8c7ffbb0a12d3a8d5a6",
   "l1ChainID": 5700,
   "l2ChainID": 57000,
   "l2BlockTime": 2,
@@ -8,7 +11,7 @@
   "sequencerWindowSize": 12,
   "channelTimeout": 12,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
-  "batchInboxAddress": "0x3071b919a37d3217fa19d54f8e1a08aec4d8eb4e",
+  "batchInboxAddress": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
 
   "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
@@ -16,7 +19,7 @@
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  "l2OutputOracleOwner": "0x3071b919a37d3217fa19d54f8e1a08aec4d8eb4e",
+  "l2OutputOracleOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
 
   "optimismBaseFeeRecipient": "0x71b2e590ce66c94a3c2ad5e889adc75c11728889",
   "optimismL1FeeRecipient": "0x749058367c48a10c728073dcc4613560d69e730d",

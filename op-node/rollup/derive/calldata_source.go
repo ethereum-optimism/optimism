@@ -22,6 +22,8 @@ type DataIter interface {
 type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	FetchReceiptsFromTxs(ctx context.Context, txs types.Transactions, info eth.BlockInfo, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	GetBlobFromCloud(vh common.Hash) (string, error)
+	GetBlobFromRPC(vh common.Hash) (string, error)
 }
 
 // DataSourceFactory readers raw transactions from a given block & then filters for

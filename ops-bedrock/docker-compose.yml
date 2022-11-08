@@ -22,6 +22,7 @@ services:
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
     environment:
       SYS_DESC: "${SYS_DESC}"
+      SYS_DESC_INTERNAL: "${SYS_DESC_INTERNAL}"
   l2:
     build:
       context: .
@@ -118,8 +119,6 @@ services:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
-      OP_BATCHER_SYSCOIN_RPC: http://l1:18370
-      OP_BATCHER_PODA_RPC: "${PODA_URL}"
       OP_BATCHER_MIN_L1_TX_SIZE_BYTES: 1
       OP_BATCHER_MAX_L1_TX_SIZE_BYTES: 2097120
       OP_BATCHER_CHANNEL_TIMEOUT: 400

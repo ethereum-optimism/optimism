@@ -61,8 +61,8 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, u
 	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
 		return t.UpdateGasPrice(ctx, tx, updateGasPriceExtra)
 	}
-
-	ctx, cancel := context.WithTimeout(ctx, 100*time.Second) // TODO: Select a timeout that makes sense here.
+	// SYSCOIN account for 150sec average block times
+	ctx, cancel := context.WithTimeout(ctx, 1200*time.Second) // TODO: Select a timeout that makes sense here.
 	defer cancel()
 	if receipt, err := t.txMgr.Send(ctx, updateGasPrice, t.l1Client.SendTransaction); err != nil {
 		t.log.Warn("unable to publish tx", "err", err)
@@ -85,7 +85,8 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 	childCtx, cancel = context.WithTimeout(ctx, networkTimeout)
 	head, err := t.l1Client.HeaderByNumber(childCtx, nil)
 	cancel()
-	if err != nil {
+	// SYSCOIN crashes if l1 client not connected
+	if err != nil || head == nil || head.BaseFee == nil {
 		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
 	}
 	gasFeeCap = txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)

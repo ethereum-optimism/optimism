@@ -10,17 +10,17 @@ import {
 
 const deployFn: DeployFunction = async (hre) => {
   let L1CrossDomainMessengerProxy: ethers.Contract
-  try {
+  /*try {
     L1CrossDomainMessengerProxy = await getContractFromArtifact(
       hre,
       'Proxy__OVM_L1CrossDomainMessenger'
     )
-  } catch {
+  } catch {*/
     L1CrossDomainMessengerProxy = await getContractFromArtifact(
       hre,
       'L1CrossDomainMessengerProxy'
     )
-  }
+  //}
 
   await deployAndVerifyAndThen({
     hre,

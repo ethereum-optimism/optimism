@@ -71,6 +71,8 @@ func (c *EthClientConfig) Check() error {
 // EthClient retrieves ethereum data with optimized batch requests, cached results, and flag to not trust the RPC.
 type EthClient struct {
 	client client.RPC
+	// SYSCOIN
+	syscoinClient SyscoinClient
 
 	maxBatchSize int
 
@@ -107,6 +109,8 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 	return &EthClient{
 		client:            client,
+		// SYSCOIN
+		syscoinClient:	   NewSyscoinClient(),
 		maxBatchSize:      config.MaxRequestsPerBatch,
 		trustRPC:          config.TrustRPC,
 		log:               log,
@@ -263,6 +267,13 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	}
 
 	return info, receipts, nil
+}
+// SYSCOIN
+func (s *EthClient) GetBlobFromCloud(vh common.Hash) (string, error) {
+	return s.syscoinClient.GetBlobFromCloud(vh)
+}
+func (s *EthClient) GetBlobFromRPC(vh common.Hash) (string, error) {
+	return s.syscoinClient.GetBlobFromRPC(vh)
 }
 // FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
 // It verifies the receipt hash in the block header against the receipt hash of the fetched receipts

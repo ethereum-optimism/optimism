@@ -1,5 +1,7 @@
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
+import '@eth-optimism/hardhat-deploy-config'
+import '@nomiclabs/hardhat-ethers'
 
 import {
   assertContractVariable,
@@ -9,22 +11,15 @@ import {
 
 const deployFn: DeployFunction = async (hre) => {
   let BatchInboxProxy: ethers.Contract
-  try {
-    BatchInboxProxy = await getContractFromArtifact(
-      hre,
-      'Proxy__OVM_BatchInbox'
-    )
-  } catch {
-    BatchInboxProxy = await getContractFromArtifact(
-      hre,
-      'BatchInboxProxy'
-    )
-  }
+  BatchInboxProxy = await getContractFromArtifact(
+    hre,
+    'BatchInboxProxy'
+  )
 
   await deployAndVerifyAndThen({
     hre,
     name: 'BatchInbox',
-    args: [BatchInboxProxy.address],
+    args: [hre.deployConfig.batchSenderAddress, hre.deployConfig.batchInboxAddress],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,

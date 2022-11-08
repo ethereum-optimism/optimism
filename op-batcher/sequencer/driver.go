@@ -24,8 +24,7 @@ type Config struct {
 
 	RollupNode *sources.RollupClient
 	// SYSCOIN
-	SyscoinNode *sources.SyscoinClient
-	PoDANode *sources.PoDAClient
+	SyscoinNode sources.SyscoinClient
 
 	// Limit the size of txs
 	MinL1TxSize uint64

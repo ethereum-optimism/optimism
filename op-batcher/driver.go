@@ -107,11 +107,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	// SYSCOIN
-	syscoinClient, err := dialSyscoinClientWithTimeout(ctx, cfg.SyscoinRpc)
-	if err != nil {
-		return nil, err
-	}
-	podaClient, err := dialPoDAClientWithTimeout(ctx, cfg.PoDARpc)
+	syscoinClient, err := dialSyscoinClientWithTimeout(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +139,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		L2Client:          l2Client,
 		RollupNode:        rollupClient,
 		SyscoinNode:       syscoinClient,
-		PoDANode:          podaClient,
 		MinL1TxSize:       cfg.MinL1TxSize,
 		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
@@ -288,12 +283,14 @@ func (l *BatchSubmitter) loop() {
 					break // local for loop
 				} else if err != nil {
 					l.log.Error("unable to get tx data", "err", err)
+					VHs = make([]common.Hash, 0)
 					break
 				}
 				// post data.Bytes() into SYS RPC to get version hash
-				vh, err := l.cfg.SyscoinNode.CreatePoDA(l.ctx, data)
+				vh, err := l.cfg.SyscoinNode.CreateBlob(data)
 				if err != nil {
-					l.log.Error("unable to create PoDA tx", "err", err)
+					l.log.Error("unable to create Blob tx", "err", err)
+					VHs = make([]common.Hash, 0)
 					break
 				}
 				VHs = append(VHs, vh)
@@ -301,25 +298,29 @@ func (l *BatchSubmitter) loop() {
 			vhBytes := make([]byte, 0)
 			for _, vh := range VHs {
 				// wait for VH to confirm (MTP > 0)
-				podaCreateStatus, err := l.cfg.SyscoinNode.IsPoDAConfirmed(l.ctx, vh)
+				podaCreateStatus, err := l.cfg.SyscoinNode.IsBlobConfirmed(vh)
 				if err != nil {
 					l.log.Error("unable to check for PoDA confirmation", "err", err)
+					vhBytes = make([]byte, 0)
 					break
 				}
 				if podaCreateStatus == false {
 					l.log.Error("PoDA not confirmed", "err", err)
+					vhBytes = make([]byte, 0)
 					break
 				}
 				vhBytes = append(vhBytes, vh.Bytes()...)
 			}
-			// Create the transaction
-			// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
-			sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
-			calldata := append(sig, vhBytes...)
+			if len(vhBytes) > 0 {
+				// Create the transaction
+				// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
+				sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
+				calldata := append(sig, vhBytes...)
 
-			_, err := l.txMgr.SendTransaction(l.ctx, calldata, uint64(len(VHs))*1800)
-			if err != nil {
-				l.log.Error("Failed to send transaction", "err", err)
+				_, err := l.txMgr.SendTransaction(l.ctx, calldata, uint64(len(VHs))*1800)
+				if err != nil {
+					l.log.Error("Failed to send transaction", "err", err)
+				}
 			}
 
 		case <-l.done:
