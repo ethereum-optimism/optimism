@@ -152,18 +152,8 @@ func main() {
 				return err
 			}
 
-			l2Addrs := genesis.L2Addresses{
-				ProxyAdminOwner:             config.ProxyAdminOwner,
-				L1StandardBridgeProxy:       config.L1StandardBridgeProxy,
-				L1CrossDomainMessengerProxy: config.L1CrossDomainMessengerProxy,
-				L1ERC721BridgeProxy:         config.L1ERC721BridgeProxy,
-				BaseFeeVaultRecipient:       config.BaseFeeVaultRecipient,
-				L1FeeVaultRecipient:         config.L1FeeVaultRecipient,
-				SequencerFeeVaultRecipient:  config.SequencerFeeVaultRecipient,
-			}
-
 			dryRun := ctx.Bool("dry-run")
-			if err := genesis.MigrateDB(ldb, config, block, &l2Addrs, &migrationData, !dryRun); err != nil {
+			if err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun); err != nil {
 				return err
 			}
 
