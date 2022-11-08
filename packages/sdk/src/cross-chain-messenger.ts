@@ -52,6 +52,7 @@ import {
   StateRoot,
   StateRootBatch,
   IBridgeAdapter,
+  ProvenWithdrawal,
 } from './interfaces'
 import {
   toSignerOrProvider,
@@ -550,7 +551,66 @@ export class CrossChainMessenger {
             return MessageStatus.STATE_ROOT_NOT_PUBLISHED
           }
 
-          timestamp = output.l1Timestamp
+          // TODO: Unduplicate the following code, just for testing
+
+          const receipt = await this.l2Provider.getTransactionReceipt(
+            resolved.transactionHash
+          )
+
+          interface WithdrawalEntry {
+            MessagePassed: any
+          }
+
+          // Handle multiple withdrawals in the same tx
+          const logs: Partial<{ number: WithdrawalEntry }> = {}
+          for (const [_, log] of Object.entries(receipt.logs)) {
+            if (
+              log.address === this.contracts.l2.BedrockMessagePasser.address
+            ) {
+              const decoded =
+                this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
+              // Find the withdrawal initiated events
+              if (decoded.name === 'MessagePassed') {
+                logs[log.logIndex] = {
+                  MessagePassed: decoded.args,
+                }
+              }
+            }
+          }
+
+          // TODO(tynes): be able to handle transactions that do multiple withdrawals
+          // in a single transaction. Right now just go for the first one.
+          const withdrawal = Object.values(logs)[0]
+          if (!withdrawal) {
+            throw new Error(
+              `Cannot find withdrawal logs for ${resolved.transactionHash}`
+            )
+          }
+
+          const withdrawalHash = hashWithdrawal(
+            withdrawal.MessagePassed.nonce,
+            withdrawal.MessagePassed.sender,
+            withdrawal.MessagePassed.target,
+            withdrawal.MessagePassed.value,
+            withdrawal.MessagePassed.gasLimit,
+            withdrawal.MessagePassed.data
+          )
+
+          // -- snip --
+
+          // Attempt to fetch the proven withdrawal
+          const provenWithdrawal = await this.getProvenWithdrawal(
+            withdrawalHash
+          )
+
+          // If the withdrawal hash has not been proven on L1,
+          // return `READY_TO_PROVE`
+          if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
+            return MessageStatus.READY_TO_PROVE
+          }
+
+          // Set the timestamp to the provenWithdrawal's timestamp
+          timestamp = provenWithdrawal.timestamp.toNumber()
         } else {
           const stateRoot = await this.getMessageStateRoot(resolved)
           if (stateRoot === null) {
@@ -890,6 +950,20 @@ export class CrossChainMessenger {
       ? await this.contracts.l1.OptimismPortal.FINALIZATION_PERIOD_SECONDS()
       : await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
     return challengePeriod.toNumber()
+  }
+
+  /**
+   * Queries the OptimismPortal contract's `provenWithdrawals` mapping
+   * for a ProvenWithdrawal that matches the passed withdrawalHash
+   *
+   * Note: This function is bedrock-specific.
+   *
+   * @returns A ProvenWithdrawal object
+   */
+  public async getProvenWithdrawal(
+    withdrawalHash: string
+  ): Promise<ProvenWithdrawal> {
+    return this.contracts.l1.OptimismPortal.provenWithdrawals(withdrawalHash)
   }
 
   /**
@@ -1702,7 +1776,7 @@ export class CrossChainMessenger {
         ],
         output.l2BlockNumber,
         [
-          proof.outputRootProof,
+          proof.outputRootProof.version,
           proof.outputRootProof.stateRoot,
           proof.outputRootProof.messagePasserStorageRoot,
           proof.outputRootProof.latestBlockhash,
