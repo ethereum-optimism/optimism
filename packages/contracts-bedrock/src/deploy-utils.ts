@@ -280,6 +280,14 @@ export const assertContractVariable = async (
     from: ethers.constants.AddressZero,
   })
 
+  if (ethers.utils.isAddress(expected)) {
+    assert(
+      actual.toLowerCase() === expected.toLowerCase(),
+      `[FATAL] ${variable} is ${actual} but should be ${expected}`
+    )
+    return
+  }
+
   assert(
     actual === expected || (actual.eq && actual.eq(expected)),
     `[FATAL] ${variable} is ${actual} but should be ${expected}`

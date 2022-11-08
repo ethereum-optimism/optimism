@@ -7,6 +7,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { PortalSender } from "./PortalSender.sol";
@@ -37,6 +38,7 @@ contract BaseSystemDictator is Ownable {
         address l1StandardBridgeProxy;
         address optimismMintableERC20FactoryProxy;
         address l1ERC721BridgeProxy;
+        address systemConfigProxy;
     }
 
     /**
@@ -50,6 +52,7 @@ contract BaseSystemDictator is Ownable {
         OptimismMintableERC20Factory optimismMintableERC20FactoryImpl;
         L1ERC721Bridge l1ERC721BridgeImpl;
         PortalSender portalSenderImpl;
+        SystemConfig systemConfigImpl;
     }
 
     /**
@@ -62,19 +65,31 @@ contract BaseSystemDictator is Ownable {
     }
 
     /**
+     * @notice Values for the system config contract.
+     */
+    struct SystemConfigConfig {
+        address owner;
+        uint256 overhead;
+        uint256 scalar;
+        bytes32 batcherHash;
+        uint64 gasLimit;
+    }
+
+    /**
      * @notice Combined system configuration.
      */
-    struct SystemConfig {
+    struct DeployConfig {
         GlobalConfig globalConfig;
         ProxyAddressConfig proxyAddressConfig;
         ImplementationAddressConfig implementationAddressConfig;
         L2OutputOracleConfig l2OutputOracleConfig;
+        SystemConfigConfig systemConfigConfig;
     }
 
     /**
      * @notice System configuration.
      */
-    SystemConfig public config;
+    DeployConfig public config;
 
     /**
      * @notice Current step;
@@ -95,7 +110,7 @@ contract BaseSystemDictator is Ownable {
     /**
      * @param _config System configuration.
      */
-    constructor(SystemConfig memory _config) Ownable() {
+    constructor(DeployConfig memory _config) Ownable() {
         config = _config;
         _transferOwnership(config.globalConfig.controller);
     }
