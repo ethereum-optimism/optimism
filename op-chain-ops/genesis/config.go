@@ -368,7 +368,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 		"_owner": common.Address{},
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
-		"owner": l2Addrs.ProxyAdminOwner,
+		"_owner": l2Addrs.ProxyAdminOwner,
 	}
 	return storage, nil
 }

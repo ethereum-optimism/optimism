@@ -172,6 +172,6 @@ contract MigrationSystemDictator is BaseSystemDictator {
             .transferOwnership(config.globalConfig.finalOwner);
 
         // Transfer ownership of the ProxyAdmin to the final owner.
-        config.globalConfig.proxyAdmin.setOwner(config.globalConfig.finalOwner);
+        config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
     }
 }
