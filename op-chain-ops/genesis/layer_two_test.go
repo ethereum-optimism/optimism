@@ -78,7 +78,7 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	require.Nil(t, err)
 	config.FundDevAccounts = false
 
-	err = config.GetDeveloperDeployedAddresses()
+	err = config.InitDeveloperDeployedAddresses()
 	require.NoError(t, err)
 
 	backend := backends.NewSimulatedBackend(

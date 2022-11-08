@@ -52,7 +52,7 @@ var Subcommands = cli.Commands{
 			}
 
 			// Add the developer L1 addresses to the config
-			if err := config.GetDeveloperDeployedAddresses(); err != nil {
+			if err := config.InitDeveloperDeployedAddresses(); err != nil {
 				return err
 			}
 

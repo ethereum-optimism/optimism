@@ -109,7 +109,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 
 	// Configure the DeployConfig with the expected developer L1
 	// addresses.
-	if err := deployConfig.GetDeveloperDeployedAddresses(); err != nil {
+	if err := deployConfig.InitDeveloperDeployedAddresses(); err != nil {
 		panic(err)
 	}
 

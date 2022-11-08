@@ -103,7 +103,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		FundDevAccounts: true,
 	}
 
-	if err := deployConfig.GetDeveloperDeployedAddresses(); err != nil {
+	if err := deployConfig.InitDeveloperDeployedAddresses(); err != nil {
 		panic(err)
 	}
 

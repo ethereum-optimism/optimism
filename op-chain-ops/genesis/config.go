@@ -249,8 +249,8 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 	return nil
 }
 
-// GetDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
-func (d *DeployConfig) GetDeveloperDeployedAddresses() error {
+// InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
+func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	d.L1StandardBridgeProxy = predeploys.DevL1StandardBridgeAddr
 	d.L1CrossDomainMessengerProxy = predeploys.DevL1CrossDomainMessengerAddr
 	d.L1ERC721BridgeProxy = predeploys.DevL1ERC721BridgeAddr
