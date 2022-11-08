@@ -18,7 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -350,7 +350,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
 
@@ -665,6 +665,7 @@ func TestL1InfoContract(t *testing.T) {
 }
 
 // calcGasFees determines the actual cost of the transaction given a specific basefee
+// This does not include the L1 data fee charged from L2 transactions.
 func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
 	x := new(big.Int).Add(gasTipCap, baseFee)
 	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
@@ -747,7 +748,7 @@ func TestWithdrawals(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
@@ -793,6 +794,7 @@ func TestWithdrawals(t *testing.T) {
 	// Take fee into account
 	diff = new(big.Int).Sub(startBalance, endBalance)
 	fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	fees = fees.Add(fees, receipt.L1Fee)
 	diff = diff.Sub(diff, fees)
 	require.Equal(t, withdrawAmount, diff)
 

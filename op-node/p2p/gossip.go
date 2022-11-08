@@ -11,40 +11,37 @@ import (
 
 	"github.com/golang/snappy"
 	lru "github.com/hashicorp/golang-lru"
-	"github.com/libp2p/go-libp2p-core/host"
-	"github.com/libp2p/go-libp2p-core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
+	"github.com/libp2p/go-libp2p/core/host"
+	"github.com/libp2p/go-libp2p/core/peer"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-func init() {
-	// TODO: a PR is open to make this configurable upstream as option instead of having to override a global
-	// https://github.com/libp2p/go-libp2p-pubsub/pull/484
-	pubsub.TimeCacheDuration = 80 * pubsub.GossipSubHeartbeatInterval
-}
-
-const maxGossipSize = 1 << 20
-
-// minGossipSize is used to make sure that there is at least some data
-// to validate the signature against.
-const minGossipSize = 66
-const maxOutboundQueue = 256
-const maxValidateQueue = 256
-const globalValidateThrottle = 512
+const (
+	// maxGossipSize limits the total size of gossip RPC containers as well as decompressed individual messages.
+	maxGossipSize = 10 * (1 << 20)
+	// minGossipSize is used to make sure that there is at least some data to validate the signature against.
+	minGossipSize          = 66
+	maxOutboundQueue       = 256
+	maxValidateQueue       = 256
+	globalValidateThrottle = 512
+	gossipHeartbeat        = 500 * time.Millisecond
+	// seenMessagesTTL limits the duration that message IDs are remembered for gossip deduplication purposes
+	seenMessagesTTL = 80 * gossipHeartbeat
+)
 
 // Message domains, the msg id function uncompresses to keep data monomorphic,
 // but invalid compressed data will need a unique different id.
 
 var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
-
-const MaxGossipSize = 1 << 20
 
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
@@ -62,7 +59,7 @@ func BuildSubscriptionFilter(cfg *rollup.Config) pubsub.SubscriptionFilter {
 
 var msgBufPool = sync.Pool{New: func() any {
 	// note: the topic validator concurrency is limited, so pool won't blow up, even with large pre-allocation.
-	x := make([]byte, 0, MaxGossipSize)
+	x := make([]byte, 0, maxGossipSize)
 	return &x
 }}
 
@@ -76,7 +73,7 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 		// The validator can throw away the message later when recognized as invalid,
 		// and the unique hash helps detect duplicates.
 		dLen, err := snappy.DecodedLen(pmsg.Data)
-		if err == nil && dLen <= MaxGossipSize {
+		if err == nil && dLen <= maxGossipSize {
 			res := msgBufPool.Get().(*[]byte)
 			defer msgBufPool.Put(res)
 			if data, err = snappy.Decode((*res)[:0], pmsg.Data); err == nil {
@@ -107,14 +104,14 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 
 func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	params := pubsub.DefaultGossipSubParams()
-	params.D = 8                                      // topic stable mesh target count
-	params.Dlo = 6                                    // topic stable mesh low watermark
-	params.Dhi = 12                                   // topic stable mesh high watermark
-	params.Dlazy = 6                                  // gossip target
-	params.HeartbeatInterval = 500 * time.Millisecond // interval of heartbeat
-	params.FanoutTTL = 24 * time.Second               // ttl for fanout maps for topics we are not subscribed to but have published to
-	params.HistoryLength = 12                         // number of windows to retain full messages in cache for IWANT responses
-	params.HistoryGossip = 3                          // number of windows to gossip about
+	params.D = 8                               // topic stable mesh target count
+	params.Dlo = 6                             // topic stable mesh low watermark
+	params.Dhi = 12                            // topic stable mesh high watermark
+	params.Dlazy = 6                           // gossip target
+	params.HeartbeatInterval = gossipHeartbeat // interval of heartbeat
+	params.FanoutTTL = 24 * time.Second        // ttl for fanout maps for topics we are not subscribed to but have published to
+	params.HistoryLength = 12                  // number of windows to retain full messages in cache for IWANT responses
+	params.HistoryGossip = 3                   // number of windows to gossip about
 
 	return params
 }
@@ -133,6 +130,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, m Gos
 		pubsub.WithValidateQueueSize(maxValidateQueue),
 		pubsub.WithPeerOutboundQueueSize(maxOutboundQueue),
 		pubsub.WithValidateThrottle(globalValidateThrottle),
+		pubsub.WithSeenMessagesTTL(seenMessagesTTL),
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),

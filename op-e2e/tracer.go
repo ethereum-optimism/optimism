@@ -3,9 +3,10 @@ package op_e2e
 import (
 	"context"
 
+	"github.com/libp2p/go-libp2p/core/peer"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
-	"github.com/libp2p/go-libp2p-core/peer"
 )
 
 type FnTracer struct {
