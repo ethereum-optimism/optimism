@@ -59,7 +59,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		db.CreateAccount(addr)
 		db.SetCode(addr, depBytecode)
 		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
-		log.Info("Set proxy", "address", addr, "admin", proxyAdminAddr)
+		log.Trace("Set proxy", "address", addr, "admin", proxyAdminAddr)
 	}
 	return nil
 }
