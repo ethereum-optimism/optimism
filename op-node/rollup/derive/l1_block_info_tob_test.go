@@ -1,14 +1,15 @@
 package derive
 
 import (
+	"math/big"
+	"math/rand"
+	"testing"
+
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"math/big"
-	"math/rand"
-	"testing"
 )
 
 // FuzzParseL1InfoDepositTxDataValid is a fuzz test built from TestParseL1InfoDepositTxData, which constructs random
@@ -25,21 +26,24 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 			InfoBaseFee        *big.Int
 			InfoTime           uint64
 			InfoNum            uint64
-			InfoSequenceNumber uint64
+			// InfoSequenceNumber uint64
 		}
 		typeProvider.Fuzz(&fuzzVars)
 
 		// Create an rng provider and construct an L1 info from random + fuzzed data.
 		rng := rand.New(rand.NewSource(rngSeed))
-		l1Info := testutils.MakeL1Info(func(l *testutils.MockL1Info) {
+		seqNr := rng.Uint64()
+		// just go instantiate the struct instead of calling MakeL1Info
+		// see what has become of it.
+		l1Info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
 			l.InfoBaseFee = fuzzVars.InfoBaseFee
 			l.InfoTime = fuzzVars.InfoTime
 			l.InfoNum = fuzzVars.InfoNum
-			l.InfoSequenceNumber = fuzzVars.InfoSequenceNumber
+			// l.InfoSequenceNumber = fuzzVars.InfoSequenceNumber
 		})(rng)
 
 		// Create our deposit tx from our info
-		depTx, err := L1InfoDeposit(l1Info.SequenceNumber(), l1Info)
+		depTx, err := L1InfoDeposit(seqNr, l1Info)
 		require.NoError(t, err)
 
 		// Get our info from out deposit tx
