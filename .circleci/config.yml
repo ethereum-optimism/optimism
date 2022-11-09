@@ -678,6 +678,13 @@ jobs:
       - run:
           command: "! grep 'pass.*=false' /tmp/hive.log"
 
+  bedrock-go-tests:
+    docker:
+      - image: cimg/go:1.19
+    resource_class: medium
+    steps:
+      - run: echo Done
+
 workflows:
   main:
     jobs:
@@ -814,53 +821,70 @@ workflows:
       - fuzz-op-node
       - bedrock-markdown
       - go-lint:
-          name: op-batcher lint
+          name: op-batcher-lint
           module: op-batcher
       - go-lint:
-          name: op-bindings lint
+          name: op-bindings-lint
           module: op-bindings
       - go-lint:
-          name: op-chain-ops lint
+          name: op-chain-ops-lint
           module: op-chain-ops
       - go-lint:
-          name: op-e2e lint
+          name: op-e2e-lint
           module: op-e2e
       - go-lint:
-          name: op-node lint
+          name: op-node-lint
           module: op-node
       - go-lint:
-          name: op-proposer lint
+          name: op-proposer-lint
           module: op-proposer
       - go-lint:
-          name: op-service lint
+          name: op-service-lint
           module: op-service
       - go-test:
-          name: op-batcher tests
+          name: op-batcher-tests
           module: op-batcher
       - go-test:
-          name: op-bindings tests
+          name: op-bindings-tests
           module: op-bindings
       - go-test:
-          name: op-chain-ops tests
+          name: op-chain-ops-tests
           module: op-chain-ops
       - go-test:
-          name: op-node tests
+          name: op-node-tests
           module: op-node
           # TODO: override resource class
       - go-test:
-          name: op-proposer tests
+          name: op-proposer-tests
           module: op-proposer
       - go-test:
-          name: op-service tests
+          name: op-service-tests
           module: op-service
       - go-e2e-test:
-          name: op-e2e WS tests
+          name: op-e2e-WS-tests
           module: op-e2e
           use_http: "false"
       - go-e2e-test:
-          name: op-e2e HTTP tests
+          name: op-e2e-HTTP-tests
           module: op-e2e
           use_http: "true"
+      - bedrock-go-tests:
+          requires:
+            - op-batcher-lint
+            - op-bindings-lint
+            - op-chain-ops-lint
+            - op-e2e-lint
+            - op-node-lint
+            - op-proposer-lint
+            - op-service-lint
+            - op-batcher-tests
+            - op-bindings-tests
+            - op-chain-ops-tests
+            - op-node-tests
+            - op-proposer-tests
+            - op-service-tests
+            - op-e2e-WS-tests
+            - op-e2e-HTTP-tests
       - docker-publish:
           name: op-node-publish-dev
           docker_file: op-node/Dockerfile
