@@ -18,6 +18,7 @@
 package testlog
 
 import (
+	"os"
 	"runtime"
 	"strconv"
 	"strings"
@@ -25,6 +26,14 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 )
+
+var useColorInTestLog bool = true
+
+func init() {
+	if os.Getenv("OP_TESTLOG_DISABLE_COLOR") == "true" {
+		useColorInTestLog = false
+	}
+}
 
 // Testing interface to log to. Some functions are marked as Helper function to log the call site accurately.
 // Standard Go testing.TB implements this, as well as Hive and other Go-like test frameworks.
@@ -75,7 +84,7 @@ func Logger(t Testing, level log.Lvl) log.Logger {
 		t:  t,
 		l:  log.New(),
 		mu: new(sync.Mutex),
-		h:  &bufHandler{fmt: log.TerminalFormat(true)},
+		h:  &bufHandler{fmt: log.TerminalFormat(useColorInTestLog)},
 	}
 	l.l.SetHandler(log.LvlFilterHandler(level, l.h))
 	return l
