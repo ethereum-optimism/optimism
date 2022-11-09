@@ -310,6 +310,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     console.log('Proving withdrawal...')
     const prove = await messenger.proveMessage(withdraw)
     const proveReceipt = await prove.wait()
+    console.log(proveReceipt)
     if (proveReceipt.status !== 1) {
       throw new Error('Prove withdrawal transaction reverted')
     }

@@ -553,7 +553,7 @@ export class CrossChainMessenger {
 
           // TODO: Unduplicate the following code, just for testing
 
-          const receipt = await this.l2Provider.getTransactionReceipt(
+          const _receipt = await this.l2Provider.getTransactionReceipt(
             resolved.transactionHash
           )
 
@@ -563,7 +563,7 @@ export class CrossChainMessenger {
 
           // Handle multiple withdrawals in the same tx
           const logs: Partial<{ number: WithdrawalEntry }> = {}
-          for (const [_, log] of Object.entries(receipt.logs)) {
+          for (const [_, log] of Object.entries(_receipt.logs)) {
             if (
               log.address === this.contracts.l2.BedrockMessagePasser.address
             ) {
@@ -587,6 +587,7 @@ export class CrossChainMessenger {
             )
           }
 
+          // Get the withdrawalHash for the resolved withdrawal message
           const withdrawalHash = hashWithdrawal(
             withdrawal.MessagePassed.nonce,
             withdrawal.MessagePassed.sender,
@@ -963,6 +964,10 @@ export class CrossChainMessenger {
   public async getProvenWithdrawal(
     withdrawalHash: string
   ): Promise<ProvenWithdrawal> {
+    if (!this.bedrock) {
+      throw new Error('message proving only applies after the bedrock upgrade')
+    }
+
     return this.contracts.l1.OptimismPortal.provenWithdrawals(withdrawalHash)
   }
 
@@ -1457,7 +1462,7 @@ export class CrossChainMessenger {
       overrides?: Overrides
     }
   ): Promise<TransactionResponse> {
-    return (opts?.signer || this.l2Signer).sendTransaction(
+    return (opts?.signer || this.l1Signer).sendTransaction(
       await this.populateTransaction.proveMessage(message, opts)
     )
   }
