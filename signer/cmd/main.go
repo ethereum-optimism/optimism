@@ -21,7 +21,7 @@ func main() {
 	oplog.SetupDefaults()
 
 	app := cli.NewApp()
-	app.Flags = signer.CLIFlags("SIGNER_")
+	app.Flags = signer.CLIFlags("SIGNER")
 	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
 	app.Name = "signer"
 	app.Usage = "Signing Service"
