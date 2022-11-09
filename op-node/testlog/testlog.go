@@ -146,7 +146,7 @@ func (l *logger) flush() {
 	l.t.Helper()
 	// 2 frame skip for flush() + public logger fn
 	decorationLen := estimateInfoLen(2)
-	padding := 20
+	padding := 0
 	if decorationLen <= 25 {
 		padding = 25 - decorationLen
 	}
