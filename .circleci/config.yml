@@ -262,101 +262,6 @@ jobs:
           name: Upload coverage
           command: codecov --verbose --clean --flags <<parameters.coverage_flag>>
 
-  bedrock-go-tests:
-    docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
-    steps:
-      - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-(batcher|bindings|e2e|node|proposer|chain-ops)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
-      - run:
-          name: lint op-bindings
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-bindings
-      - run:
-          name: lint op-node
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-node
-      - run:
-          name: lint op-proposer
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-proposer
-      - run:
-          name: lint op-batcher
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-batcher
-      - run:
-          name: lint op-e2e
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-e2e
-      - run:
-          name: lint op-service
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-service
-      - run:
-          name: lint op-chain-ops
-          command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
-          working_directory: op-chain-ops
-      - run:
-          name: prep results dir
-          command: mkdir -p /test-results
-      - run:
-          name: test op-node
-          command: |
-            gotestsum --junitfile /test-results/op-node.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-node
-      - run:
-          name: test op-proposer
-          command: |
-            gotestsum --junitfile /test-results/op-proposer.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-proposer
-      - run:
-          name: test op-batcher
-          command: |
-            gotestsum --junitfile /test-results/op-batcher.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-batcher
-      - run:
-          name: test op-e2e (WS)
-          command: |
-            gotestsum --format standard-verbose --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-e2e
-      - run:
-          name: test op-e2e (HTTP)
-          command: |
-            OP_E2E_USE_HTTP=true gotestsum --junitfile /test-results/op-e2e.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-e2e
-      - run:
-          name: test op-service
-          command: |
-            gotestsum --junitfile /test-results/op-service.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-service
-      - run:
-          name: test op-chain-ops
-          command: |
-            gotestsum --junitfile /test-results/op-chain-ops.xml -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out -covermode=atomic ./...
-          working_directory: op-chain-ops
-      - run:
-          name: upload coverage
-          command: codecov --verbose --clean --flags bedrock-go-tests
-      - store_test_results:
-          path: /test-results
-      - run:
-          command: echo "Done."
-
   bedrock-markdown:
     machine:
       image: ubuntu-2204:2022.07.1
@@ -434,6 +339,74 @@ jobs:
           name: Check integration-tests
           command: npx depcheck
           working_directory: integration-tests
+
+  go-lint:
+    parameters:
+      module:
+        description: Go Module Name
+        type: string
+    docker:
+      - image: cimg/go:1.19
+    steps:
+      - checkout
+      - run:
+          name: run lint
+          # command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+          command: |
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+          working_directory: <<parameters.module>>
+
+  go-test:
+    parameters:
+      module:
+        description: Go Module Name
+        type: string
+    docker:
+      - image: cimg/go:1.19
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: prep results dir
+          command: mkdir -p /tmp/test-results
+      - run:
+          name: run tests
+          command: |
+            gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
+            -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+          working_directory: <<parameters.module>>
+      # - run:
+      #     name: upload coverage
+      #     command: codecov --verbose --clean --flags bedrock-go-tests
+      - store_test_results:
+          path: /tmp/test-results
+
+  go-e2e-test:
+    parameters:
+      module:
+        description: Go Module Name
+        type: string
+      use_http:
+        description: If the op-e2e package should use HTTP clients
+        type: string
+    docker:
+      - image: cimg/go:1.19
+    parallelism: 6
+    resource_class: xlarge
+    steps:
+      - checkout
+      - run:
+          name: prep results dir
+          command: mkdir -p /tmp/test-results
+      - run:
+          name: run tests
+          command: |
+            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
+            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
+            $(go list ./... | circleci tests split --split-by=timings)
+          working_directory: <<parameters.module>>
+      - store_test_results:
+          path: /tmp/test-results
 
   go-lint-test-build:
     parameters:
@@ -800,9 +773,6 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
-      - bedrock-go-tests
-      - fuzz-op-node
-      - bedrock-markdown
       # - devnet:
       #     name: devnet (with deployed contracts)
       #     deploy: true
@@ -841,6 +811,56 @@ workflows:
       - integration-tests
       - semgrep-scan
       - go-mod-tidy
+      - fuzz-op-node
+      - bedrock-markdown
+      - go-lint:
+          name: op-batcher lint
+          module: op-batcher
+      - go-lint:
+          name: op-bindings lint
+          module: op-bindings
+      - go-lint:
+          name: op-chain-ops lint
+          module: op-chain-ops
+      - go-lint:
+          name: op-e2e lint
+          module: op-e2e
+      - go-lint:
+          name: op-node lint
+          module: op-node
+      - go-lint:
+          name: op-proposer lint
+          module: op-proposer
+      - go-lint:
+          name: op-service lint
+          module: op-service
+      - go-test:
+          name: op-batcher tests
+          module: op-batcher
+      - go-test:
+          name: op-bindings tests
+          module: op-bindings
+      - go-test:
+          name: op-chain-ops tests
+          module: op-chain-ops
+      - go-test:
+          name: op-node tests
+          module: op-node
+          # TODO: override resource class
+      - go-test:
+          name: op-proposer tests
+          module: op-proposer
+      - go-test:
+          name: op-service tests
+          module: op-service
+      - go-e2e-test:
+          name: op-e2e WS tests
+          module: op-e2e
+          use_http: "false"
+      - go-e2e-test:
+          name: op-e2e HTTP tests
+          module: op-e2e
+          use_http: "true"
       - docker-publish:
           name: op-node-publish-dev
           docker_file: op-node/Dockerfile
