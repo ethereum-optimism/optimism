@@ -19,6 +19,9 @@ type UpdateGasPriceFunc = func(ctx context.Context) (*types.Transaction, error)
 
 type SendTransactionFunc = func(ctx context.Context, tx *types.Transaction) error
 
+// SYSCOIN
+type CreateBlobFunc = func(data []byte) (common.Hash, error)
+
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
 	// Log is a local logging instance.
@@ -61,6 +64,13 @@ type TxManager interface {
 		ctx context.Context,
 		updateGasPrice UpdateGasPriceFunc,
 		sendTxn SendTransactionFunc,
+	) (*types.Receipt, error)
+	// SYSCOIN
+	SendBlob(
+		ctx context.Context,
+		createBlob CreateBlobFunc,
+		receiptSource ReceiptSource,
+		data []byte,
 	) (*types.Receipt, error)
 }
 
@@ -175,10 +185,10 @@ func (m *SimpleTxManager) Send(
 		m.l.Info(name+" transaction published successfully", "hash", txHash,
 			"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 
-		// Wait for the transaction to be mined, reporting the receipt
+		// SYSCOIN Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
 		receipt, err := waitMined(
-			m.l, ctxc, m.backend, tx, m.cfg.ReceiptQueryInterval,
+			m.l, ctxc, m.backend, tx.Hash(), m.cfg.ReceiptQueryInterval,
 			m.cfg.NumConfirmations, sendState,
 		)
 		if err != nil {
@@ -237,7 +247,113 @@ func (m *SimpleTxManager) Send(
 		}
 	}
 }
+// SYSCOIN
+func (m *SimpleTxManager) SendBlob(
+	ctx context.Context,
+	createBlob CreateBlobFunc,
+	backend ReceiptSource,
+	data []byte,
+) (*types.Receipt, error) {
 
+	name := m.name
+
+	// Initialize a wait group to track any spawned goroutines, and ensure
+	// we properly clean up any dangling resources this method generates.
+	// We assert that this is the case thoroughly in our unit tests.
+	var wg sync.WaitGroup
+	defer wg.Wait()
+
+	// Initialize a subcontext for the goroutines spawned in this process.
+	// The defer to cancel is done here (in reverse order of Wait) so that
+	// the goroutines can exit before blocking on the wait group.
+	ctxc, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	sendState := NewSendState(0)
+
+	// Create a closure that will block on passed sendTx function in the
+	// background, returning the first successfully mined receipt back to
+	// the main event loop via receiptChan.
+	receiptChan := make(chan *types.Receipt, 1)
+	sendTxAsync := func() {
+		defer wg.Done()
+		// Sign and publish transaction with current gas price.
+		txHash, err := createBlob(data)
+		sendState.ProcessSendError(err)
+		if err != nil {
+			if err == context.Canceled ||
+				strings.Contains(err.Error(), "context canceled") {
+				return
+			}
+			m.l.Error(name+" unable to publish blob", "err", err)
+			if sendState.ShouldAbortImmediately() {
+				cancel()
+			}
+			// TODO(conner): add retry?
+			return
+		}
+
+		m.l.Info(name+" blob published successfully", "hash", txHash)
+
+		// Wait for the transaction to be mined, reporting the receipt
+		// back to the main event loop if found.
+		receipt, err := waitMined(
+			m.l, ctxc, backend, txHash, m.cfg.ReceiptQueryInterval,
+			m.cfg.NumConfirmations, sendState,
+		)
+		if err != nil {
+			m.l.Debug(name+" send blob failed", "hash", txHash,
+				"err", err)
+		}
+		if receipt != nil {
+			// Use non-blocking select to ensure function can exit
+			// if more than one receipt is discovered.
+			select {
+			case receiptChan <- receipt:
+				m.l.Trace(name+" send blob succeeded", "hash", txHash)
+			default:
+			}
+		}
+	}
+
+	// Submit and wait for the receipt at our first gas price in the
+	// background, before entering the event loop and waiting out the
+	// resubmission timeout.
+	wg.Add(1)
+	go sendTxAsync()
+
+	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
+	defer ticker.Stop()
+
+	for {
+		select {
+
+		// Whenever a resubmission timeout has elapsed, bump the gas
+		// price and publish a new transaction.
+		case <-ticker.C:
+			// Avoid republishing if we are waiting for confirmation on an
+			// existing tx. This is primarily an optimization to reduce the
+			// number of API calls we make, but also reduces the chances of
+			// getting a false positive reading for ShouldAbortImmediately.
+			if sendState.IsWaitingForConfirmation() {
+				continue
+			}
+
+			// Submit and wait for the bumped traction to confirm.
+			wg.Add(1)
+			go sendTxAsync()
+
+		// The passed context has been canceled, i.e. in the event of a
+		// shutdown.
+		case <-ctxc.Done():
+			return nil, ctxc.Err()
+
+		// The transaction has confirmed.
+		case receipt := <-receiptChan:
+			return receipt, nil
+		}
+	}
+}
 // WaitMined blocks until the backend indicates confirmation of tx and returns
 // the tx receipt. Queries are made every queryInterval, regardless of whether
 // the backend returns an error. This method can be canceled using the passed
@@ -245,11 +361,11 @@ func (m *SimpleTxManager) Send(
 func WaitMined(
 	ctx context.Context,
 	backend ReceiptSource,
-	tx *types.Transaction,
+	txHash common.Hash,
 	queryInterval time.Duration,
 	numConfirmations uint64,
 ) (*types.Receipt, error) {
-	return waitMined(log.New(), ctx, backend, tx, queryInterval, numConfirmations, nil)
+	return waitMined(log.New(), ctx, backend, txHash, queryInterval, numConfirmations, nil)
 }
 
 // waitMined implements the core functionality of WaitMined, with the option to
@@ -258,7 +374,7 @@ func waitMined(
 	l log.Logger,
 	ctx context.Context,
 	backend ReceiptSource,
-	tx *types.Transaction,
+	txHash common.Hash,
 	queryInterval time.Duration,
 	numConfirmations uint64,
 	sendState *SendState,
@@ -266,8 +382,8 @@ func waitMined(
 
 	queryTicker := time.NewTicker(queryInterval)
 	defer queryTicker.Stop()
-
-	txHash := tx.Hash()
+	// SYSCOIN
+	// txHash := tx.Hash()
 
 	for {
 		receipt, err := backend.TransactionReceipt(ctx, txHash)

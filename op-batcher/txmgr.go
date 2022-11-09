@@ -72,6 +72,23 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, u
 		return receipt, nil
 	}
 }
+// SYSCOIN
+// SendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// It currently uses the underlying `txmgr` to handle transaction sending & price management.
+// This is a blocking method. It should not be called concurrently.
+// TODO: where to put concurrent transaction handling logic.
+func (t *TransactionManager) SendBlobTransaction(ctx context.Context, createBlob txmgr.CreateBlobFunc, backend txmgr.ReceiptSource, data []byte) (*types.Receipt, error) {
+	// SYSCOIN account for 150sec average block times
+	ctx, cancel := context.WithTimeout(ctx, 1200*time.Second) // TODO: Select a timeout that makes sense here.
+	defer cancel()
+	if receipt, err := t.txMgr.SendBlob(ctx, createBlob, backend, data); err != nil {
+		t.log.Warn("unable to publish blob", "err", err)
+		return nil, err
+	} else {
+		t.log.Info("blob successfully published", "version_hash", receipt.TxHash)
+		return receipt, nil
+	}
+}
 
 // calcGasTipAndFeeCap queries L1 to determine what a suitable miner tip & basefee limit would be for timely inclusion
 func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap *big.Int, gasFeeCap *big.Int, err error) {

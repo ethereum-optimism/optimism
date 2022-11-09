@@ -210,7 +210,10 @@ func makeRollupConfig(config *genesis.DeployConfig, l1StartBlock *types.Block, l
 		L1ChainID:              new(big.Int).SetUint64(config.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
 		P2PSequencerAddress:    config.P2PSequencerAddress,
+		// SYSCOIN
 		BatchInboxAddress:      config.BatchInboxProxy,
+		// SYSCOIN
+		L2OutputOracleAddress:  config.L2OutputOracleProxy,
 		DepositContractAddress: config.OptimismPortalProxy,
 		L1SystemConfigAddress:  config.SystemConfigProxy,
 	}, nil

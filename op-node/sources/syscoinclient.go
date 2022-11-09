@@ -1,6 +1,7 @@
 package sources
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"io"
@@ -11,9 +12,10 @@ import (
 	"time"
 	"errors"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 // JSONMarshalerV2 is used for marshalling requests to newer Syscoin Type RPC interfaces
 type JSONMarshalerV2 struct{}
@@ -78,7 +80,6 @@ func safeDecodeResponse(body io.ReadCloser, res interface{}) (err error) {
 	if err != nil {
 		return err
 	}
-	log.Info("CreateBlob", "data", data)
 	return json.Unmarshal(data, &res)
 }
 
@@ -118,7 +119,7 @@ func (s *SyscoinClient) CreateBlob(data []byte) (common.Hash, error) {
 	type ResCreateBlob struct {
 		Error  *RPCError `json:"error"`
 		Result struct {
-			VersionHash string `json:"versionhash"`
+			TXID string `json:"txid"`
 		} `json:"result"`
 	}
 
@@ -138,33 +139,68 @@ func (s *SyscoinClient) CreateBlob(data []byte) (common.Hash, error) {
 	if res.Error != nil {
 		return common.Hash{}, res.Error
 	}
-	return common.HexToHash(res.Result.VersionHash), err
+	return common.HexToHash(res.Result.TXID), err
 }
-
-func (s *SyscoinClient) IsBlobConfirmed(vh common.Hash) (bool, error) {
-	type ResGetBlobMPT struct {
+// SYSCOIN used to get blob confirmation by checking block number then tx receipt below to get block height of blob confirmation
+func (s *SyscoinClient) BlockNumber(ctx context.Context) (uint64, error) {
+	type ResGetBlockNumber struct {
+		Error  *RPCError `json:"error"`
+		BlockNumber uint64 `json:"blocknumber"`
+	}
+	res := ResGetBlockNumber{}
+	type CmdGetBlockNumber struct {
+		Method string `json:"method"`
+		Params struct {
+		} `json:"params"`
+	}
+	req := CmdGetBlockNumber{Method: "getblockcount"}
+	err := s.Call(&req, &res)
+	if err != nil {
+		return 0, err
+	}
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.BlockNumber, err
+}
+// SYSCOIN used to get blob receipt
+func (s *SyscoinClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+	type ResGetBlobReceipt struct {
 		Error  *RPCError `json:"error"`
 		Result struct {
+			VH string `json:"versionhash"`
+			BlockHash string `json:"blockhash"`
+			BlockHeight int64 `json:"height"`
 			MPT int64 `json:"mpt"`
 		} `json:"result"`
 	}
-	res := ResGetBlobMPT{}
-	type CmdGetBlobMPT struct {
+	res := ResGetBlobReceipt{}
+	type CmdGetBlobReceipt struct {
 		Method string `json:"method"`
 		Params struct {
-			VersionHash string `json:"versionhash_or_txid"`
+			TXID string `json:"versionhash_or_txid"`
 		} `json:"params"`
 	}
-	req := CmdGetBlobMPT{Method: "getnevmblobdata"}
-	req.Params.VersionHash = vh.String()[2:]
+	req := CmdGetBlobReceipt{Method: "getnevmblobdata"}
+	req.Params.TXID = txHash.String()[2:]
 	err := s.Call(&req, &res)
 	if err != nil {
-		return false, err
+		return nil, err
 	}
 	if res.Error != nil {
-		return false, res.Error
+		return nil, res.Error
 	}
-	return res.Result.MPT > 0, err
+	receipt := types.Receipt{}
+	if res.Result.MPT > 0 && len(res.Result.BlockHash) > 0 {
+		// store VH in txhash used by driver to put into BatchInbox
+		receipt = types.Receipt{
+			TxHash:      common.HexToHash(res.Result.VH),
+			BlockNumber: big.NewInt(res.Result.BlockHeight),
+			BlockHash:   common.HexToHash(res.Result.BlockHash),
+			Status:      types.ReceiptStatusSuccessful,
+		}
+	}
+	return &receipt, err
 }
 
 func (s *SyscoinClient) GetBlobFromRPC(vh common.Hash) (string, error) {

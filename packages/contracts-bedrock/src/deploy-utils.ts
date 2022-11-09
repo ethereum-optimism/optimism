@@ -21,6 +21,7 @@ export interface DictatorConfig {
     l1StandardBridgeProxy: string
     optimismMintableERC20FactoryProxy: string
     l1ERC721BridgeProxy: string
+    systemConfigProxy: string
   }
   implementationAddressConfig: {
     l2OutputOracleImpl: string
@@ -31,6 +32,7 @@ export interface DictatorConfig {
     optimismMintableERC20FactoryImpl: string
     l1ERC721BridgeImpl: string
     portalSenderImpl: string
+    systemConfigImpl: string
   }
   l2OutputOracleConfig: {
     l2OutputOracleGenesisL2Output: string
@@ -386,6 +388,10 @@ export const makeDictatorConfig = async (
         hre,
         'L1ERC721BridgeProxy'
       ),
+      systemConfigProxy: await getDeploymentAddress(
+        hre,
+        'SystemConfigProxy'
+      ),
       batchInboxProxy: await getDeploymentAddress(
         hre,
         'BatchInboxProxy'
@@ -406,6 +412,7 @@ export const makeDictatorConfig = async (
       ),
       l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
+      systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig')
     },
     l2OutputOracleConfig: {
       l2OutputOracleGenesisL2Output:
@@ -439,6 +446,8 @@ export const assertDictatorConfig = async (
     for (const [innerConfigKey, innerConfigValue] of Object.entries(
       outerConfigValue
     )) {
+      console.log('dictatorConfig[outerConfigKey][innerConfigKey]  ' + dictatorConfig[outerConfigKey][innerConfigKey] )
+      console.log('innerConfigValue ' + innerConfigValue)
       assert(
         dictatorConfig[outerConfigKey][innerConfigKey] === innerConfigValue,
         `incorrect config for ${outerConfigKey}.${innerConfigKey}`

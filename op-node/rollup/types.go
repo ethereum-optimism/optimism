@@ -50,8 +50,10 @@ type Config struct {
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
-	// L1 address that batches are sent to.
+	// SYSCOIN L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
+	// SYSCOIN L2 Output Oracle Address
+	L2OutputOracleAddress common.Address `json:"output_oracle_address"`
 	// L1 Deposit Contract Address
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address
@@ -96,8 +98,13 @@ func (cfg *Config) Check() error {
 	if cfg.P2PSequencerAddress == (common.Address{}) {
 		return errors.New("missing p2p sequencer address")
 	}
+	// SYSCOIN
 	if cfg.BatchInboxAddress == (common.Address{}) {
 		return errors.New("missing batch inbox address")
+	}
+	// SYSCOIN
+	if cfg.L2OutputOracleAddress == (common.Address{}) {
+		return errors.New("missing output oracle contract address")
 	}
 	if cfg.DepositContractAddress == (common.Address{}) {
 		return errors.New("missing deposit contract address")

@@ -285,29 +285,20 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
-				// SYSCOIN post data.Bytes() into SYS RPC to get version hash
-				vh, err := l.cfg.SyscoinNode.CreateBlob(data)
+				receipt, err := l.txMgr.SendBlobTransaction(l.ctx, l.cfg.SyscoinNode.CreateBlob, &l.cfg.SyscoinNode, data)
 				if err != nil {
-					l.log.Error("unable to create Blob tx", "err", err)
-					break
-				}
-				// wait for VH to confirm (MTP > 0)
-				podaCreateStatus, err := l.cfg.SyscoinNode.IsBlobConfirmed(vh)
-				if err != nil {
-					l.log.Error("unable to check for PoDA confirmation", "err", err)
-					break
-				}
-				if podaCreateStatus == false {
-					l.log.Error("PoDA not confirmed", "err", err)
-					break
+					l.log.Error("Failed to send blob", "err", err)
+					l.state.TxFailed(id)
+				} else {
+					l.log.Info("Blob confirmed", "version_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
 				}
 
 				// Create the transaction
 				// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
 				sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
-				calldata := append(sig, vh.Bytes()...)
+				calldata := append(sig, receipt.TxHash.Bytes()...)
 
-				receipt, err := l.txMgr.SendTransaction(l.ctx, calldata, 1800)
+				receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 1800)
 				if err != nil {
 					l.log.Error("Failed to send transaction", "err", err)
 					l.state.TxFailed(id)
