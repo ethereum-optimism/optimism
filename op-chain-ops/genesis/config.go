@@ -90,9 +90,7 @@ type DeployConfig struct {
 	// OptimismPortal proxy address on L1
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
 	// SYSCOIN BatchInbox address on L1
-	BatchInbox common.Address `json:"batchInbox"`
-	// L2OutputOracle address on L1
-	L2OutputOracle common.Address `json:"l2OutputOracle"`
+	BatchInboxProxy common.Address `json:"batchInboxProxy"`
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	GasPriceOracleScalar   uint64 `json:"gasPriceOracleScalar"`
 
@@ -176,26 +174,23 @@ func (d *DeployConfig) Check() error {
 		log.Warn("GasPriceOracleScalar is address(0)")
 	}
 	if d.L1StandardBridgeProxy == (common.Address{}) {
-		log.Warn("L1StandardBridgeProxy is address(0)")
+		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L1CrossDomainMessengerProxy == (common.Address{}) {
-		log.Warn("L1CrossDomainMessengerProxy is address(0)")
+		return fmt.Errorf("%w: L1CrossDomainMessengerProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L1ERC721BridgeProxy == (common.Address{}) {
-		log.Warn("L1ERC721BridgeProxy is address(0)")
+		return fmt.Errorf("%w: L1ERC721BridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.SystemConfigProxy == (common.Address{}) {
-		log.Warn("SystemConfigProxy is address(0)")
+		return fmt.Errorf("%w: SystemConfigProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.OptimismPortalProxy == (common.Address{}) {
-		log.Warn("OptimismPortalProxy is address(0)")
+		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	// SYSCOIN
-	if d.BatchInbox == (common.Address{}) {
-		log.Warn("BatchInbox is address(0)")
-	}
-	if d.L2OutputOracle == (common.Address{}) {
-		log.Warn("L2OutputOracle is address(0)")
+	if d.BatchInboxProxy == (common.Address{}) {
+		return fmt.Errorf("%w: BatchInboxProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -255,21 +250,23 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		}
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
-	if d.BatchInbox == (common.Address{}) {
-		BatchInboxDeployment, err := hh.GetDeployment("BatchInbox")
+	if d.BatchInboxProxy == (common.Address{}) {
+		BatchInboxProxyDeployment, err := hh.GetDeployment("BatchInboxProxy")
 		if err != nil {
 			return err
 		}
-		d.BatchInbox = BatchInboxDeployment.Address
+		d.BatchInboxProxy = BatchInboxProxyDeployment.Address
 	}
-	if d.L2OutputOracle == (common.Address{}) {
-		L2OutputOracleDeployment, err := hh.GetDeployment("L2OutputOracle")
-		if err != nil {
-			return err
-		}
-		d.L2OutputOracle = L2OutputOracleDeployment.Address
-	}
+	return nil
+}
 
+// InitDeveloperDeployedAddresses will set the dev addresses on the DeployConfig
+func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
+	d.L1StandardBridgeProxy = predeploys.DevL1StandardBridgeAddr
+	d.L1CrossDomainMessengerProxy = predeploys.DevL1CrossDomainMessengerAddr
+	d.L1ERC721BridgeProxy = predeploys.DevL1ERC721BridgeAddr
+	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
+	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
 }
 
@@ -298,39 +295,35 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
 // Hardhat and a DeployConfig.
-func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Addresses) (immutables.ImmutableConfig, error) {
+func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
 	immutable := make(immutables.ImmutableConfig)
 
-	if l2Addrs == nil {
-		return immutable, errors.New("must pass L1 contract addresses")
-	}
-
-	if l2Addrs.L1ERC721BridgeProxy == (common.Address{}) {
+	if config.L1ERC721BridgeProxy == (common.Address{}) {
 		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
 	}
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
-		"otherBridge": l2Addrs.L1StandardBridgeProxy,
+		"otherBridge": config.L1StandardBridgeProxy,
 	}
 	immutable["L2CrossDomainMessenger"] = immutables.ImmutableValues{
-		"otherMessenger": l2Addrs.L1CrossDomainMessengerProxy,
+		"otherMessenger": config.L1CrossDomainMessengerProxy,
 	}
 	immutable["L2ERC721Bridge"] = immutables.ImmutableValues{
 		"messenger":   predeploys.L2CrossDomainMessengerAddr,
-		"otherBridge": l2Addrs.L1ERC721BridgeProxy,
+		"otherBridge": config.L1ERC721BridgeProxy,
 	}
 	immutable["OptimismMintableERC721Factory"] = immutables.ImmutableValues{
 		"bridge":        predeploys.L2ERC721BridgeAddr,
 		"remoteChainId": new(big.Int).SetUint64(config.L1ChainID),
 	}
 	immutable["SequencerFeeVault"] = immutables.ImmutableValues{
-		"recipient": l2Addrs.SequencerFeeVaultRecipient,
+		"recipient": config.SequencerFeeVaultRecipient,
 	}
 	immutable["L1FeeVault"] = immutables.ImmutableValues{
-		"recipient": l2Addrs.L1FeeVaultRecipient,
+		"recipient": config.L1FeeVaultRecipient,
 	}
 	immutable["BaseFeeVault"] = immutables.ImmutableValues{
-		"recipient": l2Addrs.BaseFeeVaultRecipient,
+		"recipient": config.BaseFeeVaultRecipient,
 	}
 
 	return immutable, nil
@@ -338,7 +331,7 @@ func NewL2ImmutableConfig(config *DeployConfig, block *types.Block, l2Addrs *L2A
 
 // NewL2StorageConfig will create a StorageConfig given an instance of a
 // Hardhat and a DeployConfig.
-func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Addresses) (state.StorageConfig, error) {
+func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.StorageConfig, error) {
 	storage := make(state.StorageConfig)
 
 	if block.Number() == nil {
@@ -346,9 +339,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 	}
 	if block.BaseFee() == nil {
 		return storage, errors.New("block base fee not set")
-	}
-	if l2Addrs == nil {
-		return storage, errors.New("must pass L1 address info")
 	}
 
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
@@ -392,7 +382,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block, l2Addrs *L2Add
 		"_owner": common.Address{},
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
-		"owner": l2Addrs.ProxyAdminOwner,
+		"_owner": config.ProxyAdminOwner,
 	}
 	return storage, nil
 }

@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -52,6 +51,11 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
+			// Add the developer L1 addresses to the config
+			if err := config.InitDeveloperDeployedAddresses(); err != nil {
+				return err
+			}
+
 			if err := config.Check(); err != nil {
 				return err
 			}
@@ -62,12 +66,15 @@ var Subcommands = cli.Commands{
 			}
 
 			l1StartBlock := l1Genesis.ToBlock()
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, nil)
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
 			if err != nil {
 				return err
 			}
-			// SYSCOIN
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr, predeploys.DevL2OutputOracleAddr, config.BatchInboxAddress, predeploys.DevSystemConfigAddr)
+
+			rollupConfig, err := makeRollupConfig(config, l1StartBlock, l2Genesis)
+			if err != nil {
+				return err
+			}
 
 			if err := writeGenesisFile(ctx.String("outfile.l1"), l1Genesis); err != nil {
 				return err
@@ -138,32 +145,24 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
+			// Read the appropriate deployment addresses from disk
 			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
-
+			// Sanity check the config
 			if err := config.Check(); err != nil {
 				return err
 			}
-
-			// TODO: delete this struct as everything is now in the DeployConfig
-			l2Addrs := &genesis.L2Addresses{
-				ProxyAdminOwner:             config.ProxyAdminOwner,
-				L1StandardBridgeProxy:       config.L1StandardBridgeProxy,
-				L1CrossDomainMessengerProxy: config.L1CrossDomainMessengerProxy,
-				L1ERC721BridgeProxy:         config.L1ERC721BridgeProxy,
-				BaseFeeVaultRecipient:       config.BaseFeeVaultRecipient,
-				L1FeeVaultRecipient:         config.L1FeeVaultRecipient,
-				SequencerFeeVaultRecipient:  config.SequencerFeeVaultRecipient,
-				SystemConfigProxy:           config.SystemConfigProxy,
-			}
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
+			// Build the developer L2 genesis block
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
 			if err != nil {
 				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
-			// SYSCOIN
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, config.OptimismPortalProxy, config.L2OutputOracle, config.BatchInbox, config.SystemConfigProxy)
+			rollupConfig, err := makeRollupConfig(config, l1StartBlock, l2Genesis)
+			if err != nil {
+				return err
+			}
 			if err := rollupConfig.Check(); err != nil {
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}
@@ -176,15 +175,16 @@ var Subcommands = cli.Commands{
 	},
 }
 
-func makeRollupConfig(
-	config *genesis.DeployConfig,
-	l1StartBlock *types.Block,
-	l2Genesis *core.Genesis,
-	portalAddr common.Address,
-	outputOracleAddr common.Address,
-	batchInboxAddr common.Address,
-	sysConfigAddr common.Address,
-) *rollup.Config {
+func makeRollupConfig(config *genesis.DeployConfig, l1StartBlock *types.Block, l2Genesis *core.Genesis) (*rollup.Config, error) {
+	if config.OptimismPortalProxy == (common.Address{}) {
+		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
+	}
+	if config.SystemConfigProxy == (common.Address{}) {
+		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+	if config.BatchInboxProxy == (common.Address{}) {
+		return nil, errors.New("BatchInboxProxy cannot be address(0)")
+	}
 	return &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1: eth.BlockID{
@@ -210,11 +210,10 @@ func makeRollupConfig(
 		L1ChainID:              new(big.Int).SetUint64(config.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
 		P2PSequencerAddress:    config.P2PSequencerAddress,
-		BatchInboxAddress:      batchInboxAddr,
-		DepositContractAddress: portalAddr,
-		L2OutputOracleAddress:  outputOracleAddr,
-		L1SystemConfigAddress:  sysConfigAddr,
-	}
+		BatchInboxAddress:      config.BatchInboxProxy,
+		DepositContractAddress: config.OptimismPortalProxy,
+		L1SystemConfigAddress:  config.SystemConfigProxy,
+	}, nil
 }
 
 func writeGenesisFile(outfile string, input interface{}) error {

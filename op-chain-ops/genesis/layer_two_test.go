@@ -42,7 +42,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
 
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block, nil)
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
@@ -78,6 +78,9 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	require.Nil(t, err)
 	config.FundDevAccounts = false
 
+	err = config.InitDeveloperDeployedAddresses()
+	require.NoError(t, err)
+
 	backend := backends.NewSimulatedBackend(
 		core.GenesisAlloc{
 			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
@@ -87,7 +90,7 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
 
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block, nil)
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
 	require.NoError(t, err)
 	require.Equal(t, 2321, len(gen.Alloc))
 }

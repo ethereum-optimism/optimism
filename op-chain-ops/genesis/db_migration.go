@@ -20,7 +20,7 @@ import (
 var abiTrue = common.Hash{31: 0x01}
 
 // MigrateDB will migrate an old l2geth database to the new bedrock style system
-func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l2Addrs *L2Addresses, migrationData *migration.MigrationData, commit bool) error {
+func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit bool) error {
 	hash := rawdb.ReadHeadHeaderHash(ldb)
 	num := rawdb.ReadHeaderNumber(ldb, hash)
 	header := rawdb.ReadHeader(ldb, hash, *num)
@@ -45,12 +45,12 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 		return fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
-	storage, err := NewL2StorageConfig(config, l1Block, l2Addrs)
+	storage, err := NewL2StorageConfig(config, l1Block)
 	if err != nil {
 		return fmt.Errorf("cannot create storage config: %w", err)
 	}
 
-	immutable, err := NewL2ImmutableConfig(config, l1Block, l2Addrs)
+	immutable, err := NewL2ImmutableConfig(config, l1Block)
 	if err != nil {
 		return fmt.Errorf("cannot create immutable config: %w", err)
 	}
@@ -59,7 +59,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 		return fmt.Errorf("cannot set implementations: %w", err)
 	}
 
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &l2Addrs.L1CrossDomainMessengerProxy, &l2Addrs.L1StandardBridgeProxy)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, &config.L1StandardBridgeProxy)
 	if err != nil {
 		return fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}

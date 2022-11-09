@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Proxy } from "./Proxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
@@ -32,7 +32,7 @@ interface IStaticL1ChugSplashProxy {
  *         based on the OpenZeppelin implementation. It has backwards compatibility logic to work
  *         with the various types of proxies that have been deployed by Optimism in the past.
  */
-contract ProxyAdmin is Owned {
+contract ProxyAdmin is Ownable {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
@@ -76,7 +76,9 @@ contract ProxyAdmin is Owned {
     /**
      * @param _owner Address of the initial owner of this contract.
      */
-    constructor(address _owner) Owned(_owner) {}
+    constructor(address _owner) Ownable() {
+        _transferOwnership(_owner);
+    }
 
     /**
      * @notice Sets the proxy type for a given address. Only required for non-standard (legacy)

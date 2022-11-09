@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-var remapTypeRe = regexp.MustCompile(`^t_[\w_]+\([\w]+\)([\d]+)$`)
+var remapTypeRe = regexp.MustCompile(`^(t_[\w_]+\([\w]+\))([\d]+)(_[\w]+)?$`)
 
 // CanonicalizeASTIDs canonicalizes AST IDs in storage layouts so that they
 // don't cause unnecessary conflicts/diffs. The implementation is not
@@ -48,7 +48,7 @@ func CanonicalizeASTIDs(in *solc.StorageLayout) *solc.StorageLayout {
 			continue
 		}
 
-		replaceAstID := matches[0][1]
+		replaceAstID := matches[0][2]
 		newType := strings.Replace(oldType, replaceAstID, strconv.Itoa(int(lastId)), 1)
 		typeRemappings[oldType] = newType
 		lastId++

@@ -122,11 +122,11 @@ func (s *BasicUser[B]) signerFn(address common.Address, tx *types.Transaction) (
 
 // ActResetTxOpts prepares the tx options to default values, based on the current pending block header.
 func (s *BasicUser[B]) ActResetTxOpts(t Testing) {
-	pendingHeader, err := s.env.EthCl.HeaderByNumber(t.Ctx(), big.NewInt(-1))
-	require.NoError(t, err, "need l2 pending header for accurate basefee info")
+	latestHeader, err := s.env.EthCl.HeaderByNumber(t.Ctx(), nil)
+	require.NoError(t, err, "need l2 latest header for accurate basefee info")
 
 	gasTipCap := big.NewInt(2 * params.GWei)
-	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
+	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(latestHeader.BaseFee, big.NewInt(2)))
 
 	s.txOpts = bind.TransactOpts{
 		From:      s.address,

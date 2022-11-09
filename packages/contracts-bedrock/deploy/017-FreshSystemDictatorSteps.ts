@@ -26,7 +26,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   if ((await ProxyAdmin.owner()) !== FreshSystemDictator.address) {
     console.log(`Transferring proxy admin ownership to the FreshSystemDictator`)
-    await ProxyAdmin.setOwner(FreshSystemDictator.address)
+    await ProxyAdmin.transferOwnership(FreshSystemDictator.address)
   } else {
     console.log(`Proxy admin already owned by the FreshSystemDictator`)
   }
@@ -71,6 +71,7 @@ const deployFn: DeployFunction = async (hre) => {
         `L2OutputOracle was not initialized with the correct genesis output root`
       )
     }
+
     // Check BatchInbox was initialized properly.
     const BatchInbox = await getContractFromArtifact(
       hre,
@@ -89,6 +90,7 @@ const deployFn: DeployFunction = async (hre) => {
       'owner',
       hre.deployConfig.batchInboxAddress
     )
+
     // Check OptimismPortal was initialized properly.
     const OptimismPortal = await getContractFromArtifact(
       hre,
