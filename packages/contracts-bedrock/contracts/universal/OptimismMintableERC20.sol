@@ -16,12 +16,12 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     /**
      * @notice Address of the corresponding version of this token on the remote chain.
      */
-    address public remoteToken;
+    address immutable public remoteToken;
 
     /**
      * @notice Address of the StandardBridge on this network.
      */
-    address public bridge;
+    address immutable public bridge;
 
     /**
      * @notice Emitted whenever tokens are minted for an account.
