@@ -5,7 +5,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
 	fuzz "github.com/google/gofuzz"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // FuzzBatchRoundTrip executes a fuzz test similar to TestBatchRoundTrip, which tests that arbitrary BatchData will be
@@ -22,14 +22,14 @@ func FuzzBatchRoundTrip(f *testing.F) {
 
 		// Encode our batch data
 		enc, err := batchData.MarshalBinary()
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Decode our encoded batch data
 		var dec BatchData
 		err = dec.UnmarshalBinary(enc)
-		assert.NoError(t, err)
+		require.NoError(t, err)
 
 		// Ensure the round trip encoding of batch data did not result in data loss
-		assert.Equal(t, &batchData, &dec, "round trip batch encoding/decoding did not match original values")
+		require.Equal(t, &batchData, &dec, "round trip batch encoding/decoding did not match original values")
 	})
 }
