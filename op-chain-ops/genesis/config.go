@@ -24,10 +24,10 @@ var ErrInvalidDeployConfig = errors.New("invalid deploy config")
 
 // DeployConfig represents the deployment configuration for Optimism
 type DeployConfig struct {
-	L1StartingBlockTag *rpc.BlockNumberOrHash `json:"l1StartingBlockTag"`
-	L1ChainID          uint64                 `json:"l1ChainID"`
-	L2ChainID          uint64                 `json:"l2ChainID"`
-	L2BlockTime        uint64                 `json:"l2BlockTime"`
+	L1StartingBlockTag *MarshalableRPCBlockNumberOrHash `json:"l1StartingBlockTag"`
+	L1ChainID          uint64                           `json:"l1ChainID"`
+	L2ChainID          uint64                           `json:"l2ChainID"`
+	L2BlockTime        uint64                           `json:"l2BlockTime"`
 
 	FinalizationPeriodSeconds uint64         `json:"finalizationPeriodSeconds"`
 	MaxSequencerDrift         uint64         `json:"maxSequencerDrift"`
@@ -374,4 +374,30 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_owner": config.ProxyAdminOwner,
 	}
 	return storage, nil
+}
+
+type MarshalableRPCBlockNumberOrHash rpc.BlockNumberOrHash
+
+func (m *MarshalableRPCBlockNumberOrHash) MarshalJSON() ([]byte, error) {
+	r := rpc.BlockNumberOrHash(*m)
+	if hash, ok := r.Hash(); ok {
+		return json.Marshal(hash)
+	}
+	if num, ok := r.Number(); ok {
+		// never errors
+		text, _ := num.MarshalText()
+		return json.Marshal(string(text))
+	}
+	return json.Marshal(nil)
+}
+
+func (m *MarshalableRPCBlockNumberOrHash) UnmarshalJSON(b []byte) error {
+	var r rpc.BlockNumberOrHash
+	if err := json.Unmarshal(b, &r); err != nil {
+		return err
+	}
+
+	asMarshalable := MarshalableRPCBlockNumberOrHash(r)
+	*m = asMarshalable
+	return nil
 }
