@@ -89,7 +89,10 @@ type DeployConfig struct {
 	SystemConfigProxy common.Address `json:"systemConfigProxy"`
 	// OptimismPortal proxy address on L1
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
-
+	// SYSCOIN BatchInbox address on L1
+	BatchInbox common.Address `json:"batchInbox"`
+	// L2OutputOracle address on L1
+	L2OutputOracle common.Address `json:"l2OutputOracle"`
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
 	GasPriceOracleScalar   uint64 `json:"gasPriceOracleScalar"`
 
@@ -187,6 +190,13 @@ func (d *DeployConfig) Check() error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		log.Warn("OptimismPortalProxy is address(0)")
 	}
+	// SYSCOIN
+	if d.BatchInbox == (common.Address{}) {
+		log.Warn("BatchInbox is address(0)")
+	}
+	if d.L2OutputOracle == (common.Address{}) {
+		log.Warn("L2OutputOracle is address(0)")
+	}
 	return nil
 }
 
@@ -232,10 +242,10 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 
 	if d.SystemConfigProxy == (common.Address{}) {
 		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
-		if err != nil {
-			return err
+		if err == nil {
+			d.SystemConfigProxy = systemConfigProxyDeployment.Address
 		}
-		d.SystemConfigProxy = systemConfigProxyDeployment.Address
+		//d.SystemConfigProxy = systemConfigProxyDeployment.Address
 	}
 
 	if d.OptimismPortalProxy == (common.Address{}) {
@@ -244,6 +254,20 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 			return err
 		}
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
+	}
+	if d.BatchInbox == (common.Address{}) {
+		BatchInboxDeployment, err := hh.GetDeployment("BatchInbox")
+		if err != nil {
+			return err
+		}
+		d.BatchInbox = BatchInboxDeployment.Address
+	}
+	if d.L2OutputOracle == (common.Address{}) {
+		L2OutputOracleDeployment, err := hh.GetDeployment("L2OutputOracle")
+		if err != nil {
+			return err
+		}
+		d.L2OutputOracle = L2OutputOracleDeployment.Address
 	}
 
 	return nil

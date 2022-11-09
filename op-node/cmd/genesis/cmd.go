@@ -163,7 +163,7 @@ var Subcommands = cli.Commands{
 			}
 
 			// SYSCOIN
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, config.OptimismPortalProxy, config.OutputOracle, config.BatchInbox, config.SystemConfigProxy)
+			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, config.OptimismPortalProxy, config.L2OutputOracle, config.BatchInbox, config.SystemConfigProxy)
 			if err := rollupConfig.Check(); err != nil {
 				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
 			}

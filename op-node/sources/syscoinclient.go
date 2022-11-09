@@ -46,7 +46,7 @@ func NewSyscoinClient() SyscoinClient {
 
 	s := &SyscoinRPC{
 		client:       http.Client{Timeout: time.Duration(25) * time.Second, Transport: transport},
-		rpcURL:       "http://localhost:18370/wallet/wallet",
+		rpcURL:       "http://l1:18370/wallet/wallet",
 		user:         "u",
 		password:     "p",
 		RPCMarshaler: JSONMarshalerV2{},
