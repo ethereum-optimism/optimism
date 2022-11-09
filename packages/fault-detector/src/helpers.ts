@@ -1,5 +1,52 @@
 import { Contract, ethers } from 'ethers'
 
+// Event caching is necessary for the fault detector to work properly with Geth.
+let highestBlock = 0
+const eventCache = new Map<string, ethers.Event>()
+export const updateStateBatchEventCache = async (
+  scc: Contract
+): Promise<void> => {
+  let currentBlock = highestBlock
+  const endingBlock = await scc.provider.getBlockNumber()
+  let step = endingBlock - currentBlock
+  let failures = 0
+  while (currentBlock < endingBlock) {
+    try {
+      const events = await scc.queryFilter(
+        scc.filters.StateBatchAppended(),
+        currentBlock,
+        currentBlock + step
+      )
+      for (const event of events) {
+        eventCache[event.args._batchIndex.toNumber()] = event
+      }
+
+      // Update the current block and increase the step size for the next iteration.
+      currentBlock += step
+      step = Math.ceil(step * 2)
+    } catch {
+      // Might happen if we're querying too large an event range.
+      step = Math.floor(step / 2)
+
+      // When the step gets down to zero, we're pretty much guaranteed that range size isn't the
+      // problem. If we get three failures like this in a row then we should just give up.
+      if (step === 0) {
+        failures++
+      } else {
+        failures = 0
+      }
+
+      // We've failed 3 times in a row, we're probably stuck.
+      if (failures >= 3) {
+        throw new Error('failed to update event cache')
+      }
+    }
+  }
+
+  // Update the highest block.
+  highestBlock = endingBlock
+}
+
 /**
  * Finds the Event that corresponds to a given state batch by index.
  *
@@ -11,19 +58,20 @@ export const findEventForStateBatch = async (
   scc: Contract,
   index: number
 ): Promise<ethers.Event> => {
-  const events = await scc.queryFilter(scc.filters.StateBatchAppended(index))
-
-  // Only happens if the batch with the given index does not exist yet.
-  if (events.length === 0) {
-    throw new Error(`unable to find event for batch`)
+  // Try to find the event in cache first.
+  if (eventCache[index]) {
+    return eventCache[index]
   }
 
-  // Should never happen.
-  if (events.length > 1) {
-    throw new Error(`found too many events for batch`)
+  // Update the event cache if we don't have the event.
+  await updateStateBatchEventCache(scc)
+
+  // Event better be in cache now!
+  if (eventCache[index] === undefined) {
+    throw new Error(`unable to find event for batch ${index}`)
   }
 
-  return events[0]
+  return eventCache[index]
 }
 
 /**

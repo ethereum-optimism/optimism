@@ -13,6 +13,7 @@ import dateformat from 'dateformat'
 import {
   findFirstUnfinalizedStateBatchIndex,
   findEventForStateBatch,
+  updateStateBatchEventCache,
 } from './helpers'
 
 type Options = {
@@ -94,6 +95,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
     this.state.scc = this.state.messenger.contracts.l1.StateCommitmentChain
     this.state.fpw = (await this.state.scc.FRAUD_PROOF_WINDOW()).toNumber()
+
+    // Populate the event cache.
+    this.logger.info(`warming event cache, this might take a while...`)
+    await updateStateBatchEventCache(this.state.scc)
 
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
