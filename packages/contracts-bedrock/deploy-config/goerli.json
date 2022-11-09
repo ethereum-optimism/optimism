@@ -6,8 +6,11 @@
   "l1ChainID": 5700,
   "l2ChainID": 57000,
   "l2BlockTime": 2,
+  "l1BlockTime": 150,
+
 
   "maxSequencerDrift": 1000,
+  "finalizationPeriodSeconds": 1000,
   "sequencerWindowSize": 12,
   "channelTimeout": 12,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
@@ -25,8 +28,12 @@
   "optimismL1FeeRecipient": "0x749058367c48a10c728073dcc4613560d69e730d",
 
   "fundDevAccounts": true,
-  "baseFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
-  "l1FeeVaultRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
-  "sequencerFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
-
+  "baseFeeVaultRecipient": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+  "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
+  "proxyAdminOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "l2CrossDomainMessengerOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "l2OutputOracleGenesisL2Output": "0x1111111111111111111111111111111111111111111111111111111111111111",
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000
 }
