@@ -60,9 +60,9 @@ type L1StateIface interface {
 	HandleNewL1SafeBlock(safe eth.L1BlockRef)
 	HandleNewL1FinalizedBlock(finalized eth.L1BlockRef)
 
-	L1Head() eth.L1BlockRef
-	L1Safe() eth.L1BlockRef
-	L1Finalized() eth.L1BlockRef
+	L1Head() (eth.L1BlockRef, bool)
+	L1Safe() (eth.L1BlockRef, bool)
+	L1Finalized() (eth.L1BlockRef, bool)
 }
 
 type L1OriginSelectorIface interface {

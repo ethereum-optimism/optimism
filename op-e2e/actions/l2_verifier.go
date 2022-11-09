@@ -126,12 +126,15 @@ func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
 }
 
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
+	l1Head, _ := s.l1State.L1Head()
+	l1Safe, _ := s.l1State.L1Safe()
+	l1Finalized, _ := s.l1State.L1Finalized()
 	return &eth.SyncStatus{
 		CurrentL1:          s.derivation.Origin(),
 		CurrentL1Finalized: s.derivation.FinalizedL1(),
-		HeadL1:             s.l1State.L1Head(),
-		SafeL1:             s.l1State.L1Safe(),
-		FinalizedL1:        s.l1State.L1Finalized(),
+		HeadL1:             l1Head,
+		SafeL1:             l1Safe,
+		FinalizedL1:        l1Finalized,
 		UnsafeL2:           s.L2Unsafe(),
 		SafeL2:             s.L2Safe(),
 		FinalizedL2:        s.L2Finalized(),

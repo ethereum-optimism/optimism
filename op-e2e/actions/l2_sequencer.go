@@ -55,7 +55,8 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 		s.seqOldOrigin = false // don't repeat this
 	} else {
 		// select origin the real way
-		l1Origin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), parent)
+		l1Head, _ := s.l1State.L1Head()
+		l1Origin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), l1Head, parent)
 		require.NoError(t, err)
 		origin = l1Origin
 	}
@@ -96,7 +97,8 @@ func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
 
 // ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
 func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
-	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+	l1Head, _ := s.l1State.L1Head()
+	for s.derivation.UnsafeL2Head().L1Origin.Number < l1Head.Number {
 		s.ActL2PipelineFull(t)
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
@@ -107,9 +109,10 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 	for {
 		s.ActL2PipelineFull(t)
-		nextOrigin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), s.derivation.UnsafeL2Head())
+		l1Head, _ := s.l1State.L1Head()
+		nextOrigin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), l1Head, s.derivation.UnsafeL2Head())
 		require.NoError(t, err)
-		if nextOrigin.Number >= s.l1State.L1Head().Number {
+		if nextOrigin.Number >= l1Head.Number {
 			break
 		}
 		s.ActL2StartBlock(t)

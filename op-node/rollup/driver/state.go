@@ -135,7 +135,12 @@ func (s *Driver) createNewL2Block(ctx context.Context) error {
 	l2Finalized := s.derivation.Finalized()
 
 	// Figure out which L1 origin block we're going to be building on top of.
-	l1Origin, err := s.l1OriginSelector.FindL1Origin(ctx, s.l1State.L1Head(), l2Head)
+	l1Head, ok := s.l1State.L1Head()
+	if !ok {
+		s.log.Warn("Trying to create a block before L1 State is initialized")
+		return nil // TODO: Is this the correct error?
+	}
+	l1Origin, err := s.l1OriginSelector.FindL1Origin(ctx, l1Head, l2Head)
 	if err != nil {
 		s.log.Error("Error finding next L1 Origin", "err", err)
 		return err
@@ -261,7 +266,7 @@ func (s *Driver) eventLoop() {
 
 		case <-l2BlockCreationReqCh:
 			s.snapshot("L2 Block Creation Request")
-			l1Head := s.l1State.L1Head()
+			l1Head, _ := s.l1State.L1Head()
 			if !s.idleDerivation {
 				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", l1Head)
 				break
@@ -377,12 +382,16 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 // syncStatus returns the current sync status, and should only be called synchronously with
 // the driver event loop to avoid retrieval of an inconsistent status.
 func (s *Driver) syncStatus() *eth.SyncStatus {
+	l1Head, _ := s.l1State.L1Head()
+	l1Safe, _ := s.l1State.L1Safe()
+	l1Finalized, _ := s.l1State.L1Finalized()
+
 	return &eth.SyncStatus{
 		CurrentL1:          s.derivation.Origin(),
 		CurrentL1Finalized: s.derivation.FinalizedL1(),
-		HeadL1:             s.l1State.L1Head(),
-		SafeL1:             s.l1State.L1Safe(),
-		FinalizedL1:        s.l1State.L1Finalized(),
+		HeadL1:             l1Head,
+		SafeL1:             l1Safe,
+		FinalizedL1:        l1Finalized,
 		UnsafeL2:           s.derivation.UnsafeL2Head(),
 		SafeL2:             s.derivation.SafeL2Head(),
 		FinalizedL2:        s.derivation.Finalized(),
@@ -430,9 +439,10 @@ func (v deferJSONString) String() string {
 }
 
 func (s *Driver) snapshot(event string) {
+	l1Head, _ := s.l1State.L1Head()
 	s.snapshotLog.Info("Rollup State Snapshot",
 		"event", event,
-		"l1Head", deferJSONString{s.l1State.L1Head()},
+		"l1Head", deferJSONString{l1Head},
 		"l1Current", deferJSONString{s.derivation.Origin()},
 		"l2Head", deferJSONString{s.derivation.UnsafeL2Head()},
 		"l2Safe", deferJSONString{s.derivation.SafeL2Head()},

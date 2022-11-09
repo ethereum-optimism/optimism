@@ -26,7 +26,7 @@ type confTest struct {
 func (ct *confTest) Run(t *testing.T) {
 	l1Fetcher := &testutils.MockL1Source{}
 	l1Head := eth.L1BlockRef{Number: ct.head, Hash: ct.hash}
-	l1HeadGetter := func() eth.L1BlockRef { return l1Head }
+	l1HeadGetter := func() (eth.L1BlockRef, bool) { return l1Head, l1Head != eth.L1BlockRef{} }
 
 	cd := NewConfDepth(ct.depth, l1HeadGetter, l1Fetcher)
 	if ct.pass {

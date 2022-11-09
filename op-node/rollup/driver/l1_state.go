@@ -20,6 +20,10 @@ type L1State struct {
 	l1Head      eth.L1BlockRef
 	l1Safe      eth.L1BlockRef
 	l1Finalized eth.L1BlockRef
+
+	haveL1Head      bool
+	haveL1Safe      bool
+	haveL1Finalized bool
 }
 
 func NewL1State(log log.Logger, metrics L1Metrics) *L1State {
@@ -49,28 +53,31 @@ func (s *L1State) HandleNewL1HeadBlock(head eth.L1BlockRef) {
 	}
 	s.metrics.RecordL1Ref("l1_head", head)
 	s.l1Head = head
+	s.haveL1Head = true
 }
 
 func (s *L1State) HandleNewL1SafeBlock(safe eth.L1BlockRef) {
 	s.log.Info("New L1 safe block", "l1_safe", safe)
 	s.metrics.RecordL1Ref("l1_safe", safe)
 	s.l1Safe = safe
+	s.haveL1Safe = true
 }
 
 func (s *L1State) HandleNewL1FinalizedBlock(finalized eth.L1BlockRef) {
 	s.log.Info("New L1 finalized block", "l1_finalized", finalized)
 	s.metrics.RecordL1Ref("l1_finalized", finalized)
 	s.l1Finalized = finalized
+	s.haveL1Finalized = true
 }
 
-func (s *L1State) L1Head() eth.L1BlockRef {
-	return s.l1Head
+func (s *L1State) L1Head() (eth.L1BlockRef, bool) {
+	return s.l1Head, s.haveL1Head
 }
 
-func (s *L1State) L1Safe() eth.L1BlockRef {
-	return s.l1Safe
+func (s *L1State) L1Safe() (eth.L1BlockRef, bool) {
+	return s.l1Safe, s.haveL1Safe
 }
 
-func (s *L1State) L1Finalized() eth.L1BlockRef {
-	return s.l1Finalized
+func (s *L1State) L1Finalized() (eth.L1BlockRef, bool) {
+	return s.l1Finalized, s.haveL1Finalized
 }
