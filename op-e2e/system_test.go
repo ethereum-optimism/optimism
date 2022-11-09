@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
 	"time"
 
@@ -31,6 +32,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 )
 
+var enableParallelTesting bool = true
+
 // Init testing to enable test flags
 var _ = func() bool {
 	testing.Init()
@@ -42,10 +45,20 @@ var verboseGethNodes bool
 func init() {
 	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.Parse()
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
+		enableParallelTesting = false
+	}
+}
+
+func parallel(t *testing.T) {
+	t.Helper()
+	if enableParallelTesting {
+		t.Parallel()
+	}
 }
 
 func TestL2OutputSubmitter(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -119,7 +132,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
 // All nodes are run in process (but are the full nodes, not mocked or stubbed).
 func TestSystemE2E(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -227,7 +240,7 @@ func TestSystemE2E(t *testing.T) {
 
 // TestConfirmationDepth runs the rollup with both sequencer and verifier not immediately processing the tip of the chain.
 func TestConfirmationDepth(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -275,7 +288,7 @@ func TestConfirmationDepth(t *testing.T) {
 
 // TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
 func TestFinalize(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -303,7 +316,7 @@ func TestFinalize(t *testing.T) {
 }
 
 func TestMintOnRevertedDeposit(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -377,7 +390,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 }
 
 func TestMissingBatchE2E(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -500,7 +513,7 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -569,7 +582,7 @@ func TestSystemMockP2P(t *testing.T) {
 }
 
 func TestL1InfoContract(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -697,7 +710,7 @@ func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
 func TestWithdrawals(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -870,7 +883,7 @@ func TestWithdrawals(t *testing.T) {
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
