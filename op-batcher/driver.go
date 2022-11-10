@@ -291,20 +291,19 @@ func (l *BatchSubmitter) loop() {
 					l.state.TxFailed(id)
 				} else {
 					l.log.Info("Blob confirmed", "version_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-				}
+					// Create the transaction
+					// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
+					sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
+					calldata := append(sig, receipt.TxHash.Bytes()...)
 
-				// Create the transaction
-				// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
-				sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
-				calldata := append(sig, receipt.TxHash.Bytes()...)
-
-				receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 1800)
-				if err != nil {
-					l.log.Error("Failed to send transaction", "err", err)
-					l.state.TxFailed(id)
-				} else {
-					l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-					l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
+					receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 1800)
+					if err != nil {
+						l.log.Error("Failed to send transaction", "err", err)
+						l.state.TxFailed(id)
+					} else {
+						l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
+						l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
+					}
 				}
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
 				// from the channel manager rather than sending the channel in a loop. This stalls b/c if the
