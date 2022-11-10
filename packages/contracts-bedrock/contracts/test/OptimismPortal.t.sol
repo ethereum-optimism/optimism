@@ -441,6 +441,41 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assert(address(bob).balance == bobBalanceBefore);
     }
 
+    // Test: finalizeWithdrawalTransaction reverts if the provenWithdrawal's timestamp is less
+    // than the L2 output oracle's starting timestamp
+    function test_finalizeWithdrawalTransaction_timestampLessThanL2OracleStart_reverts() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+
+        // Prove our withdrawal
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Warp to after the finalization period
+        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Mock a STARTING_TIMESTAMP change on the L2 Oracle
+        vm.mockCall(
+            address(op.L2_ORACLE()),
+            abi.encodeWithSignature("STARTING_TIMESTAMP()"),
+            abi.encode(block.timestamp + 1)
+        );
+
+        // Attempt to finalize the withdrawal
+        vm.expectRevert(
+            "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
+        );
+        op.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Ensure that bob's balance has remained the same
+        assertEq(bobBalanceBefore, address(bob).balance);
+    }
+
     // Test: finalizeWithdrawalTransaction reverts if the output root proven is not the same as the
     // output root at the time of finalization.
     function test_finalizeWithdrawalTransaction_ifOutputRootChanges_reverts() external {
