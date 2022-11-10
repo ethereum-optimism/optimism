@@ -6,8 +6,16 @@ DOCKER_REPO=$1
 GIT_TAG=$2
 GIT_SHA=$3
 
-IMAGE_NAME=$(echo "$GIT_TAG" | grep -Eow '^op-[a-z0-9\-]*')
-IMAGE_TAG=$(echo "$GIT_TAG" | grep -Eow 'v.*')
+IMAGE_NAME=$(echo "$GIT_TAG" | grep -Eow '^op-[a-z0-9\-]*' || true)
+if [ -z "$IMAGE_NAME" ]; then
+  echo "image name could not be parsed from git tag '$GIT_TAG'"
+  exit 1
+fi
+IMAGE_TAG=$(echo "$GIT_TAG" | grep -Eow 'v.*' || true)
+if [ -z "$IMAGE_TAG" ]; then
+  echo "image tag could not be parsed from git tag '$GIT_TAG'"
+  exit 1
+fi
 
 SOURCE_IMAGE_TAG="$DOCKER_REPO/$IMAGE_NAME:$GIT_SHA"
 TARGET_IMAGE_TAG="$DOCKER_REPO/$IMAGE_NAME:$IMAGE_TAG"
