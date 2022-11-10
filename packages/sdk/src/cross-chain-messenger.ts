@@ -1365,6 +1365,12 @@ export class CrossChainMessenger {
       withdrawal.MessagePassed.data
     )
 
+    if (withdrawalHash !== withdrawal.MessagePassed.withdrawalHash) {
+      throw new Error(
+        'Locally computed withdrawal hash is not equal to the withdrawal hash computed on-chain!'
+      )
+    }
+
     return [withdrawal, withdrawalHash]
   }
 
