@@ -171,18 +171,17 @@ jobs:
         type: string
         default: "bedrock-goerli-development/images"
     docker:
-      - image: google/cloud-sdk:latest
+      - image: cimg/python:3.7
     resource_class: small
     steps:
-      - run:
-          command: mkdir -p /home/circleci
+      - gcp-cli/install
       - gcp-oidc-authenticate
       - checkout
       - run:
           name: Tag
           command: |
             gcloud auth configure-docker <<parameters.registry>>
-            ./ops/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
+            ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-tests:
     docker:
