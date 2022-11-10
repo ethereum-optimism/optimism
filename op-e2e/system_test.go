@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"math/big"
+	"os"
 	"testing"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/libp2p/go-libp2p-core/peer"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -31,6 +32,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 )
 
+var enableParallelTesting bool = true
+
 // Init testing to enable test flags
 var _ = func() bool {
 	testing.Init()
@@ -42,10 +45,20 @@ var verboseGethNodes bool
 func init() {
 	flag.BoolVar(&verboseGethNodes, "gethlogs", true, "Enable logs on geth nodes")
 	flag.Parse()
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
+		enableParallelTesting = false
+	}
+}
+
+func parallel(t *testing.T) {
+	t.Helper()
+	if enableParallelTesting {
+		t.Parallel()
+	}
 }
 
 func TestL2OutputSubmitter(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -119,7 +132,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 // TestSystemE2E sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that L1 deposits are reflected on L2.
 // All nodes are run in process (but are the full nodes, not mocked or stubbed).
 func TestSystemE2E(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -227,14 +240,14 @@ func TestSystemE2E(t *testing.T) {
 
 // TestConfirmationDepth runs the rollup with both sequencer and verifier not immediately processing the tip of the chain.
 func TestConfirmationDepth(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.SequencerWindowSize = 4
-	cfg.DeployConfig.MaxSequencerDrift = 3 * cfg.DeployConfig.L1BlockTime
+	cfg.DeployConfig.MaxSequencerDrift = 10 * cfg.DeployConfig.L1BlockTime
 	seqConfDepth := uint64(2)
 	verConfDepth := uint64(5)
 	cfg.Nodes["sequencer"].Driver.SequencerConfDepth = seqConfDepth
@@ -275,7 +288,7 @@ func TestConfirmationDepth(t *testing.T) {
 
 // TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
 func TestFinalize(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -303,7 +316,7 @@ func TestFinalize(t *testing.T) {
 }
 
 func TestMintOnRevertedDeposit(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -350,7 +363,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusFailed)
 
@@ -377,7 +390,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 }
 
 func TestMissingBatchE2E(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -500,7 +513,7 @@ func L1InfoFromState(ctx context.Context, contract *bindings.L1Block, l2Number *
 // TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 func TestSystemMockP2P(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -569,7 +582,7 @@ func TestSystemMockP2P(t *testing.T) {
 }
 
 func TestL1InfoContract(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -665,6 +678,7 @@ func TestL1InfoContract(t *testing.T) {
 }
 
 // calcGasFees determines the actual cost of the transaction given a specific basefee
+// This does not include the L1 data fee charged from L2 transactions.
 func calcGasFees(gasUsed uint64, gasTipCap *big.Int, gasFeeCap *big.Int, baseFee *big.Int) *big.Int {
 	x := new(big.Int).Add(gasTipCap, baseFee)
 	// If tip + basefee > gas fee cap, clamp it to the gas fee cap
@@ -696,7 +710,7 @@ func calcL1GasUsed(data []byte, overhead *big.Int) *big.Int {
 // balance changes on L1 and L2 and has to include gas fees in the balance checks.
 // It does not check that the withdrawal can be executed prior to the end of the finality period.
 func TestWithdrawals(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -747,7 +761,7 @@ func TestWithdrawals(t *testing.T) {
 	reconstructedDep, err := derive.UnmarshalDepositLogEvent(receipt.Logs[0])
 	require.NoError(t, err, "Could not reconstruct L2 Deposit")
 	tx = types.NewTx(reconstructedDep)
-	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err = waitForTransaction(tx.Hash(), l2Verif, 10*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.NoError(t, err)
 	require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful)
 
@@ -793,6 +807,7 @@ func TestWithdrawals(t *testing.T) {
 	// Take fee into account
 	diff = new(big.Int).Sub(startBalance, endBalance)
 	fees := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	fees = fees.Add(fees, receipt.L1Fee)
 	diff = diff.Sub(diff, fees)
 	require.Equal(t, withdrawAmount, diff)
 
@@ -868,7 +883,7 @@ func TestWithdrawals(t *testing.T) {
 
 // TestFees checks that L1/L2 fees are handled.
 func TestFees(t *testing.T) {
-	t.Parallel()
+	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
@@ -908,13 +923,13 @@ func TestFees(t *testing.T) {
 	// BaseFee Recipient
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismBaseFeeRecipient, nil)
+	baseFeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, nil)
 	require.Nil(t, err)
 
 	// L1Fee Recipient
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL1FeeRecipient, nil)
+	l1FeeRecipientStartBalance, err := l2Seq.BalanceAt(ctx, predeploys.L1FeeVaultAddr, nil)
 	require.Nil(t, err)
 
 	// Simple transfer from signer to random account
@@ -970,7 +985,7 @@ func TestFees(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismBaseFeeRecipient, header.Number)
+	baseFeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, predeploys.BaseFeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
 	l1Header, err := sys.Clients["l1"].HeaderByNumber(ctx, nil)
@@ -978,7 +993,7 @@ func TestFees(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, cfg.DeployConfig.OptimismL1FeeRecipient, header.Number)
+	l1FeeRecipientEndBalance, err := l2Seq.BalanceAt(ctx, predeploys.L1FeeVaultAddr, header.Number)
 	require.Nil(t, err)
 
 	// Diff fee recipient + coinbase balances

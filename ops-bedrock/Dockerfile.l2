@@ -1,4 +1,4 @@
-FROM ethereumoptimism/op-geth:latest
+FROM ethereumoptimism/op-geth:optimism-history
 
 RUN apk add --no-cache jq
 

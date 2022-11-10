@@ -96,12 +96,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2GenesisBlockParentHash:    common.Hash{},
 		L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
 
-		// TODO: remove these config values once the addresses are hardcoded in
-		// geth
-		OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
-		OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
 		L2CrossDomainMessengerOwner: common.Address{0: 0x42, 19: 0xf2}, // tbd
-		GasPriceOracleOwner:         common.Address{0: 0x42, 19: 0xf3}, // tbd
 		GasPriceOracleOverhead:      2100,
 		GasPriceOracleScalar:        1000_000,
 		DeploymentWaitConfirmations: 1,
@@ -111,6 +106,13 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 
 		FundDevAccounts: false,
 	}
+
+	// Configure the DeployConfig with the expected developer L1
+	// addresses.
+	if err := deployConfig.InitDeveloperDeployedAddresses(); err != nil {
+		panic(err)
+	}
+
 	return &DeployParams{
 		DeployConfig:   deployConfig,
 		MnemonicConfig: mnemonicCfg,
@@ -172,7 +174,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(deployConf, l1Block, nil)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(deployConf, l1Block)
 	require.NoError(t, err, "failed to create l2 genesis")
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
@@ -231,5 +233,6 @@ func SystemConfigFromDeployConfig(deployConfig *genesis.DeployConfig) eth.System
 		BatcherAddr: deployConfig.BatchSenderAddress,
 		Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleOverhead))),
 		Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(deployConfig.GasPriceOracleScalar))),
+		GasLimit:    uint64(deployConfig.L2GenesisBlockGasLimit),
 	}
 }

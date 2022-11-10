@@ -729,6 +729,7 @@ After deriving the transaction list, the rollup node constructs a [`PayloadAttri
 - `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions, all
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
+- `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
 

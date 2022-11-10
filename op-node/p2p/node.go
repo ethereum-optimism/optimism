@@ -6,19 +6,21 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/hashicorp/go-multierror"
-	"github.com/libp2p/go-libp2p-core/connmgr"
-	"github.com/libp2p/go-libp2p-core/host"
-	p2pmetrics "github.com/libp2p/go-libp2p-core/metrics"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/connmgr"
+	"github.com/libp2p/go-libp2p/core/host"
+	p2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	ma "github.com/multiformats/go-multiaddr"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type NodeP2P struct {

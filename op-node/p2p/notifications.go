@@ -1,9 +1,10 @@
 package p2p
 
 import (
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
-	"github.com/libp2p/go-libp2p-core/network"
+	"github.com/libp2p/go-libp2p/core/network"
 	ma "github.com/multiformats/go-multiaddr"
+
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 
 	"github.com/ethereum/go-ethereum/log"
 )

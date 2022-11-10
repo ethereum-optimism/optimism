@@ -7,7 +7,7 @@ import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { PortalSender } from "./PortalSender.sol";
-import { SystemConfig } from "./DeployConfig.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 import { BaseSystemDictator } from "./BaseSystemDictator.sol";
 
 /**
@@ -20,7 +20,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @param _config System configuration.
      */
-    constructor(SystemConfig memory _config) BaseSystemDictator(_config) {}
+    constructor(DeployConfig memory _config) BaseSystemDictator(_config) {}
 
     /**
      * @notice Configures the ProxyAdmin contract.
@@ -154,6 +154,22 @@ contract MigrationSystemDictator is BaseSystemDictator {
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
+
+        // Upgrade and initialize the SystemConfig.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.systemConfigProxy),
+            address(config.implementationAddressConfig.systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    config.systemConfigConfig.owner,
+                    config.systemConfigConfig.overhead,
+                    config.systemConfigConfig.scalar,
+                    config.systemConfigConfig.batcherHash,
+                    config.systemConfigConfig.gasLimit
+                )
+            )
+        );
     }
 
     /**
@@ -173,6 +189,6 @@ contract MigrationSystemDictator is BaseSystemDictator {
             .transferOwnership(config.globalConfig.finalOwner);
 
         // Transfer ownership of the ProxyAdmin to the final owner.
-        config.globalConfig.proxyAdmin.setOwner(config.globalConfig.finalOwner);
+        config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
     }
 }

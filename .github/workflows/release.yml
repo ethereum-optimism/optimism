@@ -156,7 +156,7 @@ jobs:
           context: ./ops/docker/hardhat
           file: ./Dockerfile
           push: true
-          tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.gas-oracle }},ethereumoptimism/hardhat-node:latest
+          tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.hardhat-node }},ethereumoptimism/hardhat-node:latest
 
   ci-builder:
     name: Publish ci-builder ${{ needs.release.outputs.ci-builder }}

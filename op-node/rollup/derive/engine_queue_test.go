@@ -233,6 +233,7 @@ func TestEngineQueue_Finalize(t *testing.T) {
 		BatcherAddr: common.Address{42},
 		Overhead:    [32]byte{123},
 		Scalar:      [32]byte{42},
+		GasLimit:    20_000_000,
 	}, nil)
 
 	prev := &fakeAttributesQueue{}

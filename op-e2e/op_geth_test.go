@@ -27,6 +27,75 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
+func TestMissingGasLimit(t *testing.T) {
+	// Setup an L2 EE and create a client connection to the engine.
+	// We also need to setup a L1 Genesis to create the rollup genesis.
+	log := testlog.Logger(t, log.LvlCrit)
+	cfg := DefaultSystemConfig(t)
+	cfg.DeployConfig.FundDevAccounts = false
+
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
+	require.Nil(t, err)
+	l1Block := l1Genesis.ToBlock()
+
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
+	require.Nil(t, err)
+	l2GenesisBlock := l2Genesis.ToBlock()
+
+	rollupGenesis := rollup.Genesis{
+		L1: eth.BlockID{
+			Hash:   l1Block.Hash(),
+			Number: l1Block.NumberU64(),
+		},
+		L2: eth.BlockID{
+			Hash:   l2GenesisBlock.Hash(),
+			Number: l2GenesisBlock.NumberU64(),
+		},
+		L2Time:       l2GenesisBlock.Time(),
+		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
+	}
+
+	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t))
+	require.Nil(t, err)
+	require.Nil(t, node.Start())
+	defer node.Close()
+
+	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(testingJWTSecret))
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	l2Node, err := client.NewRPC(ctx, log, node.WSAuthEndpoint(), auth)
+	require.Nil(t, err)
+
+	// Finally create the engine client
+	client, err := sources.NewEngineClient(
+		l2Node,
+		log,
+		nil,
+		sources.EngineClientDefaultConfig(&rollup.Config{Genesis: rollupGenesis}),
+	)
+	require.Nil(t, err)
+
+	attrs := eth.PayloadAttributes{
+		Timestamp:    hexutil.Uint64(l2GenesisBlock.Time() + 2),
+		Transactions: []hexutil.Bytes{},
+		NoTxPool:     true,
+		GasLimit:     nil, // no gas limit
+	}
+
+	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	fc := eth.ForkchoiceState{
+		HeadBlockHash: l2GenesisBlock.Hash(),
+		SafeBlockHash: l2GenesisBlock.Hash(),
+	}
+	res, err := client.ForkchoiceUpdate(ctx, &fc, &attrs)
+	require.ErrorIs(t, err, eth.InputError{})
+	require.Equal(t, eth.InvalidPayloadAttributes, err.(eth.InputError).Code)
+	require.Nil(t, res)
+}
+
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.
 // This tests that deposits must always allow the block to be built even if they are invalid.
 func TestInvalidDepositInFCU(t *testing.T) {
@@ -40,7 +109,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, nil)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -104,6 +173,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 		Timestamp:    hexutil.Uint64(l2GenesisBlock.Time() + 2),
 		Transactions: []hexutil.Bytes{l1Info, badDeposit},
 		NoTxPool:     true,
+		GasLimit:     (*eth.Uint64Quantity)(&rollupGenesis.SystemConfig.GasLimit),
 	}
 
 	// Go through the flow of FCU, GetPayload, NewPayload, FCU

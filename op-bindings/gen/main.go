@@ -9,6 +9,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/ast"
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 )
 
@@ -62,8 +63,9 @@ func main() {
 		if err != nil {
 			log.Fatalf("error reading storage layout %s: %v\n", name, err)
 		}
+		canonicalStorage := ast.CanonicalizeASTIDs(storage)
 
-		ser, err := json.Marshal(storage)
+		ser, err := json.Marshal(canonicalStorage)
 		if err != nil {
 			log.Fatalf("error marshaling storage: %v\n", err)
 		}

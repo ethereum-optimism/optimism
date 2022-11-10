@@ -19,8 +19,10 @@
   "l1BlockTime": 15,
   "cliqueSignerAddress": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
 
-  "optimismBaseFeeRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
-  "optimismL1FeeRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+  "baseFeeVaultRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+  "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+  "sequencerFeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+  "l1ERC721BridgeProxy": "0xff000000000000000000000000000000000000ff",
 
   "deploymentWaitConfirmations": 1,
   "fundDevAccounts": true

@@ -292,3 +292,65 @@ func TestGPOParamsChange(gt *testing.T) {
 	require.Equal(t, l1Cost, receipt.L1Fee, "L1 fee is computed with updated GPO params")
 	require.Equal(t, "2.3", receipt.FeeScalar.String(), "2_300_000 divided by 6 decimals = float(2.3)")
 }
+
+// TestGasLimitChange tests that the gas limit can be configured to L1,
+// and that the L2 changes the gas limit instantly at the exact block that adopts the L1 origin with
+// the gas limit change event. And checks if a verifier node can reproduce the same gas limit change.
+func TestGasLimitChange(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, sequencer.RollupClient(), miner.EthClient(), seqEngine.EthClient())
+
+	sequencer.ActL2PipelineFull(t)
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+
+	oldGasLimit := seqEngine.l2Chain.CurrentBlock().GasLimit()
+	require.Equal(t, oldGasLimit, uint64(dp.DeployConfig.L2GenesisBlockGasLimit))
+
+	// change gas limit on L1 to triple what it was
+	sysCfgContract, err := bindings.NewSystemConfig(sd.RollupCfg.L1SystemConfigAddress, miner.EthClient())
+	require.NoError(t, err)
+
+	sysCfgOwner, err := bind.NewKeyedTransactorWithChainID(dp.Secrets.SysCfgOwner, sd.RollupCfg.L1ChainID)
+	require.NoError(t, err)
+
+	_, err = sysCfgContract.SetGasLimit(sysCfgOwner, oldGasLimit*3)
+	require.NoError(t, err)
+
+	// include the gaslimit update on L1
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.SysCfgOwner)(t)
+	miner.ActL1EndBlock(t)
+
+	// build to latest L1, excluding the block that adopts the L1 block with the gaslimit change
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1HeadExcl(t)
+
+	require.Equal(t, oldGasLimit, seqEngine.l2Chain.CurrentBlock().GasLimit())
+	require.Equal(t, uint64(1), sequencer.SyncStatus().UnsafeL2.L1Origin.Number)
+
+	// now include the L1 block with the gaslimit change, and see if it changes as expected
+	sequencer.ActBuildToL1Head(t)
+	require.Equal(t, oldGasLimit*3, seqEngine.l2Chain.CurrentBlock().GasLimit())
+	require.Equal(t, uint64(2), sequencer.SyncStatus().UnsafeL2.L1Origin.Number)
+
+	// now submit all this to L1, and see if a verifier can sync and reproduce it
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+	verifier.ActL2PipelineFull(t)
+
+	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "verifier stays in sync, even with gaslimit changes")
+}

@@ -47,7 +47,18 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1Bloc
 		return eth.L1BlockRef{}, err
 	}
 
-	if currentOrigin.Number+1+los.sequencingConfDepth > l1Head.Number {
+	// If we are past the sequencer depth, we may want to advance the origin, but need to still
+	// check the time of the next origin.
+	pastSeqDrift := l2Head.Time+los.cfg.BlockTime > currentOrigin.Time+los.cfg.MaxSequencerDrift
+	if pastSeqDrift {
+		log.Info("Next L2 block time is past the sequencer drift + current origin time",
+			"current", currentOrigin, "current_time", currentOrigin.Time,
+			"l1_head", l1Head, "l1_head_time", l1Head.Time,
+			"l2_head", l2Head, "l2_head_time", l2Head.Time,
+			"depth", los.sequencingConfDepth)
+	}
+
+	if !pastSeqDrift && currentOrigin.Number+1+los.sequencingConfDepth > l1Head.Number {
 		// TODO: we can decide to ignore confirmation depth if we would be forced
 		//  to make an empty block (only deposits) by staying on the current origin.
 		log.Info("sequencing with old origin to preserve conf depth",
@@ -62,6 +73,8 @@ func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1Bloc
 	// the current origin block.
 	nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 	if err != nil {
+		// TODO: this could result in a bad origin being selected if we are past the seq
+		// drift & should instead advance to the next origin.
 		log.Error("Failed to get next origin. Falling back to current origin", "err", err)
 		return currentOrigin, nil
 	}

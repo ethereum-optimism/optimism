@@ -20,6 +20,7 @@ services:
     volumes:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
 
   l2:
     build:
@@ -46,7 +47,7 @@ services:
     command: >
       op-node
       --l1=ws://l1:8546
-      --l2=ws://l2:8546
+      --l2=http://l2:8551
       --l2.jwt-secret=/config/test-jwt-secret.txt
       --sequencer.enabled
       --sequencer.l1-confs=0

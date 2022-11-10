@@ -45,7 +45,7 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(
       `Transferring proxy admin ownership to the MigrationSystemDictator`
     )
-    await ProxyAdmin.setOwner(MigrationSystemDictator.address)
+    await ProxyAdmin.transferOwnership(MigrationSystemDictator.address)
   } else {
     console.log(`Proxy admin already owned by the MigrationSystemDictator`)
   }
@@ -116,7 +116,13 @@ const deployFn: DeployFunction = async (hre) => {
     hre,
     'Proxy__OVM_L1StandardBridge'
   )
-  if ((await L1StandardBridge.owner()) !== MigrationSystemDictator.address) {
+  const getOwnerOpts = {
+    from: ethers.constants.AddressZero,
+  }
+  if (
+    (await L1StandardBridge.callStatic.getOwner(getOwnerOpts)) !==
+    MigrationSystemDictator.address
+  ) {
     if (isLiveDeployer) {
       console.log(
         `Transferring ownership of L1StandardBridge to the MigrationSystemDictator...`
@@ -135,7 +141,7 @@ const deployFn: DeployFunction = async (hre) => {
       )
     }
     await awaitCondition(async () => {
-      const owner = await L1StandardBridge.callStatic.getOwner()
+      const owner = await L1StandardBridge.callStatic.getOwner(getOwnerOpts)
       return owner === MigrationSystemDictator.address
     })
   } else {
@@ -152,7 +158,7 @@ const deployFn: DeployFunction = async (hre) => {
 
     await awaitCondition(async () => {
       const step = await MigrationSystemDictator.currentStep()
-      return step.toNumber() === i + 1
+      return Number(step) === i + 1
     })
   }
 }

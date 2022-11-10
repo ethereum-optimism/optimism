@@ -46,68 +46,73 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	require.NoError(t, err)
 	addresses := secrets.Addresses()
 
+	deployConfig := &genesis.DeployConfig{
+		L1ChainID:   900,
+		L2ChainID:   901,
+		L2BlockTime: 2,
+
+		FinalizationPeriodSeconds: 60 * 60 * 24,
+		MaxSequencerDrift:         10,
+		SequencerWindowSize:       30,
+		ChannelTimeout:            10,
+		P2PSequencerAddress:       addresses.SequencerP2P,
+		BatchInboxAddress:         common.Address{0: 0x52, 19: 0xff}, // tbd
+		BatchSenderAddress:        addresses.Batcher,
+
+		L2OutputOracleSubmissionInterval: 4,
+		L2OutputOracleStartingTimestamp:  -1,
+		L2OutputOracleProposer:           addresses.Proposer,
+		L2OutputOracleOwner:              common.Address{}, // tbd
+
+		SystemConfigOwner: addresses.SysCfgOwner,
+
+		L1BlockTime:                 2,
+		L1GenesisBlockNonce:         4660,
+		CliqueSignerAddress:         addresses.CliqueSigner,
+		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
+		L1GenesisBlockGasLimit:      8_000_000,
+		L1GenesisBlockDifficulty:    uint642big(1),
+		L1GenesisBlockMixHash:       common.Hash{},
+		L1GenesisBlockCoinbase:      common.Address{},
+		L1GenesisBlockNumber:        0,
+		L1GenesisBlockGasUsed:       0,
+		L1GenesisBlockParentHash:    common.Hash{},
+		L1GenesisBlockBaseFeePerGas: uint642big(7),
+
+		L2GenesisBlockNonce:         0,
+		L2GenesisBlockExtraData:     []byte{},
+		L2GenesisBlockGasLimit:      8_000_000,
+		L2GenesisBlockDifficulty:    uint642big(1),
+		L2GenesisBlockMixHash:       common.Hash{},
+		L2GenesisBlockCoinbase:      common.Address{0: 0x12},
+		L2GenesisBlockNumber:        0,
+		L2GenesisBlockGasUsed:       0,
+		L2GenesisBlockParentHash:    common.Hash{},
+		L2GenesisBlockBaseFeePerGas: uint642big(7),
+
+		L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
+
+		GasPriceOracleOverhead: 2100,
+		GasPriceOracleScalar:   1_000_000,
+
+		DeploymentWaitConfirmations: 1,
+
+		EIP1559Elasticity:  2,
+		EIP1559Denominator: 8,
+
+		FundDevAccounts: true,
+	}
+
+	if err := deployConfig.InitDeveloperDeployedAddresses(); err != nil {
+		panic(err)
+	}
+
 	return SystemConfig{
 		Secrets: secrets,
 
 		Premine: make(map[common.Address]*big.Int),
 
-		DeployConfig: &genesis.DeployConfig{
-			L1ChainID:   900,
-			L2ChainID:   901,
-			L2BlockTime: 2,
-
-			FinalizationPeriodSeconds: 60 * 60 * 24,
-			MaxSequencerDrift:         10,
-			SequencerWindowSize:       30,
-			ChannelTimeout:            10,
-			P2PSequencerAddress:       addresses.SequencerP2P,
-			BatchInboxAddress:         common.Address{0: 0x52, 19: 0xff}, // tbd
-			BatchSenderAddress:        addresses.Batcher,
-
-			L2OutputOracleSubmissionInterval: 4,
-			L2OutputOracleStartingTimestamp:  -1,
-			L2OutputOracleProposer:           addresses.Proposer,
-			L2OutputOracleOwner:              common.Address{}, // tbd
-
-			SystemConfigOwner: addresses.SysCfgOwner,
-
-			L1BlockTime:                 2,
-			L1GenesisBlockNonce:         4660,
-			CliqueSignerAddress:         addresses.CliqueSigner,
-			L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-			L1GenesisBlockGasLimit:      5_000_000,
-			L1GenesisBlockDifficulty:    uint642big(1),
-			L1GenesisBlockMixHash:       common.Hash{},
-			L1GenesisBlockCoinbase:      common.Address{},
-			L1GenesisBlockNumber:        0,
-			L1GenesisBlockGasUsed:       0,
-			L1GenesisBlockParentHash:    common.Hash{},
-			L1GenesisBlockBaseFeePerGas: uint642big(7),
-
-			L2GenesisBlockNonce:         0,
-			L2GenesisBlockExtraData:     []byte{},
-			L2GenesisBlockGasLimit:      5_000_000,
-			L2GenesisBlockDifficulty:    uint642big(1),
-			L2GenesisBlockMixHash:       common.Hash{},
-			L2GenesisBlockCoinbase:      common.Address{0: 0x12},
-			L2GenesisBlockNumber:        0,
-			L2GenesisBlockGasUsed:       0,
-			L2GenesisBlockParentHash:    common.Hash{},
-			L2GenesisBlockBaseFeePerGas: uint642big(7),
-
-			OptimismBaseFeeRecipient:    predeploys.BaseFeeVaultAddr,
-			OptimismL1FeeRecipient:      predeploys.L1FeeVaultAddr,
-			L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
-			GasPriceOracleOwner:         addresses.Alice,                   // tbd
-			GasPriceOracleOverhead:      0,
-			GasPriceOracleScalar:        0,
-			DeploymentWaitConfirmations: 1,
-
-			EIP1559Elasticity:  2,
-			EIP1559Denominator: 8,
-
-			FundDevAccounts: true,
-		},
+		DeployConfig:           deployConfig,
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
@@ -263,7 +268,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, nil)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	if err != nil {
 		return nil, err
 	}

@@ -10,6 +10,7 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { Contract, ethers, Transaction } from 'ethers'
 import dateformat from 'dateformat'
 
+import { version } from '../package.json'
 import {
   findFirstUnfinalizedStateBatchIndex,
   findEventForStateBatch,
@@ -38,8 +39,7 @@ type State = {
 export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   constructor(options?: Partial<Options>) {
     super({
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      version: require('../package.json').version,
+      version,
       name: 'fault-detector',
       loop: true,
       loopIntervalMs: 1000,
