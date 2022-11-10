@@ -1,5 +1,11 @@
 # @eth-optimism/hardhat-node
 
+## 0.2.3
+
+### Patch Changes
+
+- 6c238212d: Trigger a release of the hardhat-node
+
 ## 0.2.2
 
 ### Patch Changes
