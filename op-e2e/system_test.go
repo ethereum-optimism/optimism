@@ -247,7 +247,7 @@ func TestConfirmationDepth(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.SequencerWindowSize = 4
-	cfg.DeployConfig.MaxSequencerDrift = 3 * cfg.DeployConfig.L1BlockTime
+	cfg.DeployConfig.MaxSequencerDrift = 10 * cfg.DeployConfig.L1BlockTime
 	seqConfDepth := uint64(2)
 	verConfDepth := uint64(5)
 	cfg.Nodes["sequencer"].Driver.SequencerConfDepth = seqConfDepth
