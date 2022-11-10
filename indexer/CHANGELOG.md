@@ -1,5 +1,11 @@
 # @eth-optimism/indexer
 
+## 0.3.2
+
+### Patch Changes
+
+- f505078be: Update go-ethereum to v1.10.26
+
 ## 0.3.1
 
 ### Patch Changes

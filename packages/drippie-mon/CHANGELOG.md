@@ -1,5 +1,12 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.22
+
+### Patch Changes
+
+- 97b5f578c: Fixes how versions are imported for BaseServiceV2 services
+  - @eth-optimism/sdk@1.6.11
+
 ## 0.3.21
 
 ### Patch Changes

@@ -1,5 +1,15 @@
 # @eth-optimism/sdk
 
+## 1.6.11
+
+### Patch Changes
+
+- Updated dependencies [52079cc12]
+- Updated dependencies [13bfafb21]
+- Updated dependencies [eeae96941]
+- Updated dependencies [427831d86]
+  - @eth-optimism/contracts-bedrock@0.9.1
+
 ## 1.6.10
 
 ### Patch Changes
