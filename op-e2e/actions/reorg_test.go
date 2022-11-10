@@ -1,14 +1,19 @@
 package actions
 
 import (
+	"path"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
@@ -253,4 +258,102 @@ func TestReorgFlipFlop(gt *testing.T) {
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Unsafe(), "verifier syncs from sequencer")
 	require.Equal(t, verifier.L2Safe().L1Origin, blockA4.ID(), "L2 chain origin is A4")
 	checkVerifEngine()
+}
+
+type rpcWrapper struct {
+	client.RPC
+}
+
+// TestRestartOpGeth tests that the sequencer can restart its execution engine without rollup-node restart,
+// including recovering the finalized/safe state of L2 chain without reorging.
+func TestRestartOpGeth(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dbPath := path.Join(t.TempDir(), "testdb")
+	dbOption := func(_ *ethconfig.Config, nodeCfg *node.Config) error {
+		nodeCfg.DataDir = dbPath
+		return nil
+	}
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+	jwtPath := e2eutils.WriteDefaultJWT(t)
+	// L1
+	miner := NewL1Miner(t, log, sd.L1Cfg)
+	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false))
+	require.NoError(t, err)
+	// Sequencer
+	seqEng := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, dbOption)
+	engRpc := &rpcWrapper{seqEng.RPCClient()}
+	l2Cl, err := sources.NewEngineClient(engRpc, log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	require.NoError(t, err)
+	sequencer := NewL2Sequencer(t, log, l1F, l2Cl, sd.RollupCfg, 0)
+
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, sequencer.RollupClient(), miner.EthClient(), seqEng.EthClient())
+
+	// start
+	sequencer.ActL2PipelineFull(t)
+
+	miner.ActEmptyBlock(t)
+
+	buildAndSubmit := func() {
+		// build some blocks
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActBuildToL1Head(t)
+		// submit the blocks, confirm on L1
+		batcher.ActSubmitAll(t)
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+		miner.ActL1EndBlock(t)
+		sequencer.ActL2PipelineFull(t)
+	}
+	buildAndSubmit()
+
+	// finalize the L1 data (first block, and the new block with batch)
+	miner.ActL1SafeNext(t)
+	miner.ActL1SafeNext(t)
+	miner.ActL1FinalizeNext(t)
+	miner.ActL1FinalizeNext(t)
+	sequencer.ActL1FinalizedSignal(t)
+	sequencer.ActL1SafeSignal(t)
+
+	// build and submit more
+	buildAndSubmit()
+	// but only mark the L1 block with this batch as safe
+	miner.ActL1SafeNext(t)
+	sequencer.ActL1SafeSignal(t)
+
+	// build some more, these stay unsafe
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+
+	statusBeforeRestart := sequencer.SyncStatus()
+	// before restart scenario: we have a distinct finalized, safe, and unsafe part of the L2 chain
+	require.NotZero(t, statusBeforeRestart.FinalizedL2.L1Origin.Number)
+	require.Less(t, statusBeforeRestart.FinalizedL2.L1Origin.Number, statusBeforeRestart.SafeL2.L1Origin.Number)
+	require.Less(t, statusBeforeRestart.SafeL2.L1Origin.Number, statusBeforeRestart.UnsafeL2.L1Origin.Number)
+
+	// close the sequencer engine
+	require.NoError(t, seqEng.Close())
+	// and start a new one with same db path
+	seqEngNew := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, dbOption)
+	// swap in the new rpc. This is as close as we can get to reconnecting to a new in-memory rpc connection
+	engRpc.RPC = seqEngNew.RPCClient()
+
+	// note: geth does not persist the safe block label, only the finalized block label
+	safe, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+	require.NoError(t, err)
+	finalized, err := l2Cl.L2BlockRefByLabel(t.Ctx(), eth.Finalized)
+	require.NoError(t, err)
+	require.Equal(t, statusBeforeRestart.FinalizedL2, safe, "expecting to revert safe head to finalized head upon restart")
+	require.Equal(t, statusBeforeRestart.FinalizedL2, finalized, "expecting to keep same finalized head upon restart")
+
+	// sequencer runs pipeline, but now attached to the restarted geth node
+	sequencer.ActL2PipelineFull(t)
+	require.Equal(t, statusBeforeRestart.UnsafeL2, sequencer.L2Unsafe(), "expecting to keep same unsafe head upon restart")
+	require.Equal(t, statusBeforeRestart.SafeL2, sequencer.L2Safe(), "expecting the safe block to catch up to what it was before shutdown after syncing from L1, and not be stuck at the finalized block")
 }
