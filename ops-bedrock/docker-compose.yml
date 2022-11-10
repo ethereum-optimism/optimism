@@ -15,10 +15,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.l1
+    restart: always
+    stop_signal: SIGINT
+    stop_grace_period: 30s
     ports:
       - "8545:8545"
     volumes:
-      - "l1_data:/db"
+      - "l1_data:/db/.syscoin"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     environment:
@@ -28,6 +31,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.l2
+    restart: always
+    stop_signal: SIGINT
+    stop_grace_period: 30s
     ports:
       - "9545:8545"
     volumes:
@@ -46,6 +52,9 @@ services:
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
+    restart: always
+    stop_signal: SIGINT
+    stop_grace_period: 30s
     command: >
       op-node
       --l1=ws://l1:8546
@@ -87,6 +96,9 @@ services:
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
+    restart: always
+    stop_signal: SIGINT
+    stop_grace_period: 30s
     ports:
       - "6062:6060"
       - "7302:7300"
@@ -113,6 +125,9 @@ services:
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
+    restart: always
+    stop_signal: SIGINT
+    stop_grace_period: 30s
     ports:
       - "6061:6060"
       - "7301:7300"
