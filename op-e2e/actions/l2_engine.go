@@ -58,7 +58,9 @@ type L2Engine struct {
 	failL2RPC error // mock error
 }
 
-func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string) *L2Engine {
+type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
+
+func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string, options ...EngineOption) *L2Engine {
 	ethCfg := &ethconfig.Config{
 		NetworkId: genesis.Config.ChainID.Uint64(),
 		Genesis:   genesis,
@@ -72,6 +74,9 @@ func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesis
 		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		JWTSecret:   jwtPath,
+	}
+	for i, opt := range options {
+		require.NoError(t, opt(ethCfg, nodeCfg), "engine option %d failed", i)
 	}
 	n, err := node.New(nodeCfg)
 	require.NoError(t, err)
