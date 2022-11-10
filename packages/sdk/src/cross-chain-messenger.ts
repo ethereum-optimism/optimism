@@ -53,6 +53,7 @@ import {
   StateRootBatch,
   IBridgeAdapter,
   ProvenWithdrawal,
+  WithdrawalEntry,
 } from './interfaces'
 import {
   toSignerOrProvider,
@@ -551,53 +552,16 @@ export class CrossChainMessenger {
             return MessageStatus.STATE_ROOT_NOT_PUBLISHED
           }
 
-          // TODO: Unduplicate the following code, just for testing
-
+          // Fetch the receipt for the resolved CrossChainMessage
           const _receipt = await this.l2Provider.getTransactionReceipt(
             resolved.transactionHash
           )
 
-          interface WithdrawalEntry {
-            MessagePassed: any
-          }
-
-          // Handle multiple withdrawals in the same tx
-          const logs: Partial<{ number: WithdrawalEntry }> = {}
-          for (const [_, log] of Object.entries(_receipt.logs)) {
-            if (
-              log.address === this.contracts.l2.BedrockMessagePasser.address
-            ) {
-              const decoded =
-                this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
-              // Find the withdrawal initiated events
-              if (decoded.name === 'MessagePassed') {
-                logs[log.logIndex] = {
-                  MessagePassed: decoded.args,
-                }
-              }
-            }
-          }
-
-          // TODO(tynes): be able to handle transactions that do multiple withdrawals
-          // in a single transaction. Right now just go for the first one.
-          const withdrawal = Object.values(logs)[0]
-          if (!withdrawal) {
-            throw new Error(
-              `Cannot find withdrawal logs for ${resolved.transactionHash}`
-            )
-          }
-
-          // Get the withdrawalHash for the resolved withdrawal message
-          const withdrawalHash = hashWithdrawal(
-            withdrawal.MessagePassed.nonce,
-            withdrawal.MessagePassed.sender,
-            withdrawal.MessagePassed.target,
-            withdrawal.MessagePassed.value,
-            withdrawal.MessagePassed.gasLimit,
-            withdrawal.MessagePassed.data
+          // Get the withdrawal hash for the receipt
+          const [_, withdrawalHash] = this.getWithdrawalFromReceipt(
+            _receipt,
+            resolved
           )
-
-          // -- snip --
 
           // Attempt to fetch the proven withdrawal
           const provenWithdrawal = await this.getProvenWithdrawal(
@@ -1291,41 +1255,9 @@ export class CrossChainMessenger {
       resolved.transactionHash
     )
 
-    interface WithdrawalEntry {
-      MessagePassed: any
-    }
-
-    // Handle multiple withdrawals in the same tx
-    const logs: Partial<{ number: WithdrawalEntry }> = {}
-    for (const [i, log] of Object.entries(receipt.logs)) {
-      if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
-        const decoded =
-          this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
-        // Find the withdrawal initiated events
-        if (decoded.name === 'MessagePassed') {
-          logs[log.logIndex] = {
-            MessagePassed: decoded.args,
-          }
-        }
-      }
-    }
-
-    // TODO(tynes): be able to handle transactions that do multiple withdrawals
-    // in a single transaction. Right now just go for the first one.
-    const withdrawal = Object.values(logs)[0]
-    if (!withdrawal) {
-      throw new Error(
-        `Cannot find withdrawal logs for ${resolved.transactionHash}`
-      )
-    }
-
-    const withdrawalHash = hashWithdrawal(
-      withdrawal.MessagePassed.nonce,
-      withdrawal.MessagePassed.sender,
-      withdrawal.MessagePassed.target,
-      withdrawal.MessagePassed.value,
-      withdrawal.MessagePassed.gasLimit,
-      withdrawal.MessagePassed.data
+    const [withdrawal, withdrawalHash] = this.getWithdrawalFromReceipt(
+      receipt,
+      resolved
     )
 
     // Sanity check
@@ -1388,6 +1320,52 @@ export class CrossChainMessenger {
         message: withdrawal.MessagePassed.data,
       },
     ]
+  }
+
+  /**
+   * Helper function that gets a withdrawal and a withdrawal hash from the logs
+   * of a L2 to L2 CrossChainMessage and its transaction receipt.
+   *
+   * TODO: Process multiple withdrawals in a single transaction.
+   */
+  public getWithdrawalFromReceipt(
+    receipt: TransactionReceipt,
+    message: CrossChainMessage
+  ): [WithdrawalEntry, string] {
+    // Handle multiple withdrawals in the same tx
+    const logs: Partial<{ number: WithdrawalEntry }> = {}
+    for (const [_, log] of Object.entries(receipt.logs)) {
+      if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
+        const decoded =
+          this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
+        // Find the withdrawal initiated events
+        if (decoded.name === 'MessagePassed') {
+          logs[log.logIndex] = {
+            MessagePassed: decoded.args,
+          }
+        }
+      }
+    }
+
+    // TODO(tynes): be able to handle transactions that do multiple withdrawals
+    // in a single transaction. Right now just go for the first one.
+    const withdrawal = Object.values(logs)[0]
+    if (!withdrawal) {
+      throw new Error(
+        `Cannot find withdrawal logs for ${message.transactionHash}`
+      )
+    }
+
+    const withdrawalHash = hashWithdrawal(
+      withdrawal.MessagePassed.nonce,
+      withdrawal.MessagePassed.sender,
+      withdrawal.MessagePassed.target,
+      withdrawal.MessagePassed.value,
+      withdrawal.MessagePassed.gasLimit,
+      withdrawal.MessagePassed.data
+    )
+
+    return [withdrawal, withdrawalHash]
   }
 
   /**

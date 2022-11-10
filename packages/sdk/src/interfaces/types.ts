@@ -221,6 +221,14 @@ export interface TokenBridgeMessage {
 }
 
 /**
+ * Represents a withdrawal entry within the logs of a L2 to L1
+ * CrossChainMessage
+ */
+export interface WithdrawalEntry {
+  MessagePassed: any
+}
+
+/**
  * Enum describing the status of a CrossDomainMessage message receipt.
  */
 export enum MessageReceiptStatus {
