@@ -94,7 +94,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 	for i, otx := range params.Transactions {
 		var tx types.Transaction
 		if err := tx.UnmarshalBinary(otx); err != nil {
-			return fmt.Errorf("transaction %d is not valid: %v", i, err)
+			return fmt.Errorf("transaction %d is not valid: %w", i, err)
 		}
 		ea.l2BuildingState.Prepare(tx.Hash(), i)
 		receipt, err := core.ApplyTransaction(ea.l2Cfg.Config, ea.l2Chain, &ea.l2BuildingHeader.Coinbase,
@@ -123,10 +123,10 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 	// Write state changes to db
 	root, err := ea.l2BuildingState.Commit(ea.l2Cfg.Config.IsEIP158(header.Number))
 	if err != nil {
-		return nil, fmt.Errorf("l2 state write error: %v", err)
+		return nil, fmt.Errorf("l2 state write error: %w", err)
 	}
 	if err := ea.l2BuildingState.Database().TrieDB().Commit(root, false, nil); err != nil {
-		return nil, fmt.Errorf("l2 trie write error: %v", err)
+		return nil, fmt.Errorf("l2 trie write error: %w", err)
 	}
 	return block, nil
 }

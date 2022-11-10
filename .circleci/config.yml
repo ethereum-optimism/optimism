@@ -351,9 +351,8 @@ jobs:
       - checkout
       - run:
           name: run lint
-          # command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
