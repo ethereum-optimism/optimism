@@ -107,10 +107,14 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
 	}
 	client = LimitRPC(client, config.MaxConcurrentRequests)
+	sysClient, err := NewSyscoinClient("", "")
+	if err != nil {
+		return nil, fmt.Errorf("Could not create Syscoin RPC client: %w", err)
+	}
 	return &EthClient{
 		client:            client,
 		// SYSCOIN
-		syscoinClient:	   NewSyscoinClient(),
+		syscoinClient:	   sysClient,
 		maxBatchSize:      config.MaxRequestsPerBatch,
 		trustRPC:          config.TrustRPC,
 		log:               log,

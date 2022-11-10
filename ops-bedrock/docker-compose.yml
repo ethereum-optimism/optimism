@@ -15,7 +15,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.l1
-    restart: always
     stop_signal: SIGINT
     stop_grace_period: 30s
     ports:
@@ -24,14 +23,10 @@ services:
       - "l1_data:/db/.syscoin"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-    environment:
-      SYS_DESC: "${SYS_DESC}"
-      SYS_DESC_INTERNAL: "${SYS_DESC_INTERNAL}"
   l2:
     build:
       context: .
       dockerfile: Dockerfile.l2
-    restart: always
     stop_signal: SIGINT
     stop_grace_period: 30s
     ports:
@@ -52,7 +47,6 @@ services:
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
-    restart: always
     stop_signal: SIGINT
     stop_grace_period: 30s
     command: >
@@ -96,7 +90,6 @@ services:
     build:
       context: ../
       dockerfile: ./op-proposer/Dockerfile
-    restart: always
     stop_signal: SIGINT
     stop_grace_period: 30s
     ports:
@@ -125,7 +118,6 @@ services:
     build:
       context: ../
       dockerfile: ./op-batcher/Dockerfile
-    restart: always
     stop_signal: SIGINT
     stop_grace_period: 30s
     ports:
@@ -146,6 +138,8 @@ services:
       OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
       OP_BATCHER_SEQUENCER_GENESIS_HASH: "${SEQUENCER_GENESIS_HASH}"
       OP_BATCHER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
+      OP_BATCHER_SYS_DESC: "${SYS_DESC}"
+      OP_BATCHER_SYS_DESC_INTERNAL: "${SYS_DESC_INTERNAL}"
       OP_BATCHER_LOG_TERMINAL: "true"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"

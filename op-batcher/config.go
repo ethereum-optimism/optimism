@@ -66,7 +66,9 @@ type Config struct {
 	// SequencerBatchInboxAddress is the address in which to send batch
 	// transactions.
 	SequencerBatchInboxAddress string
-
+	// SYSCOIN
+	SysDesc string
+	SysDescInternal string
 	RPCConfig oprpc.CLIConfig
 
 	/* Optional Params */
@@ -112,6 +114,9 @@ func NewConfig(ctx *cli.Context) Config {
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
 		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
+		// SYSCOIN
+		SysDesc: 					ctx.GlobalString(flags.SysDescFlag.Name),
+		SysDescInternal: 			ctx.GlobalString(flags.SysDescInternalFlag.Name),
 		RPCConfig:                  oprpc.ReadCLIConfig(ctx),
 		LogConfig:                  oplog.ReadCLIConfig(ctx),
 		MetricsConfig:              opmetrics.ReadCLIConfig(ctx),

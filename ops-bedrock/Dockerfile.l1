@@ -20,7 +20,8 @@ RUN apk --no-cache add \
   libzmq \
   su-exec \
   ca-certificates \
-  gmp
+  gmp \
+  sqlite-dev
 # Warning: Archive mode is required, otherwise old trie nodes will be
 # pruned within minutes of starting the tanenbaum.
 RUN echo $'mkdir -p ${SYSCOIN_DATA}/testnet3/geth/keystore/' >> geth.sh
@@ -28,30 +29,9 @@ RUN echo $'exec syscoind --testnet --addnode=52.38.76.82 --datadir=${SYSCOIN_DAT
 	--server=1 \
 	--rpcuser=u \
 	--rpcpassword=p \
-	--rpcport="$SYSRPC_PORT" \
-    --gethcommandline=--exitwhensynced \
-	--gethcommandline=--datadir="$GETH_DATA_DIR" \
-	--gethcommandline=--verbosity="$VERBOSITY" \
-	--gethcommandline=--http \
-	--gethcommandline=--http.corsdomain="*" \
-	--gethcommandline=--http.vhosts="*" \
-	--gethcommandline=--http.addr=0.0.0.0 \
-	--gethcommandline=--http.port="$RPC_PORT" \
-	--gethcommandline=--http.api=web3,debug,eth,txpool,net,engine \
-	--gethcommandline=--ws \
-	--gethcommandline=--ws.addr=0.0.0.0 \
-	--gethcommandline=--ws.port="$WS_PORT" \
-	--gethcommandline=--ws.origins="*" \
-	--gethcommandline=--ws.api=debug,eth,txpool,net,engine \
-	--gethcommandline=--syncmode=full \
-	--gethcommandline=--nodiscover \
-	--gethcommandline=--maxpeers=1 \
-	--gethcommandline=--allow-insecure-unlock \
-	--gethcommandline=--gcmode=archive' >> geth.sh
-RUN echo $'exec syscoind --testnet --addnode=52.38.76.82 --datadir=${SYSCOIN_DATA} \
-	--server=1 \
-	--rpcuser=u \
-	--rpcpassword=p \
+	--rest \
+	--rpcallowip=192.168.0.0/16 \
+	--rpcbind=0.0.0.0 \
 	--rpcport="$SYSRPC_PORT" \
 	--gethcommandline=--datadir="$GETH_DATA_DIR" \
 	--gethcommandline=--verbosity="$VERBOSITY" \
@@ -71,8 +51,5 @@ RUN echo $'exec syscoind --testnet --addnode=52.38.76.82 --datadir=${SYSCOIN_DAT
 	--gethcommandline=--maxpeers=1 \
 	--gethcommandline=--allow-insecure-unlock \
 	--gethcommandline=--gcmode=archive' >> geth.sh
-RUN echo $'syscoin-cli --testnet --datadir=${SYSCOIN_DATA} createwallet wallet' >> geth.sh
-RUN echo $'syscoin-cli --testnet --datadir=${SYSCOIN_DATA} --rpcwallet=wallet importdescriptors "[{\"desc\": \"$SYS_DESC\", \"timestamp\": \"now\", \"active\": \'true\'}]"' >> geth.sh
-RUN echo $'syscoin-cli --testnet --datadir=${SYSCOIN_DATA} --rpcwallet=wallet importdescriptors "[{\"desc\": \"$SYS_DESC_INTERNAL\", \"timestamp\": \"now\", \"internal\": \'true\', \"active\": \'true\'}]"' >> geth.sh
 VOLUME ["/db/.syscoin"]
 ENTRYPOINT ["/bin/sh", "geth.sh"]

@@ -33,7 +33,24 @@ if [ ! -d "$GETH_CHAINDATA_DIR" ]; then
 else
 	echo "$GETH_CHAINDATA_DIR exists."
 fi
+L1_URL="http://u:p@l1:18370"
+function wait_up {
+  echo -n "Waiting for $1 to come up inside entrypoint ..."
+  i=0
+  until curl -s --data-binary '{"jsonrpc": "2.0", "id":"curltest", "method": "getblockcount", "params": [] }' -H 'content-type: application/json;' "$L1_URL" 2>&1 | grep -c '"error":null'
+  do
+    echo -n .
+    sleep 0.25
 
+    ((i=i+1))
+    if [ "$i" -eq 300 ]; then
+      echo " Timeout!" >&2
+      exit 1
+    fi
+  done
+  echo "Done!"
+}
+wait_up $L1_URL
 # Warning: Archive mode is required, otherwise old trie nodes will be
 # pruned within minutes of starting the tanenbaum.
 

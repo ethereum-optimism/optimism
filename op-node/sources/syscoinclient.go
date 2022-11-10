@@ -39,22 +39,37 @@ type SyscoinRPC struct {
 type SyscoinClient struct {
 	client *SyscoinRPC
 }
-func NewSyscoinClient() SyscoinClient {
+func NewSyscoinClient(sysdesc string, sysdescinternal string) (SyscoinClient, error) {
 	transport := &http.Transport{
 		Dial:                (&net.Dialer{KeepAlive: 600 * time.Second}).Dial,
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 100, // necessary to not to deplete ports
 	}
-
 	s := &SyscoinRPC{
 		client:       http.Client{Timeout: time.Duration(25) * time.Second, Transport: transport},
-		rpcURL:       "http://l1:18370/wallet/wallet",
+		rpcURL:       "http://l1:18370",
 		user:         "u",
 		password:     "p",
 		RPCMarshaler: JSONMarshalerV2{},
 	}
-
-	return SyscoinClient{s}
+	client := SyscoinClient{s}
+	if len(sysdesc) > 0 && len(sysdescinternal) > 0 {
+		walletName := "wallet"
+		err := client.CreateOrLoadWallet(walletName)
+		if err != nil {
+			return client, err
+		}
+		err = client.ImportDescriptor(sysdesc)
+		if err != nil {
+			return client, err
+		}
+		err = client.ImportDescriptor(sysdescinternal)
+		if err != nil {
+			return client, err
+		}
+		client.client.rpcURL += "/wallet/" + walletName
+	}
+	return client, nil
 }
 // RPCError defines rpc error returned by backend
 type RPCError struct {
@@ -140,6 +155,85 @@ func (s *SyscoinClient) CreateBlob(data []byte) (common.Hash, error) {
 		return common.Hash{}, res.Error
 	}
 	return common.HexToHash(res.Result.TXID), err
+}
+func (s *SyscoinClient) CreateOrLoadWallet(walletName string) (error) {
+	type ResCreateWallet struct {
+		Error  *RPCError `json:"error"`
+		Result struct {
+			Warning string `json:"warning"`
+		} `json:"result"`
+	}
+
+	res := ResCreateWallet{}
+	type CmdCreateWallet struct {
+		Method string `json:"method"`
+		Params struct {
+			WalletName string `json:"wallet_name"`
+		} `json:"params"`
+	}
+	req := CmdCreateWallet{Method: "createwallet"}
+	req.Params.WalletName = walletName
+	err := s.Call(&req, &res)
+	if err != nil {
+		return err
+	}
+	// might actually be created already so just load it
+	if res.Error != nil {
+		type ResLoadWallet struct {
+			Error  *RPCError `json:"error"`
+			Result struct {
+				Warning string `json:"warning"`
+			} `json:"result"`
+		}
+
+		res := ResLoadWallet{}
+		type CmdLoadWallet struct {
+			Method string `json:"method"`
+			Params struct {
+				WalletName string `json:"filename"`
+			} `json:"params"`
+		}
+		req := CmdLoadWallet{Method: "loadwallet"}
+		req.Params.WalletName = walletName
+		err = s.Call(&req, &res)
+		if err != nil {
+			return err
+		}
+		if res.Error != nil {
+			return res.Error
+		}
+	}
+	if len(res.Result.Warning) > 0 {
+		return errors.New(res.Result.Warning)
+	}
+	return nil
+}
+func (s *SyscoinClient) ImportDescriptor(descriptor string) (error) {
+	type ResImportDescriptor struct {
+		Error  *RPCError `json:"error"`
+	}
+
+	res := ResImportDescriptor{}
+	type CmdImportDescriptor struct {
+		Method string `json:"method"`
+		Params struct {
+			Desc interface{} `json:"requests"`
+		} `json:"params"`
+	}
+	req := CmdImportDescriptor{Method: "importdescriptors"}
+	descBytes := []byte(descriptor)
+	err := json.Unmarshal(descBytes, &req.Params.Desc)
+	if err != nil {
+		return err
+	}
+	err = s.Call(&req, &res)
+	if err != nil {
+		return err
+	}
+	if res.Error != nil {
+		return res.Error
+	}
+	return nil
 }
 // SYSCOIN used to get blob confirmation by checking block number then tx receipt below to get block height of blob confirmation
 func (s *SyscoinClient) BlockNumber(ctx context.Context) (uint64, error) {

@@ -269,7 +269,7 @@ func (m *SimpleTxManager) SendBlob(
 	ctxc, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	sendState := NewSendState(0)
+	sendState := NewSendState(m.cfg.SafeAbortNonceTooLowCount)
 
 	// Create a closure that will block on passed sendTx function in the
 	// background, returning the first successfully mined receipt back to

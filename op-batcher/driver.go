@@ -107,7 +107,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	// SYSCOIN
-	syscoinClient, err := dialSyscoinClientWithTimeout(ctx)
+	syscoinClient, err := dialSyscoinClientWithTimeout(ctx, cfg.SysDesc, cfg.SysDescInternal)
 	if err != nil {
 		return nil, err
 	}

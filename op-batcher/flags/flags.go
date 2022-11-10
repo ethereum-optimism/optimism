@@ -103,6 +103,16 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
 	}
+	SysDescFlag = cli.StringFlag{
+		Name:     "sys-desc",
+		Usage:    "Descriptor for batcher UTXO wallet",
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SYS_DESC"),
+	}
+	SysDescInternalFlag = cli.StringFlag{
+		Name:     "sys-desc-internal",
+		Usage:    "Descriptor for batcher UTXO wallet (change)",
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SYS_DESC_INTERNAL"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -123,6 +133,9 @@ var optionalFlags = []cli.Flag{
 	MnemonicFlag,
 	SequencerHDPathFlag,
 	PrivateKeyFlag,
+	// SYSCOIN
+	SysDescFlag,
+	SysDescInternalFlag,
 }
 
 func init() {
