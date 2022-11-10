@@ -98,7 +98,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal submissionInterval = 1800;
     uint256 internal l2BlockTime = 2;
     bytes32 internal genesisL2Output = keccak256(abi.encode(0));
-    uint256 internal historicalTotalBlocks = 199;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
 
@@ -122,7 +121,6 @@ contract L2OutputOracle_Initializer is CommonTest {
         oracleImpl = new L2OutputOracle(
             submissionInterval,
             genesisL2Output,
-            historicalTotalBlocks,
             startingBlockNumber,
             startingTimestamp,
             l2BlockTime,
