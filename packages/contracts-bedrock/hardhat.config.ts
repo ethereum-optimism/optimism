@@ -161,11 +161,6 @@ const config: HardhatUserConfig = {
       type: 'string',
       default: ethers.constants.HashZero,
     },
-    // uint256 - Number of blocks preceding this L2 chain.
-    l2OutputOracleHistoricalTotalBlocks: {
-      type: 'number',
-      default: 0,
-    },
     // uint256 - The number of the first L2 block.
     l2OutputOracleStartingBlockNumber: {
       type: 'number',

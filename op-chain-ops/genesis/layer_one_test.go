@@ -55,10 +55,6 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, config.L2OutputOracleSubmissionInterval, interval.Uint64())
 
-	histBlocks, err := oracle.HISTORICALTOTALBLOCKS(callOpts)
-	require.NoError(t, err)
-	require.EqualValues(t, 0, histBlocks.Uint64())
-
 	startBlock, err := oracle.STARTINGBLOCKNUMBER(callOpts)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, startBlock.Uint64())
