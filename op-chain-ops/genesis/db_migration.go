@@ -24,6 +24,7 @@ var abiTrue = common.Hash{31: 0x01}
 
 type MigrationResult struct {
 	TransitionHeight    uint64
+	TransitionTimestamp uint64
 	TransitionBlockHash common.Hash
 }
 
@@ -37,6 +38,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	// the DB migration in development.
 	//return &MigrationResult{
 	//	TransitionHeight:    *num,
+	//	TransitionTimestamp: header.Time,
 	//	TransitionBlockHash: hash,
 	//}, nil
 
@@ -113,6 +115,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	res := &MigrationResult{
 		TransitionHeight:    bedrockBlock.NumberU64(),
+		TransitionTimestamp: bedrockBlock.Time(),
 		TransitionBlockHash: bedrockBlock.Hash(),
 	}
 
