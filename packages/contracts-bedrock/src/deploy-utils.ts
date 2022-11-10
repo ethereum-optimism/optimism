@@ -388,10 +388,7 @@ export const makeDictatorConfig = async (
         hre,
         'L1ERC721BridgeProxy'
       ),
-      systemConfigProxy: await getDeploymentAddress(
-        hre,
-        'SystemConfigProxy'
-      ),
+      systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
       batchInboxProxy: await getDeploymentAddress(
         hre,
         'BatchInboxProxy'
@@ -412,7 +409,7 @@ export const makeDictatorConfig = async (
       ),
       l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
-      systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig')
+      systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
     },
     l2OutputOracleConfig: {
       l2OutputOracleGenesisL2Output:
@@ -446,11 +443,25 @@ export const assertDictatorConfig = async (
     for (const [innerConfigKey, innerConfigValue] of Object.entries(
       outerConfigValue
     )) {
-      console.log('dictatorConfig[outerConfigKey][innerConfigKey]  ' + dictatorConfig[outerConfigKey][innerConfigKey] )
-      console.log('innerConfigValue ' + innerConfigValue)
+      let have = dictatorConfig[outerConfigKey][innerConfigKey]
+      let want = innerConfigValue as any
+
+      if (ethers.utils.isAddress(want)) {
+        want = want.toLowerCase()
+        have = have.toLowerCase()
+      } else if (typeof want === 'number') {
+        want = ethers.BigNumber.from(want)
+        have = ethers.BigNumber.from(have)
+        assert(
+          want.eq(have),
+          `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
+        )
+        return
+      }
+
       assert(
-        dictatorConfig[outerConfigKey][innerConfigKey] === innerConfigValue,
-        `incorrect config for ${outerConfigKey}.${innerConfigKey}`
+        want === have,
+        `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
       )
     }
   }

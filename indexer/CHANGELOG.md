@@ -1,5 +1,17 @@
 # @eth-optimism/indexer
 
+## 0.3.3
+
+### Patch Changes
+
+- 587f309bf: Fix the docker build
+
+## 0.3.2
+
+### Patch Changes
+
+- f505078be: Update go-ethereum to v1.10.26
+
 ## 0.3.1
 
 ### Patch Changes

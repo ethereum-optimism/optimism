@@ -1,5 +1,12 @@
 # @eth-optimism/fault-detector
 
+## 0.3.2
+
+### Patch Changes
+
+- 97b5f578c: Fixes how versions are imported for BaseServiceV2 services
+  - @eth-optimism/sdk@1.6.11
+
 ## 0.3.1
 
 ### Patch Changes

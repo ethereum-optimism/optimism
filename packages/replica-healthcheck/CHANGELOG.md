@@ -1,5 +1,11 @@
 # @eth-optimism/replica-healthcheck
 
+## 1.1.12
+
+### Patch Changes
+
+- 97b5f578c: Fixes how versions are imported for BaseServiceV2 services
+
 ## 1.1.11
 
 ### Patch Changes

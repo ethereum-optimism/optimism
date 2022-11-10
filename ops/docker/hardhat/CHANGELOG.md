@@ -1,5 +1,17 @@
 # @eth-optimism/hardhat-node
 
+## 0.2.4
+
+### Patch Changes
+
+- 805acded4: Bump hardhat to 2.12.2
+
+## 0.2.3
+
+### Patch Changes
+
+- 6c238212d: Trigger a release of the hardhat-node
+
 ## 0.2.2
 
 ### Patch Changes

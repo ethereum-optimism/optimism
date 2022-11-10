@@ -154,7 +154,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./ops/docker/hardhat
-          file: ./Dockerfile
+          file: ./ops/docker/hardhat/Dockerfile
           push: true
           tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.hardhat-node }},ethereumoptimism/hardhat-node:latest
 

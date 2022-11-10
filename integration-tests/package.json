@@ -32,7 +32,7 @@
     "@eth-optimism/contracts": "^0.5.38",
     "@eth-optimism/contracts-periphery": "^1.0.2",
     "@eth-optimism/core-utils": "0.11.0",
-    "@eth-optimism/sdk": "1.6.10",
+    "@eth-optimism/sdk": "1.6.11",
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/providers": "^5.7.0",
     "@ethersproject/transactions": "^5.7.0",
