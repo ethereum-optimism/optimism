@@ -88,6 +88,9 @@ jobs:
     environment:
       DOCKER_BUILDKIT: 1
     parameters:
+      docker_name:
+        description: Docker image name
+        type: string
       docker_tags:
         description: Docker image tags as csv
         type: string
@@ -101,10 +104,14 @@ jobs:
         description: Docker build target
         type: string
         default: ""
+      registry:
+        description: Docker registry
+        type: string
+        default: "us-central1-docker.pkg.dev"
       repo:
         description: Docker repo
         type: string
-        default: ""
+        default: "bedrock-goerli-development/images"
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
@@ -125,8 +132,10 @@ jobs:
                 name: Build with context
                 command: |
                   echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
+                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
                   docker build \
-                  $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
+                  $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
                   --target <<parameters.target>> \
                   <<parameters.docker_context>>
@@ -137,15 +146,41 @@ jobs:
                 name: Build
                 command: |
                   echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
+                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
                   docker build \
-                  $(echo -ne "<< parameters.docker_tags >>" | sed "s/,/\n/g" | sed -e 's/^/-t /' | tr '\n' ' ') \
+                  $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
                   -f <<parameters.docker_file>> \
                   <<parameters.docker_context>>
       - run:
           name: Publish
           command: |
-            gcloud auth configure-docker us-central1-docker.pkg.dev
-            docker push <<parameters.docker_tags>>
+            gcloud auth configure-docker <<parameters.registry>>
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
+            echo -ne $DOCKER_TAGS | tr ' ' '\n' | xargs -L1 docker push
+
+  docker-tag-op-stack-release:
+    parameters:
+      registry:
+        description: Docker registry
+        type: string
+        default: "us-central1-docker.pkg.dev"
+      repo:
+        description: Docker repo
+        type: string
+        default: "bedrock-goerli-development/images"
+    docker:
+      - image: google/cloud-sdk:latest
+    resource_class: small
+    steps:
+      - gcp-oidc-authenticate
+      - checkout
+      - run:
+          name: Tag
+          command: |
+            gcloud auth configure-docker <<parameters.registry>>
+            ./ops/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-tests:
     docker:
@@ -887,25 +922,25 @@ workflows:
       - docker-publish:
           name: op-node-publish-dev
           docker_file: op-node/Dockerfile
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node:<<pipeline.git.revision>>
+          docker_name: op-node
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          repo: us-central1-docker.pkg.dev
           context:
             - gcr
       - docker-publish:
           name: op-batcher-publish-dev
           docker_file: op-batcher/Dockerfile
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-batcher:<<pipeline.git.revision>>
+          docker_name: op-batcher
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          repo: us-central1-docker.pkg.dev
           context:
             - gcr
       - docker-publish:
           name: op-proposer-publish-dev
           docker_file: op-proposer/Dockerfile
-          docker_tags: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-proposer:<<pipeline.git.revision>>
+          docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          repo: us-central1-docker.pkg.dev
           context:
             - gcr
       - hive-test:
@@ -932,3 +967,14 @@ workflows:
             - op-node-publish-dev
             - op-batcher-publish-dev
             - op-proposer-publish-dev
+  release:
+    jobs:
+      - docker-tag-op-stack-release:
+          name: docker-tag-op-stack-release
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
+          context:
+            - gcr-release
