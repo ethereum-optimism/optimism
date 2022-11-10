@@ -20,6 +20,15 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
+     * @notice Represents a proven withdrawal
+     */
+    struct ProvenWithdrawal {
+        bytes32 outputRoot;
+        uint128 timestamp;
+        uint128 l2BlockNumber;
+    }
+
+    /**
      * @notice Version of the deposit event.
      */
     uint256 internal constant DEPOSIT_VERSION = 0;
@@ -55,25 +64,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *         to finalizeWithdrawalTransaction.
      */
     address public l2Sender;
-
-    /**
-     * @notice The L2 gas limit set when eth is deposited using the receive() function.
-     */
-    uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
-
-    /**
-     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
-     */
-    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
-
-    /**
-     * @notice Represents a proven withdrawal
-     */
-    struct ProvenWithdrawal {
-        bytes32 outputRoot;
-        uint128 timestamp;
-        uint128 l2BlockNumber;
-    }
 
     /**
      * @notice A list of withdrawal hashes which have been successfully finalized.

@@ -158,7 +158,7 @@ OptimismPortalUpgradeable_Test:test_initialize_cannotInitImpl_reverts() (gas: 10
 OptimismPortalUpgradeable_Test:test_initialize_cannotInitProxy_reverts() (gas: 15834)
 OptimismPortalUpgradeable_Test:test_params_initValuesOnProxy_success() (gas: 16010)
 OptimismPortalUpgradeable_Test:test_upgradeToAndCall_upgrading_success() (gas: 180630)
-OptimismPortal_FinalizeWithdrawal_Test:test_finalizeWithdrawalTransaction_differential_success(address,address,uint256,uint256,bytes) (runs: 256, μ: 220446, ~: 220288)
+OptimismPortal_FinalizeWithdrawal_Test:test_finalizeWithdrawalTransaction_differential_success(address,address,uint256,uint256,bytes) (runs: 256, μ: 220455, ~: 220288)
 OptimismPortal_FinalizeWithdrawal_Test:test_finalizeWithdrawalTransaction_ifOutputRootChanges_reverts() (gas: 191792)
 OptimismPortal_FinalizeWithdrawal_Test:test_finalizeWithdrawalTransaction_ifOutputTimestampIsNotFinalized_reverts() (gas: 194035)
 OptimismPortal_FinalizeWithdrawal_Test:test_finalizeWithdrawalTransaction_ifWithdrawalNotProven_reverts() (gas: 39650)
