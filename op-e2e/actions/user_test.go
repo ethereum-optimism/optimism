@@ -137,13 +137,18 @@ func TestCrossLayerUser(gt *testing.T) {
 
 	// prove our withdrawal on L1
 	alice.ActProveWithdrawal(t)
-	// mine a block with a time delta of 7 days + 1 second that has alice's
-	// proveWithdrawal tx in it.
-	miner.ActL1StartBlock(604801)(t)
+	// include proved withdrawal in new L1 block
+	miner.ActL1StartBlock(12)(t)
 	miner.ActL1IncludeTx(alice.Address())(t)
 	miner.ActL1EndBlock(t)
 	// check withdrawal succeeded
 	alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+
+	// A bit hacky- Mines an empty block with the time delta
+	// of the finalization period (12s) + 1 in order for the
+	// withdrawal to be finalized successfully.
+	miner.ActL1StartBlock(13)(t)
+	miner.ActL1EndBlock(t)
 
 	// make the L1 finalize withdrawal tx
 	alice.ActCompleteWithdrawal(t)
