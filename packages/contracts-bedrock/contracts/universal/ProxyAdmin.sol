@@ -2,29 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { Proxy } from "./Proxy.sol";
-import { AddressManager } from "../legacy/AddressManager.sol";
-import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-
-/**
- * @title IStaticERC1967Proxy
- * @notice IStaticERC1967Proxy is a static version of the ERC1967 proxy interface.
- */
-interface IStaticERC1967Proxy {
-    function implementation() external view returns (address);
-
-    function admin() external view returns (address);
-}
-
-/**
- * @title IStaticL1ChugSplashProxy
- * @notice IStaticL1ChugSplashProxy is a static version of the ChugSplash proxy interface.
- */
-interface IStaticL1ChugSplashProxy {
-    function getImplementation() external view returns (address);
-
-    function getOwner() external view returns (address);
-}
+import { IProxyAdapter } from "./adapters/IProxyAdapter.sol";
+import { StandardProxyAdapter } from "./adapters/StandardProxyAdapter.sol";
 
 /**
  * @title ProxyAdmin
@@ -34,117 +13,62 @@ interface IStaticL1ChugSplashProxy {
  */
 contract ProxyAdmin is Ownable {
     /**
-     * @notice The proxy types that the ProxyAdmin can manage.
-     *
-     * @custom:value ERC1967    Represents an ERC1967 compliant transparent proxy interface.
-     * @custom:value CHUGSPLASH Represents the Chugsplash proxy interface (legacy).
-     * @custom:value RESOLVED   Represents the ResolvedDelegate proxy (legacy).
+     * @notice A mapping of proxy addresses to their respective adapters.
      */
-    enum ProxyType {
-        ERC1967,
-        CHUGSPLASH,
-        RESOLVED
-    }
+    mapping(address => address) public adapters;
 
     /**
      * @custom:legacy
-     * @notice A mapping of proxy types, used for backwards compatibility.
+     * @notice A legacy upgrading indicator used by the old Chugsplash Proxy. We permanently set
+     *         this value to false because there are other ways to pause the contract that are more
+     *         consistent with the rest of the codebase.
      */
-    mapping(address => ProxyType) public proxyType;
+    bool public isUpgrading = false;
 
     /**
-     * @custom:legacy
-     * @notice A reverse mapping of addresses to names held in the AddressManager. This must be
-     *         manually kept up to date with changes in the AddressManager for this contract
-     *         to be able to work as an admin for the ResolvedDelegateProxy type.
+     * @notice Standard adapter is deployed once and used for all proxies that are not explicitly
+     *         marked as needing a custom adapter. Reduces deployment complexity.
      */
-    mapping(address => string) public implementationName;
-
-    /**
-     * @custom:legacy
-     * @notice The address of the address manager, this is required to manage the
-     *         ResolvedDelegateProxy type.
-     */
-    AddressManager public addressManager;
-
-    /**
-     * @custom:legacy
-     * @notice A legacy upgrading indicator used by the old Chugsplash Proxy.
-     */
-    bool internal upgrading = false;
+    StandardProxyAdapter public immutable STANDARD_PROXY_ADAPTER;
 
     /**
      * @param _owner Address of the initial owner of this contract.
      */
     constructor(address _owner) Ownable() {
+        STANDARD_PROXY_ADAPTER = new StandardProxyAdapter();
         _transferOwnership(_owner);
     }
 
     /**
-     * @notice Sets the proxy type for a given address. Only required for non-standard (legacy)
-     *         proxy types.
+     * @notice Sets the adpater for a given proxy.
      *
      * @param _address Address of the proxy.
-     * @param _type    Type of the proxy.
+     * @param _adapter Adapter for the proxy.
      */
-    function setProxyType(address _address, ProxyType _type) external onlyOwner {
-        proxyType[_address] = _type;
+    function setProxyAdapter(address _address, address _adapter) external onlyOwner {
+        adapters[_address] = _adapter;
     }
 
     /**
-     * @notice Sets the implementation name for a given address. Only required for
-     *         ResolvedDelegateProxy type proxies that have an implementation name.
+     * @notice Gets the proxy adapter for a given proxy.
      *
-     * @param _address Address of the ResolvedDelegateProxy.
-     * @param _name    Name of the implementation for the proxy.
+     * @param _address Proxy address to get an adapter for.
+     *
+     * @return Address of the adapter for the given proxy.
      */
-    function setImplementationName(address _address, string memory _name) external onlyOwner {
-        implementationName[_address] = _name;
-    }
+    function getProxyAdapter(address _address) public view returns (address) {
+        address adapter = adapters[_address];
+        if (adapter == address(0)) {
+            adapter = address(STANDARD_PROXY_ADAPTER);
+        }
 
-    /**
-     * @notice Set the address of the AddressManager. This is required to manage legacy
-     *         ResolvedDelegateProxy type proxy contracts.
-     *
-     * @param _address Address of the AddressManager.
-     */
-    function setAddressManager(AddressManager _address) external onlyOwner {
-        addressManager = _address;
-    }
+        // Prevent calling adapters with no code, which would silently fail in delegatecall.
+        require(
+            adapter.code.length > 0,
+            "ProxyAdmin: adapter has no code, this is potentially dangerous"
+        );
 
-    /**
-     * @custom:legacy
-     * @notice Set an address in the address manager. Since only the owner of the AddressManager
-     *         can directly modify addresses and the ProxyAdmin will own the AddressManager, this
-     *         gives the owner of the ProxyAdmin the ability to modify addresses directly.
-     *
-     * @param _name    Name to set within the AddressManager.
-     * @param _address Address to attach to the given name.
-     */
-    function setAddress(string memory _name, address _address) external onlyOwner {
-        addressManager.setAddress(_name, _address);
-    }
-
-    /**
-     * @custom:legacy
-     * @notice Set the upgrading status for the Chugsplash proxy type.
-     *
-     * @param _upgrading Whether or not the system is upgrading.
-     */
-    function setUpgrading(bool _upgrading) external onlyOwner {
-        upgrading = _upgrading;
-    }
-
-    /**
-     * @custom:legacy
-     * @notice Legacy function used to tell ChugSplashProxy contracts if an upgrade is happening.
-     *
-     * @return Whether or not there is an upgrade going on. May not actually tell you whether an
-     *         upgrade is going on, since we don't currently plan to use this variable for anything
-     *         other than a legacy indicator to fix a UX bug in the ChugSplash proxy.
-     */
-    function isUpgrading() external view returns (bool) {
-        return upgrading;
+        return adapter;
     }
 
     /**
@@ -155,16 +79,15 @@ contract ProxyAdmin is Ownable {
      * @return Address of the implementation of the proxy.
      */
     function getProxyImplementation(address _proxy) external view returns (address) {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            return IStaticERC1967Proxy(_proxy).implementation();
-        } else if (ptype == ProxyType.CHUGSPLASH) {
-            return IStaticL1ChugSplashProxy(_proxy).getImplementation();
-        } else if (ptype == ProxyType.RESOLVED) {
-            return addressManager.getAddress(implementationName[_proxy]);
-        } else {
-            revert("ProxyAdmin: unknown proxy type");
-        }
+        address adapter = getProxyAdapter(_proxy);
+        adapter.delegatecall(
+            abi.encodeCall(
+                IProxyAdapter.getProxyImplementation.selector,
+                (
+                    _proxy
+                )
+            )
+        );
     }
 
     /**
@@ -175,16 +98,15 @@ contract ProxyAdmin is Ownable {
      * @return Address of the admin of the proxy.
      */
     function getProxyAdmin(address payable _proxy) external view returns (address) {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            return IStaticERC1967Proxy(_proxy).admin();
-        } else if (ptype == ProxyType.CHUGSPLASH) {
-            return IStaticL1ChugSplashProxy(_proxy).getOwner();
-        } else if (ptype == ProxyType.RESOLVED) {
-            return addressManager.owner();
-        } else {
-            revert("ProxyAdmin: unknown proxy type");
-        }
+        address adapter = getProxyAdapter(_proxy);
+        adapter.delegatecall(
+            abi.encodeCall(
+                IProxyAdapter.getProxyAdmin.selector,
+                (
+                    _proxy
+                )
+            )
+        );
     }
 
     /**
@@ -194,16 +116,16 @@ contract ProxyAdmin is Ownable {
      * @param _newAdmin Address of the new proxy admin.
      */
     function changeProxyAdmin(address payable _proxy, address _newAdmin) external onlyOwner {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).changeAdmin(_newAdmin);
-        } else if (ptype == ProxyType.CHUGSPLASH) {
-            L1ChugSplashProxy(_proxy).setOwner(_newAdmin);
-        } else if (ptype == ProxyType.RESOLVED) {
-            addressManager.transferOwnership(_newAdmin);
-        } else {
-            revert("ProxyAdmin: unknown proxy type");
-        }
+        address adapter = getProxyAdapter(_proxy);
+        adapter.delegatecall(
+            abi.encodeCall(
+                IProxyAdapter.changeProxyAdmin.selector,
+                (
+                    _proxy,
+                    _newAdmin
+                )
+            )
+        );
     }
 
     /**
@@ -213,23 +135,16 @@ contract ProxyAdmin is Ownable {
      * @param _implementation Address of the new implementation address.
      */
     function upgrade(address payable _proxy, address _implementation) public onlyOwner {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).upgradeTo(_implementation);
-        } else if (ptype == ProxyType.CHUGSPLASH) {
-            L1ChugSplashProxy(_proxy).setStorage(
-                // bytes32(uint256(keccak256('eip1967.proxy.implementation')) - 1)
-                0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc,
-                bytes32(uint256(uint160(_implementation)))
-            );
-        } else if (ptype == ProxyType.RESOLVED) {
-            string memory name = implementationName[_proxy];
-            addressManager.setAddress(name, _implementation);
-        } else {
-            // It should not be possible to retrieve a ProxyType value which is not matched by
-            // one of the previous conditions.
-            assert(false);
-        }
+        address adapter = getProxyAdapter(_proxy);
+        adapter.delegatecall(
+            abi.encodeCall(
+                IProxyAdapter.upgrade.selector,
+                (
+                    _proxy,
+                    _implementation
+                )
+            )
+        );
     }
 
     /**
@@ -245,14 +160,16 @@ contract ProxyAdmin is Ownable {
         address _implementation,
         bytes memory _data
     ) external payable onlyOwner {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
-        } else {
-            // reverts if proxy type is unknown
-            upgrade(_proxy, _implementation);
-            (bool success, ) = _proxy.call{ value: msg.value }(_data);
-            require(success, "ProxyAdmin: call to proxy after upgrade failed");
-        }
+        address adapter = getProxyAdapter(_proxy);
+        adapter.delegatecall{value:msg.value}(
+            abi.encodeCall(
+                IProxyAdapter.upgradeAndCall.selector,
+                (
+                    _proxy,
+                    _implementation,
+                    _data
+                )
+            )
+        );
     }
 }
