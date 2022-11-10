@@ -1,5 +1,14 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.9.1
+
+### Patch Changes
+
+- 52079cc12: Has ProxyAdmin use Ownable instead of Owned
+- 13bfafb21: Tweaks variable ordering in OptimismPortal
+- eeae96941: Removes the unused DeployConfig contract
+- 427831d86: Add comments to SystemConfig.sol
+
 ## 0.9.0
 
 ### Minor Changes
