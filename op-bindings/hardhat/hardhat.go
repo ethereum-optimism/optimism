@@ -2,6 +2,7 @@ package hardhat
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -10,6 +11,11 @@ import (
 	"sync"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
+)
+
+var (
+	ErrCannotFindDeployment = errors.New("cannot find deployment")
+	ErrCannotFindArtifact   = errors.New("cannot find artifact")
 )
 
 // `Hardhat` encapsulates all of the functionality required to interact
@@ -163,7 +169,7 @@ func (h *Hardhat) GetArtifact(name string) (*Artifact, error) {
 				return artifact, nil
 			}
 		}
-		return nil, fmt.Errorf("cannot find artifact %s", name)
+		return nil, fmt.Errorf("%w: %s", ErrCannotFindArtifact, name)
 	}
 
 	for _, artifact := range h.artifacts {
@@ -172,7 +178,7 @@ func (h *Hardhat) GetArtifact(name string) (*Artifact, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("cannot find artifact %s", name)
+	return nil, fmt.Errorf("%w: %s", ErrCannotFindArtifact, name)
 }
 
 // GetDeployment returns the deployment that corresponds to the contract.
@@ -188,7 +194,7 @@ func (h *Hardhat) GetDeployment(name string) (*Deployment, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("cannot find deployment %s", name)
+	return nil, fmt.Errorf("%w: %s", ErrCannotFindDeployment, name)
 }
 
 // GetBuildInfo returns the build info that corresponds to the contract.

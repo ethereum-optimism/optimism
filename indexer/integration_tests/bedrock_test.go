@@ -79,8 +79,8 @@ func TestBedrockIndexer(t *testing.T) {
 		RESTPort:                       7980,
 		DisableIndexer:                 false,
 		Bedrock:                        true,
-		BedrockL1StandardBridgeAddress: predeploys.DevL1StandardBridgeAddr,
-		BedrockOptimismPortalAddress:   predeploys.DevOptimismPortalAddr,
+		BedrockL1StandardBridgeAddress: cfg.DeployConfig.L1StandardBridgeProxy,
+		BedrockOptimismPortalAddress:   cfg.DeployConfig.OptimismPortalProxy,
 	}
 	idxr, err := indexer.NewIndexer(idxrCfg)
 	require.NoError(t, err)

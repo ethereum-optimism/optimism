@@ -1,8 +1,0 @@
-[profile.default]
-src = 'contracts'
-out = 'forge-artifacts'
-optimizer = true
-optimizer_runs = 999999
-
-extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
-bytecode_hash = "none"

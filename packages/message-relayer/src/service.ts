@@ -10,6 +10,8 @@ import {
 import { CrossChainMessenger, MessageStatus } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
 
+import { version } from '../package.json'
+
 type MessageRelayerOptions = {
   l1RpcProvider: Provider
   l2RpcProvider: Provider
@@ -37,8 +39,7 @@ export class MessageRelayerService extends BaseServiceV2<
 > {
   constructor(options?: Partial<MessageRelayerOptions>) {
     super({
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      version: require('../package.json').version,
+      version,
       name: 'message-relayer',
       options,
       optionsSpec: {
