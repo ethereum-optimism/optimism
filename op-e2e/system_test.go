@@ -279,11 +279,13 @@ func TestConfirmationDepth(t *testing.T) {
 	l2VerHead, err := l2Verif.BlockByNumber(ctx, nil)
 	require.NoError(t, err)
 
-	info, err := derive.L1InfoDepositTxData(l2SeqHead.Transactions()[0].Data())
+	seqInfo, err := derive.L1InfoDepositTxData(l2SeqHead.Transactions()[0].Data())
 	require.NoError(t, err)
-	require.LessOrEqual(t, info.Number+seqConfDepth, l1Head.NumberU64(), "the L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
+	require.LessOrEqual(t, seqInfo.Number+seqConfDepth, l1Head.NumberU64(), "the seq L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
 
-	require.LessOrEqual(t, l2VerHead.Time()+cfg.DeployConfig.L1BlockTime*verConfDepth, l2SeqHead.Time(), "the L2 verifier head should lag behind the sequencer without delay by at least the verifier conf depth")
+	verInfo, err := derive.L1InfoDepositTxData(l2VerHead.Transactions()[0].Data())
+	require.NoError(t, err)
+	require.LessOrEqual(t, verInfo.Number+verConfDepth, l1Head.NumberU64(), "the ver L2 head block should have an origin older than the L1 head block by at least the verifier conf depth")
 }
 
 // TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
@@ -817,7 +819,7 @@ func TestWithdrawals(t *testing.T) {
 	startBalance, err = l1Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 
-	// Wait for finalization and then create the Finalized Withdrawal Transaction
+	// Get l2BlockNumber for proof generation
 	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
@@ -834,14 +836,16 @@ func TestWithdrawals(t *testing.T) {
 	receiptCl := ethclient.NewClient(rpcClient)
 
 	// Now create withdrawal
-	params, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
+	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
 
 	opts.Value = nil
-	tx, err = portal.FinalizeWithdrawalTransaction(
+
+	// Prove withdrawal
+	tx, err = portal.ProveWithdrawalTransaction(
 		opts,
 		bindings.TypesWithdrawalTransaction{
 			Nonce:    params.Nonce,
@@ -855,17 +859,42 @@ func TestWithdrawals(t *testing.T) {
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
-
 	require.Nil(t, err)
 
-	receipt, err = waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	// Ensure that our withdrawal was proved successfully
+	proveReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	require.Nil(t, err, "prove withdrawal")
+	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
+
+	// Wait for finalization and then create the Finalized Withdrawal Transaction
+	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	defer cancel()
+	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, params.BlockNumber)
+	require.Nil(t, err)
+
+	// Finalize withdrawal
+	tx, err = portal.FinalizeWithdrawalTransaction(
+		opts,
+		bindings.TypesWithdrawalTransaction{
+			Nonce:    params.Nonce,
+			Sender:   params.Sender,
+			Target:   params.Target,
+			Value:    params.Value,
+			GasLimit: params.GasLimit,
+			Data:     params.Data,
+		},
+	)
+	require.Nil(t, err)
+
+	// Ensure that our withdrawal was finalized successfully
+	finalizeReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "finalize withdrawal")
-	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+	require.Equal(t, types.ReceiptStatusSuccessful, finalizeReceipt.Status)
 
 	// Verify balance after withdrawal
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	header, err = l1Client.HeaderByNumber(ctx, receipt.BlockNumber)
+	header, err = l1Client.HeaderByNumber(ctx, finalizeReceipt.BlockNumber)
 	require.Nil(t, err)
 
 	ctx, cancel = context.WithTimeout(context.Background(), 1*time.Second)
@@ -875,8 +904,9 @@ func TestWithdrawals(t *testing.T) {
 
 	// Ensure that withdrawal - gas fees are added to the L1 balance
 	// Fun fact, the fee is greater than the withdrawal amount
+	// NOTE: The gas fees include *both* the ProveWithdrawalTransaction and FinalizeWithdrawalTransaction transactions.
 	diff = new(big.Int).Sub(endBalance, startBalance)
-	fees = calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+	fees = calcGasFees(proveReceipt.GasUsed+finalizeReceipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
 	withdrawAmount = withdrawAmount.Sub(withdrawAmount, fees)
 	require.Equal(t, withdrawAmount, diff)
 }
