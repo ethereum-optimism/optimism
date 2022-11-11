@@ -299,6 +299,21 @@ export const getContractFromArtifact = async (
   })
 }
 
+export const getContractsFromArtifacts = async (
+  hre: any,
+  configs: Array<{
+    name: string
+    iface?: string
+    signerOrProvider?: Signer | Provider | string
+  }>
+): Promise<ethers.Contract[]> => {
+  const contracts = []
+  for (const config of configs) {
+    contracts.push(await getContractFromArtifact(hre, config.name, config))
+  }
+  return contracts
+}
+
 export const isHardhatNode = async (hre) => {
   return (await getChainId(hre.ethers.provider)) === 31337
 }
