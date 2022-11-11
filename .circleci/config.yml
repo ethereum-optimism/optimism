@@ -426,7 +426,6 @@ jobs:
         type: string
     docker:
       - image: cimg/go:1.19
-    parallelism: 6
     resource_class: xlarge
     steps:
       - checkout
@@ -436,9 +435,10 @@ jobs:
       - run:
           name: run tests
           command: |
+            # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
+            # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
-            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            $(go list ./... | circleci tests split --split-by=timings)
+            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
