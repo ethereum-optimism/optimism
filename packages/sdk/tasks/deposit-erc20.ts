@@ -304,17 +304,29 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
 
     const now = Math.floor(Date.now() / 1000)
 
+    console.log('Waiting for message to be able to be proved')
+    await messenger.waitForMessageStatus(withdraw, MessageStatus.READY_TO_PROVE)
+
+    console.log('Proving withdrawal...')
+    const prove = await messenger.proveMessage(withdraw)
+    const proveReceipt = await prove.wait()
+    console.log(proveReceipt)
+    if (proveReceipt.status !== 1) {
+      throw new Error('Prove withdrawal transaction reverted')
+    }
+
     console.log('Waiting for message to be able to be relayed')
     await messenger.waitForMessageStatus(
       withdraw,
       MessageStatus.READY_FOR_RELAY
     )
 
+    console.log('Finalizing withdrawal...')
     const finalize = await messenger.finalizeMessage(withdraw)
-    const receipt = await finalize.wait()
+    const finalizeReceipt = await finalize.wait()
     console.log(`Took ${Math.floor(Date.now() / 1000) - now} seconds`)
 
-    for (const log of receipt.logs) {
+    for (const log of finalizeReceipt.logs) {
       switch (log.address) {
         case OptimismPortal.address: {
           const parsed = OptimismPortal.interface.parseLog(log)

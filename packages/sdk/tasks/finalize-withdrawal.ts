@@ -87,7 +87,25 @@ task('finalize-withdrawal', 'Finalize a withdrawal')
     const status = await messenger.getMessageStatus(txHash)
     console.log(`Status: ${MessageStatus[status]}`)
 
-    if (status === MessageStatus.READY_FOR_RELAY) {
+    if (status === MessageStatus.READY_TO_PROVE) {
+      const proveTx = await messenger.proveMessage(txHash)
+      const proveReceipt = await proveTx.wait()
+      console.log('Prove receipt', proveReceipt)
+
+      const finalizeInterval = setInterval(async () => {
+        const currentStatus = await messenger.getMessageStatus(txHash)
+        console.log(`Message status: ${MessageStatus[currentStatus]}`)
+      }, 3000)
+
+      try {
+        await messenger.waitForMessageStatus(
+          txHash,
+          MessageStatus.READY_FOR_RELAY
+        )
+      } finally {
+        clearInterval(finalizeInterval)
+      }
+
       const tx = await messenger.finalizeMessage(txHash)
       const receipt = await tx.wait()
       console.log(receipt)
