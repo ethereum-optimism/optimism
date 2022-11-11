@@ -239,7 +239,7 @@ func (s *SyscoinClient) ImportDescriptor(descriptor string) (error) {
 func (s *SyscoinClient) BlockNumber(ctx context.Context) (uint64, error) {
 	type ResGetBlockNumber struct {
 		Error  *RPCError `json:"error"`
-		BlockNumber uint64 `json:"blocknumber"`
+		BlockNumber uint64 `json:"result"`
 	}
 	res := ResGetBlockNumber{}
 	type CmdGetBlockNumber struct {
