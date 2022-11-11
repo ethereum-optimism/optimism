@@ -162,7 +162,6 @@ func writeDefaultJWT(t *testing.T) string {
 
 type L2OOContractConfig struct {
 	SubmissionFrequency   *big.Int
-	HistoricalTotalBlocks *big.Int
 }
 
 type DepositContractConfig struct {
