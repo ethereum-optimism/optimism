@@ -279,11 +279,13 @@ func TestConfirmationDepth(t *testing.T) {
 	l2VerHead, err := l2Verif.BlockByNumber(ctx, nil)
 	require.NoError(t, err)
 
-	info, err := derive.L1InfoDepositTxData(l2SeqHead.Transactions()[0].Data())
+	seqInfo, err := derive.L1InfoDepositTxData(l2SeqHead.Transactions()[0].Data())
 	require.NoError(t, err)
-	require.LessOrEqual(t, info.Number+seqConfDepth, l1Head.NumberU64(), "the L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
+	require.LessOrEqual(t, seqInfo.Number+seqConfDepth, l1Head.NumberU64(), "the seq L2 head block should have an origin older than the L1 head block by at least the sequencer conf depth")
 
-	require.LessOrEqual(t, l2VerHead.Time()+cfg.DeployConfig.L1BlockTime*verConfDepth, l2SeqHead.Time(), "the L2 verifier head should lag behind the sequencer without delay by at least the verifier conf depth")
+	verInfo, err := derive.L1InfoDepositTxData(l2VerHead.Transactions()[0].Data())
+	require.NoError(t, err)
+	require.LessOrEqual(t, verInfo.Number+verConfDepth, l1Head.NumberU64(), "the ver L2 head block should have an origin older than the L1 head block by at least the verifier conf depth")
 }
 
 // TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
