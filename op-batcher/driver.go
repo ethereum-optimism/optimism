@@ -296,7 +296,7 @@ func (l *BatchSubmitter) loop() {
 					sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
 					calldata := append(sig, receipt.TxHash.Bytes()...)
 
-					receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 3000)
+					receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 7500)
 					if err != nil {
 						l.log.Error("Failed to send transaction", "err", err)
 						l.state.TxFailed(id)
