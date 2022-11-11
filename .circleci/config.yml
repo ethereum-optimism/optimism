@@ -426,7 +426,7 @@ jobs:
         type: string
     docker:
       - image: cimg/go:1.19
-    parallelism: 6
+    # parallelism: 6
     resource_class: xlarge
     steps:
       - checkout
@@ -441,7 +441,8 @@ jobs:
             echo $(go list ./...)
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            $(circleci tests glob "**/*.go" | circleci tests split --split-by=timings)
+            ./...
+            # $(circleci tests glob "**/*.go" | circleci tests split --split-by=timings)
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
