@@ -290,10 +290,11 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("Failed to send blob", "err", err)
 					l.state.TxFailed(id)
 				} else {
-					l.log.Info("Blob confirmed", "version_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
+					l.log.Info("Blob confirmed", "versionhash", receipt.TxHash)
 					// Create the transaction
 					// call the appendSequencerBatch in the batch inbox contract, append the function sig infront of array of VH 32 byte array
 					sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
+					// we avoid changing Receipt object and just reuse TxHash for VH
 					calldata := append(sig, receipt.TxHash.Bytes()...)
 
 					receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 7500)

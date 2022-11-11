@@ -134,7 +134,7 @@ func (s *SyscoinClient) CreateBlob(data []byte) (common.Hash, error) {
 	type ResCreateBlob struct {
 		Error  *RPCError `json:"error"`
 		Result struct {
-			TXID string `json:"txid"`
+			VH string `json:"versionhash"`
 		} `json:"result"`
 	}
 
@@ -154,7 +154,7 @@ func (s *SyscoinClient) CreateBlob(data []byte) (common.Hash, error) {
 	if res.Error != nil {
 		return common.Hash{}, res.Error
 	}
-	return common.HexToHash(res.Result.TXID), err
+	return common.HexToHash(res.Result.VH), err
 }
 func (s *SyscoinClient) CreateOrLoadWallet(walletName string) (error) {
 	type ResCreateWallet struct {
@@ -258,13 +258,10 @@ func (s *SyscoinClient) BlockNumber(ctx context.Context) (uint64, error) {
 	return res.BlockNumber, err
 }
 // SYSCOIN used to get blob receipt
-func (s *SyscoinClient) TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error) {
+func (s *SyscoinClient) TransactionReceipt(ctx context.Context, vh common.Hash) (*types.Receipt, error) {
 	type ResGetBlobReceipt struct {
 		Error  *RPCError `json:"error"`
 		Result struct {
-			VH string `json:"versionhash"`
-			BlockHash string `json:"blockhash"`
-			BlockHeight int64 `json:"height"`
 			MPT int64 `json:"mpt"`
 		} `json:"result"`
 	}
@@ -276,7 +273,7 @@ func (s *SyscoinClient) TransactionReceipt(ctx context.Context, txHash common.Ha
 		} `json:"params"`
 	}
 	req := CmdGetBlobReceipt{Method: "getnevmblobdata"}
-	req.Params.TXID = txHash.String()[2:]
+	req.Params.TXID = vh.String()[2:]
 	err := s.Call(&req, &res)
 	if err != nil {
 		return nil, err
@@ -285,12 +282,12 @@ func (s *SyscoinClient) TransactionReceipt(ctx context.Context, txHash common.Ha
 		return nil, res.Error
 	}
 	receipt := types.Receipt{}
-	if res.Result.MPT > 0 && len(res.Result.BlockHash) > 0 {
-		// store VH in txhash used by driver to put into BatchInbox
+	if res.Result.MPT > 0 {
+		// store VH in TxHash used by driver to put into BatchInbox
 		receipt = types.Receipt{
-			TxHash:      common.HexToHash(res.Result.VH),
-			BlockNumber: big.NewInt(res.Result.BlockHeight),
-			BlockHash:   common.HexToHash(res.Result.BlockHash),
+			TxHash:      vh,
+			// store MPT in BlockNumber to be used in caller
+			BlockNumber: big.NewInt(res.Result.MPT),
 			Status:      types.ReceiptStatusSuccessful,
 		}
 	}

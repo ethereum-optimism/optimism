@@ -185,10 +185,10 @@ func (m *SimpleTxManager) Send(
 		m.l.Info(name+" transaction published successfully", "hash", txHash,
 			"nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 
-		// SYSCOIN Wait for the transaction to be mined, reporting the receipt
+		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
 		receipt, err := waitMined(
-			m.l, ctxc, m.backend, tx.Hash(), m.cfg.ReceiptQueryInterval,
+			m.l, ctxc, m.backend, tx, m.cfg.ReceiptQueryInterval,
 			m.cfg.NumConfirmations, sendState,
 		)
 		if err != nil {
@@ -278,7 +278,7 @@ func (m *SimpleTxManager) SendBlob(
 	sendTxAsync := func() {
 		defer wg.Done()
 		// Sign and publish transaction with current gas price.
-		txHash, err := createBlob(data)
+		vh, err := createBlob(data)
 		sendState.ProcessSendError(err)
 		if err != nil {
 			if err == context.Canceled ||
@@ -293,16 +293,16 @@ func (m *SimpleTxManager) SendBlob(
 			return
 		}
 
-		m.l.Info(name+" blob published successfully", "hash", txHash)
+		m.l.Info(name+" blob published successfully", "vh", vh)
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
-		receipt, err := waitMined(
-			m.l, ctxc, backend, txHash, m.cfg.ReceiptQueryInterval,
-			m.cfg.NumConfirmations, sendState,
+		receipt, err := waitMinedBlob(
+			m.l, ctxc, backend, vh, m.cfg.ReceiptQueryInterval*2,
+			sendState,
 		)
 		if err != nil {
-			m.l.Debug(name+" send blob failed", "hash", txHash,
+			m.l.Debug(name+" send blob failed", "vh", vh,
 				"err", err)
 		}
 		if receipt != nil {
@@ -310,7 +310,7 @@ func (m *SimpleTxManager) SendBlob(
 			// if more than one receipt is discovered.
 			select {
 			case receiptChan <- receipt:
-				m.l.Trace(name+" send blob succeeded", "hash", txHash)
+				m.l.Trace(name+" send blob succeeded", "vh", vh)
 			default:
 			}
 		}
@@ -361,11 +361,11 @@ func (m *SimpleTxManager) SendBlob(
 func WaitMined(
 	ctx context.Context,
 	backend ReceiptSource,
-	txHash common.Hash,
+	tx *types.Transaction,
 	queryInterval time.Duration,
 	numConfirmations uint64,
 ) (*types.Receipt, error) {
-	return waitMined(log.New(), ctx, backend, txHash, queryInterval, numConfirmations, nil)
+	return waitMined(log.New(), ctx, backend, tx, queryInterval, numConfirmations, nil)
 }
 
 // waitMined implements the core functionality of WaitMined, with the option to
@@ -374,7 +374,7 @@ func waitMined(
 	l log.Logger,
 	ctx context.Context,
 	backend ReceiptSource,
-	txHash common.Hash,
+	tx *types.Transaction,
 	queryInterval time.Duration,
 	numConfirmations uint64,
 	sendState *SendState,
@@ -382,8 +382,7 @@ func waitMined(
 
 	queryTicker := time.NewTicker(queryInterval)
 	defer queryTicker.Stop()
-	// SYSCOIN
-	// txHash := tx.Hash()
+	txHash := tx.Hash()
 
 	for {
 		receipt, err := backend.TransactionReceipt(ctx, txHash)
@@ -440,7 +439,50 @@ func waitMined(
 		}
 	}
 }
+func waitMinedBlob(
+	l log.Logger,
+	ctx context.Context,
+	backend ReceiptSource,
+	vh common.Hash,
+	queryInterval time.Duration,
+	sendState *SendState,
+) (*types.Receipt, error) {
 
+	queryTicker := time.NewTicker(queryInterval)
+	defer queryTicker.Stop()
+	for {
+		receipt, err := backend.TransactionReceipt(ctx, vh)
+		switch {
+		case receipt != nil:
+			if sendState != nil {
+				sendState.TxMined(vh)
+			}
+			if receipt.BlockNumber != nil {
+				MPT := receipt.BlockNumber.Uint64()
+				if MPT > 0 {
+					l.Info("Blob confirmed", "VH", receipt.TxHash, "MPT", MPT)
+					return receipt, nil
+				}
+			}
+			l.Info("Blob not confirmed yet", "vh", vh)
+		case err != nil:
+			l.Trace("Receipt retrievel failed", "vh", vh,
+				"err", err)
+
+		default:
+			if sendState != nil {
+				sendState.TxNotMined(vh)
+			}
+			l.Trace("Blob not yet mined", "vh", vh)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-queryTicker.C:
+		}
+	}
+}
 // CalcGasFeeCap deterministically computes the recommended gas fee cap given
 // the base fee and gasTipCap. The resulting gasFeeCap is equal to:
 //
