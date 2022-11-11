@@ -52,6 +52,8 @@ import {
   StateRoot,
   StateRootBatch,
   IBridgeAdapter,
+  ProvenWithdrawal,
+  WithdrawalEntry,
 } from './interfaces'
 import {
   toSignerOrProvider,
@@ -550,7 +552,30 @@ export class CrossChainMessenger {
             return MessageStatus.STATE_ROOT_NOT_PUBLISHED
           }
 
-          timestamp = output.l1Timestamp
+          // Fetch the receipt for the resolved CrossChainMessage
+          const _receipt = await this.l2Provider.getTransactionReceipt(
+            resolved.transactionHash
+          )
+
+          // Get the withdrawal hash for the receipt
+          const [_, withdrawalHash] = this.getWithdrawalFromReceipt(
+            _receipt,
+            resolved
+          )
+
+          // Attempt to fetch the proven withdrawal
+          const provenWithdrawal = await this.getProvenWithdrawal(
+            withdrawalHash
+          )
+
+          // If the withdrawal hash has not been proven on L1,
+          // return `READY_TO_PROVE`
+          if (provenWithdrawal.timestamp.eq(BigNumber.from(0))) {
+            return MessageStatus.READY_TO_PROVE
+          }
+
+          // Set the timestamp to the provenWithdrawal's timestamp
+          timestamp = provenWithdrawal.timestamp.toNumber()
         } else {
           const stateRoot = await this.getMessageStateRoot(resolved)
           if (stateRoot === null) {
@@ -893,6 +918,24 @@ export class CrossChainMessenger {
   }
 
   /**
+   * Queries the OptimismPortal contract's `provenWithdrawals` mapping
+   * for a ProvenWithdrawal that matches the passed withdrawalHash
+   *
+   * Note: This function is bedrock-specific.
+   *
+   * @returns A ProvenWithdrawal object
+   */
+  public async getProvenWithdrawal(
+    withdrawalHash: string
+  ): Promise<ProvenWithdrawal> {
+    if (!this.bedrock) {
+      throw new Error('message proving only applies after the bedrock upgrade')
+    }
+
+    return this.contracts.l1.OptimismPortal.provenWithdrawals(withdrawalHash)
+  }
+
+  /**
    * Returns the Bedrock output root that corresponds to the given message.
    *
    * @param message Message to get the Bedrock output root for.
@@ -1212,41 +1255,9 @@ export class CrossChainMessenger {
       resolved.transactionHash
     )
 
-    interface WithdrawalEntry {
-      MessagePassed: any
-    }
-
-    // Handle multiple withdrawals in the same tx
-    const logs: Partial<{ number: WithdrawalEntry }> = {}
-    for (const [i, log] of Object.entries(receipt.logs)) {
-      if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
-        const decoded =
-          this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
-        // Find the withdrawal initiated events
-        if (decoded.name === 'MessagePassed') {
-          logs[log.logIndex] = {
-            MessagePassed: decoded.args,
-          }
-        }
-      }
-    }
-
-    // TODO(tynes): be able to handle transactions that do multiple withdrawals
-    // in a single transaction. Right now just go for the first one.
-    const withdrawal = Object.values(logs)[0]
-    if (!withdrawal) {
-      throw new Error(
-        `Cannot find withdrawal logs for ${resolved.transactionHash}`
-      )
-    }
-
-    const withdrawalHash = hashWithdrawal(
-      withdrawal.MessagePassed.nonce,
-      withdrawal.MessagePassed.sender,
-      withdrawal.MessagePassed.target,
-      withdrawal.MessagePassed.value,
-      withdrawal.MessagePassed.gasLimit,
-      withdrawal.MessagePassed.data
+    const [withdrawal, withdrawalHash] = this.getWithdrawalFromReceipt(
+      receipt,
+      resolved
     )
 
     // Sanity check
@@ -1312,6 +1323,58 @@ export class CrossChainMessenger {
   }
 
   /**
+   * Helper function that gets a withdrawal and a withdrawal hash from the logs
+   * of a L2 to L2 CrossChainMessage and its transaction receipt.
+   *
+   * TODO: Process multiple withdrawals in a single transaction.
+   */
+  public getWithdrawalFromReceipt(
+    receipt: TransactionReceipt,
+    message: CrossChainMessage
+  ): [WithdrawalEntry, string] {
+    // Handle multiple withdrawals in the same tx
+    const logs: Partial<{ number: WithdrawalEntry }> = {}
+    for (const [_, log] of Object.entries(receipt.logs)) {
+      if (log.address === this.contracts.l2.BedrockMessagePasser.address) {
+        const decoded =
+          this.contracts.l2.L2ToL1MessagePasser.interface.parseLog(log)
+        // Find the withdrawal initiated events
+        if (decoded.name === 'MessagePassed') {
+          logs[log.logIndex] = {
+            MessagePassed: decoded.args,
+          }
+        }
+      }
+    }
+
+    // TODO(tynes): be able to handle transactions that do multiple withdrawals
+    // in a single transaction. Right now just go for the first one.
+    const withdrawal = Object.values(logs)[0]
+    if (!withdrawal) {
+      throw new Error(
+        `Cannot find withdrawal logs for ${message.transactionHash}`
+      )
+    }
+
+    const withdrawalHash = hashWithdrawal(
+      withdrawal.MessagePassed.nonce,
+      withdrawal.MessagePassed.sender,
+      withdrawal.MessagePassed.target,
+      withdrawal.MessagePassed.value,
+      withdrawal.MessagePassed.gasLimit,
+      withdrawal.MessagePassed.data
+    )
+
+    if (withdrawalHash !== withdrawal.MessagePassed.withdrawalHash) {
+      throw new Error(
+        'Locally computed withdrawal hash is not equal to the withdrawal hash computed on-chain!'
+      )
+    }
+
+    return [withdrawal, withdrawalHash]
+  }
+
+  /**
    * Sends a given cross chain message. Where the message is sent depends on the direction attached
    * to the message itself.
    *
@@ -1363,6 +1426,28 @@ export class CrossChainMessenger {
         messageGasLimit,
         opts
       )
+    )
+  }
+
+  /**
+   * Proves a cross chain message that was sent from L2 to L1. Only applicable for L2 to L1
+   * messages.
+   *
+   * @param message Message to finalize.
+   * @param opts Additional options.
+   * @param opts.signer Optional signer to use to send the transaction.
+   * @param opts.overrides Optional transaction overrides.
+   * @returns Transaction response for the finalization transaction.
+   */
+  public async proveMessage(
+    message: MessageLike,
+    opts?: {
+      signer?: Signer
+      overrides?: Overrides
+    }
+  ): Promise<TransactionResponse> {
+    return (opts?.signer || this.l1Signer).sendTransaction(
+      await this.populateTransaction.proveMessage(message, opts)
     )
   }
 
@@ -1640,6 +1725,57 @@ export class CrossChainMessenger {
     },
 
     /**
+     * Generates a message proving transaction that can be signed and executed. Only
+     * applicable for L2 to L1 messages.
+     *
+     * @param message Message to generate the proving transaction for.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Transaction that can be signed and executed to prove the message.
+     */
+    proveMessage: async (
+      message: MessageLike,
+      opts?: {
+        overrides?: PayableOverrides
+      }
+    ): Promise<TransactionRequest> => {
+      const resolved = await this.toCrossChainMessage(message)
+      if (resolved.direction === MessageDirection.L1_TO_L2) {
+        throw new Error('cannot finalize L1 to L2 message')
+      }
+
+      if (!this.bedrock) {
+        throw new Error(
+          'message proving only applies after the bedrock upgrade'
+        )
+      }
+
+      const [proof, output, withdrawalTx] = await this.getBedrockMessageProof(
+        message
+      )
+
+      return this.contracts.l1.OptimismPortal.populateTransaction.proveWithdrawalTransaction(
+        [
+          withdrawalTx.messageNonce,
+          withdrawalTx.sender,
+          withdrawalTx.target,
+          withdrawalTx.value,
+          withdrawalTx.minGasLimit,
+          withdrawalTx.message,
+        ],
+        output.l2BlockNumber,
+        [
+          proof.outputRootProof.version,
+          proof.outputRootProof.stateRoot,
+          proof.outputRootProof.messagePasserStorageRoot,
+          proof.outputRootProof.latestBlockhash,
+        ],
+        proof.withdrawalProof,
+        opts?.overrides || {}
+      )
+    },
+
+    /**
      * Generates a message finalization transaction that can be signed and executed. Only
      * applicable for L2 to L1 messages. Will throw an error if the message has not completed
      * its challenge period yet.
@@ -1661,9 +1797,7 @@ export class CrossChainMessenger {
       }
 
       if (this.bedrock) {
-        const [proof, output, withdrawalTx] = await this.getBedrockMessageProof(
-          message
-        )
+        const [, , withdrawalTx] = await this.getBedrockMessageProof(message)
 
         return this.contracts.l1.OptimismPortal.populateTransaction.finalizeWithdrawalTransaction(
           [
@@ -1674,14 +1808,6 @@ export class CrossChainMessenger {
             withdrawalTx.minGasLimit,
             withdrawalTx.message,
           ],
-          output.l2BlockNumber,
-          [
-            proof.outputRootProof.version,
-            proof.outputRootProof.stateRoot,
-            proof.outputRootProof.messagePasserStorageRoot,
-            proof.outputRootProof.latestBlockhash,
-          ],
-          proof.withdrawalProof,
           opts?.overrides || {}
         )
       } else {
@@ -1879,6 +2005,25 @@ export class CrossChainMessenger {
           messageGasLimit,
           opts
         )
+      )
+    },
+
+    /**
+     * Estimates gas required to prove a cross chain message. Only applies to L2 to L1 messages.
+     *
+     * @param message Message to generate the proving transaction for.
+     * @param opts Additional options.
+     * @param opts.overrides Optional transaction overrides.
+     * @returns Gas estimate for the transaction.
+     */
+    proveMessage: async (
+      message: MessageLike,
+      opts?: {
+        overrides?: CallOverrides
+      }
+    ): Promise<BigNumber> => {
+      return this.l1Provider.estimateGas(
+        await this.populateTransaction.proveMessage(message, opts)
       )
     },
 
