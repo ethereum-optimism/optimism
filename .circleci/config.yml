@@ -436,9 +436,12 @@ jobs:
       - run:
           name: run tests
           command: |
+            echo $(circleci tests glob "**/*.go")
+            echo $(circleci tests glob "**/*.go" | circleci tests split --split-by=timings)
+            echo $(go list ./...)
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            $(go list ./... | circleci tests split --split-by=timings)
+            $(circleci tests glob "**/*.go" | circleci tests split --split-by=timings)
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
