@@ -235,8 +235,9 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef, maxSize uint64) ([]byte, 
 
 	// Select range of blocks
 	end := len(s.blocks)
-	if end > 100 {
-		end = 100
+	// SYSCOIN 64mb of DA with 1000 blocks @ 15m gas (21k gas transfer per tx worsed case = 1280 blocks and 70 bytes per tx for DA)
+	if end > 1000 {
+		end = 1000
 	}
 	blocks := s.blocks[:end]
 	s.blocks = s.blocks[end:]
