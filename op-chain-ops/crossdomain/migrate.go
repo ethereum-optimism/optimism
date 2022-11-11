@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -19,7 +20,7 @@ var (
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
 func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger, l1StandardBridge *common.Address) error {
-	for _, legacy := range withdrawals {
+	for i, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
 			return err
@@ -46,6 +47,7 @@ func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossD
 		}
 
 		db.SetState(predeploys.L2ToL1MessagePasserAddr, slot, abiTrue)
+		log.Info("Migrated withdrawal", "number", i, "slot", slot)
 	}
 	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // FundDevAccounts will fund each of the development accounts.
@@ -51,12 +52,14 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		// the proxy admin address. LegacyERC20ETH lives in the
 		// 0xDead namespace so it can be ignored here
 		if addr == predeploys.GovernanceTokenAddr || addr == predeploys.ProxyAdminAddr {
+			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}
 
 		db.CreateAccount(addr)
 		db.SetCode(addr, depBytecode)
 		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
+		log.Trace("Set proxy", "address", addr, "admin", proxyAdminAddr)
 	}
 	return nil
 }
@@ -96,17 +99,20 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 		// Use the genrated bytecode when there are immutables
 		// otherwise use the artifact deployed bytecode
 		if bytecode, ok := deployResults[name]; ok {
+			log.Info("Setting deployed bytecode with immutables", "name", name, "address", addr)
 			db.SetCode(addr, bytecode)
 		} else {
 			depBytecode, err := bindings.GetDeployedBytecode(name)
 			if err != nil {
 				return err
 			}
+			log.Info("Setting deployed bytecode from solc compiler output", "name", name, "address", addr)
 			db.SetCode(addr, depBytecode)
 		}
 
 		// Set the storage values
 		if storageConfig, ok := storage[name]; ok {
+			log.Info("Setting storage", "name", name, "address", *address)
 			if err := state.SetStorage(name, *address, storageConfig, db); err != nil {
 				return err
 			}
