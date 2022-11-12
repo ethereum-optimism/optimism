@@ -25,13 +25,15 @@ import (
 )
 
 const (
-	// maxGossipSize limits the total size of gossip RPC containers as well as decompressed individual messages.
-	maxGossipSize = 10 * (1 << 20)
+	// SYSCOIN maxGossipSize limits the total size of gossip RPC containers as well as decompressed individual messages.
+	maxGossipSize = 100 * (1 << 20)
 	// minGossipSize is used to make sure that there is at least some data to validate the signature against.
 	minGossipSize          = 66
-	maxOutboundQueue       = 256
-	maxValidateQueue       = 256
-	globalValidateThrottle = 512
+	// SYSCOIN
+	maxOutboundQueue       = 2560
+	maxValidateQueue       = 2560
+	// SYSCOIN
+	globalValidateThrottle = 5120
 	gossipHeartbeat        = 500 * time.Millisecond
 	// seenMessagesTTL limits the duration that message IDs are remembered for gossip deduplication purposes
 	seenMessagesTTL = 80 * gossipHeartbeat
@@ -193,7 +195,8 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
-	blockHeightLRU, err := lru.New(100)
+	// SYSCOIN
+	blockHeightLRU, err := lru.New(1000)
 	if err != nil {
 		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}

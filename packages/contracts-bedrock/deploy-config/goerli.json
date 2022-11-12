@@ -19,7 +19,7 @@
 
   "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
 
-  "l2OutputOracleSubmissionInterval": 6,
+  "l2OutputOracleSubmissionInterval": 1800,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
