@@ -196,34 +196,6 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
-export const fundAccount = async (
-  hre: any,
-  address: string,
-  amount: ethers.BigNumber
-) => {
-  if (!hre.deployConfig.isForkedNetwork) {
-    throw new Error('this method can only be used against a forked network')
-  }
-
-  console.log(`Funding account ${address}...`)
-  await hre.ethers.provider.send('hardhat_setBalance', [
-    address,
-    amount.toHexString(),
-  ])
-
-  console.log(`Waiting for balance to reflect...`)
-  await awaitCondition(
-    async () => {
-      const balance = await hre.ethers.provider.getBalance(address)
-      return balance.gte(amount)
-    },
-    5000,
-    100
-  )
-
-  console.log(`Account successfully funded.`)
-}
-
 export const getContractFromArtifact = async (
   hre: any,
   name: string,
