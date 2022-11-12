@@ -224,43 +224,6 @@ export const fundAccount = async (
   console.log(`Account successfully funded.`)
 }
 
-export const sendImpersonatedTx = async (opts: {
-  hre: any
-  contract: ethers.Contract
-  fn: string
-  from: string
-  gas: string
-  args: any[]
-}) => {
-  if (!opts.hre.deployConfig.isForkedNetwork) {
-    throw new Error('this method can only be used against a forked network')
-  }
-
-  console.log(`Impersonating account ${opts.from}...`)
-  await opts.hre.ethers.provider.send('hardhat_impersonateAccount', [opts.from])
-
-  console.log(`Funding account ${opts.from}...`)
-  await fundAccount(opts.hre, opts.from, BIG_BALANCE)
-
-  console.log(`Sending impersonated transaction...`)
-  const tx = await opts.contract.populateTransaction[opts.fn](...opts.args)
-  const provider = new opts.hre.ethers.providers.JsonRpcProvider(
-    (opts.hre.network.config as HttpNetworkConfig).url
-  )
-  await provider.send('eth_sendTransaction', [
-    {
-      ...tx,
-      from: opts.from,
-      gas: opts.gas,
-    },
-  ])
-
-  console.log(`Stopping impersonation of account ${opts.from}...`)
-  await opts.hre.ethers.provider.send('hardhat_stopImpersonatingAccount', [
-    opts.from,
-  ])
-}
-
 export const getContractFromArtifact = async (
   hre: any,
   name: string,
