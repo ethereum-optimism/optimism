@@ -22,8 +22,8 @@ type DataIter interface {
 type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 	FetchReceiptsFromTxs(ctx context.Context, txs types.Transactions, info eth.BlockInfo, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
-	GetBlobFromCloud(vh common.Hash) (string, error)
-	GetBlobFromRPC(vh common.Hash) (string, error)
+	GetBlobFromCloud(vh common.Hash) ([]byte, error)
+	GetBlobFromRPC(vh common.Hash) ([]byte, error)
 }
 
 // DataSourceFactory readers raw transactions from a given block & then filters for
@@ -113,18 +113,11 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 	var txsToCheck types.Transactions
 	for _, tx := range txs {
 		if to := tx.To(); to != nil && *to == config.BatchInboxAddress {
-			/*seqDataSubmitter, err := l1Signer.Sender(tx) // optimization: only derive sender if To is correct
-			if err != nil {
-				log.Warn("tx in inbox with invalid signature", "index", j, "err", err)
-				continue // bad signature, ignore
-			}
-			// some random L1 user might have sent a transaction to our batch inbox, ignore them
-			if seqDataSubmitter != batcherAddr {
-				log.Warn("tx in inbox with unauthorized submitter", "index", j, "err", err)
-				continue // not an authorized batch submitter, ignore
-			}*/
 			txsToCheck = append(txsToCheck, tx)
 		}
+	}
+	if len(txsToCheck) == 0 {
+		return nil
 	}
 	_, receipts, err := fetcher.FetchReceiptsFromTxs(ctx, txsToCheck, info, blockHash)
 	if err != nil {
@@ -136,12 +129,33 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 			log.Warn("DataFromEVMTransactions: transaction was not successful", "index", i, "status", receipt.Status)
 			continue // reverted, ignore
 		}
-		// get version hash from calldata and lookup data via syscoinclient
-		// get calldata, break it down into array of VH's
-		// 1. get data from syscoin rpc
-		// 2. if not get it from archiving service
-		// 2a. validate the data against the kzg commitment
-		out = append(out, txs[receipt.TransactionIndex].Data())
+		calldata := txs[receipt.TransactionIndex].Data()
+		// remove function hash
+		calldata = calldata[4:]
+		lenData := len(calldata)
+		if (lenData%32) != 0 {
+			log.Warn("DataFromEVMTransactions", "Invalid length of calldata, not mod of 32", len(calldata))
+			return nil
+		}
+		numVHs := lenData/32
+		for i := 0; i < numVHs; i++ {
+			// get version hash from calldata and lookup data via syscoinclient
+			vhBytes := calldata[i*32:(i+1)*32]
+			// 1. get data from syscoin rpc
+			vh := common.BytesToHash(vhBytes)
+			data, err := fetcher.GetBlobFromRPC(vh)
+			if err != nil {
+				// 2. if not get it from archiving service
+				data, err = fetcher.GetBlobFromCloud(vh)
+				if err != nil {
+					log.Warn("DataFromEVMTransactions", "failed to fetch L1 block info and receipts", err)
+					return nil
+				}
+			}
+			// strip kzg commitment overhead, the rest of the payload should be the tx data we care about
+			data = data[48:]
+			out = append(out, data)
+		}
 	}
 	return out
 }

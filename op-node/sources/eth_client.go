@@ -87,6 +87,11 @@ type EthClient struct {
 	// common.Hash -> eth.ReceiptsFetcher
 	receiptsCache *caching.LRUCache
 
+	// cache receipts in bundles per block hash based on blob transactions
+	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
+	// common.Hash -> eth.ReceiptsFetcher
+	receiptsBlobCache *caching.LRUCache
+
 	// cache transactions in bundles per block hash
 	// common.Hash -> types.Transactions
 	transactionsCache *caching.LRUCache
@@ -119,6 +124,8 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		trustRPC:          config.TrustRPC,
 		log:               log,
 		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
+		// SYSCOIN
+		receiptsBlobCache: caching.NewLRUCache(metrics, "receiptsBlob", config.ReceiptsCacheSize),
 		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
 		headersCache:      caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
 		payloadsCache:     caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
@@ -273,10 +280,10 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 // SYSCOIN
-func (s *EthClient) GetBlobFromCloud(vh common.Hash) (string, error) {
+func (s *EthClient) GetBlobFromCloud(vh common.Hash) ([]byte, error) {
 	return s.syscoinClient.GetBlobFromCloud(vh)
 }
-func (s *EthClient) GetBlobFromRPC(vh common.Hash) (string, error) {
+func (s *EthClient) GetBlobFromRPC(vh common.Hash) ([]byte, error) {
 	return s.syscoinClient.GetBlobFromRPC(vh)
 }
 // FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
@@ -287,7 +294,7 @@ func (s *EthClient) FetchReceiptsFromTxs(ctx context.Context, txs types.Transact
 	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
 	// The underlying fetcher uses the receipts hash to verify receipt integrity.
 	var fetcher eth.ReceiptsFetcher
-	if v, ok := s.receiptsCache.Get(blockHash); ok {
+	if v, ok := s.receiptsBlobCache.Get(blockHash); ok {
 		fetcher = v.(eth.ReceiptsFetcher)
 	} else {
 		txHashes := make([]common.Hash, len(txs))
@@ -295,7 +302,7 @@ func (s *EthClient) FetchReceiptsFromTxs(ctx context.Context, txs types.Transact
 			txHashes[i] = txs[i].Hash()
 		}
 		fetcher = NewReceiptsFetcher(eth.ToBlockID(info), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-		s.receiptsCache.Add(blockHash, fetcher)
+		s.receiptsBlobCache.Add(blockHash, fetcher)
 	}
 	// Fetch all receipts
 	for {

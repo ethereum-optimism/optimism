@@ -4,6 +4,7 @@ import (
 	"context"
 	"bytes"
 	"encoding/json"
+	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"net"
@@ -294,7 +295,7 @@ func (s *SyscoinClient) TransactionReceipt(ctx context.Context, vh common.Hash) 
 	return &receipt, err
 }
 
-func (s *SyscoinClient) GetBlobFromRPC(vh common.Hash) (string, error) {
+func (s *SyscoinClient) GetBlobFromRPC(vh common.Hash) ([]byte, error) {
 	type ResGetBlobData struct {
 		Error  *RPCError `json:"error"`
 		Result struct {
@@ -314,14 +315,27 @@ func (s *SyscoinClient) GetBlobFromRPC(vh common.Hash) (string, error) {
 	req.Params.Verbose = true
 	err := s.Call(&req, &res)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	if res.Error != nil {
-		return "", res.Error
+		return nil, res.Error
 	}
-	return res.Result.Data, err
+	data, err := hex.DecodeString(res.Result.Data)
+	if err != nil {
+		return nil, err
+	}
+	return data, err
 }
 
-func (s *SyscoinClient) GetBlobFromCloud(vh common.Hash) (string, error) {
-	return "", nil
+func (s *SyscoinClient) GetBlobFromCloud(vh common.Hash) ([]byte, error) {
+	url := "http://poda.tanenbaum.io/vh/" + vh.String()[2:]
+    res, err := http.Get(url)
+    if err != nil {
+		return nil, err
+	}
+    body, err := ioutil.ReadAll(res.Body)
+    if err != nil {
+		return nil, err
+    }
+	return body, nil
 }
