@@ -47,7 +47,7 @@ func NewSyscoinClient(sysdesc string, sysdescinternal string) (SyscoinClient, er
 		MaxIdleConnsPerHost: 100, // necessary to not to deplete ports
 	}
 	s := &SyscoinRPC{
-		client:       http.Client{Timeout: time.Duration(25) * time.Second, Transport: transport},
+		client:       http.Client{Timeout: time.Duration(600) * time.Second, Transport: transport},
 		rpcURL:       "http://l1:18370",
 		user:         "u",
 		password:     "p",
