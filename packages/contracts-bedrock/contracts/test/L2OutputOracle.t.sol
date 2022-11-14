@@ -16,7 +16,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_constructor() external {
         assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
-        assertEq(oracle.HISTORICAL_TOTAL_BLOCKS(), historicalTotalBlocks);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
         assertEq(oracle.STARTING_BLOCK_NUMBER(), startingBlockNumber);
         assertEq(oracle.STARTING_TIMESTAMP(), startingTimestamp);
@@ -34,7 +33,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         new L2OutputOracle(
             submissionInterval,
             genesisL2Output,
-            historicalTotalBlocks,
             startingBlockNumber,
             // startingTimestamp is in the future
             block.timestamp + 1,
@@ -367,7 +365,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
     function test_initValuesOnProxy() external {
         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-        assertEq(historicalTotalBlocks, oracleImpl.HISTORICAL_TOTAL_BLOCKS());
         assertEq(startingBlockNumber, oracleImpl.STARTING_BLOCK_NUMBER());
         assertEq(startingTimestamp, oracleImpl.STARTING_TIMESTAMP());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
