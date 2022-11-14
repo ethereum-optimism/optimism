@@ -277,7 +277,6 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				uint642Big(config.L2OutputOracleSubmissionInterval),
 				[32]byte(config.L2OutputOracleGenesisL2Output),
 				big.NewInt(0),
-				big.NewInt(0),
 				uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 				uint642Big(config.L2BlockTime),
 				config.L2OutputOracleProposer,
@@ -342,9 +341,8 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[2].(*big.Int),
 			deployment.Args[3].(*big.Int),
 			deployment.Args[4].(*big.Int),
-			deployment.Args[5].(*big.Int),
+			deployment.Args[5].(common.Address),
 			deployment.Args[6].(common.Address),
-			deployment.Args[7].(common.Address),
 		)
 	case "OptimismPortal":
 		_, tx, _, err = bindings.DeployOptimismPortal(
