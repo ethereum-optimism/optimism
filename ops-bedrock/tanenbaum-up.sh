@@ -39,7 +39,7 @@ DEVNET="$PWD/.devnet"
 # tsys1qkppdm5nct40dxjn3a05vqwx7magkdpdhwdmczc
 SYS_KEY=tprv8ZgxMBicQKsPd7Uf69XL1XwhmjHopUGep8GuEiJDZmbQz6o58LninorQAfcKZWARbtRtfnLcJ5MQ2AtHcQJCCRUcMRvmDUjyEmNUWwx8UbK
 SYS_DESC='[{"desc": "wpkh('$SYS_KEY'/0h/*h)#y4dfsj7n", "timestamp": "now", "active": true}]'
-SYS_DESC_INTERNAL='[{"desc": "wpkh('$SYS_KEY'/84h/1h/*h)#ewygda2l", "timestamp": "now", "internal": true, "active": true}]'
+SYS_DESC_INTERNAL='[{"desc": "wpkh('$SYS_KEY'/84h/1h/*h)#ewygda2l", "timestamp": 0, "internal": true, "active": true}]'
 # Helper method that waits for a given URL to be up. Can't use
 # cURL's built-in retry logic because connection reset errors
 # are ignored unless you're using a very recent version of cURL
