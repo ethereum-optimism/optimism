@@ -326,21 +326,9 @@ const deployFn: DeployFunction = async (hre) => {
     6: async () => {
       await assertContractVariable(L1CrossDomainMessenger, 'paused', false)
     },
-    7: async () => {
-      await assertContractVariable(
-        L1CrossDomainMessenger,
-        'owner',
-        hre.deployConfig.finalSystemOwner
-      )
-      await assertContractVariable(
-        ProxyAdmin,
-        'owner',
-        hre.deployConfig.finalSystemOwner
-      )
-    },
   }
 
-  for (let i = 1; i <= 7; i++) {
+  for (let i = 1; i <= 6; i++) {
     if ((await MigrationSystemDictator.currentStep()) === i) {
       if (isLiveDeployer) {
         console.log(`Executing step ${i}...`)
@@ -359,6 +347,31 @@ const deployFn: DeployFunction = async (hre) => {
     } else {
       console.log(`Step ${i} executed`)
     }
+  }
+
+  if ((await MigrationSystemDictator.currentStep()) === 7) {
+    if (isLiveDeployer) {
+      console.log(`Finalizing deployment...`)
+      await MigrationSystemDictator.finalize()
+    } else {
+      console.log(`Please finalize deployment...`)
+    }
+
+    await awaitCondition(async () => {
+      return MigrationSystemDictator.finalized()
+    })
+
+    await assertContractVariable(
+      L1CrossDomainMessenger,
+      'owner',
+      hre.deployConfig.finalSystemOwner
+    )
+
+    await assertContractVariable(
+      ProxyAdmin,
+      'owner',
+      hre.deployConfig.finalSystemOwner
+    )
   }
 }
 

@@ -18,6 +18,16 @@ import { BaseSystemDictator } from "./BaseSystemDictator.sol";
  */
 contract MigrationSystemDictator is BaseSystemDictator {
     /**
+     * @notice Step where proxy ownership is transferred.
+     */
+    uint8 constant PROXY_TRANSFER_STEP = 3;
+
+    /**
+     * @notice Whether or not the deployment is finalized.
+     */
+    bool public finalized;
+
+    /**
      * @param _config System configuration.
      */
     constructor(DeployConfig memory _config) BaseSystemDictator(_config) {}
@@ -195,12 +205,28 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @notice Tranfers admin ownership to the final owner.
      */
-    function step7() external onlyOwner step(7) {
+    function finalize() external onlyOwner {
         // Transfer ownership of the L1CrossDomainMessenger to the final owner.
         L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
             .transferOwnership(config.globalConfig.finalOwner);
 
         // Transfer ownership of the ProxyAdmin to the final owner.
         config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
+
+        // Optionally also transfer AddressManager and L1StandardBridge if we still own it. Might
+        // happen if we're exiting early.
+        if (currentStep <= PROXY_TRANSFER_STEP) {
+            // Transfer ownership of the AddressManager to the final owner.
+            config.globalConfig.addressManager.transferOwnership(
+                address(config.globalConfig.finalOwner)
+            );
+
+            // Transfer ownership of the L1StandardBridge to the final owner.
+            L1ChugSplashProxy(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).setOwner(
+                address(config.globalConfig.finalOwner)
+            );
+        }
+
+        finalized = true;
     }
 }
