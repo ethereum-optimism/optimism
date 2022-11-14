@@ -57,9 +57,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
         L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
 
         // Remove all dead addresses from the AddressManager
-        string[18] memory deads = [
-            "Proxy__OVM_L1CrossDomainMessenger",
-            "Proxy__OVM_L1StandardBridge",
+        string[17] memory deads = [
             "OVM_CanonicalTransactionChain",
             "OVM_L2CrossDomainMessenger",
             "OVM_DecompressionPrecompileAddress",
@@ -75,7 +73,8 @@ contract MigrationSystemDictator is BaseSystemDictator {
             "OVM_StateManagerFactory",
             "OVM_StateTransitionerFactory",
             "OVM_SafetyChecker",
-            "OVM_L1MultiMessageRelayer"
+            "OVM_L1MultiMessageRelayer",
+            "BondManager"
         ];
 
         for (uint256 i = 0; i < deads.length; i++) {
