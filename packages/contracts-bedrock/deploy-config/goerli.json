@@ -9,8 +9,8 @@
   "l1BlockTime": 150,
 
 
-  "maxSequencerDrift": 1000,
-  "finalizationPeriodSeconds": 1000,
+  "maxSequencerDrift": 1500,
+  "finalizationPeriodSeconds": 1500,
   "sequencerWindowSize": 12,
   "channelTimeout": 12,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
@@ -19,7 +19,7 @@
 
   "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
 
-  "l2OutputOracleSubmissionInterval": 1800,
+  "l2OutputOracleSubmissionInterval": 18000,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",

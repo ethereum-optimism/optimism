@@ -1,5 +1,5 @@
 {
-  "address": "0x46aF02eE8d76822fA557D0CA0f9B4E2Ae7867958",
+  "address": "0xC8B7BaD71bF8631ced320D51dd47502E16F6254c",
   "abi": [
     {
       "inputs": [
@@ -496,79 +496,79 @@
       "type": "function"
     }
   ],
-  "transactionHash": "0x15cfe251086ba00b5379e3370b3b518decb943b2eb243e78fbfbe6369acd17a6",
+  "transactionHash": "0xfad34d462f020026a570f2ca246e200294e05b14004d0cbe3d0b2114ae608286",
   "receipt": {
     "to": null,
     "from": "0x98532a459370F99B583164aEab56C2E7303335C6",
-    "contractAddress": "0x46aF02eE8d76822fA557D0CA0f9B4E2Ae7867958",
-    "transactionIndex": 1,
-    "gasUsed": "1784364",
-    "logsBloom": "0x00000000000000000000000000020000000000000000000000800000000000000000000000000000000000000004000000000400000000000000000000000000000000000000000000000000000000000001000000000000000000000100000000000000020000000000000000000800000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000040000000000000000000000000000000000000",
-    "blockHash": "0xe9de9bd889fcd9cf4bda79e33a44599b01b312e6e5bfd4f2330a35a800207785",
-    "transactionHash": "0x15cfe251086ba00b5379e3370b3b518decb943b2eb243e78fbfbe6369acd17a6",
+    "contractAddress": "0xC8B7BaD71bF8631ced320D51dd47502E16F6254c",
+    "transactionIndex": 0,
+    "gasUsed": "1784340",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000800000000000000000000000000000000000000004000000000000000000004000000000000000000000000000000000000000000000000001000000000000000000000100000000000000020000000000000000000800000000000000000000000000000800400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000040000000000000000000000000000000000000",
+    "blockHash": "0x59da82cbd48ada5bed24354417061746b9bcbdb18a98fa82da3a6ddca689f37f",
+    "transactionHash": "0xfad34d462f020026a570f2ca246e200294e05b14004d0cbe3d0b2114ae608286",
     "logs": [
       {
-        "transactionIndex": 1,
-        "blockNumber": 230992,
-        "transactionHash": "0x15cfe251086ba00b5379e3370b3b518decb943b2eb243e78fbfbe6369acd17a6",
-        "address": "0x46aF02eE8d76822fA557D0CA0f9B4E2Ae7867958",
+        "transactionIndex": 0,
+        "blockNumber": 233495,
+        "transactionHash": "0xfad34d462f020026a570f2ca246e200294e05b14004d0cbe3d0b2114ae608286",
+        "address": "0xC8B7BaD71bF8631ced320D51dd47502E16F6254c",
         "topics": [
           "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
           "0x0000000000000000000000000000000000000000000000000000000000000000",
           "0x00000000000000000000000098532a459370f99b583164aeab56c2e7303335c6"
         ],
         "data": "0x",
-        "logIndex": 3,
-        "blockHash": "0xe9de9bd889fcd9cf4bda79e33a44599b01b312e6e5bfd4f2330a35a800207785"
+        "logIndex": 0,
+        "blockHash": "0x59da82cbd48ada5bed24354417061746b9bcbdb18a98fa82da3a6ddca689f37f"
       },
       {
-        "transactionIndex": 1,
-        "blockNumber": 230992,
-        "transactionHash": "0x15cfe251086ba00b5379e3370b3b518decb943b2eb243e78fbfbe6369acd17a6",
-        "address": "0x46aF02eE8d76822fA557D0CA0f9B4E2Ae7867958",
+        "transactionIndex": 0,
+        "blockNumber": 233495,
+        "transactionHash": "0xfad34d462f020026a570f2ca246e200294e05b14004d0cbe3d0b2114ae608286",
+        "address": "0xC8B7BaD71bF8631ced320D51dd47502E16F6254c",
         "topics": [
           "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
           "0x00000000000000000000000098532a459370f99b583164aeab56c2e7303335c6",
           "0x00000000000000000000000098532a459370f99b583164aeab56c2e7303335c6"
         ],
         "data": "0x",
-        "logIndex": 4,
-        "blockHash": "0xe9de9bd889fcd9cf4bda79e33a44599b01b312e6e5bfd4f2330a35a800207785"
+        "logIndex": 1,
+        "blockHash": "0x59da82cbd48ada5bed24354417061746b9bcbdb18a98fa82da3a6ddca689f37f"
       }
     ],
-    "blockNumber": 230992,
-    "cumulativeGasUsed": "2055648",
+    "blockNumber": 233495,
+    "cumulativeGasUsed": "1784340",
     "status": 1,
     "byzantium": true
   },
   "args": [
     {
       "globalConfig": {
-        "proxyAdmin": "0x8F71d83d511Fc8BF2a814bFf3a2F4398B64b6Bb4",
+        "proxyAdmin": "0xc4eA1C4A5577C71490EB9D6B35FDd09e65e3280A",
         "controller": "0x98532a459370F99B583164aEab56C2E7303335C6",
         "finalOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
         "addressManager": "0x0000000000000000000000000000000000000000"
       },
       "proxyAddressConfig": {
-        "l2OutputOracleProxy": "0xa8E59E2ab14B9C05F7C9FA7d88D70CE2db15E1c5",
-        "optimismPortalProxy": "0xDB87Dd6bD00ec865Eb7D1F7a3063e7757216927A",
-        "l1CrossDomainMessengerProxy": "0x58eA5e5fad728cEc582Cb3dD60E80C1A6d3C900F",
-        "l1StandardBridgeProxy": "0xD99EA485b072612a19d5F410A9450c58eA039544",
-        "optimismMintableERC20FactoryProxy": "0x1c5A7545F045904d22e6F7C65A99FF4cBF4C2576",
-        "l1ERC721BridgeProxy": "0xB2dA8139f9a81d93dF29F441a077d2fC4c4B6aB4",
-        "systemConfigProxy": "0xF1370FA2BC2Fd54F454524d6547c082a79D80c72",
-        "batchInboxProxy": "0x2FE87f51bD97af2D6A4Eaad0e5574e85081ec26a"
+        "l2OutputOracleProxy": "0x833974513dF8c9ddd51C21DfC359941cF5738b4f",
+        "optimismPortalProxy": "0x4dF6FA01bE3128ED63367E48e4F5Afe28b56B28e",
+        "l1CrossDomainMessengerProxy": "0x331717b026752B5a1AC3FE5F806292677535239d",
+        "l1StandardBridgeProxy": "0x804c5997eeBDFb9C77F4072295DdE26A9383C08e",
+        "optimismMintableERC20FactoryProxy": "0x915E476fAc274ca855baE4B62af081Abdd286e91",
+        "l1ERC721BridgeProxy": "0x8e1B452f28EAe4Dc2612686Bd2113235c72272f2",
+        "systemConfigProxy": "0x013DE996eEE35bDa28c7b0aE3e8116fDce34C2eE",
+        "batchInboxProxy": "0x564AB0Bc2D174aab879E2e8270DEB3e435F7743c"
       },
       "implementationAddressConfig": {
-        "l2OutputOracleImpl": "0xdaa931466b3AdfEaBA53c8f6A3E9169fBab36477",
-        "optimismPortalImpl": "0xa2C8f3E5734B2A753695a300c82Da7A25C747A22",
-        "batchInboxImpl": "0x0163bf078E78c03e51a60bc2295561119584CC18",
-        "l1CrossDomainMessengerImpl": "0x78d5011ccA6c282Da259F9B63C915774a9b085f0",
-        "l1StandardBridgeImpl": "0xF9F0B1a283c9F19eA351C0e43B5d175B4f28F35D",
-        "optimismMintableERC20FactoryImpl": "0xb1C5E3ecf04eD427a42033299316a30c7be169De",
-        "l1ERC721BridgeImpl": "0x66142780Ac8FF31b75D2a36eFc904AD4Ec050754",
-        "portalSenderImpl": "0x8e35ac2527acDF7eab3863ce6bdFFA624798765E",
-        "systemConfigImpl": "0xE03898D2E89B5Ec56e2681560B487B912726df82"
+        "l2OutputOracleImpl": "0xb9dDD4A383534905508f81b4A223E64F4a4F00AD",
+        "optimismPortalImpl": "0xB5e5171F76e27328020C4ED45fe5E2E6eA3da600",
+        "batchInboxImpl": "0xdA2B596b0a2da1aaf16117614fD4101bB34Caaf6",
+        "l1CrossDomainMessengerImpl": "0x773F6500B4E7Bf7FCc92178B47A926ED526954cE",
+        "l1StandardBridgeImpl": "0x0e68d3034BDd76Cd3bA6EbC17eA69Df791818bA1",
+        "optimismMintableERC20FactoryImpl": "0xc0c2e85F156e32480862afbC837F167273e667e7",
+        "l1ERC721BridgeImpl": "0x2Fcd49B36e7c46b92571aA427E2467102504966F",
+        "portalSenderImpl": "0x1054d5711611907eE23196769aC5dA542D72f984",
+        "systemConfigImpl": "0x2069CB0764FA74e131798E06d8D955Bacc3371D8"
       },
       "l2OutputOracleConfig": {
         "l2OutputOracleGenesisL2Output": "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -584,7 +584,7 @@
         "overhead": 2100,
         "scalar": 6,
         "batcherHash": "0x0000000000000000000000003C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-        "gasLimit": "0xe4e1c0"
+        "gasLimit": "0xE4E1C0"
       }
     }
   ],
