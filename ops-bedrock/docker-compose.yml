@@ -157,3 +157,12 @@ services:
       - "9090:8080"
     volumes:
       - op_log:/op_log:ro
+
+networks:
+  default:
+      driver: bridge
+      ipam:
+          driver: default
+          config:
+            - subnet: 192.168.0.0/16
+              gateway: 192.168.0.1
