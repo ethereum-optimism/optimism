@@ -22,11 +22,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /**
-     * @notice The number of blocks in the chain before the first block in this contract.
-     */
-    uint256 public immutable HISTORICAL_TOTAL_BLOCKS;
-
-    /**
      * @notice The number of the first L2 block recorded in this contract.
      */
     uint256 public immutable STARTING_BLOCK_NUMBER;
@@ -105,7 +100,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
      * @param _genesisL2Output       The initial L2 output of the L2 chain.
-     * @param _historicalTotalBlocks Number of blocks preceding this L2 chain.
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _l2BlockTime           The time per L2 block, in seconds.
@@ -115,7 +109,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     constructor(
         uint256 _submissionInterval,
         bytes32 _genesisL2Output,
-        uint256 _historicalTotalBlocks,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         uint256 _l2BlockTime,
@@ -128,7 +121,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         );
 
         SUBMISSION_INTERVAL = _submissionInterval;
-        HISTORICAL_TOTAL_BLOCKS = _historicalTotalBlocks;
         STARTING_BLOCK_NUMBER = _startingBlockNumber;
         STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
