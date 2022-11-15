@@ -632,6 +632,21 @@ contract FFIInterface is Test {
         bytes memory result = vm.ffi(cmds);
         return abi.decode(result, (uint256, uint256));
     }
+
+    function getMerkleTrieFuzzCase()
+        external
+        returns (
+            bytes32,
+            bytes memory,
+            bytes memory,
+            bytes[] memory
+        )
+    {
+        string[] memory cmds = new string[](1);
+        cmds[0] = "./scripts/merkle-trie-fuzzer/main";
+
+        return abi.decode(vm.ffi(cmds), (bytes32, bytes, bytes, bytes[]));
+    }
 }
 
 // Used for testing a future upgrade beyond the current implementations.
