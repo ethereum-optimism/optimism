@@ -49,15 +49,24 @@ contract MigrationSystemDictator is BaseSystemDictator {
     }
 
     /**
-     * @notice Pauses the system by shutting down the L1CrossDomainMessenger and clearing many
-     *         addresses inside the AddressManager.
+     * @notice Pauses the system by shutting down the L1CrossDomainMessenger and setting the
+     *         deposit halt flag to tell the Sequencer's DTL to stop accepting deposits.
      */
     function step2() external onlyOwner step(2) {
-        // Pause the L1CrossDomainMessenger
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
+        // Temporarily brick the L1CrossDomainMessenger by setting its implementation address to
+        // address(0) which will cause the ResolvedDelegateProxy to revert. Better than pausing
+        // the L1CrossDomainMessenger via pause() because it can be easily reverted.
+        config.globalConfig.addressManager.setAddress("OVM_L1CrossDomainMessenger", address(0));
 
-        // Remove all dead addresses from the AddressManager
-        string[17] memory deads = [
+        // TODO: Set the deposit halt flag.
+    }
+
+    /**
+     * @notice Removes deprecated addresses from the AddressManager.
+     */
+    function step3() external onlyOwner step(3) {
+        // Remove all deprecated addresses from the AddressManager
+        string[17] memory deprecated = [
             "OVM_CanonicalTransactionChain",
             "OVM_L2CrossDomainMessenger",
             "OVM_DecompressionPrecompileAddress",
@@ -77,15 +86,15 @@ contract MigrationSystemDictator is BaseSystemDictator {
             "BondManager"
         ];
 
-        for (uint256 i = 0; i < deads.length; i++) {
-            config.globalConfig.addressManager.setAddress(deads[i], address(0));
+        for (uint256 i = 0; i < deprecated.length; i++) {
+            config.globalConfig.addressManager.setAddress(deprecated[i], address(0));
         }
     }
 
     /**
      * @notice Transfers system ownership to the ProxyAdmin.
      */
-    function step3() external onlyOwner step(3) {
+    function step4() external onlyOwner step(4) {
         // Transfer ownership of the AddressManager to the ProxyAdmin.
         config.globalConfig.addressManager.transferOwnership(
             address(config.globalConfig.proxyAdmin)
@@ -100,7 +109,11 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @notice Upgrades and initializes proxy contracts.
      */
-    function step4() external onlyOwner step(4) {
+    function step5() external onlyOwner step(5) {
+        // Pause the L1CrossDomainMessenger. Now we use the real pause() function because by the
+        // time we're done here we'll have access to the unpause() function.
+        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
+
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l2OutputOracleProxy),
@@ -174,7 +187,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @notice Unpauses the system at which point the system should be fully operational.
      */
-    function step5() external onlyOwner step(5) {
+    function step6() external onlyOwner step(6) {
         // Unpause the L1CrossDomainMessenger.
         L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).unpause();
     }
@@ -182,7 +195,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @notice Tranfers admin ownership to the final owner.
      */
-    function step6() external onlyOwner step(6) {
+    function step7() external onlyOwner step(7) {
         // Transfer ownership of the L1CrossDomainMessenger to the final owner.
         L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
             .transferOwnership(config.globalConfig.finalOwner);

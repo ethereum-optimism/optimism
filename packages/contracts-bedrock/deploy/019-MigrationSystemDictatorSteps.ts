@@ -188,7 +188,12 @@ const deployFn: DeployFunction = async (hre) => {
       )
     },
     2: async () => {
-      await assertContractVariable(L1CrossDomainMessenger, 'paused', true)
+      assert(
+        (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
+          ethers.constants.AddressZero
+      )
+    },
+    3: async () => {
       const deads = [
         'OVM_CanonicalTransactionChain',
         'OVM_L2CrossDomainMessenger',
@@ -215,7 +220,7 @@ const deployFn: DeployFunction = async (hre) => {
         )
       }
     },
-    3: async () => {
+    4: async () => {
       await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
       assert(
         (await L1StandardBridgeProxy.callStatic.getOwner({
@@ -223,7 +228,7 @@ const deployFn: DeployFunction = async (hre) => {
         })) === ProxyAdmin.address
       )
     },
-    4: async () => {
+    5: async () => {
       // Check L2OutputOracle was initialized properly.
       await assertContractVariable(
         L2OutputOracle,
@@ -278,6 +283,7 @@ const deployFn: DeployFunction = async (hre) => {
       )
 
       // Check L1CrossDomainMessenger was initialized properly.
+      await assertContractVariable(L1CrossDomainMessenger, 'paused', true)
       try {
         await L1CrossDomainMessenger.xDomainMessageSender()
         assert(false, `L1CrossDomainMessenger was not initialized properly`)
@@ -317,10 +323,10 @@ const deployFn: DeployFunction = async (hre) => {
         L1CrossDomainMessenger.address
       )
     },
-    5: async () => {
+    6: async () => {
       await assertContractVariable(L1CrossDomainMessenger, 'paused', false)
     },
-    6: async () => {
+    7: async () => {
       await assertContractVariable(
         L1CrossDomainMessenger,
         'owner',
@@ -334,7 +340,7 @@ const deployFn: DeployFunction = async (hre) => {
     },
   }
 
-  for (let i = 1; i <= 6; i++) {
+  for (let i = 1; i <= 7; i++) {
     if ((await MigrationSystemDictator.currentStep()) === i) {
       if (isLiveDeployer) {
         console.log(`Executing step ${i}...`)
