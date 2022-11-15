@@ -388,6 +388,33 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         fromBlock: l1BlockRangeStart,
         toBlock: toL1Block,
       })
+    } else if (this.options.l2ChainId === 420) {
+      if (l1BlockRangeStart < 7260849) {
+        if (toL1Block < 7260849) {
+          eventRanges.push({
+            address: '0x72281826e90dd8a65ab686ff254eb45be426dd22',
+            fromBlock: l1BlockRangeStart,
+            toBlock: toL1Block,
+          })
+        } else {
+          eventRanges.push({
+            address: '0x72281826e90dd8a65ab686ff254eb45be426dd22',
+            fromBlock: l1BlockRangeStart,
+            toBlock: 7260849,
+          })
+          eventRanges.push({
+            address: await this._getFixedAddress(contractName),
+            fromBlock: 7260849,
+            toBlock: toL1Block,
+          })
+        }
+      } else {
+        eventRanges.push({
+          address: await this._getFixedAddress(contractName),
+          fromBlock: l1BlockRangeStart,
+          toBlock: toL1Block,
+        })
+      }
     } else {
       // Addresses can change on non-mainnet deployments. If an address changes, we will
       // potentially need to sync events from both the old address and the new address. We will
