@@ -5,6 +5,11 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { MerkleTrie } from "../libraries/trie/MerkleTrie.sol";
 
 contract MerkleTrie_Test is CommonTest {
+    function setUp() public {
+        // CommonTest setup to instantiate FFI
+        _setUp();
+    }
+
     function test_get_validProofSucceeds1() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579326262";
@@ -300,24 +305,14 @@ contract MerkleTrie_Test is CommonTest {
         MerkleTrie.get(key, proof, root);
     }
 
-    function testFuzzTrie_validProofs() external {
-        // for (uint256 i = 0; i < 1024; ++i) {
-        // TODO: Make sure that the `merkle-trie-fuzzer` module is built
-        // before the test suite is run in the CI workflows / locally.
-        string[] memory cmds = new string[](1);
-        cmds[0] = "./scripts/merkle-trie-fuzzer/main";
-        (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = abi.decode(
-            vm.ffi(cmds),
-            (bytes32, bytes, bytes, bytes[])
-        );
+    function testFuzz_get_validProofs_success() external {
+        for (uint256 i = 0; i < 1024; ++i) {
+            // Get a random test case with a valid trie / proof
+            (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = ffi
+                .getMerkleTrieFuzzCase();
 
-        // dbg
-        emit log_named_bytes32("root", root);
-        emit log_named_bytes("key", key);
-        emit log_named_bytes("value", val);
-
-        // Assert that our expected value is equal to our actual value.
-        assertEq(val, MerkleTrie.get(key, proof, root));
-        // }
+            // Assert that our expected value is equal to our actual value.
+            assertEq(val, MerkleTrie.get(key, proof, root));
+        }
     }
 }

@@ -87,23 +87,9 @@ func main() {
 	}
 
 	// Generate proof for `key`'s inclusion in our trie
-	proofDB := memorydb.New()
-	if err := randTrie.Prove(key, 0, proofDB); err != nil {
+	var proof proofList
+	if err := randTrie.Prove(key, 0, &proof); err != nil {
 		log.Fatal("Error creating proof for randomly selected key's inclusion in generated trie")
-	}
-	_, err := trie.VerifyProof(randTrie.Hash(), key, proofDB)
-	if err != nil {
-		log.Println("Failed to verify generated proof!")
-	}
-
-	// Pull the proof out of the `proofDB`
-	// TODO: This is not the correct way to do this it seems (?)
-	// I believe it's due to the `NewIterator` function returning a sorted
-	// collection
-	proof := make([][]byte, 0)
-	proof_iter := proofDB.NewIterator(make([]byte, 0), make([]byte, 0))
-	for proof_iter.Next() {
-		proof = append(proof, [][]byte{proof_iter.Value()}...)
 	}
 
 	// Create our test case with the data collected
@@ -121,4 +107,16 @@ func main() {
 // Helper that generates a random positive integer between the range [min, max]
 func randRange(min int, max int) int {
 	return rand.Intn(max-min) + min
+}
+
+// Weird golang type coercion wizardry
+type proofList [][]byte
+
+func (n *proofList) Put(key []byte, value []byte) error {
+	*n = append(*n, value)
+	return nil
+}
+
+func (n *proofList) Delete(key []byte) error {
+	panic("not supported")
 }

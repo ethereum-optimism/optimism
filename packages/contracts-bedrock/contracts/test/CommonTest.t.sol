@@ -642,6 +642,7 @@ contract FFIInterface is Test {
             bytes[] memory
         )
     {
+        // Run the compiled version of the `merkle-trie-fuzzer` for efficiency.
         string[] memory cmds = new string[](1);
         cmds[0] = "./scripts/merkle-trie-fuzzer/main";
 
