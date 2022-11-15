@@ -37,7 +37,10 @@ program
       }
     }
 
-    fs.writeFileSync('./data/evm-addresses.json', JSON.stringify(addrs, null, 2))
+    fs.writeFileSync(
+      './data/evm-addresses.json',
+      JSON.stringify(addrs, null, 2)
+    )
     fs.writeFileSync('./data/evm-messages.json', JSON.stringify(msgs, null, 2))
   })
 
