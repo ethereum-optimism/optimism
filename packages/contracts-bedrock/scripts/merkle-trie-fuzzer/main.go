@@ -34,7 +34,7 @@ var (
 	}
 )
 
-// Encodes the TrieTestCase as the `trieAbiType` tuple.
+// Encodes the TrieTestCase as the `trieTestCase` tuple.
 func (t *TrieTestCase) AbiEncode() string {
 	// Encode the contents of the struct as a tuple
 	packed, err := encoder.Pack(&t)
@@ -101,8 +101,8 @@ func main() {
 	// I believe it's due to the `NewIterator` function returning a sorted
 	// collection
 	proof := make([][]byte, 0)
-	proof_iter := proofDB.NewIterator([]byte{0}, make([]byte, 0))
-	for i := 0; proof_iter.Next(); i++ {
+	proof_iter := proofDB.NewIterator(make([]byte, 0), make([]byte, 0))
+	for proof_iter.Next() {
 		proof = append(proof, [][]byte{proof_iter.Value()}...)
 	}
 
