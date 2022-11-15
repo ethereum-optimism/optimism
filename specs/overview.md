@@ -135,7 +135,8 @@ Optimism's block derivation function is designed such that it:
 #### Epochs and the Sequencing Window
 
 The rollup chain is subdivided into epochs. There is a 1:1 correspondence between L1 block numbers and epoch numbers.
-For L1 block number `n`, there is a corresponding rollup epoch `n` which can only be derived a "sequencing windows" has
+
+For L1 block number `n`, there is a corresponding rollup epoch `n` which can only be derived after a *sequencing window* worth of block has
 passed, i.e. after L1 block number `n + SEQUENCING_WINDOW_SIZE` is added to the L1 chain.
 
 Each epoch contains at least one block. Every block in the epoch contains an L1 info transaction which contains
