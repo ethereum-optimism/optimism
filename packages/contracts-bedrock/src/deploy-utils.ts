@@ -3,8 +3,7 @@ import assert from 'assert'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, awaitCondition, getChainId } from '@eth-optimism/core-utils'
-import { HttpNetworkConfig } from 'hardhat/types'
+import { sleep, getChainId } from '@eth-optimism/core-utils'
 
 export interface DictatorConfig {
   globalConfig: {
