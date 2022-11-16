@@ -195,8 +195,6 @@ const deployFn: DeployFunction = async (hre) => {
     },
     3: async () => {
       const deads = [
-        'Proxy__OVM_L1CrossDomainMessenger',
-        'Proxy__OVM_L1StandardBridge',
         'OVM_CanonicalTransactionChain',
         'OVM_L2CrossDomainMessenger',
         'OVM_DecompressionPrecompileAddress',
@@ -213,6 +211,7 @@ const deployFn: DeployFunction = async (hre) => {
         'OVM_StateTransitionerFactory',
         'OVM_SafetyChecker',
         'OVM_L1MultiMessageRelayer',
+        'BondManager',
       ]
       for (const dead of deads) {
         assert(
