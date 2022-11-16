@@ -147,7 +147,7 @@ func (s *SyscoinClient) CreateBlob(data []byte) (common.Hash, error) {
 		} `json:"params"`
 	}
 	req := CmdCreateBlob{Method: "syscoincreatenevmblob"}
-	req.Params.Data = string(data)
+	req.Params.Data = hex.EncodeToString(data)
 	err := s.Call(&req, &res)
 	if err != nil {
 		return common.Hash{}, err
