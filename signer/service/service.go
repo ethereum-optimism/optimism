@@ -1,6 +1,8 @@
 package service
 
 import (
+	"context"
+
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -10,11 +12,15 @@ import (
 )
 
 type SignerService struct {
-	logger log.Logger
+	logger   log.Logger
+	provider SignatureProvider
 }
 
-func NewSignerService(l log.Logger) SignerService {
-	return SignerService{logger: l}
+func NewSignerService(logger log.Logger) SignerService {
+	return SignerService{
+		logger:   logger,
+		provider: NewKMSClient(logger),
+	}
 }
 
 func (s *SignerService) RegisterAPIs(server *oprpc.Server) {
@@ -29,26 +35,35 @@ type SignTransactionResponse struct {
 }
 
 func (s *SignerService) SignTransaction(
-	keyName string, txraw hexutil.Bytes, digest hexutil.Bytes,
-) (SignTransactionResponse, error) {
+	ctx context.Context, txraw hexutil.Bytes, digest hexutil.Bytes,
+) (*SignTransactionResponse, error) {
+
+	// TODO: fix hardcoded key name
+	keyName := "projects/op-dev-signer/locations/nam6/keyRings/signer/cryptoKeys/zhwrd-test-key/cryptoKeyVersions/1"
+	clientName := "client"
 
 	tx := types.Transaction{}
 	if err := tx.UnmarshalBinary(txraw); err != nil {
-		return SignTransactionResponse{}, new(TransactionUnmarshalError)
+		return nil, new(TransactionUnmarshalError)
 	}
 
 	signer := types.LatestSignerForChainID(tx.ChainId())
-	if signer.Hash(&tx).Hex() != digest.String() {
-		return SignTransactionResponse{}, new(InvalidDigestError)
+	expectedDigest := signer.Hash(&tx).Hex()
+	if expectedDigest != digest.String() {
+		return nil, new(InvalidDigestError)
 	}
 
-	signature := "signature"
+	signature, err := s.provider.Sign(ctx, keyName, digest)
+	if err != nil {
+		s.logger.Error("signature error", "error", err)
+		return nil, err
+	}
 
 	s.logger.Info(
 		"signed transaction",
-		"keyname", keyName,
 		"digest", digest,
-		"client.name", "client",
+		"client.name", clientName,
+		"keyname", keyName,
 		"tx.raw", txraw,
 		"tx.value", tx.Value(),
 		"tx.to", tx.To().Hex(),
@@ -57,8 +72,8 @@ func (s *SignerService) SignTransaction(
 		"tx.gasprice", tx.GasPrice(),
 		"tx.hash", tx.Hash().Hex(),
 		"tx.chainid", tx.ChainId(),
-		"signature", signature,
+		"signature", hexutil.Encode(signature),
 	)
 
-	return SignTransactionResponse{Signature: signature}, nil
+	return &SignTransactionResponse{Signature: hexutil.Encode(signature)}, nil
 }
