@@ -1,14 +1,11 @@
 package derive
 
 import (
-	"math/big"
-	"math/rand"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
-	"github.com/ethereum/go-ethereum/common"
 	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
 )
@@ -17,37 +14,20 @@ import (
 // L1 deposit tx info and derives a tx from it, then derives the info back from the tx, to ensure round-trip
 // derivation is upheld. This generates "valid" data and ensures it is always derived back to original values.
 func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
-	f.Fuzz(func(t *testing.T, fuzzedData []byte, seqNr uint64, rngSeed int64) {
+	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
 		// Create our fuzzer wrapper to generate complex values
 		typeProvider := fuzz.NewFromGoFuzz(fuzzedData).NilChance(0).MaxDepth(10000).NumElements(0, 0x100)
 		fuzzerutils.AddFuzzerFunctions(typeProvider)
 
-		// Generate our fuzzed value types to construct our L1 info
-		var fuzzVars struct {
-			InfoBaseFee *big.Int
-			InfoTime    uint64
-			InfoNum     uint64
-			// InfoSequenceNumber uint64
-		}
-		typeProvider.Fuzz(&fuzzVars)
-
-		// Create an rng provider and construct an L1 info from random + fuzzed data.
-		rng := rand.New(rand.NewSource(rngSeed))
-		// just go instantiate the struct instead of calling MakeL1Info
-		// see what has become of it.
-		l1Info := testutils.MakeBlockInfo(func(l *testutils.MockBlockInfo) {
-			l.InfoBaseFee = fuzzVars.InfoBaseFee
-			l.InfoTime = fuzzVars.InfoTime
-			l.InfoNum = fuzzVars.InfoNum
-		})(rng)
+		var l1Info testutils.MockBlockInfo
+		typeProvider.Fuzz(&l1Info)
+		var seqNr uint64
+		typeProvider.Fuzz(&seqNr)
+		var sysCfg eth.SystemConfig
+		typeProvider.Fuzz(&sysCfg)
 
 		// Create our deposit tx from our info
-		testSysCfg := eth.SystemConfig{
-			BatcherAddr: common.Address{42},
-			Overhead:    [32]byte{},
-			Scalar:      [32]byte{},
-		}
-		depTx, err := L1InfoDeposit(seqNr, l1Info, testSysCfg)
+		depTx, err := L1InfoDeposit(seqNr, &l1Info, sysCfg)
 		require.NoError(t, err)
 
 		// Get our info from out deposit tx
@@ -61,8 +41,10 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 		require.Equal(t, res.BaseFee.Bytes(), l1Info.BaseFee().Bytes())
 		require.Equal(t, res.BlockHash, l1Info.Hash())
 		require.Equal(t, res.SequenceNumber, seqNr)
-		l1CfgFetcher := &testutils.MockL2Client{}
-		l1CfgFetcher.ExpectSystemConfigByL2Hash(res.BlockHash, testSysCfg, nil)
+		require.Equal(t, res.BatcherAddr, sysCfg.BatcherAddr)
+
+		require.Equal(t, res.L1FeeOverhead, sysCfg.Overhead)
+		require.Equal(t, res.L1FeeScalar, sysCfg.Scalar)
 	})
 }
 
