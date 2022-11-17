@@ -87,7 +87,8 @@ var (
 		Usage:    "Poll interval for retrieving new L1 epoch updates such as safe and finalized block changes. Disabled if 0 or negative.",
 		EnvVar:   prefixEnvVar("L1_EPOCH_POLL_INTERVAL"),
 		Required: false,
-		Value:    time.Second * 12 * 32,
+		// SYSCOIN
+		Value:    time.Second * 5 * 150,
 	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
