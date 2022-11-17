@@ -711,17 +711,18 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 _gasLimit,
         bytes memory _data
     ) external {
-        vm.assume(_target != address(op)); // Cannot call the optimism portal.
-        vm.assume(_value < 200_000_000 ether); // Total ETH supply is currently ~120M ETH.
-        vm.assume(_gasLimit < 50_000_000);
-
-        uint256 _nonce = messagePasser.nonce();
+        // Cannot call the optimism portal
+        vm.assume(_target != address(op));
+        // Total ETH supply is currently about 120M ETH.
+        uint256 value = bound(_value, 0, 200_000_000 ether);
+        uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
+        uint256 nonce = messagePasser.nonce();
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
-            nonce: _nonce,
+            nonce: nonce,
             sender: _sender,
             target: _target,
-            value: _value,
-            gasLimit: _gasLimit,
+            value: value,
+            gasLimit: gasLimit,
             data: _data
         });
         (
