@@ -2,11 +2,11 @@
 
 A lightweight input fuzzing utility used for testing various Bedrock contracts.
 
-```
+<pre>
 ├── go-fuzz
-│   ├── [cmd](./cmd)  - `go-fuzz`'s binary
-│   └── [trie](./trie) - Utility for generating random merkle trie roots / inclusion proofs
-```
+│   ├── <a href="./cmd">cmd</a>: `go-fuzz`'s binary
+│   └── <a href="./trie">trie</a>: Utility for generating random merkle trie roots / inclusion proofs
+</pre>
 
 ## Usage
 

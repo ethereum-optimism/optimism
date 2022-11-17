@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -18,16 +19,62 @@ func FuzzTrie(variant string) {
 		log.Fatal("Must pass a variant to the trie fuzzer!")
 	}
 
+	var testCase trieTestCase
 	switch variant {
 	case "valid":
-		genValidTrieTestCase()
+		testCase = genValidTrieTestCase()
+		break
+	case "extra_proof_elems":
+		testCase = genValidTrieTestCase()
+		// Duplicate the last element of the proof
+		testCase.Proof = append(testCase.Proof, [][]byte{testCase.Proof[len(testCase.Proof)-1]}...)
+		break
+	case "corrupted_proof":
+		testCase = genValidTrieTestCase()
+
+		// Re-encode a random element within the proof
+		idx := randRange(0, int64(len(testCase.Proof)))
+		encoded, _ := rlp.EncodeToBytes(testCase.Proof[idx])
+		testCase.Proof[idx] = encoded
+		break
+	case "invalid_data_remainder":
+		testCase = genValidTrieTestCase()
+
+		// Alter true length of random proof element by appending random bytes
+		// Do not update the encoded length
+		idx := randRange(0, int64(len(testCase.Proof)))
+		bytes := make([]byte, randRange(1, 512))
+		rand.Read(bytes)
+		testCase.Proof[idx] = append(testCase.Proof[idx], bytes...)
+		break
+	case "invalid_large_internal_hash":
+		testCase = genValidTrieTestCase()
+
+		// Clobber 10 bytes at a random location within a random proof element
+		idx := randRange(1, int64(len(testCase.Proof)))
+		b := make([]byte, 10)
+		rand.Read(b)
+		st := randRange(10, int64(len(testCase.Proof[idx])-10))
+		testCase.Proof[idx] = append(testCase.Proof[idx][0:st], append(b, testCase.Proof[idx][st+10:]...)...)
+		break
+	case "invalid_internal_node_hash":
+		testCase = genValidTrieTestCase()
+		// Assign the last proof element to an encoded list containing a
+		// random 29 byte value
+		b := make([]byte, 29)
+		rand.Read(b)
+		e, _ := rlp.EncodeToBytes(b)
+		testCase.Proof[len(testCase.Proof)-1] = append([]byte{0xc0 + 30}, e...)
 	default:
 		log.Fatal("Invalid variant passed to trie fuzzer!")
 	}
+
+	// Print encoded test case with no newline so that foundry's FFI can read the output
+	fmt.Print(testCase.AbiEncode())
 }
 
 // Generate a random test case for Bedrock's MerkleTrie verifier.
-func genValidTrieTestCase() {
+func genValidTrieTestCase() trieTestCase {
 	// Create an empty merkle trie
 	memdb := memorydb.New()
 	randTrie := trie.NewEmpty(trie.NewDatabase(memdb))
@@ -40,7 +87,7 @@ func genValidTrieTestCase() {
 	// Create a fixed-length key as well as a randomly-sized value
 	// We create these out of the loop to reduce mem allocations.
 	randKey := make([]byte, 32)
-	randValue := make([]byte, randRange(1, 1024))
+	randValue := make([]byte, randRange(2, 1024))
 
 	// Randomly selected key/value for proof generation
 	var key []byte
@@ -79,8 +126,7 @@ func genValidTrieTestCase() {
 		Proof: proof,
 	}
 
-	// Print encoded test case with no newline so that foundry's FFI can read the output
-	fmt.Print(testCase.AbiEncode())
+	return testCase
 }
 
 // Represents a test case for bedrock's `MerkleTrie.sol`
@@ -126,6 +172,12 @@ func randRange(min int64, max int64) int64 {
 	}
 
 	return (new(big.Int).Add(r, new(big.Int).SetInt64(min))).Int64()
+}
+
+// Represents a range between two 64-bit integers
+type intRange struct {
+	min int64
+	max int64
 }
 
 // Weird golang type coercion wizardry

@@ -314,4 +314,71 @@ contract MerkleTrie_Test is CommonTest {
         // Assert that our expected value is equal to our actual value.
         assertEq(val, MerkleTrie.get(key, proof, root));
     }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidRoot_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "valid"
+        );
+
+        bytes32 rootHash = keccak256(abi.encodePacked(root));
+        vm.expectRevert("MerkleTrie: invalid root hash");
+        MerkleTrie.get(key, proof, rootHash);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_extraProofElements_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "extra_proof_elems"
+        );
+
+        vm.expectRevert("MerkleTrie: value node must be last node in proof (leaf)");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidLargeInternalHash_reverts() external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "invalid_large_internal_hash"
+        );
+
+        vm.expectRevert("MerkleTrie: invalid large internal hash");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidInternalNodeHash_reverts() external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "invalid_internal_node_hash"
+        );
+
+        vm.expectRevert("MerkleTrie: invalid internal node hash");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_corruptedProof_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "corrupted_proof"
+        );
+
+        vm.expectRevert("RLPReader: decoded item type for list is not a list item");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidDataRemainder_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "invalid_data_remainder"
+        );
+
+        vm.expectRevert("RLPReader: list item has an invalid data remainder");
+        MerkleTrie.get(key, proof, root);
+    }
 }
