@@ -28,7 +28,7 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 
 		// Create our deposit tx from our info
 		depTx, err := L1InfoDeposit(seqNr, &l1Info, sysCfg)
-		require.NoError(t, err)
+		require.NoError(t, err, "error creating deposit tx from L1 info")
 
 		// Get our info from out deposit tx
 		res, err := L1InfoDepositTxData(depTx.Data)
@@ -42,9 +42,38 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 		require.Equal(t, res.BlockHash, l1Info.Hash())
 		require.Equal(t, res.SequenceNumber, seqNr)
 		require.Equal(t, res.BatcherAddr, sysCfg.BatcherAddr)
-
 		require.Equal(t, res.L1FeeOverhead, sysCfg.Overhead)
 		require.Equal(t, res.L1FeeScalar, sysCfg.Scalar)
+	})
+}
+
+// Reverse of the above test. Accepts a random byte string and attempts to extract L1Info from it,
+// then attempts to convert that info back into the tx data and compare it with the original input.
+func FuzzDecodeDepositTxDataToL1Info(f *testing.F) {
+	f.Fuzz(func(t *testing.T, fuzzedData []byte) {
+		// Get our info from out deposit tx
+		res, err := L1InfoDepositTxData(fuzzedData)
+		if err != nil {
+			return
+		}
+
+		l1Info := testutils.MockBlockInfo{
+			InfoHash:    res.BlockHash,
+			InfoNum:     res.Number,
+			InfoTime:    res.Time,
+			InfoBaseFee: res.BaseFee,
+		}
+
+		sysCfg := eth.SystemConfig{
+			BatcherAddr: res.BatcherAddr,
+			Overhead:    res.L1FeeOverhead,
+			Scalar:      res.L1FeeScalar,
+			GasLimit:    uint64(0),
+		}
+
+		depTx, err := L1InfoDeposit(res.SequenceNumber, &l1Info, sysCfg)
+		require.NoError(t, err, "error creating deposit tx from L1 info")
+		require.Equal(t, depTx.Data, fuzzedData)
 	})
 }
 
