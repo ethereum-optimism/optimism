@@ -75,12 +75,14 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         // The block number is too low:
         vm.expectRevert(
-            "L2OutputOracle: block number cannot be less than the starting block number."
+            "L2OutputOracle: block number cannot be less than the starting block number"
         );
         oracle.getL2Output(0);
 
         // The block number is larger than the latest proposed output:
-        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        vm.expectRevert(
+            "L2OutputOracle: block number cannot be greater than the latest block number"
+        );
         oracle.getL2Output(nextBlockNumber + 1);
     }
 
@@ -280,29 +282,20 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests - Happy Path *
      *****************************/
 
-    event OutputDeleted(
-        bytes32 indexed l2Output,
-        uint256 indexed l1Timestamp,
-        uint256 indexed l2BlockNumber
-    );
+    event OutputsDeleted(uint256 indexed l2BlockNumber);
 
-    function test_deleteOutput() external {
+    function test_deleteOutputs() external {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(latestBlockNumber);
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
             latestBlockNumber - submissionInterval
         );
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, false);
-        emit OutputDeleted(
-            proposalToDelete.outputRoot,
-            proposalToDelete.timestamp,
-            latestBlockNumber
-        );
-        oracle.deleteL2Output(proposalToDelete);
+        emit OutputsDeleted(latestBlockNumber);
+        oracle.deleteL2Outputs(latestBlockNumber);
 
         // validate latestBlockNumber has been reduced
         uint256 latestBlockNumberAfter = oracle.latestBlockNumber();
@@ -318,40 +311,21 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests - Sad Path *
      ***************************/
 
-    function testCannot_deleteL2Output_ifNotOwner() external {
+    function testCannot_deleteL2Outputs_ifNotOwner() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumber);
 
         vm.expectRevert("Ownable: caller is not the owner");
-        oracle.deleteL2Output(proposal);
+        oracle.deleteL2Outputs(latestBlockNumber);
     }
 
-    function testCannot_deleteL2Output_withWrongRoot() external {
-        test_proposingAnotherOutput();
-
-        uint256 previousBlockNumber = oracle.latestBlockNumber() - submissionInterval;
-        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(previousBlockNumber);
-
-        vm.prank(owner);
-        vm.expectRevert(
-            "L2OutputOracle: output root to delete does not match the latest output proposal"
-        );
-        oracle.deleteL2Output(proposalToDelete);
-    }
-
-    function testCannot_deleteL2Output_withWrongTime() external {
+    function testCannot_deleteL2Outputs_nonExistent() external {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory proposalToDelete = oracle.getL2Output(latestBlockNumber);
 
-        // Modify the timestamp so that it does not match.
-        proposalToDelete.timestamp -= 1;
         vm.prank(owner);
-        vm.expectRevert(
-            "L2OutputOracle: timestamp to delete does not match the latest output proposal"
-        );
-        oracle.deleteL2Output(proposalToDelete);
+        vm.expectRevert("L2OutputOracle: cannot delete a non-existent output");
+        oracle.deleteL2Outputs(latestBlockNumber + 1);
     }
 }
 
