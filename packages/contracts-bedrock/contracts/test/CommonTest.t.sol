@@ -633,7 +633,7 @@ contract FFIInterface is Test {
         return abi.decode(result, (uint256, uint256));
     }
 
-    function getMerkleTrieFuzzCase()
+    function getMerkleTrieFuzzCase(string memory variant)
         external
         returns (
             bytes32,
@@ -643,8 +643,12 @@ contract FFIInterface is Test {
         )
     {
         // Run the compiled version of the `merkle-trie-fuzzer`.
-        string[] memory cmds = new string[](1);
-        cmds[0] = "./go-fuzzers/main";
+        string[] memory cmds = new string[](5);
+        cmds[0] = "./go-fuzz/fuzz";
+        cmds[1] = "-m";
+        cmds[2] = "trie";
+        cmds[3] = "-v";
+        cmds[4] = variant;
 
         return abi.decode(vm.ffi(cmds), (bytes32, bytes, bytes, bytes[]));
     }

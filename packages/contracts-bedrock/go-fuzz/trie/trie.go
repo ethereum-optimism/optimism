@@ -1,4 +1,4 @@
-package main
+package trie
 
 import (
 	"crypto/rand"
@@ -12,8 +12,22 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
+// Generate an abi-encoded `trieTestCase` of a specified variant
+func FuzzTrie(variant string) {
+	if len(variant) < 1 {
+		log.Fatal("Must pass a variant to the trie fuzzer!")
+	}
+
+	switch variant {
+	case "valid":
+		genValidTrieTestCase()
+	default:
+		log.Fatal("Invalid variant passed to trie fuzzer!")
+	}
+}
+
 // Generate a random test case for Bedrock's MerkleTrie verifier.
-func main() {
+func genValidTrieTestCase() {
 	// Create an empty merkle trie
 	memdb := memorydb.New()
 	randTrie := trie.NewEmpty(trie.NewDatabase(memdb))

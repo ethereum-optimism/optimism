@@ -309,7 +309,7 @@ contract MerkleTrie_Test is CommonTest {
     function testFuzz_get_validProofs_success(bytes4) external {
         // Get a random test case with a valid trie / proof
         (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = ffi
-            .getMerkleTrieFuzzCase();
+            .getMerkleTrieFuzzCase("valid");
 
         // Assert that our expected value is equal to our actual value.
         assertEq(val, MerkleTrie.get(key, proof, root));

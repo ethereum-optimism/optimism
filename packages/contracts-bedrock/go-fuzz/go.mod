@@ -1,4 +1,4 @@
-module fuzzers
+module github.com/ethereum-optimism/optimism/packages/contracts-bedrock/go-fuzz
 
 go 1.19
 

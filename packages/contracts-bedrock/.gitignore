@@ -8,4 +8,4 @@ broadcast
 genesis.json
 src/contract-artifacts.ts
 tmp-artifacts
-go-fuzzers/main
+go-fuzz/fuzz

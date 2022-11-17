@@ -16,6 +16,7 @@ use (
 	./op-node
 	./op-proposer
 	./op-service
+	./packages/contracts-bedrock/go-fuzz
 	./proxyd
 	./teleportr
 )
