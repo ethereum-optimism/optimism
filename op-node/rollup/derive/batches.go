@@ -54,10 +54,11 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 		log.Trace("received out-of-order batch for future processing after next batch", "next_timestamp", nextTimestamp)
 		return BatchFuture
 	}
-	if batch.Batch.Timestamp < nextTimestamp {
+	// SYSCOIN
+	/*if batch.Batch.Timestamp < nextTimestamp {
 		log.Warn("dropping batch with old timestamp", "min_timestamp", nextTimestamp)
 		return BatchDrop
-	}
+	}*/
 
 	// dependent on above timestamp check. If the timestamp is correct, then it must build on top of the safe head.
 	if batch.Batch.ParentHash != l2SafeHead.Hash {
