@@ -1,10 +1,10 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
 	"log"
-	"math/rand"
-	"time"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -12,47 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-// Represents a test case for bedrock's `MerkleTrie.sol`
-type TrieTestCase struct {
-	Root  *[32]byte
-	Key   []byte
-	Value []byte
-	Proof [][]byte
-}
-
-// Tuple type to encode `TrieTestCase`
-var (
-	trieTestCase, _ = abi.NewType("tuple", "TrieTestCase", []abi.ArgumentMarshaling{
-		{Name: "root", Type: "bytes32"},
-		{Name: "key", Type: "bytes"},
-		{Name: "value", Type: "bytes"},
-		{Name: "proof", Type: "bytes[]"},
-	})
-
-	encoder = abi.Arguments{
-		{Type: trieTestCase},
-	}
-)
-
-// Encodes the TrieTestCase as the `trieTestCase` tuple.
-func (t *TrieTestCase) AbiEncode() string {
-	// Encode the contents of the struct as a tuple
-	packed, err := encoder.Pack(&t)
-	if err != nil {
-		log.Fatalf("Error packing TrieTestCase: %v", err)
-	}
-
-	// Remove the pointer and encode the packed bytes as a hex string
-	return hexutil.Encode(packed[32:])
-}
-
+// Generate a random test case for Bedrock's MerkleTrie verifier.
 func main() {
 	// Create an empty merkle trie
 	memdb := memorydb.New()
 	randTrie := trie.NewEmpty(trie.NewDatabase(memdb))
-
-	// Seed the random number generator with the current unix timestamp
-	rand.Seed(time.Now().UnixNano())
 
 	// Get a random number of elements to put into the trie
 	randN := randRange(2, 1024)
@@ -62,14 +26,15 @@ func main() {
 	// Create a fixed-length key as well as a randomly-sized value
 	// We create these out of the loop to reduce mem allocations.
 	randKey := make([]byte, 32)
-	randValue := make([]byte, randRange(1, 256))
+	randValue := make([]byte, randRange(1, 1024))
 
 	// Randomly selected key/value for proof generation
 	var key []byte
 	var value []byte
 
 	// Add `randN` elements to the trie
-	for i := 0; i < randN; i++ {
+	var i int64
+	for ; i < randN; i++ {
 		// Randomize the contents of `randKey` and `randValue`
 		rand.Read(randKey)
 		rand.Read(randValue)
@@ -93,7 +58,7 @@ func main() {
 	}
 
 	// Create our test case with the data collected
-	testCase := TrieTestCase{
+	testCase := trieTestCase{
 		Root:  (*[32]byte)(randTrie.Hash().Bytes()),
 		Key:   key,
 		Value: value,
@@ -104,9 +69,49 @@ func main() {
 	fmt.Print(testCase.AbiEncode())
 }
 
-// Helper that generates a random positive integer between the range [min, max]
-func randRange(min int, max int) int {
-	return rand.Intn(max-min) + min
+// Represents a test case for bedrock's `MerkleTrie.sol`
+type trieTestCase struct {
+	Root  *[32]byte
+	Key   []byte
+	Value []byte
+	Proof [][]byte
+}
+
+// Tuple type to encode `TrieTestCase`
+var (
+	trieTestCaseTuple, _ = abi.NewType("tuple", "TrieTestCase", []abi.ArgumentMarshaling{
+		{Name: "root", Type: "bytes32"},
+		{Name: "key", Type: "bytes"},
+		{Name: "value", Type: "bytes"},
+		{Name: "proof", Type: "bytes[]"},
+	})
+
+	encoder = abi.Arguments{
+		{Type: trieTestCaseTuple},
+	}
+)
+
+// Encodes the trieTestCase as the `trieTestCaseTuple`.
+func (t *trieTestCase) AbiEncode() string {
+	// Encode the contents of the struct as a tuple
+	packed, err := encoder.Pack(&t)
+	if err != nil {
+		log.Fatalf("Error packing TrieTestCase: %v", err)
+	}
+
+	// Remove the pointer and encode the packed bytes as a hex string
+	return hexutil.Encode(packed[32:])
+}
+
+// Helper that generates a cryptographically secure random 64-bit integer
+// between the range [min, max]
+func randRange(min int64, max int64) int64 {
+	r, err := rand.Int(rand.Reader, new(big.Int).Sub(new(big.Int).SetInt64(max), new(big.Int).SetInt64(min)))
+	if err != nil {
+		log.Fatal("Failed to generate random number within bounds")
+	}
+
+	return (new(big.Int).Add(r, new(big.Int).SetInt64(min))).Int64()
 }
 
 // Weird golang type coercion wizardry

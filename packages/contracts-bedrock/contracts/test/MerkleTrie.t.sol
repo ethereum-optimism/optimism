@@ -305,7 +305,7 @@ contract MerkleTrie_Test is CommonTest {
         MerkleTrie.get(key, proof, root);
     }
 
-    /// @notice The `bytes4` parameter is to enable fuzz runs; it is ignored.
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
     function testFuzz_get_validProofs_success(bytes4) external {
         // Get a random test case with a valid trie / proof
         (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = ffi

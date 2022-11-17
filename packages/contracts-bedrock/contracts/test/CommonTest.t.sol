@@ -642,9 +642,9 @@ contract FFIInterface is Test {
             bytes[] memory
         )
     {
-        // Run the compiled version of the `merkle-trie-fuzzer` for efficiency.
+        // Run the compiled version of the `merkle-trie-fuzzer`.
         string[] memory cmds = new string[](1);
-        cmds[0] = "./scripts/merkle-trie-fuzzer/main";
+        cmds[0] = "./go-fuzzers/main";
 
         return abi.decode(vm.ffi(cmds), (bytes32, bytes, bytes, bytes[]));
     }

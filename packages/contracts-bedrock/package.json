@@ -16,7 +16,7 @@
   "scripts": {
     "build:forge": "forge build",
     "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
-    "build:scripts": "(cd scripts/merkle-trie-fuzzer && go build main.go)",
+    "build:scripts": "go build -o go-fuzzers go-fuzzers/main.go",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain && yarn build:scripts",
     "build:ts": "tsc -p tsconfig.json",
@@ -29,7 +29,7 @@
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-spacers": "hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
-    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./src/contract-artifacts.ts ./scripts/merkle-trie-fuzzer/main",
+    "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./src/contract-artifacts.ts ./go-fuzzers/main",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
