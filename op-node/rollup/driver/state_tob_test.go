@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -136,24 +135,21 @@ func TestRejectCreateBlockBadTimestamp(t *testing.T) {
 	if l2HeadRef.Time+cfg.BlockTime < l2l1OriginBlock.Time {
 		// If not, we expect a specific error.
 		// TODO: This isn't the cleanest, we should construct + compare the whole error message.
-		assert.NotNil(t, err)
-		assert.Contains(t, err.Error(), "cannot build L2 block on top")
-		assert.Contains(t, err.Error(), "for time")
-		assert.Contains(t, err.Error(), "before L1 origin")
+		require.NotNil(t, err)
+		require.Contains(t, err.Error(), "cannot build L2 block on top")
+		require.Contains(t, err.Error(), "for time")
+		require.Contains(t, err.Error(), "before L1 origin")
 		return
 	}
-
-	// Otherwise we should have no error.
-	assert.Nil(t, err)
 
 	// If we expected the outputter to error, capture that here
 	if outputProvider.willError {
-		assert.NotNil(t, err, "outputInterface failed to createNewBlock, so createNewL2Block should also have failed")
+		require.NotNil(t, err, "outputInterface failed to createNewBlock, so createNewL2Block should also have failed")
 		return
 	}
 
 	// Otherwise we should have no error.
-	assert.Nil(t, err)
+	require.NoError(t, err, "error raised in TestRejectCreateBlockBadTimestamp")
 }
 
 // FuzzRejectCreateBlockBadTimestamp is a property test derived from the TestRejectCreateBlockBadTimestamp unit test.
@@ -215,7 +211,7 @@ func FuzzRejectCreateBlockBadTimestamp(f *testing.F) {
 
 		// Verify the L1Origin's timestamp is greater than L1 genesis in our config.
 		if l2l1OriginBlock.Number < s.config.Genesis.L1.Number {
-			assert.Nil(t, err)
+			require.NoError(t, err)
 			return
 		}
 
@@ -231,11 +227,11 @@ func FuzzRejectCreateBlockBadTimestamp(f *testing.F) {
 		}
 
 		// Otherwise we should have no error.
-		assert.Nil(t, err)
+		require.Nil(t, err)
 
 		// If we expected the outputter to error, capture that here
 		if outputProvider.willError {
-			assert.NotNil(t, err, "outputInterface failed to createNewBlock, so createNewL2Block should also have failed")
+			require.NotNil(t, err, "outputInterface failed to createNewBlock, so createNewL2Block should also have failed")
 			return
 		}
 
