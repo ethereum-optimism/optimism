@@ -216,6 +216,9 @@ func (s *EthClient) InfoByLabel(ctx context.Context, label eth.BlockLabel) (eth.
 	blockNum := blockInfo.NumberU64()
 	// safe should be the last chainlock (every 5 blocks)
 	lookback := blockNum - (blockNum % 5)
+	if lookback < 5 {
+		lookback = 5
+	}
 	// finalized should be previous chainlock
 	if label == eth.Finalized {
 		lookback -= 5
@@ -250,6 +253,9 @@ func (s *EthClient) InfoAndTxsByLabel(ctx context.Context, label eth.BlockLabel)
 	blockNum := blockInfo.NumberU64()
 	// safe should be the last chainlock (every 5 blocks)
 	lookback := blockNum - (blockNum % 5)
+	if lookback < 5 {
+		lookback = 5
+	}
 	// finalized should be previous chainlock
 	if label == eth.Finalized {
 		lookback -= 5
@@ -269,22 +275,7 @@ func (s *EthClient) PayloadByNumber(ctx context.Context, number uint64) (*eth.Ex
 }
 
 func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*eth.ExecutionPayload, error) {
-	// SYSCOIN lookback for finality
-	if label == eth.Unsafe {
-		return s.payloadCall(ctx, "eth_getBlockByNumber", "latest")
-	}
-	blockInfo, err := s.headerCall(ctx, "eth_getBlockByNumber", "latest")
-	if err != nil {
-		return nil, err
-	}
-	blockNum := blockInfo.NumberU64()
-	// safe should be the last chainlock (every 5 blocks)
-	lookback := blockNum - (blockNum % 5)
-	// finalized should be previous chainlock
-	if label == eth.Finalized {
-		lookback -= 5
-	}
-	return s.payloadCall(ctx, "eth_getBlockByNumber", hexutil.EncodeUint64(lookback))
+	return s.payloadCall(ctx, "eth_getBlockByNumber", string(label))
 }
 
 // FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
