@@ -88,7 +88,7 @@ var (
 		EnvVar:   prefixEnvVar("L1_EPOCH_POLL_INTERVAL"),
 		Required: false,
 		// SYSCOIN
-		Value:    time.Second * 5 * 150,
+		Value:    time.Second * 60,
 	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
