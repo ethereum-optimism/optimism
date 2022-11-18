@@ -169,7 +169,7 @@ func (m *SimpleTxManager) Send(
 		// Sign and publish transaction with current gas price.
 		err = sendTx(ctxc, tx)
 		sendState.ProcessSendError(err)
-		if err != nil {
+		if err != nil && !strings.Contains(err.Error(), "already known") {
 			if err == context.Canceled ||
 				strings.Contains(err.Error(), "context canceled") {
 				return
