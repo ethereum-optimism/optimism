@@ -1,7 +1,8 @@
 module.exports = {
   skipFiles: [
     './test-libraries',
-    './foundry-tests'
+    './foundry-tests',
+    './testing'
   ],
   mocha: {
     grep: "@skip-on-coverage",
