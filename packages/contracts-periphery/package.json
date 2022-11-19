@@ -19,7 +19,7 @@
     "test": "yarn test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:forge": "forge test",
-    "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage && istanbul check-coverage --statements 90 --branches 84 --functions 88 --lines 90",
+    "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage && istanbul check-coverage --statements 90 --branches 82 --functions 88 --lines 90",
     "test:slither": "slither .",
     "gas-snapshot": "forge snapshot",
     "pretest:slither": "rm -f @openzeppelin && rm -f hardhat && ln -s node_modules/@openzeppelin @openzeppelin && ln -s ../../node_modules/hardhat hardhat",
