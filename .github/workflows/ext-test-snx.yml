@@ -65,7 +65,7 @@ jobs:
         run: ./scripts/wait-for-sequencer.sh
 
       - name: Run the SNX test suite
-        working-directory: ./integration-tests
+        working-directory: ./packages/integration-tests
         run: ./ext-test/snx.sh
 
       - name: Collect docker logs on failure

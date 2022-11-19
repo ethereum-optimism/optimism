@@ -20,7 +20,7 @@ M-l2geth:
   - any: ['l2geth/**/*']
 
 M-integration:
-  - any: ['integration-tests/**/*']
+  - any: ['packages/integration-tests/**/*']
 
 M-batch-submitter:
   - any: ['packages/batch-submitter/**/*']

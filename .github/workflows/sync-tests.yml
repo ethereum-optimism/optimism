@@ -51,7 +51,7 @@ jobs:
         run: docker-compose up -d && ./scripts/wait-for-sequencer.sh
 
       - name: Run the sync tests
-        working-directory: ./integration-tests
+        working-directory: ./packages/integration-tests
         run: |
           yarn --frozen-lockfile
           yarn build

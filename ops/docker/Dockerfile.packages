@@ -48,12 +48,11 @@ COPY packages/message-relayer/package.json ./packages/message-relayer/package.js
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
-COPY integration-tests/package.json ./integration-tests/package.json
+COPY packages/integration-tests/package.json ./packages/integration-tests/package.json
 
 RUN yarn install --frozen-lockfile && yarn cache clean
 
 COPY ./packages ./packages
-COPY ./integration-tests ./integration-tests
 
 # build it!
 RUN yarn build
@@ -85,8 +84,8 @@ CMD ["node", "dist/src/services/run.js"]
 
 
 FROM base as integration-tests
-WORKDIR /opt/optimism/integration-tests
-COPY ./ops/scripts/integration-tests.sh ./
+WORKDIR /opt/optimism/packages/integration-tests
+COPY ./ops/scripts/integration-tests.sh .
 CMD ["yarn", "test:integration"]
 
 

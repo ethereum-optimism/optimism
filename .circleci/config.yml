@@ -374,7 +374,7 @@ jobs:
       - run:
           name: Check integration-tests
           command: npx depcheck
-          working_directory: integration-tests
+          working_directory: packages/integration-tests
 
   go-lint:
     parameters:
@@ -624,7 +624,7 @@ jobs:
       - run:
           name: Run integration tests
           command: |
-            circleci tests glob "../integration-tests/test/*.spec.ts" | circleci tests split | tee splits.txt
+            circleci tests glob "../packages/integration-tests/test/*.spec.ts" | circleci tests split | tee splits.txt
             docker-compose run integration_tests $(cat splits.txt)
           working_directory: ops
       - run:

@@ -10,7 +10,6 @@
       "bss-core",
       "gas-oracle",
       "indexer",
-      "integration-tests",
       "l2geth-exporter",
       "l2geth",
       "ops/docker/rpc-proxy",

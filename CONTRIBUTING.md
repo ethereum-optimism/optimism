@@ -191,7 +191,7 @@ Follow above instructions for building the whole stack.
 Build and run the integration tests:
 
 ```bash
-cd integration-tests
+cd packages/integration-tests
 yarn build
 yarn test:integration
 ```
