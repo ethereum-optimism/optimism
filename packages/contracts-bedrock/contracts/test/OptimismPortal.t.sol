@@ -371,6 +371,27 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
     }
 
+    // Test: proveWithdrawalTransaction reverts if the passed transaction's withdrawalHash has
+    // already been proven.
+    function test_proveWithdrawalTransaction_replayProve_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        vm.expectRevert("OptimismPortal: withdrawalHash has already been proven");
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
     // Test: proveWithdrawalTransaction succeeds and emits the WithdrawalProven event.
     function test_proveWithdrawalTransaction_validWithdrawalProof_success() external {
         vm.expectEmit(true, true, true, true);

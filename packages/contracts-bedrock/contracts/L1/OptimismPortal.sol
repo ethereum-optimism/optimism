@@ -189,6 +189,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // and to prevent replay attacks.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
+        // Ensure that the withdrawalHash has not already been proven to prevent a malicious party
+        // from censoring the withdrawal.
+        require(
+            provenWithdrawals[withdrawalHash].timestamp == 0,
+            "OptimismPortal: withdrawalHash has already been proven"
+        );
+
         // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract on
         //  L2. If this is true, then we know that this withdrawal was actually triggered on L2
         // and can therefore be relayed on L1.
@@ -202,9 +209,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         );
 
         // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`,
-        // and `l2BlockNumber` in the `provenWithdrawals` mapping. A certain withdrawal
-        // can be proved multiple times and thus overwrite a previously stored `ProvenWithdrawal`,
-        // but this is safe due to the replay check in `finalizeWithdrawalTransaction`.
+        // and `l2BlockNumber` in the `provenWithdrawals` mapping. A withdrawalHash can only
+        // be proven one time to prevent a censorship attack.
         provenWithdrawals[withdrawalHash] = ProvenWithdrawal({
             outputRoot: outputRoot,
             timestamp: uint128(block.timestamp),
