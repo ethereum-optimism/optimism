@@ -50,7 +50,7 @@ const maxUnsafePayloadsMemory = 500 * 1024 * 1024
 // and new finalization events happen at most 4 epochs behind the head.
 // And then we add 1 to make pruning easier by leaving room for a new item without pruning the 32*4.
 // SYSCOIN
-const finalityLookback = 10 + 1
+const finalityLookback = 20 + 1
 
 type FinalityData struct {
 	// The last L2 block that was fully derived and inserted into the L2 engine while processing this L1 block.
@@ -239,16 +239,46 @@ func (eq *EngineQueue) tryFinalizeL2() {
 // to finalize it once the L1 block, or later, finalizes.
 func (eq *EngineQueue) postProcessSafeL2() {
 	// prune finality data if necessary
-	if len(eq.finalityData) >= finalityLookback {
-		eq.finalityData = append(eq.finalityData[:0], eq.finalityData[1:finalityLookback]...)
+	if len(eq.finalityData) > finalityLookback {
+		numPrune := len(eq.finalityData) - finalityLookback
+		eq.finalityData = eq.finalityData[numPrune:]
 	}
+	L1OriginNumber := eq.origin.Number
+	currentOrigin := eq.origin
 	// remember the last L2 block that we fully derived from the given finality data
-	if len(eq.finalityData) == 0 || eq.finalityData[len(eq.finalityData)-1].L1Block.Number < eq.origin.Number {
-		// append entry for new L1 block
-		eq.finalityData = append(eq.finalityData, FinalityData{
-			L2Block: eq.safeHead,
-			L1Block: eq.origin.ID(),
-		})
+	L1BlockNumber := uint64(0)
+	if len(eq.finalityData) > 0 {
+		L1BlockNumber = eq.finalityData[len(eq.finalityData)-1].L1Block.Number
+	}
+	if L1BlockNumber < L1OriginNumber {
+		numBlocks := L1OriginNumber-L1BlockNumber
+		if numBlocks > finalityLookback {
+			numBlocks = finalityLookback
+		}
+		origins := make([]eth.BlockID, numBlocks)
+		for i := 0; i < int(numBlocks); i++ {
+			if currentOrigin.ParentHash == (common.Hash{}) {
+				break
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+			defer cancel()
+			prevorigin, err := eq.l1Fetcher.L1BlockRefByHash(ctx, currentOrigin.ParentHash)
+			if err != nil {
+				eq.log.Warn("postProcessSafeL2", "failed to fetch L1 parent block", currentOrigin.ParentHash)
+				break
+			}
+			origins[i] = currentOrigin.ID()
+			currentOrigin = prevorigin
+		}
+		for i := len(origins)-1; i >= 0; i-- {
+			origin := origins[i]
+			// append entry for new L1 block
+			eq.finalityData = append(eq.finalityData, FinalityData{
+				L2Block: eq.safeHead,
+				L1Block: origin,
+			})
+		}
+		L1BlockNumber = eq.finalityData[len(eq.finalityData)-1].L1Block.Number
 	} else {
 		// if it's a now L2 block that was derived from the same latest L1 block, then just update the entry
 		eq.finalityData[len(eq.finalityData)-1].L2Block = eq.safeHead

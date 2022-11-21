@@ -278,13 +278,13 @@ func (s *EthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel) (*
 	return s.payloadCall(ctx, "eth_getBlockByNumber", string(label))
 }
 
-// FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
+// SYSCOIN FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
 // It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
 // to ensure that the execution engine did not fail to return any receipts.
-func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, types.Transactions, error) {
 	info, txs, err := s.InfoAndTxsByHash(ctx, blockHash)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	// Try to reuse the receipts fetcher because is caches the results of intermediate calls. This means
 	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
@@ -305,15 +305,15 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 		if err := fetcher.Fetch(ctx); err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 	receipts, err := fetcher.Result()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return info, receipts, nil
+	return info, receipts, txs, nil
 }
 // SYSCOIN
 func (s *EthClient) GetBlobFromCloud(vh common.Hash) ([]byte, error) {
@@ -321,39 +321,6 @@ func (s *EthClient) GetBlobFromCloud(vh common.Hash) ([]byte, error) {
 }
 func (s *EthClient) GetBlobFromRPC(vh common.Hash) ([]byte, error) {
 	return s.syscoinClient.GetBlobFromRPC(vh)
-}
-// FetchReceipts returns a block info and all of the receipts associated with transactions in the block.
-// It verifies the receipt hash in the block header against the receipt hash of the fetched receipts
-// to ensure that the execution engine did not fail to return any receipts.
-func (s *EthClient) FetchReceiptsFromTxs(ctx context.Context, txs types.Transactions, info eth.BlockInfo, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
-	// Try to reuse the receipts fetcher because is caches the results of intermediate calls. This means
-	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
-	// The underlying fetcher uses the receipts hash to verify receipt integrity.
-	var fetcher eth.ReceiptsFetcher
-	if v, ok := s.receiptsBlobCache.Get(blockHash); ok {
-		fetcher = v.(eth.ReceiptsFetcher)
-	} else {
-		txHashes := make([]common.Hash, len(txs))
-		for i := 0; i < len(txs); i++ {
-			txHashes[i] = txs[i].Hash()
-		}
-		fetcher = NewReceiptsFetcher(eth.ToBlockID(info), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-		s.receiptsBlobCache.Add(blockHash, fetcher)
-	}
-	// Fetch all receipts
-	for {
-		if err := fetcher.Fetch(ctx); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, nil, err
-		}
-	}
-	receipts, err := fetcher.Result()
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return info, receipts, nil
 }
 
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {

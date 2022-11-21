@@ -95,10 +95,10 @@ func (m *MockEthClient) PayloadByLabel(ctx context.Context, label eth.BlockLabel
 func (m *MockEthClient) ExpectPayloadByLabel(label eth.BlockLabel, payload *eth.ExecutionPayload, err error) {
 	m.Mock.On("PayloadByLabel", label).Once().Return(payload, &err)
 }
-
-func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error) {
+// SYSCOIN
+func (m *MockEthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, types.Transactions, error) {
 	out := m.Mock.MethodCalled("FetchReceipts", blockHash)
-	return *out[0].(*eth.BlockInfo), out[1].(types.Receipts), *out[2].(*error)
+	return *out[0].(*eth.BlockInfo), out[1].(types.Receipts), out[1].(types.Transactions), *out[2].(*error)
 }
 
 func (m *MockEthClient) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo, receipts types.Receipts, err error) {

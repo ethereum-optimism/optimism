@@ -19,7 +19,7 @@ import (
 
 type L1BlockRefByNumberFetcher interface {
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
-	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
+	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, types.Transactions, error)
 }
 
 type L1Traversal struct {
@@ -70,8 +70,8 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.block, nextL1Origin, nextL1Origin.ParentID()))
 	}
 
-	// Parse L1 receipts of the given block and update the L1 system configuration
-	_, receipts, err := l1t.l1Blocks.FetchReceipts(ctx, nextL1Origin.Hash)
+	// SYSCOIN Parse L1 receipts of the given block and update the L1 system configuration
+	_, receipts, _, err := l1t.l1Blocks.FetchReceipts(ctx, nextL1Origin.Hash)
 	if err != nil {
 		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s for L1 sysCfg update: %w", origin, err))
 	}
