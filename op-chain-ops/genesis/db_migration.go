@@ -3,6 +3,7 @@ package genesis
 import (
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -108,7 +109,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		Number:      new(big.Int).Add(header.Number, common.Big1),
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
 		GasUsed:     0,
-		Time:        uint64(config.L2OutputOracleStartingTimestamp),
+		Time:        uint64(time.Now().Unix()),
 		Extra:       []byte("BEDROCK"),
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},

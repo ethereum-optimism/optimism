@@ -134,6 +134,12 @@ contract GasBenchMark_L2OutputOracle is L2OutputOracle_Initializer {
     }
 
     function test_proposeL2Output_benchmark() external {
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output(
+            nonZeroHash,
+            nextBlockNumber,
+            oracle.computeL2Timestamp(nextBlockNumber),
+            0,
+            0
+        );
     }
 }

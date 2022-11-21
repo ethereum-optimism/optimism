@@ -30,7 +30,6 @@ contract FreshSystemDictator is BaseSystemDictator {
             abi.encodeCall(
                 L2OutputOracle.initialize,
                 (
-                    config.l2OutputOracleConfig.l2OutputOracleGenesisL2Output,
                     config.l2OutputOracleConfig.l2OutputOracleProposer,
                     config.l2OutputOracleConfig.l2OutputOracleOwner
                 )

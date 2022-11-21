@@ -38,10 +38,8 @@ type DeployConfig struct {
 	BatchSenderAddress        common.Address `json:"batchSenderAddress"`
 
 	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
-	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
 	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
 	L2OutputOracleOwner              common.Address `json:"l2OutputOracleOwner"`
-	L2OutputOracleGenesisL2Output    common.Hash    `json:"l2OutputOracleGenesisL2Output"`
 
 	SystemConfigOwner common.Address `json:"systemConfigOwner"`
 
@@ -136,17 +134,11 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleSubmissionInterval == 0 {
 		return fmt.Errorf("%w: L2OutputOracleSubmissionInterval cannot be 0", ErrInvalidDeployConfig)
 	}
-	if d.L2OutputOracleStartingTimestamp == 0 {
-		log.Warn("L2OutputOracleStartingTimestamp is 0")
-	}
 	if d.L2OutputOracleProposer == (common.Address{}) {
 		return fmt.Errorf("%w: L2OutputOracleProposer cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L2OutputOracleOwner == (common.Address{}) {
 		return fmt.Errorf("%w: L2OutputOracleOwner cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L2OutputOracleGenesisL2Output == (common.Hash{}) {
-		log.Warn("L2OutputOracleGenesisL2Output is bytes32(0)")
 	}
 	if d.SystemConfigOwner == (common.Address{}) {
 		return fmt.Errorf("%w: SystemConfigOwner cannot be address(0)", ErrInvalidDeployConfig)

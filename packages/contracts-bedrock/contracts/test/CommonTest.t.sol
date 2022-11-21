@@ -118,20 +118,12 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the proposer
-        oracleImpl = new L2OutputOracle(
-            submissionInterval,
-            genesisL2Output,
-            startingBlockNumber,
-            startingTimestamp,
-            l2BlockTime,
-            proposer,
-            owner
-        );
+        oracleImpl = new L2OutputOracle(submissionInterval, l2BlockTime, proposer, owner);
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (genesisL2Output, proposer, owner))
+            abi.encodeCall(L2OutputOracle.initialize, (proposer, owner))
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -140,6 +132,10 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
 
         vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
+
+        // Propose the first output.
+        vm.prank(proposer);
+        oracle.proposeL2Output(genesisL2Output, startingBlockNumber, startingTimestamp, 0, 0);
     }
 }
 

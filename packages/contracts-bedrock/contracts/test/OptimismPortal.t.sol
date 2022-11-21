@@ -231,10 +231,11 @@ contract OptimismPortal_Test is Portal_Initializer {
 
     function test_isBlockFinalized_success() external {
         uint256 checkpoint = oracle.nextBlockNumber();
+        uint256 checkpointTimestamp = oracle.computeL2Timestamp(checkpoint);
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
         vm.prank(oracle.proposer());
-        oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
+        oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, checkpointTimestamp, 0, 0);
 
         // warp to the final second of the finalization period
         uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
@@ -307,9 +308,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     // Get the system into a nice ready-to-use state.
     function setUp() public override {
         // Configure the oracle to return the output root we've prepared.
+        uint256 proposedTimestamp = oracle.computeL2Timestamp(_proposedBlockNumber);
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
         vm.prank(oracle.proposer());
-        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, proposedTimestamp, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
@@ -459,10 +461,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Warp to after the finalization period
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
-        // Mock a STARTING_TIMESTAMP change on the L2 Oracle
+        // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSignature("STARTING_TIMESTAMP()"),
+            abi.encodeWithSignature("startingTimestamp()"),
             abi.encode(block.timestamp + 1)
         );
 

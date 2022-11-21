@@ -67,7 +67,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		BatchSenderAddress:  addresses.Batcher,
 
 		L2OutputOracleSubmissionInterval: 6,
-		L2OutputOracleStartingTimestamp:  -1,
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleOwner:              common.Address{}, // tbd
 
@@ -262,7 +261,6 @@ func ForkedDeployConfig(t require.TestingT, mnemonicCfg *MnemonicConfig, startBl
 		L1GenesisBlockDifficulty:         uint64ToBig(0),
 		L1GenesisBlockBaseFeePerGas:      uint64ToBig(0),
 		L2OutputOracleSubmissionInterval: 10,
-		L2OutputOracleStartingTimestamp:  int(startBlock.Time()),
 		L2OutputOracleProposer:           addrs.Proposer,
 		L2OutputOracleOwner:              addrs.Deployer,
 		L2GenesisBlockCoinbase:           common.HexToAddress("0x42000000000000000000000000000000000000f0"),

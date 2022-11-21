@@ -60,7 +60,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		BatchSenderAddress:        addresses.Batcher,
 
 		L2OutputOracleSubmissionInterval: 4,
-		L2OutputOracleStartingTimestamp:  -1,
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleOwner:              common.Address{}, // tbd
 

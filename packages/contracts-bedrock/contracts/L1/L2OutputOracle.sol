@@ -22,19 +22,19 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /**
+     * @notice The time between L2 blocks in seconds.
+     */
+    uint256 public immutable L2_BLOCK_TIME;
+
+    /**
      * @notice The number of the first L2 block recorded in this contract.
      */
-    uint256 public immutable STARTING_BLOCK_NUMBER;
+    uint256 public startingBlockNumber;
 
     /**
      * @notice The timestamp of the first L2 block recorded in this contract.
      */
-    uint256 public immutable STARTING_TIMESTAMP;
-
-    /**
-     * @notice The time between L2 blocks in seconds.
-     */
-    uint256 public immutable L2_BLOCK_TIME;
+    uint256 public startingTimestamp;
 
     /**
      * @notice The address of the proposer;
@@ -99,50 +99,30 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @custom:semver 0.0.1
      *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
-     * @param _genesisL2Output       The initial L2 output of the L2 chain.
-     * @param _startingBlockNumber   The number of the first L2 block.
-     * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _l2BlockTime           The time per L2 block, in seconds.
      * @param _proposer              The address of the proposer.
      * @param _owner                 The address of the owner.
      */
     constructor(
         uint256 _submissionInterval,
-        bytes32 _genesisL2Output,
-        uint256 _startingBlockNumber,
-        uint256 _startingTimestamp,
         uint256 _l2BlockTime,
         address _proposer,
         address _owner
     ) Semver(0, 0, 1) {
-        require(
-            _startingTimestamp <= block.timestamp,
-            "L2OutputOracle: starting L2 timestamp must be less than current time"
-        );
-
         SUBMISSION_INTERVAL = _submissionInterval;
-        STARTING_BLOCK_NUMBER = _startingBlockNumber;
-        STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        initialize(_genesisL2Output, _proposer, _owner);
+        initialize(_proposer, _owner);
     }
 
     /**
      * @notice Initializer.
      *
-     * @param _genesisL2Output     The initial L2 output of the L2 chain.
      * @param _proposer            The address of the proposer.
      * @param _owner               The address of the owner.
      */
-    function initialize(
-        bytes32 _genesisL2Output,
-        address _proposer,
-        address _owner
-    ) public initializer {
+    function initialize(address _proposer, address _owner) public initializer {
         require(_proposer != _owner, "L2OutputOracle: proposer cannot be the same as the owner");
-        l2Outputs[STARTING_BLOCK_NUMBER] = Types.OutputProposal(_genesisL2Output, block.timestamp);
-        latestBlockNumber = STARTING_BLOCK_NUMBER;
         __Ownable_init();
         changeProposer(_proposer);
         _transferOwnership(_owner);
@@ -182,33 +162,45 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *         timestamp must be equal to the current value returned by `nextTimestamp()` in order
      *         to be accepted. This function may only be called by the Proposer.
      *
-     * @param _outputRoot    The L2 output of the checkpoint block.
-     * @param _l2BlockNumber The L2 block number that resulted in _outputRoot.
-     * @param _l1Blockhash   A block hash which must be included in the current chain.
-     * @param _l1BlockNumber The block number with the specified block hash.
+     * @param _outputRoot       The L2 output of the checkpoint block.
+     * @param _l2BlockNumber    The L2 block number that resulted in _outputRoot.
+     * @param _l2BlockTimestamp Timestamp for the given L2 block.
+     * @param _l1BlockHash      A block hash which must be included in the current chain.
+     * @param _l1BlockNumber    The block number with the specified block hash.
      */
     function proposeL2Output(
         bytes32 _outputRoot,
         uint256 _l2BlockNumber,
-        bytes32 _l1Blockhash,
+        uint256 _l2BlockTimestamp,
+        bytes32 _l1BlockHash,
         uint256 _l1BlockNumber
     ) external payable onlyProposer {
-        require(
-            _l2BlockNumber == nextBlockNumber(),
-            "L2OutputOracle: block number must be equal to next expected block number"
-        );
+        if (startingBlockNumber == 0) {
+            startingBlockNumber = _l2BlockNumber;
+            startingTimestamp = _l2BlockTimestamp;
+        } else {
+            require(
+                _l2BlockNumber == nextBlockNumber(),
+                "L2OutputOracle: block number must be equal to next expected block number"
+            );
 
-        require(
-            computeL2Timestamp(_l2BlockNumber) < block.timestamp,
-            "L2OutputOracle: cannot propose L2 output in the future"
-        );
+            require(
+                _l2BlockTimestamp == computeL2Timestamp(_l2BlockNumber),
+                "L2OutputOracle: timestamp must be equal to next expected timestamp"
+            );
+
+            require(
+                _l2BlockTimestamp < block.timestamp,
+                "L2OutputOracle: cannot propose L2 output in the future"
+            );
+        }
 
         require(
             _outputRoot != bytes32(0),
             "L2OutputOracle: L2 output proposal cannot be the zero hash"
         );
 
-        if (_l1Blockhash != bytes32(0)) {
+        if (_l1BlockHash != bytes32(0)) {
             // This check allows the proposer to propose an output based on a given L1 block,
             // without fear that it will be reorged out.
             // It will also revert if the blockheight provided is more than 256 blocks behind the
@@ -218,7 +210,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             // blockhash value, and delay submission until it is confident that the L1 block is
             // finalized.
             require(
-                blockhash(_l1BlockNumber) == _l1Blockhash,
+                blockhash(_l1BlockNumber) == _l1BlockHash,
                 "L2OutputOracle: blockhash does not match the hash at the expected height"
             );
         }
@@ -234,7 +226,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *         L2 block number provided is between checkpoints, this function will rerutn the next
      *         proposal for the next checkpoint.
      *         Reverts if the output proposal is either not found, or predates
-     *         the STARTING_BLOCK_NUMBER.
+     *         the startingBlockNumber.
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      */
@@ -244,12 +236,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         returns (Types.OutputProposal memory)
     {
         require(
-            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
+            _l2BlockNumber >= startingBlockNumber,
             "L2OutputOracle: block number cannot be less than the starting block number."
         );
 
         // Find the distance between _l2BlockNumber, and the checkpoint block before it.
-        uint256 offset = (_l2BlockNumber - STARTING_BLOCK_NUMBER) % SUBMISSION_INTERVAL;
+        uint256 offset = (_l2BlockNumber - startingBlockNumber) % SUBMISSION_INTERVAL;
 
         // If the offset is zero, then the _l2BlockNumber should be checkpointed.
         // Otherwise, we'll look up the next block that will be checkpointed.
@@ -310,10 +302,10 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      */
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
         require(
-            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
+            _l2BlockNumber >= startingBlockNumber,
             "L2OutputOracle: block number must be greater than or equal to starting block number"
         );
 
-        return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
+        return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
     }
 }

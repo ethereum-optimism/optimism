@@ -232,11 +232,6 @@ const deployFn: DeployFunction = async (hre) => {
       // Check L2OutputOracle was initialized properly.
       await assertContractVariable(
         L2OutputOracle,
-        'latestBlockNumber',
-        hre.deployConfig.l2OutputOracleStartingBlockNumber
-      )
-      await assertContractVariable(
-        L2OutputOracle,
         'proposer',
         hre.deployConfig.l2OutputOracleProposer
       )
@@ -245,19 +240,6 @@ const deployFn: DeployFunction = async (hre) => {
         'owner',
         hre.deployConfig.l2OutputOracleOwner
       )
-      if (
-        hre.deployConfig.l2OutputOracleGenesisL2Output !==
-        ethers.constants.HashZero
-      ) {
-        const genesisOutput = await L2OutputOracle.getL2Output(
-          hre.deployConfig.l2OutputOracleStartingBlockNumber
-        )
-        assert(
-          genesisOutput.outputRoot ===
-            hre.deployConfig.l2OutputOracleGenesisL2Output,
-          `L2OutputOracle was not initialized with the correct genesis output root`
-        )
-      }
 
       // Check OptimismPortal was initialized properly.
       await assertContractVariable(

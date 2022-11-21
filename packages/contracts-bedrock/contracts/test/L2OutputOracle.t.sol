@@ -17,29 +17,14 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
-        assertEq(oracle.STARTING_BLOCK_NUMBER(), startingBlockNumber);
-        assertEq(oracle.STARTING_TIMESTAMP(), startingTimestamp);
+        assertEq(oracle.startingBlockNumber(), startingBlockNumber);
+        assertEq(oracle.startingTimestamp(), startingTimestamp);
         assertEq(oracle.proposer(), proposer);
         assertEq(oracle.owner(), owner);
 
         Types.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
         assertEq(proposal.outputRoot, genesisL2Output);
         assertEq(proposal.timestamp, initL1Time);
-    }
-
-    function testCannot_constructWithBadTimestamp() external {
-        vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
-
-        new L2OutputOracle(
-            submissionInterval,
-            genesisL2Output,
-            startingBlockNumber,
-            // startingTimestamp is in the future
-            block.timestamp + 1,
-            l2BlockTime,
-            proposer,
-            owner
-        );
     }
 
     /****************
@@ -49,20 +34,22 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     // Test: latestBlockNumber() should return the correct value
     function test_latestBlockNumber() external {
         uint256 proposedNumber = oracle.nextBlockNumber();
+        uint256 proposedTimestamp = oracle.computeL2Timestamp(proposedNumber);
 
         // Roll to after the block number we'll propose
         warpToProposeTime(proposedNumber);
         vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput1, proposedNumber, 0, 0);
+        oracle.proposeL2Output(proposedOutput1, proposedNumber, proposedTimestamp, 0, 0);
         assertEq(oracle.latestBlockNumber(), proposedNumber);
     }
 
     // Test: getL2Output() should return the correct value
     function test_getL2Output() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 ts = oracle.computeL2Timestamp(nextBlockNumber);
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput1, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output(proposedOutput1, nextBlockNumber, ts, 0, 0);
 
         Types.OutputProposal memory proposal = oracle.getL2Output(nextBlockNumber);
         assertEq(proposal.outputRoot, proposedOutput1);
@@ -181,9 +168,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         // Ensure the submissionInterval is enforced
         assertEq(nextBlockNumber, proposedNumber + submissionInterval);
 
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         vm.roll(nextBlockNumber + 1);
         vm.prank(proposer);
-        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output(proposedOutput2, nextBlockNumber, nextBlockTimestamp, 0, 0);
     }
 
     // Test: proposeL2Output succeeds when given valid input, and when a block hash and number are
@@ -194,9 +182,16 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 prevL1BlockHash = blockhash(prevL1BlockNumber);
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
+        oracle.proposeL2Output(
+            nonZeroHash,
+            nextBlockNumber,
+            nextBlockTimestamp,
+            prevL1BlockHash,
+            prevL1BlockNumber
+        );
     }
 
     /***************************
@@ -206,52 +201,57 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     // Test: proposeL2Output fails if called by a party that is not the proposer.
     function testCannot_proposeL2OutputIfNotProposer() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         warpToProposeTime(nextBlockNumber);
 
         vm.prank(address(128));
         vm.expectRevert("L2OutputOracle: function can only be called by proposer");
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, nextBlockTimestamp, 0, 0);
     }
 
     // Test: proposeL2Output fails given a zero blockhash.
     function testCannot_proposeEmptyOutput() external {
         bytes32 outputToPropose = bytes32(0);
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: L2 output proposal cannot be the zero hash");
-        oracle.proposeL2Output(outputToPropose, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output(outputToPropose, nextBlockNumber, nextBlockTimestamp, 0, 0);
     }
 
     // Test: proposeL2Output fails if the block number doesn't match the next expected number.
     function testCannot_proposeUnexpectedBlockNumber() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber - 1);
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: block number must be equal to next expected block number");
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber - 1, 0, 0);
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber - 1, nextTimestamp, 0, 0);
     }
 
     // Test: proposeL2Output fails if it would have a timestamp in the future.
     function testCannot_proposeFutureTimetamp() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
-        uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
-        vm.warp(nextTimestamp);
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
+        vm.warp(nextBlockTimestamp);
         vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: cannot propose L2 output in the future");
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, nextBlockTimestamp, 0, 0);
     }
 
     // Test: proposeL2Output fails if a non-existent L1 block hash and number are provided for reorg
     // protection.
     function testCannot_proposeOnWrongFork() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: blockhash does not match the hash at the expected height");
         oracle.proposeL2Output(
             nonZeroHash,
             nextBlockNumber,
+            nextBlockTimestamp,
             bytes32(uint256(0x01)),
             block.number - 1
         );
@@ -268,12 +268,19 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         bytes32 l1BlockHash = blockhash(l1BlockNumber);
 
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextBlockTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         warpToProposeTime(nextBlockNumber);
-        vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
+        vm.prank(proposer);
         vm.expectRevert("L2OutputOracle: blockhash does not match the hash at the expected height");
-        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
+        oracle.proposeL2Output(
+            nonZeroHash,
+            nextBlockNumber,
+            nextBlockTimestamp,
+            l1BlockHash,
+            l1BlockNumber - 1
+        );
     }
 
     /*****************************
@@ -365,26 +372,21 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
     function test_initValuesOnProxy() external {
         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-        assertEq(startingBlockNumber, oracleImpl.STARTING_BLOCK_NUMBER());
-        assertEq(startingTimestamp, oracleImpl.STARTING_TIMESTAMP());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
-
-        Types.OutputProposal memory initOutput = oracleImpl.getL2Output(startingBlockNumber);
-        assertEq(genesisL2Output, initOutput.outputRoot);
-        assertEq(initL1Time, initOutput.timestamp);
-
+        assertEq(0, oracleImpl.startingBlockNumber());
+        assertEq(0, oracleImpl.startingTimestamp());
         assertEq(proposer, oracleImpl.proposer());
         assertEq(owner, oracleImpl.owner());
     }
 
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(payable(proxy)).initialize(genesisL2Output, proposer, owner);
+        L2OutputOracle(payable(proxy)).initialize(proposer, owner);
     }
 
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(oracleImpl).initialize(genesisL2Output, proposer, owner);
+        L2OutputOracle(oracleImpl).initialize(proposer, owner);
     }
 
     function test_upgrading() external {

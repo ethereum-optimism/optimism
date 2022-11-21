@@ -199,6 +199,7 @@ func (d *Driver) CraftTx(ctx context.Context, start, end, nonce *big.Int) (*type
 		opts,
 		output.OutputRoot,
 		new(big.Int).SetUint64(output.BlockRef.Number),
+		new(big.Int).SetUint64(output.BlockRef.Time),
 		output.Status.CurrentL1.Hash,
 		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
 	if err != nil {

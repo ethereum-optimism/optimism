@@ -236,13 +236,24 @@ export class CrossChainMessenger {
       return this._l2OutputOracleParameters
     }
 
+    // Temporary support for existing Bedrock networks.
+    // TODO: Remove this once beta network is launched.
+    let startingBlockNumber: number
+    try {
+      startingBlockNumber = (
+        await this.contracts.l1.L2OutputOracle.STARTING_BLOCK_NUMBER()
+      ).toNumber()
+    } catch {
+      startingBlockNumber = (
+        await this.contracts.l1.L2OutputOracle.startingBlockNumber()
+      ).toNumber()
+    }
+
     this._l2OutputOracleParameters = {
       submissionInterval: (
         await this.contracts.l1.L2OutputOracle.SUBMISSION_INTERVAL()
       ).toNumber(),
-      startingBlockNumber: (
-        await this.contracts.l1.L2OutputOracle.STARTING_BLOCK_NUMBER()
-      ).toNumber(),
+      startingBlockNumber,
       l2BlockTime: (
         await this.contracts.l1.L2OutputOracle.L2_BLOCK_TIME()
       ).toNumber(),

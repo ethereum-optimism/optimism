@@ -59,7 +59,6 @@ contract BaseSystemDictator is Ownable {
      * @notice Set of implementation addresses.
      */
     struct L2OutputOracleConfig {
-        bytes32 l2OutputOracleGenesisL2Output;
         address l2OutputOracleProposer;
         address l2OutputOracleOwner;
     }

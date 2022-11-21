@@ -156,27 +156,6 @@ const config: HardhatUserConfig = {
     l2OutputOracleSubmissionInterval: {
       type: 'number',
     },
-    // bytes32 - The initial L2 output of the L2 chain.
-    l2OutputOracleGenesisL2Output: {
-      type: 'string',
-      default: ethers.constants.HashZero,
-    },
-    // uint256 - The number of the first L2 block.
-    l2OutputOracleStartingBlockNumber: {
-      type: 'number',
-      default: 0,
-    },
-    // Starting time stamp is optional, if it is configured with a negative
-    // the deploy config user needs to fall back to the timestamp
-    // of the L1 block that the rollup anchors at (genesis L1).
-    //
-    // Note that if you let it fall back to this L1 timestamp, then the L2
-    // must have a matching timestamp in the block at height l2OutputOracleStartingBlockNumber.
-    //
-    // uint256 - The timestamp of the first L2 block.
-    l2OutputOracleStartingTimestamp: {
-      type: 'number',
-    },
 
     // l2OutputOracleL2BlockTime:
     // Read from the global l2BlockTime
