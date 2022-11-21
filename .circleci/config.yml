@@ -100,10 +100,6 @@ jobs:
       docker_context:
         description: Docker build context
         type: string
-      target:
-        description: Docker build target
-        type: string
-        default: ""
       registry:
         description: Docker registry
         type: string
@@ -125,33 +121,16 @@ jobs:
       - run: cat /etc/netplan/50-cloud-init.yaml
       - run: sudo netplan apply
       - checkout
-      - when:
-          condition: <<parameters.target>>
-          steps:
-            - run:
-                name: Build with context
-                command: |
-                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-                  docker build \
-                  $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-                  -f <<parameters.docker_file>> \
-                  --target <<parameters.target>> \
-                  <<parameters.docker_context>>
-      - unless:
-          condition: <<parameters.target>>
-          steps:
-            - run:
-                name: Build
-                command: |
-                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-                  docker build \
-                  $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-                  -f <<parameters.docker_file>> \
-                  <<parameters.docker_context>>
+      - run:
+          name: Build
+          command: |
+            echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker build \
+            $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+            -f <<parameters.docker_file>> \
+            <<parameters.docker_context>>
       - run:
           name: Publish
           command: |
