@@ -12,6 +12,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8
+	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/holiman/uint256 v1.2.0
