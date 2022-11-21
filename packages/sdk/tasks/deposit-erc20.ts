@@ -4,11 +4,12 @@ import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
+import { Event, Contract, Wallet, providers, utils } from 'ethers'
 import {
   predeploys,
   getContractDefinition,
 } from '@eth-optimism/contracts-bedrock'
-import { Event, Contract, Wallet, providers, utils } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 
 import {
   CrossChainMessenger,
@@ -247,18 +248,35 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     await depositTx.wait()
     console.log(`ERC20 deposited - ${depositTx.hash}`)
 
-    const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
-    if (messageReceipt.receiptStatus !== 1) {
-      throw new Error('deposit failed')
-    }
+    // Deposit might get reorged, wait 10s and also log for reorgs.
+    let prevBlockNumber = 0
+    for (let i = 0; i < 10; i++) {
+      const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
+      if (messageReceipt.receiptStatus !== 1) {
+        throw new Error('deposit failed')
+      }
 
-    const l2Balance = await OptimismMintableERC20.balanceOf(address)
-    if (l2Balance.lt(utils.parseEther('1'))) {
-      throw new Error('bad deposit')
+      if (
+        i > 0 &&
+        messageReceipt.transactionReceipt.blockNumber !== prevBlockNumber
+      ) {
+        console.log(
+          `Block number changed from ${prevBlockNumber} to ${messageReceipt.transactionReceipt.blockNumber}`
+        )
+      }
+
+      prevBlockNumber = messageReceipt.transactionReceipt.blockNumber
+      await sleep(1000)
+
+      const l2Balance = await OptimismMintableERC20.balanceOf(address)
+      if (l2Balance.lt(utils.parseEther('1'))) {
+        throw new Error('bad deposit')
+      }
+
+      console.log(
+        `Deposit success - ${messageReceipt.transactionReceipt.transactionHash}`
+      )
     }
-    console.log(
-      `Deposit success - ${messageReceipt.transactionReceipt.transactionHash}`
-    )
 
     console.log('Starting withdrawal')
     const preBalance = await WETH9.balanceOf(signer.address)
