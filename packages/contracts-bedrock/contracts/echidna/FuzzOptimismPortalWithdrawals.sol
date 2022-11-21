@@ -9,7 +9,6 @@ contract EchidnaL2OutputOracle is L2OutputOracle {
     constructor(
         uint256 _submissionInterval,
         bytes32 _genesisL2Output,
-        uint256 _historicalTotalBlocks,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         uint256 _l2BlockTime
@@ -17,7 +16,6 @@ contract EchidnaL2OutputOracle is L2OutputOracle {
         L2OutputOracle(
             _submissionInterval,
             _genesisL2Output,
-            _historicalTotalBlocks,
             _startingBlockNumber,
             _startingTimestamp,
             _l2BlockTime,
@@ -55,7 +53,7 @@ contract FuzzOptimismPortalWithdrawals {
 
     constructor() {
         // seeding with the values from CommonTest.t.sol
-        oracle = new EchidnaL2OutputOracle(1800, keccak256(abi.encode(0)), 199, 200, 1000, 2);
+        oracle = new EchidnaL2OutputOracle(1800, keccak256(abi.encode(0)), 200, 1000, 2);
         portal = new OptimismPortal(oracle, 7 days);
     }
 
