@@ -227,7 +227,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            forge snapshot --check
+            yarn gas-snapshot --check
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
