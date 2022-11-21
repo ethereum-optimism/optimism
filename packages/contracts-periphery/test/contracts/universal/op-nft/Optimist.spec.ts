@@ -23,7 +23,9 @@ describe('Optimist', () => {
     AttestationStation.connect(signer1).attest([
       {
         about: Optimist.address,
-        key: ethers.utils.keccak256(ethers.utils.toUtf8Bytes('opnft.optimistNftBaseURI')),
+        key: ethers.utils.keccak256(
+          ethers.utils.toUtf8Bytes('opnft.optimistNftBaseURI')
+        ),
         val: ethers.utils.toUtf8Bytes('https://optimism.io/optimist/'),
       },
     ])
@@ -40,7 +42,9 @@ describe('Optimist', () => {
     expect(await Optimist.name()).to.equal('Optimist')
     expect(await Optimist.symbol()).to.equal('OPT')
     expect(await Optimist.owner()).to.equal(signer1.address)
-    expect(await Optimist.attestationStation()).to.equal(AttestationStation.address)
+    expect(await Optimist.attestationStation()).to.equal(
+      AttestationStation.address
+    )
   })
 
   // mint
@@ -87,10 +91,9 @@ describe('Optimist', () => {
     )
     await Optimist.connect(signer2).mint(signer2.address)
     expect(
-      await Optimist
-        .connect(signer2)
-        .tokenURI(signer2.address.padStart(24, '0a')))
-      .contains('https://optimism.io/optimist/')
+      await Optimist.connect(signer2).tokenURI(
+        signer2.address.padStart(24, '0a')
+      )
+    ).contains('https://optimism.io/optimist/')
   })
-
 })
