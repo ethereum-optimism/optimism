@@ -278,7 +278,6 @@ func (eq *EngineQueue) postProcessSafeL2() {
 				L1Block: origin,
 			})
 		}
-		L1BlockNumber = eq.finalityData[len(eq.finalityData)-1].L1Block.Number
 	} else {
 		// if it's a now L2 block that was derived from the same latest L1 block, then just update the entry
 		eq.finalityData[len(eq.finalityData)-1].L2Block = eq.safeHead
