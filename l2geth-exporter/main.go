@@ -33,7 +33,7 @@ func main() {
 	}
 	ctcAddress := os.Getenv("OVM_CTC_ADDRESS")
 	if ctcAddress == "" {
-		log.Error("CTC_ADDRESS environmental variable is required")
+		log.Error("OVM_CTC_ADDRESS environmental variable is required")
 		os.Exit(1)
 	}
 	sccAddress := os.Getenv("OVM_SCC_ADDRESS")
