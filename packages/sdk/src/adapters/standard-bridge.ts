@@ -190,6 +190,7 @@ export class StandardBridgeAdapter implements IBridgeAdapter {
         err.message.toString().includes('CALL_EXCEPTION') ||
         err.stack.toString().includes('execution reverted')
       ) {
+        console.log(err)
         return false
       } else {
         throw err
