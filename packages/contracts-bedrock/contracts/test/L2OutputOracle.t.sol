@@ -18,8 +18,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
-        assertEq(oracle.STARTING_BLOCK_NUMBER(), startingBlockNumber);
-        assertEq(oracle.STARTING_TIMESTAMP(), startingTimestamp);
+        assertEq(oracle.startingBlockNumber(), startingBlockNumber);
+        assertEq(oracle.startingTimestamp(), startingTimestamp);
         assertEq(oracle.proposer(), proposer);
         assertEq(oracle.owner(), owner);
 
@@ -33,11 +33,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         new L2OutputOracle(
             submissionInterval,
+            l2BlockTime,
             genesisL2Output,
             startingBlockNumber,
             // startingTimestamp is in the future
             block.timestamp + 1,
-            l2BlockTime,
             proposer,
             owner
         );
@@ -370,9 +370,9 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
     function test_initValuesOnProxy() external {
         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-        assertEq(startingBlockNumber, oracleImpl.STARTING_BLOCK_NUMBER());
-        assertEq(startingTimestamp, oracleImpl.STARTING_TIMESTAMP());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
+        assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
+        assertEq(startingTimestamp, oracleImpl.startingTimestamp());
 
         Types.OutputProposal memory initOutput = oracleImpl.getL2Output(startingBlockNumber);
         assertEq(genesisL2Output, initOutput.outputRoot);
@@ -384,12 +384,24 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(payable(proxy)).initialize(genesisL2Output, proposer, owner);
+        L2OutputOracle(payable(proxy)).initialize(
+            genesisL2Output,
+            startingBlockNumber,
+            startingTimestamp,
+            proposer,
+            owner
+        );
     }
 
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        L2OutputOracle(oracleImpl).initialize(genesisL2Output, proposer, owner);
+        L2OutputOracle(oracleImpl).initialize(
+            genesisL2Output,
+            startingBlockNumber,
+            startingTimestamp,
+            proposer,
+            owner
+        );
     }
 
     function test_upgrading() external {

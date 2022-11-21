@@ -251,7 +251,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Ensure that the proven withdrawal's timestamp is greater than the
         // L2 Oracle's starting timestamp.
         require(
-            provenWithdrawal.timestamp >= L2_ORACLE.STARTING_TIMESTAMP(),
+            provenWithdrawal.timestamp >= L2_ORACLE.startingTimestamp(),
             "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
         );
 

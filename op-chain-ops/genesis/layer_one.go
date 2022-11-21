@@ -103,6 +103,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	data, err = l2ooABI.Pack(
 		"initialize",
 		config.L2OutputOracleGenesisL2Output,
+		big.NewInt(0),
+		uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 		config.L2OutputOracleProposer,
 		config.L2OutputOracleOwner,
 	)
@@ -275,10 +277,10 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: "L2OutputOracle",
 			Args: []interface{}{
 				uint642Big(config.L2OutputOracleSubmissionInterval),
+				uint642Big(config.L2BlockTime),
 				[32]byte(config.L2OutputOracleGenesisL2Output),
 				big.NewInt(0),
 				uint642Big(uint64(config.L1GenesisBlockTimestamp)),
-				uint642Big(config.L2BlockTime),
 				config.L2OutputOracleProposer,
 				config.L2OutputOracleOwner,
 			},
@@ -337,8 +339,8 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			opts,
 			backend,
 			deployment.Args[0].(*big.Int),
-			deployment.Args[1].([32]byte),
-			deployment.Args[2].(*big.Int),
+			deployment.Args[1].(*big.Int),
+			deployment.Args[2].([32]byte),
 			deployment.Args[3].(*big.Int),
 			deployment.Args[4].(*big.Int),
 			deployment.Args[5].(common.Address),
