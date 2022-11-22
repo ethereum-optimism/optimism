@@ -23,12 +23,13 @@ contract FuzzResourceMetering is ResourceMetering {
      *         the underlying resource metering/gas market logic
      */
     function testBurn(uint256 _gasToBurn, bool _raiseBaseFee) public {
+        // Part 1: we cache the current param values and do some basic checks on them.
         uint256 cachedPrevBaseFee = uint256(params.prevBaseFee);
         uint256 cachedPrevBoughtGas = uint256(params.prevBoughtGas);
         uint256 cachedPrevBlockNum = uint256(params.prevBlockNum);
         uint256 maxBasefeeChange = cachedPrevBaseFee / uint256(BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
-        // check that the last block's base fee hadn't dropped below the minimum
+        // check that the last block's base fee hasn't dropped below the minimum
         if (cachedPrevBaseFee < uint256(MINIMUM_BASE_FEE)) {
             failedNeverBelowMinBasefee = true;
         }
@@ -36,6 +37,24 @@ contract FuzzResourceMetering is ResourceMetering {
         if (cachedPrevBoughtGas > uint256(MAX_RESOURCE_LIMIT)) {
             failedMaxGasPerBlock = true;
         }
+
+        // Part2: we perform the gas burn
+
+        // force the gasToBurn into the correct range based on whether we intend to
+        // raise or lower the basefee after this block, respectively
+        uint256 gasToBurn;
+        if (_raiseBaseFee) {
+            gasToBurn =
+                (_gasToBurn % (uint256(MAX_RESOURCE_LIMIT) - uint256(TARGET_RESOURCE_LIMIT))) +
+                uint256(TARGET_RESOURCE_LIMIT);
+        } else {
+            gasToBurn = _gasToBurn % uint256(TARGET_RESOURCE_LIMIT);
+        }
+
+        _burnInternal(uint64(gasToBurn));
+
+        // Part 3: we run checks and modify our invariant flags based on the updated params values
+
         // if the last block used more than the target amount of gas (and there were no
         // empty blocks in between), ensure this block's basefee increased, but not by
         // more than the max amount per block
@@ -57,27 +76,14 @@ contract FuzzResourceMetering is ResourceMetering {
         ) {
             failedLowerBasefee =
                 failedLowerBasefee ||
-                (uint256(params.prevBaseFee) >= cachedPrevBaseFee);
+                (uint256(params.prevBaseFee) > cachedPrevBaseFee);
             // TODO: account for empty blocks
-            if (params.prevBlockNum - cachedPrevBaseFee == 1) {
+            if (params.prevBlockNum - cachedPrevBlockNum == 1) {
                 failedMaxLowerBasefeePerBlock =
                     failedMaxLowerBasefeePerBlock ||
                     ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBasefeeChange);
             }
         }
-
-        // force the gasToBurn into the correct range based on whether we intend to
-        // raise or lower the basefee after this block, respectively
-        uint256 gasToBurn;
-        if (_raiseBaseFee) {
-            gasToBurn =
-                (_gasToBurn % (uint256(MAX_RESOURCE_LIMIT) - uint256(TARGET_RESOURCE_LIMIT))) +
-                uint256(TARGET_RESOURCE_LIMIT);
-        } else {
-            gasToBurn = _gasToBurn % uint256(TARGET_RESOURCE_LIMIT);
-        }
-
-        _burnInternal(uint64(gasToBurn));
     }
 
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) {}
