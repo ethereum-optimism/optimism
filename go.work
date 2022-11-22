@@ -22,7 +22,7 @@ use (
 	./packages/contracts-bedrock/test-case-generator
 )
 
-replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221205191237-0678a130d790
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221215174217-c69b1f12761e
 
 // For local debugging:
 //replace github.com/ethereum/go-ethereum v1.10.26 => ../go-ethereum
