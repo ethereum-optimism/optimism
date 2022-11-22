@@ -248,21 +248,21 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     await depositTx.wait()
     console.log(`ERC20 deposited - ${depositTx.hash}`)
 
-    // Deposit might get reorged, wait 10s and also log for reorgs.
+    // Deposit might get reorged, wait 30s and also log for reorgs.
     let prevBlockHash: string = ''
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 30; i++) {
       const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
       if (messageReceipt.receiptStatus !== 1) {
         throw new Error('deposit failed')
       }
 
-      if (
-        i > 0 &&
-        messageReceipt.transactionReceipt.blockHash !== prevBlockHash
-      ) {
+      if (messageReceipt.transactionReceipt.blockHash !== prevBlockHash) {
         console.log(
-          `Block number changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
+          `Block hash changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
         )
+
+        // Wait for stability, we want at least 30 seconds after any reorg
+        i = 0
       }
 
       prevBlockHash = messageReceipt.transactionReceipt.blockHash
