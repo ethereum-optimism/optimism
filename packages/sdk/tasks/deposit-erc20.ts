@@ -4,11 +4,12 @@ import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
+import { Event, Contract, Wallet, providers, utils } from 'ethers'
 import {
   predeploys,
   getContractDefinition,
 } from '@eth-optimism/contracts-bedrock'
-import { Event, Contract, Wallet, providers, utils } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 
 import {
   CrossChainMessenger,
@@ -247,18 +248,32 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     await depositTx.wait()
     console.log(`ERC20 deposited - ${depositTx.hash}`)
 
-    const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
-    if (messageReceipt.receiptStatus !== 1) {
-      throw new Error('deposit failed')
+    // Deposit might get reorged, wait 30s and also log for reorgs.
+    let prevBlockHash: string = ''
+    for (let i = 0; i < 30; i++) {
+      const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
+      if (messageReceipt.receiptStatus !== 1) {
+        throw new Error('deposit failed')
+      }
+
+      if (messageReceipt.transactionReceipt.blockHash !== prevBlockHash) {
+        console.log(
+          `Block hash changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
+        )
+
+        // Wait for stability, we want at least 30 seconds after any reorg
+        i = 0
+      }
+
+      prevBlockHash = messageReceipt.transactionReceipt.blockHash
+      await sleep(1000)
     }
 
     const l2Balance = await OptimismMintableERC20.balanceOf(address)
     if (l2Balance.lt(utils.parseEther('1'))) {
       throw new Error('bad deposit')
     }
-    console.log(
-      `Deposit success - ${messageReceipt.transactionReceipt.transactionHash}`
-    )
+    console.log(`Deposit success`)
 
     console.log('Starting withdrawal')
     const preBalance = await WETH9.balanceOf(signer.address)

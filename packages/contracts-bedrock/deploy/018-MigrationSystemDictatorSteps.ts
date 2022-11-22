@@ -17,9 +17,24 @@ const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
   let isLiveDeployer = false
-  if (hre.deployConfig.controller === deployer) {
-    console.log('using a live deployer')
-    isLiveDeployer = true
+  let controller = hre.deployConfig.controller
+  if (controller === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A controller address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      console.log('using a live deployer')
+      isLiveDeployer = true
+      controller = deployer
+    } else {
+      throw new Error(
+        `controller address MUST NOT be the deployer on live networks`
+      )
+    }
   }
 
   // Set up required contract references.
@@ -116,6 +131,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Transfer ownership of the L1CrossDomainMessenger to MigrationSystemDictator.
   if (
+    (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) !==
+      ethers.constants.AddressZero &&
     (await L1CrossDomainMessenger.owner()) !== MigrationSystemDictator.address
   ) {
     if (isLiveDeployer) {
@@ -279,7 +296,7 @@ const deployFn: DeployFunction = async (hre) => {
         `OptimismPortal was not initialized with the correct initial block number`
       )
       assert(
-        (await hre.ethers.provider.getBalance(OptimismPortal.address)).gt(0)
+        (await hre.ethers.provider.getBalance(L1StandardBridge.address)).eq(0)
       )
 
       // Check L1CrossDomainMessenger was initialized properly.
@@ -375,6 +392,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['MigrationSystemDictatorSteps', 'migration']
+deployFn.tags = ['MigrationSystemDictatorSteps']
 
 export default deployFn
