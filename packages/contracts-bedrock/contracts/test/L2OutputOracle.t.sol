@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { stdError } from "forge-std/Test.sol";
 import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { Proxy } from "../universal/Proxy.sol";
@@ -74,13 +75,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(proposal.timestamp, block.timestamp);
 
         // The block number is too low:
-        vm.expectRevert(
-            "L2OutputOracle: block number cannot be less than the starting block number."
-        );
+        vm.expectRevert(stdError.arithmeticError);
         oracle.getL2Output(0);
 
         // The block number is larger than the latest proposed output:
-        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        vm.expectRevert("L2OutputOracle: no output found for the given block number");
         oracle.getL2Output(nextBlockNumber + 1);
     }
 
@@ -95,9 +94,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     function test_computeL2Timestamp() external {
         // reverts if timestamp is too low
-        vm.expectRevert(
-            "L2OutputOracle: block number must be greater than or equal to starting block number"
-        );
+        vm.expectRevert(stdError.arithmeticError);
         oracle.computeL2Timestamp(startingBlockNumber - 1);
 
         // returns the correct value...

@@ -242,7 +242,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         // The checkpointed block should not be finalized until 1 second from now.
         assertEq(op.isBlockFinalized(checkpoint), false);
         // Nor should a block after it
-        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        vm.expectRevert("L2OutputOracle: no output found for the given block number");
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
         // Nor a block before it, even though the finalization period has passed, there is
         // not yet a checkpoint block on top of it for which that is true.
@@ -255,7 +255,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         // So should the block before it.
         assertEq(op.isBlockFinalized(checkpoint - 1), true);
         // But not the block after it.
-        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        vm.expectRevert("L2OutputOracle: no output found for the given block number");
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
     }
 }
