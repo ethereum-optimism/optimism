@@ -249,7 +249,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     console.log(`ERC20 deposited - ${depositTx.hash}`)
 
     // Deposit might get reorged, wait 10s and also log for reorgs.
-    let prevBlockNumber = 0
+    let prevBlockHash: string = ''
     for (let i = 0; i < 10; i++) {
       const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
       if (messageReceipt.receiptStatus !== 1) {
@@ -258,25 +258,22 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
 
       if (
         i > 0 &&
-        messageReceipt.transactionReceipt.blockNumber !== prevBlockNumber
+        messageReceipt.transactionReceipt.blockHash !== prevBlockHash
       ) {
         console.log(
-          `Block number changed from ${prevBlockNumber} to ${messageReceipt.transactionReceipt.blockNumber}`
+          `Block number changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
         )
       }
 
-      prevBlockNumber = messageReceipt.transactionReceipt.blockNumber
+      prevBlockHash = messageReceipt.transactionReceipt.blockHash
       await sleep(1000)
-
-      const l2Balance = await OptimismMintableERC20.balanceOf(address)
-      if (l2Balance.lt(utils.parseEther('1'))) {
-        throw new Error('bad deposit')
-      }
-
-      console.log(
-        `Deposit success - ${messageReceipt.transactionReceipt.transactionHash}`
-      )
     }
+
+    const l2Balance = await OptimismMintableERC20.balanceOf(address)
+    if (l2Balance.lt(utils.parseEther('1'))) {
+      throw new Error('bad deposit')
+    }
+    console.log(`Deposit success`)
 
     console.log('Starting withdrawal')
     const preBalance = await WETH9.balanceOf(signer.address)
