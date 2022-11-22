@@ -67,17 +67,11 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     );
 
     /**
-     * @notice Emitted when an output is deleted.
+     * @notice Emitted when outputs are deleted.
      *
-     * @param outputRoot    The output root.
-     * @param l1Timestamp   The L1 timestamp when proposed.
-     * @param l2BlockNumber The L2 block number of the output root.
+     * @param l2BlockNumber First L2 block number deleted.
      */
-    event OutputDeleted(
-        bytes32 indexed outputRoot,
-        uint256 indexed l1Timestamp,
-        uint256 indexed l2BlockNumber
-    );
+    event OutputsDeleted(uint256 indexed l2BlockNumber);
 
     /**
      * @notice Emitted when the proposer address is changed.
@@ -148,32 +142,35 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Deletes the most recent output. This is used to remove the most recent output in the
-     *         event that an erreneous output is submitted. It can only be called by the contract's
-     *         owner, not the proposer. Longer term, this should be replaced with a more robust
-     *         mechanism which will allow deletion of proposals shown to be invalid by a fault
-     *         proof.
+     * @notice Deletes all output proposals after and including the proposal that corresponds to
+     *         the given block number. Can only be called by the owner, but will be replaced with
+     *         a mechanism that allows a challenger contract to delete proposals.
      *
-     * @param _proposal Represents the output proposal to delete
+     * @param _l2BlockNumber L2 block number of the first output root to delete.
      */
     // solhint-disable-next-line ordering
-    function deleteL2Output(Types.OutputProposal memory _proposal) external onlyOwner {
-        Types.OutputProposal memory outputToDelete = l2Outputs[latestBlockNumber];
-
+    function deleteL2Outputs(uint256 _l2BlockNumber) external onlyOwner {
+        // Simple check that accomplishes two things:
+        //   1. Prevents deleting anything from before the genesis block.
+        //   2. Prevents deleting anything other than a checkpoint block.
         require(
-            _proposal.outputRoot == outputToDelete.outputRoot,
-            "L2OutputOracle: output root to delete does not match the latest output proposal"
+            l2Outputs[_l2BlockNumber].outputRoot != bytes32(0),
+            "L2OutputOracle: cannot delete a non-existent output"
         );
 
+        // Prevent deleting beyond latest block number. Above check will miss this case if we
+        // already deleted an output and then the user tries to delete a later output.
         require(
-            _proposal.timestamp == outputToDelete.timestamp,
-            "L2OutputOracle: timestamp to delete does not match the latest output proposal"
+            _l2BlockNumber <= latestBlockNumber,
+            "L2OutputOracle: cannot delete outputs after the latest block number"
         );
 
-        emit OutputDeleted(outputToDelete.outputRoot, outputToDelete.timestamp, latestBlockNumber);
+        // We're setting the latest block number back to the checkpoint block before the given L2
+        // block number. Next proposal will overwrite the deleted output and following proposals
+        // will delete any outputs after that.
+        latestBlockNumber = _l2BlockNumber - SUBMISSION_INTERVAL;
 
-        delete l2Outputs[latestBlockNumber];
-        latestBlockNumber = latestBlockNumber - SUBMISSION_INTERVAL;
+        emit OutputsDeleted(_l2BlockNumber);
     }
 
     /**
@@ -242,6 +239,11 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         view
         returns (Types.OutputProposal memory)
     {
+        require(
+            _l2BlockNumber <= latestBlockNumber,
+            "L2OutputOracle: block number cannot be greater than the latest block number"
+        );
+
         // Find the distance between _l2BlockNumber, and the checkpoint block before it.
         uint256 offset = (_l2BlockNumber - STARTING_BLOCK_NUMBER) % SUBMISSION_INTERVAL;
 
