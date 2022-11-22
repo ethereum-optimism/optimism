@@ -1,4 +1,3 @@
-import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import {
@@ -8,18 +7,10 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  let L1StandardBridgeProxy: ethers.Contract
-  try {
-    L1StandardBridgeProxy = await getContractFromArtifact(
-      hre,
-      'Proxy__OVM_L1StandardBridge'
-    )
-  } catch (e) {
-    L1StandardBridgeProxy = await getContractFromArtifact(
-      hre,
-      'L1StandardBridgeProxy'
-    )
-  }
+  const L1StandardBridgeProxy = await getContractFromArtifact(
+    hre,
+    'Proxy__OVM_L1StandardBridge'
+  )
 
   await deployAndVerifyAndThen({
     hre,
@@ -35,6 +26,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['OptimismMintableERC20FactoryImpl', 'fresh', 'migration']
+deployFn.tags = ['OptimismMintableERC20FactoryImpl']
 
 export default deployFn

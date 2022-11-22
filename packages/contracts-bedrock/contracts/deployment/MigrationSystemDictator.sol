@@ -143,10 +143,6 @@ contract MigrationSystemDictator is BaseSystemDictator {
      * @notice Upgrades and initializes proxy contracts.
      */
     function step5() external onlyOwner step(5) {
-        // Pause the L1CrossDomainMessenger. Now we use the real pause() function because by the
-        // time we're done here we'll have access to the unpause() function.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
-
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l2OutputOracleProxy),
@@ -168,12 +164,33 @@ contract MigrationSystemDictator is BaseSystemDictator {
             abi.encodeCall(OptimismPortal.initialize, ())
         );
 
-        // Upgrade the L1CrossDomainMessenger. No initializer because this is
-        // already initialized.
+        // Upgrade the L1CrossDomainMessenger.
         config.globalConfig.proxyAdmin.upgrade(
             payable(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             address(config.implementationAddressConfig.l1CrossDomainMessengerImpl)
         );
+
+        // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
+        try
+            L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
+                .initialize(address(this))
+        {
+            // L1CrossDomainMessenger is the one annoying edge case difference between existing
+            // networks and fresh networks because in existing networks it'll already be
+            // initialized but in fresh networks it won't be. Try/catch is the easiest and most
+            // consistent way to handle this because initialized() is not exposed publicly.
+        } catch Error(string memory reason) {
+            require(
+                keccak256(abi.encodePacked(reason)) ==
+                    keccak256("Initializable: contract is already initialized"),
+                string.concat(
+                    "MigrationSystemDictator: unexpected error initializing L1XDM: ",
+                    reason
+                )
+            );
+        } catch {
+            revert("MigrationSystemDictator: unexpected error initializing L1XDM (no reason)");
+        }
 
         // Transfer ETH from the L1StandardBridge to the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
@@ -215,6 +232,9 @@ contract MigrationSystemDictator is BaseSystemDictator {
                 )
             )
         );
+
+        // Pause the L1CrossDomainMessenger, chance to check that everything is OK.
+        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
     }
 
     /**
