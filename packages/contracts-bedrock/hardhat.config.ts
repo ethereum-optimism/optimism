@@ -38,6 +38,7 @@ const config: HardhatUserConfig = {
       chainId: Number(process.env.CHAIN_ID),
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: process.env.VERIFY_CONTRACTS === 'true',
     },
     'mainnet-forked': {
       chainId: 1,
