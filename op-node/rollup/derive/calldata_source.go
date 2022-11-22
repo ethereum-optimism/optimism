@@ -142,12 +142,16 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 					log.Warn("DataFromEVMTransactions", "failed to fetch L1 block info and receipts", err)
 					return nil
 				}
+				// check data is valid locally
+				vhData := common.BytesToHash(data)
+				if vh != vhData {
+					log.Warn("DataFromEVMTransactions", "blob data hash mismatch", "want", vh, "have", vhData)
+					return nil
+				}
 				log.Warn("GetBlobFromCloud", "len", len(data), "vh", vh)
 			} else {
 				log.Warn("GetBlobFromRPC", "len", len(data), "vh", vh)
 			}
-			// strip kzg commitment overhead, the rest of the payload should be the tx data we care about
-			data = data[48:]
 			out = append(out, data)
 		}
 	}
