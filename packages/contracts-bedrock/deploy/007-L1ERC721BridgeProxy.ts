@@ -10,7 +10,7 @@ const deployFn: DeployFunction = async (hre) => {
   const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
   await deployAndVerifyAndThen({
     hre,
-    name: 'L1StandardBridgeProxy',
+    name: 'L1ERC721BridgeProxy',
     contract: 'Proxy',
     args: [proxyAdmin],
     postDeployAction: async (contract) => {
@@ -19,6 +19,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1StandardBridgeProxy', 'fresh']
+deployFn.tags = ['L1ERC721BridgeProxy']
 
 export default deployFn

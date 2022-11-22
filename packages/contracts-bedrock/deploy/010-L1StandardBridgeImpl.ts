@@ -1,4 +1,3 @@
-import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import { predeploys } from '../src'
@@ -9,18 +8,10 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  let L1CrossDomainMessengerProxy: ethers.Contract
-  try {
-    L1CrossDomainMessengerProxy = await getContractFromArtifact(
-      hre,
-      'Proxy__OVM_L1CrossDomainMessenger'
-    )
-  } catch {
-    L1CrossDomainMessengerProxy = await getContractFromArtifact(
-      hre,
-      'L1CrossDomainMessengerProxy'
-    )
-  }
+  const L1CrossDomainMessengerProxy = await getContractFromArtifact(
+    hre,
+    'Proxy__OVM_L1CrossDomainMessenger'
+  )
 
   await deployAndVerifyAndThen({
     hre,
@@ -41,6 +32,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1StandardBridgeImpl', 'fresh', 'migration']
+deployFn.tags = ['L1StandardBridgeImpl']
 
 export default deployFn

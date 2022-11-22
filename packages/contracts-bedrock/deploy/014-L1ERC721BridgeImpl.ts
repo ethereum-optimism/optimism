@@ -1,5 +1,6 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
+import { predeploys } from '../src'
 import {
   assertContractVariable,
   deployAndVerifyAndThen,
@@ -7,24 +8,25 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const OptimismPortalProxy = await getContractFromArtifact(
+  const L1CrossDomainMessengerProxy = await getContractFromArtifact(
     hre,
-    'OptimismPortalProxy'
+    'Proxy__OVM_L1CrossDomainMessenger'
   )
+
   await deployAndVerifyAndThen({
     hre,
-    name: 'PortalSender',
-    args: [OptimismPortalProxy.address],
+    name: 'L1ERC721Bridge',
+    args: [L1CrossDomainMessengerProxy.address, predeploys.L2ERC721Bridge],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'PORTAL',
-        OptimismPortalProxy.address
+        'MESSENGER',
+        L1CrossDomainMessengerProxy.address
       )
     },
   })
 }
 
-deployFn.tags = ['PortalSenderImpl', 'fresh', 'migration']
+deployFn.tags = ['L1ERC721BridgeImpl']
 
 export default deployFn
