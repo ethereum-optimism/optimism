@@ -31,7 +31,6 @@ finalization.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-
 **Table of Contents**
 
 - [Withdrawal Flow](#withdrawal-flow)
@@ -66,16 +65,17 @@ This is a very simple contract that stores the a hash of the withdrawal data.
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
 2. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
    `getNextProposedOutput()` function, and performs the remainder of the verification process internally.
-3. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it from
-   from being re-proven. Note that the withdrawal can be proven more than once if the corresponding output root changes.
-4. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants to challenge
-   its integrity.
-5. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the `OptimismPortal` contract.
-   Again, the relayer need not be the same entity which initiated the withdrawal on L2.
-6. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has both been proven
-   and passed the challenge period.
-7. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it
-   from being replayed.
+3. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
+   prevent it from being re-proven. Note that the withdrawal can be proven more than once if the corresponding
+   output root changes.
+4. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
+   to challenge its integrity.
+5. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the
+   `OptimismPortal` contract. Again, the relayer need not be the same entity which initiated the withdrawal on L2.
+6. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
+   both been proven and passed the challenge period.
+7. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
+   prevent it from being replayed.
 
 ## The L2ToL1MessagePasser Contract
 
@@ -146,11 +146,11 @@ interface OptimismPortal {
         uint256 _l2BlockNumber,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
-    );
+    ) external;
 
     function finalizeWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx
-    )
+    ) external;
 }
 ```
 
@@ -166,7 +166,7 @@ The following inputs are required to prove and finalize a withdrawal:
   - `data`: Data to send to the target.
   - `gasLimit`: Gas to be forwarded to the target.
 - Proof and verification data:
-  - `l2BlockNumber`: The L2 block number corresponding with the output root.
+  - `l2BlockNumber`: The L2 block number that corresponds to the output root.
   - `outputRootProof`: Four `bytes32` values which are used to derive the output root.
   - `withdrawalProof`: An inclusion proof for the given withdrawal in the L2ToL1MessagePasser contract.
 
