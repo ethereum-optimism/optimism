@@ -222,10 +222,10 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             );
         }
 
+        emit OutputProposed(_outputRoot, block.timestamp, _l2BlockNumber);
+
         l2Outputs[_l2BlockNumber] = Types.OutputProposal(_outputRoot, block.timestamp);
         latestBlockNumber = _l2BlockNumber;
-
-        emit OutputProposed(_outputRoot, block.timestamp, _l2BlockNumber);
     }
 
     /**
@@ -242,11 +242,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         view
         returns (Types.OutputProposal memory)
     {
-        require(
-            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
-            "L2OutputOracle: block number cannot be less than the starting block number."
-        );
-
         // Find the distance between _l2BlockNumber, and the checkpoint block before it.
         uint256 offset = (_l2BlockNumber - STARTING_BLOCK_NUMBER) % SUBMISSION_INTERVAL;
 
@@ -259,23 +254,23 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         Types.OutputProposal memory output = l2Outputs[lookupBlockNumber];
         require(
             output.outputRoot != bytes32(0),
-            "L2OutputOracle: No output found for that block number."
+            "L2OutputOracle: no output found for the given block number"
         );
+
         return output;
     }
 
     /**
-     * @notice Transfers the proposer role to a new account (`newProposer`).
-     *         Can only be called by the current owner.
+     * @notice Allows the owner to change the proposer address.
+     *
+     * @param _proposer New proposer address.
      */
-    function changeProposer(address _newProposer) public onlyOwner {
-        require(
-            _newProposer != address(0),
-            "L2OutputOracle: new proposer cannot be the zero address"
-        );
+    function changeProposer(address _proposer) public onlyOwner {
+        require(_proposer != address(0), "L2OutputOracle: new proposer cannot be the zero address");
 
-        emit ProposerChanged(proposer, _newProposer);
-        proposer = _newProposer;
+        emit ProposerChanged(proposer, _proposer);
+
+        proposer = _proposer;
     }
 
     /**
@@ -293,11 +288,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _l2BlockNumber The L2 block number of the target block.
      */
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
-        require(
-            _l2BlockNumber >= STARTING_BLOCK_NUMBER,
-            "L2OutputOracle: block number must be greater than or equal to starting block number"
-        );
-
         return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
     }
 }
