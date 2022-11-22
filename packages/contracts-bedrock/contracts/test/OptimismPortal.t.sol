@@ -383,7 +383,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             _withdrawalProof
         );
 
-        vm.expectRevert("OptimismPortal: withdrawalHash has already been proven");
+        vm.expectRevert("OptimismPortal: withdrawal hash has already been proven");
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedBlockNumber,
