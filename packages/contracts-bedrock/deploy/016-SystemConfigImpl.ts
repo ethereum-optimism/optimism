@@ -11,6 +11,7 @@ const deployFn: DeployFunction = async (hre) => {
     hre.deployConfig.batchSenderAddress,
     32
   )
+
   await deployAndVerifyAndThen({
     hre,
     name: 'SystemConfig',
@@ -46,6 +47,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['SystemConfigImpl', 'fresh', 'migration']
+deployFn.tags = ['SystemConfigImpl']
 
 export default deployFn

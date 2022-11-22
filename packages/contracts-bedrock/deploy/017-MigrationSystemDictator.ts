@@ -73,6 +73,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['MigrationSystemDictator', 'migration']
+deployFn.tags = ['MigrationSystemDictator']
 
 export default deployFn
