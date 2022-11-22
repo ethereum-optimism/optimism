@@ -140,7 +140,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         address _proposer,
         address _owner
     ) public initializer {
-        require(_proposer != _owner, "L2OutputOracle: proposer cannot be the same as the owner");
         l2Outputs[STARTING_BLOCK_NUMBER] = Types.OutputProposal(_genesisL2Output, block.timestamp);
         latestBlockNumber = STARTING_BLOCK_NUMBER;
         __Ownable_init();
@@ -266,16 +265,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Overrides the standard implementation of transferOwnership
-     *         to add the requirement that the owner and proposer are distinct.
-     *         Can only be called by the current owner.
-     */
-    function transferOwnership(address _newOwner) public override onlyOwner {
-        require(_newOwner != proposer, "L2OutputOracle: owner cannot be the same as the proposer");
-        super.transferOwnership(_newOwner);
-    }
-
-    /**
      * @notice Transfers the proposer role to a new account (`newProposer`).
      *         Can only be called by the current owner.
      */
@@ -283,11 +272,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         require(
             _newProposer != address(0),
             "L2OutputOracle: new proposer cannot be the zero address"
-        );
-
-        require(
-            _newProposer != owner(),
-            "L2OutputOracle: proposer cannot be the same as the owner"
         );
 
         emit ProposerChanged(proposer, _newProposer);
