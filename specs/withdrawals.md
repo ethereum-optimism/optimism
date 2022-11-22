@@ -1,24 +1,24 @@
 # Withdrawals
 
 <!-- All glossary references in this file. -->
+
 [g-deposits]: glossary.md#deposits
 [g-deposited]: glossary.md#deposited-transaction
 [deposit-tx-type]: glossary.md#deposited-transaction-type
-
 [g-withdrawal]: glossary.md#withdrawal
 [g-mpt]: glossary.md#merkle-patricia-trie
 [g-relayer]: glossary.md#withdrawals
 [g-execution-engine]: glossary.md#execution-engine
 
 [Withdrawals][g-withdrawal] are cross domain transactions which are initiated on L2, and finalized by a transaction
-executed on L1. Notably, withdrawals may be used by and L2 account to call an L1 contract, or to transfer ETH from
+executed on L1. Notably, withdrawals may be used by an L2 account to call an L1 contract, or to transfer ETH from
 an L2 account to an L1 account.
 
-**Vocabulary note**: *withdrawal* can refer to the transaction at various stages of the process, but we introduce
+**Vocabulary note**: _withdrawal_ can refer to the transaction at various stages of the process, but we introduce
 more specific terms to differentiate:
 
-- A *withdrawal initiating transaction* refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
-- A *withdrawal finalizing transaction* refers specifically to an L1 transaction which finalizes and relays the
+- A _withdrawal initiating transaction_ refers specifically to a transaction on L2 sent to the Withdrawals predeploy.
+- A _withdrawal finalizing transaction_ refers specifically to an L1 transaction which finalizes and relays the
   withdrawal.
 
 Withdrawals are initiated on L2 via a call to the Message Passer predeploy contract, which records the important
@@ -31,6 +31,7 @@ finalization.
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
 **Table of Contents**
 
 - [Withdrawal Flow](#withdrawal-flow)
@@ -55,17 +56,25 @@ We first describe the end to end flow of initiating and finalizing a withdrawal:
 ### On L2
 
 An L2 account sends a withdrawal message (and possibly also ETH) to the `L2ToL1MessagePasser` predeploy contract.
-   This is a very simple contract that stores the a hash of the withdrawal data.
+This is a very simple contract that stores the a hash of the withdrawal data.
 
 ### On L1
 
 1. A [relayer][g-relayer] submits the required inputs to the `OptimismPortal` contract. The relayer need
    not be the same entity which initiated the withdrawal on L2.
-   These inputs include the withdrawal transaction data, inclusion proofs, and a timestamp. The timestamp
+   These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
-2. The `OptimismPortal` contract retrieves the output root for the given timestamp from the `OutputOracle`'s
-   `l2Outputs()` function, and performs the remainder of the verification process internally.
-3. If verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it from
+2. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
+   `getNextProposedOutput()` function, and performs the remainder of the verification process internally.
+3. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it from
+   from being re-proven. Note that the withdrawal can be proven more than once if the corresponding output root changes.
+4. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants to challenge
+   its integrity.
+5. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the `OptimismPortal` contract.
+   Again, the relayer need not be the same entity which initiated the withdrawal on L2.
+6. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has both been proven
+   and passed the challenge period.
+7. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to prevent it
    from being replayed.
 
 ## The L2ToL1MessagePasser Contract
@@ -113,7 +122,7 @@ of withdrawals, which do not modify the sender's address. The difference is that
 
 - on L2, the deposit sender's address is returned by the `CALLER` opcode, meaning a contract cannot easily tell if the
   call originated on L1 or L2, whereas
-- on L1, the withdrawal sender's address is accessed by calling the `l2Sender`() function on the `OptimismPortal`
+- on L1, the withdrawal sender's address is accessed by calling the `l2Sender()` function on the `OptimismPortal`
   contract.
 
 Calling `l2Sender()` removes any ambiguity about which domain the call originated from. Still, developers will need to
@@ -132,23 +141,22 @@ interface OptimismPortal {
 
     function l2Sender() returns(address) external;
 
+    function proveWithdrawalTransaction(
+        Types.WithdrawalTransaction memory _tx,
+        uint256 _l2BlockNumber,
+        Types.OutputRootProof calldata _outputRootProof,
+        bytes[] calldata _withdrawalProof
+    );
+
     function finalizeWithdrawalTransaction(
-        uint256 _nonce,
-        address _sender,
-        address _target,
-        uint256 _value,
-        uint256 _gasLimit,
-        bytes calldata _data,
-        uint256 _timestamp,
-        WithdrawalVerifier.OutputRootProof calldata _outputRootProof,
-        bytes calldata _withdrawalProof
+        Types.WithdrawalTransaction memory _tx
     )
 }
 ```
 
 ## Withdrawal Verification and Finalization
 
-The following inputs are required to verify and finalize a withdrawal:
+The following inputs are required to prove and finalize a withdrawal:
 
 - Withdrawal transaction data:
   - `nonce`: Nonce for the provided message.
@@ -158,15 +166,15 @@ The following inputs are required to verify and finalize a withdrawal:
   - `data`: Data to send to the target.
   - `gasLimit`: Gas to be forwarded to the target.
 - Proof and verification data:
-  - `timestamp`: The L2 timestamp corresponding with the output root.
+  - `l2BlockNumber`: The L2 block number corresponding with the output root.
   - `outputRootProof`: Four `bytes32` values which are used to derive the output root.
   - `withdrawalProof`: An inclusion proof for the given withdrawal in the L2ToL1MessagePasser contract.
 
 These inputs must satisfy the following conditions:
 
-1. The `timestamp` is at least `FINALIZATION_PERIOD` seconds old.
-1. `OutputOracle.l2Outputs(timestamp)` returns a non-zero value `l2Output`.
-1. The keccak256 hash of the `outputRootProof` values is equal to the `l2Output`.
+1. The `l2BlockNumber` must be the block number that corresponds to the `OutputProposal` being proven.
+1. `L2OutputOracle.getNextProposedOutput(l2BlockNumber)` returns a non-zero `OutputProposal`.
+1. The keccak256 hash of the `outputRootProof` values is equal to the `outputRoot`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
    is contained in the storage of the L2ToL1MessagePasser contract on L2.
 
@@ -175,19 +183,21 @@ These inputs must satisfy the following conditions:
 ### Key Properties of Withdrawal Verification
 
 1. It should not be possible 'double spend' a withdrawal, ie. to relay a withdrawal on L1 which does not
-    correspond to a message initiated on L2. For reference, see [this writeup][polygon-dbl-spend] of a vulnerability
-    of this type found on Polygon.
+   correspond to a message initiated on L2. For reference, see [this writeup][polygon-dbl-spend] of a vulnerability
+   of this type found on Polygon.
 
-    [polygon-dbl-spend]: https://gerhard-wagner.medium.com/double-spending-bug-in-polygons-plasma-bridge-2e0954ccadf1
+   [polygon-dbl-spend]: https://gerhard-wagner.medium.com/double-spending-bug-in-polygons-plasma-bridge-2e0954ccadf1
 
 1. For each withdrawal initiated on L2 (ie. with a unique `nonce`), the following properties must hold:
-    1. It should only be possible to finalize the withdrawal once.
-    1. It should not be possible to relay the message with any of its fields modified, ie.
-        1. Modifying the `sender` field would enable a 'spoofing' attack.
-        1. Modifying the `target`, `message`, or `value` fields would enable an attacker to dangerously change the
-           intended outcome of the withdrawal.
-        1. Modifying the `gasLimit` could make the cost of relaying too high, or allow the relayer to cause execution
-           to fail (out of gas) in the `target`.
+   1. It should only be possible to prove the withdrawal once, unless the outputRoot for the withdrawal
+      has changed.
+   1. It should only be possible to finalize the withdrawal once.
+   1. It should not be possible to relay the message with any of its fields modified, ie.
+      1. Modifying the `sender` field would enable a 'spoofing' attack.
+      1. Modifying the `target`, `message`, or `value` fields would enable an attacker to dangerously change the
+         intended outcome of the withdrawal.
+      1. Modifying the `gasLimit` could make the cost of relaying too high, or allow the relayer to cause execution
+         to fail (out of gas) in the `target`.
 
 ### Handling Successfully Verified Messages That Fail When Relayed
 
