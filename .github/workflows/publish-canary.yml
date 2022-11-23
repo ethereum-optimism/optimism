@@ -8,6 +8,10 @@ on:
         description: 'Custom Docker Image Tag (keep empty for git hash)'
         required: false
         default: '0.0.0-rc-0'
+      wantedPackages:
+        description: 'List of packages to release'
+        required: false
+        default: ''
 
 jobs:
   canary-publish:
@@ -46,6 +50,15 @@ jobs:
         with:
           node-version: 16.x
 
+      - name: Get ignored packages
+        id: get-ignored-packages
+        outputs:
+          ignoredPackages:
+            description: 'packages to ignore in the "Setup Canary Snapshot" step'
+        run: echo "::set-output name=ignoredPackages::$(node .github/scripts/get-canary-ignored-packages.js)"
+        env:
+          WANTED_PACKAGES: ${{ github.event.inputs.wantedPackages }}
+
       - name: Get yarn cache directory path
         id: yarn-cache-dir-path
         run: echo "::set-output name=dir::$(yarn cache dir)"
@@ -70,7 +83,15 @@ jobs:
         run: yarn build
 
       - name: Setup Canary Snapshot
-        run: yarn changeset version --snapshot
+        run: |
+          if [[ $IGNORED_PACKAGES -eq '0' ]]
+          then
+              yarn changeset version --snapshot
+          else
+              node .github/scripts/run-setup-canary-snapshot.js
+          fi
+        env:
+          IGNORED_PACKAGES: ${{steps.get-ignored-packages.outputs.ignoredPackages}}
 
       - name: Publish To NPM
         uses: changesets/action@v1
