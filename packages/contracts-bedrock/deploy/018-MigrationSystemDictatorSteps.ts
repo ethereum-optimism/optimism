@@ -37,6 +37,22 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
+  let finalOwner = hre.deployConfig.finalSystemOwner
+  if (finalOwner === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      finalOwner = deployer
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+
   // Set up required contract references.
   const [
     MigrationSystemDictator,
@@ -378,17 +394,9 @@ const deployFn: DeployFunction = async (hre) => {
       return MigrationSystemDictator.finalized()
     })
 
-    await assertContractVariable(
-      L1CrossDomainMessenger,
-      'owner',
-      hre.deployConfig.finalSystemOwner
-    )
+    await assertContractVariable(L1CrossDomainMessenger, 'owner', finalOwner)
 
-    await assertContractVariable(
-      ProxyAdmin,
-      'owner',
-      hre.deployConfig.finalSystemOwner
-    )
+    await assertContractVariable(ProxyAdmin, 'owner', finalOwner)
   }
 }
 
