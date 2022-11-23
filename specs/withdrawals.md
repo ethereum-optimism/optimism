@@ -64,7 +64,7 @@ This is a very simple contract that stores the a hash of the withdrawal data.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
 2. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
-   `getNextProposedOutput()` function, and performs the remainder of the verification process internally.
+   `getL2OutputAfter()` function, and performs the remainder of the verification process internally.
 3. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
    prevent it from being re-proven. Note that the withdrawal can be proven more than once if the corresponding
    output root changes.
@@ -173,7 +173,7 @@ The following inputs are required to prove and finalize a withdrawal:
 These inputs must satisfy the following conditions:
 
 1. The `l2BlockNumber` must be the block number that corresponds to the `OutputProposal` being proven.
-1. `L2OutputOracle.getNextProposedOutput(l2BlockNumber)` returns a non-zero `OutputProposal`.
+1. `L2OutputOracle.getL2OutputAfter(l2BlockNumber)` returns a non-zero `OutputProposal`.
 1. The keccak256 hash of the `outputRootProof` values is equal to the `outputRoot`.
 1. The `withdrawalProof` is a valid inclusion proof demonstrating that a hash of the Withdrawal transaction data
    is contained in the storage of the L2ToL1MessagePasser contract on L2.
