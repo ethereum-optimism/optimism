@@ -362,7 +362,42 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   for (let i = 1; i <= 6; i++) {
-    if ((await MigrationSystemDictator.currentStep()) === i) {
+    const currentStep = await MigrationSystemDictator.currentStep()
+    if (currentStep === i) {
+      if (
+        currentStep > (await MigrationSystemDictator.PROXY_TRANSFER_STEP()) &&
+        !(await MigrationSystemDictator.dynamicConfigSet())
+      ) {
+        if (isLiveDeployer) {
+          console.log(`Updating dynamic oracle config...`)
+
+          // Use default starting time if not provided
+          let deployL2StartingTimestamp =
+            hre.deployConfig.l2OutputOracleStartingTimestamp
+          if (deployL2StartingTimestamp < 0) {
+            const l1StartingBlock = await hre.ethers.provider.getBlock(
+              hre.deployConfig.l1StartingBlockTag
+            )
+            if (l1StartingBlock === null) {
+              throw new Error(
+                `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
+              )
+            }
+            deployL2StartingTimestamp = l1StartingBlock.timestamp
+          }
+
+          await MigrationSystemDictator.updateL2OutputOracleDynamicConfig({
+            l2OutputOracleStartingL2Output:
+              hre.deployConfig.l2OutputOracleGenesisL2Output,
+            l2OutputOracleStartingBlockNumber:
+              hre.deployConfig.l2OutputOracleStartingBlockNumber,
+            l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+          })
+        } else {
+          console.log(`Please update dynamic oracle config...`)
+        }
+      }
+
       if (isLiveDeployer) {
         console.log(`Executing step ${i}...`)
         await MigrationSystemDictator[`step${i}`]()

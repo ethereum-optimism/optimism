@@ -20,12 +20,12 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @notice Step after which exit 1 can no longer be used.
      */
-    uint8 constant EXIT_1_NO_RETURN_STEP = 3;
+    uint8 public constant EXIT_1_NO_RETURN_STEP = 3;
 
     /**
      * @notice Step where proxy ownership is transferred.
      */
-    uint8 constant PROXY_TRANSFER_STEP = 4;
+    uint8 public constant PROXY_TRANSFER_STEP = 4;
 
     /**
      * @notice Whether or not the deployment is finalized.
