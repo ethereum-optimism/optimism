@@ -31,7 +31,7 @@ type TransactionManager struct {
 	log      log.Logger
 }
 
-func NewTransactionManger(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, privKey *ecdsa.PrivateKey, l1Client *ethclient.Client) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, privKey *ecdsa.PrivateKey, l1Client *ethclient.Client) *TransactionManager {
 	signerFn := func(rawTx types.TxData) (*types.Transaction, error) {
 		return types.SignNewTx(privKey, types.LatestSignerForChainID(chainID), rawTx)
 	}
