@@ -1,7 +1,6 @@
 ---
 '@eth-optimism/indexer': minor
 '@eth-optimism/contracts-bedrock': minor
-'@eth-optimism/integration-tests-bedrock': minor
 '@eth-optimism/sdk': minor
 ---
 
