@@ -73,7 +73,6 @@ Refer to the Directory Structure section below to understand which packages are 
 ├── <a href="./op-exporter">op-exporter</a>: A prometheus exporter to collect/serve metrics from an Optimism node
 ├── <a href="./proxyd">proxyd</a>: Configurable RPC request router and proxy
 ├── <a href="./technical-documents">technical-documents</a>: audits and post-mortem documents
-├── <a href="./teleportr">teleportr</a>: Bridge for teleporting ETH between L1 and L2 at low cost
 
 ~~ BEDROCK upgrade - Not production-ready yet, part of next major upgrade ~~
 ├── <a href="./packages">packages</a>
