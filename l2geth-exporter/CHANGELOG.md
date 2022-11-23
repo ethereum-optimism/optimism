@@ -1,5 +1,11 @@
 # @eth-optimism/l2geth-exporter
 
+## 0.0.7
+
+### Patch Changes
+
+- 896e23387: Fix: Adding proper debug output for L1 CTC Address env var in l2geth-exporter
+
 ## 0.0.6
 
 ### Patch Changes
