@@ -253,10 +253,13 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     for (let i = 0; i < 30; i++) {
       const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
       if (messageReceipt.receiptStatus !== 1) {
-        throw new Error('deposit failed')
+        console.log(`Deposit failed, retrying...`)
       }
 
-      if (messageReceipt.transactionReceipt.blockHash !== prevBlockHash) {
+      if (
+        prevBlockHash !== '' &&
+        messageReceipt.transactionReceipt.blockHash !== prevBlockHash
+      ) {
         console.log(
           `Block hash changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
         )

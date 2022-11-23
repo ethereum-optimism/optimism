@@ -22,10 +22,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.startingTimestamp(), startingTimestamp);
         assertEq(oracle.proposer(), proposer);
         assertEq(oracle.owner(), owner);
-
-        Types.OutputProposal memory proposal = oracle.getL2Output(startingBlockNumber);
-        assertEq(proposal.outputRoot, genesisL2Output);
-        assertEq(proposal.timestamp, initL1Time);
     }
 
     function testCannot_constructWithBadTimestamp() external {
@@ -34,7 +30,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         new L2OutputOracle(
             submissionInterval,
             l2BlockTime,
-            genesisL2Output,
             startingBlockNumber,
             // startingTimestamp is in the future
             block.timestamp + 1,
@@ -275,6 +270,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     function test_deleteOutputs_singleOutput() external {
         test_proposingAnotherOutput();
+        test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
@@ -297,6 +293,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     function test_deleteOutputs_multipleOutputs() external {
+        test_proposingAnotherOutput();
         test_proposingAnotherOutput();
         test_proposingAnotherOutput();
         test_proposingAnotherOutput();
@@ -374,10 +371,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
         assertEq(startingTimestamp, oracleImpl.startingTimestamp());
 
-        Types.OutputProposal memory initOutput = oracleImpl.getL2Output(startingBlockNumber);
-        assertEq(genesisL2Output, initOutput.outputRoot);
-        assertEq(initL1Time, initOutput.timestamp);
-
         assertEq(proposer, oracleImpl.proposer());
         assertEq(owner, oracleImpl.owner());
     }
@@ -385,7 +378,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(payable(proxy)).initialize(
-            genesisL2Output,
             startingBlockNumber,
             startingTimestamp,
             proposer,
@@ -396,7 +388,6 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
     function test_cannotInitImpl() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(oracleImpl).initialize(
-            genesisL2Output,
             startingBlockNumber,
             startingTimestamp,
             proposer,

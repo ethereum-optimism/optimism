@@ -160,11 +160,6 @@ const config: HardhatUserConfig = {
     l2OutputOracleSubmissionInterval: {
       type: 'number',
     },
-    // bytes32 - The initial L2 output of the L2 chain.
-    l2OutputOracleGenesisL2Output: {
-      type: 'string',
-      default: ethers.constants.HashZero,
-    },
     // uint256 - The number of the first L2 block.
     l2OutputOracleStartingBlockNumber: {
       type: 'number',
