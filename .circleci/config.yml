@@ -236,6 +236,7 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: test and generate coverage
+          no_output_timeout: 20m
           command: yarn coverage:lcov
           environment:
             FOUNDRY_PROFILE: ci
