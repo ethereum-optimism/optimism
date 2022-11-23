@@ -89,13 +89,7 @@ abstract contract ResourceMetering is Initializable {
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
-            int256 newBaseFee = SignedMath.min(
-                SignedMath.max(
-                    int256(uint256(params.prevBaseFee)) + baseFeeDelta,
-                    int256(MINIMUM_BASE_FEE)
-                ),
-                int256(uint256(type(uint128).max))
-            );
+            int256 newBaseFee = _clampBaseFee(int256(uint256(params.prevBaseFee)) + baseFeeDelta);
 
             // If we skipped more than one block, we also need to account for every empty block.
             // Empty block means there was no demand for deposits in that block, so we should
@@ -104,20 +98,14 @@ abstract contract ResourceMetering is Initializable {
                 // Update the base fee by repeatedly applying the exponent 1-(1/change_denominator)
                 // blockDiff - 1 times. Simulates multiple empty blocks. Clamp the resulting value
                 // between min and max.
-                newBaseFee = SignedMath.min(
-                    SignedMath.max(
-                        int256(
-                            (newBaseFee *
-                                (
-                                    FixedPointMathLib.powWad(
-                                        1e18 - (1e18 / BASE_FEE_MAX_CHANGE_DENOMINATOR),
-                                        int256((blockDiff - 1) * 1e18)
-                                    )
-                                )) / 1e18
-                        ),
-                        int256(MINIMUM_BASE_FEE)
-                    ),
-                    int256(uint256(type(uint128).max))
+                newBaseFee = _clampBaseFee(
+                    (newBaseFee *
+                        (
+                            FixedPointMathLib.powWad(
+                                1e18 - (1e18 / BASE_FEE_MAX_CHANGE_DENOMINATOR),
+                                int256((blockDiff - 1) * 1e18)
+                            )
+                        )) / 1e18
                 );
             }
 
@@ -164,5 +152,21 @@ abstract contract ResourceMetering is Initializable {
             prevBoughtGas: 0,
             prevBlockNum: uint64(block.number)
         });
+    }
+
+    /**
+     * @notice Clamps the base fee between the minimum base fee and the int256 representation of
+     *         type(uint128).max.
+     *
+     * @param _newBaseFee New base fee to clamp.
+     *
+     * @return Clamped base fee.
+     */
+    function _clampBaseFee(int256 _newBaseFee) private pure returns (int256) {
+        return
+            SignedMath.min(
+                SignedMath.max(_newBaseFee, MINIMUM_BASE_FEE),
+                int256(uint256(type(uint128).max))
+            );
     }
 }
