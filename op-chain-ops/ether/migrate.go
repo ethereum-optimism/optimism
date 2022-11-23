@@ -218,6 +218,7 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 
 	// Set the total supply to 0
 	stateDB.SetState(predeploys.LegacyERC20ETHAddr, getOVMETHTotalSupplySlot(), common.Hash{})
+	log.Info("Set the totalSupply to 0")
 
 	if !commit {
 		log.Info("dry run, skipping commit")

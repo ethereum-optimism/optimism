@@ -20,7 +20,6 @@
       "ops/docker/ci-builder",
       "ops/docker/foundry",
       "proxyd",
-      "teleportr",
       "endpoint-monitor"
     ],
     "nohoist": [

@@ -3,8 +3,7 @@ import assert from 'assert'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, awaitCondition, getChainId } from '@eth-optimism/core-utils'
-import { HttpNetworkConfig } from 'hardhat/types'
+import { sleep, getChainId } from '@eth-optimism/core-utils'
 
 export interface DictatorConfig {
   globalConfig: {
@@ -33,7 +32,6 @@ export interface DictatorConfig {
     systemConfigImpl: string
   }
   l2OutputOracleConfig: {
-    l2OutputOracleGenesisL2Output: string
     l2OutputOracleProposer: string
     l2OutputOracleOwner: string
   }
@@ -196,71 +194,6 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
-export const fundAccount = async (
-  hre: any,
-  address: string,
-  amount: ethers.BigNumber
-) => {
-  if (!hre.deployConfig.isForkedNetwork) {
-    throw new Error('this method can only be used against a forked network')
-  }
-
-  console.log(`Funding account ${address}...`)
-  await hre.ethers.provider.send('hardhat_setBalance', [
-    address,
-    amount.toHexString(),
-  ])
-
-  console.log(`Waiting for balance to reflect...`)
-  await awaitCondition(
-    async () => {
-      const balance = await hre.ethers.provider.getBalance(address)
-      return balance.gte(amount)
-    },
-    5000,
-    100
-  )
-
-  console.log(`Account successfully funded.`)
-}
-
-export const sendImpersonatedTx = async (opts: {
-  hre: any
-  contract: ethers.Contract
-  fn: string
-  from: string
-  gas: string
-  args: any[]
-}) => {
-  if (!opts.hre.deployConfig.isForkedNetwork) {
-    throw new Error('this method can only be used against a forked network')
-  }
-
-  console.log(`Impersonating account ${opts.from}...`)
-  await opts.hre.ethers.provider.send('hardhat_impersonateAccount', [opts.from])
-
-  console.log(`Funding account ${opts.from}...`)
-  await fundAccount(opts.hre, opts.from, BIG_BALANCE)
-
-  console.log(`Sending impersonated transaction...`)
-  const tx = await opts.contract.populateTransaction[opts.fn](...opts.args)
-  const provider = new opts.hre.ethers.providers.JsonRpcProvider(
-    (opts.hre.network.config as HttpNetworkConfig).url
-  )
-  await provider.send('eth_sendTransaction', [
-    {
-      ...tx,
-      from: opts.from,
-      gas: opts.gas,
-    },
-  ])
-
-  console.log(`Stopping impersonation of account ${opts.from}...`)
-  await opts.hre.ethers.provider.send('hardhat_stopImpersonatingAccount', [
-    opts.from,
-  ])
-}
-
 export const getContractFromArtifact = async (
   hre: any,
   name: string,
@@ -297,6 +230,21 @@ export const getContractFromArtifact = async (
       signerOrProvider
     ),
   })
+}
+
+export const getContractsFromArtifacts = async (
+  hre: any,
+  configs: Array<{
+    name: string
+    iface?: string
+    signerOrProvider?: Signer | Provider | string
+  }>
+): Promise<ethers.Contract[]> => {
+  const contracts = []
+  for (const config of configs) {
+    contracts.push(await getContractFromArtifact(hre, config.name, config))
+  }
+  return contracts
 }
 
 export const isHardhatNode = async (hre) => {
@@ -403,8 +351,6 @@ export const makeDictatorConfig = async (
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
     },
     l2OutputOracleConfig: {
-      l2OutputOracleGenesisL2Output:
-        hre.deployConfig.l2OutputOracleGenesisL2Output,
       l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
       l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
     },

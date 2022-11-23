@@ -83,8 +83,7 @@ jobs:
             - "packages/contracts/libraries"
             - "packages/contracts/standards"
 
-
-  docker-publish:
+  docker-build:
     environment:
       DOCKER_BUILDKIT: 1
     parameters:
@@ -100,10 +99,6 @@ jobs:
       docker_context:
         description: Docker build context
         type: string
-      target:
-        description: Docker build target
-        type: string
-        default: ""
       registry:
         description: Docker registry
         type: string
@@ -116,6 +111,61 @@ jobs:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
+      - checkout
+      - run:
+          command: mkdir -p /tmp/docker_images
+      - run:
+          name: Build
+          command: |
+            # Check to see if DOCKER_HUB_READ_ONLY_TOKEN is set (i.e. we are in repo) before attempting to use secrets.
+            # Building should work without this read only login, but may get rate limited.
+            if [[ -v DOCKER_HUB_READ_ONLY_TOKEN ]]; then
+              echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
+            fi
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker build \
+            $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+            -f <<parameters.docker_file>> \
+            <<parameters.docker_context>>
+      - run:
+          name: Save
+          command: |
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_LABELS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g")
+            echo -ne $DOCKER_LABELS | tr ' ' '\n' | xargs -I {} docker save -o /tmp/docker_images/<<parameters.docker_name>>_{}.tar $IMAGE_BASE:{}
+      - persist_to_workspace:
+          root: /tmp/docker_images
+          paths:
+            - "."
+
+  docker-publish:
+    parameters:
+      docker_name:
+        description: Docker image name
+        type: string
+      docker_tags:
+        description: Docker image tags as csv
+        type: string
+      registry:
+        description: Docker registry
+        type: string
+        default: "us-central1-docker.pkg.dev"
+      repo:
+        description: Docker repo
+        type: string
+        default: "bedrock-goerli-development/images"
+    machine:
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
+    steps:
+      - attach_workspace:
+          at: /tmp/docker_images
+      - run:
+          name: Docker load
+          command: |
+            DOCKER_LABELS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g")
+            echo -ne $DOCKER_LABELS | tr ' ' '\n' | xargs -I {} docker load -i /tmp/docker_images/<<parameters.docker_name>>_{}.tar
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
       # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
@@ -124,34 +174,6 @@ jobs:
       - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
       - run: cat /etc/netplan/50-cloud-init.yaml
       - run: sudo netplan apply
-      - checkout
-      - when:
-          condition: <<parameters.target>>
-          steps:
-            - run:
-                name: Build with context
-                command: |
-                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-                  docker build \
-                  $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-                  -f <<parameters.docker_file>> \
-                  --target <<parameters.target>> \
-                  <<parameters.docker_context>>
-      - unless:
-          condition: <<parameters.target>>
-          steps:
-            - run:
-                name: Build
-                command: |
-                  echo "$DOCKER_HUB_READ_ONLY_TOKEN" | docker login -u "$DOCKER_HUB_READ_ONLY_USER" --password-stdin
-                  IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-                  DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-                  docker build \
-                  $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-                  -f <<parameters.docker_file>> \
-                  <<parameters.docker_context>>
       - run:
           name: Publish
           command: |
@@ -227,7 +249,7 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            forge snapshot --check
+            yarn gas-snapshot --check
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -426,7 +448,6 @@ jobs:
         type: string
     docker:
       - image: cimg/go:1.19
-    parallelism: 6
     resource_class: xlarge
     steps:
       - checkout
@@ -436,9 +457,10 @@ jobs:
       - run:
           name: run tests
           command: |
+            # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
+            # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
-            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            $(go list ./... | circleci tests split --split-by=timings)
+            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -690,6 +712,14 @@ jobs:
       docker_layer_caching: true
       resource_class: xlarge
     steps:
+      - attach_workspace:
+          at: /tmp/docker_images
+      - run:
+          name: Docker Load
+          command: |
+            docker load -i /tmp/docker_images/op-batcher_<<parameters.version>>.tar
+            docker load -i /tmp/docker_images/op-proposer_<<parameters.version>>.tar
+            docker load -i /tmp/docker_images/op-node_<<parameters.version>>.tar
       - run:
           command: git clone https://github.com/ethereum-optimism/hive.git .
       - go/load-cache
@@ -701,7 +731,6 @@ jobs:
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -docker.pull=true \
             -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
@@ -815,9 +844,9 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
-      # - devnet:
-      #     name: devnet (with deployed contracts)
-      #     deploy: true
+      - devnet:
+          name: devnet (with deployed contracts)
+          deploy: true
       - devnet:
           name: devnet (with genesis contracts)
           deploy: false
@@ -830,11 +859,6 @@ workflows:
           name: proxyd-tests
           binary_name: proxyd
           working_directory: proxyd
-      - go-lint-test-build:
-          name: teleportr-tests
-          binary_name: teleportr
-          working_directory: teleportr
-          dependencies: bss-core
       - go-lint-test-build:
           name: gas-oracle-tests
           binary_name: gas-oracle
@@ -920,8 +944,8 @@ workflows:
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
-      - docker-publish:
-          name: op-node-publish-dev
+      - docker-build:
+          name: op-node-docker-build
           docker_file: op-node/Dockerfile
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -929,7 +953,15 @@ workflows:
           context:
             - gcr
       - docker-publish:
-          name: op-batcher-publish-dev
+          name: op-node-docker-publish
+          docker_name: op-node
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-node-docker-build
+      - docker-build:
+          name: op-batcher-docker-build
           docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
@@ -937,37 +969,53 @@ workflows:
           context:
             - gcr
       - docker-publish:
-          name: op-proposer-publish-dev
+          name: op-batcher-docker-publish
+          docker_name: op-batcher
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-batcher-docker-build
+      - docker-build:
+          name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
           context:
             - gcr
+      - docker-publish:
+          name: op-proposer-docker-publish
+          docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-proposer-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
           sim: optimism/rpc
           requires:
-            - op-node-publish-dev
-            - op-batcher-publish-dev
-            - op-proposer-publish-dev
+            - op-node-docker-build
+            - op-batcher-docker-build
+            - op-proposer-docker-build
       - hive-test:
           name: hive-test-p2p
           version: <<pipeline.git.revision>>
           sim: optimism/p2p
           requires:
-            - op-node-publish-dev
-            - op-batcher-publish-dev
-            - op-proposer-publish-dev
+            - op-node-docker-build
+            - op-batcher-docker-build
+            - op-proposer-docker-build
       - hive-test:
           name: hive-test-l1ops
           version: <<pipeline.git.revision>>
           sim: optimism/l1ops
           requires:
-            - op-node-publish-dev
-            - op-batcher-publish-dev
-            - op-proposer-publish-dev
+            - op-node-docker-build
+            - op-batcher-docker-build
+            - op-proposer-docker-build
   release:
     jobs:
       - docker-tag-op-stack-release:

@@ -229,8 +229,30 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       `Withdrawal on L2 complete: ${ethWithdrawReceipt.transactionHash}`
     )
 
-    console.log('Waiting to be able to withdraw')
-    const interval = setInterval(async () => {
+    console.log('Waiting to be able to prove withdrawal')
+    const proveInterval = setInterval(async () => {
+      const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
+      console.log(`Message status: ${MessageStatus[currentStatus]}`)
+    }, 3000)
+
+    try {
+      await messenger.waitForMessageStatus(
+        ethWithdrawReceipt,
+        MessageStatus.READY_TO_PROVE
+      )
+    } finally {
+      clearInterval(proveInterval)
+    }
+
+    console.log('Proving eth withdrawal...')
+    const ethProve = await messenger.proveMessage(ethWithdrawReceipt)
+    const ethProveReceipt = await ethProve.wait()
+    if (ethProveReceipt.status !== 1) {
+      throw new Error('Prove withdrawal transaction reverted')
+    }
+
+    console.log('Waiting to be able to finalize withdrawal')
+    const finalizeInterval = setInterval(async () => {
       const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
       console.log(`Message status: ${MessageStatus[currentStatus]}`)
     }, 3000)
@@ -241,9 +263,10 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
         MessageStatus.READY_FOR_RELAY
       )
     } finally {
-      clearInterval(interval)
+      clearInterval(finalizeInterval)
     }
 
+    console.log('Finalizing eth withdrawal...')
     const ethFinalize = await messenger.finalizeMessage(ethWithdrawReceipt)
     const ethFinalizeReceipt = await ethFinalize.wait()
     if (ethFinalizeReceipt.status !== 1) {

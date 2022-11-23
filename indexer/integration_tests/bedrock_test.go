@@ -201,11 +201,12 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NoError(t, err)
 		proofCl := gethclient.New(rpcClient)
 		receiptCl := ethclient.NewClient(rpcClient)
-		wParams, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
+		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
-		finTx, err := portal.FinalizeWithdrawalTransaction(
+		// Prove our withdrawal
+		proveTx, err := portal.ProveWithdrawalTransaction(
 			l1Opts,
 			bindings.TypesWithdrawalTransaction{
 				Nonce:    wParams.Nonce,
@@ -218,6 +219,32 @@ func TestBedrockIndexer(t *testing.T) {
 			wParams.BlockNumber,
 			wParams.OutputRootProof,
 			wParams.WithdrawalProof,
+		)
+		require.NoError(t, err)
+
+		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
+		require.NoError(t, err)
+
+		// Wait for the finalization period to elapse
+		_, err = withdrawals.WaitForFinalizationPeriod(
+			e2eutils.TimeoutCtx(t, time.Minute),
+			l1Client,
+			predeploys.DevOptimismPortalAddr,
+			wParams.BlockNumber,
+		)
+		require.NoError(t, err)
+
+		// Send our finalize withdrawal transaction
+		finTx, err := portal.FinalizeWithdrawalTransaction(
+			l1Opts,
+			bindings.TypesWithdrawalTransaction{
+				Nonce:    wParams.Nonce,
+				Sender:   wParams.Sender,
+				Target:   wParams.Target,
+				Value:    wParams.Value,
+				GasLimit: wParams.GasLimit,
+				Data:     wParams.Data,
+			},
 		)
 		require.NoError(t, err)
 

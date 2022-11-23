@@ -46,6 +46,22 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
+  if (
+    hre.deployConfig.l2OutputOracleGenesisL2Output === ethers.constants.HashZero
+  ) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A genesis L2 output was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+
   const config = await makeDictatorConfig(hre, controller, finalOwner, false)
   await deployAndVerifyAndThen({
     hre,
@@ -57,6 +73,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['MigrationSystemDictator', 'migration']
+deployFn.tags = ['MigrationSystemDictator']
 
 export default deployFn

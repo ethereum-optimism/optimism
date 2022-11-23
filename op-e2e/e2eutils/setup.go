@@ -85,6 +85,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L1GenesisBlockGasUsed:       0,
 		L1GenesisBlockParentHash:    common.Hash{},
 		L1GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000), // 1 gwei
+		FinalizationPeriodSeconds:   12,
 
 		L2GenesisBlockNonce:         0,
 		L2GenesisBlockExtraData:     []byte{},
