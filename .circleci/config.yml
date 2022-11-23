@@ -844,9 +844,9 @@ workflows:
       - depcheck:
           requires:
             - yarn-monorepo
-      # - devnet:
-      #     name: devnet (with deployed contracts)
-      #     deploy: true
+      - devnet:
+          name: devnet (with deployed contracts)
+          deploy: true
       - devnet:
           name: devnet (with genesis contracts)
           deploy: false

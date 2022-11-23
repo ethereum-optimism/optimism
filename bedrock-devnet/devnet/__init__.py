@@ -80,8 +80,8 @@ def main():
             'CanonicalTransactionChain': '0x0000000000000000000000000000000000000000',
             'BondManager': '0x0000000000000000000000000000000000000000',
         })
-        sdk_addresses['L1CrossDomainMessenger'] = addresses['L1CrossDomainMessengerProxy']
-        sdk_addresses['L1StandardBridge'] = addresses['L1StandardBridgeProxy']
+        sdk_addresses['L1CrossDomainMessenger'] = addresses['Proxy__OVM_L1CrossDomainMessenger']
+        sdk_addresses['L1StandardBridge'] = addresses['Proxy__OVM_L1StandardBridge']
         sdk_addresses['OptimismPortal'] = addresses['OptimismPortalProxy']
         sdk_addresses['L2OutputOracle'] = addresses['L2OutputOracleProxy']
         write_json(addresses_json_path, addresses)
