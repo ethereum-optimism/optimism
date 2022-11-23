@@ -120,10 +120,10 @@ contract L2OutputOracle_Initializer is CommonTest {
         // Deploy the L2OutputOracle and transfer owernship to the proposer
         oracleImpl = new L2OutputOracle(
             submissionInterval,
+            l2BlockTime,
             genesisL2Output,
             startingBlockNumber,
             startingTimestamp,
-            l2BlockTime,
             proposer,
             owner
         );
@@ -131,7 +131,10 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (genesisL2Output, proposer, owner))
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (genesisL2Output, startingBlockNumber, startingTimestamp, proposer, owner)
+            )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");

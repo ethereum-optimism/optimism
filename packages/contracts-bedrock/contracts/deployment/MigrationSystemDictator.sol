@@ -143,6 +143,12 @@ contract MigrationSystemDictator is BaseSystemDictator {
      * @notice Upgrades and initializes proxy contracts.
      */
     function step5() external onlyOwner step(5) {
+        // Dynamic config must be set before we can initialize the L2OutputOracle.
+        require(
+            dynamicConfigSet,
+            "MigrationSystemDictator: dynamic oracle config is not yet initialized"
+        );
+
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.l2OutputOracleProxy),
@@ -150,7 +156,9 @@ contract MigrationSystemDictator is BaseSystemDictator {
             abi.encodeCall(
                 L2OutputOracle.initialize,
                 (
-                    config.l2OutputOracleConfig.l2OutputOracleGenesisL2Output,
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingL2Output,
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp,
                     config.l2OutputOracleConfig.l2OutputOracleProposer,
                     config.l2OutputOracleConfig.l2OutputOracleOwner
                 )

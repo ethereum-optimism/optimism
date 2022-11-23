@@ -22,19 +22,19 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /**
+     * @notice The time between L2 blocks in seconds.
+     */
+    uint256 public immutable L2_BLOCK_TIME;
+
+    /**
      * @notice The number of the first L2 block recorded in this contract.
      */
-    uint256 public immutable STARTING_BLOCK_NUMBER;
+    uint256 public startingBlockNumber;
 
     /**
      * @notice The timestamp of the first L2 block recorded in this contract.
      */
-    uint256 public immutable STARTING_TIMESTAMP;
-
-    /**
-     * @notice The time between L2 blocks in seconds.
-     */
-    uint256 public immutable L2_BLOCK_TIME;
+    uint256 public startingTimestamp;
 
     /**
      * @notice The address of the proposer;
@@ -93,49 +93,54 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @custom:semver 0.0.1
      *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
-     * @param _genesisL2Output       The initial L2 output of the L2 chain.
+     * @param _l2BlockTime           The time per L2 block, in seconds.
+     * @param _startingL2Output      The initial L2 output of the L2 chain.
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
-     * @param _l2BlockTime           The time per L2 block, in seconds.
      * @param _proposer              The address of the proposer.
      * @param _owner                 The address of the owner.
      */
     constructor(
         uint256 _submissionInterval,
-        bytes32 _genesisL2Output,
+        uint256 _l2BlockTime,
+        bytes32 _startingL2Output,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
-        uint256 _l2BlockTime,
         address _proposer,
         address _owner
     ) Semver(0, 0, 1) {
-        require(
-            _startingTimestamp <= block.timestamp,
-            "L2OutputOracle: starting L2 timestamp must be less than current time"
-        );
-
         SUBMISSION_INTERVAL = _submissionInterval;
-        STARTING_BLOCK_NUMBER = _startingBlockNumber;
-        STARTING_TIMESTAMP = _startingTimestamp;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        initialize(_genesisL2Output, _proposer, _owner);
+        initialize(_startingL2Output, _startingBlockNumber, _startingTimestamp, _proposer, _owner);
     }
 
     /**
      * @notice Initializer.
      *
-     * @param _genesisL2Output     The initial L2 output of the L2 chain.
+     * @param _startingL2Output    Output for the first recoded L2 block.
+     * @param _startingBlockNumber Block number for the first recoded L2 block.
+     * @param _startingTimestamp   Timestamp for the first recoded L2 block.
      * @param _proposer            The address of the proposer.
      * @param _owner               The address of the owner.
      */
     function initialize(
-        bytes32 _genesisL2Output,
+        bytes32 _startingL2Output,
+        uint256 _startingBlockNumber,
+        uint256 _startingTimestamp,
         address _proposer,
         address _owner
     ) public initializer {
-        l2Outputs[STARTING_BLOCK_NUMBER] = Types.OutputProposal(_genesisL2Output, block.timestamp);
-        latestBlockNumber = STARTING_BLOCK_NUMBER;
+        require(
+            _startingTimestamp <= block.timestamp,
+            "L2OutputOracle: starting L2 timestamp must be less than current time"
+        );
+
+        startingBlockNumber = _startingBlockNumber;
+        latestBlockNumber = _startingBlockNumber;
+        startingTimestamp = _startingTimestamp;
+        l2Outputs[startingBlockNumber] = Types.OutputProposal(_startingL2Output, block.timestamp);
+
         __Ownable_init();
         changeProposer(_proposer);
         _transferOwnership(_owner);
@@ -230,7 +235,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *         L2 block number provided is between checkpoints, this function will rerutn the next
      *         proposal for the next checkpoint.
      *         Reverts if the output proposal is either not found, or predates
-     *         the STARTING_BLOCK_NUMBER.
+     *         the startingBlockNumber.
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      */
@@ -245,7 +250,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         );
 
         // Find the distance between _l2BlockNumber, and the checkpoint block before it.
-        uint256 offset = (_l2BlockNumber - STARTING_BLOCK_NUMBER) % SUBMISSION_INTERVAL;
+        uint256 offset = (_l2BlockNumber - startingBlockNumber) % SUBMISSION_INTERVAL;
 
         // If the offset is zero, then the _l2BlockNumber should be checkpointed.
         // Otherwise, we'll look up the next block that will be checkpointed.
@@ -290,6 +295,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _l2BlockNumber The L2 block number of the target block.
      */
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
-        return STARTING_TIMESTAMP + ((_l2BlockNumber - STARTING_BLOCK_NUMBER) * L2_BLOCK_TIME);
+        return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
     }
 }

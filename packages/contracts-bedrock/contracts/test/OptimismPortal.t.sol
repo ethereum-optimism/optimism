@@ -528,10 +528,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Warp to after the finalization period
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
-        // Mock a STARTING_TIMESTAMP change on the L2 Oracle
+        // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSignature("STARTING_TIMESTAMP()"),
+            abi.encodeWithSignature("startingTimestamp()"),
             abi.encode(block.timestamp + 1)
         );
 
