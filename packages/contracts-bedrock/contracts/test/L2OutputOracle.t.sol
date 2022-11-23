@@ -53,31 +53,31 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.latestBlockNumber(), proposedNumber);
     }
 
-    // Test: getL2Output() should return the correct value
-    function test_getL2Output() external {
+    // Test: getL2OutputAfter() should return the correct value
+    function test_getL2OutputAfter() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput1, nextBlockNumber, 0, 0);
 
-        Types.OutputProposal memory proposal = oracle.getL2Output(nextBlockNumber);
+        Types.OutputProposal memory proposal = oracle.getL2OutputAfter(nextBlockNumber);
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
 
         // Handles a block number that is between checkpoints:
-        proposal = oracle.getL2Output(nextBlockNumber - 1);
+        proposal = oracle.getL2OutputAfter(nextBlockNumber - 1);
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
 
         // The block number is too low:
         vm.expectRevert(stdError.arithmeticError);
-        oracle.getL2Output(0);
+        oracle.getL2OutputAfter(0);
 
         // The block number is larger than the latest proposed output:
         vm.expectRevert(
             "L2OutputOracle: block number cannot be greater than the latest block number"
         );
-        oracle.getL2Output(nextBlockNumber + 1);
+        oracle.getL2OutputAfter(nextBlockNumber + 1);
     }
 
     // Test: nextBlockNumber() should return the correct value
@@ -273,7 +273,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
+        Types.OutputProposal memory newLatestOutput = oracle.getL2OutputAfter(
             latestBlockNumber - submissionInterval
         );
 
@@ -287,7 +287,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(latestBlockNumber - submissionInterval, latestBlockNumberAfter);
 
         // validate that the new latest output is as expected.
-        Types.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumberAfter);
+        Types.OutputProposal memory proposal = oracle.getL2OutputAfter(latestBlockNumberAfter);
         assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
@@ -299,7 +299,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         test_proposingAnotherOutput();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
-        Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
+        Types.OutputProposal memory newLatestOutput = oracle.getL2OutputAfter(
             latestBlockNumber - submissionInterval * 3
         );
 
@@ -313,7 +313,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(latestBlockNumber - submissionInterval * 3, latestBlockNumberAfter);
 
         // validate that the new latest output is as expected.
-        Types.OutputProposal memory proposal = oracle.getL2Output(latestBlockNumberAfter);
+        Types.OutputProposal memory proposal = oracle.getL2OutputAfter(latestBlockNumberAfter);
         assertEq(newLatestOutput.outputRoot, proposal.outputRoot);
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }

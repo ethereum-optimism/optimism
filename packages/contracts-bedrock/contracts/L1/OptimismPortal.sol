@@ -175,9 +175,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             "OptimismPortal: you cannot send messages to the portal contract"
         );
 
-        // Get the output root and load onto the stack to prevent multiple mloads. This will
-        // fail if there is no output root for the given block number.
-        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2BlockNumber).outputRoot;
+        // Get the output root and load onto the stack to prevent multiple mloads.
+        bytes32 outputRoot = L2_ORACLE.getL2OutputAfter(_l2BlockNumber).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
@@ -262,7 +261,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         );
 
         // Grab the OutputProposal from the L2 Oracle
-        Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(
+        Types.OutputProposal memory proposal = L2_ORACLE.getL2OutputAfter(
             provenWithdrawal.l2BlockNumber
         );
 
@@ -314,12 +313,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
     /**
      * @notice Determine if a given block number is finalized. Reverts if the call to
-     *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
+     *         L2_ORACLE.getL2OutputAfter reverts. Returns a boolean otherwise.
      *
      * @param _l2BlockNumber The number of the L2 block.
      */
     function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2BlockNumber).timestamp);
+        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2OutputAfter(_l2BlockNumber).timestamp);
     }
 
     /**

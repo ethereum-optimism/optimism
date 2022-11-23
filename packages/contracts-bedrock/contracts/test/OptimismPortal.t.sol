@@ -217,7 +217,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     function test_simple_isBlockFinalized_success() external {
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(Types.OutputProposal(bytes32(uint256(1)), startingBlockNumber))
         );
 
@@ -317,7 +317,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
-            oracle.getL2Output(_proposedBlockNumber).timestamp +
+            oracle.getL2OutputAfter(_proposedBlockNumber).timestamp +
                 op.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
@@ -500,7 +500,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // this case we just use bytes32(uint256(1)).
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(bytes32(uint256(1)), _proposedBlockNumber)
         );
 
@@ -567,7 +567,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // to finalize the withdrawal.
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(Types.OutputProposal(bytes32(uint256(0)), _proposedBlockNumber))
         );
 
@@ -603,7 +603,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // finalization period.
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(Types.OutputProposal(_outputRoot, block.timestamp + 1))
         );
 
@@ -644,7 +644,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 recentTimestamp = block.timestamp - 1000;
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(_outputRoot, recentTimestamp)
         );
 
@@ -704,7 +704,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(Hashing.hashOutputRootProof(outputRootProof), _proposedBlockNumber)
         );
 
@@ -750,7 +750,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         uint256 finalizedTimestamp = block.timestamp - op.FINALIZATION_PERIOD_SECONDS() - 1;
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
+            abi.encodeWithSelector(L2OutputOracle.getL2OutputAfter.selector),
             abi.encode(Types.OutputProposal(outputRoot, finalizedTimestamp))
         );
 
@@ -816,7 +816,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Mock the call to the oracle
         vm.mockCall(
             address(oracle),
-            abi.encodeWithSelector(oracle.getL2Output.selector),
+            abi.encodeWithSelector(oracle.getL2OutputAfter.selector),
             abi.encode(outputRoot, 0)
         );
 
