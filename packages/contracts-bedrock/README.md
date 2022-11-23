@@ -77,6 +77,17 @@ yarn build
 yarn test
 ```
 
+#### Running Echidna tests
+
+You must have [Echidna](https://github.com/crytic/echidna) installed.
+
+Contracts targetted for Echidna testing are located in `./contracts/echidna`
+Each target contract is tested with a separate yarn command, for example:
+
+```shell
+yarn echidna:aliasing
+```
+
 ### Deployment
 
 #### Configuration
