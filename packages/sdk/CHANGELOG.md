@@ -1,5 +1,22 @@
 # @eth-optimism/sdk
 
+## 1.7.0
+
+### Minor Changes
+
+- 1bfe79f20: Adds an implementation of the Two Step Withdrawals V2 proposal
+
+### Patch Changes
+
+- Updated dependencies [c025a1153]
+- Updated dependencies [f8697a607]
+- Updated dependencies [59adcaa09]
+- Updated dependencies [c71500a7e]
+- Updated dependencies [f49b71d50]
+- Updated dependencies [1bfe79f20]
+- Updated dependencies [ccaf5bc83]
+  - @eth-optimism/contracts-bedrock@0.10.0
+
 ## 1.6.11
 
 ### Patch Changes
