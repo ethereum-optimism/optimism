@@ -91,6 +91,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L2OutputOracleImpl']
+deployFn.tags = ['L2OutputOracleImpl', 'fresh', 'migration']
 
 export default deployFn

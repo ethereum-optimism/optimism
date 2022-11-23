@@ -10,7 +10,7 @@ const deployFn: DeployFunction = async (hre) => {
   const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
   await deployAndVerifyAndThen({
     hre,
-    name: 'L2OutputOracleProxy',
+    name: 'L1CrossDomainMessengerProxy',
     contract: 'Proxy',
     args: [proxyAdmin],
     postDeployAction: async (contract) => {
@@ -19,6 +19,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L2OutputOracleProxy']
+deployFn.tags = ['L1CrossDomainMessengerProxy', 'fresh']
 
 export default deployFn

@@ -19,6 +19,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['OptimismMintableERC20FactoryProxy']
+deployFn.tags = ['OptimismMintableERC20FactoryProxy', 'fresh', 'migration']
 
 export default deployFn

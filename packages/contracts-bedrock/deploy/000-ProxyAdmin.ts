@@ -19,6 +19,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['ProxyAdmin']
+deployFn.tags = ['ProxyAdmin', 'fresh', 'migration']
 
 export default deployFn

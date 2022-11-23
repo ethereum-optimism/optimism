@@ -10,7 +10,7 @@ const deployFn: DeployFunction = async (hre) => {
   const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
   await deployAndVerifyAndThen({
     hre,
-    name: 'SystemConfigProxy',
+    name: 'L2OutputOracleProxy',
     contract: 'Proxy',
     args: [proxyAdmin],
     postDeployAction: async (contract) => {
@@ -19,6 +19,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['SystemConfigProxy']
+deployFn.tags = ['L2OutputOracleProxy', 'fresh', 'migration']
 
 export default deployFn

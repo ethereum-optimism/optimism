@@ -1,5 +1,5 @@
+import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import '@eth-optimism/hardhat-deploy-config'
 
 import {
   assertContractVariable,
@@ -8,33 +8,29 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const L2OutputOracleProxy = await getContractFromArtifact(
+  const OptimismPortalProxy = await getContractFromArtifact(
     hre,
-    'L2OutputOracleProxy'
+    'OptimismPortalProxy'
   )
-
   await deployAndVerifyAndThen({
     hre,
-    name: 'OptimismPortal',
-    args: [
-      L2OutputOracleProxy.address,
-      hre.deployConfig.finalizationPeriodSeconds,
-    ],
+    name: 'L1CrossDomainMessenger',
+    args: [OptimismPortalProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'L2_ORACLE',
-        L2OutputOracleProxy.address
+        'PORTAL',
+        OptimismPortalProxy.address
       )
       await assertContractVariable(
         contract,
-        'FINALIZATION_PERIOD_SECONDS',
-        hre.deployConfig.finalizationPeriodSeconds
+        'owner',
+        ethers.constants.AddressZero
       )
     },
   })
 }
 
-deployFn.tags = ['OptimismPortalImpl']
+deployFn.tags = ['L1CrossDomainMessengerImpl', 'fresh', 'migration']
 
 export default deployFn
