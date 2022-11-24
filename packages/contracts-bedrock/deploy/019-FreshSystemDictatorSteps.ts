@@ -23,7 +23,62 @@ const deployFn: DeployFunction = async (hre) => {
       signerOrProvider: deployer,
     }
   )
+  let finalOwner = hre.deployConfig.finalSystemOwner
+  if (finalOwner === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      finalOwner = deployer
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+  if (hre.deployConfig.l2OutputOracleGenesisL2Output === ethers.constants.HashZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A genesis L2 output was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+  if (hre.network.config.live) {
+    console.log(`Updating dynamic oracle config...`)
 
+    // Use default starting time if not provided
+    let deployL2StartingTimestamp =
+      hre.deployConfig.l2OutputOracleStartingTimestamp
+    if (deployL2StartingTimestamp < 0) {
+      const l1StartingBlock = await hre.ethers.provider.getBlock(
+        hre.deployConfig.l1StartingBlockTag
+      )
+      if (l1StartingBlock === null) {
+        throw new Error(
+          `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
+        )
+      }
+      deployL2StartingTimestamp = l1StartingBlock.timestamp
+    }
+
+    await FreshSystemDictator.updateL2OutputOracleDynamicConfig({
+      l2OutputOracleStartingL2Output:
+        hre.deployConfig.l2OutputOracleGenesisL2Output,
+      l2OutputOracleStartingBlockNumber:
+        hre.deployConfig.l2OutputOracleStartingBlockNumber,
+      l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+    })
+  } else {
+    console.log(`Please update dynamic oracle config...`)
+  }
   if ((await ProxyAdmin.owner()) !== FreshSystemDictator.address) {
     console.log(`Transferring proxy admin ownership to the FreshSystemDictator`)
     await ProxyAdmin.transferOwnership(FreshSystemDictator.address)
@@ -138,7 +193,7 @@ const deployFn: DeployFunction = async (hre) => {
     await assertContractVariable(
       L1CrossDomainMessenger,
       'owner',
-      hre.deployConfig.finalSystemOwner
+      finalOwner
     )
 
     // Check L1StandardBridge was initialized properly.
@@ -194,7 +249,7 @@ const deployFn: DeployFunction = async (hre) => {
     await assertContractVariable(
       ProxyAdmin,
       'owner',
-      hre.deployConfig.finalSystemOwner
+      finalOwner
     )
   } else {
     console.log(`Step 2 executed`)

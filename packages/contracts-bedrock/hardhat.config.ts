@@ -28,6 +28,7 @@ const config: HardhatUserConfig = {
       chainId: 5700,
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
     },
     'alpha-1': {
       chainId: 5,
