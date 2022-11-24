@@ -63,18 +63,18 @@ This is a very simple contract that stores the a hash of the withdrawal data.
    not be the same entity which initiated the withdrawal on L2.
    These inputs include the withdrawal transaction data, inclusion proofs, and a block number. The block number
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
-2. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
+1. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
    `getL2OutputAfter()` function, and performs the remainder of the verification process internally.
-3. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
+1. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
    prevent it from being re-proven. Note that the withdrawal can be proven more than once if the corresponding
    output root changes.
-4. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
+1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
    to challenge its integrity.
-5. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the
+1. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the
    `OptimismPortal` contract. Again, the relayer need not be the same entity which initiated the withdrawal on L2.
-6. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
+1. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
    both been proven and passed the challenge period.
-7. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
+1. If the requirements are not met, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
    prevent it from being replayed.
 
 ## The L2ToL1MessagePasser Contract
