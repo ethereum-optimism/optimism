@@ -236,12 +236,23 @@ export class CrossChainMessenger {
       return this._l2OutputOracleParameters
     }
 
+    // Temporary logic to support legacy Bedrock testnets.
+    // TODO: Remove this once all legacy testnets are deprecated.
+    let startingBlockNumber: number
+    try {
+      startingBlockNumber = (
+        await this.contracts.l1.L2OutputOracle.startingBlockNumber()
+      ).toNumber()
+    } catch {
+      startingBlockNumber = (
+        await this.contracts.l1.L2OutputOracle.STARTING_BLOCK_NUMBER()
+      ).toNumber()
+    }
+
     this._l2OutputOracleParameters = {
+      startingBlockNumber,
       submissionInterval: (
         await this.contracts.l1.L2OutputOracle.SUBMISSION_INTERVAL()
-      ).toNumber(),
-      startingBlockNumber: (
-        await this.contracts.l1.L2OutputOracle.STARTING_BLOCK_NUMBER()
       ).toNumber(),
       l2BlockTime: (
         await this.contracts.l1.L2OutputOracle.L2_BLOCK_TIME()

@@ -34,7 +34,6 @@ export interface DictatorConfig {
     systemConfigImpl: string
   }
   l2OutputOracleConfig: {
-    l2OutputOracleGenesisL2Output: string
     l2OutputOracleProposer: string
     l2OutputOracleOwner: string
   }
@@ -361,8 +360,6 @@ export const makeDictatorConfig = async (
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
     },
     l2OutputOracleConfig: {
-      l2OutputOracleGenesisL2Output:
-        hre.deployConfig.l2OutputOracleGenesisL2Output,
       l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
       l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
     },

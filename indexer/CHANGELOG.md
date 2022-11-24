@@ -1,5 +1,15 @@
 # @eth-optimism/indexer
 
+## 0.4.0
+
+### Minor Changes
+
+- 1bfe79f20: Adds an implementation of the Two Step Withdrawals V2 proposal
+
+### Patch Changes
+
+- f49b71d50: Updated forge-std version
+
 ## 0.3.3
 
 ### Patch Changes
