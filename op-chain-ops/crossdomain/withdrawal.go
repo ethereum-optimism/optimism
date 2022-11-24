@@ -4,9 +4,20 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+)
+
+var (
+	SentMessageEventABI               = "SentMessage(address,address,bytes,uint256)"
+	SentMessageEventABIHash           = crypto.Keccak256Hash([]byte(SentMessageEventABI))
+	SentMessageExtension1EventABI     = "SentMessage(address,uint256)"
+	SentMessageExtension1EventABIHash = crypto.Keccak256Hash([]byte(SentMessageExtension1EventABI))
+	MessagePassedEventABI             = "MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"
+	MessagePassedEventABIHash         = crypto.Keccak256Hash([]byte(MessagePassedEventABI))
 )
 
 var _ WithdrawalMessage = (*Withdrawal)(nil)
@@ -129,4 +140,99 @@ func (w *Withdrawal) StorageSlot() (common.Hash, error) {
 
 	slot := crypto.Keccak256(preimage)
 	return common.BytesToHash(slot), nil
+}
+
+// Compute the receipt corresponding to the withdrawal. This receipt
+// is in the bedrock transition block. It contains 3 logs
+//   - SentMessage
+//   - SentMessageExtension1
+//   - MessagePassed
+// These logs are enough for the standard withdrawal flow to happen
+// which is driven by events being emitted.
+func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
+	receipt := types.NewReceipt(hdr.Root.Bytes(), false, 0)
+
+	args := abi.Arguments{
+		{Name: "target", Type: AddressType},
+		{Name: "sender", Type: AddressType},
+		{Name: "data", Type: BytesType},
+		{Name: "nonce", Type: Uint256Type},
+	}
+
+	data, err := args.Pack(w.Target, w.Sender, w.Data, w.Nonce)
+	if err != nil {
+		return nil, err
+	}
+
+	sm := &types.Log{
+		Address: predeploys.L2CrossDomainMessengerAddr,
+		Topics: []common.Hash{
+			SentMessageEventABIHash,
+			w.Target.Hash(),
+		},
+		Data:        data,
+		BlockNumber: hdr.Number.Uint64(),
+		TxHash:      common.Hash{},
+		TxIndex:     0,
+		BlockHash:   hdr.Hash(),
+		Index:       0,
+		Removed:     false,
+	}
+
+	receipt.Logs = append(receipt.Logs, sm)
+
+	sm1 := &types.Log{
+		Address: predeploys.L2CrossDomainMessengerAddr,
+		Topics: []common.Hash{
+			SentMessageExtension1EventABIHash,
+			w.Sender.Hash(),
+		},
+		Data:        common.LeftPadBytes(w.Value.Bytes(), 32),
+		BlockNumber: hdr.Number.Uint64(),
+		TxHash:      common.Hash{},
+		TxIndex:     0,
+		BlockHash:   hdr.Hash(),
+		Index:       0,
+		Removed:     false,
+	}
+
+	receipt.Logs = append(receipt.Logs, sm1)
+
+	mpargs := abi.Arguments{
+		{Name: "value", Type: Uint256Type},
+		{Name: "gasLimit", Type: Uint256Type},
+		{Name: "data", Type: BytesType},
+		{Name: "withdrawalHash", Type: Bytes32Type},
+	}
+
+	hash, err := w.Hash()
+	if err != nil {
+		return nil, err
+	}
+
+	mpdata, err := mpargs.Pack(w.Value, w.GasLimit, w.Data, hash)
+	if err != nil {
+		return nil, err
+	}
+
+	mp := &types.Log{
+		Address: predeploys.L2ToL1MessagePasserAddr,
+		Topics: []common.Hash{
+			MessagePassedEventABIHash,
+			common.BytesToHash(common.LeftPadBytes(w.Nonce.Bytes(), 32)),
+			w.Sender.Hash(),
+			w.Target.Hash(),
+		},
+		Data:        mpdata,
+		BlockNumber: hdr.Number.Uint64(),
+		TxHash:      common.Hash{},
+		TxIndex:     0,
+		BlockHash:   hdr.Hash(),
+		Index:       0,
+		Removed:     false,
+	}
+
+	receipt.Logs = append(receipt.Logs, mp)
+
+	return receipt, nil
 }
