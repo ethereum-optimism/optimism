@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.3.6
+
+### Patch Changes
+
+- 011acf411: Add echidna to ci-builder
+
 ## 0.3.5
 
 ### Patch Changes
