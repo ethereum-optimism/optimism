@@ -1,15 +1,18 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/signer/service/provider/mocks"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -35,7 +38,11 @@ func createTx() *types.Transaction {
 }
 
 func TestSignTransaction(t *testing.T) {
-	service := NewSignerService(log.Root())
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	provider := mocks.NewMockSignatureProvider(ctrl)
+	service := NewSignerServiceWithProvider(log.Root(), provider)
 
 	tx := createTx()
 	signer := types.LatestSignerForChainID(tx.ChainId())
@@ -58,19 +65,28 @@ func TestSignTransaction(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.testName, func(t *testing.T) {
-			resp, err := service.SignTransaction(tt.keyName, tt.txraw, tt.digest)
+			if tt.wantErrCode == 0 {
+				provider.EXPECT().
+					Sign(gomock.Any(), gomock.Any(), tt.digest).
+					Return([]byte("signature"), nil)
+			}
+			resp, err := service.SignTransaction(
+				context.Background(),
+				tt.txraw,
+				tt.digest,
+			)
 			if tt.wantErrCode == 0 {
 				assert.Nil(t, err)
 				assert.NotEmpty(t, resp.Signature)
 			} else {
 				assert.NotNil(t, err)
+				assert.Nil(t, resp)
 				var rpcErr rpc.Error
 				if errors.As(err, &rpcErr) {
 					assert.Equal(t, tt.wantErrCode, rpcErr.ErrorCode())
 				} else {
 					assert.Fail(t, "returned error is not an rpc.Error")
 				}
-				assert.Empty(t, resp.Signature)
 			}
 		})
 	}

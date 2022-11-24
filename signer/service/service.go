@@ -9,18 +9,23 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/signer/service/provider"
 )
 
 type SignerService struct {
 	logger   log.Logger
-	provider SignatureProvider
+	provider provider.SignatureProvider
 }
 
 func NewSignerService(logger log.Logger) SignerService {
-	return SignerService{
-		logger:   logger,
-		provider: NewKMSClient(logger),
-	}
+	return NewSignerServiceWithProvider(logger, provider.NewCloudKMSSignatureProvider(logger))
+}
+
+func NewSignerServiceWithProvider(
+	logger log.Logger,
+	provider provider.SignatureProvider,
+) SignerService {
+	return SignerService{logger, provider}
 }
 
 func (s *SignerService) RegisterAPIs(server *oprpc.Server) {

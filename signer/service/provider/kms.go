@@ -1,4 +1,4 @@
-package service
+package provider
 
 import (
 	"context"
@@ -11,38 +11,38 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-type SignatureProvider interface {
-	Sign(ctx context.Context, keyName string, digest []byte) ([]byte, error)
-}
-
-type KMSClient struct {
+type CloudKMSSignatureProvider struct {
 	logger log.Logger
 	client *kms.KeyManagementClient
 }
 
-type KMSClientSignRequestCorruptedError struct{}
+type CloudKMSSignRequestCorruptedError struct{}
 
-func (e *KMSClientSignRequestCorruptedError) Error() string {
-	return "kms sign request corrupted in transit"
+func (e *CloudKMSSignRequestCorruptedError) Error() string {
+	return "cloud kms sign request corrupted in transit"
 }
 
-type KMSClientSignResponseCorruptedError struct{}
+type CloudKMSSignResponseCorruptedError struct{}
 
-func (e *KMSClientSignResponseCorruptedError) Error() string {
-	return "kms sign response corrupted in transit"
+func (e *CloudKMSSignResponseCorruptedError) Error() string {
+	return "cloud kms sign response corrupted in transit"
 }
 
-func NewKMSClient(logger log.Logger) SignatureProvider {
+func NewCloudKMSSignatureProvider(logger log.Logger) SignatureProvider {
 	ctx := context.Background()
 	client, err := kms.NewKeyManagementClient(ctx)
 	if err != nil {
 		logger.Error("failed to initialize kms client", "error", err)
 		panic(err)
 	}
-	return &KMSClient{logger, client}
+	return &CloudKMSSignatureProvider{logger, client}
 }
 
-func (c *KMSClient) Sign(ctx context.Context, keyName string, digest []byte) ([]byte, error) {
+func (c *CloudKMSSignatureProvider) Sign(
+	ctx context.Context,
+	keyName string,
+	digest []byte,
+) ([]byte, error) {
 
 	crc32c := func(data []byte) uint32 {
 		t := crc32.MakeTable(crc32.Castagnoli)
@@ -60,13 +60,13 @@ func (c *KMSClient) Sign(ctx context.Context, keyName string, digest []byte) ([]
 		return nil, errors.Wrap(err, "kms sign request failed")
 	}
 	if result.Name != request.Name {
-		return nil, errors.WithStack(new(KMSClientSignRequestCorruptedError))
+		return nil, errors.WithStack(new(CloudKMSSignRequestCorruptedError))
 	}
 	if result.VerifiedDataCrc32C == false {
-		return nil, errors.WithStack(new(KMSClientSignRequestCorruptedError))
+		return nil, errors.WithStack(new(CloudKMSSignRequestCorruptedError))
 	}
 	if int64(crc32c(result.Signature)) != result.SignatureCrc32C.Value {
-		return nil, errors.WithStack(new(KMSClientSignResponseCorruptedError))
+		return nil, errors.WithStack(new(CloudKMSSignResponseCorruptedError))
 	}
 
 	return result.Signature, nil

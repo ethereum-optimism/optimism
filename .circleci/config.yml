@@ -534,6 +534,24 @@ jobs:
           command: make test
           working_directory: l2geth
 
+  signer-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - run:
+          name: Check if we should run
+          command: |
+            shopt -s inherit_errexit
+            CHANGED=$(check-changed "signer" || echo "TRUE")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
+          name: Test
+          command: make test
+          working_directory: signer
+
   devnet:
     machine:
       image: ubuntu-2004:2022.07.1
@@ -874,6 +892,7 @@ workflows:
           working_directory: bss-core
           build: false
       - geth-tests
+      - signer-tests
       - integration-tests
       - semgrep-scan
       - go-mod-tidy
@@ -992,6 +1011,20 @@ workflows:
             - gcr
           requires:
             - op-proposer-docker-build
+      - docker-build:
+          name: signer-docker-build
+          docker_file: signer/Dockerfile
+          docker_name: signer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: signer-docker-publish
+          docker_name: signer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - signer-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
