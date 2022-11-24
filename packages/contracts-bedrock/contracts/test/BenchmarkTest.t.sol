@@ -36,7 +36,7 @@ function setPrevBaseFee(
 // so that they are nothing more than the call we want measure the gas cost of.
 // In order to achieve this we make no assertions, and handle everything else in the setUp()
 // function.
-contract GasBenchMark_OptimismPortal is Portal_Initializer {
+contract OptimismPortal_Benchmark is Portal_Initializer {
     function test_depositTransaction_benchmark() external {
         op.depositTransaction{ value: NON_ZERO_VALUE }(
             NON_ZERO_ADDRESS,
@@ -59,15 +59,15 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     }
 }
 
-contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
-    function test_L1MessengerSendMessage_benchmark_0() external {
+contract L1CrossDomainMessenger_BenchMark is Messenger_Initializer {
+    function test_sendMessage_benchmark0() external {
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 
-    function test_L1MessengerSendMessage_benchmark_1() external {
+    function test_sendMessage_benchmark1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
         // The amount of data typically sent during a bridge deposit.
         bytes
@@ -76,7 +76,7 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     }
 }
 
-contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
+contract L1StandardBridge_Deposit_Benchmark is Bridge_Initializer {
     function setUp() public virtual override {
         super.setUp();
         deal(address(L1Token), alice, 100000, true);
