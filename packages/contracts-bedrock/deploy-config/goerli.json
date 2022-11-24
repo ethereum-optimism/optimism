@@ -2,7 +2,7 @@
   "finalSystemOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
   "controller": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
 
-  "l1StartingBlockTag": "0x91a32208233c7e271106faee27c25b9c59e0666fdd4e174a2cd65d542e60f53a",
+  "l1StartingBlockTag": "0xcadac04cba5a754737a335090120b8cfacf8101eccf2a8eca648ec4f3a5c1a68",
   "l1ChainID": 5700,
   "l2ChainID": 57000,
   "l2BlockTime": 2,
