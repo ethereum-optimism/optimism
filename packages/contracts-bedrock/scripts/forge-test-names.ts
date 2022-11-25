@@ -10,20 +10,21 @@ const handleFunctionName = (name: string) => {
   }
   const parts = name.split('_')
   parts.forEach((part) => {
+    // Good enough approximation for camelCase
     if (part[0] !== part[0].toLowerCase()) {
       throw new Error(
-        `Invalid test name: ${name}. Test name parts should be in camelCase`
+        `Invalid test name: ${name}.\n Test name parts should be in camelCase`
       )
     }
   })
   if (parts.length < 3 || parts.length > 4) {
     throw new Error(
-      `Invalid test name: ${name}. Test names should have either 3 or 4 parts, each separated by underscores`
+      `Invalid test name: ${name}.\n Test names should have either 3 or 4 parts, each separated by underscores`
     )
   }
   if (!['test', 'testFuzz'].includes(parts[0])) {
     throw new Error(
-      `Invalid test name: ${name}. Names should begin with either "test" or "testFuzz"`
+      `Invalid test name: ${name}.\n Names should begin with either "test" or "testFuzz"`
     )
   }
   if (
@@ -33,7 +34,7 @@ const handleFunctionName = (name: string) => {
     parts[parts.length - 2] !== 'benchmark'
   ) {
     throw new Error(
-      `Invalid test name: ${name}. Test names should end with either "succeeds", "reverts", "fails", "differential" or "benchmark[_num]"`
+      `Invalid test name: ${name}.\n Test names should end with either "succeeds", "reverts", "fails", "differential" or "benchmark[_num]"`
     )
   }
   if (
@@ -41,7 +42,7 @@ const handleFunctionName = (name: string) => {
     parts.length < 4
   ) {
     throw new Error(
-      `Invalid test name: ${name}. Failure tests should have 4 parts. The third part should indicate the reason for failure.`
+      `Invalid test name: ${name}.\n Failure tests should have 4 parts. The third part should indicate the reason for failure.`
     )
   }
 }
@@ -52,8 +53,9 @@ const handleContractName = (name: string) => {
 }
 
 for (const testFile of testFiles) {
+  const filePath = path.join(testPath, testFile)
   const lines = fs
-    .readFileSync(path.join(testPath, testFile), 'utf-8')
+    .readFileSync(filePath, 'utf-8')
     .split('\n')
     .map((l) => l.trim())
   let currentContract: string
@@ -68,7 +70,7 @@ for (const testFile of testFiles) {
         handleFunctionName(funcName)
       } catch (error) {
         throw new Error(
-          `In ${testFile}::${currentContract}:\n ${error.message}`
+          `In ${filePath}::${currentContract}:\n ${error.message}`
         )
       }
       continue

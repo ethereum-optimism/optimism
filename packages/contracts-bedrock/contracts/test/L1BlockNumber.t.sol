@@ -32,7 +32,7 @@ contract L1BlockNumber_TestInit is Test {
 }
 
 contract L1BlockNumber_Getters_Test is L1BlockNumber_TestInit {
-    function test_getL1BlockNumber() external {
+    function test_getL1BlockNumber_succeeds() external {
         assertEq(bn.getL1BlockNumber(), number);
     }
 }
@@ -42,7 +42,7 @@ contract L1BlockNumber_Fallback_TestFail is L1BlockNumber_TestInit {
 }
 
 contract L1BlockNumber_Fallback_Test is L1BlockNumber_TestInit {
-    function test_fallback() external {
+    function test_fallback_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call(hex"");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));
@@ -54,7 +54,7 @@ contract L1BlockNumber_Receive_TestFail is L1BlockNumber_TestInit {
 }
 
 contract L1BlockNumber_Receive_Test is L1BlockNumber_TestInit {
-    function test_receive() external {
+    function test_receive_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call{ value: 1 }(hex"");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));

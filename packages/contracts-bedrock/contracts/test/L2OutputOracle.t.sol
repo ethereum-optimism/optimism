@@ -9,12 +9,14 @@ import { Types } from "../libraries/Types.sol";
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
+    address newOwner = address(21);
+    address newProposer = address(20);
 
     function setUp() public override {
         super.setUp();
     }
 
-    function test_constructor() external {
+    function test_constructor_succeeds() external {
         assertEq(oracle.owner(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
@@ -24,7 +26,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.owner(), owner);
     }
 
-    function testCannot_constructWithBadTimestamp() external {
+    function test_constructor_badTimestamp_reverts() external {
         vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
 
         new L2OutputOracle(
@@ -43,7 +45,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      ****************/
 
     // Test: latestBlockNumber() should return the correct value
-    function test_latestBlockNumber() external {
+    function test_latestBlockNumber_succeeds() external {
         uint256 proposedNumber = oracle.nextBlockNumber();
 
         // Roll to after the block number we'll propose
@@ -54,7 +56,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     // Test: getL2Output() should return the correct value
-    function test_getL2Output() external {
+    function test_getL2Output_succeeds() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
@@ -68,20 +70,25 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         proposal = oracle.getL2Output(nextBlockNumber - 1);
         assertEq(proposal.outputRoot, proposedOutput1);
         assertEq(proposal.timestamp, block.timestamp);
+    }
 
+    function test_getL2Output_tooLow_reverts() external {
         // The block number is too low:
         vm.expectRevert(stdError.arithmeticError);
         oracle.getL2Output(0);
+    }
 
+    function test_getL2Output_tooHigh_reverts() external {
+        uint256 latestBlockNumber = oracle.latestBlockNumber();
         // The block number is larger than the latest proposed output:
         vm.expectRevert(
             "L2OutputOracle: block number cannot be greater than the latest block number"
         );
-        oracle.getL2Output(nextBlockNumber + 1);
+        oracle.getL2Output(latestBlockNumber + 1);
     }
 
     // Test: nextBlockNumber() should return the correct value
-    function test_nextBlockNumber() external {
+    function test_nextBlockNumber_succeeds() external {
         assertEq(
             oracle.nextBlockNumber(),
             // The return value should match this arithmetic
@@ -89,7 +96,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
-    function test_computeL2Timestamp() external {
+    function test_computeL2Timestamp_succeeds() external {
         // reverts if timestamp is too low
         vm.expectRevert(stdError.arithmeticError);
         oracle.computeL2Timestamp(startingBlockNumber - 1);
@@ -117,16 +124,21 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     event ProposerChanged(address indexed previousProposer, address indexed newProposer);
 
-    function test_changeProposer() public {
-        address newProposer = address(20);
+    function test_changeProposer_notOwner_reverts() public {
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.changeProposer(newProposer);
+    }
 
+    function test_changeProposer_zeroAddress_reverts() public {
         vm.startPrank(owner);
         vm.expectRevert("L2OutputOracle: new proposer cannot be the zero address");
         oracle.changeProposer(address(0));
+        vm.stopPrank();
+    }
 
+    function test_changeProposer_succeeds() public {
         // Double check proposer has not changed.
+        vm.startPrank(owner);
         assertEq(proposer, oracle.proposer());
 
         vm.expectEmit(true, true, true, true);
@@ -137,13 +149,14 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     event OwnershipTransferred(address indexed, address indexed);
 
-    function test_updateOwner() public {
-        address newOwner = address(21);
+    function test_updateOwner_notOwner_reverts() public {
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.transferOwnership(newOwner);
         // Double check owner has not changed.
         assertEq(owner, oracle.owner());
+    }
 
+    function test_updateOwner_succeeds() public {
         vm.startPrank(owner);
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferred(owner, newOwner);
@@ -158,7 +171,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: proposeL2Output succeeds when given valid input, and no block hash and number are
     // specified.
-    function test_proposingAnotherOutput() public {
+    function test_proposingAnotherOutput_succeeds() public {
         bytes32 proposedOutput2 = keccak256(abi.encode(2));
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
@@ -174,7 +187,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: proposeL2Output succeeds when given valid input, and when a block hash and number are
     // specified for reorg protection.
-    function test_proposeWithBlockhashAndHeight() external {
+    function test_proposeWithBlockhashAndHeight_succeeds() external {
         // Get the number and hash of a previous block in the chain
         uint256 prevL1BlockNumber = block.number - 1;
         bytes32 prevL1BlockHash = blockhash(prevL1BlockNumber);
@@ -190,7 +203,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      ***************************/
 
     // Test: proposeL2Output fails if called by a party that is not the proposer.
-    function testCannot_proposeL2OutputIfNotProposer() external {
+    function test_proposeL2Output_notProposer_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
 
@@ -200,7 +213,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     // Test: proposeL2Output fails given a zero blockhash.
-    function testCannot_proposeEmptyOutput() external {
+    function test_proposeL2Output_emptyOutput_reverts() external {
         bytes32 outputToPropose = bytes32(0);
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
@@ -210,7 +223,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     // Test: proposeL2Output fails if the block number doesn't match the next expected number.
-    function testCannot_proposeUnexpectedBlockNumber() external {
+    function test_proposeL2Output_unexpectedBlockNumber_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
@@ -219,7 +232,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     // Test: proposeL2Output fails if it would have a timestamp in the future.
-    function testCannot_proposeFutureTimetamp() external {
+    function test_proposeL2Output_futureTimetamp_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         uint256 nextTimestamp = oracle.computeL2Timestamp(nextBlockNumber);
         vm.warp(nextTimestamp);
@@ -230,7 +243,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: proposeL2Output fails if a non-existent L1 block hash and number are provided for reorg
     // protection.
-    function testCannot_proposeOnWrongFork() external {
+    function test_proposeL2Output_onWrongFork_reverts() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
@@ -245,7 +258,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     // Test: proposeL2Output fails when given valid input, but the block hash and number do not
     // match.
-    function testCannot_ProposeWithUnmatchedBlockhash() external {
+    function test_proposeL2Output_withUnmatchedBlockhash_reverts() external {
         // Move ahead to block 100 so that we can reference historical blocks
         vm.roll(100);
 
@@ -268,9 +281,9 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
     event OutputsDeleted(uint256 indexed l2BlockNumber);
 
-    function test_deleteOutputs_singleOutput() external {
-        test_proposingAnotherOutput();
-        test_proposingAnotherOutput();
+    function test_deleteOutputs_singleOutput_succeeds() external {
+        test_proposingAnotherOutput_succeeds();
+        test_proposingAnotherOutput_succeeds();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
@@ -292,11 +305,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
 
-    function test_deleteOutputs_multipleOutputs() external {
-        test_proposingAnotherOutput();
-        test_proposingAnotherOutput();
-        test_proposingAnotherOutput();
-        test_proposingAnotherOutput();
+    function test_deleteOutputs_multipleOutputs_succeeds() external {
+        test_proposingAnotherOutput_succeeds();
+        test_proposingAnotherOutput_succeeds();
+        test_proposingAnotherOutput_succeeds();
+        test_proposingAnotherOutput_succeeds();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
         Types.OutputProposal memory newLatestOutput = oracle.getL2Output(
@@ -322,15 +335,15 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests - Sad Path *
      ***************************/
 
-    function testCannot_deleteL2Outputs_ifNotOwner() external {
+    function test_deleteL2Outputs_ifNotOwner_reverts() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
         vm.expectRevert("Ownable: caller is not the owner");
         oracle.deleteL2Outputs(latestBlockNumber);
     }
 
-    function testCannot_deleteL2Outputs_nonExistent() external {
-        test_proposingAnotherOutput();
+    function test_deleteL2Outputs_nonExistent_reverts() external {
+        test_proposingAnotherOutput_succeeds();
 
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
@@ -339,11 +352,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.deleteL2Outputs(latestBlockNumber + 1);
     }
 
-    function testCannot_deleteL2Outputs_afterLatest() external {
+    function test_deleteL2Outputs_afterLatest_reverts() external {
         // Start by proposing three outputs
-        test_proposingAnotherOutput();
-        test_proposingAnotherOutput();
-        test_proposingAnotherOutput();
+        test_proposingAnotherOutput_succeeds();
+        test_proposingAnotherOutput_succeeds();
+        test_proposingAnotherOutput_succeeds();
 
         // Delete the latest two outputs
         uint256 latestBlockNumber = oracle.latestBlockNumber();
@@ -365,7 +378,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         proxy = Proxy(payable(address(oracle)));
     }
 
-    function test_initValuesOnProxy() external {
+    function test_init_valuesOnProxy_succeeds() external {
         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
         assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
@@ -375,7 +388,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(owner, oracleImpl.owner());
     }
 
-    function test_cannotInitProxy() external {
+    function test_proxy_init_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(payable(proxy)).initialize(
             startingBlockNumber,
@@ -385,7 +398,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         );
     }
 
-    function test_cannotInitImpl() external {
+    function test_impl_init_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(oracleImpl).initialize(
             startingBlockNumber,
@@ -395,7 +408,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         );
     }
 
-    function test_upgrading() external {
+    function test_upgrading_succeeds() external {
         // Check an unused slot before upgrading.
         bytes32 slot21Before = vm.load(address(oracle), bytes32(uint256(21)));
         assertEq(bytes32(0), slot21Before);

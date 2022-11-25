@@ -31,23 +31,23 @@ contract L1Block_Getters_TestFail is L1Block_TestInit {
 }
 
 contract L1Block_Getters_Test is L1Block_TestInit {
-    function test_number() external {
+    function test_number_succeeds() external {
         assertEq(lb.number(), uint64(1));
     }
 
-    function test_timestamp() external {
+    function test_timestamp_succeeds() external {
         assertEq(lb.timestamp(), uint64(2));
     }
 
-    function test_basefee() external {
+    function test_basefee_succeeds() external {
         assertEq(lb.basefee(), 3);
     }
 
-    function test_hash() external {
+    function test_hash_succeeds() external {
         assertEq(lb.hash(), NON_ZERO_HASH);
     }
 
-    function test_sequenceNumber() external {
+    function test_sequenceNumber_succeeds() external {
         assertEq(lb.sequenceNumber(), uint64(4));
     }
 }
