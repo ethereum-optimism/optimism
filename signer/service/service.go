@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/prometheus/client_golang/prometheus"
 
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/signer/service/provider"
@@ -47,25 +48,33 @@ func (s *SignerService) SignTransaction(
 	keyName := "projects/op-dev-signer/locations/nam6/keyRings/signer/cryptoKeys/zhwrd-test-key/cryptoKeyVersions/1"
 	clientName := "client"
 
+	labels := prometheus.Labels{"client": clientName, "status": "error", "error": ""}
+	defer func() {
+		MetricSignTransactionTotal.With(labels).Inc()
+	}()
+
 	tx := types.Transaction{}
 	if err := tx.UnmarshalBinary(txraw); err != nil {
+		labels["error"] = "transaction_unmarshal_error"
 		return nil, new(TransactionUnmarshalError)
 	}
 
 	signer := types.LatestSignerForChainID(tx.ChainId())
 	expectedDigest := signer.Hash(&tx).Hex()
 	if expectedDigest != digest.String() {
+		labels["error"] = "invalid_digest_error"
 		return nil, new(InvalidDigestError)
 	}
 
 	signature, err := s.provider.Sign(ctx, keyName, digest)
 	if err != nil {
-		s.logger.Error("signature error", "error", err)
+		labels["error"] = "sign_error"
 		return nil, err
 	}
 
+	labels["status"] = "success"
 	s.logger.Info(
-		"signed transaction",
+		"Signed transaction",
 		"digest", digest,
 		"client.name", clientName,
 		"keyname", keyName,
