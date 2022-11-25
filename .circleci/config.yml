@@ -236,7 +236,6 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: test and generate coverage
-          no_output_timeout: 20m
           command: yarn coverage:lcov
           environment:
             FOUNDRY_PROFILE: ci
@@ -248,6 +247,7 @@ jobs:
             FOUNDRY_PROFILE: ci
       - run:
           name: gas snapshot
+          no_output_timeout: 15m
           command: |
             forge --version
             yarn gas-snapshot --check
