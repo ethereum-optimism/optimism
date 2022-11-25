@@ -262,6 +262,50 @@ jobs:
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
 
+  contracts-bedrock-echidna:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: {at: "."}
+      - run:
+          name: Check if we should run
+          command: |
+            shopt -s inherit_errexit
+            CHANGED=$(check-changed "(contracts-bedrock/contracts)" || echo "TRUE")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
+          name: Compile with metadata hash
+          command: yarn build:with-metadata
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Echidna Fuzz Aliasing
+          command: yarn echidna:aliasing || exit 0
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Echidna Fuzz Burn
+          command: yarn echidna:burn || exit 0
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Echidna Fuzz Encoding
+          command: yarn echidna:encoding || exit 0
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Echidna Fuzz Portal
+          command: yarn enchidna:portal || exit 0
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Echidna Fuzz Hashing
+          command: yarn echidna:hashing || exit 0
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: Echidna Fuzz Resource Metering
+          command: yarn echidna:metering || exit 0
+          working_directory: packages/contracts-bedrock
+
   op-bindings-build:
     docker:
       - image: ethereumoptimism/ci-builder:latest
@@ -773,6 +817,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-echidna:
           requires:
             - yarn-monorepo
       - op-bindings-build:
