@@ -39,10 +39,10 @@
   "private": true,
   "scripts": {
     "clean": "yarn lerna run clean --parallel",
-    "build": "yarn lerna run build",
-    "test": "yarn lerna run test --parallel",
+    "build": "nx run-many --target=build",
+    "test": "nx run-many --target=test",
     "test:coverage": "yarn lerna run test:coverage --parallel",
-    "lint": "yarn lerna run lint",
+    "lint": "nx run-many --target=lint",
     "lint:ts:check": "yarn lerna run lint:ts:check",
     "lint:check": "yarn lerna run lint:check",
     "lint:fix": "yarn lerna run lint:fix --parallel",
