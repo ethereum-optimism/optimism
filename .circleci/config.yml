@@ -263,7 +263,7 @@ jobs:
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
 
-  contracts-bedrock-echidna:
+  contracts-bedrock-echidna-build:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -282,34 +282,25 @@ jobs:
           name: Compile with metadata hash
           command: yarn build:with-metadata
           working_directory: packages/contracts-bedrock
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "node_modules"
+            - packages/contracts-bedrock
+
+  contracts-bedrock-echidna-run:
+    docker:
+    - image: ethereumoptimism/ci-builder:latest
+    parameters:
+      echidna_target:
+        description: Which echidna fuzz contract to run
+        type: string
+    steps:
+      - checkout
+      - attach_workspace: {at: "."}
       - run:
-          name: Echidna Fuzz Aliasing
-          command: yarn echidna:aliasing
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 20m
-      - run:
-          name: Echidna Fuzz Burn
-          command: yarn echidna:burn
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 20m
-      - run:
-          name: Echidna Fuzz Encoding
-          command: yarn echidna:encoding
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 20m
-      - run:
-          name: Echidna Fuzz Portal
-          command: yarn echidna:portal
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 20m
-      - run:
-          name: Echidna Fuzz Hashing
-          command: yarn echidna:hashing
-          working_directory: packages/contracts-bedrock
-          no_output_timeout: 20m
-      - run:
-          name: Echidna Fuzz Resource Metering
-          command: yarn echidna:metering
+          name: Echidna Fuzz <<parameters.echidna_target>>
+          command: yarn echidna:<<parameters.echidna_target>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
 
@@ -826,9 +817,33 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
-      - contracts-bedrock-echidna:
+      - contracts-bedrock-echidna-build:
           requires:
             - yarn-monorepo
+      - contracts-bedrock-echidna-run:
+          echidna_target: aliasing
+          requires:
+            - contracts-bedrock-echidna-build
+      - contracts-bedrock-echidna-run:
+          echidna_target: burn
+          requires:
+            - contracts-bedrock-echidna-build
+      - contracts-bedrock-echidna-run:
+          echidna_target: encoding
+          requires:
+            - contracts-bedrock-echidna-build
+      - contracts-bedrock-echidna-run:
+          echidna_target: portal
+          requires:
+            - contracts-bedrock-echidna-build
+      - contracts-bedrock-echidna-run:
+          echidna_target: hashing
+          requires:
+            - contracts-bedrock-echidna-build
+      - contracts-bedrock-echidna-run:
+          echidna_target: metering
+          requires:
+            - contracts-bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
