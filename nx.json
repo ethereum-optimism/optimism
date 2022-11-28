@@ -17,5 +17,8 @@
       "dependsOn": ["^build"]
     }
   },
-  "defaultBase": "develop"
+  "defaultBase": "develop",
+  "affected": {
+    "defaultBase": "develop"
+  }
 }
