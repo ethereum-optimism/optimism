@@ -363,8 +363,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["GovernanceToken"] = state.StorageValues{
 		"_name":   "Optimism",
 		"_symbol": "OP",
-		// TODO: this should be set to the MintManager
-		"_owner": common.Address{},
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
