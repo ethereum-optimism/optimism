@@ -299,7 +299,7 @@ jobs:
           no_output_timeout: 20m
       - run:
           name: Echidna Fuzz Portal
-          command: yarn enchidna:portal || exit 0
+          command: yarn echidna:portal || exit 0
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:

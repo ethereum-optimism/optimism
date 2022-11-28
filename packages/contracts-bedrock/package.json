@@ -38,12 +38,12 @@
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
-    "echidna:aliasing": "echidna-test --contract EchidnaFuzzAddressAliasing --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:burn": "echidna-test --contract EchidnaFuzzBurn --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --format text --crytic-args --hardhat-ignore-compile ."
+    "echidna:aliasing": "echidna-test --contract EchidnaFuzzAddressAliasing --test-limit 5000 --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:burn": "echidna-test --contract EchidnaFuzzBurn --test-limit 5000 --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --test-limit 5000 --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --test-limit 5000 --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --test-limit 5000 --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --test-limit 5000 --format text --crytic-args --hardhat-ignore-compile ."
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.11.0",
