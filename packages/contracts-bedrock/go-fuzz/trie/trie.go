@@ -13,6 +13,24 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
+// Variant enum
+const (
+	// Generate a test case with a valid proof of inclusion for the k/v pair in the trie.
+	valid string = "valid"
+	// Generate an invalid test case with an extra proof element attached to an otherwise
+	// valid proof of inclusion for the passed k/v.
+	extraProofElems = "extra_proof_elems"
+	// Generate an invalid test case where the proof is malformed.
+	corruptedProof = "corrupted_proof"
+	// Generate an invalid test case where a random element of the proof has more bytes than the
+	// length designates within the RLP list encoding.
+	invalidDataRemainder = "invalid_data_remainder"
+	// Generate an invalid test case where a long proof element is incorrect for the root.
+	invalidLargeInternalHash = "invalid_large_internal_hash"
+	// Generate an invalid test case where a small proof element is incorrect for the root.
+	invalidInternalNodeHash = "invalid_internal_node_hash"
+)
+
 // Generate an abi-encoded `trieTestCase` of a specified variant
 func FuzzTrie(variant string) {
 	if len(variant) < 1 {
@@ -21,15 +39,15 @@ func FuzzTrie(variant string) {
 
 	var testCase trieTestCase
 	switch variant {
-	case "valid":
+	case valid:
 		testCase = genValidTrieTestCase()
 		break
-	case "extra_proof_elems":
+	case extraProofElems:
 		testCase = genValidTrieTestCase()
 		// Duplicate the last element of the proof
 		testCase.Proof = append(testCase.Proof, [][]byte{testCase.Proof[len(testCase.Proof)-1]}...)
 		break
-	case "corrupted_proof":
+	case corruptedProof:
 		testCase = genValidTrieTestCase()
 
 		// Re-encode a random element within the proof
@@ -37,7 +55,7 @@ func FuzzTrie(variant string) {
 		encoded, _ := rlp.EncodeToBytes(testCase.Proof[idx])
 		testCase.Proof[idx] = encoded
 		break
-	case "invalid_data_remainder":
+	case invalidDataRemainder:
 		testCase = genValidTrieTestCase()
 
 		// Alter true length of random proof element by appending random bytes
@@ -47,7 +65,7 @@ func FuzzTrie(variant string) {
 		rand.Read(bytes)
 		testCase.Proof[idx] = append(testCase.Proof[idx], bytes...)
 		break
-	case "invalid_large_internal_hash":
+	case invalidLargeInternalHash:
 		testCase = genValidTrieTestCase()
 
 		// Clobber 10 bytes at a random location within a random proof element
@@ -57,7 +75,7 @@ func FuzzTrie(variant string) {
 		st := randRange(10, int64(len(testCase.Proof[idx])-10))
 		testCase.Proof[idx] = append(testCase.Proof[idx][0:st], append(b, testCase.Proof[idx][st+10:]...)...)
 		break
-	case "invalid_internal_node_hash":
+	case invalidInternalNodeHash:
 		testCase = genValidTrieTestCase()
 		// Assign the last proof element to an encoded list containing a
 		// random 29 byte value
@@ -94,8 +112,7 @@ func genValidTrieTestCase() trieTestCase {
 	var value []byte
 
 	// Add `randN` elements to the trie
-	var i int64
-	for ; i < randN; i++ {
+	for i := int64(0); i < randN; i++ {
 		// Randomize the contents of `randKey` and `randValue`
 		rand.Read(randKey)
 		rand.Read(randValue)
@@ -164,7 +181,7 @@ func (t *trieTestCase) AbiEncode() string {
 }
 
 // Helper that generates a cryptographically secure random 64-bit integer
-// between the range [min, max]
+// between the range [min, max)
 func randRange(min int64, max int64) int64 {
 	r, err := rand.Int(rand.Reader, new(big.Int).Sub(new(big.Int).SetInt64(max), new(big.Int).SetInt64(min)))
 	if err != nil {
@@ -180,7 +197,7 @@ type intRange struct {
 	max int64
 }
 
-// Weird golang type coercion wizardry
+// Custom type to write the generated proof to
 type proofList [][]byte
 
 func (n *proofList) Put(key []byte, value []byte) error {

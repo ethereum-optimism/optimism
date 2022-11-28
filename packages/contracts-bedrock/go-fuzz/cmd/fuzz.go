@@ -4,7 +4,13 @@ import (
 	"flag"
 	"log"
 
-	"github.com/ethereum-optimism/optimism/packages/contracts-bedrock/go-fuzz/trie"
+	t "github.com/ethereum-optimism/optimism/packages/contracts-bedrock/go-fuzz/trie"
+)
+
+// Mode enum
+const (
+	// Enables the `trie` fuzzer
+	trie string = "trie"
 )
 
 func main() {
@@ -17,8 +23,8 @@ func main() {
 	}
 
 	switch *mode {
-	case "trie":
-		trie.FuzzTrie(*variant)
+	case trie:
+		t.FuzzTrie(*variant)
 	default:
 		log.Fatal("Invalid mode!")
 	}

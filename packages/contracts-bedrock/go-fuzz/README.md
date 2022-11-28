@@ -10,4 +10,20 @@ A lightweight input fuzzing utility used for testing various Bedrock contracts.
 
 ## Usage
 
-_TODO_
+To generate an abi-encoded fuzz case, pass in a mode via the `-m` flag as well as an optional variant via the `-v` flag.
+
+### Available Modes
+
+#### `trie`
+
+> **Note**
+> Variant required for `trie` mode.
+
+| Variant                       | Description                                                                                                                               |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `valid`                       | Generate a test case with a valid proof of inclusion for the k/v pair in the trie.                                                        |
+| `extra_proof_elems`           | Generate an invalid test case with an extra proof element attached to an otherwise valid proof of inclusion for the passed k/v.           |
+| `corrupted_proof`             | Generate an invalid test case where the proof is malformed.                                                                               |
+| `invalid_data_remainder`      | Generate an invalid test case where a random element of the proof has more bytes than the length designates within the RLP list encoding. |
+| `invalid_large_internal_hash` | Generate an invalid test case where a long proof element is incorrect for the root.                                                       |
+| `invalid_internal_node_hash`  | Generate an invalid test case where a small proof element is incorrect for the root.                                                      |
