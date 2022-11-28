@@ -263,7 +263,7 @@ jobs:
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
 
-  contracts-bedrock-echidna-build:
+  bedrock-echidna-build:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
@@ -288,7 +288,7 @@ jobs:
             - "node_modules"
             - packages/contracts-bedrock
 
-  contracts-bedrock-echidna-run:
+  bedrock-echidna-run:
     docker:
     - image: ethereumoptimism/ci-builder:latest
     parameters:
@@ -817,33 +817,33 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
-      - contracts-bedrock-echidna-build:
+      - bedrock-echidna-build:
           requires:
             - yarn-monorepo
-      - contracts-bedrock-echidna-run:
+      - bedrock-echidna-run:
           echidna_target: aliasing
           requires:
-            - contracts-bedrock-echidna-build
-      - contracts-bedrock-echidna-run:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
           echidna_target: burn
           requires:
-            - contracts-bedrock-echidna-build
-      - contracts-bedrock-echidna-run:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
           echidna_target: encoding
           requires:
-            - contracts-bedrock-echidna-build
-      - contracts-bedrock-echidna-run:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
           echidna_target: portal
           requires:
-            - contracts-bedrock-echidna-build
-      - contracts-bedrock-echidna-run:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
           echidna_target: hashing
           requires:
-            - contracts-bedrock-echidna-build
-      - contracts-bedrock-echidna-run:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
           echidna_target: metering
           requires:
-            - contracts-bedrock-echidna-build
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
