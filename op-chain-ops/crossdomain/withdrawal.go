@@ -143,27 +143,31 @@ func (w *Withdrawal) StorageSlot() (common.Hash, error) {
 }
 
 // Compute the receipt corresponding to the withdrawal. This receipt
-// is in the bedrock transition block. It contains 3 logs
-//   - SentMessage
-//   - SentMessageExtension1
-//   - MessagePassed
+// is in the bedrock transition block. It contains 3 logs.
+// SentMessage, SentMessageExtension1 and MessagePassed.
 // These logs are enough for the standard withdrawal flow to happen
 // which is driven by events being emitted.
 func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
+	// Create a new receipt with the state root, successful execution and no gas
+	// used
 	receipt := types.NewReceipt(hdr.Root.Bytes(), false, 0)
+	if receipt.Logs == nil {
+		receipt.Logs = make([]*types.Log, 0)
+	}
 
+	// Create the SentMessage log.
 	args := abi.Arguments{
 		{Name: "target", Type: AddressType},
 		{Name: "sender", Type: AddressType},
 		{Name: "data", Type: BytesType},
 		{Name: "nonce", Type: Uint256Type},
 	}
-
 	data, err := args.Pack(w.Target, w.Sender, w.Data, w.Nonce)
 	if err != nil {
 		return nil, err
 	}
-
+	// The L2CrossDomainMessenger emits this event. The target is
+	// indexed.
 	sm := &types.Log{
 		Address: predeploys.L2CrossDomainMessengerAddr,
 		Topics: []common.Hash{
@@ -178,9 +182,10 @@ func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
 		Index:       0,
 		Removed:     false,
 	}
-
 	receipt.Logs = append(receipt.Logs, sm)
 
+	// Create the SentMessageExtension1 log. The L2CrossDomainMessenger
+	// emits this event. The sender is indexed.
 	sm1 := &types.Log{
 		Address: predeploys.L2CrossDomainMessengerAddr,
 		Topics: []common.Hash{
@@ -195,26 +200,24 @@ func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
 		Index:       0,
 		Removed:     false,
 	}
-
 	receipt.Logs = append(receipt.Logs, sm1)
 
+	// Create the MessagePassed log.
 	mpargs := abi.Arguments{
 		{Name: "value", Type: Uint256Type},
 		{Name: "gasLimit", Type: Uint256Type},
 		{Name: "data", Type: BytesType},
 		{Name: "withdrawalHash", Type: Bytes32Type},
 	}
-
 	hash, err := w.Hash()
 	if err != nil {
 		return nil, err
 	}
-
 	mpdata, err := mpargs.Pack(w.Value, w.GasLimit, w.Data, hash)
 	if err != nil {
 		return nil, err
 	}
-
+	// The L2ToL1MessagePasser emits this event.
 	mp := &types.Log{
 		Address: predeploys.L2ToL1MessagePasserAddr,
 		Topics: []common.Hash{
@@ -231,7 +234,6 @@ func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
 		Index:       0,
 		Removed:     false,
 	}
-
 	receipt.Logs = append(receipt.Logs, mp)
 
 	return receipt, nil
