@@ -128,7 +128,10 @@ func (w *LegacyWithdrawal) StorageSlot() (common.Hash, error) {
 	return common.BytesToHash(slot), nil
 }
 
-// Value returns the ETH value associated with the withdrawal.
+// Value returns the ETH value associated with the withdrawal. Since
+// ETH was represented as an ERC20 token before the Bedrock upgrade,
+// the sender and calldata must be observed and the value must be parsed
+// out if "finalizeETHWithdrawal" is the method.
 func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 	abi, err := bindings.L1StandardBridgeMetaData.GetAbi()
 	if err != nil {
@@ -137,10 +140,14 @@ func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 
 	method, err := abi.MethodById(w.Data)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot parse withdrawal value: %w", err)
 	}
 
 	value := new(big.Int)
+
+	if w.Sender == nil {
+		return nil, errors.New("sender is nil")
+	}
 
 	isFromL2StandardBridge := *w.Sender == predeploys.L2StandardBridgeAddr
 	if isFromL2StandardBridge && method.Name == "finalizeETHWithdrawal" {
