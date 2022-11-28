@@ -15,12 +15,13 @@ import { Types } from "../libraries/Types.sol";
 // slither-disable-next-line locked-ether
 contract L2OutputOracle is Initializable, Semver {
     /**
-     * @notice The interval in L2 blocks at which checkpoints must be submitted.
+     * @notice The interval in L2 blocks at which checkpoints must be submitted. Although this is
+     *         immutable, it can safely be modified by upgrading the implementation contract.
      */
     uint256 public immutable SUBMISSION_INTERVAL;
 
     /**
-     * @notice The time between L2 blocks in seconds.
+     * @notice The time between L2 blocks in seconds. Once set, this value MUST NOT be modified.
      */
     uint256 public immutable L2_BLOCK_TIME;
 
@@ -45,36 +46,32 @@ contract L2OutputOracle is Initializable, Semver {
     uint256 public startingTimestamp;
 
     /**
-     * @notice The number of the most recent L2 block recorded in this contract.
+     * @notice Array of L2 output proposals.
      */
-    uint256 public latestBlockNumber;
-
-    /**
-     * @notice A mapping from L2 block numbers to the respective output root. Note that these
-     *         outputs should not be considered finalized until the finalization period (as defined
-     *         in the Optimism Portal) has passed.
-     */
-    mapping(uint256 => Types.OutputProposal) internal l2Outputs;
+    Types.OutputProposal[] internal l2Outputs;
 
     /**
      * @notice Emitted when an output is proposed.
      *
      * @param outputRoot    The output root.
-     * @param l1Timestamp   The L1 timestamp when proposed.
+     * @param l2OutputIndex The index of the output in the l2Outputs array.
      * @param l2BlockNumber The L2 block number of the output root.
+     * @param l1Timestamp   The L1 timestamp when proposed.
      */
     event OutputProposed(
         bytes32 indexed outputRoot,
-        uint256 indexed l1Timestamp,
-        uint256 indexed l2BlockNumber
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
     );
 
     /**
      * @notice Emitted when outputs are deleted.
      *
-     * @param l2BlockNumber First L2 block number deleted.
+     * @param prevNextOutputIndex Next L2 output index before the deletion.
+     * @param newNextOutputIndex  Next L2 output index after the deletion.
      */
-    event OutputsDeleted(uint256 indexed l2BlockNumber);
+    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     /**
      * @custom:semver 0.0.1
@@ -119,43 +116,36 @@ contract L2OutputOracle is Initializable, Semver {
 
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
-        latestBlockNumber = _startingBlockNumber;
     }
 
     /**
      * @notice Deletes all output proposals after and including the proposal that corresponds to
-     *         the given block number. Only the challenger address can delete outputs.
+     *         the given output index. Only the challenger address can delete outputs.
      *
-     * @param _l2BlockNumber L2 block number of the first output root to delete.
+     * @param _l2OutputIndex Index of the first L2 output to be deleted. All outputs after this
+     *                       output will also be deleted.
      */
     // solhint-disable-next-line ordering
-    function deleteL2Outputs(uint256 _l2BlockNumber) external {
+    function deleteL2Outputs(uint256 _l2OutputIndex) external {
         require(
             msg.sender == CHALLENGER,
             "L2OutputOracle: only the challenger address can delete outputs"
         );
 
-        // Simple check that accomplishes two things:
-        //   1. Prevents deleting anything before (and including) the starting block.
-        //   2. Prevents deleting anything other than a checkpoint block.
+        // Make sure we're not *increasing* the length of the array.
         require(
-            l2Outputs[_l2BlockNumber].outputRoot != bytes32(0),
-            "L2OutputOracle: cannot delete a non-existent output"
+            _l2OutputIndex < l2Outputs.length,
+            "L2OutputOracle: cannot delete outputs after the latest output index"
         );
 
-        // Prevent deleting beyond latest block number. Above check will miss this case if we
-        // already deleted an output and then the user tries to delete a later output.
-        require(
-            _l2BlockNumber <= latestBlockNumber,
-            "L2OutputOracle: cannot delete outputs after the latest block number"
-        );
+        uint256 prevNextL2OutputIndex = nextOutputIndex();
 
-        // We're setting the latest block number back to the checkpoint block before the given L2
-        // block number. Next proposal will overwrite the deleted output and following proposals
-        // will delete any outputs after that.
-        latestBlockNumber = _l2BlockNumber - SUBMISSION_INTERVAL;
+        // Use assembly to delete the array elements because Solidity doesn't allow it.
+        assembly {
+            sstore(l2Outputs.slot, _l2OutputIndex)
+        }
 
-        emit OutputsDeleted(_l2BlockNumber);
+        emit OutputsDeleted(prevNextL2OutputIndex, _l2OutputIndex);
     }
 
     /**
@@ -165,13 +155,13 @@ contract L2OutputOracle is Initializable, Semver {
      *
      * @param _outputRoot    The L2 output of the checkpoint block.
      * @param _l2BlockNumber The L2 block number that resulted in _outputRoot.
-     * @param _l1Blockhash   A block hash which must be included in the current chain.
+     * @param _l1BlockHash   A block hash which must be included in the current chain.
      * @param _l1BlockNumber The block number with the specified block hash.
      */
     function proposeL2Output(
         bytes32 _outputRoot,
         uint256 _l2BlockNumber,
-        bytes32 _l1Blockhash,
+        bytes32 _l1BlockHash,
         uint256 _l1BlockNumber
     ) external payable {
         require(
@@ -194,7 +184,7 @@ contract L2OutputOracle is Initializable, Semver {
             "L2OutputOracle: L2 output proposal cannot be the zero hash"
         );
 
-        if (_l1Blockhash != bytes32(0)) {
+        if (_l1BlockHash != bytes32(0)) {
             // This check allows the proposer to propose an output based on a given L1 block,
             // without fear that it will be reorged out.
             // It will also revert if the blockheight provided is more than 256 blocks behind the
@@ -204,59 +194,129 @@ contract L2OutputOracle is Initializable, Semver {
             // blockhash value, and delay submission until it is confident that the L1 block is
             // finalized.
             require(
-                blockhash(_l1BlockNumber) == _l1Blockhash,
-                "L2OutputOracle: blockhash does not match the hash at the expected height"
+                blockhash(_l1BlockNumber) == _l1BlockHash,
+                "L2OutputOracle: block hash does not match the hash at the expected height"
             );
         }
 
-        emit OutputProposed(_outputRoot, block.timestamp, _l2BlockNumber);
+        emit OutputProposed(_outputRoot, nextOutputIndex(), block.timestamp, _l2BlockNumber);
 
-        l2Outputs[_l2BlockNumber] = Types.OutputProposal(_outputRoot, block.timestamp);
-        latestBlockNumber = _l2BlockNumber;
+        l2Outputs.push(
+            Types.OutputProposal({
+                outputRoot: _outputRoot,
+                timestamp: uint128(block.timestamp),
+                l2BlockNumber: uint128(_l2BlockNumber)
+            })
+        );
     }
 
     /**
-     * @notice Returns the L2 output proposal associated with a target L2 block number. If the
-     *         L2 block number provided is between checkpoints, this function will rerutn the next
-     *         proposal for the next checkpoint.
-     *         Reverts if the output proposal is either not found, or predates
-     *         the startingBlockNumber.
+     * @notice Returns an output by index. Exists because Solidity's array access will return a
+     *         tuple instead of a struct.
      *
-     * @param _l2BlockNumber The L2 block number of the target block.
+     * @param _l2OutputIndex Index of the output to return.
+     *
+     * @return The output at the given index.
      */
-    function getL2Output(uint256 _l2BlockNumber)
+    function getL2Output(uint256 _l2OutputIndex)
         external
         view
         returns (Types.OutputProposal memory)
     {
+        return l2Outputs[_l2OutputIndex];
+    }
+
+    /**
+     * @notice Returns the index of the L2 output that checkpoints a given L2 block number. Uses a
+     *         binary search to find the first output greater than or equal to the given block.
+     *
+     * @param _l2BlockNumber L2 block number to find a checkpoint for.
+     *
+     * @return Index of the first checkpoint that commits to the given L2 block number.
+     */
+    function getL2OutputIndexAfter(uint256 _l2BlockNumber) public view returns (uint256) {
+        // Make sure an output for this block number has actually been proposed.
         require(
-            _l2BlockNumber <= latestBlockNumber,
-            "L2OutputOracle: block number cannot be greater than the latest block number"
+            _l2BlockNumber <= latestBlockNumber(),
+            "L2OutputOracle: cannot get output for a block that has not been proposed"
         );
 
-        // Find the distance between _l2BlockNumber, and the checkpoint block before it.
-        uint256 offset = (_l2BlockNumber - startingBlockNumber) % SUBMISSION_INTERVAL;
-
-        // If the offset is zero, then the _l2BlockNumber should be checkpointed.
-        // Otherwise, we'll look up the next block that will be checkpointed.
-        uint256 lookupBlockNumber = offset == 0
-            ? _l2BlockNumber
-            : _l2BlockNumber + (SUBMISSION_INTERVAL - offset);
-
-        Types.OutputProposal memory output = l2Outputs[lookupBlockNumber];
+        // Make sure there's at least one output proposed.
         require(
-            output.outputRoot != bytes32(0),
-            "L2OutputOracle: no output found for the given block number"
+            l2Outputs.length > 0,
+            "L2OutputOracle: cannot get output as no outputs have been proposed yet"
         );
 
-        return output;
+        // Find the output via binary search, guaranteed to exist.
+        uint256 lo = 0;
+        uint256 hi = l2Outputs.length;
+        while (lo < hi) {
+            uint256 mid = (lo + hi) / 2;
+            if (l2Outputs[mid].l2BlockNumber < _l2BlockNumber) {
+                lo = mid + 1;
+            } else {
+                hi = mid;
+            }
+        }
+
+        return lo;
+    }
+
+    /**
+     * @notice Returns the L2 output proposal that checkpoints a given L2 block number. Uses a
+     *         binary search to find the first output greater than or equal to the given block.
+     *
+     * @param _l2BlockNumber L2 block number to find a checkpoint for.
+     *
+     * @return First checkpoint that commits to the given L2 block number.
+     */
+    function getL2OutputAfter(uint256 _l2BlockNumber)
+        external
+        view
+        returns (Types.OutputProposal memory)
+    {
+        return l2Outputs[getL2OutputIndexAfter(_l2BlockNumber)];
+    }
+
+    /**
+     * @notice Returns the number of outputs that have been proposed. Will revert if no outputs
+     *         have been proposed yet.
+     *
+     * @return The number of outputs that have been proposed.
+     */
+    function latestOutputIndex() external view returns (uint256) {
+        return l2Outputs.length - 1;
+    }
+
+    /**
+     * @notice Returns the index of the next output to be proposed.
+     *
+     * @return The index of the next output to be proposed.
+     */
+    function nextOutputIndex() public view returns (uint256) {
+        return l2Outputs.length;
+    }
+
+    /**
+     * @notice Returns the block number of the latest submitted L2 output proposal. If no proposals
+     *         been submitted yet then this function will return the starting block number.
+     *
+     * @return Latest submitted L2 block number.
+     */
+    function latestBlockNumber() public view returns (uint256) {
+        return
+            l2Outputs.length == 0
+                ? startingBlockNumber
+                : l2Outputs[l2Outputs.length - 1].l2BlockNumber;
     }
 
     /**
      * @notice Computes the block number of the next L2 block that needs to be checkpointed.
+     *
+     * @return Next L2 block number.
      */
     function nextBlockNumber() public view returns (uint256) {
-        return latestBlockNumber + SUBMISSION_INTERVAL;
+        return latestBlockNumber() + SUBMISSION_INTERVAL;
     }
 
     /**
@@ -265,6 +325,8 @@ contract L2OutputOracle is Initializable, Semver {
      *         timestamp of the previous checkpoint.
      *
      * @param _l2BlockNumber The L2 block number of the target block.
+     *
+     * @return L2 timestamp of the given block.
      */
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
         return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
