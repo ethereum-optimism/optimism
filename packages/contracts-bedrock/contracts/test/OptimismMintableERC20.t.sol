@@ -29,6 +29,17 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.l2Bridge(), address(L2Bridge));
     }
 
+    function test_legacy() external {
+        // Getters for the remote token
+        assertEq(L2Token.REMOTE_TOKEN(), address(L1Token));
+        assertEq(L2Token.remoteToken(), address(L1Token));
+        assertEq(L2Token.l1Token(), address(L1Token));
+        // Getters for the bridge
+        assertEq(L2Token.BRIDGE(), address(L2Bridge));
+        assertEq(L2Token.bridge(), address(L2Bridge));
+        assertEq(L2Token.l2Bridge(), address(L2Bridge));
+    }
+
     function test_mint() external {
         vm.expectEmit(true, true, true, true);
         emit Mint(alice, 100);
