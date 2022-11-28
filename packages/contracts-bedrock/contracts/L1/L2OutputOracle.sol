@@ -94,7 +94,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
      * @param _l2BlockTime           The time per L2 block, in seconds.
-     * @param _startingL2Output      The initial L2 output of the L2 chain.
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _proposer              The address of the proposer.
@@ -103,7 +102,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     constructor(
         uint256 _submissionInterval,
         uint256 _l2BlockTime,
-        bytes32 _startingL2Output,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         address _proposer,
@@ -112,20 +110,18 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
 
-        initialize(_startingL2Output, _startingBlockNumber, _startingTimestamp, _proposer, _owner);
+        initialize(_startingBlockNumber, _startingTimestamp, _proposer, _owner);
     }
 
     /**
      * @notice Initializer.
      *
-     * @param _startingL2Output    Output for the first recoded L2 block.
      * @param _startingBlockNumber Block number for the first recoded L2 block.
      * @param _startingTimestamp   Timestamp for the first recoded L2 block.
      * @param _proposer            The address of the proposer.
      * @param _owner               The address of the owner.
      */
     function initialize(
-        bytes32 _startingL2Output,
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         address _proposer,
@@ -136,10 +132,9 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
             "L2OutputOracle: starting L2 timestamp must be less than current time"
         );
 
+        startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
         latestBlockNumber = _startingBlockNumber;
-        startingTimestamp = _startingTimestamp;
-        l2Outputs[startingBlockNumber] = Types.OutputProposal(_startingL2Output, block.timestamp);
 
         __Ownable_init();
         changeProposer(_proposer);
@@ -156,7 +151,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     // solhint-disable-next-line ordering
     function deleteL2Outputs(uint256 _l2BlockNumber) external onlyOwner {
         // Simple check that accomplishes two things:
-        //   1. Prevents deleting anything from before the genesis block.
+        //   1. Prevents deleting anything before (and including) the starting block.
         //   2. Prevents deleting anything other than a checkpoint block.
         require(
             l2Outputs[_l2BlockNumber].outputRoot != bytes32(0),

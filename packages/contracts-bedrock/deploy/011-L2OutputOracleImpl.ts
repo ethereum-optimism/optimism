@@ -1,4 +1,3 @@
-import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
@@ -15,7 +14,6 @@ const deployFn: DeployFunction = async (hre) => {
     args: [
       hre.deployConfig.l2OutputOracleSubmissionInterval,
       hre.deployConfig.l2BlockTime,
-      ethers.constants.HashZero,
       0,
       0,
       hre.deployConfig.l2OutputOracleProposer,

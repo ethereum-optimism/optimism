@@ -278,19 +278,6 @@ const deployFn: DeployFunction = async (hre) => {
         'owner',
         hre.deployConfig.l2OutputOracleOwner
       )
-      if (
-        hre.deployConfig.l2OutputOracleGenesisL2Output !==
-        ethers.constants.HashZero
-      ) {
-        const genesisOutput = await L2OutputOracle.getL2Output(
-          hre.deployConfig.l2OutputOracleStartingBlockNumber
-        )
-        assert(
-          genesisOutput.outputRoot ===
-            hre.deployConfig.l2OutputOracleGenesisL2Output,
-          `L2OutputOracle was not initialized with the correct genesis output root`
-        )
-      }
 
       // Check OptimismPortal was initialized properly.
       await assertContractVariable(
@@ -387,8 +374,6 @@ const deployFn: DeployFunction = async (hre) => {
           }
 
           await MigrationSystemDictator.updateL2OutputOracleDynamicConfig({
-            l2OutputOracleStartingL2Output:
-              hre.deployConfig.l2OutputOracleGenesisL2Output,
             l2OutputOracleStartingBlockNumber:
               hre.deployConfig.l2OutputOracleStartingBlockNumber,
             l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
