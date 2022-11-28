@@ -204,6 +204,12 @@ func TestBedrockIndexer(t *testing.T) {
 		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
 		require.NoError(t, err)
 
+		oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+		require.Nil(t, err)
+
+		l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, wParams.BlockNumber)
+		require.Nil(t, err)
+
 		l1Opts.Value = big.NewInt(0)
 		// Prove our withdrawal
 		proveTx, err := portal.ProveWithdrawalTransaction(
@@ -216,7 +222,7 @@ func TestBedrockIndexer(t *testing.T) {
 				GasLimit: wParams.GasLimit,
 				Data:     wParams.Data,
 			},
-			wParams.BlockNumber,
+			l2OutputIndex,
 			wParams.OutputRootProof,
 			wParams.WithdrawalProof,
 		)

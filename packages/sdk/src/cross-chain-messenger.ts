@@ -962,37 +962,36 @@ export class CrossChainMessenger {
       throw new Error(`cannot get a state root for an L1 to L2 message`)
     }
 
-    const l2OutputOracleParameters = await this.getL2OutputOracleParameters()
-
-    // TODO: better way to do this
-    let number =
-      resolved.blockNumber - l2OutputOracleParameters.startingBlockNumber
-    while (number % l2OutputOracleParameters.submissionInterval !== 0) {
-      number++
+    // Try to find the output index that corresponds to the block number attached to the message.
+    // We'll explicitly handle "cannot get output" errors as a null return value, but anything else
+    // needs to get thrown. Might need to revisit this in the future to be a little more robust
+    // when connected to RPCs that don't return nice error messages.
+    let l2OutputIndex: BigNumber
+    try {
+      l2OutputIndex =
+        await this.contracts.l1.L2OutputOracle.getL2OutputIndexAfter(
+          resolved.blockNumber
+        )
+    } catch (err) {
+      if (err.message.includes('L2OutputOracle: cannot get output')) {
+        return null
+      } else {
+        throw err
+      }
     }
 
-    // TODO: Handle old messages from before Bedrock upgrade.
-    const events = await this.contracts.l1.L2OutputOracle.queryFilter(
-      this.contracts.l1.L2OutputOracle.filters.OutputProposed(
-        undefined,
-        undefined,
-        number
-      )
+    // Now pull the proposal out given the output index. Should always work as long as the above
+    // codepath completed successfully.
+    const proposal = await this.contracts.l1.L2OutputOracle.getL2Output(
+      l2OutputIndex
     )
 
-    if (events.length === 0) {
-      return null
-    }
-
-    // Should not happen
-    if (events.length > 1) {
-      throw new Error(`multiple output roots found for message`)
-    }
-
+    // Format everything and return it nicely.
     return {
-      outputRoot: events[0].args.l2Output,
-      l1Timestamp: events[0].args.l1Timestamp.toNumber(),
-      l2BlockNumber: events[0].args.l2BlockNumber.toNumber(),
+      outputRoot: proposal.outputRoot,
+      l1Timestamp: proposal.timestamp.toNumber(),
+      l2BlockNumber: proposal.l2BlockNumber.toNumber(),
+      l2OutputIndex: l2OutputIndex.toNumber(),
     }
   }
 
@@ -1774,7 +1773,7 @@ export class CrossChainMessenger {
           withdrawalTx.minGasLimit,
           withdrawalTx.message,
         ],
-        output.l2BlockNumber,
+        output.l2OutputIndex,
         [
           proof.outputRootProof.version,
           proof.outputRootProof.stateRoot,

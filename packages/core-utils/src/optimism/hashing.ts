@@ -17,6 +17,7 @@ export interface BedrockOutputData {
   outputRoot: string
   l1Timestamp: number
   l2BlockNumber: number
+  l2OutputIndex: number
 }
 
 /**

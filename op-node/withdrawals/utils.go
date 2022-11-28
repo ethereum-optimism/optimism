@@ -91,7 +91,7 @@ loop:
 	}
 
 	// Now wait for it to be finalized
-	output, err := l2OO.GetL2Output(opts, l2BlockNumber)
+	output, err := l2OO.GetL2OutputAfter(opts, l2BlockNumber)
 	if err != nil {
 		return 0, err
 	}
