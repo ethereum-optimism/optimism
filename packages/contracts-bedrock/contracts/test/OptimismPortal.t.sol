@@ -233,7 +233,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         uint256 checkpoint = oracle.nextBlockNumber();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        vm.prank(oracle.proposer());
+        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
@@ -312,7 +312,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     function setUp() public override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(oracle.proposer());
+        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.

@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
 
@@ -15,7 +13,7 @@ import { Types } from "../libraries/Types.sol";
  *         This contract should be deployed behind an upgradable proxy
  */
 // slither-disable-next-line locked-ether
-contract L2OutputOracle is OwnableUpgradeable, Semver {
+contract L2OutputOracle is Initializable, Semver {
     /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted.
      */
@@ -27,6 +25,16 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     uint256 public immutable L2_BLOCK_TIME;
 
     /**
+     * @notice The address of the challenger. Can be updated via upgrade.
+     */
+    address public immutable CHALLENGER;
+
+    /**
+     * @notice The address of the proposer. Can be updated via upgrade.
+     */
+    address public immutable PROPOSER;
+
+    /**
      * @notice The number of the first L2 block recorded in this contract.
      */
     uint256 public startingBlockNumber;
@@ -35,11 +43,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @notice The timestamp of the first L2 block recorded in this contract.
      */
     uint256 public startingTimestamp;
-
-    /**
-     * @notice The address of the proposer;
-     */
-    address public proposer;
 
     /**
      * @notice The number of the most recent L2 block recorded in this contract.
@@ -74,22 +77,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
     event OutputsDeleted(uint256 indexed l2BlockNumber);
 
     /**
-     * @notice Emitted when the proposer address is changed.
-     *
-     * @param previousProposer The previous proposer address.
-     * @param newProposer      The new proposer address.
-     */
-    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
-
-    /**
-     * @notice Reverts if called by any account other than the proposer.
-     */
-    modifier onlyProposer() {
-        require(proposer == msg.sender, "L2OutputOracle: function can only be called by proposer");
-        _;
-    }
-
-    /**
      * @custom:semver 0.0.1
      *
      * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
@@ -97,7 +84,7 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      * @param _startingBlockNumber   The number of the first L2 block.
      * @param _startingTimestamp     The timestamp of the first L2 block.
      * @param _proposer              The address of the proposer.
-     * @param _owner                 The address of the owner.
+     * @param _challenger            The address of the challenger.
      */
     constructor(
         uint256 _submissionInterval,
@@ -105,12 +92,14 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         address _proposer,
-        address _owner
+        address _challenger
     ) Semver(0, 0, 1) {
         SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
+        PROPOSER = _proposer;
+        CHALLENGER = _challenger;
 
-        initialize(_startingBlockNumber, _startingTimestamp, _proposer, _owner);
+        initialize(_startingBlockNumber, _startingTimestamp);
     }
 
     /**
@@ -118,15 +107,11 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
      *
      * @param _startingBlockNumber Block number for the first recoded L2 block.
      * @param _startingTimestamp   Timestamp for the first recoded L2 block.
-     * @param _proposer            The address of the proposer.
-     * @param _owner               The address of the owner.
      */
-    function initialize(
-        uint256 _startingBlockNumber,
-        uint256 _startingTimestamp,
-        address _proposer,
-        address _owner
-    ) public initializer {
+    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp)
+        public
+        initializer
+    {
         require(
             _startingTimestamp <= block.timestamp,
             "L2OutputOracle: starting L2 timestamp must be less than current time"
@@ -135,21 +120,21 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         startingTimestamp = _startingTimestamp;
         startingBlockNumber = _startingBlockNumber;
         latestBlockNumber = _startingBlockNumber;
-
-        __Ownable_init();
-        changeProposer(_proposer);
-        _transferOwnership(_owner);
     }
 
     /**
      * @notice Deletes all output proposals after and including the proposal that corresponds to
-     *         the given block number. Can only be called by the owner, but will be replaced with
-     *         a mechanism that allows a challenger contract to delete proposals.
+     *         the given block number. Only the challenger address can delete outputs.
      *
      * @param _l2BlockNumber L2 block number of the first output root to delete.
      */
     // solhint-disable-next-line ordering
-    function deleteL2Outputs(uint256 _l2BlockNumber) external onlyOwner {
+    function deleteL2Outputs(uint256 _l2BlockNumber) external {
+        require(
+            msg.sender == CHALLENGER,
+            "L2OutputOracle: only the challenger address can delete outputs"
+        );
+
         // Simple check that accomplishes two things:
         //   1. Prevents deleting anything before (and including) the starting block.
         //   2. Prevents deleting anything other than a checkpoint block.
@@ -188,7 +173,12 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         uint256 _l2BlockNumber,
         bytes32 _l1Blockhash,
         uint256 _l1BlockNumber
-    ) external payable onlyProposer {
+    ) external payable {
+        require(
+            msg.sender == PROPOSER,
+            "L2OutputOracle: only the proposer address can propose new outputs"
+        );
+
         require(
             _l2BlockNumber == nextBlockNumber(),
             "L2OutputOracle: block number must be equal to next expected block number"
@@ -260,19 +250,6 @@ contract L2OutputOracle is OwnableUpgradeable, Semver {
         );
 
         return output;
-    }
-
-    /**
-     * @notice Allows the owner to change the proposer address.
-     *
-     * @param _proposer New proposer address.
-     */
-    function changeProposer(address _proposer) public onlyOwner {
-        require(_proposer != address(0), "L2OutputOracle: new proposer cannot be the zero address");
-
-        emit ProposerChanged(proposer, _proposer);
-
-        proposer = _proposer;
     }
 
     /**

@@ -104,8 +104,6 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		"initialize",
 		big.NewInt(0),
 		uint642Big(uint64(config.L1GenesisBlockTimestamp)),
-		config.L2OutputOracleProposer,
-		config.L2OutputOracleOwner,
 	)
 	if err != nil {
 		return nil, err
@@ -280,7 +278,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				big.NewInt(0),
 				uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 				config.L2OutputOracleProposer,
-				config.L2OutputOracleOwner,
+				config.L2OutputOracleChallenger,
 			},
 		},
 		{

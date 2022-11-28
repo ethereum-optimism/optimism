@@ -268,16 +268,6 @@ const deployFn: DeployFunction = async (hre) => {
         'latestBlockNumber',
         hre.deployConfig.l2OutputOracleStartingBlockNumber
       )
-      await assertContractVariable(
-        L2OutputOracle,
-        'proposer',
-        hre.deployConfig.l2OutputOracleProposer
-      )
-      await assertContractVariable(
-        L2OutputOracle,
-        'owner',
-        hre.deployConfig.l2OutputOracleOwner
-      )
 
       // Check OptimismPortal was initialized properly.
       await assertContractVariable(

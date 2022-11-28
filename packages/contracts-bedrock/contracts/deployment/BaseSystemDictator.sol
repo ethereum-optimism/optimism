@@ -56,14 +56,6 @@ contract BaseSystemDictator is Ownable {
     }
 
     /**
-     * @notice Fixed L2OutputOracle config.
-     */
-    struct L2OutputOracleConfig {
-        address l2OutputOracleProposer;
-        address l2OutputOracleOwner;
-    }
-
-    /**
      * @notice Dynamic L2OutputOracle config.
      */
     struct L2OutputOracleDynamicConfig {
@@ -89,7 +81,6 @@ contract BaseSystemDictator is Ownable {
         GlobalConfig globalConfig;
         ProxyAddressConfig proxyAddressConfig;
         ImplementationAddressConfig implementationAddressConfig;
-        L2OutputOracleConfig l2OutputOracleConfig;
         SystemConfigConfig systemConfigConfig;
     }
 
