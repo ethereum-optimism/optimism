@@ -58,7 +58,7 @@ byte sequence. The first version has `0x00` as the version byte and then as the 
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
-- `bytes32 sourceHash`: the source-hash, uniquely identifies the origin of the deposit
+- `bytes32 sourceHash`: the source-hash, uniquely identifies the origin of the deposit.
 - `address from`: The address of the sender account.
 - `address to`: The address of the recipient account, or the null (zero-length) address if the
   deposited transaction is a contract creation.

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.9.1",
+  "version": "0.10.0",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "build:forge": "forge build",
+    "build:with-metadata": "hardhat clean && FOUNDRY_PROFILE=echidna hardhat compile",
     "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
@@ -24,7 +25,7 @@
     "test": "yarn build:differential && forge test",
     "coverage": "yarn build:differential && forge coverage",
     "coverage:lcov": "yarn build:differential && forge coverage --report lcov",
-    "gas-snapshot": "yarn build:differential && forge snapshot --no-match-test 'differential|fuzz'",
+    "gas-snapshot": "forge snapshot --no-match-test 'differential|fuzz'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-spacers": "hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
@@ -36,7 +37,13 @@
     "lint:contracts:fix": "yarn prettier --write 'contracts/**/*.sol'",
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
-    "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'"
+    "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
+    "echidna:aliasing": "echidna-test --contract FuzzAddressAliasing --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:burn": "echidna-test --contract FuzzBurn --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:encoding": "echidna-test --contract FuzzEncoding --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:portal": "echidna-test --contract FuzzOptimismPortal --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:hashing": "echidna-test --contract FuzzHashing --format text --crytic-args --hardhat-ignore-compile .",
+    "echidna:metering": "echidna-test --contract FuzzResourceMetering --format text --crytic-args --hardhat-ignore-compile ."
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.11.0",

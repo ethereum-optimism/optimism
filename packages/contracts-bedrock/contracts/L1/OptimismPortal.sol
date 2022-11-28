@@ -189,8 +189,19 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // and to prevent replay attacks.
         bytes32 withdrawalHash = Hashing.hashWithdrawal(_tx);
 
+        // Load the ProvenWithdrawal into memory
+        ProvenWithdrawal memory provenWithdrawal = provenWithdrawals[withdrawalHash];
+
+        // Only allow re-proving a withdrawal transaction if the output root has changed.
+        require(
+            provenWithdrawal.timestamp == 0 ||
+                (_l2BlockNumber == provenWithdrawal.l2BlockNumber &&
+                    outputRoot != provenWithdrawal.outputRoot),
+            "OptimismPortal: withdrawal hash has already been proven"
+        );
+
         // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract on
-        //  L2. If this is true, then we know that this withdrawal was actually triggered on L2
+        // L2. If this is true, then we know that this withdrawal was actually triggered on L2
         // and can therefore be relayed on L1.
         require(
             _verifyWithdrawalInclusion(
@@ -202,9 +213,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         );
 
         // Designate the withdrawalHash as proven by storing the `outputRoot`, `timestamp`,
-        // and `l2BlockNumber` in the `provenWithdrawals` mapping. A certain withdrawal
-        // can be proved multiple times and thus overwrite a previously stored `ProvenWithdrawal`,
-        // but this is safe due to the replay check in `finalizeWithdrawalTransaction`.
+        // and `l2BlockNumber` in the `provenWithdrawals` mapping. A withdrawalHash can only
+        // be proven once to prevent a censorship attack unless it is submitted again
+        // with a different outputRoot.
         provenWithdrawals[withdrawalHash] = ProvenWithdrawal({
             outputRoot: outputRoot,
             timestamp: uint128(block.timestamp),
@@ -240,7 +251,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Ensure that the proven withdrawal's timestamp is greater than the
         // L2 Oracle's starting timestamp.
         require(
-            provenWithdrawal.timestamp >= L2_ORACLE.STARTING_TIMESTAMP(),
+            provenWithdrawal.timestamp >= L2_ORACLE.startingTimestamp(),
             "OptimismPortal: withdrawal timestamp less than L2 Oracle starting timestamp"
         );
 

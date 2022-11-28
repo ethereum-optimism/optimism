@@ -10,8 +10,16 @@ import 'hardhat-deploy'
 // Hardhat tasks
 import './tasks'
 
+let bytecodeHash = 'none'
+if (process.env.FOUNDRY_PROFILE === 'echidna') {
+  bytecodeHash = 'ipfs'
+}
+
 const config: HardhatUserConfig = {
   networks: {
+    hardhat: {
+      live: false,
+    },
     devnetL1: {
       live: false,
       url: 'http://localhost:8545',
@@ -38,6 +46,7 @@ const config: HardhatUserConfig = {
       chainId: Number(process.env.CHAIN_ID),
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: process.env.VERIFY_CONTRACTS === 'true',
     },
     'mainnet-forked': {
       chainId: 1,
@@ -155,11 +164,6 @@ const config: HardhatUserConfig = {
     // uint256 - Interval in blocks at which checkpoints must be submitted.
     l2OutputOracleSubmissionInterval: {
       type: 'number',
-    },
-    // bytes32 - The initial L2 output of the L2 chain.
-    l2OutputOracleGenesisL2Output: {
-      type: 'string',
-      default: ethers.constants.HashZero,
     },
     // uint256 - The number of the first L2 block.
     l2OutputOracleStartingBlockNumber: {
@@ -340,8 +344,14 @@ const config: HardhatUserConfig = {
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
-      mainnet: ['../contracts/deployments/mainnet'],
-      'mainnet-forked': ['../contracts/deployments/mainnet'],
+      mainnet: [
+        '../contracts/deployments/mainnet',
+        '../contracts-periphery/deployments/mainnet',
+      ],
+      'mainnet-forked': [
+        '../contracts/deployments/mainnet',
+        '../contracts-periphery/deployments/mainnet',
+      ],
     },
   },
   solidity: {
@@ -361,7 +371,7 @@ const config: HardhatUserConfig = {
     ],
     settings: {
       metadata: {
-        bytecodeHash: 'none',
+        bytecodeHash,
       },
       outputSelection: {
         '*': {

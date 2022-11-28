@@ -97,7 +97,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     address internal owner = 0x000000000000000000000000000000000000ACDC;
     uint256 internal submissionInterval = 1800;
     uint256 internal l2BlockTime = 2;
-    bytes32 internal genesisL2Output = keccak256(abi.encode(0));
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
 
@@ -120,10 +119,9 @@ contract L2OutputOracle_Initializer is CommonTest {
         // Deploy the L2OutputOracle and transfer owernship to the proposer
         oracleImpl = new L2OutputOracle(
             submissionInterval,
-            genesisL2Output,
+            l2BlockTime,
             startingBlockNumber,
             startingTimestamp,
-            l2BlockTime,
             proposer,
             owner
         );
@@ -131,7 +129,10 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (genesisL2Output, proposer, owner))
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (startingBlockNumber, startingTimestamp, proposer, owner)
+            )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");

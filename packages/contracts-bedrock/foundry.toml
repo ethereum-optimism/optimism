@@ -21,3 +21,6 @@ fuzz_runs = 16
 
 [profile.ci]
 fuzz_runs = 512
+
+[profile.echidna]
+bytecode_hash = 'ipfs'

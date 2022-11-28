@@ -18,14 +18,24 @@ import { BaseSystemDictator } from "./BaseSystemDictator.sol";
  */
 contract MigrationSystemDictator is BaseSystemDictator {
     /**
+     * @notice Step after which exit 1 can no longer be used.
+     */
+    uint8 public constant EXIT_1_NO_RETURN_STEP = 3;
+
+    /**
      * @notice Step where proxy ownership is transferred.
      */
-    uint8 constant PROXY_TRANSFER_STEP = 3;
+    uint8 public constant PROXY_TRANSFER_STEP = 4;
 
     /**
      * @notice Whether or not the deployment is finalized.
      */
     bool public finalized;
+
+    /**
+     * @notice Address of the old L1CrossDomainMessenger implementation.
+     */
+    address public oldL1CrossDomainMessenger;
 
     /**
      * @param _config System configuration.
@@ -63,18 +73,31 @@ contract MigrationSystemDictator is BaseSystemDictator {
      *         deposit halt flag to tell the Sequencer's DTL to stop accepting deposits.
      */
     function step2() external onlyOwner step(2) {
+        // Store the address of the old L1CrossDomainMessenger implementation. We will need this
+        // address in the case that we have to exit early.
+        oldL1CrossDomainMessenger = config.globalConfig.addressManager.getAddress(
+            "OVM_L1CrossDomainMessenger"
+        );
+
         // Temporarily brick the L1CrossDomainMessenger by setting its implementation address to
         // address(0) which will cause the ResolvedDelegateProxy to revert. Better than pausing
         // the L1CrossDomainMessenger via pause() because it can be easily reverted.
         config.globalConfig.addressManager.setAddress("OVM_L1CrossDomainMessenger", address(0));
 
-        // TODO: Set the deposit halt flag.
+        // Set the DTL shutoff block, which will tell the DTL to stop syncing new deposits from the
+        // CanonicalTransactionChain. We do this by setting an address in the AddressManager
+        // because the DTL already has a reference to the AddressManager and this way we don't also
+        // need to give it a reference to the SystemDictator.
+        config.globalConfig.addressManager.setAddress(
+            "DTL_SHUTOFF_BLOCK",
+            address(uint160(block.number))
+        );
     }
 
     /**
      * @notice Removes deprecated addresses from the AddressManager.
      */
-    function step3() external onlyOwner step(3) {
+    function step3() external onlyOwner step(EXIT_1_NO_RETURN_STEP) {
         // Remove all deprecated addresses from the AddressManager
         string[17] memory deprecated = [
             "OVM_CanonicalTransactionChain",
@@ -104,7 +127,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
     /**
      * @notice Transfers system ownership to the ProxyAdmin.
      */
-    function step4() external onlyOwner step(4) {
+    function step4() external onlyOwner step(PROXY_TRANSFER_STEP) {
         // Transfer ownership of the AddressManager to the ProxyAdmin.
         config.globalConfig.addressManager.transferOwnership(
             address(config.globalConfig.proxyAdmin)
@@ -120,9 +143,11 @@ contract MigrationSystemDictator is BaseSystemDictator {
      * @notice Upgrades and initializes proxy contracts.
      */
     function step5() external onlyOwner step(5) {
-        // Pause the L1CrossDomainMessenger. Now we use the real pause() function because by the
-        // time we're done here we'll have access to the unpause() function.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
+        // Dynamic config must be set before we can initialize the L2OutputOracle.
+        require(
+            dynamicConfigSet,
+            "MigrationSystemDictator: dynamic oracle config is not yet initialized"
+        );
 
         // Upgrade and initialize the L2OutputOracle.
         config.globalConfig.proxyAdmin.upgradeAndCall(
@@ -131,7 +156,8 @@ contract MigrationSystemDictator is BaseSystemDictator {
             abi.encodeCall(
                 L2OutputOracle.initialize,
                 (
-                    config.l2OutputOracleConfig.l2OutputOracleGenesisL2Output,
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp,
                     config.l2OutputOracleConfig.l2OutputOracleProposer,
                     config.l2OutputOracleConfig.l2OutputOracleOwner
                 )
@@ -145,12 +171,33 @@ contract MigrationSystemDictator is BaseSystemDictator {
             abi.encodeCall(OptimismPortal.initialize, ())
         );
 
-        // Upgrade the L1CrossDomainMessenger. No initializer because this is
-        // already initialized.
+        // Upgrade the L1CrossDomainMessenger.
         config.globalConfig.proxyAdmin.upgrade(
             payable(config.proxyAddressConfig.l1CrossDomainMessengerProxy),
             address(config.implementationAddressConfig.l1CrossDomainMessengerImpl)
         );
+
+        // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
+        try
+            L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
+                .initialize(address(this))
+        {
+            // L1CrossDomainMessenger is the one annoying edge case difference between existing
+            // networks and fresh networks because in existing networks it'll already be
+            // initialized but in fresh networks it won't be. Try/catch is the easiest and most
+            // consistent way to handle this because initialized() is not exposed publicly.
+        } catch Error(string memory reason) {
+            require(
+                keccak256(abi.encodePacked(reason)) ==
+                    keccak256("Initializable: contract is already initialized"),
+                string.concat(
+                    "MigrationSystemDictator: unexpected error initializing L1XDM: ",
+                    reason
+                )
+            );
+        } catch {
+            revert("MigrationSystemDictator: unexpected error initializing L1XDM (no reason)");
+        }
 
         // Transfer ETH from the L1StandardBridge to the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
@@ -192,6 +239,9 @@ contract MigrationSystemDictator is BaseSystemDictator {
                 )
             )
         );
+
+        // Pause the L1CrossDomainMessenger, chance to check that everything is OK.
+        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
     }
 
     /**
@@ -228,5 +278,24 @@ contract MigrationSystemDictator is BaseSystemDictator {
         }
 
         finalized = true;
+    }
+
+    /**
+     * @notice First exit point, can only be called before step 3 is executed.
+     */
+    function exit1() external onlyOwner {
+        require(
+            currentStep == EXIT_1_NO_RETURN_STEP,
+            "MigrationSystemDictator: can only exit1 before step 3 is executed"
+        );
+
+        // Reset the L1CrossDomainMessenger to the old implementation.
+        config.globalConfig.addressManager.setAddress(
+            "OVM_L1CrossDomainMessenger",
+            oldL1CrossDomainMessenger
+        );
+
+        // Unset the DTL shutoff block which will allow the DTL to sync again.
+        config.globalConfig.addressManager.setAddress("DTL_SHUTOFF_BLOCK", address(0));
     }
 }

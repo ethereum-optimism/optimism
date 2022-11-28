@@ -242,7 +242,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         // The checkpointed block should not be finalized until 1 second from now.
         assertEq(op.isBlockFinalized(checkpoint), false);
         // Nor should a block after it
-        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        vm.expectRevert(
+            "L2OutputOracle: block number cannot be greater than the latest block number"
+        );
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
         // Nor a block before it, even though the finalization period has passed, there is
         // not yet a checkpoint block on top of it for which that is true.
@@ -255,7 +257,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         // So should the block before it.
         assertEq(op.isBlockFinalized(checkpoint - 1), true);
         // But not the block after it.
-        vm.expectRevert("L2OutputOracle: No output found for that block number.");
+        vm.expectRevert(
+            "L2OutputOracle: block number cannot be greater than the latest block number"
+        );
         assertEq(op.isBlockFinalized(checkpoint + 1), false);
     }
 }
@@ -371,6 +375,71 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
     }
 
+    // Test: proveWithdrawalTransaction reverts if the passed transaction's withdrawalHash has
+    // already been proven.
+    function test_proveWithdrawalTransaction_replayProve_reverts() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        vm.expectRevert("OptimismPortal: withdrawal hash has already been proven");
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
+
+    // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash has
+    // already been proven AND the output root has changed AND the l2BlockNumber stays the same.
+    function test_proveWithdrawalTransaction_replayProveChangedOutputRoot_success() external {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Compute the storage slot of the outputRoot corresponding to the `withdrawalHash`
+        // inside of the `provenWithdrawal`s mapping.
+        bytes32 slot;
+        assembly {
+            mstore(0x00, sload(_withdrawalHash.slot))
+            mstore(0x20, 52) // 52 is the slot of the `provenWithdrawals` mapping in OptimismPortal
+            slot := keccak256(0x00, 0x40)
+        }
+
+        // Store a different output root within the `provenWithdrawals` mapping without
+        // touching the l2BlockNumber or timestamp.
+        vm.store(address(op), slot, bytes32(0));
+
+        // Warp ahead 1 second
+        vm.warp(block.timestamp + 1);
+
+        // Even though we have already proven this withdrawalHash, we should be allowed to re-submit
+        // our proof with a changed outputRoot
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedBlockNumber,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Ensure that the withdrawal was updated within the mapping
+        (, uint128 timestamp, ) = op.provenWithdrawals(_withdrawalHash);
+        assertEq(timestamp, block.timestamp);
+    }
+
     // Test: proveWithdrawalTransaction succeeds and emits the WithdrawalProven event.
     function test_proveWithdrawalTransaction_validWithdrawalProof_success() external {
         vm.expectEmit(true, true, true, true);
@@ -459,10 +528,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Warp to after the finalization period
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
-        // Mock a STARTING_TIMESTAMP change on the L2 Oracle
+        // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
             address(op.L2_ORACLE()),
-            abi.encodeWithSignature("STARTING_TIMESTAMP()"),
+            abi.encodeWithSignature("startingTimestamp()"),
             abi.encode(block.timestamp + 1)
         );
 
