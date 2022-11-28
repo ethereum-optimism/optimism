@@ -284,32 +284,32 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: Echidna Fuzz Aliasing
-          command: yarn echidna:aliasing || exit 0
+          command: yarn echidna:aliasing
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Echidna Fuzz Burn
-          command: yarn echidna:burn || exit 0
+          command: yarn echidna:burn
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Echidna Fuzz Encoding
-          command: yarn echidna:encoding || exit 0
+          command: yarn echidna:encoding
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Echidna Fuzz Portal
-          command: yarn echidna:portal || exit 0
+          command: yarn echidna:portal
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Echidna Fuzz Hashing
-          command: yarn echidna:hashing || exit 0
+          command: yarn echidna:hashing
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
       - run:
           name: Echidna Fuzz Resource Metering
-          command: yarn echidna:metering || exit 0
+          command: yarn echidna:metering
           working_directory: packages/contracts-bedrock
           no_output_timeout: 20m
 
