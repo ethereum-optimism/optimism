@@ -60,13 +60,13 @@ In order to scale Ethereum without sacrificing security, we must preserve 3 crit
 liveness, availability, and validity.
 
 1. **Liveness** - Anyone must be able to extend the rollup chain by sending transactions at any time.
-    - There are two ways transactions can be sent to the rollup chain: 1) via the sequencer, and 2) directly on layer
-2. The sequencer provides low latency & low cost transactions, while sending transactions directly to layer 1 provides
+    - There are two ways transactions can be sent to the rollup chain: 1) via the sequencer, and 2) directly on layer 1.
+The sequencer provides low latency & low cost transactions, while sending transactions directly to layer 1 provides
 censorship resistance.
-3. **Availability** - Anyone must be able to download the rollup chain.
+1. **Availability** - Anyone must be able to download the rollup chain.
     - All information required to derive the chain is embedded into layer 1 blocks. That way as long as the layer 1
 chain is available, so is the rollup.
-4. **Validity** - All transactions must be correctly executed and all withdrawals correctly processed.
+1. **Validity** - All transactions must be correctly executed and all withdrawals correctly processed.
     - The rollup state and withdrawals are managed on an L1 contract called the `L2 State Oracle`. This oracle is
 guaranteed to _only_ finalize correct (ie. valid) rollup block hashes given a **single honest verifier** assumption. If
 there is ever an invalid block hash asserted on layer 1, an honest verifier will prove it is invalid and win a bond.
