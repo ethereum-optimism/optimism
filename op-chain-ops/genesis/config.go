@@ -350,10 +350,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"l1FeeScalar":    config.GasPriceOracleScalar,
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
-		"bridge":      predeploys.L2StandardBridge,
-		"remoteToken": common.Address{},
-		"_name":       "Ether",
-		"_symbol":     "ETH",
+		"_name":   "Ether",
+		"_symbol": "ETH",
 	}
 	storage["WETH9"] = state.StorageValues{
 		"name":     "Wrapped Ether",

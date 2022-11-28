@@ -97,6 +97,9 @@ func BuildOptimism(immutable ImmutableConfig) (DeploymentResults, error) {
 				immutable["OptimismMintableERC721Factory"]["remoteChainId"],
 			},
 		},
+		{
+			Name: "LegacyERC20ETH",
+		},
 	}
 	return BuildL2(deployments)
 }
@@ -187,6 +190,8 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			return nil, fmt.Errorf("invalid type for remoteChainId")
 		}
 		_, tx, _, err = bindings.DeployOptimismMintableERC721Factory(opts, backend, bridge, remoteChainId)
+	case "LegacyERC20ETH":
+		_, tx, _, err = bindings.DeployLegacyERC20ETH(opts, backend)
 	default:
 		return tx, fmt.Errorf("unknown contract: %s", deployment.Name)
 	}
