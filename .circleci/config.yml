@@ -997,8 +997,6 @@ workflows:
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          context:
-            - gcr
       - docker-publish:
           name: op-node-docker-publish
           docker_name: op-node
@@ -1013,8 +1011,6 @@ workflows:
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          context:
-            - gcr
       - docker-publish:
           name: op-batcher-docker-publish
           docker_name: op-batcher
@@ -1029,8 +1025,6 @@ workflows:
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          context:
-            - gcr
       - docker-publish:
           name: op-proposer-docker-publish
           docker_name: op-proposer
@@ -1065,6 +1059,48 @@ workflows:
             - op-proposer-docker-build
   release:
     jobs:
+      - docker-build:
+          name: op-node-docker-build
+          docker_file: op-node/Dockerfile
+          docker_name: op-node
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-node-docker-publish
+          docker_name: op-node
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-node-docker-build
+      - docker-build:
+          name: op-batcher-docker-build
+          docker_file: op-batcher/Dockerfile
+          docker_name: op-batcher
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-batcher-docker-publish
+          docker_name: op-batcher
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-batcher-docker-build
+      - docker-build:
+          name: op-proposer-docker-build
+          docker_file: op-proposer/Dockerfile
+          docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-proposer-docker-publish
+          docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-proposer-docker-build
       - docker-tag-op-stack-release:
           name: docker-tag-op-stack-release
           filters:
@@ -1072,5 +1108,9 @@ workflows:
               only: /^op-[a-z0-9\-]*\/v.*/
             branches:
               ignore: /.*/
+          requires:
+            - op-node-docker-publish
+            - op-proposer-docker-publish
+            - op-batcher-docker-publish
           context:
             - gcr-release
