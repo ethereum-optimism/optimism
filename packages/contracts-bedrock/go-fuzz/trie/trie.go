@@ -7,6 +7,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -137,7 +138,7 @@ func genValidTrieTestCase() trieTestCase {
 
 	// Create our test case with the data collected
 	testCase := trieTestCase{
-		Root:  (*[32]byte)(randTrie.Hash().Bytes()),
+		Root:  randTrie.Hash(),
 		Key:   key,
 		Value: value,
 		Proof: proof,
@@ -148,7 +149,7 @@ func genValidTrieTestCase() trieTestCase {
 
 // Represents a test case for bedrock's `MerkleTrie.sol`
 type trieTestCase struct {
-	Root  *[32]byte
+	Root  common.Hash
 	Key   []byte
 	Value []byte
 	Proof [][]byte
