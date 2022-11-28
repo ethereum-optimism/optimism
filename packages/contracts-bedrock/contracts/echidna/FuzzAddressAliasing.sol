@@ -2,7 +2,7 @@ pragma solidity 0.8.15;
 
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 
-contract FuzzAddressAliasing {
+contract EchidnaFuzzAddressAliasing {
     bool failedRoundtrip;
 
     /**

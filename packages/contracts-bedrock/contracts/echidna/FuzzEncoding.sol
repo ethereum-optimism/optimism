@@ -2,7 +2,7 @@ pragma solidity 0.8.15;
 
 import { Encoding } from "../libraries/Encoding.sol";
 
-contract FuzzEncoding {
+contract EchidnaFuzzEncoding {
     bool failedRoundtripAToB;
     bool failedRoundtripBToA;
 

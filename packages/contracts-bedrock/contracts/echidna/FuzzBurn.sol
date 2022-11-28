@@ -2,7 +2,7 @@ pragma solidity 0.8.15;
 
 import { Burn } from "../libraries/Burn.sol";
 
-contract FuzzBurn {
+contract EchidnaFuzzBurn {
     bool failedEthBurn;
     bool failedGasBurn;
 

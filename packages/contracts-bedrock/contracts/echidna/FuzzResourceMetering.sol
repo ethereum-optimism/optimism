@@ -2,7 +2,7 @@ pragma solidity 0.8.15;
 
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
-contract FuzzResourceMetering is ResourceMetering {
+contract EchidnaFuzzResourceMetering is ResourceMetering {
     bool failedMaxGasPerBlock;
     bool failedRaiseBasefee;
     bool failedLowerBasefee;

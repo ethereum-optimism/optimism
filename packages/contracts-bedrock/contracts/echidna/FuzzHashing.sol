@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
-contract FuzzHashing {
+contract EchidnaFuzzHashing {
     bool failedCrossDomainHashHighVersion;
     bool failedCrossDomainHashV0;
     bool failedCrossDomainHashV1;

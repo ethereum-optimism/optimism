@@ -4,7 +4,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 
-contract FuzzOptimismPortal is OptimismPortal {
+contract EchidnaFuzzOptimismPortal is OptimismPortal {
     uint256 reinitializedCount;
     bool failedDepositCreationNonZeroAddr;
     bool failedAliasingContractFromAddr;
