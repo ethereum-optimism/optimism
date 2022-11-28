@@ -566,7 +566,7 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
 	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier

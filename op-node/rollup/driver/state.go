@@ -134,8 +134,13 @@ func (s *Driver) createNewL2Block(ctx context.Context) error {
 	l2Safe := s.derivation.SafeL2Head()
 	l2Finalized := s.derivation.Finalized()
 
+	l1Head := s.l1State.L1Head()
+	if l1Head == (eth.L1BlockRef{}) {
+		return derive.NewTemporaryError(errors.New("L1 Head in L1 State is not initizalited yet"))
+	}
+
 	// Figure out which L1 origin block we're going to be building on top of.
-	l1Origin, err := s.l1OriginSelector.FindL1Origin(ctx, s.l1State.L1Head(), l2Head)
+	l1Origin, err := s.l1OriginSelector.FindL1Origin(ctx, l1Head, l2Head)
 	if err != nil {
 		s.log.Error("Error finding next L1 Origin", "err", err)
 		return err
@@ -261,9 +266,8 @@ func (s *Driver) eventLoop() {
 
 		case <-l2BlockCreationReqCh:
 			s.snapshot("L2 Block Creation Request")
-			l1Head := s.l1State.L1Head()
 			if !s.idleDerivation {
-				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", l1Head)
+				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", s.l1State.L1Head())
 				break
 			}
 			ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
