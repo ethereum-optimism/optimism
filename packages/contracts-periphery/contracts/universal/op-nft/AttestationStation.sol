@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
-contract AttestationStation {
+import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+
+contract AttestationStation is Initializable, Semver {
     struct AttestationData {
         address about;
         bytes32 key;
@@ -16,6 +19,13 @@ contract AttestationStation {
         bytes32 indexed key,
         bytes val
     );
+
+    constructor() Semver(0, 0, 1) {}
+
+    /**
+     * @notice  Initialize the AttestationStation contract.
+     */
+    function initialize() public initializer {}
 
     /**
      * @notice  Attest to the given data.

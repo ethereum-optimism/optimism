@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.17;
 
+import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -11,10 +12,13 @@ contract Optimist is
     Initializable,
     ERC721Upgradeable,
     ERC721BurnableUpgradeable,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    Semver
 {
     AttestationStation public attestationStation;
     address public admin;
+
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice  Initialize the Optimist contract.
@@ -48,19 +52,6 @@ contract Optimist is
         require(balanceOf(_recipient) == 0, "Optimist::mint: ALREADY_MINTED");
         uint256 tokenId = uint256(uint160(_recipient));
         _safeMint(_recipient, tokenId);
-    }
-
-    /**
-     * @notice Returns the URI for the token metadata.
-     * @dev The token URI will be stored at baseURI + '/' + tokenId + .json
-     * @param tokenId The token ID to query.
-     * @return The URI for the given token ID.
-     */
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        if (ownerOf(tokenId) == address(0)) {
-            revert("Optimist:::tokenURI: TOKEN_URI_DNE");
-        }
-        return string(abi.encodePacked(baseURI(), "/", Strings.toHexString(tokenId), ".json"));
     }
 
     /**
