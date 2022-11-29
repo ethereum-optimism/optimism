@@ -11,6 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
+	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/indexer"
 	"github.com/ethereum-optimism/optimism/indexer/db"
 	"github.com/ethereum-optimism/optimism/indexer/services/l1"
@@ -20,12 +29,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 
 	_ "github.com/lib/pq"
 )
@@ -76,8 +79,8 @@ func TestBedrockIndexer(t *testing.T) {
 		RESTPort:                       7980,
 		DisableIndexer:                 false,
 		Bedrock:                        true,
-		BedrockL1StandardBridgeAddress: predeploys.DevL1StandardBridgeAddr,
-		BedrockOptimismPortalAddress:   predeploys.DevOptimismPortalAddr,
+		BedrockL1StandardBridgeAddress: cfg.DeployConfig.L1StandardBridgeProxy,
+		BedrockOptimismPortalAddress:   cfg.DeployConfig.OptimismPortalProxy,
 	}
 	idxr, err := indexer.NewIndexer(idxrCfg)
 	require.NoError(t, err)
@@ -196,12 +199,14 @@ func TestBedrockIndexer(t *testing.T) {
 
 		rpcClient, err := rpc.Dial(sys.Nodes["sequencer"].HTTPEndpoint())
 		require.NoError(t, err)
-		proofClient := withdrawals.NewClient(rpcClient)
-		wParams, err := withdrawals.FinalizeWithdrawalParameters(context.Background(), proofClient, wdTx.Hash(), finHeader)
+		proofCl := gethclient.New(rpcClient)
+		receiptCl := ethclient.NewClient(rpcClient)
+		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
-		finTx, err := portal.FinalizeWithdrawalTransaction(
+		// Prove our withdrawal
+		proveTx, err := portal.ProveWithdrawalTransaction(
 			l1Opts,
 			bindings.TypesWithdrawalTransaction{
 				Nonce:    wParams.Nonce,
@@ -214,6 +219,32 @@ func TestBedrockIndexer(t *testing.T) {
 			wParams.BlockNumber,
 			wParams.OutputRootProof,
 			wParams.WithdrawalProof,
+		)
+		require.NoError(t, err)
+
+		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
+		require.NoError(t, err)
+
+		// Wait for the finalization period to elapse
+		_, err = withdrawals.WaitForFinalizationPeriod(
+			e2eutils.TimeoutCtx(t, time.Minute),
+			l1Client,
+			predeploys.DevOptimismPortalAddr,
+			wParams.BlockNumber,
+		)
+		require.NoError(t, err)
+
+		// Send our finalize withdrawal transaction
+		finTx, err := portal.FinalizeWithdrawalTransaction(
+			l1Opts,
+			bindings.TypesWithdrawalTransaction{
+				Nonce:    wParams.Nonce,
+				Sender:   wParams.Sender,
+				Target:   wParams.Target,
+				Value:    wParams.Value,
+				GasLimit: wParams.GasLimit,
+				Data:     wParams.Data,
+			},
 		)
 		require.NoError(t, err)
 

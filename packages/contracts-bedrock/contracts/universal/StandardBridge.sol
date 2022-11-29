@@ -26,12 +26,12 @@ abstract contract StandardBridge {
     /**
      * @notice Messenger contract on this domain.
      */
-    CrossDomainMessenger public immutable messenger;
+    CrossDomainMessenger public immutable MESSENGER;
 
     /**
      * @notice Corresponding bridge on the other domain.
      */
-    StandardBridge public immutable otherBridge;
+    StandardBridge public immutable OTHER_BRIDGE;
 
     /**
      * @custom:legacy
@@ -145,8 +145,8 @@ abstract contract StandardBridge {
      */
     modifier onlyOtherBridge() {
         require(
-            msg.sender == address(messenger) &&
-                messenger.xDomainMessageSender() == address(otherBridge),
+            msg.sender == address(MESSENGER) &&
+                MESSENGER.xDomainMessageSender() == address(OTHER_BRIDGE),
             "StandardBridge: function can only be called from the other bridge"
         );
         _;
@@ -157,8 +157,8 @@ abstract contract StandardBridge {
      * @param _otherBridge Address of the other StandardBridge contract.
      */
     constructor(address payable _messenger, address payable _otherBridge) {
-        messenger = CrossDomainMessenger(_messenger);
-        otherBridge = StandardBridge(_otherBridge);
+        MESSENGER = CrossDomainMessenger(_messenger);
+        OTHER_BRIDGE = StandardBridge(_otherBridge);
     }
 
     /**
@@ -166,6 +166,16 @@ abstract contract StandardBridge {
      */
     receive() external payable onlyEOA {
         _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Legacy getter for messenger contract.
+     *
+     * @return Messenger contract on this domain.
+     */
+    function messenger() external view returns (CrossDomainMessenger) {
+        return MESSENGER;
     }
 
     /**
@@ -288,7 +298,7 @@ abstract contract StandardBridge {
     ) public payable onlyOtherBridge {
         require(msg.value == _amount, "StandardBridge: amount sent does not match amount required");
         require(_to != address(this), "StandardBridge: cannot send to self");
-        require(_to != address(messenger), "StandardBridge: cannot send to messenger");
+        require(_to != address(MESSENGER), "StandardBridge: cannot send to messenger");
 
         emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
 
@@ -357,8 +367,8 @@ abstract contract StandardBridge {
 
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
 
-        messenger.sendMessage{ value: _amount }(
-            address(otherBridge),
+        MESSENGER.sendMessage{ value: _amount }(
+            address(OTHER_BRIDGE),
             abi.encodeWithSelector(
                 this.finalizeBridgeETH.selector,
                 _from,
@@ -405,8 +415,8 @@ abstract contract StandardBridge {
 
         emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
-        messenger.sendMessage(
-            address(otherBridge),
+        MESSENGER.sendMessage(
+            address(OTHER_BRIDGE),
             abi.encodeWithSelector(
                 this.finalizeBridgeERC20.selector,
                 // Because this call will be executed on the remote chain, we reverse the order of

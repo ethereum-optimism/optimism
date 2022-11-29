@@ -3,8 +3,42 @@ import assert from 'assert'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, awaitCondition, getChainId } from '@eth-optimism/core-utils'
-import { HttpNetworkConfig } from 'hardhat/types'
+import { sleep, getChainId } from '@eth-optimism/core-utils'
+
+export interface DictatorConfig {
+  globalConfig: {
+    proxyAdmin: string
+    controller: string
+    finalOwner: string
+    addressManager: string
+  }
+  proxyAddressConfig: {
+    l2OutputOracleProxy: string
+    optimismPortalProxy: string
+    l1CrossDomainMessengerProxy: string
+    l1StandardBridgeProxy: string
+    optimismMintableERC20FactoryProxy: string
+    l1ERC721BridgeProxy: string
+    systemConfigProxy: string
+  }
+  implementationAddressConfig: {
+    l2OutputOracleImpl: string
+    optimismPortalImpl: string
+    l1CrossDomainMessengerImpl: string
+    l1StandardBridgeImpl: string
+    optimismMintableERC20FactoryImpl: string
+    l1ERC721BridgeImpl: string
+    portalSenderImpl: string
+    systemConfigImpl: string
+  }
+  systemConfigConfig: {
+    owner: string
+    overhead: number
+    scalar: number
+    batcherHash: string
+    gasLimit: number
+  }
+}
 
 export const deployAndVerifyAndThen = async ({
   hre,
@@ -156,71 +190,6 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
-export const fundAccount = async (
-  hre: any,
-  address: string,
-  amount: ethers.BigNumber
-) => {
-  if (!hre.deployConfig.isForkedNetwork) {
-    throw new Error('this method can only be used against a forked network')
-  }
-
-  console.log(`Funding account ${address}...`)
-  await hre.ethers.provider.send('hardhat_setBalance', [
-    address,
-    amount.toHexString(),
-  ])
-
-  console.log(`Waiting for balance to reflect...`)
-  await awaitCondition(
-    async () => {
-      const balance = await hre.ethers.provider.getBalance(address)
-      return balance.gte(amount)
-    },
-    5000,
-    100
-  )
-
-  console.log(`Account successfully funded.`)
-}
-
-export const sendImpersonatedTx = async (opts: {
-  hre: any
-  contract: ethers.Contract
-  fn: string
-  from: string
-  gas: string
-  args: any[]
-}) => {
-  if (!opts.hre.deployConfig.isForkedNetwork) {
-    throw new Error('this method can only be used against a forked network')
-  }
-
-  console.log(`Impersonating account ${opts.from}...`)
-  await opts.hre.ethers.provider.send('hardhat_impersonateAccount', [opts.from])
-
-  console.log(`Funding account ${opts.from}...`)
-  await fundAccount(opts.hre, opts.from, BIG_BALANCE)
-
-  console.log(`Sending impersonated transaction...`)
-  const tx = await opts.contract.populateTransaction[opts.fn](...opts.args)
-  const provider = new opts.hre.ethers.providers.JsonRpcProvider(
-    (opts.hre.network.config as HttpNetworkConfig).url
-  )
-  await provider.send('eth_sendTransaction', [
-    {
-      ...tx,
-      from: opts.from,
-      gas: opts.gas,
-    },
-  ])
-
-  console.log(`Stopping impersonation of account ${opts.from}...`)
-  await opts.hre.ethers.provider.send('hardhat_stopImpersonatingAccount', [
-    opts.from,
-  ])
-}
-
 export const getContractFromArtifact = async (
   hre: any,
   name: string,
@@ -259,6 +228,21 @@ export const getContractFromArtifact = async (
   })
 }
 
+export const getContractsFromArtifacts = async (
+  hre: any,
+  configs: Array<{
+    name: string
+    iface?: string
+    signerOrProvider?: Signer | Provider | string
+  }>
+): Promise<ethers.Contract[]> => {
+  const contracts = []
+  for (const config of configs) {
+    contracts.push(await getContractFromArtifact(hre, config.name, config))
+  }
+  return contracts
+}
+
 export const isHardhatNode = async (hre) => {
   return (await getChainId(hre.ethers.provider)) === 31337
 }
@@ -280,6 +264,14 @@ export const assertContractVariable = async (
     from: ethers.constants.AddressZero,
   })
 
+  if (ethers.utils.isAddress(expected)) {
+    assert(
+      actual.toLowerCase() === expected.toLowerCase(),
+      `[FATAL] ${variable} is ${actual} but should be ${expected}`
+    )
+    return
+  }
+
   assert(
     actual === expected || (actual.eq && actual.eq(expected)),
     `[FATAL] ${variable} is ${actual} but should be ${expected}`
@@ -292,6 +284,112 @@ export const getDeploymentAddress = async (
 ): Promise<string> => {
   const deployment = await hre.deployments.get(name)
   return deployment.address
+}
+
+export const makeDictatorConfig = async (
+  hre: any,
+  controller: string,
+  finalOwner: string,
+  fresh: boolean
+): Promise<DictatorConfig> => {
+  return {
+    globalConfig: {
+      proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
+      controller,
+      finalOwner,
+      addressManager: fresh
+        ? ethers.constants.AddressZero
+        : await getDeploymentAddress(hre, 'Lib_AddressManager'),
+    },
+    proxyAddressConfig: {
+      l2OutputOracleProxy: await getDeploymentAddress(
+        hre,
+        'L2OutputOracleProxy'
+      ),
+      optimismPortalProxy: await getDeploymentAddress(
+        hre,
+        'OptimismPortalProxy'
+      ),
+      l1CrossDomainMessengerProxy: await getDeploymentAddress(
+        hre,
+        fresh
+          ? 'L1CrossDomainMessengerProxy'
+          : 'Proxy__OVM_L1CrossDomainMessenger'
+      ),
+      l1StandardBridgeProxy: await getDeploymentAddress(
+        hre,
+        fresh ? 'L1StandardBridgeProxy' : 'Proxy__OVM_L1StandardBridge'
+      ),
+      optimismMintableERC20FactoryProxy: await getDeploymentAddress(
+        hre,
+        'OptimismMintableERC20FactoryProxy'
+      ),
+      l1ERC721BridgeProxy: await getDeploymentAddress(
+        hre,
+        'L1ERC721BridgeProxy'
+      ),
+      systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
+    },
+    implementationAddressConfig: {
+      l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
+      optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
+      l1CrossDomainMessengerImpl: await getDeploymentAddress(
+        hre,
+        'L1CrossDomainMessenger'
+      ),
+      l1StandardBridgeImpl: await getDeploymentAddress(hre, 'L1StandardBridge'),
+      optimismMintableERC20FactoryImpl: await getDeploymentAddress(
+        hre,
+        'OptimismMintableERC20Factory'
+      ),
+      l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
+      portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
+      systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
+    },
+    systemConfigConfig: {
+      owner: hre.deployConfig.systemConfigOwner,
+      overhead: hre.deployConfig.gasPriceOracleOverhead,
+      scalar: hre.deployConfig.gasPriceOracleDecimals,
+      batcherHash: hre.ethers.utils.hexZeroPad(
+        hre.deployConfig.batchSenderAddress,
+        32
+      ),
+      gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
+    },
+  }
+}
+
+export const assertDictatorConfig = async (
+  dictator: Contract,
+  config: DictatorConfig
+) => {
+  const dictatorConfig = await dictator.config()
+  for (const [outerConfigKey, outerConfigValue] of Object.entries(config)) {
+    for (const [innerConfigKey, innerConfigValue] of Object.entries(
+      outerConfigValue
+    )) {
+      let have = dictatorConfig[outerConfigKey][innerConfigKey]
+      let want = innerConfigValue as any
+
+      if (ethers.utils.isAddress(want)) {
+        want = want.toLowerCase()
+        have = have.toLowerCase()
+      } else if (typeof want === 'number') {
+        want = ethers.BigNumber.from(want)
+        have = ethers.BigNumber.from(have)
+        assert(
+          want.eq(have),
+          `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
+        )
+        return
+      }
+
+      assert(
+        want === have,
+        `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
+      )
+    }
+  }
 }
 
 // Large balance to fund accounts with.

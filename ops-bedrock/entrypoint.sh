@@ -60,5 +60,9 @@ exec geth \
 	--miner.etherbase=$BLOCK_SIGNER_ADDRESS \
 	--password="$GETH_DATA_DIR"/password \
 	--allow-insecure-unlock \
+	--authrpc.addr="0.0.0.0" \
+	--authrpc.port="8551" \
+	--authrpc.vhosts="*" \
+	--authrpc.jwtsecret=/config/jwt-secret.txt \
 	--gcmode=archive \
 	"$@"

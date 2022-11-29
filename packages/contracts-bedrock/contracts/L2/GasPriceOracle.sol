@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Semver } from "../universal/Semver.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { L1Block } from "../L2/L1Block.sol";
 
@@ -16,7 +15,14 @@ import { L1Block } from "../L2/L1Block.sol";
  *         contract exposes an API that is useful for knowing how large the L1 portion of their
  *         transaction fee will be.
  */
-contract GasPriceOracle is Ownable, Semver {
+contract GasPriceOracle is Semver {
+    /**
+     * @custom:legacy
+     * @custom:spacer _owner
+     * @notice Spacer for backwards compatibility.
+     */
+    address private spacer_0_0_20;
+
     /**
      * @custom:legacy
      * @custom:spacer gasPrice
@@ -32,19 +38,23 @@ contract GasPriceOracle is Ownable, Semver {
     uint256 private spacer_2_0_32;
 
     /**
-     * @notice Constant L1 gas overhead per transaction.
+     * @custom:legacy
+     * @custom:spacer overhead
+     * @notice Spacer for backwards compatibility.
      */
-    uint256 public overhead;
+    uint256 private spacer_3_0_32;
 
     /**
-     * @notice Dynamic L1 gas overhead per transaction.
+     * @custom:legacy
+     * @custom:spacer scalar
+     * @notice Spacer for backwards compatibility.
      */
-    uint256 public scalar;
+    uint256 private spacer_4_0_32;
 
     /**
      * @notice Number of decimals used in the scalar.
      */
-    uint256 public decimals;
+    uint256 public constant decimals = 6;
 
     /**
      * @notice Emitted when the overhead value is updated.
@@ -63,42 +73,8 @@ contract GasPriceOracle is Ownable, Semver {
 
     /**
      * @custom:semver 0.0.1
-     *
-     * @param _owner Address that will initially own this contract.
      */
-    constructor(address _owner) Ownable() Semver(0, 0, 1) {
-        transferOwnership(_owner);
-    }
-
-    /**
-     * @notice Allows the owner to modify the overhead.
-     *
-     * @param _overhead New overhead value.
-     */
-    function setOverhead(uint256 _overhead) external onlyOwner {
-        overhead = _overhead;
-        emit OverheadUpdated(_overhead);
-    }
-
-    /**
-     * @notice Allows the owner to modify the scalar.
-     *
-     * @param _scalar New scalar value.
-     */
-    function setScalar(uint256 _scalar) external onlyOwner {
-        scalar = _scalar;
-        emit ScalarUpdated(_scalar);
-    }
-
-    /**
-     * @notice Allows the owner to modify the decimals.
-     *
-     * @param _decimals New decimals value.
-     */
-    function setDecimals(uint256 _decimals) external onlyOwner {
-        decimals = _decimals;
-        emit DecimalsUpdated(_decimals);
-    }
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
@@ -112,7 +88,7 @@ contract GasPriceOracle is Ownable, Semver {
         uint256 l1GasUsed = getL1GasUsed(_data);
         uint256 l1Fee = l1GasUsed * l1BaseFee();
         uint256 divisor = 10**decimals;
-        uint256 unscaled = l1Fee * scalar;
+        uint256 unscaled = l1Fee * scalar();
         uint256 scaled = unscaled / divisor;
         return scaled;
     }
@@ -133,6 +109,24 @@ contract GasPriceOracle is Ownable, Semver {
      */
     function baseFee() public view returns (uint256) {
         return block.basefee;
+    }
+
+    /**
+     * @notice Retrieves the current fee overhead.
+     *
+     * @return Current fee overhead.
+     */
+    function overhead() public view returns (uint256) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeOverhead();
+    }
+
+    /**
+     * @notice Retrieves the current fee scalar.
+     *
+     * @return Current fee scalar.
+     */
+    function scalar() public view returns (uint256) {
+        return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).l1FeeScalar();
     }
 
     /**
@@ -164,7 +158,7 @@ contract GasPriceOracle is Ownable, Semver {
                 total += 16;
             }
         }
-        uint256 unsigned = total + overhead;
+        uint256 unsigned = total + overhead();
         return unsigned + (68 * 16);
     }
 }

@@ -9,12 +9,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type fakeDataIter struct {
@@ -33,19 +35,28 @@ type MockDataSource struct {
 	mock.Mock
 }
 
-func (m *MockDataSource) OpenData(ctx context.Context, id eth.BlockID) DataIter {
-	out := m.Mock.MethodCalled("OpenData", id)
+func (m *MockDataSource) OpenData(ctx context.Context, id eth.BlockID, batcherAddr common.Address) DataIter {
+	out := m.Mock.MethodCalled("OpenData", id, batcherAddr)
 	return out[0].(DataIter)
 }
 
-func (m *MockDataSource) ExpectOpenData(id eth.BlockID, iter DataIter) {
-	m.Mock.On("OpenData", id).Return(iter)
+func (m *MockDataSource) ExpectOpenData(id eth.BlockID, iter DataIter, batcherAddr common.Address) {
+	m.Mock.On("OpenData", id, batcherAddr).Return(iter)
 }
 
 var _ DataAvailabilitySource = (*MockDataSource)(nil)
 
 type MockL1Traversal struct {
 	mock.Mock
+}
+
+func (m *MockL1Traversal) ExpectSystemConfig(sysCfg eth.SystemConfig) {
+	m.Mock.On("SystemConfig").Return(sysCfg)
+}
+
+func (m *MockL1Traversal) SystemConfig() eth.SystemConfig {
+	out := m.Mock.MethodCalled("SystemConfig")
+	return out[0].(eth.SystemConfig)
 }
 
 func (m *MockL1Traversal) Origin() eth.L1BlockRef {
@@ -74,14 +85,17 @@ func TestL1RetrievalReset(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	dataSrc := &MockDataSource{}
 	a := testutils.RandomBlockRef(rng)
+	l1Cfg := eth.SystemConfig{
+		BatcherAddr: common.Address{42},
+	}
 
-	dataSrc.ExpectOpenData(a.ID(), &fakeDataIter{})
+	dataSrc.ExpectOpenData(a.ID(), &fakeDataIter{}, l1Cfg.BatcherAddr)
 	defer dataSrc.AssertExpectations(t)
 
 	l1r := NewL1Retrieval(testlog.Logger(t, log.LvlError), dataSrc, nil)
 
 	// We assert that it opens up the correct data on a reset
-	_ = l1r.Reset(context.Background(), a)
+	_ = l1r.Reset(context.Background(), a, l1Cfg)
 }
 
 // TestL1RetrievalNextData tests that the `NextData` function properly
@@ -94,6 +108,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 	tests := []struct {
 		name         string
 		prevBlock    eth.L1BlockRef
+		sysCfg       eth.SystemConfig
 		prevErr      error // error returned by prev.NextL1Block
 		openErr      error // error returned by NextData if prev.NextL1Block fails
 		datas        []eth.Data
@@ -103,6 +118,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 		{
 			name:         "simple retrieval",
 			prevBlock:    a,
+			sysCfg:       eth.SystemConfig{BatcherAddr: common.Address{0x55}},
 			prevErr:      nil,
 			openErr:      nil,
 			datas:        []eth.Data{testutils.RandomData(rng, 10), testutils.RandomData(rng, 10), testutils.RandomData(rng, 10), nil},
@@ -117,6 +133,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 		{
 			name:         "fail to open data",
 			prevBlock:    a,
+			sysCfg:       eth.SystemConfig{BatcherAddr: common.Address{0x55}},
 			prevErr:      nil,
 			openErr:      nil,
 			datas:        []eth.Data{nil},
@@ -130,7 +147,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 			l1t := &MockL1Traversal{}
 			l1t.ExpectNextL1Block(test.prevBlock, test.prevErr)
 			dataSrc := &MockDataSource{}
-			dataSrc.ExpectOpenData(test.prevBlock.ID(), &fakeDataIter{data: test.datas, errs: test.datasErrs})
+			dataSrc.ExpectOpenData(test.prevBlock.ID(), &fakeDataIter{data: test.datas, errs: test.datasErrs}, test.sysCfg.BatcherAddr)
 
 			ret := NewL1Retrieval(testlog.Logger(t, log.LvlCrit), dataSrc, l1t)
 
@@ -144,6 +161,7 @@ func TestL1RetrievalNextData(t *testing.T) {
 			// Go through the fake data an assert that data is passed through and the correct
 			// errors are returned.
 			for i := range test.expectedErrs {
+				l1t.ExpectSystemConfig(test.sysCfg)
 				data, err := ret.NextData(context.Background())
 				require.Equal(t, test.datas[i], hexutil.Bytes(data))
 				require.ErrorIs(t, err, test.expectedErrs[i])

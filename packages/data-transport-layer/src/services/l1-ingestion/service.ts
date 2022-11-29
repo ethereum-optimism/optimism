@@ -4,7 +4,7 @@ import { BaseService, Metrics } from '@eth-optimism/common-ts'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider, StaticJsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
-import { constants } from 'ethers'
+import { BigNumber, constants } from 'ethers'
 import { Gauge, Counter } from 'prom-client'
 
 /* Imports: Internal */
@@ -230,6 +230,28 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           targetL1Block,
         })
 
+        // We always try loading the deposit shutoff block in every loop! Less efficient but will
+        // guarantee that we don't miss the shutoff block being set and that we can automatically
+        // recover if the shutoff block is set and then unset.
+        const depositShutoffBlock = BigNumber.from(
+          await this.state.contracts.Lib_AddressManager.getAddress(
+            'DTL_SHUTOFF_BLOCK'
+          )
+        ).toNumber()
+
+        // If the deposit shutoff block is set, then we should stop syncing deposits at that block.
+        let depositTargetL1Block = targetL1Block
+        if (depositShutoffBlock > 0) {
+          this.logger.info(`Deposit shutoff active`, {
+            targetL1Block,
+            depositShutoffBlock,
+          })
+          depositTargetL1Block = Math.min(
+            depositTargetL1Block,
+            depositShutoffBlock
+          )
+        }
+
         // I prefer to do this in serial to avoid non-determinism. We could have a discussion about
         // using Promise.all if necessary, but I don't see a good reason to do so unless parsing is
         // really, really slow for all event types.
@@ -237,7 +259,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           'CanonicalTransactionChain',
           'TransactionEnqueued',
           highestSyncedL1Block,
-          targetL1Block,
+          depositTargetL1Block,
           handleEventsTransactionEnqueued
         )
 

@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/hardhat-node",
-  "version": "0.2.1",
+  "version": "0.2.4",
   "scripts": {
     "start": "hardhat node --network hardhat"
   },

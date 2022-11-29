@@ -8,6 +8,8 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { ethers } from 'ethers'
 import * as DrippieArtifact from '@eth-optimism/contracts-periphery/artifacts/contracts/universal/drippie/Drippie.sol/Drippie.json'
 
+import { version } from '../package.json'
+
 type DrippieMonOptions = {
   rpc: Provider
   drippieAddress: string
@@ -30,8 +32,7 @@ export class DrippieMonService extends BaseServiceV2<
 > {
   constructor(options?: Partial<DrippieMonOptions>) {
     super({
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      version: require('../package.json').version,
+      version,
       name: 'drippie-mon',
       loop: true,
       loopIntervalMs: 60_000,

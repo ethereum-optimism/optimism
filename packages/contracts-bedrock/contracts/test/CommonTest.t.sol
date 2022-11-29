@@ -2,7 +2,7 @@
 pragma solidity 0.8.15;
 
 /* Testing utilities */
-import { Test } from "forge-std/Test.sol";
+import { Test, StdUtils } from "forge-std/Test.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
@@ -97,8 +97,6 @@ contract L2OutputOracle_Initializer is CommonTest {
     address internal owner = 0x000000000000000000000000000000000000ACDC;
     uint256 internal submissionInterval = 1800;
     uint256 internal l2BlockTime = 2;
-    bytes32 internal genesisL2Output = keccak256(abi.encode(0));
-    uint256 internal historicalTotalBlocks = 199;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
 
@@ -121,11 +119,9 @@ contract L2OutputOracle_Initializer is CommonTest {
         // Deploy the L2OutputOracle and transfer owernship to the proposer
         oracleImpl = new L2OutputOracle(
             submissionInterval,
-            genesisL2Output,
-            historicalTotalBlocks,
+            l2BlockTime,
             startingBlockNumber,
             startingTimestamp,
-            l2BlockTime,
             proposer,
             owner
         );
@@ -133,7 +129,10 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (genesisL2Output, proposer, owner))
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (startingBlockNumber, startingTimestamp)
+            )
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -230,7 +229,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize();
+        L1Messenger.initialize(alice);
 
         vm.etch(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
@@ -453,7 +452,7 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
 }
 
 contract FFIInterface is Test {
-    function getFinalizeWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
+    function getProveWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
         external
         returns (
             bytes32,
@@ -466,7 +465,7 @@ contract FFIInterface is Test {
         string[] memory cmds = new string[](9);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
-        cmds[2] = "getFinalizeWithdrawalTransactionInputs";
+        cmds[2] = "getProveWithdrawalTransactionInputs";
         cmds[3] = vm.toString(_tx.nonce);
         cmds[4] = vm.toString(_tx.sender);
         cmds[5] = vm.toString(_tx.target);

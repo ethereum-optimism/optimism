@@ -63,14 +63,20 @@ func (s *L1State) HandleNewL1FinalizedBlock(finalized eth.L1BlockRef) {
 	s.l1Finalized = finalized
 }
 
+// L1Head returns either the stored L1 head or an empty block reference
+// if the L1 Head has not been initialized yet.
 func (s *L1State) L1Head() eth.L1BlockRef {
 	return s.l1Head
 }
 
+// L1Safe returns either the stored L1 safe block or an empty block reference
+// if the L1 safe block has not been initialized yet.
 func (s *L1State) L1Safe() eth.L1BlockRef {
 	return s.l1Safe
 }
 
+// L1Finalized returns either the stored L1 finalized block or an empty block reference
+// if the L1 finalized block has not been initialized yet.
 func (s *L1State) L1Finalized() eth.L1BlockRef {
 	return s.l1Finalized
 }

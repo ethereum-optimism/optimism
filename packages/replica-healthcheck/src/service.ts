@@ -7,6 +7,8 @@ import {
 } from '@eth-optimism/common-ts'
 import { sleep } from '@eth-optimism/core-utils'
 
+import { version } from '../package.json'
+
 type HealthcheckOptions = {
   referenceRpcProvider: Provider
   targetRpcProvider: Provider
@@ -32,8 +34,7 @@ export class HealthcheckService extends BaseServiceV2<
 > {
   constructor(options?: Partial<HealthcheckOptions>) {
     super({
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      version: require('../package.json').version,
+      version,
       name: 'healthcheck',
       loopIntervalMs: 5000,
       options,

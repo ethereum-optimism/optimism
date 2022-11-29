@@ -26,7 +26,6 @@ jobs:
       l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
       batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
       indexer: ${{ steps.packages.outputs.indexer }}
-      teleportr: ${{ steps.packages.outputs.teleportr }}
       ci-builder: ${{ steps.packages.outputs.ci-builder }}
       foundry: ${{ steps.packages.outputs.foundry }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
@@ -154,9 +153,9 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: ./ops/docker/hardhat
-          file: ./Dockerfile
+          file: ./ops/docker/hardhat/Dockerfile
           push: true
-          tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.gas-oracle }},ethereumoptimism/hardhat-node:latest
+          tags: ethereumoptimism/hardhat-node:${{ needs.release.outputs.hardhat-node }},ethereumoptimism/hardhat-node:latest
 
   ci-builder:
     name: Publish ci-builder ${{ needs.release.outputs.ci-builder }}
@@ -595,43 +594,6 @@ jobs:
           file: ./indexer/Dockerfile
           push: true
           tags: ethereumoptimism/indexer:${{ needs.release.outputs.indexer }},ethereumoptimism/indexer:latest
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
-
-  teleportr:
-    name: Publish Teleportr Version ${{ needs.release.outputs.teleportr }}
-    needs: release
-    if: needs.release.outputs.teleportr != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./teleportr/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Publish Teleportr
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./teleportr/Dockerfile
-          push: true
-          tags: ethereumoptimism/teleportr:${{ needs.release.outputs.teleportr }},ethereumoptimism/teleportr:latest
           build-args: |
             GITDATE=${{ steps.build_args.outputs.GITDATE }}
             GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}

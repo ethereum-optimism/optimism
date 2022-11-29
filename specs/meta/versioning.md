@@ -34,7 +34,6 @@ Go modules which are not yet versioned:
 ./l2geth-exporter  (changesets)
 ./op-exporter      (changesets)
 ./proxyd           (changesets)
-./teleportr        (changesets)
 ./state-surgery
 ```
 

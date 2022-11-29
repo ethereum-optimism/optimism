@@ -6,9 +6,10 @@ import (
 	"io"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // The attributes queue sits in between the batch queue and the engine queue
@@ -26,15 +27,17 @@ type AttributesQueue struct {
 	log    log.Logger
 	config *rollup.Config
 	dl     L1ReceiptsFetcher
+	eng    SystemConfigL2Fetcher
 	prev   *BatchQueue
 	batch  *BatchData
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, prev *BatchQueue) *AttributesQueue {
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, eng SystemConfigL2Fetcher, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
 		log:    log,
 		config: cfg,
 		dl:     l1Fetcher,
+		eng:    eng,
 		prev:   prev,
 	}
 }
@@ -73,7 +76,7 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Batc
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, l2SafeHead, batch.Timestamp, batch.Epoch())
+	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.eng, l2SafeHead, batch.Timestamp, batch.Epoch())
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +91,6 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Batc
 	return attrs, nil
 }
 
-func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef) error {
+func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	return io.EOF
 }

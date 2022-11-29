@@ -8,8 +8,6 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -17,7 +15,9 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
-	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 )
 
 var MessagePassedTopic = crypto.Keccak256Hash([]byte("MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"))
@@ -122,33 +122,16 @@ loop:
 }
 
 type ProofClient interface {
-	TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error)
 	GetProof(context.Context, common.Address, []string, *big.Int) (*gethclient.AccountResult, error)
 }
 
-type ec = *ethclient.Client
-type gc = *gethclient.Client
-
-type Client struct {
-	ec
-	gc
+type ReceiptClient interface {
+	TransactionReceipt(context.Context, common.Hash) (*types.Receipt, error)
 }
 
-// Ensure that ProofClient and Client interfaces are valid
-var _ ProofClient = &Client{}
-
-// NewClient wraps a RPC client with both ethclient and gethclient methods.
-// Implements ProofClient
-func NewClient(client *rpc.Client) *Client {
-	return &Client{
-		ethclient.NewClient(client),
-		gethclient.New(client),
-	}
-
-}
-
-// FinalizedWithdrawalParameters is the set of parameters to pass to the FinalizedWithdrawal function
-type FinalizedWithdrawalParameters struct {
+// ProvenWithdrawalParameters is the set of parameters to pass to the ProveWithdrawalTransaction
+// and FinalizeWithdrawalTransaction functions
+type ProvenWithdrawalParameters struct {
 	Nonce           *big.Int
 	Sender          common.Address
 	Target          common.Address
@@ -160,40 +143,40 @@ type FinalizedWithdrawalParameters struct {
 	WithdrawalProof [][]byte // List of trie nodes to prove L2 storage
 }
 
-// FinalizeWithdrawalParameters queries L2 to generate all withdrawal parameters and proof necessary to finalize an withdrawal on L1.
+// ProveWithdrawalParameters queries L2 to generate all withdrawal parameters and proof necessary to prove a withdrawal on L1.
 // The header provided is very important. It should be a block (timestamp) for which there is a submitted output in the L2 Output Oracle
 // contract. If not, the withdrawal will fail as it the storage proof cannot be verified if there is no submitted state root.
-func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txHash common.Hash, header *types.Header) (FinalizedWithdrawalParameters, error) {
+func ProveWithdrawalParameters(ctx context.Context, proofCl ProofClient, l2ReceiptCl ReceiptClient, txHash common.Hash, header *types.Header) (ProvenWithdrawalParameters, error) {
 	// Transaction receipt
-	receipt, err := l2client.TransactionReceipt(ctx, txHash)
+	receipt, err := l2ReceiptCl.TransactionReceipt(ctx, txHash)
 	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
+		return ProvenWithdrawalParameters{}, err
 	}
 	// Parse the receipt
 	ev, err := ParseMessagePassed(receipt)
 	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
+		return ProvenWithdrawalParameters{}, err
 	}
 	// Generate then verify the withdrawal proof
 	withdrawalHash, err := WithdrawalHash(ev)
 	if !bytes.Equal(withdrawalHash[:], ev.WithdrawalHash[:]) {
-		return FinalizedWithdrawalParameters{}, errors.New("Computed withdrawal hash incorrectly")
+		return ProvenWithdrawalParameters{}, errors.New("Computed withdrawal hash incorrectly")
 	}
 	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
+		return ProvenWithdrawalParameters{}, err
 	}
 	slot := StorageSlotOfWithdrawalHash(withdrawalHash)
-	p, err := l2client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, header.Number)
+	p, err := proofCl.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, header.Number)
 	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
+		return ProvenWithdrawalParameters{}, err
 	}
 	// TODO: Could skip this step, but it's nice to double check it
 	err = VerifyProof(header.Root, p)
 	if err != nil {
-		return FinalizedWithdrawalParameters{}, err
+		return ProvenWithdrawalParameters{}, err
 	}
 	if len(p.StorageProof) != 1 {
-		return FinalizedWithdrawalParameters{}, errors.New("invalid amount of storage proofs")
+		return ProvenWithdrawalParameters{}, errors.New("invalid amount of storage proofs")
 	}
 
 	// Encode it as expected by the contract
@@ -202,7 +185,7 @@ func FinalizeWithdrawalParameters(ctx context.Context, l2client ProofClient, txH
 		trieNodes[i] = common.FromHex(s)
 	}
 
-	return FinalizedWithdrawalParameters{
+	return ProvenWithdrawalParameters{
 		Nonce:       ev.Nonce,
 		Sender:      ev.Sender,
 		Target:      ev.Target,

@@ -20,6 +20,7 @@ services:
     volumes:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
+      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
 
   l2:
     build:
@@ -46,7 +47,7 @@ services:
     command: >
       op-node
       --l1=ws://l1:8546
-      --l2=ws://l2:8546
+      --l2=http://l2:8551
       --l2.jwt-secret=/config/test-jwt-secret.txt
       --sequencer.enabled
       --sequencer.l1-confs=0
@@ -89,7 +90,6 @@ services:
       - "7302:7300"
     environment:
       OP_PROPOSER_L1_ETH_RPC: http://l1:8545
-      OP_PROPOSER_L2_ETH_RPC: http://l2:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
       OP_PROPOSER_POLL_INTERVAL: 1s
       OP_PROPOSER_NUM_CONFIRMATIONS: 1
@@ -101,6 +101,7 @@ services:
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
+      OP_PROPOSER_ALLOW_NON_FINALIZED: "true"
 
   op-batcher:
     depends_on:

@@ -143,29 +143,17 @@ func main() {
 				return err
 			}
 
-			// Get the addresses from the hardhat deploy artifacts
-			l1StandardBridgeProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1StandardBridge")
-			if err != nil {
-				return err
-			}
-			l1CrossDomainMessengerProxyDeployment, err := hh.GetDeployment("Proxy__OVM_L1CrossdomainMessenger")
-			if err != nil {
-				return err
-			}
-			l1ERC721BridgeProxyDeployment, err := hh.GetDeployment("L1ERC721BridgeProxy")
-			if err != nil {
+			// Read the required deployment addresses from disk if required
+			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
 
-			l2Addrs := genesis.L2Addresses{
-				ProxyAdminOwner:             config.ProxyAdminOwner,
-				L1StandardBridgeProxy:       l1StandardBridgeProxyDeployment.Address,
-				L1CrossDomainMessengerProxy: l1CrossDomainMessengerProxyDeployment.Address,
-				L1ERC721BridgeProxy:         l1ERC721BridgeProxyDeployment.Address,
+			if err := config.Check(); err != nil {
+				return err
 			}
 
 			dryRun := ctx.Bool("dry-run")
-			if err := genesis.MigrateDB(ldb, config, block, &l2Addrs, &migrationData, !dryRun); err != nil {
+			if _, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun); err != nil {
 				return err
 			}
 

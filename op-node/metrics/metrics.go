@@ -10,17 +10,18 @@ import (
 	"strconv"
 	"time"
 
-	libp2pmetrics "github.com/libp2p/go-libp2p-core/metrics"
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
+	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 const (

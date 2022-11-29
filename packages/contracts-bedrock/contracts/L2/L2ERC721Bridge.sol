@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
 import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC165Checker.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
-import { IOptimismMintableERC721 } from "../universal/IOptimismMintableERC721.sol";
+import { IOptimismMintableERC721 } from "../universal/SupportedInterfaces.sol";
 import { Semver } from "../universal/Semver.sol";
 
 /**
@@ -118,7 +118,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
 
         // Send message to L1 bridge
         // slither-disable-next-line reentrancy-events
-        messenger.sendMessage(otherBridge, message, _minGasLimit);
+        MESSENGER.sendMessage(OTHER_BRIDGE, message, _minGasLimit);
 
         // slither-disable-next-line reentrancy-events
         emit ERC721BridgeInitiated(_localToken, remoteToken, _from, _to, _tokenId, _extraData);

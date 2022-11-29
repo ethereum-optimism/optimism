@@ -8,6 +8,9 @@ import (
 	"io"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -27,6 +30,7 @@ var (
 )
 
 type AddressCB func(address common.Address) error
+type AddressCBWithHead func(address common.Address, headNum uint64) error
 type AllowanceCB func(owner, spender common.Address) error
 
 // IterateDBAddresses iterates over each address in Geth's address
@@ -98,17 +102,24 @@ func IterateAllowanceList(r io.Reader, cb AllowanceCB) error {
 
 // IterateMintEvents iterates over each mint event in the database starting
 // from head and stopping at genesis.
-func IterateMintEvents(db ethdb.Database, headNum uint64, cb AddressCB) error {
+func IterateMintEvents(db ethdb.Database, headNum uint64, cb AddressCBWithHead) error {
 	for headNum > 0 {
 		hash := rawdb.ReadCanonicalHash(db, headNum)
-		receipts := rawdb.ReadRawReceipts(db, hash, headNum)
+		receipts, err := migration.ReadLegacyReceipts(db, hash, headNum)
+		if err != nil {
+			return err
+		}
 		for _, receipt := range receipts {
 			for _, l := range receipt.Logs {
+				if l.Address != predeploys.LegacyERC20ETHAddr {
+					continue
+				}
+
 				if common.BytesToHash(l.Topics[0].Bytes()) != MintTopic {
 					continue
 				}
 
-				err := cb(common.BytesToAddress(l.Topics[1][12:]))
+				err := cb(common.BytesToAddress(l.Topics[1][12:]), headNum)
 				if errors.Is(err, ErrStopIteration) {
 					return nil
 				}

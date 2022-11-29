@@ -8,4 +8,5 @@ broadcast
 genesis.json
 src/contract-artifacts.ts
 tmp-artifacts
-go-fuzz/fuzz
+deployments/mainnet-forked
+deploy-config/mainnet-forked.json

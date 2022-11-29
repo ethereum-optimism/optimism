@@ -8,17 +8,19 @@
   "sequencerWindowSize": 120,
   "channelTimeout": 120,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
-  "optimismL2FeeRecipient": "0x26862c200bd48c19f39d9e1cd88a3b439611d911",
   "batchInboxAddress": "0xff00000000000000000000000000000000000002",
   "batchSenderAddress": "0xa11d2b908470e17923fff184d48269bebbd9b2a5",
+
+  "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
 
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x6c23a0dcdfc44b7a57bed148de598895e398d984",
-  "l2OutputOracleOwner": "0x6925b8704ff96dee942623d6fb5e946ef5884b63",
+  "l2OutputOracleChallenger": "0x6925b8704ff96dee942623d6fb5e946ef5884b63",
 
-  "optimismBaseFeeRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
-  "optimismL1FeeRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
+  "baseFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
+  "l1FeeVaultRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
+  "sequencerFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
 
   "deploymentWaitConfirmations": 1
 }

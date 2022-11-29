@@ -10,8 +10,16 @@ import 'hardhat-deploy'
 // Hardhat tasks
 import './tasks'
 
+let bytecodeHash = 'none'
+if (process.env.FOUNDRY_PROFILE === 'echidna') {
+  bytecodeHash = 'ipfs'
+}
+
 const config: HardhatUserConfig = {
   networks: {
+    hardhat: {
+      live: false,
+    },
     devnetL1: {
       live: false,
       url: 'http://localhost:8545',
@@ -38,6 +46,13 @@ const config: HardhatUserConfig = {
       chainId: Number(process.env.CHAIN_ID),
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: process.env.VERIFY_CONTRACTS === 'true',
+    },
+    'mainnet-forked': {
+      chainId: 1,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: false,
     },
   },
   foundry: {
@@ -55,13 +70,7 @@ const config: HardhatUserConfig = {
   },
   deployConfigSpec: {
     // Address of the L1 proxy admin owner.
-    proxyAdminOwner: {
-      type: 'address',
-      default: ethers.constants.AddressZero,
-    },
-
-    // Address of the AddressManager (legacy only).
-    addressManager: {
+    finalSystemOwner: {
       type: 'address',
       default: ethers.constants.AddressZero,
     },
@@ -133,11 +142,6 @@ const config: HardhatUserConfig = {
     p2pSequencerAddress: {
       type: 'address',
     },
-    // L2 address used to send all priority fees to, also known as the coinbase address in the block.
-    // "fee_recipient_address" in rollup config.
-    optimismL2FeeRecipient: {
-      type: 'address',
-    },
     // L1 address that batches are sent to.
     // "batch_inbox_address" in rollup config.
     batchInboxAddress: {
@@ -160,16 +164,6 @@ const config: HardhatUserConfig = {
     // uint256 - Interval in blocks at which checkpoints must be submitted.
     l2OutputOracleSubmissionInterval: {
       type: 'number',
-    },
-    // bytes32 - The initial L2 output of the L2 chain.
-    l2OutputOracleGenesisL2Output: {
-      type: 'string',
-      default: ethers.constants.HashZero,
-    },
-    // uint256 - Number of blocks preceding this L2 chain.
-    l2OutputOracleHistoricalTotalBlocks: {
-      type: 'number',
-      default: 0,
     },
     // uint256 - The number of the first L2 block.
     l2OutputOracleStartingBlockNumber: {
@@ -198,7 +192,7 @@ const config: HardhatUserConfig = {
       type: 'address',
     },
     // address - The address of the owner.
-    l2OutputOracleOwner: {
+    l2OutputOracleChallenger: {
       type: 'address',
     },
 
@@ -206,6 +200,10 @@ const config: HardhatUserConfig = {
     finalizationPeriodSeconds: {
       type: 'number',
       default: 2,
+    },
+
+    systemConfigOwner: {
+      type: 'address',
     },
 
     // Optional L1 genesis block values. These must ONLY be used by the L1 genesis config script.
@@ -318,10 +316,6 @@ const config: HardhatUserConfig = {
       type: 'address',
       default: ethers.constants.AddressZero,
     },
-    gasPriceOracleOwner: {
-      type: 'address',
-      default: ethers.constants.AddressZero,
-    },
     gasPriceOracleOverhead: {
       type: 'number',
       default: 2100,
@@ -350,12 +344,20 @@ const config: HardhatUserConfig = {
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
+      mainnet: [
+        '../contracts/deployments/mainnet',
+        '../contracts-periphery/deployments/mainnet',
+      ],
+      'mainnet-forked': [
+        '../contracts/deployments/mainnet',
+        '../contracts-periphery/deployments/mainnet',
+      ],
     },
   },
   solidity: {
     compilers: [
       {
-        version: '0.8.10',
+        version: '0.8.15',
         settings: {
           optimizer: { enabled: true, runs: 10_000 },
         },
@@ -369,7 +371,7 @@ const config: HardhatUserConfig = {
     ],
     settings: {
       metadata: {
-        bytecodeHash: 'none',
+        bytecodeHash,
       },
       outputSelection: {
         '*': {

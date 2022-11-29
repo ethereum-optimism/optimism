@@ -9,12 +9,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 func randConfig() *Config {
-	randHash := func() (out common.Hash) {
+	randHash := func() (out [32]byte) {
 		rand.Read(out[:])
 		return
 	}
@@ -27,14 +28,23 @@ func randConfig() *Config {
 			L1:     eth.BlockID{Hash: randHash(), Number: 424242},
 			L2:     eth.BlockID{Hash: randHash(), Number: 1337},
 			L2Time: uint64(time.Now().Unix()),
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: randAddr(),
+				Overhead:    randHash(),
+				Scalar:      randHash(),
+				GasLimit:    1234567,
+			},
 		},
-		BlockTime:           2,
-		MaxSequencerDrift:   100,
-		SeqWindowSize:       2,
-		L1ChainID:           big.NewInt(900),
-		FeeRecipientAddress: randAddr(),
-		BatchInboxAddress:   randAddr(),
-		BatchSenderAddress:  randAddr(),
+		BlockTime:              2,
+		MaxSequencerDrift:      100,
+		SeqWindowSize:          2,
+		ChannelTimeout:         123,
+		L1ChainID:              big.NewInt(900),
+		L2ChainID:              big.NewInt(901),
+		P2PSequencerAddress:    randAddr(),
+		BatchInboxAddress:      randAddr(),
+		DepositContractAddress: randAddr(),
+		L1SystemConfigAddress:  randAddr(),
 	}
 }
 

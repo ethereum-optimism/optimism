@@ -143,7 +143,12 @@ export enum MessageStatus {
   STATE_ROOT_NOT_PUBLISHED,
 
   /**
-   * Message is an L2 to L1 message and awaiting the challenge period.
+   * Message is ready to be proved on L1 to initiate the challenge period.
+   */
+  READY_TO_PROVE,
+
+  /**
+   * Message is a proved L2 to L1 message and is undergoing the challenge period.
    */
   IN_CHALLENGE_PERIOD,
 
@@ -216,6 +221,14 @@ export interface TokenBridgeMessage {
 }
 
 /**
+ * Represents a withdrawal entry within the logs of a L2 to L1
+ * CrossChainMessage
+ */
+export interface WithdrawalEntry {
+  MessagePassed: any
+}
+
+/**
  * Enum describing the status of a CrossDomainMessage message receipt.
  */
 export enum MessageReceiptStatus {
@@ -229,6 +242,15 @@ export enum MessageReceiptStatus {
 export interface MessageReceipt {
   receiptStatus: MessageReceiptStatus
   transactionReceipt: TransactionReceipt
+}
+
+/**
+ * ProvenWithdrawal in OptimismPortal
+ */
+export interface ProvenWithdrawal {
+  outputRoot: string
+  timestamp: BigNumber
+  l2BlockNumber: BigNumber
 }
 
 /**

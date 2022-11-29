@@ -14,68 +14,85 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
 var abiTrue = common.Hash{31: 0x01}
 
+type MigrationResult struct {
+	TransitionHeight    uint64
+	TransitionTimestamp uint64
+	TransitionBlockHash common.Hash
+}
+
 // MigrateDB will migrate an old l2geth database to the new bedrock style system
-func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l2Addrs *L2Addresses, migrationData *migration.MigrationData, commit bool) error {
+func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit bool) (*MigrationResult, error) {
 	hash := rawdb.ReadHeadHeaderHash(ldb)
 	num := rawdb.ReadHeaderNumber(ldb, hash)
 	header := rawdb.ReadHeader(ldb, hash, *num)
 
-	db, err := state.New(header.Root, state.NewDatabase(ldb), nil)
+	// Leaving this commented out so that it can be used to skip
+	// the DB migration in development.
+	//return &MigrationResult{
+	//	TransitionHeight:    *num,
+	//	TransitionTimestamp: header.Time,
+	//	TransitionBlockHash: hash,
+	//}, nil
+
+	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
+		Preimages: true,
+	})
+
+	db, err := state.New(header.Root, underlyingDB, nil)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
 	// Convert all of the messages into legacy withdrawals
 	withdrawals, err := migrationData.ToWithdrawals()
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
 
 	if err := CheckWithdrawals(db, withdrawals); err != nil {
-		return err
+		return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 	}
 
 	// Now start the migration
 	if err := SetL2Proxies(db); err != nil {
-		return err
+		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
-	storage, err := NewL2StorageConfig(config, l1Block, l2Addrs)
+	storage, err := NewL2StorageConfig(config, l1Block)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot create storage config: %w", err)
 	}
 
-	immutable, err := NewL2ImmutableConfig(config, l1Block, l2Addrs)
+	immutable, err := NewL2ImmutableConfig(config, l1Block)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot create immutable config: %w", err)
 	}
 
 	if err := SetImplementations(db, storage, immutable); err != nil {
-		return err
+		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &l2Addrs.L1CrossDomainMessengerProxy, &l2Addrs.L1StandardBridgeProxy)
+	log.Info("Starting to migrate withdrawals")
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, &config.L1StandardBridgeProxy)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
+	log.Info("Completed withdrawal migration")
 
+	log.Info("Starting to migrate ERC20 ETH")
 	addrs := migrationData.Addresses()
-	if err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID)); err != nil {
-		return err
-	}
+	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit)
+	log.Info("Completed ERC20 ETH migration")
 
-	if !commit {
-		return nil
-	}
-
-	root, err := db.Commit(true)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
 
 	// Create the bedrock transition block
@@ -83,32 +100,72 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, l
 		ParentHash:  header.Hash(),
 		UncleHash:   types.EmptyUncleHash,
 		Coinbase:    config.L2GenesisBlockCoinbase,
-		Root:        root,
+		Root:        newRoot,
 		TxHash:      types.EmptyRootHash,
 		ReceiptHash: types.EmptyRootHash,
 		Bloom:       types.Bloom{},
-		Difficulty:  (*big.Int)(config.L2GenesisBlockDifficulty),
+		Difficulty:  common.Big0,
 		Number:      new(big.Int).Add(header.Number, common.Big1),
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
-		GasUsed:     (uint64)(config.L2GenesisBlockGasUsed),
+		GasUsed:     0,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
-		Extra:       config.L2GenesisBlockExtraData,
-		MixDigest:   config.L2GenesisBlockMixHash,
-		Nonce:       types.EncodeNonce((uint64)(config.L1GenesisBlockNonce)),
+		Extra:       []byte("BEDROCK"),
+		MixDigest:   common.Hash{},
+		Nonce:       types.BlockNonce{},
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
 	}
 
-	block := types.NewBlock(bedrockHeader, nil, nil, nil, trie.NewStackTrie(nil))
+	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, nil, trie.NewStackTrie(nil))
 
-	rawdb.WriteTd(ldb, block.Hash(), block.NumberU64(), block.Difficulty())
-	rawdb.WriteBlock(ldb, block)
-	rawdb.WriteReceipts(ldb, block.Hash(), block.NumberU64(), nil)
-	rawdb.WriteCanonicalHash(ldb, block.Hash(), block.NumberU64())
-	rawdb.WriteHeadBlockHash(ldb, block.Hash())
-	rawdb.WriteHeadFastBlockHash(ldb, block.Hash())
-	rawdb.WriteHeadHeaderHash(ldb, block.Hash())
+	res := &MigrationResult{
+		TransitionHeight:    bedrockBlock.NumberU64(),
+		TransitionTimestamp: bedrockBlock.Time(),
+		TransitionBlockHash: bedrockBlock.Hash(),
+	}
 
-	return nil
+	if !commit {
+		log.Info("Dry run complete")
+		return res, nil
+	}
+
+	rawdb.WriteTd(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), bedrockBlock.Difficulty())
+	rawdb.WriteBlock(ldb, bedrockBlock)
+	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), nil)
+	rawdb.WriteCanonicalHash(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64())
+	rawdb.WriteHeadBlockHash(ldb, bedrockBlock.Hash())
+	rawdb.WriteHeadFastBlockHash(ldb, bedrockBlock.Hash())
+	rawdb.WriteHeadHeaderHash(ldb, bedrockBlock.Hash())
+
+	// Make the first Bedrock block a finalized block.
+	rawdb.WriteFinalizedBlockHash(ldb, bedrockBlock.Hash())
+
+	// We need to pull the chain config out of the DB, and update
+	// it so that the latest hardforks are enabled.
+	genesisHash := rawdb.ReadCanonicalHash(ldb, 0)
+	cfg := rawdb.ReadChainConfig(ldb, genesisHash)
+	if cfg == nil {
+		log.Crit("chain config not found")
+	}
+	cfg.LondonBlock = bedrockBlock.Number()
+	cfg.ArrowGlacierBlock = bedrockBlock.Number()
+	cfg.GrayGlacierBlock = bedrockBlock.Number()
+	cfg.MergeNetsplitBlock = bedrockBlock.Number()
+	cfg.TerminalTotalDifficulty = big.NewInt(0)
+	cfg.TerminalTotalDifficultyPassed = true
+	cfg.Optimism = &params.OptimismConfig{
+		EIP1559Denominator: config.EIP1559Denominator,
+		EIP1559Elasticity:  config.EIP1559Elasticity,
+	}
+	rawdb.WriteChainConfig(ldb, genesisHash, cfg)
+
+	log.Info(
+		"wrote Bedrock transition block",
+		"height", bedrockHeader.Number,
+		"root", bedrockHeader.Root.String(),
+		"hash", bedrockHeader.Hash().String(),
+	)
+
+	return res, nil
 }
 
 // CheckWithdrawals will ensure that the entire list of withdrawals is being
@@ -145,9 +202,11 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 	}
 	// Check that all of the input messages are legit
 	for slot := range knownSlots {
+		//nolint:staticcheck
 		_, ok := slots[slot]
+		//nolint:staticcheck
 		if !ok {
-			return fmt.Errorf("Unknown input message: %s", slot)
+			//return nil, fmt.Errorf("Unknown input message: %s", slot)
 		}
 	}
 
