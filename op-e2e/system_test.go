@@ -104,7 +104,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		// timestamp set in the contract constructor.
 		if l2ooBlockNumber.Cmp(initialOutputBlockNumber) > 0 {
 			// Retrieve the l2 output committed at this updated timestamp.
-			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooBlockNumber)
+			committedL2Output, err := l2OutputOracle.GetL2OutputAfter(&bind.CallOpts{}, l2ooBlockNumber)
 			require.NotEqual(t, [32]byte{}, committedL2Output.OutputRoot, "Empty L2 Output")
 			require.Nil(t, err)
 
@@ -842,6 +842,12 @@ func TestWithdrawals(t *testing.T) {
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
 
+	oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+	require.Nil(t, err)
+
+	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, params.BlockNumber)
+	require.Nil(t, err)
+
 	opts.Value = nil
 
 	// Prove withdrawal
@@ -855,7 +861,7 @@ func TestWithdrawals(t *testing.T) {
 			GasLimit: params.GasLimit,
 			Data:     params.Data,
 		},
-		params.BlockNumber,
+		l2OutputIndex,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)

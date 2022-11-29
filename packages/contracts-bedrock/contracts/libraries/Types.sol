@@ -13,7 +13,8 @@ library Types {
      */
     struct OutputProposal {
         bytes32 outputRoot;
-        uint256 timestamp;
+        uint128 timestamp;
+        uint128 l2BlockNumber;
     }
 
     /**
