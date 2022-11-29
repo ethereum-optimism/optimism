@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
@@ -137,6 +139,16 @@ func NewDriverConfig(ctx *cli.Context) (*driver.Config, error) {
 }
 
 func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
+	network := ctx.GlobalString(flags.Network.Name)
+	if network != "" {
+		config, err := chaincfg.GetRollupConfig(network)
+		if err != nil {
+			return nil, err
+		}
+
+		return &config, nil
+	}
+
 	rollupConfigPath := ctx.GlobalString(flags.RollupConfig.Name)
 	file, err := os.Open(rollupConfigPath)
 	if err != nil {
