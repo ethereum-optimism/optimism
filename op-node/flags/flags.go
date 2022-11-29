@@ -33,6 +33,11 @@ var (
 		Usage:  "Rollup chain parameters",
 		EnvVar: prefixEnvVar("ROLLUP_CONFIG"),
 	}
+	Network = cli.StringFlag{
+		Name:   "network",
+		Usage:  "Predefined network selection",
+		EnvVar: prefixEnvVar("NETWORK"),
+	}
 	RPCListenAddr = cli.StringFlag{
 		Name:   "rpc.addr",
 		Usage:  "RPC listening address",
@@ -166,12 +171,13 @@ var (
 var requiredFlags = []cli.Flag{
 	L1NodeAddr,
 	L2EngineAddr,
-	RollupConfig,
 	RPCListenAddr,
 	RPCListenPort,
 }
 
 var optionalFlags = append([]cli.Flag{
+	RollupConfig,
+	Network,
 	L1TrustRPC,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
@@ -207,8 +213,12 @@ func CheckRequired(ctx *cli.Context) error {
 		return fmt.Errorf("flag %s is required", L2EngineAddr.Name)
 	}
 	rollupConfig := ctx.GlobalString(RollupConfig.Name)
-	if rollupConfig == "" {
-		return fmt.Errorf("flag %s is required", RollupConfig.Name)
+	network := ctx.GlobalString(Network.Name)
+	if rollupConfig == "" && network == "" {
+		return fmt.Errorf("flag %s or %s is required", RollupConfig.Name, Network.Name)
+	}
+	if rollupConfig != "" && network != "" {
+		return fmt.Errorf("cannot specify both %s and %s", RollupConfig.Name, Network.Name)
 	}
 	rpcListenAddr := ctx.GlobalString(RPCListenAddr.Name)
 	if rpcListenAddr == "" {
