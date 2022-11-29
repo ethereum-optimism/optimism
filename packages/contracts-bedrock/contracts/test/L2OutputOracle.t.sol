@@ -15,13 +15,12 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     }
 
     function test_constructor() external {
-        assertEq(oracle.owner(), owner);
+        assertEq(oracle.PROPOSER(), proposer);
+        assertEq(oracle.CHALLENGER(), owner);
         assertEq(oracle.SUBMISSION_INTERVAL(), submissionInterval);
         assertEq(oracle.latestBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingBlockNumber(), startingBlockNumber);
         assertEq(oracle.startingTimestamp(), startingTimestamp);
-        assertEq(oracle.proposer(), proposer);
-        assertEq(oracle.owner(), owner);
     }
 
     function testCannot_constructWithBadTimestamp() external {
@@ -111,47 +110,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
-    /*******************
-     * Ownership tests *
-     *******************/
-
-    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
-
-    function test_changeProposer() public {
-        address newProposer = address(20);
-        vm.expectRevert("Ownable: caller is not the owner");
-        oracle.changeProposer(newProposer);
-
-        vm.startPrank(owner);
-        vm.expectRevert("L2OutputOracle: new proposer cannot be the zero address");
-        oracle.changeProposer(address(0));
-
-        // Double check proposer has not changed.
-        assertEq(proposer, oracle.proposer());
-
-        vm.expectEmit(true, true, true, true);
-        emit ProposerChanged(proposer, newProposer);
-        oracle.changeProposer(newProposer);
-        vm.stopPrank();
-    }
-
-    event OwnershipTransferred(address indexed, address indexed);
-
-    function test_updateOwner() public {
-        address newOwner = address(21);
-        vm.expectRevert("Ownable: caller is not the owner");
-        oracle.transferOwnership(newOwner);
-        // Double check owner has not changed.
-        assertEq(owner, oracle.owner());
-
-        vm.startPrank(owner);
-        vm.expectEmit(true, true, true, true);
-        emit OwnershipTransferred(owner, newOwner);
-        oracle.transferOwnership(newOwner);
-        assertEq(newOwner, oracle.owner());
-        vm.stopPrank();
-    }
-
     /*****************************
      * Propose Tests - Happy Path *
      *****************************/
@@ -190,12 +148,12 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      ***************************/
 
     // Test: proposeL2Output fails if called by a party that is not the proposer.
-    function testCannot_proposeL2OutputIfNotProposer() external {
+    function testCannot_proposeL2Output_ifNotProposer() external {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
 
         vm.prank(address(128));
-        vm.expectRevert("L2OutputOracle: function can only be called by proposer");
+        vm.expectRevert("L2OutputOracle: only the proposer address can propose new outputs");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, 0, 0);
     }
 
@@ -322,10 +280,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
      * Delete Tests - Sad Path *
      ***************************/
 
-    function testCannot_deleteL2Outputs_ifNotOwner() external {
+    function testCannot_deleteL2Outputs_ifNotChallenger() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
 
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert("L2OutputOracle: only the challenger address can delete outputs");
         oracle.deleteL2Outputs(latestBlockNumber);
     }
 
@@ -371,17 +329,15 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
         assertEq(startingTimestamp, oracleImpl.startingTimestamp());
 
-        assertEq(proposer, oracleImpl.proposer());
-        assertEq(owner, oracleImpl.owner());
+        assertEq(proposer, oracleImpl.PROPOSER());
+        assertEq(owner, oracleImpl.CHALLENGER());
     }
 
     function test_cannotInitProxy() external {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(payable(proxy)).initialize(
             startingBlockNumber,
-            startingTimestamp,
-            proposer,
-            owner
+            startingTimestamp
         );
     }
 
@@ -389,9 +345,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
         vm.expectRevert("Initializable: contract is already initialized");
         L2OutputOracle(oracleImpl).initialize(
             startingBlockNumber,
-            startingTimestamp,
-            proposer,
-            owner
+            startingTimestamp
         );
     }
 

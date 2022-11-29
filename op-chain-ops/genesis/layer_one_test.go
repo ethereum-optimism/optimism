@@ -42,13 +42,13 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, sim)
 	require.NoError(t, err)
 
-	proposer, err := oracle.Proposer(callOpts)
+	proposer, err := oracle.PROPOSER(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, config.L2OutputOracleProposer, proposer)
 
-	owner, err := oracle.Owner(callOpts)
+	owner, err := oracle.CHALLENGER(callOpts)
 	require.NoError(t, err)
-	require.Equal(t, config.L2OutputOracleOwner, owner)
+	require.Equal(t, config.L2OutputOracleChallenger, owner)
 
 	// Same set of tests as exist in the deployment scripts
 	interval, err := oracle.SUBMISSIONINTERVAL(callOpts)

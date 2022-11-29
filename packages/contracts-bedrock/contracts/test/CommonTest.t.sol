@@ -131,7 +131,7 @@ contract L2OutputOracle_Initializer is CommonTest {
             address(oracleImpl),
             abi.encodeCall(
                 L2OutputOracle.initialize,
-                (startingBlockNumber, startingTimestamp, proposer, owner)
+                (startingBlockNumber, startingTimestamp)
             )
         );
         oracle = L2OutputOracle(address(proxy));

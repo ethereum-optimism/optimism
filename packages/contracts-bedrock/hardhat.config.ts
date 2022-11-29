@@ -192,7 +192,7 @@ const config: HardhatUserConfig = {
       type: 'address',
     },
     // address - The address of the owner.
-    l2OutputOracleOwner: {
+    l2OutputOracleChallenger: {
       type: 'address',
     },
 

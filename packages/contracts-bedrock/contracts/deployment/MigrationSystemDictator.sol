@@ -157,9 +157,7 @@ contract MigrationSystemDictator is BaseSystemDictator {
                 L2OutputOracle.initialize,
                 (
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
-                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp,
-                    config.l2OutputOracleConfig.l2OutputOracleProposer,
-                    config.l2OutputOracleConfig.l2OutputOracleOwner
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp
                 )
             )
         );
