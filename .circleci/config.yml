@@ -639,6 +639,12 @@ jobs:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: op node logs
+                command: docker logs ops-bedrock-op-node-1
+            - run:
+                name: L2 Geth Logs
+                command: docker logs ops-bedrock-l2-1
       - when:
           condition:
             and:
@@ -660,6 +666,12 @@ jobs:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: op node logs
+                command: docker logs ops-bedrock-op-node-1
+            - run:
+                name: L2 Geth Logs
+                command: docker logs ops-bedrock-l2-1
 
   integration-tests:
     machine:
