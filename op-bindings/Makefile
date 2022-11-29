@@ -12,7 +12,7 @@ bindings: l1block-bindings \
 	optimism-portal-bindings \
 	l2-output-oracle-bindings \
 	gas-price-oracle-bindings \
-  legacy-message-passer-bindings \
+	legacy-message-passer-bindings \
 	address-manager-bindings \
 	l2-cross-domain-messenger-bindings \
 	l2-standard-bridge-bindings \
@@ -28,7 +28,8 @@ bindings: l1block-bindings \
 	l1-erc721-bridge-bindings \
 	optimism-mintable-erc721-factory-bindings \
 	l1-fee-vault-bindings \
-	basefee-vault-bindings
+	basefee-vault-bindings \
+	legacy-erc20-eth-bindings
 
 version:
 	forge --version
@@ -94,6 +95,9 @@ optimism-mintable-erc20-factory-bindings: compile
 
 optimism-mintable-erc20-bindings: compile
 	./gen_bindings.sh contracts/universal/OptimismMintableERC20.sol:OptimismMintableERC20 $(pkg)
+
+legacy-erc20-eth-bindings: compile
+	./gen_bindings.sh contracts/legacy/LegacyERC20ETH.sol:LegacyERC20ETH $(pkg)
 
 proxy-bindings: compile
 	./gen_bindings.sh contracts/universal/Proxy.sol:Proxy $(pkg)
