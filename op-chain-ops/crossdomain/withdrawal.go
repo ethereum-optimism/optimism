@@ -147,13 +147,18 @@ func (w *Withdrawal) StorageSlot() (common.Hash, error) {
 // SentMessage, SentMessageExtension1 and MessagePassed.
 // These logs are enough for the standard withdrawal flow to happen
 // which is driven by events being emitted.
-func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
+func (w *Withdrawal) Receipt(hdr *types.Header, txIndex uint) (*types.Receipt, error) {
 	// Create a new receipt with the state root, successful execution and no gas
 	// used
 	receipt := types.NewReceipt(hdr.Root.Bytes(), false, 0)
 	if receipt.Logs == nil {
 		receipt.Logs = make([]*types.Log, 0)
 	}
+
+	// Use a counter to track the log index. Each receipt has 3 events and there
+	// is 1 receipt per transaction. Increment the logIndex after appending the
+	// log to the receipt.
+	logIndex := txIndex * 3
 
 	// Create the SentMessage log.
 	args := abi.Arguments{
@@ -177,12 +182,13 @@ func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
 		Data:        data,
 		BlockNumber: hdr.Number.Uint64(),
 		TxHash:      common.Hash{},
-		TxIndex:     0,
+		TxIndex:     txIndex,
 		BlockHash:   hdr.Hash(),
-		Index:       0,
+		Index:       logIndex,
 		Removed:     false,
 	}
 	receipt.Logs = append(receipt.Logs, sm)
+	logIndex++
 
 	// Create the SentMessageExtension1 log. The L2CrossDomainMessenger
 	// emits this event. The sender is indexed.
@@ -195,12 +201,13 @@ func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
 		Data:        common.LeftPadBytes(w.Value.Bytes(), 32),
 		BlockNumber: hdr.Number.Uint64(),
 		TxHash:      common.Hash{},
-		TxIndex:     0,
+		TxIndex:     txIndex,
 		BlockHash:   hdr.Hash(),
-		Index:       0,
+		Index:       logIndex,
 		Removed:     false,
 	}
 	receipt.Logs = append(receipt.Logs, sm1)
+	logIndex++
 
 	// Create the MessagePassed log.
 	mpargs := abi.Arguments{
@@ -229,9 +236,9 @@ func (w *Withdrawal) Receipt(hdr *types.Header) (*types.Receipt, error) {
 		Data:        mpdata,
 		BlockNumber: hdr.Number.Uint64(),
 		TxHash:      common.Hash{},
-		TxIndex:     0,
+		TxIndex:     txIndex,
 		BlockHash:   hdr.Hash(),
-		Index:       0,
+		Index:       logIndex,
 		Removed:     false,
 	}
 	receipt.Logs = append(receipt.Logs, mp)
