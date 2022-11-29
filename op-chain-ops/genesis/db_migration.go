@@ -80,7 +80,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	log.Info("Starting to migrate withdrawals")
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, &config.L1StandardBridgeProxy)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
@@ -115,7 +115,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
 	}
 
-	receipts, err := CreateReceipts(bedrockHeader, withdrawals, &config.L1CrossDomainMessengerProxy, &config.L1StandardBridgeProxy)
+	receipts, err := CreateReceipts(bedrockHeader, withdrawals, &config.L1CrossDomainMessengerProxy)
 	if err != nil {
 		return nil, err
 	}

@@ -138,12 +138,14 @@ func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 		return nil, err
 	}
 
-	method, err := abi.MethodById(w.Data)
-	if err != nil {
-		return nil, fmt.Errorf("cannot parse withdrawal value: %w", err)
-	}
-
 	value := new(big.Int)
+
+	// Parse the 4byte selector
+	method, err := abi.MethodById(w.Data)
+	// If it is an unknown selector, there is no value
+	if err != nil {
+		return value, nil
+	}
 
 	if w.Sender == nil {
 		return nil, errors.New("sender is nil")
