@@ -1,7 +1,7 @@
-surgery:
-	go build -o ./surgery ./cmd/surgery/main.go
+migrate:
+	go build -o ./bin/migrate ./cmd/migrate/main.go
 
 test:
 	go test ./...
 
-.PHONY: surgery test
+.PHONY: migrate test
