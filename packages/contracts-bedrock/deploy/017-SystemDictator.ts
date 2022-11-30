@@ -49,7 +49,7 @@ const deployFn: DeployFunction = async (hre) => {
   const config = await makeDictatorConfig(hre, controller, finalOwner, false)
   await deployAndVerifyAndThen({
     hre,
-    name: 'MigrationSystemDictator',
+    name: 'SystemDictator',
     args: [config],
     postDeployAction: async (contract) => {
       await assertDictatorConfig(contract, config)
@@ -57,6 +57,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['MigrationSystemDictator']
+deployFn.tags = ['SystemDictator']
 
 export default deployFn
