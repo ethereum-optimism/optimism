@@ -1,6 +1,7 @@
 package crossdomain
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -13,26 +14,23 @@ import (
 )
 
 var (
-	abiTrue = common.Hash{31: 0x01}
-	//errLegacyStorageSlotNotFound = errors.New("cannot find storage slot")
+	abiTrue                      = common.Hash{31: 0x01}
+	errLegacyStorageSlotNotFound = errors.New("cannot find storage slot")
 )
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger *common.Address) error {
+func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
 	for i, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
 			return err
 		}
 
-		legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
-		if legacyValue != abiTrue {
-			// TODO: Re-enable this once we have the exact data we need on mainnet.
-			// This is disabled because the data file we're using for testing was
-			// generated after the database dump, which means that there are extra
-			// storage slots in the state that don't show up in the withdrawals list.
-			// return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacySlot)
-			continue
+		if !noCheck {
+			legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
+			if legacyValue != abiTrue {
+				return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacySlot)
+			}
 		}
 
 		withdrawal, err := MigrateWithdrawal(legacy, l1CrossDomainMessenger)

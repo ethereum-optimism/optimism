@@ -1,6 +1,7 @@
 package genesis
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 
@@ -19,7 +20,10 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-var abiTrue = common.Hash{31: 0x01}
+var (
+	abiTrue                         = common.Hash{31: 0x01}
+	bedrockTransitionBlockExtraData = []byte("BEDROCK")
+)
 
 type MigrationResult struct {
 	TransitionHeight    uint64
@@ -33,13 +37,15 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	num := rawdb.ReadHeaderNumber(ldb, hash)
 	header := rawdb.ReadHeader(ldb, hash, *num)
 
-	// Leaving this commented out so that it can be used to skip
-	// the DB migration in development.
-	//return &MigrationResult{
-	//	TransitionHeight:    *num,
-	//	TransitionTimestamp: header.Time,
-	//	TransitionBlockHash: hash,
-	//}, nil
+	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
+		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
+
+		return &MigrationResult{
+			TransitionHeight:    *num,
+			TransitionTimestamp: header.Time,
+			TransitionBlockHash: hash,
+		}, nil
+	}
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
@@ -86,8 +92,8 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
-	log.Info("Starting to migrate withdrawals")
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy)
+	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
@@ -96,11 +102,10 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	log.Info("Starting to migrate ERC20 ETH")
 	addrs := migrationData.Addresses()
 	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit)
-	log.Info("Completed ERC20 ETH migration")
-
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
+	log.Info("Completed ERC20 ETH migration", "root", newRoot)
 
 	// Create the bedrock transition block
 	bedrockHeader := &types.Header{
@@ -116,7 +121,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
 		GasUsed:     0,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
-		Extra:       []byte("BEDROCK"),
+		Extra:       bedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
