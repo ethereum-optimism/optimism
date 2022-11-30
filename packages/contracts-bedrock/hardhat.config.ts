@@ -10,6 +10,11 @@ import 'hardhat-deploy'
 // Hardhat tasks
 import './tasks'
 
+let bytecodeHash = 'none'
+if (process.env.FOUNDRY_PROFILE === 'echidna') {
+  bytecodeHash = 'ipfs'
+}
+
 const config: HardhatUserConfig = {
   networks: {
     devnetL1: {
@@ -158,11 +163,6 @@ const config: HardhatUserConfig = {
     l2OutputOracleSubmissionInterval: {
       type: 'number',
     },
-    // bytes32 - The initial L2 output of the L2 chain.
-    l2OutputOracleGenesisL2Output: {
-      type: 'string',
-      default: ethers.constants.HashZero,
-    },
     // uint256 - The number of the first L2 block.
     l2OutputOracleStartingBlockNumber: {
       type: 'number',
@@ -190,7 +190,7 @@ const config: HardhatUserConfig = {
       type: 'address',
     },
     // address - The address of the owner.
-    l2OutputOracleOwner: {
+    l2OutputOracleChallenger: {
       type: 'address',
     },
 
@@ -363,7 +363,7 @@ const config: HardhatUserConfig = {
     ],
     settings: {
       metadata: {
-        bytecodeHash: 'none',
+        bytecodeHash,
       },
       outputSelection: {
         '*': {

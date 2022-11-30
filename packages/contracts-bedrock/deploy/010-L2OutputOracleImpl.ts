@@ -1,4 +1,3 @@
-import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
@@ -15,11 +14,10 @@ const deployFn: DeployFunction = async (hre) => {
     args: [
       hre.deployConfig.l2OutputOracleSubmissionInterval,
       hre.deployConfig.l2BlockTime,
-      ethers.constants.HashZero,
       0,
       0,
       hre.deployConfig.l2OutputOracleProposer,
-      hre.deployConfig.l2OutputOracleOwner,
+      hre.deployConfig.l2OutputOracleChallenger,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -34,13 +32,13 @@ const deployFn: DeployFunction = async (hre) => {
       )
       await assertContractVariable(
         contract,
-        'proposer',
+        'PROPOSER',
         hre.deployConfig.l2OutputOracleProposer
       )
       await assertContractVariable(
         contract,
-        'owner',
-        hre.deployConfig.l2OutputOracleOwner
+        'CHALLENGER',
+        hre.deployConfig.l2OutputOracleChallenger
       )
     },
   })

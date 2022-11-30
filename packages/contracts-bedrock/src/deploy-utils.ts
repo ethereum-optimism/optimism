@@ -33,10 +33,6 @@ export interface DictatorConfig {
     portalSenderImpl: string
     systemConfigImpl: string
   }
-  l2OutputOracleConfig: {
-    l2OutputOracleProposer: string
-    l2OutputOracleOwner: string
-  }
   batchInboxConfig: {
     batchInboxProposer: string
     batchInboxOwner: string
@@ -358,10 +354,6 @@ export const makeDictatorConfig = async (
       l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
-    },
-    l2OutputOracleConfig: {
-      l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
-      l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
     },
     batchInboxConfig: {
       batchInboxProposer: hre.deployConfig.batchSenderAddress,

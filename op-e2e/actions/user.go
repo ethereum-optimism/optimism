@@ -397,6 +397,8 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 	require.NoError(t, err)
 	l2OutputBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
+	l2OutputIndex, err := s.L1.env.Bindings.L2OutputOracle.GetL2OutputIndexAfter(&bind.CallOpts{}, l2OutputBlockNr)
+	require.NoError(t, err)
 
 	// Check if the L2 output is even old enough to include the withdrawal
 	if l2OutputBlock.NumberU64() < l2WithdrawalBlock.NumberU64() {
@@ -421,7 +423,7 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 			GasLimit: params.GasLimit,
 			Data:     params.Data,
 		},
-		params.BlockNumber,
+		l2OutputIndex,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)

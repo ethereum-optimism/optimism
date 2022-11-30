@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
@@ -50,7 +51,7 @@ func EncodeStorage(entry solc.StorageLayoutEntry, value any, storageType solc.St
 func SetStorage(name string, address common.Address, values StorageValues, db vm.StateDB) error {
 	layout, err := bindings.GetStorageLayout(name)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot set storage: %w", err)
 	}
 	slots, err := ComputeStorageSlots(layout, values)
 	if err != nil {
@@ -58,6 +59,7 @@ func SetStorage(name string, address common.Address, values StorageValues, db vm
 	}
 	for _, slot := range slots {
 		db.SetState(address, slot.Key, slot.Value)
+		log.Trace("setting storage", "address", address.Hex(), "key", slot.Key.Hex(), "value", slot.Value.Hex())
 	}
 	return nil
 }

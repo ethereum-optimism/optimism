@@ -104,7 +104,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		// timestamp set in the contract constructor.
 		if l2ooBlockNumber.Cmp(initialOutputBlockNumber) > 0 {
 			// Retrieve the l2 output committed at this updated timestamp.
-			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooBlockNumber)
+			committedL2Output, err := l2OutputOracle.GetL2OutputAfter(&bind.CallOpts{}, l2ooBlockNumber)
 			require.NotEqual(t, [32]byte{}, committedL2Output.OutputRoot, "Empty L2 Output")
 			require.Nil(t, err)
 
@@ -566,7 +566,7 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
 	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
@@ -842,6 +842,12 @@ func TestWithdrawals(t *testing.T) {
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
 
+	oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+	require.Nil(t, err)
+
+	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, params.BlockNumber)
+	require.Nil(t, err)
+
 	opts.Value = nil
 
 	// Prove withdrawal
@@ -855,7 +861,7 @@ func TestWithdrawals(t *testing.T) {
 			GasLimit: params.GasLimit,
 			Data:     params.Data,
 		},
-		params.BlockNumber,
+		l2OutputIndex,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)

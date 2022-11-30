@@ -22,7 +22,7 @@
   "l2OutputOracleSubmissionInterval": 18000,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
-  "l2OutputOracleOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
+  "l2OutputOracleChallenger": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
 
   "optimismBaseFeeRecipient": "0x71b2e590ce66c94a3c2ad5e889adc75c11728889",
   "optimismL1FeeRecipient": "0x749058367c48a10c728073dcc4613560d69e730d",

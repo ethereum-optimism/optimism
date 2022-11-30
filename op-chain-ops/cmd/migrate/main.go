@@ -76,6 +76,10 @@ func main() {
 				Name:  "dry-run",
 				Usage: "Dry run the upgrade by not committing the database",
 			},
+			cli.BoolFlag{
+				Name:  "no-check",
+				Usage: "Do not perform sanity checks. This should only be used for testing",
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			deployConfig := ctx.String("deploy-config")
@@ -153,7 +157,8 @@ func main() {
 			}
 
 			dryRun := ctx.Bool("dry-run")
-			if _, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun); err != nil {
+			noCheck := ctx.Bool("no-check")
+			if _, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck); err != nil {
 				return err
 			}
 
