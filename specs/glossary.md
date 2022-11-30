@@ -694,7 +694,7 @@ cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes
 
 ## L2 Output Root
 
-[l2-output]: glossary.md#l2-output
+[l2-output]: glossary.md#l2-output-root
 
 A 32 byte value which serves as a commitment to the current state of the L2 chain.
 
