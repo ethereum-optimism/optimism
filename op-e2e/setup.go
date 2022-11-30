@@ -62,7 +62,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2OutputOracleSubmissionInterval: 4,
 		L2OutputOracleStartingTimestamp:  -1,
 		L2OutputOracleProposer:           addresses.Proposer,
-		L2OutputOracleOwner:              common.Address{}, // tbd
+		L2OutputOracleChallenger:         common.Address{}, // tbd
 
 		SystemConfigOwner: addresses.SysCfgOwner,
 

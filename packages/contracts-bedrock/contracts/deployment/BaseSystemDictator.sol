@@ -56,12 +56,11 @@ contract BaseSystemDictator is Ownable {
     }
 
     /**
-     * @notice Set of implementation addresses.
+     * @notice Dynamic L2OutputOracle config.
      */
-    struct L2OutputOracleConfig {
-        bytes32 l2OutputOracleGenesisL2Output;
-        address l2OutputOracleProposer;
-        address l2OutputOracleOwner;
+    struct L2OutputOracleDynamicConfig {
+        uint256 l2OutputOracleStartingBlockNumber;
+        uint256 l2OutputOracleStartingTimestamp;
     }
 
     /**
@@ -82,7 +81,6 @@ contract BaseSystemDictator is Ownable {
         GlobalConfig globalConfig;
         ProxyAddressConfig proxyAddressConfig;
         ImplementationAddressConfig implementationAddressConfig;
-        L2OutputOracleConfig l2OutputOracleConfig;
         SystemConfigConfig systemConfigConfig;
     }
 
@@ -92,9 +90,19 @@ contract BaseSystemDictator is Ownable {
     DeployConfig public config;
 
     /**
+     * @notice Dynamic configuration for the L2OutputOracle.
+     */
+    L2OutputOracleDynamicConfig public l2OutputOracleDynamicConfig;
+
+    /**
      * @notice Current step;
      */
     uint8 public currentStep = 1;
+
+    /**
+     * @notice Whether or not dynamic config has been set.
+     */
+    bool public dynamicConfigSet;
 
     /**
      * @notice Checks that the current step is the expected step, then bumps the current step.
@@ -113,5 +121,17 @@ contract BaseSystemDictator is Ownable {
     constructor(DeployConfig memory _config) Ownable() {
         config = _config;
         _transferOwnership(config.globalConfig.controller);
+    }
+
+    /**
+     * @notice Allows the owner to update dynamic L2OutputOracle config.
+     *
+     * @param _l2OutputOracleDynamicConfig Dynamic L2OutputOracle config.
+     */
+    function updateL2OutputOracleDynamicConfig(
+        L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig
+    ) external onlyOwner {
+        l2OutputOracleDynamicConfig = _l2OutputOracleDynamicConfig;
+        dynamicConfigSet = true;
     }
 }

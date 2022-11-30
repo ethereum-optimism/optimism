@@ -40,8 +40,7 @@ type DeployConfig struct {
 	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
 	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
 	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
-	L2OutputOracleOwner              common.Address `json:"l2OutputOracleOwner"`
-	L2OutputOracleGenesisL2Output    common.Hash    `json:"l2OutputOracleGenesisL2Output"`
+	L2OutputOracleChallenger         common.Address `json:"l2OutputOracleChallenger"`
 
 	SystemConfigOwner common.Address `json:"systemConfigOwner"`
 
@@ -142,11 +141,8 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleProposer == (common.Address{}) {
 		return fmt.Errorf("%w: L2OutputOracleProposer cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.L2OutputOracleOwner == (common.Address{}) {
-		return fmt.Errorf("%w: L2OutputOracleOwner cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L2OutputOracleGenesisL2Output == (common.Hash{}) {
-		log.Warn("L2OutputOracleGenesisL2Output is bytes32(0)")
+	if d.L2OutputOracleChallenger == (common.Address{}) {
+		return fmt.Errorf("%w: L2OutputOracleChallenger cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.SystemConfigOwner == (common.Address{}) {
 		return fmt.Errorf("%w: SystemConfigOwner cannot be address(0)", ErrInvalidDeployConfig)
@@ -354,10 +350,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"l1FeeScalar":    config.GasPriceOracleScalar,
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
-		"bridge":      predeploys.L2StandardBridge,
-		"remoteToken": common.Address{},
-		"_name":       "Ether",
-		"_symbol":     "ETH",
+		"_name":   "Ether",
+		"_symbol": "ETH",
 	}
 	storage["WETH9"] = state.StorageValues{
 		"name":     "Wrapped Ether",

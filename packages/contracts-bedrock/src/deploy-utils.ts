@@ -31,11 +31,6 @@ export interface DictatorConfig {
     portalSenderImpl: string
     systemConfigImpl: string
   }
-  l2OutputOracleConfig: {
-    l2OutputOracleGenesisL2Output: string
-    l2OutputOracleProposer: string
-    l2OutputOracleOwner: string
-  }
   systemConfigConfig: {
     owner: string
     overhead: number
@@ -350,12 +345,6 @@ export const makeDictatorConfig = async (
       l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
-    },
-    l2OutputOracleConfig: {
-      l2OutputOracleGenesisL2Output:
-        hre.deployConfig.l2OutputOracleGenesisL2Output,
-      l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
-      l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
     },
     systemConfigConfig: {
       owner: hre.deployConfig.systemConfigOwner,

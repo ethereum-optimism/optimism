@@ -37,6 +37,22 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
+  let finalOwner = hre.deployConfig.finalSystemOwner
+  if (finalOwner === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!!`)
+      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
+      console.log(
+        `WARNING!!! Make sure you are ONLY doing this on a test network.`
+      )
+      finalOwner = deployer
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+
   // Set up required contract references.
   const [
     MigrationSystemDictator,
@@ -252,29 +268,6 @@ const deployFn: DeployFunction = async (hre) => {
         'latestBlockNumber',
         hre.deployConfig.l2OutputOracleStartingBlockNumber
       )
-      await assertContractVariable(
-        L2OutputOracle,
-        'proposer',
-        hre.deployConfig.l2OutputOracleProposer
-      )
-      await assertContractVariable(
-        L2OutputOracle,
-        'owner',
-        hre.deployConfig.l2OutputOracleOwner
-      )
-      if (
-        hre.deployConfig.l2OutputOracleGenesisL2Output !==
-        ethers.constants.HashZero
-      ) {
-        const genesisOutput = await L2OutputOracle.getL2Output(
-          hre.deployConfig.l2OutputOracleStartingBlockNumber
-        )
-        assert(
-          genesisOutput.outputRoot ===
-            hre.deployConfig.l2OutputOracleGenesisL2Output,
-          `L2OutputOracle was not initialized with the correct genesis output root`
-        )
-      }
 
       // Check OptimismPortal was initialized properly.
       await assertContractVariable(
@@ -346,7 +339,40 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   for (let i = 1; i <= 6; i++) {
-    if ((await MigrationSystemDictator.currentStep()) === i) {
+    const currentStep = await MigrationSystemDictator.currentStep()
+    if (currentStep === i) {
+      if (
+        currentStep > (await MigrationSystemDictator.PROXY_TRANSFER_STEP()) &&
+        !(await MigrationSystemDictator.dynamicConfigSet())
+      ) {
+        if (isLiveDeployer) {
+          console.log(`Updating dynamic oracle config...`)
+
+          // Use default starting time if not provided
+          let deployL2StartingTimestamp =
+            hre.deployConfig.l2OutputOracleStartingTimestamp
+          if (deployL2StartingTimestamp < 0) {
+            const l1StartingBlock = await hre.ethers.provider.getBlock(
+              hre.deployConfig.l1StartingBlockTag
+            )
+            if (l1StartingBlock === null) {
+              throw new Error(
+                `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
+              )
+            }
+            deployL2StartingTimestamp = l1StartingBlock.timestamp
+          }
+
+          await MigrationSystemDictator.updateL2OutputOracleDynamicConfig({
+            l2OutputOracleStartingBlockNumber:
+              hre.deployConfig.l2OutputOracleStartingBlockNumber,
+            l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+          })
+        } else {
+          console.log(`Please update dynamic oracle config...`)
+        }
+      }
+
       if (isLiveDeployer) {
         console.log(`Executing step ${i}...`)
         await MigrationSystemDictator[`step${i}`]()
@@ -378,17 +404,9 @@ const deployFn: DeployFunction = async (hre) => {
       return MigrationSystemDictator.finalized()
     })
 
-    await assertContractVariable(
-      L1CrossDomainMessenger,
-      'owner',
-      hre.deployConfig.finalSystemOwner
-    )
+    await assertContractVariable(L1CrossDomainMessenger, 'owner', finalOwner)
 
-    await assertContractVariable(
-      ProxyAdmin,
-      'owner',
-      hre.deployConfig.finalSystemOwner
-    )
+    await assertContractVariable(ProxyAdmin, 'owner', finalOwner)
   }
 }
 

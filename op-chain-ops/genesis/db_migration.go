@@ -28,7 +28,7 @@ type MigrationResult struct {
 }
 
 // MigrateDB will migrate an old l2geth database to the new bedrock style system
-func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit bool) (*MigrationResult, error) {
+func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit, noCheck bool) (*MigrationResult, error) {
 	hash := rawdb.ReadHeadHeaderHash(ldb)
 	num := rawdb.ReadHeaderNumber(ldb, hash)
 	header := rawdb.ReadHeader(ldb, hash, *num)
@@ -56,11 +56,18 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
 
-	if err := CheckWithdrawals(db, withdrawals); err != nil {
-		return nil, fmt.Errorf("withdrawals mismatch: %w", err)
+	if !noCheck {
+		log.Info("Checking withdrawals...")
+		if err := CheckWithdrawals(db, withdrawals); err != nil {
+			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
+		}
+		log.Info("Withdrawals accounted for!")
+	} else {
+		log.Info("Skipping checking withdrawals")
 	}
 
 	// Now start the migration
+	log.Info("Setting the Proxies")
 	if err := SetL2Proxies(db); err != nil {
 		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
@@ -80,7 +87,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	log.Info("Starting to migrate withdrawals")
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, &config.L1StandardBridgeProxy)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
@@ -115,7 +122,12 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
 	}
 
-	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, nil, trie.NewStackTrie(nil))
+	receipts, err := CreateReceipts(bedrockHeader, withdrawals, &config.L1CrossDomainMessengerProxy)
+	if err != nil {
+		return nil, err
+	}
+
+	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, receipts, trie.NewStackTrie(nil))
 
 	res := &MigrationResult{
 		TransitionHeight:    bedrockBlock.NumberU64(),
@@ -130,7 +142,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	rawdb.WriteTd(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), bedrockBlock.Difficulty())
 	rawdb.WriteBlock(ldb, bedrockBlock)
-	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), nil)
+	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), receipts)
 	rawdb.WriteCanonicalHash(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64())
 	rawdb.WriteHeadBlockHash(ldb, bedrockBlock.Hash())
 	rawdb.WriteHeadFastBlockHash(ldb, bedrockBlock.Hash())
@@ -176,7 +188,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 	for _, wd := range withdrawals {
 		slot, err := wd.StorageSlot()
 		if err != nil {
-			return err
+			return fmt.Errorf("cannot check withdrawals: %w", err)
 		}
 		knownSlots[slot] = true
 	}
@@ -190,7 +202,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		return true
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)
 	}
 
 	// Check that all of the slots from storage correspond to a known message
@@ -206,7 +218,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		_, ok := slots[slot]
 		//nolint:staticcheck
 		if !ok {
-			//return nil, fmt.Errorf("Unknown input message: %s", slot)
+			return fmt.Errorf("Unknown input message: %s", slot)
 		}
 	}
 

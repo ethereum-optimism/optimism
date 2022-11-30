@@ -102,9 +102,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = l2ooABI.Pack(
 		"initialize",
-		config.L2OutputOracleGenesisL2Output,
-		config.L2OutputOracleProposer,
-		config.L2OutputOracleOwner,
+		big.NewInt(0),
+		uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 	)
 	if err != nil {
 		return nil, err
@@ -275,12 +274,11 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: "L2OutputOracle",
 			Args: []interface{}{
 				uint642Big(config.L2OutputOracleSubmissionInterval),
-				[32]byte(config.L2OutputOracleGenesisL2Output),
+				uint642Big(config.L2BlockTime),
 				big.NewInt(0),
 				uint642Big(uint64(config.L1GenesisBlockTimestamp)),
-				uint642Big(config.L2BlockTime),
 				config.L2OutputOracleProposer,
-				config.L2OutputOracleOwner,
+				config.L2OutputOracleChallenger,
 			},
 		},
 		{
@@ -337,12 +335,11 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			opts,
 			backend,
 			deployment.Args[0].(*big.Int),
-			deployment.Args[1].([32]byte),
+			deployment.Args[1].(*big.Int),
 			deployment.Args[2].(*big.Int),
 			deployment.Args[3].(*big.Int),
-			deployment.Args[4].(*big.Int),
+			deployment.Args[4].(common.Address),
 			deployment.Args[5].(common.Address),
-			deployment.Args[6].(common.Address),
 		)
 	case "OptimismPortal":
 		_, tx, _, err = bindings.DeployOptimismPortal(

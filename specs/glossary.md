@@ -336,7 +336,7 @@ See the [corresponding section][spec-deposit-tx-type] of the deposits spec for m
 
 [deposit-contract]: glossary.md#deposit-contract
 
-The *deposit contract* is qn [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits are
+The *deposit contract* is an [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits are
 emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup-node].
 
 Advanced note: the deposits are not stored in calldata because they can be sent by contracts, in which case the calldata
@@ -694,7 +694,7 @@ cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes
 
 ## L2 Output Root
 
-[l2-output]: glossary.md#l2-output
+[l2-output]: glossary.md#l2-output-root
 
 A 32 byte value which serves as a commitment to the current state of the L2 chain.
 

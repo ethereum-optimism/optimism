@@ -147,7 +147,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: NewTransactionManger(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
+		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
 		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),
