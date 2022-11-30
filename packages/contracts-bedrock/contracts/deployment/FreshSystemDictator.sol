@@ -40,7 +40,7 @@ contract FreshSystemDictator is BaseSystemDictator {
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp,
                     config.l2OutputOracleConfig.l2OutputOracleProposer,
-                    config.l2OutputOracleConfig.l2OutputOracleOwner
+                    config.l2OutputOracleConfig.l2OutputOracleChallenger
                 )
             )
         );

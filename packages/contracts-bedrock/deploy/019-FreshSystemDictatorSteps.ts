@@ -105,13 +105,13 @@ const deployFn: DeployFunction = async (hre) => {
     )
     await assertContractVariable(
       L2OutputOracle,
-      'proposer',
+      'PROPOSER',
       hre.deployConfig.l2OutputOracleProposer
     )
     await assertContractVariable(
       L2OutputOracle,
-      'owner',
-      hre.deployConfig.l2OutputOracleOwner
+      'CHALLENGER',
+      hre.deployConfig.l2OutputOracleChallenger
     )
     if (
       hre.deployConfig.l2OutputOracleGenesisL2Output !==
