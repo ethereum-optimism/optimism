@@ -39,7 +39,7 @@ func NewLegacyWithdrawal(target, sender *common.Address, data []byte, nonce *big
 func (w *LegacyWithdrawal) Encode() ([]byte, error) {
 	enc, err := EncodeCrossDomainMessageV0(w.Target, w.Sender, w.Data, w.Nonce)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot encode LegacyWithdrawal: %w", err)
 	}
 
 	out := make([]byte, len(enc)+len(predeploys.L2CrossDomainMessengerAddr.Bytes()))
@@ -107,7 +107,7 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 func (w *LegacyWithdrawal) Hash() (common.Hash, error) {
 	encoded, err := w.Encode()
 	if err != nil {
-		return common.Hash{}, nil
+		return common.Hash{}, fmt.Errorf("cannot hash LegacyWithdrawal: %w", err)
 	}
 	hash := crypto.Keccak256(encoded)
 	return common.BytesToHash(hash), nil
@@ -118,7 +118,7 @@ func (w *LegacyWithdrawal) Hash() (common.Hash, error) {
 func (w *LegacyWithdrawal) StorageSlot() (common.Hash, error) {
 	hash, err := w.Hash()
 	if err != nil {
-		return common.Hash{}, err
+		return common.Hash{}, fmt.Errorf("cannot compute storage slot: %w", err)
 	}
 	preimage := make([]byte, 64)
 	copy(preimage, hash.Bytes())

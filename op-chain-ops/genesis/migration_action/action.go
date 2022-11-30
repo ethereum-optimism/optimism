@@ -24,6 +24,7 @@ type Config struct {
 	StartingL1BlockNumber uint64
 	L2DBPath              string
 	DryRun                bool
+	NoCheck               bool
 }
 
 func Migrate(cfg *Config) (*genesis.MigrationResult, error) {
@@ -81,5 +82,5 @@ func Migrate(cfg *Config) (*genesis.MigrationResult, error) {
 	}
 	defer ldb.Close()
 
-	return genesis.MigrateDB(ldb, deployConfig, block, &migrationData, !cfg.DryRun)
+	return genesis.MigrateDB(ldb, deployConfig, block, &migrationData, !cfg.DryRun, cfg.NoCheck)
 }
