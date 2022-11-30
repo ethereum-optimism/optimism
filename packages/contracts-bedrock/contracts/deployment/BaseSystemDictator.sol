@@ -58,7 +58,6 @@ contract BaseSystemDictator is Ownable {
         SystemConfig systemConfigImpl;
     }
 
-    /**
     struct BatchInboxConfig {
         address batchInboxProposer;
         address batchInboxOwner;

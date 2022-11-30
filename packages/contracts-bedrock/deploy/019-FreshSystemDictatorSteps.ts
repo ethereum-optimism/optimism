@@ -38,19 +38,6 @@ const deployFn: DeployFunction = async (hre) => {
       throw new Error(`must specify the finalSystemOwner on live networks`)
     }
   }
-  if (hre.deployConfig.l2OutputOracleGenesisL2Output === ethers.constants.HashZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A genesis L2 output was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-    } else {
-      throw new Error(`must specify the finalSystemOwner on live networks`)
-    }
-  }
   if (hre.network.config.live) {
     console.log(`Updating dynamic oracle config...`)
 
@@ -70,8 +57,6 @@ const deployFn: DeployFunction = async (hre) => {
     }
 
     await FreshSystemDictator.updateL2OutputOracleDynamicConfig({
-      l2OutputOracleStartingL2Output:
-        hre.deployConfig.l2OutputOracleGenesisL2Output,
       l2OutputOracleStartingBlockNumber:
         hre.deployConfig.l2OutputOracleStartingBlockNumber,
       l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
@@ -113,19 +98,6 @@ const deployFn: DeployFunction = async (hre) => {
       'CHALLENGER',
       hre.deployConfig.l2OutputOracleChallenger
     )
-    if (
-      hre.deployConfig.l2OutputOracleGenesisL2Output !==
-      ethers.constants.HashZero
-    ) {
-      const genesisOutput = await L2OutputOracle.getL2Output(
-        hre.deployConfig.l2OutputOracleStartingBlockNumber
-      )
-      assert(
-        genesisOutput.outputRoot ===
-          hre.deployConfig.l2OutputOracleGenesisL2Output,
-        `L2OutputOracle was not initialized with the correct genesis output root`
-      )
-    }
 
     // Check BatchInbox was initialized properly.
     const BatchInbox = await getContractFromArtifact(
