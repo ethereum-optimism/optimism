@@ -25,7 +25,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         messagePasser = new L2ToL1MessagePasser();
     }
 
-    function test_fuzz_initiateWithdrawal(
+    function testFuzz_initiateWithdrawal_succeeds(
         address _sender,
         address _target,
         uint256 _value,
@@ -60,7 +60,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     // Test: initiateWithdrawal should emit the correct log when called by a contract
-    function test_initiateWithdrawal_fromContract() external {
+    function test_initiateWithdrawal_fromContract_succeeds() external {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction(
                 messagePasser.messageNonce(),
@@ -88,7 +88,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     // Test: initiateWithdrawal should emit the correct log when called by an EOA
-    function test_initiateWithdrawal_fromEOA() external {
+    function test_initiateWithdrawal_fromEOA_succeeds() external {
         uint256 gasLimit = 64000;
         address target = address(4);
         uint256 value = 100;
@@ -114,7 +114,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     // Test: burn should destroy the ETH held in the contract
-    function test_burn() external {
+    function test_burn_succeeds() external {
         messagePasser.initiateWithdrawal{ value: NON_ZERO_VALUE }(
             NON_ZERO_ADDRESS,
             NON_ZERO_GASLIMIT,
