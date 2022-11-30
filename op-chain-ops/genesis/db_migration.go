@@ -122,12 +122,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
 	}
 
-	receipts, err := CreateReceipts(bedrockHeader, withdrawals, &config.L1CrossDomainMessengerProxy)
-	if err != nil {
-		return nil, err
-	}
-
-	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, receipts, trie.NewStackTrie(nil))
+	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, nil, trie.NewStackTrie(nil))
 
 	res := &MigrationResult{
 		TransitionHeight:    bedrockBlock.NumberU64(),
@@ -142,7 +137,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	rawdb.WriteTd(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), bedrockBlock.Difficulty())
 	rawdb.WriteBlock(ldb, bedrockBlock)
-	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), receipts)
+	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64())
 	rawdb.WriteHeadBlockHash(ldb, bedrockBlock.Hash())
 	rawdb.WriteHeadFastBlockHash(ldb, bedrockBlock.Hash())
