@@ -1101,6 +1101,20 @@ workflows:
             - gcr
           requires:
             - op-proposer-docker-build
+      - docker-build:
+          name: op-migrate-docker-build
+          docker_file: op-chain-ops/Dockerfile
+          docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-migrate-docker-publish
+          docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-migrate-docker-build
       - docker-tag-op-stack-release:
           name: docker-tag-op-stack-release
           filters:
