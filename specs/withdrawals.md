@@ -134,6 +134,9 @@ The Optimism Portal serves as both the entry and exit point to the Optimism L2. 
 the [DepositFeed](./deposits.md#deposit-contract) contract, and in addition provides the following interface for
 withdrawals:
 
+- [WithdrawalTransaction type](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/Types.sol#L46-L56)
+- [OutputRootProof type](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/Types.sol#L20-L29)
+
 ```js
 interface OptimismPortal {
 
