@@ -23,13 +23,13 @@ const handleFunctionName = (name: string) => {
       `Invalid test name: ${name}.\n Test names should have either 3 or 4 parts, each separated by underscores`
     )
   }
-  if (!['test', 'testFuzz'].includes(parts[0])) {
+  if (!['test', 'testFuzz', 'testDiff'].includes(parts[0])) {
     throw new Error(
       `Invalid test name: ${name}.\n Names should begin with either "test" or "testFuzz"`
     )
   }
   if (
-    !['succeeds', 'reverts', 'fails', 'differential', 'benchmark'].includes(
+    !['succeeds', 'reverts', 'fails', 'benchmark', 'works'].includes(
       parts[parts.length - 1]
     ) &&
     parts[parts.length - 2] !== 'benchmark'

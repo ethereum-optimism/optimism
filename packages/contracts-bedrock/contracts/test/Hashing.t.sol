@@ -11,7 +11,7 @@ contract Hashing_Test is CommonTest {
         _setUp();
     }
 
-    function test_hashDepositSource() external {
+    function test_hashDepositSource_succeeds() external {
         bytes32 sourceHash = Hashing.hashDepositSource(
             0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959,
             0x1
@@ -20,7 +20,7 @@ contract Hashing_Test is CommonTest {
         assertEq(sourceHash, 0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc);
     }
 
-    function test_hashCrossDomainMessage_differential(
+    function testDiff_hashCrossDomainMessage_succeeds(
         uint240 _nonce,
         uint16 _version,
         address _sender,
@@ -54,7 +54,7 @@ contract Hashing_Test is CommonTest {
         assertEq(hash, _hash);
     }
 
-    function test_hashWithdrawal_differential(
+    function testDiff_hashWithdrawal_succeeds(
         uint256 _nonce,
         address _sender,
         address _target,
@@ -71,7 +71,7 @@ contract Hashing_Test is CommonTest {
         assertEq(hash, _hash);
     }
 
-    function test_hashOutputRootProof_differential(
+    function testDiff_hashOutputRootProof_succeeds(
         bytes32 _version,
         bytes32 _stateRoot,
         bytes32 _messagePasserStorageRoot,
@@ -98,7 +98,7 @@ contract Hashing_Test is CommonTest {
 
     // TODO(tynes): foundry bug cannot serialize
     // bytes32 as strings with vm.toString
-    function test_hashDepositTransaction_differential(
+    function testDiff_hashDepositTransaction_succeeds(
         address _from,
         address _to,
         uint256 _mint,
