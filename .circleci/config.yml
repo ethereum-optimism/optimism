@@ -1113,6 +1113,8 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - gcr
+          requires:
+            - op-migrate-docker-build
       - docker-tag-op-stack-release:
           name: docker-tag-op-stack-release
           filters:
