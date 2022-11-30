@@ -65,10 +65,11 @@ services:
       --metrics.addr=0.0.0.0
       --metrics.port=7300
       --pprof.enabled
+      --log.level=trace
     ports:
       - "7545:8545"
       - "9003:9003"
-      # - "7300:7300"
+      - "7300:7300"
       - "6060:6060"
     volumes:
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
@@ -87,7 +88,7 @@ services:
       dockerfile: ./op-proposer/Dockerfile
     ports:
       - "6062:6060"
-      # - "7302:7300"
+      - "7302:7300"
     environment:
       OP_PROPOSER_L1_ETH_RPC: http://l1:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
@@ -113,7 +114,7 @@ services:
       dockerfile: ./op-batcher/Dockerfile
     ports:
       - "6061:6060"
-      # - "7301:7300"
+      - "7301:7300"
     environment:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
