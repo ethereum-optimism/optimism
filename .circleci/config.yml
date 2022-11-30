@@ -641,9 +641,11 @@ jobs:
                 working_directory: packages/contracts-bedrock
             - run:
                 name: op node logs
+                when: always
                 command: docker logs ops-bedrock-op-node-1
             - run:
                 name: L2 Geth Logs
+                when: always
                 command: docker logs ops-bedrock-l2-1
       - when:
           condition:
@@ -668,9 +670,11 @@ jobs:
                 working_directory: packages/contracts-bedrock
             - run:
                 name: op node logs
+                when: always
                 command: docker logs ops-bedrock-op-node-1
             - run:
                 name: L2 Geth Logs
+                when: always
                 command: docker logs ops-bedrock-l2-1
 
   integration-tests:
