@@ -13,23 +13,23 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         super.setUp();
     }
 
-    function test_remoteToken() external {
+    function test_remoteToken_succeeds() external {
         assertEq(L2Token.remoteToken(), address(L1Token));
     }
 
-    function test_bridge() external {
+    function test_bridge_succeeds() external {
         assertEq(L2Token.bridge(), address(L2Bridge));
     }
 
-    function test_l1Token() external {
+    function test_l1Token_succeeds() external {
         assertEq(L2Token.l1Token(), address(L1Token));
     }
 
-    function test_l2Bridge() external {
+    function test_l2Bridge_succeeds() external {
         assertEq(L2Token.l2Bridge(), address(L2Bridge));
     }
 
-    function test_legacy() external {
+    function test_legacy_succeeds() external {
         // Getters for the remote token
         assertEq(L2Token.REMOTE_TOKEN(), address(L1Token));
         assertEq(L2Token.remoteToken(), address(L1Token));
@@ -40,7 +40,7 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.l2Bridge(), address(L2Bridge));
     }
 
-    function test_mint() external {
+    function test_mint_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit Mint(alice, 100);
 
@@ -50,14 +50,14 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.balanceOf(alice), 100);
     }
 
-    function test_mintRevertsFromNotBridge() external {
+    function test_mint_notBridge_reverts() external {
         // NOT the bridge
         vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.mint(alice, 100);
     }
 
-    function test_burn() external {
+    function test_burn_succeeds() external {
         vm.prank(address(L2Bridge));
         L2Token.mint(alice, 100);
 
@@ -70,14 +70,14 @@ contract OptimismMintableERC20_Test is Bridge_Initializer {
         assertEq(L2Token.balanceOf(alice), 0);
     }
 
-    function test_burnRevertsFromNotBridge() external {
+    function test_burn_notBridge_reverts() external {
         // NOT the bridge
         vm.expectRevert("OptimismMintableERC20: only bridge can mint and burn");
         vm.prank(address(alice));
         L2Token.burn(alice, 100);
     }
 
-    function test_erc165_supportsInterface() external {
+    function test_erc165_supportsInterface_succeeds() external {
         // The assertEq calls in this test are comparing the manual calculation of the iface,
         // with what is returned by the solidity's type().interfaceId, just to be safe.
         bytes4 iface1 = bytes4(keccak256("supportsInterface(bytes4)"));
