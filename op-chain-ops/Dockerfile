@@ -8,10 +8,10 @@ COPY ./op-bindings /app/op-bindings
 
 WORKDIR /app/op-chain-ops
 
-RUN make migrate
+RUN make op-migrate
 
 FROM alpine:3.15
 
-COPY --from=builder /app/op-chain-ops/bin/migrate /usr/local/bin
+COPY --from=builder /app/op-chain-ops/bin/op-migrate /usr/local/bin
 
-ENTRYPOINT ["migrate"]
+ENTRYPOINT ["op-migrate"]

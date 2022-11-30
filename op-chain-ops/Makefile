@@ -1,7 +1,7 @@
-migrate:
-	go build -o ./bin/migrate ./cmd/migrate/main.go
+op-migrate:
+	go build -o ./bin/op-migrate ./cmd/op-migrate/main.go
 
 test:
 	go test ./...
 
-.PHONY: migrate test
+.PHONY: op-migrate test
