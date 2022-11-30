@@ -644,6 +644,10 @@ jobs:
                 when: always
                 command: docker logs ops-bedrock-op-node-1
             - run:
+                name: op batcher logs
+                when: always
+                command: docker logs ops-bedrock-op-batcher-1
+            - run:
                 name: L2 Geth Logs
                 when: always
                 command: docker logs ops-bedrock-l2-1
@@ -672,6 +676,10 @@ jobs:
                 name: op node logs
                 when: always
                 command: docker logs ops-bedrock-op-node-1
+            - run:
+                name: op batcher logs
+                when: always
+                command: docker logs ops-bedrock-op-batcher-1
             - run:
                 name: L2 Geth Logs
                 when: always
