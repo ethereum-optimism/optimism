@@ -55,7 +55,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Set up required contract references.
   const [
-    MigrationSystemDictator,
+    SystemDictator,
     ProxyAdmin,
     AddressManager,
     L1CrossDomainMessenger,
@@ -70,7 +70,7 @@ const deployFn: DeployFunction = async (hre) => {
     L1ERC721Bridge,
   ] = await getContractsFromArtifacts(hre, [
     {
-      name: 'MigrationSystemDictator',
+      name: 'SystemDictator',
       signerOrProvider: deployer,
     },
     {
@@ -127,67 +127,65 @@ const deployFn: DeployFunction = async (hre) => {
     },
   ])
 
-  // Transfer ownership of the ProxyAdmin to the MigrationSystemDictator.
-  if ((await ProxyAdmin.owner()) !== MigrationSystemDictator.address) {
+  // Transfer ownership of the ProxyAdmin to the SystemDictator.
+  if ((await ProxyAdmin.owner()) !== SystemDictator.address) {
     console.log(`Setting ProxyAdmin owner to MSD`)
-    await ProxyAdmin.transferOwnership(MigrationSystemDictator.address)
+    await ProxyAdmin.transferOwnership(SystemDictator.address)
   } else {
     console.log(`Proxy admin already owned by MSD`)
   }
 
   // We don't need to transfer proxy addresses if we're already beyond the proxy transfer step.
   const needsProxyTransfer =
-    (await MigrationSystemDictator.currentStep()) <=
-    (await MigrationSystemDictator.PROXY_TRANSFER_STEP())
+    (await SystemDictator.currentStep()) <=
+    (await SystemDictator.PROXY_TRANSFER_STEP())
 
-  // Transfer ownership of the AddressManager to MigrationSystemDictator.
+  // Transfer ownership of the AddressManager to SystemDictator.
   if (
     needsProxyTransfer &&
-    (await AddressManager.owner()) !== MigrationSystemDictator.address
+    (await AddressManager.owner()) !== SystemDictator.address
   ) {
     if (isLiveDeployer) {
       console.log(`Setting AddressManager owner to MSD`)
-      await AddressManager.transferOwnership(MigrationSystemDictator.address)
+      await AddressManager.transferOwnership(SystemDictator.address)
     } else {
       console.log(`Please transfer AddressManager owner to MSD`)
-      console.log(`MSD address: ${MigrationSystemDictator.address}`)
+      console.log(`MSD address: ${SystemDictator.address}`)
     }
 
     // Wait for the ownership transfer to complete.
     await awaitCondition(
       async () => {
         const owner = await AddressManager.owner()
-        return owner === MigrationSystemDictator.address
+        return owner === SystemDictator.address
       },
       30000,
       1000
     )
   } else {
-    console.log(`AddressManager already owned by the MigrationSystemDictator`)
+    console.log(`AddressManager already owned by the SystemDictator`)
   }
 
-  // Transfer ownership of the L1CrossDomainMessenger to MigrationSystemDictator.
+  // Transfer ownership of the L1CrossDomainMessenger to SystemDictator.
   if (
     needsProxyTransfer &&
     (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) !==
       ethers.constants.AddressZero &&
-    (await L1CrossDomainMessenger.owner()) !== MigrationSystemDictator.address
+    (await L1CrossDomainMessenger.owner()) !== SystemDictator.address
   ) {
     if (isLiveDeployer) {
       console.log(`Setting L1CrossDomainMessenger owner to MSD`)
-      await L1CrossDomainMessenger.transferOwnership(
-        MigrationSystemDictator.address
-      )
+      await L1CrossDomainMessenger.transferOwnership(SystemDictator.address)
     } else {
       console.log(`Please transfer L1CrossDomainMessenger owner to MSD`)
-      console.log(`MSD address: ${MigrationSystemDictator.address}`)
+      console.log(`MSD address: ${SystemDictator.address}`)
     }
 
     // Wait for the ownership transfer to complete.
     await awaitCondition(
       async () => {
         const owner = await L1CrossDomainMessenger.owner()
-        return owner === MigrationSystemDictator.address
+        return owner === SystemDictator.address
       },
       30000,
       1000
@@ -196,21 +194,19 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`L1CrossDomainMessenger already owned by MSD`)
   }
 
-  // Transfer ownership of the L1StandardBridge (proxy) to MigrationSystemDictator.
+  // Transfer ownership of the L1StandardBridge (proxy) to SystemDictator.
   if (
     needsProxyTransfer &&
     (await L1StandardBridgeProxy.callStatic.getOwner({
       from: ethers.constants.AddressZero,
-    })) !== MigrationSystemDictator.address
+    })) !== SystemDictator.address
   ) {
     if (isLiveDeployer) {
       console.log(`Setting L1StandardBridge owner to MSD`)
-      await L1StandardBridgeProxyWithSigner.setOwner(
-        MigrationSystemDictator.address
-      )
+      await L1StandardBridgeProxyWithSigner.setOwner(SystemDictator.address)
     } else {
       console.log(`Please transfer L1StandardBridge (proxy) owner to MSD`)
-      console.log(`MSD address: ${MigrationSystemDictator.address}`)
+      console.log(`MSD address: ${SystemDictator.address}`)
     }
 
     // Wait for the ownership transfer to complete.
@@ -219,7 +215,7 @@ const deployFn: DeployFunction = async (hre) => {
         const owner = await L1StandardBridgeProxy.callStatic.getOwner({
           from: ethers.constants.AddressZero,
         })
-        return owner === MigrationSystemDictator.address
+        return owner === SystemDictator.address
       },
       30000,
       1000
@@ -228,21 +224,19 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`L1StandardBridge already owned by MSD`)
   }
 
-  // Transfer ownership of the L1ERC721Bridge (proxy) to MigrationSystemDictator.
+  // Transfer ownership of the L1ERC721Bridge (proxy) to SystemDictator.
   if (
     needsProxyTransfer &&
     (await L1ERC721BridgeProxy.callStatic.admin({
       from: ethers.constants.AddressZero,
-    })) !== MigrationSystemDictator.address
+    })) !== SystemDictator.address
   ) {
     if (isLiveDeployer) {
       console.log(`Setting L1ERC721Bridge owner to MSD`)
-      await L1ERC721BridgeProxyWithSigner.changeAdmin(
-        MigrationSystemDictator.address
-      )
+      await L1ERC721BridgeProxyWithSigner.changeAdmin(SystemDictator.address)
     } else {
       console.log(`Please transfer L1ERC721Bridge (proxy) owner to MSD`)
-      console.log(`MSD address: ${MigrationSystemDictator.address}`)
+      console.log(`MSD address: ${SystemDictator.address}`)
     }
 
     // Wait for the ownership transfer to complete.
@@ -251,7 +245,7 @@ const deployFn: DeployFunction = async (hre) => {
         const owner = await L1ERC721BridgeProxy.callStatic.admin({
           from: ethers.constants.AddressZero,
         })
-        return owner === MigrationSystemDictator.address
+        return owner === SystemDictator.address
       },
       30000,
       1000
@@ -366,7 +360,7 @@ const deployFn: DeployFunction = async (hre) => {
       await assertContractVariable(
         L1CrossDomainMessenger,
         'owner',
-        MigrationSystemDictator.address
+        SystemDictator.address
       )
 
       // Check L1StandardBridge was initialized properly.
@@ -399,11 +393,11 @@ const deployFn: DeployFunction = async (hre) => {
   }
 
   for (let i = 1; i <= 6; i++) {
-    const currentStep = await MigrationSystemDictator.currentStep()
+    const currentStep = await SystemDictator.currentStep()
     if (currentStep === i) {
       if (
-        currentStep > (await MigrationSystemDictator.PROXY_TRANSFER_STEP()) &&
-        !(await MigrationSystemDictator.dynamicConfigSet())
+        currentStep > (await SystemDictator.PROXY_TRANSFER_STEP()) &&
+        !(await SystemDictator.dynamicConfigSet())
       ) {
         if (isLiveDeployer) {
           console.log(`Updating dynamic oracle config...`)
@@ -423,7 +417,7 @@ const deployFn: DeployFunction = async (hre) => {
             deployL2StartingTimestamp = l1StartingBlock.timestamp
           }
 
-          await MigrationSystemDictator.updateL2OutputOracleDynamicConfig({
+          await SystemDictator.updateL2OutputOracleDynamicConfig({
             l2OutputOracleStartingBlockNumber:
               hre.deployConfig.l2OutputOracleStartingBlockNumber,
             l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
@@ -434,7 +428,7 @@ const deployFn: DeployFunction = async (hre) => {
 
         await awaitCondition(
           async () => {
-            return MigrationSystemDictator.dynamicConfigSet()
+            return SystemDictator.dynamicConfigSet()
           },
           30000,
           1000
@@ -443,14 +437,14 @@ const deployFn: DeployFunction = async (hre) => {
 
       if (isLiveDeployer) {
         console.log(`Executing step ${i}...`)
-        await MigrationSystemDictator[`step${i}`]()
+        await SystemDictator[`step${i}`]()
       } else {
         console.log(`Please execute step ${i}...`)
       }
 
       await awaitCondition(
         async () => {
-          const step = await MigrationSystemDictator.currentStep()
+          const step = await SystemDictator.currentStep()
           return step === i + 1
         },
         30000,
@@ -464,17 +458,17 @@ const deployFn: DeployFunction = async (hre) => {
     }
   }
 
-  if ((await MigrationSystemDictator.currentStep()) === 7) {
+  if ((await SystemDictator.currentStep()) === 7) {
     if (isLiveDeployer) {
       console.log(`Finalizing deployment...`)
-      await MigrationSystemDictator.finalize()
+      await SystemDictator.finalize()
     } else {
       console.log(`Please finalize deployment...`)
     }
 
     await awaitCondition(
       async () => {
-        return MigrationSystemDictator.finalized()
+        return SystemDictator.finalized()
       },
       30000,
       1000
@@ -485,6 +479,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['MigrationSystemDictatorSteps']
+deployFn.tags = ['SystemDictatorSteps']
 
 export default deployFn
