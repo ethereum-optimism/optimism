@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -51,6 +52,10 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 			TransitionTimestamp: header.Time,
 			TransitionBlockHash: hash,
 		}, nil
+	}
+
+	if config.L2GenesisBlockBaseFeePerGas == nil {
+		return nil, errors.New("must configure L2 genesis block base fee per gas")
 	}
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
