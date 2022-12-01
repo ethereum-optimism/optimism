@@ -30,6 +30,12 @@ const (
 	invalidLargeInternalHash = "invalid_large_internal_hash"
 	// Generate an invalid test case where a small proof element is incorrect for the root.
 	invalidInternalNodeHash = "invalid_internal_node_hash"
+	// Generate a valid test case with a key that has been given a random prefix
+	prefixedValidKey = "prefixed_valid_key"
+	// Generate a valid test case with a proof of inclusion for an empty key.
+	emptyKey = "empty_key"
+	// Generate an invalid test case with a partially correct proof
+	partialProof = "partial_proof"
 )
 
 // Generate an abi-encoded `trieTestCase` of a specified variant
@@ -41,15 +47,15 @@ func FuzzTrie(variant string) {
 	var testCase trieTestCase
 	switch variant {
 	case valid:
-		testCase = genValidTrieTestCase()
+		testCase = genTrieTestCase(false)
 		break
 	case extraProofElems:
-		testCase = genValidTrieTestCase()
+		testCase = genTrieTestCase(false)
 		// Duplicate the last element of the proof
 		testCase.Proof = append(testCase.Proof, [][]byte{testCase.Proof[len(testCase.Proof)-1]}...)
 		break
 	case corruptedProof:
-		testCase = genValidTrieTestCase()
+		testCase = genTrieTestCase(false)
 
 		// Re-encode a random element within the proof
 		idx := randRange(0, int64(len(testCase.Proof)))
@@ -57,7 +63,7 @@ func FuzzTrie(variant string) {
 		testCase.Proof[idx] = encoded
 		break
 	case invalidDataRemainder:
-		testCase = genValidTrieTestCase()
+		testCase = genTrieTestCase(false)
 
 		// Alter true length of random proof element by appending random bytes
 		// Do not update the encoded length
@@ -67,23 +73,49 @@ func FuzzTrie(variant string) {
 		testCase.Proof[idx] = append(testCase.Proof[idx], bytes...)
 		break
 	case invalidLargeInternalHash:
-		testCase = genValidTrieTestCase()
+		testCase = genTrieTestCase(false)
 
-		// Clobber 10 bytes at a random location within a random proof element
+		// Clobber 4 bytes within a list element of a random proof element
+		// TODO: Improve this by decoding the proof elem and choosing random
+		// bytes to overwrite.
 		idx := randRange(1, int64(len(testCase.Proof)))
-		b := make([]byte, 10)
+		b := make([]byte, 4)
 		rand.Read(b)
-		st := randRange(10, int64(len(testCase.Proof[idx])-10))
-		testCase.Proof[idx] = append(testCase.Proof[idx][0:st], append(b, testCase.Proof[idx][st+10:]...)...)
+		testCase.Proof[idx] = append(
+			testCase.Proof[idx][:20],
+			append(
+				b,
+				testCase.Proof[idx][24:]...,
+			)...,
+		)
+
 		break
 	case invalidInternalNodeHash:
-		testCase = genValidTrieTestCase()
+		testCase = genTrieTestCase(false)
 		// Assign the last proof element to an encoded list containing a
 		// random 29 byte value
 		b := make([]byte, 29)
 		rand.Read(b)
 		e, _ := rlp.EncodeToBytes(b)
 		testCase.Proof[len(testCase.Proof)-1] = append([]byte{0xc0 + 30}, e...)
+	case prefixedValidKey:
+		testCase = genTrieTestCase(false)
+
+		bytes := make([]byte, randRange(1, 16))
+		testCase.Key = append(bytes, testCase.Key...)
+	case emptyKey:
+		testCase = genTrieTestCase(true)
+	case partialProof:
+		testCase = genTrieTestCase(false)
+
+		// Cut the proof in half
+		proofLen := len(testCase.Proof)
+		newProof := make([][]byte, proofLen/2)
+		for i := 0; i < proofLen/2; i++ {
+			newProof[i] = testCase.Proof[i]
+		}
+
+		testCase.Proof = newProof
 	default:
 		log.Fatal("Invalid variant passed to trie fuzzer!")
 	}
@@ -93,7 +125,7 @@ func FuzzTrie(variant string) {
 }
 
 // Generate a random test case for Bedrock's MerkleTrie verifier.
-func genValidTrieTestCase() trieTestCase {
+func genTrieTestCase(selectEmptyKey bool) trieTestCase {
 	// Create an empty merkle trie
 	memdb := memorydb.New()
 	randTrie := trie.NewEmpty(trie.NewDatabase(memdb))
@@ -117,6 +149,11 @@ func genValidTrieTestCase() trieTestCase {
 		// Randomize the contents of `randKey` and `randValue`
 		rand.Read(randKey)
 		rand.Read(randValue)
+
+		// Clear the selected key if `selectEmptyKey` is true
+		if i == randSelect && selectEmptyKey {
+			randKey = make([]byte, 0)
+		}
 
 		// Insert the random k/v pair into the trie
 		if err := randTrie.TryUpdate(randKey, randValue); err != nil {

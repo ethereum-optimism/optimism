@@ -129,10 +129,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(oracleImpl),
-            abi.encodeCall(
-                L2OutputOracle.initialize,
-                (startingBlockNumber, startingTimestamp)
-            )
+            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp))
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -641,7 +638,6 @@ contract FFIInterface is Test {
             bytes[] memory
         )
     {
-        // Run the compiled version of the `merkle-trie-fuzzer`.
         string[] memory cmds = new string[](5);
         cmds[0] = "./go-fuzz/fuzz";
         cmds[1] = "-m";
