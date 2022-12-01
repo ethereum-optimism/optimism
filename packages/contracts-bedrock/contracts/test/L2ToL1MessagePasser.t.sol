@@ -32,7 +32,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         uint256 _gasLimit,
         bytes memory _data
     ) external {
-        uint256 nonce = messagePasser.nonce();
+        uint256 nonce = messagePasser.messageNonce();
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -63,7 +63,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
     function test_initiateWithdrawal_fromContract() external {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction(
-                messagePasser.nonce(),
+                messagePasser.messageNonce(),
                 address(this),
                 address(4),
                 100,
@@ -74,7 +74,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            messagePasser.nonce(),
+            messagePasser.messageNonce(),
             address(this),
             address(4),
             100,
@@ -93,7 +93,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         address target = address(4);
         uint256 value = 100;
         bytes memory data = hex"ff";
-        uint256 nonce = messagePasser.nonce();
+        uint256 nonce = messagePasser.messageNonce();
 
         // EOA emulation
         vm.prank(alice, alice);
@@ -110,7 +110,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
         // the sent messages mapping is filled
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
         // the nonce increments
-        assertEq(nonce + 1, messagePasser.nonce());
+        assertEq(nonce + 1, messagePasser.messageNonce());
     }
 
     // Test: burn should destroy the ETH held in the contract
