@@ -54,8 +54,21 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		}, nil
 	}
 
-	if config.L2GenesisBlockBaseFeePerGas == nil {
-		return nil, errors.New("must configure L2 genesis block base fee per gas")
+	// Ensure EIP 1559 params are sane
+	if config.EIP1559Elasticity == 0 {
+		return nil, errors.New("EIP 1559 Elasticity cannot be 0")
+	}
+	if config.EIP1559Denominator == 0 {
+		return nil, errors.New("EIP 1559 Denominator cannot be 0")
+	}
+	if config.L2GenesisBlockGasLimit == 0 {
+		return nil, errors.New("L2 genesis block gas limit cannot be 0")
+	}
+	// Ensure monotonic timestamps
+	if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
+		return nil, fmt.Errorf(
+			"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
+		)
 	}
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
@@ -118,6 +131,9 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 	log.Info("Completed ERC20 ETH migration", "root", newRoot)
 
+	// Set the amount of gas used so that EIP 1559 starts off stable
+	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
+
 	// Create the bedrock transition block
 	bedrockHeader := &types.Header{
 		ParentHash:  header.Hash(),
@@ -130,15 +146,24 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		Difficulty:  common.Big0,
 		Number:      new(big.Int).Add(header.Number, common.Big1),
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
-		GasUsed:     0,
+		GasUsed:     gasUsed,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
 		Extra:       bedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},
-		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
+		BaseFee:     big.NewInt(params.InitialBaseFee),
 	}
 
 	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, nil, trie.NewStackTrie(nil))
+
+	log.Info(
+		"Built Bedrock transition",
+		"hash", bedrockBlock.Hash(),
+		"root", bedrockBlock.Root(),
+		"number", bedrockBlock.NumberU64(),
+		"gas-used", bedrockBlock.GasUsed(),
+		"gas-limit", bedrockBlock.GasLimit(),
+	)
 
 	res := &MigrationResult{
 		TransitionHeight:    bedrockBlock.NumberU64(),
@@ -180,6 +205,12 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		EIP1559Elasticity:  config.EIP1559Elasticity,
 	}
 	rawdb.WriteChainConfig(ldb, genesisHash, cfg)
+
+	log.Info(
+		"wrote chain config",
+		"1559-denominator", config.EIP1559Denominator,
+		"1559-elasticity", config.EIP1559Elasticity,
+	)
 
 	log.Info(
 		"wrote Bedrock transition block",
