@@ -34,8 +34,14 @@ type MigrationResult struct {
 // MigrateDB will migrate an old l2geth database to the new bedrock style system
 func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit, noCheck bool) (*MigrationResult, error) {
 	hash := rawdb.ReadHeadHeaderHash(ldb)
+	log.Info("Reading chain tip from database", "hash", hash)
 	num := rawdb.ReadHeaderNumber(ldb, hash)
+	if num == nil {
+		return nil, fmt.Errorf("cannot find header number for %s", hash)
+	}
+
 	header := rawdb.ReadHeader(ldb, hash, *num)
+	log.Info("Read header from database", "number", *num)
 
 	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
 		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
