@@ -185,10 +185,16 @@ func (d *DeployConfig) Check() error {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.EIP1559Denominator == 0 {
-		return fmt.Errorf("EIP1559Denominator cannot be 0")
+		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.EIP1559Elasticity == 0 {
-		return fmt.Errorf("EIP1559Elasticity cannot be 0")
+		return fmt.Errorf("%w: EIP1559Elasticity cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisBlockGasLimit == 0 {
+		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisBlockBaseFeePerGas == nil {
+		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
 	return nil
 }
