@@ -1,0 +1,788 @@
+{
+  "address": "0x388a75C49a2C45F69be3925616fbb1f52313f287",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_submissionInterval",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_genesisL2Output",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_startingBlockNumber",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_startingTimestamp",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l2BlockTime",
+          "type": "uint256"
+        },
+        {
+          "internalType": "address",
+          "name": "_proposer",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "uint8",
+          "name": "version",
+          "type": "uint8"
+        }
+      ],
+      "name": "Initialized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "outputRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "l1Timestamp",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "l2BlockNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "OutputDeleted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "outputRoot",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "l1Timestamp",
+          "type": "uint256"
+        },
+        {
+          "indexed": true,
+          "internalType": "uint256",
+          "name": "l2BlockNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "OutputProposed",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousOwner",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "previousProposer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newProposer",
+          "type": "address"
+        }
+      ],
+      "name": "ProposerChanged",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "L2_BLOCK_TIME",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STARTING_BLOCK_NUMBER",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "STARTING_TIMESTAMP",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "SUBMISSION_INTERVAL",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_newProposer",
+          "type": "address"
+        }
+      ],
+      "name": "changeProposer",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_l2BlockNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "computeL2Timestamp",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "outputRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct Types.OutputProposal",
+          "name": "_proposal",
+          "type": "tuple"
+        }
+      ],
+      "name": "deleteL2Output",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_l2BlockNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "getL2Output",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "bytes32",
+              "name": "outputRoot",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "uint256",
+              "name": "timestamp",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct Types.OutputProposal",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_genesisL2Output",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "_proposer",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "latestBlockNumber",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "nextBlockNumber",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "_outputRoot",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l2BlockNumber",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_l1Blockhash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l1BlockNumber",
+          "type": "uint256"
+        }
+      ],
+      "name": "proposeL2Output",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "proposer",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "renounceOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "transferOwnership",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x8562af9893a3c8b31e268bdfdd951b27f4c0f31a38fd70b781380ceaf704b559",
+  "receipt": {
+    "to": null,
+    "from": "0x2d30335B0b807bBa1682C487BaAFD2Ad6da5D675",
+    "contractAddress": "0x388a75C49a2C45F69be3925616fbb1f52313f287",
+    "transactionIndex": 11,
+    "gasUsed": "1566127",
+    "logsBloom": "0x00800000000000000000000000000000000000000000000000a00000000002040000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800800006001000000000000000000000000000000000000020000000001000000000800000000080000000000000000000000400000000000000000000000000000000000000000000080000000000000000000000000001000000000000000000400080000000000000000000000040000000000000000000000000000000000040000000000000000000080000000000020000000000000000000000000000000000000800000000000000000000000000000",
+    "blockHash": "0x9f9fc16f1210618267d4d0911bb1eb43f1343b9b052cea02b4077cd1fc65903f",
+    "transactionHash": "0x8562af9893a3c8b31e268bdfdd951b27f4c0f31a38fd70b781380ceaf704b559",
+    "logs": [
+      {
+        "transactionIndex": 11,
+        "blockNumber": 8046421,
+        "transactionHash": "0x8562af9893a3c8b31e268bdfdd951b27f4c0f31a38fd70b781380ceaf704b559",
+        "address": "0x388a75C49a2C45F69be3925616fbb1f52313f287",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x0000000000000000000000002d30335b0b807bba1682c487baafd2ad6da5d675"
+        ],
+        "data": "0x",
+        "logIndex": 33,
+        "blockHash": "0x9f9fc16f1210618267d4d0911bb1eb43f1343b9b052cea02b4077cd1fc65903f"
+      },
+      {
+        "transactionIndex": 11,
+        "blockNumber": 8046421,
+        "transactionHash": "0x8562af9893a3c8b31e268bdfdd951b27f4c0f31a38fd70b781380ceaf704b559",
+        "address": "0x388a75C49a2C45F69be3925616fbb1f52313f287",
+        "topics": [
+          "0x3d7728dc2838bb794606bd89f5a37930830b32060f69ee929bbfc59b669024dd",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x000000000000000000000000d10ccc78a70e2889dd7df23bcda033242c2598f1"
+        ],
+        "data": "0x",
+        "logIndex": 34,
+        "blockHash": "0x9f9fc16f1210618267d4d0911bb1eb43f1343b9b052cea02b4077cd1fc65903f"
+      },
+      {
+        "transactionIndex": 11,
+        "blockNumber": 8046421,
+        "transactionHash": "0x8562af9893a3c8b31e268bdfdd951b27f4c0f31a38fd70b781380ceaf704b559",
+        "address": "0x388a75C49a2C45F69be3925616fbb1f52313f287",
+        "topics": [
+          "0x8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e0",
+          "0x0000000000000000000000002d30335b0b807bba1682c487baafd2ad6da5d675",
+          "0x000000000000000000000000e0da8292dc53d4bb6666149519e490dba6bab84c"
+        ],
+        "data": "0x",
+        "logIndex": 35,
+        "blockHash": "0x9f9fc16f1210618267d4d0911bb1eb43f1343b9b052cea02b4077cd1fc65903f"
+      },
+      {
+        "transactionIndex": 11,
+        "blockNumber": 8046421,
+        "transactionHash": "0x8562af9893a3c8b31e268bdfdd951b27f4c0f31a38fd70b781380ceaf704b559",
+        "address": "0x388a75C49a2C45F69be3925616fbb1f52313f287",
+        "topics": [
+          "0x7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498"
+        ],
+        "data": "0x0000000000000000000000000000000000000000000000000000000000000001",
+        "logIndex": 36,
+        "blockHash": "0x9f9fc16f1210618267d4d0911bb1eb43f1343b9b052cea02b4077cd1fc65903f"
+      }
+    ],
+    "blockNumber": 8046421,
+    "cumulativeGasUsed": "2713338",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    600,
+    "0x0000000000000000000000000000000000000000000000000000000000000000",
+    0,
+    1669785756,
+    2,
+    "0xD10ccc78A70E2889DD7Df23bCDa033242c2598F1",
+    "0xE0Da8292dc53D4Bb6666149519e490DbA6BaB84c"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "f03954feb6b4fcdc2b053c61321aa16e",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_submissionInterval\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_startingBlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_startingTimestamp\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockTime\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_proposer\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"OutputDeleted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"l1Timestamp\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"OutputProposed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousOwner\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnershipTransferred\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"previousProposer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newProposer\",\"type\":\"address\"}],\"name\":\"ProposerChanged\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"L2_BLOCK_TIME\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_BLOCK_NUMBER\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"STARTING_TIMESTAMP\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"SUBMISSION_INTERVAL\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_newProposer\",\"type\":\"address\"}],\"name\":\"changeProposer\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"computeL2Timestamp\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"struct Types.OutputProposal\",\"name\":\"_proposal\",\"type\":\"tuple\"}],\"name\":\"deleteL2Output\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"}],\"name\":\"getL2Output\",\"outputs\":[{\"components\":[{\"internalType\":\"bytes32\",\"name\":\"outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"internalType\":\"struct Types.OutputProposal\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_genesisL2Output\",\"type\":\"bytes32\"},{\"internalType\":\"address\",\"name\":\"_proposer\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"latestBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"nextBlockNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"bytes32\",\"name\":\"_outputRoot\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l2BlockNumber\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_l1Blockhash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1BlockNumber\",\"type\":\"uint256\"}],\"name\":\"proposeL2Output\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"proposer\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"renounceOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"transferOwnership\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:proxied\":\"@title L2OutputOracle\",\"events\":{\"OutputDeleted(bytes32,uint256,uint256)\":{\"params\":{\"l1Timestamp\":\"The L1 timestamp when proposed.\",\"l2BlockNumber\":\"The L2 block number of the output root.\",\"outputRoot\":\"The output root.\"}},\"OutputProposed(bytes32,uint256,uint256)\":{\"params\":{\"l1Timestamp\":\"The L1 timestamp when proposed.\",\"l2BlockNumber\":\"The L2 block number of the output root.\",\"outputRoot\":\"The output root.\"}},\"ProposerChanged(address,address)\":{\"params\":{\"newProposer\":\"The new proposer address.\",\"previousProposer\":\"The previous proposer address.\"}}},\"kind\":\"dev\",\"methods\":{\"computeL2Timestamp(uint256)\":{\"params\":{\"_l2BlockNumber\":\"The L2 block number of the target block.\"}},\"constructor\":{\"custom:semver\":\"0.0.1\",\"params\":{\"_genesisL2Output\":\"The initial L2 output of the L2 chain.\",\"_l2BlockTime\":\"The time per L2 block, in seconds.\",\"_owner\":\"The address of the owner.\",\"_proposer\":\"The address of the proposer.\",\"_startingBlockNumber\":\"The number of the first L2 block.\",\"_startingTimestamp\":\"The timestamp of the first L2 block.\",\"_submissionInterval\":\"Interval in blocks at which checkpoints must be submitted.\"}},\"deleteL2Output((bytes32,uint256))\":{\"params\":{\"_proposal\":\"Represents the output proposal to delete\"}},\"getL2Output(uint256)\":{\"params\":{\"_l2BlockNumber\":\"The L2 block number of the target block.\"}},\"initialize(bytes32,address,address)\":{\"params\":{\"_genesisL2Output\":\"The initial L2 output of the L2 chain.\",\"_owner\":\"The address of the owner.\",\"_proposer\":\"The address of the proposer.\"}},\"owner()\":{\"details\":\"Returns the address of the current owner.\"},\"proposeL2Output(bytes32,uint256,bytes32,uint256)\":{\"params\":{\"_l1BlockNumber\":\"The block number with the specified block hash.\",\"_l1Blockhash\":\"A block hash which must be included in the current chain.\",\"_l2BlockNumber\":\"The L2 block number that resulted in _outputRoot.\",\"_outputRoot\":\"The L2 output of the checkpoint block.\"}},\"renounceOwnership()\":{\"details\":\"Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner.\"},\"transferOwnership(address)\":{\"details\":\"Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner.\"},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"version\":1},\"userdoc\":{\"events\":{\"OutputDeleted(bytes32,uint256,uint256)\":{\"notice\":\"Emitted when an output is deleted.\"},\"OutputProposed(bytes32,uint256,uint256)\":{\"notice\":\"Emitted when an output is proposed.\"},\"ProposerChanged(address,address)\":{\"notice\":\"Emitted when the proposer address is changed.\"}},\"kind\":\"user\",\"methods\":{\"L2_BLOCK_TIME()\":{\"notice\":\"The time between L2 blocks in seconds.\"},\"STARTING_BLOCK_NUMBER()\":{\"notice\":\"The number of the first L2 block recorded in this contract.\"},\"STARTING_TIMESTAMP()\":{\"notice\":\"The timestamp of the first L2 block recorded in this contract.\"},\"SUBMISSION_INTERVAL()\":{\"notice\":\"The interval in L2 blocks at which checkpoints must be submitted.\"},\"changeProposer(address)\":{\"notice\":\"Transfers the proposer role to a new account (`newProposer`).         Can only be called by the current owner.\"},\"computeL2Timestamp(uint256)\":{\"notice\":\"Returns the L2 timestamp corresponding to a given L2 block number.         If the L2 block number provided is between checkpoints, this function will return the         timestamp of the previous checkpoint.\"},\"deleteL2Output((bytes32,uint256))\":{\"notice\":\"Deletes the most recent output. This is used to remove the most recent output in the         event that an erreneous output is submitted. It can only be called by the contract's         owner, not the proposer. Longer term, this should be replaced with a more robust         mechanism which will allow deletion of proposals shown to be invalid by a fault         proof.\"},\"getL2Output(uint256)\":{\"notice\":\"Returns the L2 output proposal associated with a target L2 block number. If the         L2 block number provided is between checkpoints, this function will rerutn the next         proposal for the next checkpoint.         Reverts if the output proposal is either not found, or predates         the STARTING_BLOCK_NUMBER.\"},\"initialize(bytes32,address,address)\":{\"notice\":\"Initializer.\"},\"latestBlockNumber()\":{\"notice\":\"The number of the most recent L2 block recorded in this contract.\"},\"nextBlockNumber()\":{\"notice\":\"Computes the block number of the next L2 block that needs to be checkpointed.\"},\"proposeL2Output(bytes32,uint256,bytes32,uint256)\":{\"notice\":\"Accepts an outputRoot and the timestamp of the corresponding L2 block. The         timestamp must be equal to the current value returned by `nextTimestamp()` in order         to be accepted. This function may only be called by the Proposer.\"},\"proposer()\":{\"notice\":\"The address of the proposer;\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"The L2 state is committed to in this contract         The payable keyword is used on proposeL2Output to save gas on the msg.value check.         This contract should be deployed behind an upgradable proxy\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/L2OutputOracle.sol\":\"L2OutputOracle\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[\":@eth-optimism/contracts-periphery/=node_modules/@eth-optimism/contracts-periphery/contracts/\",\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\"]},\"sources\":{\"contracts/L1/L2OutputOracle.sol\":{\"keccak256\":\"0x66900648ec63d3f035967e2628d2b3b931d31bc8c33217ebc5576253ab73fc69\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://0afc43241b36ad64c68c02ecc8263cc1334834e941f61285aa163622a4490b98\",\"dweb:/ipfs/QmRuuF6JKERNA12NLcDuoY3BzLyhM31U255WXLsTNtAVwY\"]},\"contracts/libraries/Types.sol\":{\"keccak256\":\"0x69ca98e57a7cbe60cffeb0f76f6f9279010941b1931581e9a35478f30e2546d1\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://83d9bfba06dde598ac5f544af9a355f0b28c34c86bbcde00516b0624d975138d\",\"dweb:/ipfs/QmScFuAHuSBKX4XMsK6yNZiYYwrDsz8WdecFrQzevWxHU2\"]},\"contracts/universal/Semver.sol\":{\"keccak256\":\"0x979b13465de4996a1105850abbf48abe7f71d5e18a8d4af318597ee14c165fdf\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d0881ed7d8371fe1c12b931334e107746fa97d9ecd6aa3c0fca0c0db8581474e\",\"dweb:/ipfs/QmQ9UFwZgWkyFAHrzTtS7m6rghZ8nP9QybEuJ5y9vux5Gv\"]},\"node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol\":{\"keccak256\":\"0x247c62047745915c0af6b955470a72d1696ebad4352d7d3011aef1a2463cd888\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d7fc8396619de513c96b6e00301b88dd790e83542aab918425633a5f7297a15a\",\"dweb:/ipfs/QmXbP4kiZyp7guuS7xe8KaybnwkRPGrBc2Kbi3vhcTfpxb\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x0203dcadc5737d9ef2c211d6fa15d18ebc3b30dfa51903b64870b01a062b0b4e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6eb2fd1e9894dbe778f4b8131adecebe570689e63cf892f4e21257bfe1252497\",\"dweb:/ipfs/QmXgUGNfZvrn6N2miv3nooSs7Jm34A41qz94fu2GtDFcx8\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol\":{\"keccak256\":\"0x611aa3f23e59cfdd1863c536776407b3e33d695152a266fa7cfb34440a29a8a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9b4b2110b7f2b3eb32951bc08046fa90feccffa594e1176cb91cdfb0e94726b4\",\"dweb:/ipfs/QmSxLwYjicf9zWFuieRc8WQwE4FisA1Um5jp1iSa731TGt\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol\":{\"keccak256\":\"0x963ea7f0b48b032eef72fe3a7582edf78408d6f834115b9feadd673a4d5bd149\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d6520943ea55fdf5f0bafb39ed909f64de17051bc954ff3e88c9e5621412c79c\",\"dweb:/ipfs/QmWZ4rAKTQbNG2HxGs46AcTXShsVytKeLs7CUCdCSv5N7a\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]}},\"version\":1}",
+  "bytecode": "0x6101606040523480156200001257600080fd5b5060405162001f9b38038062001f9b833981016040819052620000359162000507565b6000608081905260a052600160c05242841115620000ce5760405162461bcd60e51b8152602060048201526044602482018190527f4c324f75747075744f7261636c653a207374617274696e67204c322074696d65908201527f7374616d70206d757374206265206c657373207468616e2063757272656e742060648201526374696d6560e01b608482015260a4015b60405180910390fd5b60e0879052610100859052610120849052610140839052620000f2868383620000ff565b505050505050506200056f565b600054610100900460ff1615808015620001205750600054600160ff909116105b806200015057506200013d306200027a60201b620012111760201c565b15801562000150575060005460ff166001145b620001b55760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201526d191e481a5b9a5d1a585b1a5e995960921b6064820152608401620000c5565b6000805460ff191660011790558015620001d9576000805461ff0019166101001790555b604080518082018252858152426020808301918252610100516000818152606790925293902091518255516001909101556066556200021762000289565b6200022283620002f1565b6200022d82620003d5565b801562000274576000805461ff0019169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b50505050565b6001600160a01b03163b151590565b600054610100900460ff16620002e55760405162461bcd60e51b815260206004820152602b602482015260008051602062001f7b83398151915260448201526a6e697469616c697a696e6760a81b6064820152608401620000c5565b620002ef62000427565b565b620002fb6200048e565b6001600160a01b038116620003795760405162461bcd60e51b815260206004820152603760248201527f4c324f75747075744f7261636c653a206e65772070726f706f7365722063616e60448201527f6e6f7420626520746865207a65726f20616464726573730000000000000000006064820152608401620000c5565b6065546040516001600160a01b038084169216907f3d7728dc2838bb794606bd89f5a37930830b32060f69ee929bbfc59b669024dd90600090a3606580546001600160a01b0319166001600160a01b0392909216919091179055565b603380546001600160a01b038381166001600160a01b0319831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b600054610100900460ff16620004835760405162461bcd60e51b815260206004820152602b602482015260008051602062001f7b83398151915260448201526a6e697469616c697a696e6760a81b6064820152608401620000c5565b620002ef33620003d5565b6033546001600160a01b03163314620002ef5760405162461bcd60e51b815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e65726044820152606401620000c5565b80516001600160a01b03811681146200050257600080fd5b919050565b600080600080600080600060e0888a0312156200052357600080fd5b87519650602088015195506040880151945060608801519350608088015192506200055160a08901620004ea565b91506200056160c08901620004ea565b905092959891949750929550565b60805160a05160c05160e051610100516101205161014051611964620006176000396000818161012401526110a201526000818161018d01526110fb0152600081816101d70152818161091801528181610d9401528181610e9001528181610fcc01526110c601526000818161020b015281816105c101528181610e6c01528181610ecf0152611129015260006106460152600061061d015260006105f401526119646000f3fe60806040526004361061010d5760003560e01c806372d5fe21116100a5578063a25ae55711610074578063d1de856c11610059578063d1de856c1461036b578063dcec33481461038b578063f2fde38b146103a057600080fd5b8063a25ae55714610303578063a8e4fb901461033e57600080fd5b806372d5fe211461026457806388b117b3146102845780638da5cb5b146102a45780639aaab648146102f057600080fd5b80634ab65d73116100e15780634ab65d73146101c5578063529933df146101f957806354fd4d501461022d578063715018a61461024f57600080fd5b80622134cc14610112578063093b3d901461015957806320e9fcd41461017b5780634599c788146101af575b600080fd5b34801561011e57600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561016557600080fd5b506101796101743660046115c3565b6103c0565b005b34801561018757600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b3480156101bb57600080fd5b5061014660665481565b3480156101d157600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b34801561020557600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b34801561023957600080fd5b506102426105ed565b6040516101509190611665565b34801561025b57600080fd5b50610179610690565b34801561027057600080fd5b5061017961027f3660046116df565b6106a4565b34801561029057600080fd5b5061017961029f366004611701565b6107dd565b3480156102b057600080fd5b5060335473ffffffffffffffffffffffffffffffffffffffff165b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610150565b6101796102fe36600461173d565b6109d5565b34801561030f57600080fd5b5061032361031e36600461176f565b610d7e565b60408051825181526020928301519281019290925201610150565b34801561034a57600080fd5b506065546102cb9073ffffffffffffffffffffffffffffffffffffffff1681565b34801561037757600080fd5b5061014661038636600461176f565b610fc8565b34801561039757600080fd5b50610146611125565b3480156103ac57600080fd5b506101796103bb3660046116df565b61115a565b6103c861122d565b60665460009081526067602090815260409182902082518084019093528054808452600190910154918301919091528251146104b1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604f60248201527f4c324f75747075744f7261636c653a206f757470757420726f6f7420746f206460448201527f656c65746520646f6573206e6f74206d6174636820746865206c61746573742060648201527f6f75747075742070726f706f73616c0000000000000000000000000000000000608482015260a4015b60405180910390fd5b806020015182602001511461056e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604d60248201527f4c324f75747075744f7261636c653a2074696d657374616d7020746f2064656c60448201527f65746520646f6573206e6f74206d6174636820746865206c6174657374206f7560648201527f747075742070726f706f73616c00000000000000000000000000000000000000608482015260a4016104a8565b606654602082015182516040517f11e942315215fbc11bf574b22ca610d001e704d870a2307833c188d31600b5c690600090a460668054600090815260676020526040812081815560010155546105e6907f0000000000000000000000000000000000000000000000000000000000000000906117b7565b6066555050565b60606106187f00000000000000000000000000000000000000000000000000000000000000006112ae565b6106417f00000000000000000000000000000000000000000000000000000000000000006112ae565b61066a7f00000000000000000000000000000000000000000000000000000000000000006112ae565b60405160200161067c939291906117ce565b604051602081830303815290604052905090565b61069861122d565b6106a260006113e3565b565b6106ac61122d565b73ffffffffffffffffffffffffffffffffffffffff811661074f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c324f75747075744f7261636c653a206e65772070726f706f7365722063616e60448201527f6e6f7420626520746865207a65726f206164647265737300000000000000000060648201526084016104a8565b60655460405173ffffffffffffffffffffffffffffffffffffffff8084169216907f3d7728dc2838bb794606bd89f5a37930830b32060f69ee929bbfc59b669024dd90600090a3606580547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b600054610100900460ff16158080156107fd5750600054600160ff909116105b806108175750303b158015610817575060005460ff166001145b6108a3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016104a8565b600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055801561090157600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6040805180820182528581524260208083019182527f000000000000000000000000000000000000000000000000000000000000000060008181526067909252939020915182555160019091015560665561095a61145a565b610963836106a4565b61096c826113e3565b80156109cf57600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b50505050565b60655473ffffffffffffffffffffffffffffffffffffffff163314610a7c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c324f75747075744f7261636c653a2066756e6374696f6e2063616e206f6e6c60448201527f792062652063616c6c65642062792070726f706f73657200000000000000000060648201526084016104a8565b610a84611125565b8314610b38576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604860248201527f4c324f75747075744f7261636c653a20626c6f636b206e756d626572206d757360448201527f7420626520657175616c20746f206e65787420657870656374656420626c6f6360648201527f6b206e756d626572000000000000000000000000000000000000000000000000608482015260a4016104a8565b42610b4284610fc8565b10610bcf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c324f75747075744f7261636c653a2063616e6e6f742070726f706f7365204c60448201527f32206f757470757420696e20746865206675747572650000000000000000000060648201526084016104a8565b83610c5c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603a60248201527f4c324f75747075744f7261636c653a204c32206f75747075742070726f706f7360448201527f616c2063616e6e6f7420626520746865207a65726f206861736800000000000060648201526084016104a8565b8115610d185781814014610d18576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604860248201527f4c324f75747075744f7261636c653a20626c6f636b6861736820646f6573206e60448201527f6f74206d6174636820746865206861736820617420746865206578706563746560648201527f6420686569676874000000000000000000000000000000000000000000000000608482015260a4016104a8565b6040805180820182528581524260208083018281526000888152606790925284822093518455516001909301929092556066869055915185929187917fc120f5e881491e6e212befa39e36b8f57d5eca31915f2e5d60a420f418caa6df9190a450505050565b60408051808201909152600080825260208201527f0000000000000000000000000000000000000000000000000000000000000000821015610e68576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604b60248201527f4c324f75747075744f7261636c653a20626c6f636b206e756d6265722063616e60448201527f6e6f74206265206c657373207468616e20746865207374617274696e6720626c60648201527f6f636b206e756d6265722e000000000000000000000000000000000000000000608482015260a4016104a8565b60007f0000000000000000000000000000000000000000000000000000000000000000610eb57f0000000000000000000000000000000000000000000000000000000000000000856117b7565b610ebf9190611873565b905060008115610f0257610ef3827f00000000000000000000000000000000000000000000000000000000000000006117b7565b610efd9085611887565b610f04565b835b600081815260676020908152604091829020825180840190935280548084526001909101549183019190915291925090610fc0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c324f75747075744f7261636c653a204e6f206f757470757420666f756e642060448201527f666f72207468617420626c6f636b206e756d6265722e0000000000000000000060648201526084016104a8565b949350505050565b60007f00000000000000000000000000000000000000000000000000000000000000008210156110a0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605360248201527f4c324f75747075744f7261636c653a20626c6f636b206e756d626572206d757360448201527f742062652067726561746572207468616e206f7220657175616c20746f20737460648201527f617274696e6720626c6f636b206e756d62657200000000000000000000000000608482015260a4016104a8565b7f00000000000000000000000000000000000000000000000000000000000000006110eb7f0000000000000000000000000000000000000000000000000000000000000000846117b7565b6110f5919061189f565b61111f907f0000000000000000000000000000000000000000000000000000000000000000611887565b92915050565b60007f00000000000000000000000000000000000000000000000000000000000000006066546111559190611887565b905090565b61116261122d565b73ffffffffffffffffffffffffffffffffffffffff8116611205576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016104a8565b61120e816113e3565b50565b73ffffffffffffffffffffffffffffffffffffffff163b151590565b60335473ffffffffffffffffffffffffffffffffffffffff1633146106a2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016104a8565b6060816000036112f157505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561131b5780611305816118dc565b91506113149050600a83611914565b91506112f5565b60008167ffffffffffffffff81111561133657611336611594565b6040519080825280601f01601f191660200182016040528015611360576020820181803683370190505b5090505b8415610fc0576113756001836117b7565b9150611382600a86611873565b61138d906030611887565b60f81b8183815181106113a2576113a2611928565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506113dc600a86611914565b9450611364565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b600054610100900460ff166114f1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016104a8565b6106a2600054610100900460ff1661158b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016104a8565b6106a2336113e3565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000604082840312156115d557600080fd5b6040516040810181811067ffffffffffffffff8211171561161f577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60005b8381101561165457818101518382015260200161163c565b838111156109cf5750506000910152565b6020815260008251806020840152611684816040850160208701611639565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b803573ffffffffffffffffffffffffffffffffffffffff811681146116da57600080fd5b919050565b6000602082840312156116f157600080fd5b6116fa826116b6565b9392505050565b60008060006060848603121561171657600080fd5b83359250611726602085016116b6565b9150611734604085016116b6565b90509250925092565b6000806000806080858703121561175357600080fd5b5050823594602084013594506040840135936060013592509050565b60006020828403121561178157600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000828210156117c9576117c9611788565b500390565b600084516117e0818460208901611639565b80830190507f2e00000000000000000000000000000000000000000000000000000000000000808252855161181c816001850160208a01611639565b60019201918201528351611837816002840160208801611639565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261188257611882611844565b500690565b6000821982111561189a5761189a611788565b500190565b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04831182151516156118d7576118d7611788565b500290565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361190d5761190d611788565b5060010190565b60008261192357611923611844565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a496e697469616c697a61626c653a20636f6e7472616374206973206e6f742069",
+  "deployedBytecode": "0x60806040526004361061010d5760003560e01c806372d5fe21116100a5578063a25ae55711610074578063d1de856c11610059578063d1de856c1461036b578063dcec33481461038b578063f2fde38b146103a057600080fd5b8063a25ae55714610303578063a8e4fb901461033e57600080fd5b806372d5fe211461026457806388b117b3146102845780638da5cb5b146102a45780639aaab648146102f057600080fd5b80634ab65d73116100e15780634ab65d73146101c5578063529933df146101f957806354fd4d501461022d578063715018a61461024f57600080fd5b80622134cc14610112578063093b3d901461015957806320e9fcd41461017b5780634599c788146101af575b600080fd5b34801561011e57600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b6040519081526020015b60405180910390f35b34801561016557600080fd5b506101796101743660046115c3565b6103c0565b005b34801561018757600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b3480156101bb57600080fd5b5061014660665481565b3480156101d157600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b34801561020557600080fd5b506101467f000000000000000000000000000000000000000000000000000000000000000081565b34801561023957600080fd5b506102426105ed565b6040516101509190611665565b34801561025b57600080fd5b50610179610690565b34801561027057600080fd5b5061017961027f3660046116df565b6106a4565b34801561029057600080fd5b5061017961029f366004611701565b6107dd565b3480156102b057600080fd5b5060335473ffffffffffffffffffffffffffffffffffffffff165b60405173ffffffffffffffffffffffffffffffffffffffff9091168152602001610150565b6101796102fe36600461173d565b6109d5565b34801561030f57600080fd5b5061032361031e36600461176f565b610d7e565b60408051825181526020928301519281019290925201610150565b34801561034a57600080fd5b506065546102cb9073ffffffffffffffffffffffffffffffffffffffff1681565b34801561037757600080fd5b5061014661038636600461176f565b610fc8565b34801561039757600080fd5b50610146611125565b3480156103ac57600080fd5b506101796103bb3660046116df565b61115a565b6103c861122d565b60665460009081526067602090815260409182902082518084019093528054808452600190910154918301919091528251146104b1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604f60248201527f4c324f75747075744f7261636c653a206f757470757420726f6f7420746f206460448201527f656c65746520646f6573206e6f74206d6174636820746865206c61746573742060648201527f6f75747075742070726f706f73616c0000000000000000000000000000000000608482015260a4015b60405180910390fd5b806020015182602001511461056e576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604d60248201527f4c324f75747075744f7261636c653a2074696d657374616d7020746f2064656c60448201527f65746520646f6573206e6f74206d6174636820746865206c6174657374206f7560648201527f747075742070726f706f73616c00000000000000000000000000000000000000608482015260a4016104a8565b606654602082015182516040517f11e942315215fbc11bf574b22ca610d001e704d870a2307833c188d31600b5c690600090a460668054600090815260676020526040812081815560010155546105e6907f0000000000000000000000000000000000000000000000000000000000000000906117b7565b6066555050565b60606106187f00000000000000000000000000000000000000000000000000000000000000006112ae565b6106417f00000000000000000000000000000000000000000000000000000000000000006112ae565b61066a7f00000000000000000000000000000000000000000000000000000000000000006112ae565b60405160200161067c939291906117ce565b604051602081830303815290604052905090565b61069861122d565b6106a260006113e3565b565b6106ac61122d565b73ffffffffffffffffffffffffffffffffffffffff811661074f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c324f75747075744f7261636c653a206e65772070726f706f7365722063616e60448201527f6e6f7420626520746865207a65726f206164647265737300000000000000000060648201526084016104a8565b60655460405173ffffffffffffffffffffffffffffffffffffffff8084169216907f3d7728dc2838bb794606bd89f5a37930830b32060f69ee929bbfc59b669024dd90600090a3606580547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff92909216919091179055565b600054610100900460ff16158080156107fd5750600054600160ff909116105b806108175750303b158015610817575060005460ff166001145b6108a3576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201527f647920696e697469616c697a656400000000000000000000000000000000000060648201526084016104a8565b600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00166001179055801561090157600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff166101001790555b6040805180820182528581524260208083019182527f000000000000000000000000000000000000000000000000000000000000000060008181526067909252939020915182555160019091015560665561095a61145a565b610963836106a4565b61096c826113e3565b80156109cf57600080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00ff169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b50505050565b60655473ffffffffffffffffffffffffffffffffffffffff163314610a7c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603760248201527f4c324f75747075744f7261636c653a2066756e6374696f6e2063616e206f6e6c60448201527f792062652063616c6c65642062792070726f706f73657200000000000000000060648201526084016104a8565b610a84611125565b8314610b38576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604860248201527f4c324f75747075744f7261636c653a20626c6f636b206e756d626572206d757360448201527f7420626520657175616c20746f206e65787420657870656374656420626c6f6360648201527f6b206e756d626572000000000000000000000000000000000000000000000000608482015260a4016104a8565b42610b4284610fc8565b10610bcf576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c324f75747075744f7261636c653a2063616e6e6f742070726f706f7365204c60448201527f32206f757470757420696e20746865206675747572650000000000000000000060648201526084016104a8565b83610c5c576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603a60248201527f4c324f75747075744f7261636c653a204c32206f75747075742070726f706f7360448201527f616c2063616e6e6f7420626520746865207a65726f206861736800000000000060648201526084016104a8565b8115610d185781814014610d18576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604860248201527f4c324f75747075744f7261636c653a20626c6f636b6861736820646f6573206e60448201527f6f74206d6174636820746865206861736820617420746865206578706563746560648201527f6420686569676874000000000000000000000000000000000000000000000000608482015260a4016104a8565b6040805180820182528581524260208083018281526000888152606790925284822093518455516001909301929092556066869055915185929187917fc120f5e881491e6e212befa39e36b8f57d5eca31915f2e5d60a420f418caa6df9190a450505050565b60408051808201909152600080825260208201527f0000000000000000000000000000000000000000000000000000000000000000821015610e68576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152604b60248201527f4c324f75747075744f7261636c653a20626c6f636b206e756d6265722063616e60448201527f6e6f74206265206c657373207468616e20746865207374617274696e6720626c60648201527f6f636b206e756d6265722e000000000000000000000000000000000000000000608482015260a4016104a8565b60007f0000000000000000000000000000000000000000000000000000000000000000610eb57f0000000000000000000000000000000000000000000000000000000000000000856117b7565b610ebf9190611873565b905060008115610f0257610ef3827f00000000000000000000000000000000000000000000000000000000000000006117b7565b610efd9085611887565b610f04565b835b600081815260676020908152604091829020825180840190935280548084526001909101549183019190915291925090610fc0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603660248201527f4c324f75747075744f7261636c653a204e6f206f757470757420666f756e642060448201527f666f72207468617420626c6f636b206e756d6265722e0000000000000000000060648201526084016104a8565b949350505050565b60007f00000000000000000000000000000000000000000000000000000000000000008210156110a0576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152605360248201527f4c324f75747075744f7261636c653a20626c6f636b206e756d626572206d757360448201527f742062652067726561746572207468616e206f7220657175616c20746f20737460648201527f617274696e6720626c6f636b206e756d62657200000000000000000000000000608482015260a4016104a8565b7f00000000000000000000000000000000000000000000000000000000000000006110eb7f0000000000000000000000000000000000000000000000000000000000000000846117b7565b6110f5919061189f565b61111f907f0000000000000000000000000000000000000000000000000000000000000000611887565b92915050565b60007f00000000000000000000000000000000000000000000000000000000000000006066546111559190611887565b905090565b61116261122d565b73ffffffffffffffffffffffffffffffffffffffff8116611205576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602660248201527f4f776e61626c653a206e6577206f776e657220697320746865207a65726f206160448201527f646472657373000000000000000000000000000000000000000000000000000060648201526084016104a8565b61120e816113e3565b50565b73ffffffffffffffffffffffffffffffffffffffff163b151590565b60335473ffffffffffffffffffffffffffffffffffffffff1633146106a2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820181905260248201527f4f776e61626c653a2063616c6c6572206973206e6f7420746865206f776e657260448201526064016104a8565b6060816000036112f157505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561131b5780611305816118dc565b91506113149050600a83611914565b91506112f5565b60008167ffffffffffffffff81111561133657611336611594565b6040519080825280601f01601f191660200182016040528015611360576020820181803683370190505b5090505b8415610fc0576113756001836117b7565b9150611382600a86611873565b61138d906030611887565b60f81b8183815181106113a2576113a2611928565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506113dc600a86611914565b9450611364565b6033805473ffffffffffffffffffffffffffffffffffffffff8381167fffffffffffffffffffffffff0000000000000000000000000000000000000000831681179093556040519116919082907f8be0079c531659141344cd1fd0a4f28419497f9722a3daafe3b4186f6b6457e090600090a35050565b600054610100900460ff166114f1576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016104a8565b6106a2600054610100900460ff1661158b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602b60248201527f496e697469616c697a61626c653a20636f6e7472616374206973206e6f74206960448201527f6e697469616c697a696e6700000000000000000000000000000000000000000060648201526084016104a8565b6106a2336113e3565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000604082840312156115d557600080fd5b6040516040810181811067ffffffffffffffff8211171561161f577f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b604052823581526020928301359281019290925250919050565b60005b8381101561165457818101518382015260200161163c565b838111156109cf5750506000910152565b6020815260008251806020840152611684816040850160208701611639565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b803573ffffffffffffffffffffffffffffffffffffffff811681146116da57600080fd5b919050565b6000602082840312156116f157600080fd5b6116fa826116b6565b9392505050565b60008060006060848603121561171657600080fd5b83359250611726602085016116b6565b9150611734604085016116b6565b90509250925092565b6000806000806080858703121561175357600080fd5b5050823594602084013594506040840135936060013592509050565b60006020828403121561178157600080fd5b5035919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000828210156117c9576117c9611788565b500390565b600084516117e0818460208901611639565b80830190507f2e00000000000000000000000000000000000000000000000000000000000000808252855161181c816001850160208a01611639565b60019201918201528351611837816002840160208801611639565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261188257611882611844565b500690565b6000821982111561189a5761189a611788565b500190565b6000817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04831182151516156118d7576118d7611788565b500290565b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361190d5761190d611788565b5060010190565b60008261192357611923611844565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+  "devdoc": {
+    "version": 1,
+    "kind": "dev",
+    "methods": {
+      "computeL2Timestamp(uint256)": {
+        "params": {
+          "_l2BlockNumber": "The L2 block number of the target block."
+        }
+      },
+      "constructor": {
+        "params": {
+          "_genesisL2Output": "The initial L2 output of the L2 chain.",
+          "_l2BlockTime": "The time per L2 block, in seconds.",
+          "_owner": "The address of the owner.",
+          "_proposer": "The address of the proposer.",
+          "_startingBlockNumber": "The number of the first L2 block.",
+          "_startingTimestamp": "The timestamp of the first L2 block.",
+          "_submissionInterval": "Interval in blocks at which checkpoints must be submitted."
+        }
+      },
+      "deleteL2Output((bytes32,uint256))": {
+        "params": {
+          "_proposal": "Represents the output proposal to delete"
+        }
+      },
+      "getL2Output(uint256)": {
+        "params": {
+          "_l2BlockNumber": "The L2 block number of the target block."
+        }
+      },
+      "initialize(bytes32,address,address)": {
+        "params": {
+          "_genesisL2Output": "The initial L2 output of the L2 chain.",
+          "_owner": "The address of the owner.",
+          "_proposer": "The address of the proposer."
+        }
+      },
+      "owner()": {
+        "details": "Returns the address of the current owner."
+      },
+      "proposeL2Output(bytes32,uint256,bytes32,uint256)": {
+        "params": {
+          "_l1BlockNumber": "The block number with the specified block hash.",
+          "_l1Blockhash": "A block hash which must be included in the current chain.",
+          "_l2BlockNumber": "The L2 block number that resulted in _outputRoot.",
+          "_outputRoot": "The L2 output of the checkpoint block."
+        }
+      },
+      "renounceOwnership()": {
+        "details": "Leaves the contract without owner. It will not be possible to call `onlyOwner` functions anymore. Can only be called by the current owner. NOTE: Renouncing ownership will leave the contract without an owner, thereby removing any functionality that is only available to the owner."
+      },
+      "transferOwnership(address)": {
+        "details": "Transfers ownership of the contract to a new account (`newOwner`). Can only be called by the current owner."
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "events": {
+      "OutputDeleted(bytes32,uint256,uint256)": {
+        "params": {
+          "l1Timestamp": "The L1 timestamp when proposed.",
+          "l2BlockNumber": "The L2 block number of the output root.",
+          "outputRoot": "The output root."
+        }
+      },
+      "OutputProposed(bytes32,uint256,uint256)": {
+        "params": {
+          "l1Timestamp": "The L1 timestamp when proposed.",
+          "l2BlockNumber": "The L2 block number of the output root.",
+          "outputRoot": "The output root."
+        }
+      },
+      "ProposerChanged(address,address)": {
+        "params": {
+          "newProposer": "The new proposer address.",
+          "previousProposer": "The previous proposer address."
+        }
+      }
+    }
+  },
+  "userdoc": {
+    "version": 1,
+    "kind": "user",
+    "methods": {
+      "L2_BLOCK_TIME()": {
+        "notice": "The time between L2 blocks in seconds."
+      },
+      "STARTING_BLOCK_NUMBER()": {
+        "notice": "The number of the first L2 block recorded in this contract."
+      },
+      "STARTING_TIMESTAMP()": {
+        "notice": "The timestamp of the first L2 block recorded in this contract."
+      },
+      "SUBMISSION_INTERVAL()": {
+        "notice": "The interval in L2 blocks at which checkpoints must be submitted."
+      },
+      "changeProposer(address)": {
+        "notice": "Transfers the proposer role to a new account (`newProposer`).         Can only be called by the current owner."
+      },
+      "computeL2Timestamp(uint256)": {
+        "notice": "Returns the L2 timestamp corresponding to a given L2 block number.         If the L2 block number provided is between checkpoints, this function will return the         timestamp of the previous checkpoint."
+      },
+      "deleteL2Output((bytes32,uint256))": {
+        "notice": "Deletes the most recent output. This is used to remove the most recent output in the         event that an erreneous output is submitted. It can only be called by the contract's         owner, not the proposer. Longer term, this should be replaced with a more robust         mechanism which will allow deletion of proposals shown to be invalid by a fault         proof."
+      },
+      "getL2Output(uint256)": {
+        "notice": "Returns the L2 output proposal associated with a target L2 block number. If the         L2 block number provided is between checkpoints, this function will rerutn the next         proposal for the next checkpoint.         Reverts if the output proposal is either not found, or predates         the STARTING_BLOCK_NUMBER."
+      },
+      "initialize(bytes32,address,address)": {
+        "notice": "Initializer."
+      },
+      "latestBlockNumber()": {
+        "notice": "The number of the most recent L2 block recorded in this contract."
+      },
+      "nextBlockNumber()": {
+        "notice": "Computes the block number of the next L2 block that needs to be checkpointed."
+      },
+      "proposeL2Output(bytes32,uint256,bytes32,uint256)": {
+        "notice": "Accepts an outputRoot and the timestamp of the corresponding L2 block. The         timestamp must be equal to the current value returned by `nextTimestamp()` in order         to be accepted. This function may only be called by the Proposer."
+      },
+      "proposer()": {
+        "notice": "The address of the proposer;"
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "events": {
+      "OutputDeleted(bytes32,uint256,uint256)": {
+        "notice": "Emitted when an output is deleted."
+      },
+      "OutputProposed(bytes32,uint256,uint256)": {
+        "notice": "Emitted when an output is proposed."
+      },
+      "ProposerChanged(address,address)": {
+        "notice": "Emitted when the proposer address is changed."
+      }
+    },
+    "notice": "The L2 state is committed to in this contract         The payable keyword is used on proposeL2Output to save gas on the msg.value check.         This contract should be deployed behind an upgradable proxy"
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 29929,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "_initialized",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint8"
+      },
+      {
+        "astId": 29932,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "_initializing",
+        "offset": 1,
+        "slot": "0",
+        "type": "t_bool"
+      },
+      {
+        "astId": 30543,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_array(t_uint256)50_storage"
+      },
+      {
+        "astId": 29801,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "_owner",
+        "offset": 0,
+        "slot": "51",
+        "type": "t_address"
+      },
+      {
+        "astId": 29921,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "52",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      {
+        "astId": 691,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "proposer",
+        "offset": 0,
+        "slot": "101",
+        "type": "t_address"
+      },
+      {
+        "astId": 694,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "latestBlockNumber",
+        "offset": 0,
+        "slot": "102",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 700,
+        "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+        "label": "l2Outputs",
+        "offset": 0,
+        "slot": "103",
+        "type": "t_mapping(t_uint256,t_struct(OutputProposal)6197_storage)"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_uint256)49_storage": {
+        "encoding": "inplace",
+        "label": "uint256[49]",
+        "numberOfBytes": "1568",
+        "base": "t_uint256"
+      },
+      "t_array(t_uint256)50_storage": {
+        "encoding": "inplace",
+        "label": "uint256[50]",
+        "numberOfBytes": "1600",
+        "base": "t_uint256"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_uint256,t_struct(OutputProposal)6197_storage)": {
+        "encoding": "mapping",
+        "key": "t_uint256",
+        "label": "mapping(uint256 => struct Types.OutputProposal)",
+        "numberOfBytes": "32",
+        "value": "t_struct(OutputProposal)6197_storage"
+      },
+      "t_struct(OutputProposal)6197_storage": {
+        "encoding": "inplace",
+        "label": "struct Types.OutputProposal",
+        "numberOfBytes": "64",
+        "members": [
+          {
+            "astId": 6194,
+            "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+            "label": "outputRoot",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_bytes32"
+          },
+          {
+            "astId": 6196,
+            "contract": "contracts/L1/L2OutputOracle.sol:L2OutputOracle",
+            "label": "timestamp",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256"
+          }
+        ]
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint8": {
+        "encoding": "inplace",
+        "label": "uint8",
+        "numberOfBytes": "1"
+      }
+    }
+  }
+}
