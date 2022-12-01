@@ -4,6 +4,10 @@ import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { sleep, getChainId } from '@eth-optimism/core-utils'
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import 'hardhat-deploy'
+import '@eth-optimism/hardhat-deploy-config'
+import '@nomiclabs/hardhat-ethers'
 
 export interface DictatorConfig {
   globalConfig: {
@@ -48,7 +52,7 @@ export const deployAndVerifyAndThen = async ({
   iface,
   postDeployAction,
 }: {
-  hre: any
+  hre: HardhatRuntimeEnvironment
   name: string
   args: any[]
   contract?: string
@@ -57,6 +61,17 @@ export const deployAndVerifyAndThen = async ({
 }) => {
   const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
+
+  // Hardhat deploy will usually do this check for us, but currently doesn't also consider
+  // external deployments when doing this check. By doing the check ourselves, we also get to
+  // consider external deployments. If we already have the deployment, return early.
+  const existing = await hre.deployments.getOrNull(name)
+  if (existing) {
+    console.log(
+      `skipping ${name} deployment, using existing at ${existing.address}`
+    )
+    return
+  }
 
   const result = await deploy(name, {
     contract,
@@ -69,38 +84,14 @@ export const deployAndVerifyAndThen = async ({
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
 
   if (result.newlyDeployed) {
-    if (!(await isHardhatNode(hre)) && hre.network.config.live !== false) {
-      // Verification sometimes fails, even when the contract is correctly deployed and eventually
-      // verified. Possibly due to a race condition. We don't want to halt the whole deployment
-      // process just because that happens.
-      try {
-        console.log('Verifying on Etherscan...')
-        await hre.run('verify:verify', {
-          address: result.address,
-          constructorArguments: args,
-        })
-        console.log('Successfully verified on Etherscan')
-      } catch (error) {
-        console.log('Error when verifying bytecode on Etherscan:')
-        console.log(error)
-      }
-
-      try {
-        console.log('Verifying on Sourcify...')
-        await hre.run('sourcify')
-        console.log('Successfully verified on Sourcify')
-      } catch (error) {
-        console.log('Error when verifying bytecode on Sourcify:')
-        console.log(error)
-      }
-    }
     if (postDeployAction) {
       const signer = hre.ethers.provider.getSigner(deployer)
       let abi = result.abi
       if (iface !== undefined) {
         const factory = await hre.ethers.getContractFactory(iface)
-        abi = factory.interface
+        abi = factory.interface as any
       }
+
       await postDeployAction(
         getAdvancedContract({
           hre,
