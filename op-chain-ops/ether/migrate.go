@@ -34,7 +34,7 @@ var (
 	}
 )
 
-func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances []*migration.Allowance, chainID int, commit bool) (common.Hash, error) {
+func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances []*migration.Allowance, chainID int, commit, noCheck bool) (common.Hash, error) {
 	// Set of addresses that we will be migrating.
 	addressesToMigrate := make(map[common.Address]bool)
 	// Set of storage slots that we expect to see in the OVM ETH contract.
@@ -125,7 +125,11 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 		default:
 			// Check if this slot is a variable. If it isn't, abort.
 			if !ignoredSlots[k] {
-				log.Crit("missed storage key", "k", k.String(), "v", v.String())
+				if noCheck {
+					log.Error("missed storage key", "k", k.String(), "v", v.String())
+				} else {
+					log.Crit("missed storage key", "k", k.String(), "v", v.String())
+				}
 			}
 		}
 
@@ -137,13 +141,23 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	// had supply bugs.
 	delta := new(big.Int).Sub(totalSupply, totalFound)
 	if delta.Cmp(params.ExpectedSupplyDelta) != 0 {
-		log.Crit(
-			"supply mismatch",
-			"migrated", totalFound.String(),
-			"supply", totalSupply.String(),
-			"delta", delta.String(),
-			"exp_delta", params.ExpectedSupplyDelta.String(),
-		)
+		if noCheck {
+			log.Error(
+				"supply mismatch",
+				"migrated", totalFound.String(),
+				"supply", totalSupply.String(),
+				"delta", delta.String(),
+				"exp_delta", params.ExpectedSupplyDelta.String(),
+			)
+		} else {
+			log.Crit(
+				"supply mismatch",
+				"migrated", totalFound.String(),
+				"supply", totalSupply.String(),
+				"delta", delta.String(),
+				"exp_delta", params.ExpectedSupplyDelta.String(),
+			)
+		}
 	}
 
 	log.Info(
@@ -181,7 +195,11 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 
 		// No accounts should have a balance in state. If they do, bail.
 		if data.Balance.Sign() > 0 {
-			log.Crit("account has non-zero balance in state - should never happen", "addr", addr)
+			if noCheck {
+				log.Error("account has non-zero balance in state - should never happen", "addr", addr)
+			} else {
+				log.Crit("account has non-zero balance in state - should never happen", "addr", addr)
+			}
 		}
 
 		// Actually perform the migration by setting the appropriate values in state.
@@ -214,11 +232,19 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	// Make sure that the amount we migrated matches the amount in
 	// our original state.
 	if totalMigrated.Cmp(totalFound) != 0 {
-		log.Crit(
-			"total migrated does not equal total OVM eth found",
-			"migrated", totalMigrated,
-			"found", totalFound,
-		)
+		if noCheck {
+			log.Debug(
+				"total migrated does not equal total OVM eth found",
+				"migrated", totalMigrated,
+				"found", totalFound,
+			)
+		} else {
+			log.Crit(
+				"total migrated does not equal total OVM eth found",
+				"migrated", totalMigrated,
+				"found", totalFound,
+			)
+		}
 	}
 
 	// Set the total supply to 0
