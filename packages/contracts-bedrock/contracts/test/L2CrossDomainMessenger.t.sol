@@ -58,7 +58,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         // MessagePassed event
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            messagePasser.nonce(),
+            messagePasser.messageNonce(),
             address(L2Messenger),
             address(L1Messenger),
             0,
@@ -66,7 +66,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             xDomainCallData,
             Hashing.hashWithdrawal(
                 Types.WithdrawalTransaction({
-                    nonce: messagePasser.nonce(),
+                    nonce: messagePasser.messageNonce(),
                     sender: address(L2Messenger),
                     target: address(L1Messenger),
                     value: 0,
