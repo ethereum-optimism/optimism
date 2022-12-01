@@ -58,6 +58,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, errors.New("must configure L2 genesis block base fee per gas")
 	}
 
+	// Ensure monotonic timestamps
+	if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
+		return nil, fmt.Errorf(
+			"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
+		)
+	}
+
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
 	})
