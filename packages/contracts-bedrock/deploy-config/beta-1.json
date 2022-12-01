@@ -28,5 +28,6 @@
     "optimismBaseFeeRecipient": "0x355a50396aE1257010EEA3259E872c8060792A97",
     "optimismL1FeeRecipient": "0x7d7111B087e228C9Ca398C56bdDaDa65060578d0",
     "l2CrossDomainMessengerOwner": "0xC355BB8724acf22Bc2799CD1B12615Bcfce5a11d",
-    "gasPriceOracleOwner": "0xC1fD9F877BcA44E711DDf9C98870bfC448C6Ecb6"
+    "gasPriceOracleOwner": "0xC1fD9F877BcA44E711DDf9C98870bfC448C6Ecb6",
+    "l2OutputOracleChallenger": "0x1B439B67c711b7B25793447f8ce077A43b67a680"
   }
