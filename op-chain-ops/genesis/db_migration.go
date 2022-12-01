@@ -107,7 +107,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	log.Info("Starting to migrate ERC20 ETH")
 	addrs := migrationData.Addresses()
-	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit)
+	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit, noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
