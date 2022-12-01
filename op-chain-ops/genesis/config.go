@@ -184,6 +184,12 @@ func (d *DeployConfig) Check() error {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.EIP1559Denominator == 0 {
+		return fmt.Errorf("EIP1559Denominator cannot be 0")
+	}
+	if d.EIP1559Elasticity == 0 {
+		return fmt.Errorf("EIP1559Elasticity cannot be 0")
+	}
 	return nil
 }
 
