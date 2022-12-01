@@ -261,7 +261,7 @@ contract MerkleTrie_Test is CommonTest {
         bytes[] memory proof = new bytes[](1);
         proof[0] = hex"c78320f00082b443";
 
-        vm.expectRevert("MerkleTrie: path remainder must share all nibbles with key");
+        vm.expectRevert("MerkleTrie: empty key");
         MerkleTrie.get(key, proof, root);
     }
 
