@@ -12,16 +12,16 @@ import (
 var Beta1 = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash("0x87ba22412f6d081a28ca0d8aafcf630d13a0d2fc16a7345eb3a0d5cd329f935e"),
-			Number: 7996739,
+			Hash:   common.HexToHash("0x59c72db5fec5bf231e61ba59854cff33945ff6652699c55f2431ac2c010610d5"),
+			Number: 8046397,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash("0x76aac93f04b04b051c0232dc96cdfb2ebd150ce726aa9f776a4713c2ac524dc8"),
+			Hash:   common.HexToHash("0xa89b19033c8b43365e244f425a7e4acb5bae21d1893e1be0eb8cddeb29950d72"),
 			Number: 0,
 		},
 		L2Time: 1669088016,
 		SystemConfig: eth.SystemConfig{
-			BatcherAddr: common.HexToAddress("0xc02551cde892e9716363b8e99d655298909e1a84"),
+			BatcherAddr: common.HexToAddress("0x793b6822fd651af8c58039847be64cb9ee854bc9"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
 			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
 			GasLimit:    30000000,
@@ -33,10 +33,10 @@ var Beta1 = rollup.Config{
 	ChannelTimeout:         30,
 	L1ChainID:              big.NewInt(5),
 	L2ChainID:              big.NewInt(902),
-	P2PSequencerAddress:    common.HexToAddress("0x1491418a70b592f8ad0e4279bb700f496d3b9abb"),
-	BatchInboxAddress:      common.HexToAddress("0x880fb147c4e76adeed5b90f11172abf234111dee"),
-	DepositContractAddress: common.HexToAddress("0xa581ca3353db73115c4625ffc7adf5db379434a8"),
-	L1SystemConfigAddress:  common.HexToAddress("0x2a4daa073b98a092ee235badfed23b54f1d416c9"),
+	P2PSequencerAddress:    common.HexToAddress("0x42415b1258908bb27f34585133368900ba668dce"),
+	BatchInboxAddress:      common.HexToAddress("0xFb3aECf08940785D4fB3Ad87cDC6e1Ceb20e9aac"),
+	DepositContractAddress: common.HexToAddress("0xf91795564662DcC9a17de67463ec5BA9C6DC207b"),
+	L1SystemConfigAddress:  common.HexToAddress("0x686df068eaa71af78dadc1c427e35600e0fadac5"),
 }
 
 var NetworksByName = map[string]rollup.Config{

@@ -1,6 +1,8 @@
 package genesis
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -19,7 +21,10 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-var abiTrue = common.Hash{31: 0x01}
+var (
+	abiTrue                         = common.Hash{31: 0x01}
+	bedrockTransitionBlockExtraData = []byte("BEDROCK")
+)
 
 type MigrationResult struct {
 	TransitionHeight    uint64
@@ -30,16 +35,28 @@ type MigrationResult struct {
 // MigrateDB will migrate an old l2geth database to the new bedrock style system
 func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit, noCheck bool) (*MigrationResult, error) {
 	hash := rawdb.ReadHeadHeaderHash(ldb)
+	log.Info("Reading chain tip from database", "hash", hash)
 	num := rawdb.ReadHeaderNumber(ldb, hash)
-	header := rawdb.ReadHeader(ldb, hash, *num)
+	if num == nil {
+		return nil, fmt.Errorf("cannot find header number for %s", hash)
+	}
 
-	// Leaving this commented out so that it can be used to skip
-	// the DB migration in development.
-	//return &MigrationResult{
-	//	TransitionHeight:    *num,
-	//	TransitionTimestamp: header.Time,
-	//	TransitionBlockHash: hash,
-	//}, nil
+	header := rawdb.ReadHeader(ldb, hash, *num)
+	log.Info("Read header from database", "number", *num)
+
+	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
+		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
+
+		return &MigrationResult{
+			TransitionHeight:    *num,
+			TransitionTimestamp: header.Time,
+			TransitionBlockHash: hash,
+		}, nil
+	}
+
+	if config.L2GenesisBlockBaseFeePerGas == nil {
+		return nil, errors.New("must configure L2 genesis block base fee per gas")
+	}
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
@@ -86,8 +103,8 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
-	log.Info("Starting to migrate withdrawals")
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy)
+	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
@@ -96,11 +113,10 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	log.Info("Starting to migrate ERC20 ETH")
 	addrs := migrationData.Addresses()
 	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit)
-	log.Info("Completed ERC20 ETH migration")
-
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
+	log.Info("Completed ERC20 ETH migration", "root", newRoot)
 
 	// Create the bedrock transition block
 	bedrockHeader := &types.Header{
@@ -116,18 +132,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
 		GasUsed:     0,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
-		Extra:       []byte("BEDROCK"),
+		Extra:       bedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},
 		BaseFee:     (*big.Int)(config.L2GenesisBlockBaseFeePerGas),
 	}
 
-	receipts, err := CreateReceipts(bedrockHeader, withdrawals, &config.L1CrossDomainMessengerProxy)
-	if err != nil {
-		return nil, err
-	}
-
-	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, receipts, trie.NewStackTrie(nil))
+	bedrockBlock := types.NewBlock(bedrockHeader, nil, nil, nil, trie.NewStackTrie(nil))
 
 	res := &MigrationResult{
 		TransitionHeight:    bedrockBlock.NumberU64(),
@@ -142,7 +153,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	rawdb.WriteTd(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), bedrockBlock.Difficulty())
 	rawdb.WriteBlock(ldb, bedrockBlock)
-	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), receipts)
+	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), nil)
 	rawdb.WriteCanonicalHash(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64())
 	rawdb.WriteHeadBlockHash(ldb, bedrockBlock.Hash())
 	rawdb.WriteHeadFastBlockHash(ldb, bedrockBlock.Hash())

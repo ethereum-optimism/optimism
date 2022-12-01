@@ -141,8 +141,8 @@ func main() {
 			}
 
 			chaindataPath := filepath.Join(ctx.String("db-path"), "geth", "chaindata")
-			ancientPath := filepath.Join(ctx.String("db-path"), "ancient")
-			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, int(1024), int(60), ancientPath, "", true)
+			ancientPath := filepath.Join(chaindataPath, "ancient")
+			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, int(1024), int(60), ancientPath, "", false)
 			if err != nil {
 				return err
 			}

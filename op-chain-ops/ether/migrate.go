@@ -1,6 +1,7 @@
 package ether
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -40,6 +41,10 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	storageSlotsToMigrate := make(map[common.Hash]int)
 	// Chain params to use for integrity checking.
 	params := ParamsByChainID[chainID]
+	if params == nil {
+		return common.Hash{}, fmt.Errorf("no chain params for %d", chainID)
+	}
+	log.Info("Chain params", "chain-id", chainID, "supply-delta", params.ExpectedSupplyDelta)
 
 	// Iterate over each address list, and read the addresses they
 	// contain into memory. Also calculate the storage slots for each
