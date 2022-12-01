@@ -27,3 +27,6 @@ To generate an abi-encoded fuzz case, pass in a mode via the `-m` flag as well a
 | `invalid_data_remainder`      | Generate an invalid test case where a random element of the proof has more bytes than the length designates within the RLP list encoding. |
 | `invalid_large_internal_hash` | Generate an invalid test case where a long proof element is incorrect for the root.                                                       |
 | `invalid_internal_node_hash`  | Generate an invalid test case where a small proof element is incorrect for the root.                                                      |
+| `prefixed_valid_key`          | Generate a valid test case with a key that has been given a random prefix                                                                 |
+| `empty_key`                   | Generate a valid test case with a proof of inclusion for an empty key.                                                                    |
+| `partial_proof`               | Generate an invalid test case with a partially correct proof                                                                              |

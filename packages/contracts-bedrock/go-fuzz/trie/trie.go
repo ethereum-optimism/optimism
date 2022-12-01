@@ -98,13 +98,16 @@ func FuzzTrie(variant string) {
 		rand.Read(b)
 		e, _ := rlp.EncodeToBytes(b)
 		testCase.Proof[len(testCase.Proof)-1] = append([]byte{0xc0 + 30}, e...)
+		break
 	case prefixedValidKey:
 		testCase = genTrieTestCase(false)
 
 		bytes := make([]byte, randRange(1, 16))
 		testCase.Key = append(bytes, testCase.Key...)
+		break
 	case emptyKey:
 		testCase = genTrieTestCase(true)
+		break
 	case partialProof:
 		testCase = genTrieTestCase(false)
 
@@ -116,6 +119,7 @@ func FuzzTrie(variant string) {
 		}
 
 		testCase.Proof = newProof
+		break
 	default:
 		log.Fatal("Invalid variant passed to trie fuzzer!")
 	}
