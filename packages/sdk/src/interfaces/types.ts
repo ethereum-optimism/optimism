@@ -204,6 +204,12 @@ export interface CrossChainMessage extends CoreCrossChainMessage {
 }
 
 /**
+ * Describes messages sent inside the L2ToL1MessagePasser on L2. Happens to be the same structure
+ * as the CoreCrossChainMessage so we'll reuse the type for now.
+ */
+export type LowLevelMessage = CoreCrossChainMessage
+
+/**
  * Describes a token withdrawal or deposit, along with the underlying raw cross chain message
  * behind the deposit or withdrawal.
  */
