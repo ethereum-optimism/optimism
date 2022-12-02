@@ -269,9 +269,8 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	return nil
 }
 
-// TODO: convert the input to this function
 // RollupConfig converts a DeployConfig to a rollup.Config
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
@@ -287,7 +286,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 			},
 			L2: eth.BlockID{
 				Hash:   l2GenesisBlockHash,
-				Number: 0,
+				Number: l2GenesisBlockNumber,
 			},
 			L2Time: l1StartBlock.Time(),
 			SystemConfig: eth.SystemConfig{

@@ -182,7 +182,7 @@ func main() {
 				return err
 			}
 
-			opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash)
+			opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash, res.TransitionHeight)
 			if err != nil {
 				return err
 			}
