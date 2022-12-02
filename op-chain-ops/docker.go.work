@@ -3,4 +3,5 @@ go 1.18
 use (
     ./op-bindings
     ./op-chain-ops
+    ./op-node
 )
