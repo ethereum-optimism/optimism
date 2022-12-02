@@ -277,109 +277,60 @@ export const getDeploymentAddress = async (
   return deployment.address
 }
 
-export const makeDictatorConfig = async (
-  hre: any,
-  controller: string,
-  finalOwner: string,
-  fresh: boolean
-): Promise<DictatorConfig> => {
-  return {
-    globalConfig: {
-      proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-      controller,
-      finalOwner,
-      addressManager: fresh
-        ? ethers.constants.AddressZero
-        : await getDeploymentAddress(hre, 'Lib_AddressManager'),
-    },
-    proxyAddressConfig: {
-      l2OutputOracleProxy: await getDeploymentAddress(
-        hre,
-        'L2OutputOracleProxy'
-      ),
-      optimismPortalProxy: await getDeploymentAddress(
-        hre,
-        'OptimismPortalProxy'
-      ),
-      l1CrossDomainMessengerProxy: await getDeploymentAddress(
-        hre,
-        fresh
-          ? 'L1CrossDomainMessengerProxy'
-          : 'Proxy__OVM_L1CrossDomainMessenger'
-      ),
-      l1StandardBridgeProxy: await getDeploymentAddress(
-        hre,
-        fresh ? 'L1StandardBridgeProxy' : 'Proxy__OVM_L1StandardBridge'
-      ),
-      optimismMintableERC20FactoryProxy: await getDeploymentAddress(
-        hre,
-        'OptimismMintableERC20FactoryProxy'
-      ),
-      l1ERC721BridgeProxy: await getDeploymentAddress(
-        hre,
-        'L1ERC721BridgeProxy'
-      ),
-      systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
-    },
-    implementationAddressConfig: {
-      l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
-      optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
-      l1CrossDomainMessengerImpl: await getDeploymentAddress(
-        hre,
-        'L1CrossDomainMessenger'
-      ),
-      l1StandardBridgeImpl: await getDeploymentAddress(hre, 'L1StandardBridge'),
-      optimismMintableERC20FactoryImpl: await getDeploymentAddress(
-        hre,
-        'OptimismMintableERC20Factory'
-      ),
-      l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
-      portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
-      systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
-    },
-    systemConfigConfig: {
-      owner: hre.deployConfig.systemConfigOwner,
-      overhead: hre.deployConfig.gasPriceOracleOverhead,
-      scalar: hre.deployConfig.gasPriceOracleDecimals,
-      batcherHash: hre.ethers.utils.hexZeroPad(
-        hre.deployConfig.batchSenderAddress,
-        32
-      ),
-      gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
-    },
+/**
+ * Utility for loading "critical" deployment configuration. This configuration can be undefined for
+ * testing but MUST NOT be undefined in production. We warn loudly if it is undefined.
+ *
+ * @param hre Hardhat runtime environment.
+ * @returns Critical deployment configuration.
+ */
+export const getCriticalDeployConfig = async (
+  hre: HardhatRuntimeEnvironment
+): Promise<{
+  controller: string
+  finalOwner: string
+  isLiveDeployer: boolean
+}> => {
+  const warn = (msg: string) => {
+    console.log(`WARNING!!!`)
+    console.log(`WARNING!!!`)
+    console.log(`WARNING!!!`)
+    console.log(`>>>> ${msg}`)
+    console.log(`WARNING!!!`)
+    console.log(`WARNING!!!`)
+    console.log(`WARNING!!!`)
   }
-}
 
-export const assertDictatorConfig = async (
-  dictator: Contract,
-  config: DictatorConfig
-) => {
-  const dictatorConfig = await dictator.config()
-  for (const [outerConfigKey, outerConfigValue] of Object.entries(config)) {
-    for (const [innerConfigKey, innerConfigValue] of Object.entries(
-      outerConfigValue
-    )) {
-      let have = dictatorConfig[outerConfigKey][innerConfigKey]
-      let want = innerConfigValue as any
+  const { deployer } = await hre.getNamedAccounts()
 
-      if (ethers.utils.isAddress(want)) {
-        want = want.toLowerCase()
-        have = have.toLowerCase()
-      } else if (typeof want === 'number') {
-        want = ethers.BigNumber.from(want)
-        have = ethers.BigNumber.from(have)
-        assert(
-          want.eq(have),
-          `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
-        )
-        return
-      }
-
-      assert(
-        want === have,
-        `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
+  let isLiveDeployer = false
+  let controller = hre.deployConfig.controller
+  if (controller === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      warn('No controlled address provided, ONLY FOR TESTING')
+      isLiveDeployer = true
+      controller = deployer
+    } else {
+      throw new Error(
+        `controller address MUST NOT be the deployer on live networks`
       )
     }
+  }
+
+  let finalOwner = hre.deployConfig.finalSystemOwner
+  if (finalOwner === ethers.constants.AddressZero) {
+    if (hre.network.config.live === false) {
+      warn('No final system owner provided, ONLY FOR TESTING')
+      finalOwner = deployer
+    } else {
+      throw new Error(`must specify the finalSystemOwner on live networks`)
+    }
+  }
+
+  return {
+    controller,
+    finalOwner,
+    isLiveDeployer,
   }
 }
 

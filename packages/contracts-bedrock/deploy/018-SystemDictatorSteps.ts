@@ -10,48 +10,13 @@ import '@nomiclabs/hardhat-ethers'
 import {
   assertContractVariable,
   getContractsFromArtifacts,
+  getCriticalDeployConfig,
   getDeploymentAddress,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
-
-  let isLiveDeployer = false
-  let controller = hre.deployConfig.controller
-  if (controller === ethers.constants.AddressZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A controller address was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-      console.log('using a live deployer')
-      isLiveDeployer = true
-      controller = deployer
-    } else {
-      throw new Error(
-        `controller address MUST NOT be the deployer on live networks`
-      )
-    }
-  }
-
-  let finalOwner = hre.deployConfig.finalSystemOwner
-  if (finalOwner === ethers.constants.AddressZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-      finalOwner = deployer
-    } else {
-      throw new Error(`must specify the finalSystemOwner on live networks`)
-    }
-  }
+  const { isLiveDeployer, finalOwner } = await getCriticalDeployConfig(hre)
 
   // Set up required contract references.
   const [
