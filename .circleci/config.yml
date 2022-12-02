@@ -830,6 +830,10 @@ workflows:
           size: 2xlarge
           requires:
             - bedrock-echidna-build
+      - bedrock-echidna-run:
+          echidna_target: metering
+          requires:
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
