@@ -11,15 +11,11 @@ import (
 
 	"github.com/urfave/cli"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 var Subcommands = cli.Commands{
@@ -71,7 +67,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			rollupConfig, err := makeRollupConfig(config, l1StartBlock, l2Genesis)
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2Genesis)
 			if err != nil {
 				return err
 			}
@@ -159,7 +155,7 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
-			rollupConfig, err := makeRollupConfig(config, l1StartBlock, l2Genesis)
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2Genesis)
 			if err != nil {
 				return err
 			}
@@ -173,45 +169,6 @@ var Subcommands = cli.Commands{
 			return writeGenesisFile(ctx.String("outfile.rollup"), rollupConfig)
 		},
 	},
-}
-
-func makeRollupConfig(config *genesis.DeployConfig, l1StartBlock *types.Block, l2Genesis *core.Genesis) (*rollup.Config, error) {
-	if config.OptimismPortalProxy == (common.Address{}) {
-		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
-	}
-	if config.SystemConfigProxy == (common.Address{}) {
-		return nil, errors.New("SystemConfigProxy cannot be address(0)")
-	}
-
-	return &rollup.Config{
-		Genesis: rollup.Genesis{
-			L1: eth.BlockID{
-				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.NumberU64(),
-			},
-			L2: eth.BlockID{
-				Hash:   l2Genesis.ToBlock().Hash(),
-				Number: 0,
-			},
-			L2Time: l1StartBlock.Time(),
-			SystemConfig: eth.SystemConfig{
-				BatcherAddr: config.BatchSenderAddress,
-				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleOverhead))),
-				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleScalar))),
-				GasLimit:    uint64(config.L2GenesisBlockGasLimit),
-			},
-		},
-		BlockTime:              config.L2BlockTime,
-		MaxSequencerDrift:      config.MaxSequencerDrift,
-		SeqWindowSize:          config.SequencerWindowSize,
-		ChannelTimeout:         config.ChannelTimeout,
-		L1ChainID:              new(big.Int).SetUint64(config.L1ChainID),
-		L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
-		P2PSequencerAddress:    config.P2PSequencerAddress,
-		BatchInboxAddress:      config.BatchInboxAddress,
-		DepositContractAddress: config.OptimismPortalProxy,
-		L1SystemConfigAddress:  config.SystemConfigProxy,
-	}, nil
 }
 
 func writeGenesisFile(outfile string, input interface{}) error {
