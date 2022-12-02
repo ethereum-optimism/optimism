@@ -5,6 +5,7 @@ import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
+import { Proxy } from "../universal/Proxy.sol";
 import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
@@ -135,6 +136,11 @@ contract MigrationSystemDictator is BaseSystemDictator {
 
         // Transfer ownership of the L1StandardBridge to the ProxyAdmin.
         L1ChugSplashProxy(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).setOwner(
+            address(config.globalConfig.proxyAdmin)
+        );
+
+        // Transfer ownership of the L1ERC721Bridge to the ProxyAdmin.
+        Proxy(payable(config.proxyAddressConfig.l1ERC721BridgeProxy)).changeAdmin(
             address(config.globalConfig.proxyAdmin)
         );
     }
@@ -271,6 +277,11 @@ contract MigrationSystemDictator is BaseSystemDictator {
 
             // Transfer ownership of the L1StandardBridge to the final owner.
             L1ChugSplashProxy(payable(config.proxyAddressConfig.l1StandardBridgeProxy)).setOwner(
+                address(config.globalConfig.finalOwner)
+            );
+
+            // Transfer ownership of the L1ERC721Bridge to the final owner.
+            Proxy(payable(config.proxyAddressConfig.l1ERC721BridgeProxy)).changeAdmin(
                 address(config.globalConfig.finalOwner)
             );
         }

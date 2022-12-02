@@ -2,40 +2,34 @@
   "l1ChainID": 900,
   "l2ChainID": 901,
   "l2BlockTime": 2,
-
   "maxSequencerDrift": 300,
   "sequencerWindowSize": 15,
   "channelTimeout": 40,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "batchInboxAddress": "0xff00000000000000000000000000000000000000",
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-
   "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
-
   "l2OutputOracleSubmissionInterval": 20,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65",
   "l2GenesisBlockCoinbase": "0x42000000000000000000000000000000000000f0",
   "l2GenesisBlockGasLimit": "0xE4E1C0",
-
   "l1BlockTime": 15,
   "cliqueSignerAddress": "0xca062b0fd91172d89bcd4bb084ac4e21972cc467",
-
   "baseFeeVaultRecipient": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "proxyAdminOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "l2CrossDomainMessengerOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
-
   "finalizationPeriodSeconds": 2,
-
   "deploymentWaitConfirmations": 1,
   "fundDevAccounts": true,
-
   "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "eip1559Denominator": 8,
-  "eip1559Elasticity": 2
+  "eip1559Elasticity": 2,
+  "l1GenesisBlockTimestamp": "0x638a4554",
+  "l1StartingBlockTag": "earliest"
 }
