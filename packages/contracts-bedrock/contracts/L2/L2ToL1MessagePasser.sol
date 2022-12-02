@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
+import { Encoding } from "../libraries/Encoding.sol";
 import { Burn } from "../libraries/Burn.sol";
 import { Semver } from "../universal/Semver.sol";
 
@@ -21,6 +22,11 @@ contract L2ToL1MessagePasser is Semver {
     uint256 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /**
+     * @notice Current message version identifier.
+     */
+    uint16 public constant MESSAGE_VERSION = 1;
+
+    /**
      * @notice Includes the message hashes for all withdrawals
      */
     mapping(bytes32 => bool) public sentMessages;
@@ -28,18 +34,18 @@ contract L2ToL1MessagePasser is Semver {
     /**
      * @notice A unique value hashed with each withdrawal.
      */
-    uint256 public nonce;
+    uint240 internal msgNonce;
 
     /**
      * @notice Emitted any time a withdrawal is initiated.
      *
-     * @param nonce    Unique value corresponding to each withdrawal.
-     * @param sender   The L2 account address which initiated the withdrawal.
-     * @param target   The L1 account address the call will be send to.
-     * @param value    The ETH value submitted for withdrawal, to be forwarded to the target.
-     * @param gasLimit The minimum amount of gas that must be provided when withdrawing on L1.
-     * @param data     The data to be forwarded to the target on L1.
-     * @param withdrawalHash     The hash of the withdrawal.
+     * @param nonce          Unique value corresponding to each withdrawal.
+     * @param sender         The L2 account address which initiated the withdrawal.
+     * @param target         The L1 account address the call will be send to.
+     * @param value          The ETH value submitted for withdrawal, to be forwarded to the target.
+     * @param gasLimit       The minimum amount of gas that must be provided when withdrawing.
+     * @param data           The data to be forwarded to the target on L1.
+     * @param withdrawalHash The hash of the withdrawal.
      */
     event MessagePassed(
         uint256 indexed nonce,
@@ -96,7 +102,7 @@ contract L2ToL1MessagePasser is Semver {
     ) public payable {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
-                nonce: nonce,
+                nonce: messageNonce(),
                 sender: msg.sender,
                 target: _target,
                 value: msg.value,
@@ -107,9 +113,29 @@ contract L2ToL1MessagePasser is Semver {
 
         sentMessages[withdrawalHash] = true;
 
-        emit MessagePassed(nonce, msg.sender, _target, msg.value, _gasLimit, _data, withdrawalHash);
+        emit MessagePassed(
+            messageNonce(),
+            msg.sender,
+            _target,
+            msg.value,
+            _gasLimit,
+            _data,
+            withdrawalHash
+        );
+
         unchecked {
-            ++nonce;
+            ++msgNonce;
         }
+    }
+
+    /**
+     * @notice Retrieves the next message nonce. Message version will be added to the upper two
+     *         bytes of the message nonce. Message version allows us to treat messages as having
+     *         different structures.
+     *
+     * @return Nonce of the next message to be sent, with added message version.
+     */
+    function messageNonce() public view returns (uint256) {
+        return Encoding.encodeVersionedNonce(msgNonce, MESSAGE_VERSION);
     }
 }

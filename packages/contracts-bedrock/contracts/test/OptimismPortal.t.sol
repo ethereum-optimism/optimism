@@ -814,7 +814,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
-        uint256 nonce = messagePasser.nonce();
+        uint256 nonce = messagePasser.messageNonce();
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
             nonce: nonce,
             sender: _sender,

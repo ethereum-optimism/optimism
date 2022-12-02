@@ -31,7 +31,7 @@
 /op-service     @protolambda @trianglesphere @mslipper
 
 # Ops
-/.circleci    @mslipper @zhwrd
+/.circleci    @mslipper @zhwrd @trianglesphere
 /.github      @mslipper @zhwrd
 /ops          @mslipper @zhwrd
 /ops-bedrock  @mslipper @zhwrd
