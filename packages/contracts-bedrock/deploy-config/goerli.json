@@ -33,6 +33,7 @@
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "proxyAdminOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "l2CrossDomainMessengerOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "l2GenesisBlockGasLimit": "0xE4E1C0"
