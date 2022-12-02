@@ -67,7 +67,7 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			rollupConfig, err := config.RollupConfig(l1StartBlock, l2Genesis)
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2Genesis.ToBlock().Hash())
 			if err != nil {
 				return err
 			}
@@ -155,7 +155,7 @@ var Subcommands = cli.Commands{
 				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
-			rollupConfig, err := config.RollupConfig(l1StartBlock, l2Genesis)
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2Genesis.ToBlock().Hash())
 			if err != nil {
 				return err
 			}

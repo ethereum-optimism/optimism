@@ -10,7 +10,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -270,8 +269,9 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	return nil
 }
 
+// TODO: convert the input to this function
 // RollupConfig converts a DeployConfig to a rollup.Config
-func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2Genesis *core.Genesis) (*rollup.Config, error) {
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
 	}
@@ -286,7 +286,7 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2Genesis *core.G
 				Number: l1StartBlock.NumberU64(),
 			},
 			L2: eth.BlockID{
-				Hash:   l2Genesis.ToBlock().Hash(),
+				Hash:   l2GenesisBlockHash,
 				Number: 0,
 			},
 			L2Time: l1StartBlock.Time(),

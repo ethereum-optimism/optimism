@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -90,6 +91,11 @@ func main() {
 				Usage: "LevelDB number of handles",
 				Value: 60,
 			},
+			cli.StringFlag{
+				Name:  "rollup-config-out",
+				Usage: "Path that op-node config will be written to disk",
+				Value: "rollup.json",
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			deployConfig := ctx.String("deploy-config")
@@ -171,7 +177,17 @@ func main() {
 
 			dryRun := ctx.Bool("dry-run")
 			noCheck := ctx.Bool("no-check")
-			if _, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck); err != nil {
+			res, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
+			if err != nil {
+				return err
+			}
+
+			opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash)
+			if err != nil {
+				return err
+			}
+
+			if err := writeJSON(ctx.String("rollup-config-out"), opNodeConfig); err != nil {
 				return err
 			}
 
@@ -182,4 +198,16 @@ func main() {
 	if err := app.Run(os.Args); err != nil {
 		log.Crit("error in migration", "err", err)
 	}
+}
+
+func writeJSON(outfile string, input interface{}) error {
+	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	return enc.Encode(input)
 }
