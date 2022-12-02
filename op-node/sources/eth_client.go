@@ -273,6 +273,7 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
 	var getProofResponse *eth.AccountResult
 	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, []common.Hash{}, blockTag)
+	s.log.Info("MMDBG eth_client GetProof", "err", err, "address", address, "blockTag", blockTag, "Response", getProofResponse)
 	if err == nil && getProofResponse == nil {
 		err = ethereum.NotFound
 	}

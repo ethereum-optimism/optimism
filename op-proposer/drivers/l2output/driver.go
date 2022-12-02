@@ -191,6 +191,7 @@ func (d *Driver) CraftTx(
 	opts.Nonce = nonce
 	opts.NoSend = true
 
+	log.Info("MMDBG CraftTx", "l1HN", l1Header.Number, "chk", nextCheckpointBlock, "l2OutputRoot", l2OutputRoot.String())
 	return d.l2ooContract.ProposeL2Output(opts, l2OutputRoot, nextCheckpointBlock, l1Header.Hash(), l1Header.Number)
 }
 
