@@ -10,7 +10,7 @@ contract Encoding_Test is CommonTest {
         _setUp();
     }
 
-    function test_nonceVersioning(uint240 _nonce, uint16 _version) external {
+    function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external {
         (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(
             Encoding.encodeVersionedNonce(_nonce, _version)
         );
@@ -18,7 +18,7 @@ contract Encoding_Test is CommonTest {
         assertEq(nonce, _nonce);
     }
 
-    function test_decodeVersionedNonce_differential(uint240 _nonce, uint16 _version) external {
+    function testDiff_decodeVersionedNonce_succeeds(uint240 _nonce, uint16 _version) external {
         uint256 nonce = uint256(Encoding.encodeVersionedNonce(_nonce, _version));
         (uint256 decodedNonce, uint256 decodedVersion) = ffi.decodeVersionedNonce(nonce);
 
@@ -27,7 +27,7 @@ contract Encoding_Test is CommonTest {
         assertEq(_nonce, uint240(decodedNonce));
     }
 
-    function test_encodeCrossDomainMessage_differential(
+    function testDiff_encodeCrossDomainMessage_succeeds(
         uint240 _nonce,
         uint8 _version,
         address _sender,
@@ -60,7 +60,7 @@ contract Encoding_Test is CommonTest {
         assertEq(encoding, _encoding);
     }
 
-    function test_encodeDepositTransaction_differential(
+    function testDiff_encodeDepositTransaction_succeeds(
         address _from,
         address _to,
         uint256 _mint,
