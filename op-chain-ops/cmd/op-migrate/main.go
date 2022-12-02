@@ -80,6 +80,16 @@ func main() {
 				Name:  "no-check",
 				Usage: "Do not perform sanity checks. This should only be used for testing",
 			},
+			cli.IntFlag{
+				Name:  "db-cache",
+				Usage: "LevelDB cache size in mb",
+				Value: 1024,
+			},
+			cli.IntFlag{
+				Name:  "db-handles",
+				Usage: "LevelDB number of handles",
+				Value: 60,
+			},
 		},
 		Action: func(ctx *cli.Context) error {
 			deployConfig := ctx.String("deploy-config")
@@ -140,9 +150,12 @@ func main() {
 				return err
 			}
 
+			dbCache := ctx.Int("db-cache")
+			dbHandles := ctx.Int("db-handles")
+
 			chaindataPath := filepath.Join(ctx.String("db-path"), "geth", "chaindata")
 			ancientPath := filepath.Join(chaindataPath, "ancient")
-			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, int(1024), int(60), ancientPath, "", false)
+			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
 			if err != nil {
 				return err
 			}
