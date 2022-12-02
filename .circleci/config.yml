@@ -593,13 +593,6 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Check if we should run
-          command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|op-chain-ops|sdk|.circleci)/" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
-      - run:
           name: Install latest golang
           command: |
             wget https://go.dev/dl/go1.19.linux-amd64.tar.gz

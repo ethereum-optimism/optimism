@@ -1383,7 +1383,7 @@ export class CrossChainMessenger {
     const messageSlot = ethers.utils.keccak256(
       ethers.utils.defaultAbiCoder.encode(
         ['bytes32', 'uint256'],
-        [hashLowLevelMessage(withdrawal)]
+        [hashLowLevelMessage(withdrawal), ethers.constants.HashZero]
       )
     )
 
