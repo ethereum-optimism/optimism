@@ -18,6 +18,8 @@ build_info = true
 build_info_path = 'artifacts/build-info'
 ffi = true
 fuzz_runs = 16
+no_match_contract = 'EchidnaFuzz'
+
 
 [profile.ci]
 fuzz_runs = 512
