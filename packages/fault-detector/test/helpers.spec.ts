@@ -92,30 +92,6 @@ describe('helpers', () => {
         ).to.eventually.be.rejectedWith('unable to find event for batch')
       })
     })
-
-    describe('when more than one event exists', () => {
-      beforeEach(async () => {
-        await StateCommitmentChain.appendStateBatch(
-          [hre.ethers.constants.HashZero],
-          0
-        )
-        await hre.ethers.provider.send('hardhat_setStorageAt', [
-          ChainStorageContainer.address,
-          '0x2',
-          hre.ethers.constants.HashZero,
-        ])
-        await StateCommitmentChain.appendStateBatch(
-          [hre.ethers.constants.HashZero],
-          0
-        )
-      })
-
-      it('should throw an error', async () => {
-        await expect(
-          findEventForStateBatch(StateCommitmentChain, 0)
-        ).to.eventually.be.rejectedWith('found too many events for batch')
-      })
-    })
   })
 
   describe('findFirstUnfinalizedIndex', () => {
