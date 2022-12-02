@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -339,11 +338,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		return storage, errors.New("block base fee not set")
 	}
 
-	// Set the initial L2ToL1MessagePasser nonce to
-	// `type(uint32).max` to prevent nonce collisions
-	// with historical withdrawals.
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
-		"nonce": math.MaxUint32,
+		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
 		"_initialized": 1,
