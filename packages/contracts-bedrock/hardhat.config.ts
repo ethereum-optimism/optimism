@@ -1,5 +1,6 @@
 import { ethers } from 'ethers'
 import { HardhatUserConfig } from 'hardhat/config'
+import dotenv from 'dotenv'
 
 // Hardhat plugins
 import '@eth-optimism/hardhat-deploy-config'
@@ -13,10 +14,8 @@ import './tasks'
 // Deploy configuration
 import { deployConfigSpec } from './src/deploy-config'
 
-let bytecodeHash = 'none'
-if (process.env.FOUNDRY_PROFILE === 'echidna') {
-  bytecodeHash = 'ipfs'
-}
+// Load environment variables
+dotenv.config()
 
 const config: HardhatUserConfig = {
   networks: {
@@ -57,6 +56,12 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
       live: false,
     },
+    'goerli-forked': {
+      chainId: 5,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
   },
   foundry: {
     buildInfo: true,
@@ -91,6 +96,10 @@ const config: HardhatUserConfig = {
         '../contracts/deployments/mainnet',
         '../contracts-periphery/deployments/mainnet',
       ],
+      'goerli-forked': [
+        '../contracts/deployments/goerli',
+        '../contracts-periphery/deployments/goerli',
+      ],
     },
   },
   solidity: {
@@ -110,7 +119,8 @@ const config: HardhatUserConfig = {
     ],
     settings: {
       metadata: {
-        bytecodeHash,
+        bytecodeHash:
+          process.env.FOUNDRY_PROFILE === 'echidna' ? 'ipfs' : 'none',
       },
       outputSelection: {
         '*': {
