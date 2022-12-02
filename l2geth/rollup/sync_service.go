@@ -403,6 +403,7 @@ func (s *SyncService) IsSyncing() bool {
 // Stop will close the open channels and cancel the goroutines
 // started by this service.
 func (s *SyncService) Stop() error {
+	log.Info("Stopping sync service")
 	s.scope.Close()
 	s.chainHeadSub.Unsubscribe()
 	close(s.chainHeadCh)
@@ -418,9 +419,15 @@ func (s *SyncService) VerifierLoop() {
 	log.Info("Starting Verifier Loop", "poll-interval", s.pollInterval, "timestamp-refresh-threshold", s.timestampRefreshThreshold)
 	t := time.NewTicker(s.pollInterval)
 	defer t.Stop()
-	for ; true; <-t.C {
-		if err := s.verify(); err != nil {
-			log.Error("Could not verify", "error", err)
+
+	for {
+		select {
+		case <-t.C:
+			if err := s.verify(); err != nil {
+				log.Error("Could not verify", "error", err)
+			}
+		case <-s.ctx.Done():
+			return
 		}
 	}
 }
