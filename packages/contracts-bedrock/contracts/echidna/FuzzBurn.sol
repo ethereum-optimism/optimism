@@ -1,8 +1,9 @@
 pragma solidity 0.8.15;
 
 import { Burn } from "../libraries/Burn.sol";
+import { StdUtils } from "forge-std/Test.sol";
 
-contract EchidnaFuzzBurn {
+contract EchidnaFuzzBurn is StdUtils {
     bool failedEthBurn;
     bool failedGasBurn;
 
@@ -13,14 +14,16 @@ contract EchidnaFuzzBurn {
     function testBurn(uint256 _value) public {
         // cache the contract's eth balance
         uint256 preBurnBalance = address(this).balance;
+        uint256 value = bound(_value, 0, preBurnBalance);
 
         // execute a burn of _value eth
-        // (may way to add guardrails to this value rather than a truly unbounded uint256)
-        Burn.eth(_value);
+        Burn.eth(value);
 
-        // check that exactly _value eth was transfered from the contract
-        if (address(this).balance != preBurnBalance - _value) {
-            failedEthBurn = true;
+        // check that exactly value eth was transfered from the contract
+        unchecked {
+            if (address(this).balance != preBurnBalance - value) {
+                failedEthBurn = true;
+            }
         }
     }
 
@@ -30,18 +33,24 @@ contract EchidnaFuzzBurn {
      * by the library
      */
     function testGas(uint256 _value) public {
+        // cap the value to the max resource limit
+        uint256 MAX_RESOURCE_LIMIT = 8_000_000;
+        uint256 value = bound(_value, 0, MAX_RESOURCE_LIMIT);
+
         // cache the contract's current remaining gas
         uint256 preBurnGas = gasleft();
 
         // execute the gas burn
-        Burn.gas(_value);
+        Burn.gas(value);
 
         // cache the remaining gas post burn
         uint256 postBurnGas = gasleft();
 
-        // check that at least _value gas was burnt
-        if (postBurnGas > preBurnGas - _value) {
-            failedGasBurn = true;
+        // check that at least value gas was burnt (and that there was no underflow)
+        unchecked {
+            if (postBurnGas - preBurnGas > value || preBurnGas - value > preBurnGas) {
+                failedGasBurn = true;
+            }
         }
     }
 
