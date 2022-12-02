@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: op-geth-env
+data:
+  OP_GETH_GENESIS_URL: "https://storage.googleapis.com/bedrock-goerli-regenesis-data/beta-1/genesis.json"
+  OP_GETH_SEQUENCER_HTTP: "https://bedrock-beta-1-sequencer.optimism.io"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: op-node-env
+data:
+  # Configure some static peers to ease discovery.
+  OP_NODE_P2P_STATIC: "/ip4/34.136.59.166/tcp/9003/p2p/16Uiu2HAmG5kAdZPDtaiKk6y17XVXgSGwNLqeNJnicTRomP3kkGiX,/ip4/34.171.219.91/tcp/9003/p2p/16Uiu2HAmJoNKmpmNney7KDmQChm2kX2rhaZJ8zA3tq1Sizg6ZVyU"
+
+  # Define which network should be configured on the op-node.
+  OP_NODE_NETWORK: "beta-1"

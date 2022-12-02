@@ -1,0 +1,11 @@
+resources:
+  - config.yaml
+
+components:
+  - ../../components/node
+
+images:
+  - name: ethereumoptimism/op-geth
+    newTag: v0.1.0-beta.1
+  - name: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node
+    newTag: v0.1.0-beta.1

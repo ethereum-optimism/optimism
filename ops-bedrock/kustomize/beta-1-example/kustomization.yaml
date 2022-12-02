@@ -1,0 +1,14 @@
+resources:
+  - namespace.yaml
+  - ../overlays/beta-1-replica
+
+configMapGenerator:
+  - name: op-node-config
+    files:
+      - jwt-secret.txt
+      - p2p-node-key.txt
+  - name: op-geth-config
+    files:
+      - jwt-secret.txt
+
+namespace: beta-1-example-deployment

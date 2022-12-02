@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: op-node
+  labels:
+    app: op-node
+spec:
+  clusterIP: None
+  selector:
+    app: op-node
+  ports:
+    - port: 9545
+      name: rpc
+    # include the P2P port here too in case we want to peer
+    # with other pods within the cluster
+    - port: 9003
+      name: p2p
+    - port: 7300
+      name: metrics

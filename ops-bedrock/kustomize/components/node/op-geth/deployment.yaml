@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: op-geth
+  labels:
+    app: op-geth
+spec:
+  serviceName: op-geth
+  replicas: 1
+  selector:
+    matchLabels:
+      app: op-geth
+  template:
+    metadata:
+      labels:
+        app: op-geth
+    spec:
+      terminationGracePeriodSeconds: 10
+      restartPolicy: Always
+      initContainers:
+        - name: op-geth-init
+          image: ethereumoptimism/op-geth
+          imagePullPolicy: Always
+          command:
+            - sh
+            - /etc/op-geth-scripts/init.sh
+          envFrom:
+            - configMapRef:
+                name: op-geth-env
+          volumeMounts:
+            - mountPath: /etc/op-geth
+              name: op-geth-config
+            - mountPath: /etc/op-geth-scripts
+              name: op-geth-scripts
+            - mountPath: /db
+              name: datadir
+      containers:
+        - name: op-geth
+          image: ethereumoptimism/op-geth
+          imagePullPolicy: Always
+          command:
+            - sh
+            - /etc/op-geth-scripts/entrypoint.sh
+          envFrom:
+            - configMapRef:
+                name: op-geth-env
+          volumeMounts:
+            - mountPath: /etc/op-geth
+              name: op-geth-config
+            - mountPath: /etc/op-geth-scripts
+              name: op-geth-scripts
+            - mountPath: /db
+              name: datadir
+          ports:
+            - containerPort: 8545
+              name: rpc
+            - containerPort: 8546
+              name: ws
+            - containerPort: 8551
+              name: engine
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - /etc/op-geth-scripts/liveness-probe.sh
+                - geth
+      volumes:
+        - name: op-geth-config
+          configMap:
+            name: op-geth-config
+        - name: op-geth-scripts
+          configMap:
+            name: op-geth-scripts
+        - name: datadir
+          persistentVolumeClaim:
+            claimName: op-geth

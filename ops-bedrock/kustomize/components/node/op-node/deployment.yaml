@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: op-node
+  labels:
+    app: op-node
+spec:
+  serviceName: op-node
+  replicas: 1
+  selector:
+    matchLabels:
+      app: op-node
+  template:
+    metadata:
+      labels:
+        app: op-node
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: op-node
+          image: us-central1-docker.pkg.dev/bedrock-goerli-development/images/op-node
+          imagePullPolicy: Always
+          command:
+            - op-node
+          env:
+            - name: OP_NODE_L2_ENGINE_RPC
+              value: ws://op-geth:8551
+            - name: OP_NODE_L2_ETH_RPC
+              value: ws://op-geth:8546
+          envFrom:
+            - configMapRef:
+                name: op-node-base-env
+            - configMapRef:
+                name: op-node-env
+          volumeMounts:
+            - mountPath: /etc/op-node
+              name: op-node-config
+          ports:
+            - containerPort: 9003
+              name: p2p
+            - containerPort: 9545
+              name: rpc
+            - containerPort: 7300
+              name: metrics
+          livenessProbe:
+            httpGet:
+              port: rpc
+              path: /healthz
+            initialDelaySeconds: 60
+          readinessProbe:
+            httpGet:
+              port: rpc
+              path: /healthz
+            initialDelaySeconds: 60
+      volumes:
+        - name: op-node-config
+          configMap:
+            name: op-node-config
