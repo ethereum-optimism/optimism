@@ -817,6 +817,10 @@ workflows:
           echidna_target: aliasing
           requires:
             - bedrock-echidna-build
+      - bedrock-echidna-run:
+          echidna_target: burn
+          requires:
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
