@@ -33,6 +33,7 @@
   "deploymentWaitConfirmations": 1,
   "fundDevAccounts": true,
 
+  "l2GenesisBlockBaseFeePerGas": 1000000000,
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "eip1559Denominator": 8,
