@@ -71,7 +71,7 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
 	// Owner of the ProxyAdmin predeploy
-	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
+	FinalSystemOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the L1CrossDomainMessenger predeploy
 	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
@@ -149,8 +149,8 @@ func (d *DeployConfig) Check() error {
 	if d.SystemConfigOwner == (common.Address{}) {
 		return fmt.Errorf("%w: SystemConfigOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.ProxyAdminOwner == (common.Address{}) {
-		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.FinalSystemOwner == (common.Address{}) {
+		return fmt.Errorf("%w: FinalSystemOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L2CrossDomainMessengerOwner == (common.Address{}) {
 		return fmt.Errorf("%w: L2CrossDomainMessengerOwner cannot be address(0)", ErrInvalidDeployConfig)
@@ -419,7 +419,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"_owner": common.Address{},
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
-		"_owner": config.ProxyAdminOwner,
+		"_owner": config.FinalSystemOwner,
 	}
 	return storage, nil
 }
