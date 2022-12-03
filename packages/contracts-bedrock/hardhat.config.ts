@@ -19,6 +19,9 @@ dotenv.config()
 
 const config: HardhatUserConfig = {
   networks: {
+    hardhat: {
+      live: false,
+    },
     devnetL1: {
       live: false,
       url: 'http://localhost:8545',
