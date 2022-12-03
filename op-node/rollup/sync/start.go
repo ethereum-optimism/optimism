@@ -149,6 +149,10 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			}
 			// Check L1 comparison against L1 Genesis data, to make sure the L1 data is from the correct chain, instead of attempting sync with different L1 source.
 			if !ahead && l1Block.Hash != cfg.Genesis.L1.Hash {
+				fmt.Println(l1Block.Hash)
+				fmt.Println(l1Block.Time)
+				fmt.Println(l1Block.ParentHash)
+				fmt.Println(l1Block.Number)
 				return nil, fmt.Errorf("%w L1: genesis: %s, got %s", WrongChainErr, cfg.Genesis.L1, l1Block)
 			}
 		}
