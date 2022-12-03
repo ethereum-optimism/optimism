@@ -148,7 +148,7 @@ func main() {
 			tag := config.L1StartingBlockTag
 			if tag.BlockNumber != nil {
 				block, err = l1Client.BlockByNumber(context.Background(), big.NewInt(tag.BlockNumber.Int64()))
-			} else if tag.BlockHash == nil {
+			} else if tag.BlockHash != nil {
 				block, err = l1Client.BlockByHash(context.Background(), *tag.BlockHash)
 			} else {
 				return fmt.Errorf("invalid l1StartingBlockTag in deploy config: %v", tag)
