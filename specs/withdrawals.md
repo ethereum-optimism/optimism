@@ -69,7 +69,7 @@ This is a very simple contract that stores the a hash of the withdrawal data.
    prevent it from being re-proven. Note that the withdrawal can be proven more than once if the corresponding
    output root changes.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
-   to challenge its integrity.
+   to challenge the integrity of the corresponding output root.
 1. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the
    `OptimismPortal` contract. Again, the relayer need not be the same entity which initiated the withdrawal on L2.
 1. The `OptimismPortal` contract receives the withdrawal transaction data and verifies that the withdrawal has
