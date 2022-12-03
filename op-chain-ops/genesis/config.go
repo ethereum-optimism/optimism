@@ -71,7 +71,7 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
 	// Owner of the ProxyAdmin predeploy
-	FinalSystemOwner common.Address `json:"proxyAdminOwner"`
+	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
