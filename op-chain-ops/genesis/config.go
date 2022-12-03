@@ -247,10 +247,10 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 
 	if d.SystemConfigProxy == (common.Address{}) {
 		systemConfigProxyDeployment, err := hh.GetDeployment("SystemConfigProxy")
-		if err == nil {
-			d.SystemConfigProxy = systemConfigProxyDeployment.Address
+		if err != nil {
+			return err
 		}
-		//d.SystemConfigProxy = systemConfigProxyDeployment.Address
+		d.SystemConfigProxy = systemConfigProxyDeployment.Address
 	}
 
 	if d.OptimismPortalProxy == (common.Address{}) {
@@ -261,6 +261,11 @@ func (d *DeployConfig) GetDeployedAddresses(hh *hardhat.Hardhat) error {
 		d.OptimismPortalProxy = optimismPortalProxyDeployment.Address
 	}
 	// SYSCOIN
+	BatchInboxDeployment, err := hh.GetDeployment("BatchInbox")
+	if err != nil {
+		return err
+	}
+	d.BatchInboxAddress = BatchInboxDeployment.Address
 	if d.L2OutputOracleProxy == (common.Address{}) {
 		L2OutputOracleProxyDeployment, err := hh.GetDeployment("L2OutputOracleProxy")
 		if err != nil {
