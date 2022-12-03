@@ -36,5 +36,8 @@
   "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
-  "l2GenesisBlockGasLimit": "0xE4E1C0"
+  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 10
 }

@@ -115,7 +115,6 @@ def main():
     run_command(['docker-compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=ops_bedrock_dir, env={
         'PWD': ops_bedrock_dir,
         'L2OO_ADDRESS': addresses['L2OutputOracleProxy'],
-        'SEQUENCER_GENESIS_HASH': rollup_config['genesis']['l2']['hash'],
         'SEQUENCER_BATCH_INBOX_ADDRESS': rollup_config['batch_inbox_address']
     })
 
