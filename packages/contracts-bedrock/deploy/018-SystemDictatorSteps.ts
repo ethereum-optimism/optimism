@@ -68,6 +68,7 @@ const deployFn: DeployFunction = async (hre) => {
     L1ERC721BridgeProxy,
     L1ERC721BridgeProxyWithSigner,
     L1ERC721Bridge,
+    BatchInbox,
   ] = await getContractsFromArtifacts(hre, [
     {
       name: 'SystemDictator',
@@ -123,6 +124,12 @@ const deployFn: DeployFunction = async (hre) => {
     {
       name: 'L1ERC721BridgeProxy',
       iface: 'L1ERC721Bridge',
+      signerOrProvider: deployer,
+    },
+    // SYSCOIN
+    {
+      name: 'BatchInboxProxy',
+      iface: 'BatchInbox',
       signerOrProvider: deployer,
     },
   ])
@@ -324,6 +331,17 @@ const deployFn: DeployFunction = async (hre) => {
         L2OutputOracle,
         'latestBlockNumber',
         hre.deployConfig.l2OutputOracleStartingBlockNumber
+      )
+      // Check BatchInbox was initialized properly.
+      await assertContractVariable(
+        BatchInbox,
+        'proposer',
+        hre.deployConfig.batchSenderAddress
+      )
+      await assertContractVariable(
+        BatchInbox,
+        'owner',
+        hre.deployConfig.batchInboxAddress
       )
 
       // Check OptimismPortal was initialized properly.

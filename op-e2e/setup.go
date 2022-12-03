@@ -291,6 +291,8 @@ func (cfg SystemConfig) Start() (*System, error) {
 			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
+			// SYSCOIN
+			L2OutputOracleAddress:  cfg.DeployConfig.L2OutputOracleProxy,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 		}
 	}

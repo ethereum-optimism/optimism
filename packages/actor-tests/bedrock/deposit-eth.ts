@@ -57,8 +57,6 @@ actor('Depositor', () => {
             L1CrossDomainMessenger: contracts.L1CrossDomainMessengerProxy,
             L2OutputOracle: contracts.L2OutputOracleProxy,
             OptimismPortal: contracts.OptimismPortalProxy,
-            // SYSCOIN
-            BatchInbox: contracts.BatchInboxProxy,
           },
         },
         bedrock: true,
