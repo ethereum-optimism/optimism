@@ -60,6 +60,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		)
 	}
 
+	// Ensure that the starting timestamp is safe
+	if config.L2OutputOracleStartingTimestamp <= 0 {
+		return nil, fmt.Errorf(
+			"L2 output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
+		)
+	}
+
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
 	})
