@@ -2,6 +2,7 @@ package sources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -133,6 +134,11 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id interface{
 	if header == nil {
 		return nil, ethereum.NotFound
 	}
+
+	fmt.Println("raw")
+	j, _ := json.Marshal(header)
+	fmt.Println(string(j))
+
 	info, err := header.Info(s.trustRPC, s.mustBePostMerge)
 	if err != nil {
 		return nil, err
