@@ -581,7 +581,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2004:2022.07.1
+      image: ubuntu-2204:2022.10.2
       docker_layer_caching: true
     parameters:
       deploy:
