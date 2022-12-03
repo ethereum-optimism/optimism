@@ -6,7 +6,8 @@ DATADIR=/home/boba/datadir
 COMMON_FLAGS=" \
   --chain dev \
   --datadir /home/boba/datadir \
-  --verbosity 4 \
+  --log.console.verbosity dbug \
+  --externalcl \
   "
 
 ERIGON_FLAGS=" \
