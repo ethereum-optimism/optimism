@@ -72,8 +72,6 @@ type DeployConfig struct {
 
 	// Owner of the ProxyAdmin predeploy
 	FinalSystemOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the L1CrossDomainMessenger predeploy
-	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
@@ -151,9 +149,6 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.FinalSystemOwner == (common.Address{}) {
 		return fmt.Errorf("%w: FinalSystemOwner cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L2CrossDomainMessengerOwner == (common.Address{}) {
-		return fmt.Errorf("%w: L2CrossDomainMessengerOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.BaseFeeVaultRecipient == (common.Address{}) {
 		log.Warn("BaseFeeVaultRecipient is address(0)")
@@ -385,7 +380,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
 		"_initialized": 1,
-		"_owner":       config.L2CrossDomainMessengerOwner,
+		"_owner":       config.FinalSystemOwner,
 		// re-entrency lock
 		"_status":          1,
 		"_initializing":    false,
