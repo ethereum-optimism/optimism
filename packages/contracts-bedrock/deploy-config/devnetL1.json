@@ -21,7 +21,7 @@
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "proxyAdminOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
-  "l2CrossDomainMessengerOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
+  "finalSystemOwner": "0xBcd4042DE499D14e55001CcbB24a551F3b954096",
   "finalizationPeriodSeconds": 2,
   "deploymentWaitConfirmations": 1,
   "fundDevAccounts": true,
