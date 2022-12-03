@@ -207,13 +207,13 @@ These guidelines are also encoded in a script which can be run with:
 ts-node scripts/forge-test-names.ts
 ```
 
-*Note: This is a work in progress, not all test files are compliant with these guidelines.*
+_Note: This is a work in progress, not all test files are compliant with these guidelines._
 
 #### Organizing Principles
 
 - Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
 - Every non-trivial state changing function should have a separate contract for happy and sad path
-   tests. This helps to make it very obvious where there are not yet sad path tests.
+  tests. This helps to make it very obvious where there are not yet sad path tests.
 - Simpler functions like getters and setters are grouped together into test contracts.
 
 #### Test function naming convention
