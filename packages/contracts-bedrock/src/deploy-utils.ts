@@ -19,6 +19,7 @@ export interface DictatorConfig {
   proxyAddressConfig: {
     l2OutputOracleProxy: string
     optimismPortalProxy: string
+    // SYSCOIN
     batchInboxProxy: string
     l1CrossDomainMessengerProxy: string
     l1StandardBridgeProxy: string
@@ -29,6 +30,7 @@ export interface DictatorConfig {
   implementationAddressConfig: {
     l2OutputOracleImpl: string
     optimismPortalImpl: string
+    // SYSCOIN
     batchInboxImpl: string
     l1CrossDomainMessengerImpl: string
     l1StandardBridgeImpl: string
@@ -37,6 +39,7 @@ export interface DictatorConfig {
     portalSenderImpl: string
     systemConfigImpl: string
   }
+  // SYSCOIN
   batchInboxConfig: {
     batchInboxProposer: string
     batchInboxOwner: string
@@ -324,10 +327,8 @@ export const makeDictatorConfig = async (
         'L1ERC721BridgeProxy'
       ),
       systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
-      batchInboxProxy: await getDeploymentAddress(
-        hre,
-        'BatchInboxProxy'
-      ),
+      // SYSCOIN
+      batchInboxProxy: await getDeploymentAddress(hre,'BatchInboxProxy'),
     },
     implementationAddressConfig: {
       l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
@@ -346,6 +347,7 @@ export const makeDictatorConfig = async (
       portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
     },
+    // SYSCOIN
     batchInboxConfig: {
       batchInboxProposer: hre.deployConfig.batchSenderAddress,
       batchInboxOwner: hre.deployConfig.batchInboxAddress,

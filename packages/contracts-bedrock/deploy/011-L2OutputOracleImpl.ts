@@ -1,5 +1,6 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
+import '@nomiclabs/hardhat-ethers'
 
 import {
   assertContractVariable,
@@ -7,45 +8,42 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const batcherHash = hre.ethers.utils.hexZeroPad(
-    hre.deployConfig.batchSenderAddress,
-    32
-  )
   await deployAndVerifyAndThen({
     hre,
-    name: 'SystemConfig',
+    name: 'L2OutputOracle',
     args: [
-      hre.deployConfig.systemConfigOwner,
-      hre.deployConfig.gasPriceOracleOverhead,
-      hre.deployConfig.gasPriceOracleScalar,
-      batcherHash,
-      hre.deployConfig.l2GenesisBlockGasLimit,
+      hre.deployConfig.l2OutputOracleSubmissionInterval,
+      hre.deployConfig.l2BlockTime,
+      0,
+      0,
+      hre.deployConfig.l2OutputOracleProposer,
+      hre.deployConfig.l2OutputOracleChallenger,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'owner',
-        hre.deployConfig.systemConfigOwner
+        'SUBMISSION_INTERVAL',
+        hre.deployConfig.l2OutputOracleSubmissionInterval
       )
       await assertContractVariable(
         contract,
-        'overhead',
-        hre.deployConfig.gasPriceOracleOverhead
+        'L2_BLOCK_TIME',
+        hre.deployConfig.l2BlockTime
       )
       await assertContractVariable(
         contract,
-        'scalar',
-        hre.deployConfig.gasPriceOracleScalar
+        'PROPOSER',
+        hre.deployConfig.l2OutputOracleProposer
       )
       await assertContractVariable(
         contract,
-        'batcherHash',
-        batcherHash.toLowerCase()
+        'CHALLENGER',
+        hre.deployConfig.l2OutputOracleChallenger
       )
     },
   })
 }
 
-deployFn.tags = ['SystemConfigImpl', 'fresh', 'migration']
+deployFn.tags = ['L2OutputOracleImpl']
 
 export default deployFn

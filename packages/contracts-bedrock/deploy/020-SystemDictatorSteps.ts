@@ -68,6 +68,7 @@ const deployFn: DeployFunction = async (hre) => {
     L1ERC721BridgeProxy,
     L1ERC721BridgeProxyWithSigner,
     L1ERC721Bridge,
+    // SYSCOIN
     BatchInbox,
   ] = await getContractsFromArtifacts(hre, [
     {
@@ -332,7 +333,7 @@ const deployFn: DeployFunction = async (hre) => {
         'latestBlockNumber',
         hre.deployConfig.l2OutputOracleStartingBlockNumber
       )
-      // Check BatchInbox was initialized properly.
+      // SYSCOIN Check BatchInbox was initialized properly.
       await assertContractVariable(
         BatchInbox,
         'proposer',
@@ -343,7 +344,6 @@ const deployFn: DeployFunction = async (hre) => {
         'owner',
         hre.deployConfig.batchInboxAddress
       )
-
       // Check OptimismPortal was initialized properly.
       await assertContractVariable(
         OptimismPortal,

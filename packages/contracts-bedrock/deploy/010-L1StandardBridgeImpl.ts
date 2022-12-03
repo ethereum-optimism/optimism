@@ -1,6 +1,6 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
-import '@eth-optimism/hardhat-deploy-config'
 
+import { predeploys } from '../src'
 import {
   assertContractVariable,
   deployAndVerifyAndThen,
@@ -8,32 +8,30 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const L2OutputOracleProxy = await getContractFromArtifact(
+  const L1CrossDomainMessengerProxy = await getContractFromArtifact(
     hre,
-    'L2OutputOracleProxy'
+    'Proxy__OVM_L1CrossDomainMessenger'
   )
+
   await deployAndVerifyAndThen({
     hre,
-    name: 'OptimismPortal',
-    args: [
-      L2OutputOracleProxy.address,
-      hre.deployConfig.finalizationPeriodSeconds,
-    ],
+    name: 'L1StandardBridge',
+    args: [L1CrossDomainMessengerProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
-        'L2_ORACLE',
-        L2OutputOracleProxy.address
+        'MESSENGER',
+        L1CrossDomainMessengerProxy.address
       )
       await assertContractVariable(
         contract,
-        'FINALIZATION_PERIOD_SECONDS',
-        hre.deployConfig.finalizationPeriodSeconds
+        'OTHER_BRIDGE',
+        predeploys.L2StandardBridge
       )
     },
   })
 }
 
-deployFn.tags = ['OptimismPortalImpl', 'fresh', 'migration']
+deployFn.tags = ['L1StandardBridgeImpl']
 
 export default deployFn

@@ -14,6 +14,8 @@ import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+// SYSCOIN
+import { BatchInbox } from "../L1/BatchInbox.sol";
 
 /**
  * @title SystemDictator
@@ -43,6 +45,8 @@ contract SystemDictator is Ownable {
         address optimismMintableERC20FactoryProxy;
         address l1ERC721BridgeProxy;
         address systemConfigProxy;
+        // SYSCOIN
+        address batchInboxProxy;
     }
 
     /**
@@ -57,8 +61,14 @@ contract SystemDictator is Ownable {
         L1ERC721Bridge l1ERC721BridgeImpl;
         PortalSender portalSenderImpl;
         SystemConfig systemConfigImpl;
+        // SYSCOIN
+        BatchInbox batchInboxImpl;
     }
-
+    // SYSCOIN
+    struct BatchInboxConfig {
+        address batchInboxProposer;
+        address batchInboxOwner;
+    }
     /**
      * @notice Dynamic L2OutputOracle config.
      */
@@ -86,6 +96,8 @@ contract SystemDictator is Ownable {
         ProxyAddressConfig proxyAddressConfig;
         ImplementationAddressConfig implementationAddressConfig;
         SystemConfigConfig systemConfigConfig;
+        // SYSCOIN
+        BatchInboxConfig batchInboxConfig;
     }
 
     /**
@@ -277,6 +289,19 @@ contract SystemDictator is Ownable {
                 (
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
                     l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp
+                )
+            )
+        );
+
+        // SYSCOIN Upgrade and initialize the BatchInbox.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.batchInboxProxy),
+            address(config.implementationAddressConfig.batchInboxImpl),
+            abi.encodeCall(
+                BatchInbox.initialize,
+                (
+                    config.batchInboxConfig.batchInboxProposer,
+                    config.batchInboxConfig.batchInboxOwner
                 )
             )
         );
