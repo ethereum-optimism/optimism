@@ -3,9 +3,8 @@ pragma solidity 0.8.15;
 import { Burn } from "../libraries/Burn.sol";
 import { StdUtils } from "forge-std/Test.sol";
 
-contract EchidnaFuzzBurn is StdUtils {
+contract EchidnaFuzzBurnEth is StdUtils {
     bool failedEthBurn;
-    bool failedGasBurn;
 
     /**
      * @notice Takes an integer amount of eth to burn through the Burn library and
@@ -26,6 +25,15 @@ contract EchidnaFuzzBurn is StdUtils {
             }
         }
     }
+
+    function echidna_burn_eth() public view returns (bool) {
+        // ASSERTION: The amount burned should always match the amount passed exactly
+        return !failedEthBurn;
+    }
+}
+
+contract EchidnaFuzzBurnGas is StdUtils {
+    bool failedGasBurn;
 
     /**
      * @notice Takes an integer amount of gas to burn through the Burn library and
@@ -52,11 +60,6 @@ contract EchidnaFuzzBurn is StdUtils {
                 failedGasBurn = true;
             }
         }
-    }
-
-    function echidna_burn_eth() public view returns (bool) {
-        // ASSERTION: The amount burned should always match the amount passed exactly
-        return !failedEthBurn;
     }
 
     function echidna_burn_gas() public view returns (bool) {

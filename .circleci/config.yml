@@ -818,7 +818,11 @@ workflows:
           requires:
             - bedrock-echidna-build
       - bedrock-echidna-run:
-          echidna_target: burn
+          echidna_target: "burn:eth"
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          echidna_target: "burn:gas"
           requires:
             - bedrock-echidna-build
       - op-bindings-build:
