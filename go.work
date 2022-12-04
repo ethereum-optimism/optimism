@@ -13,6 +13,7 @@ use (
 	./op-chain-ops
 	./op-e2e
 	./op-exporter
+	./op-heartbeat
 	./op-node
 	./op-proposer
 	./op-service
