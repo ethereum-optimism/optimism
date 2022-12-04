@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,10 +35,6 @@ func main() {
 				Name:  "l1-rpc-url",
 				Value: "http://127.0.0.1:8545",
 				Usage: "RPC URL for an L1 Node",
-			},
-			&cli.Uint64Flag{
-				Name:  "starting-l1-block-number",
-				Usage: "L1 block number to build the L2 genesis from",
 			},
 			&cli.StringFlag{
 				Name:  "ovm-addresses",
@@ -145,13 +144,16 @@ func main() {
 			if err != nil {
 				return err
 			}
-			var blockNumber *big.Int
-			bnum := ctx.Uint64("starting-l1-block-number")
-			if bnum != 0 {
-				blockNumber = new(big.Int).SetUint64(bnum)
-			}
 
-			block, err := l1Client.BlockByNumber(context.Background(), blockNumber)
+			var block *types.Block
+			tag := config.L1StartingBlockTag
+			if tag.BlockNumber != nil {
+				block, err = l1Client.BlockByNumber(context.Background(), big.NewInt(tag.BlockNumber.Int64()))
+			} else if tag.BlockHash != nil {
+				block, err = l1Client.BlockByHash(context.Background(), *tag.BlockHash)
+			} else {
+				return fmt.Errorf("invalid l1StartingBlockTag in deploy config: %v", tag)
+			}
 			if err != nil {
 				return err
 			}
