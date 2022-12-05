@@ -255,8 +255,66 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`L1ERC721Bridge already owned by MSD`)
   }
 
-  const checks = {
-    1: async () => {
+  /**
+   * Mini helper for checking if the current step is a target step.
+   *
+   * @param step Target step.
+   * @returns True if the current step is the target step.
+   */
+  const isStep = async (step: number): Promise<boolean> => {
+    return (await SystemDictator.currentStep()) === step
+  }
+
+  /**
+   * Mini helper for executing a given step.
+   *
+   * @param opts Options for executing the step.
+   * @param opts.step Step to execute.
+   * @param opts.message Message to print before executing the step.
+   * @param opts.checks Checks to perform after executing the step.
+   */
+  const doStep = async (opts: {
+    step: number
+    message: string
+    checks: () => Promise<void>
+  }): Promise<void> => {
+    if (!(await isStep(opts.step))) {
+      console.log(`Step already completed: ${opts.step}`)
+      return
+    }
+
+    // Extra message to help the user understand what's going on.
+    console.log(opts.message)
+
+    // Either automatically or manually execute the step.
+    if (isLiveDeployer) {
+      console.log(`Executing step ${opts.step}...`)
+      await SystemDictator[`step${opts.step}`]()
+    } else {
+      console.log(`Please execute step ${opts.step}...`)
+    }
+
+    // Wait for the step to complete.
+    await awaitCondition(
+      async () => {
+        return (await SystemDictator.currentStep()) === opts.step + 1
+      },
+      30000,
+      1000
+    )
+
+    // Perform post-step checks.
+    await opts.checks()
+  }
+
+  // Step 1 is a freebie, it doesn't impact the system.
+  await doStep({
+    step: 1,
+    message: `
+      Step 1 will configure the ProxyAdmin contract, you can safely execute this step at any time
+      without impacting the functionality of the rest of the system.
+    `,
+    checks: async () => {
       await assertContractVariable(
         ProxyAdmin,
         'addressManager',
@@ -278,13 +336,34 @@ const deployFn: DeployFunction = async (hre) => {
         )) === 1
       )
     },
-    2: async () => {
+  })
+
+  // Step 2 shuts down the system.
+  await doStep({
+    step: 2,
+    message: `
+      Step 2 will stop deposits and withdrawals via the L1CrossDomainMessenger and will stop the
+      DTL from syncing new deposits via the CTC, effectively shutting down the legacy system. Once
+      this step has been executed, you should immediately begin the L2 migration process. If you
+      need to restart the system, run exit1() followed by finalize().
+    `,
+    checks: async () => {
       assert(
         (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
           ethers.constants.AddressZero
       )
     },
-    3: async () => {
+  })
+
+  // Step 3 clears out some state from the AddressManager.
+  await doStep({
+    step: 3,
+    message: `
+      Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
+      you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2
+      system is entirely operational before executing this step.
+    `,
+    checks: async () => {
       const deads = [
         'OVM_CanonicalTransactionChain',
         'OVM_L2CrossDomainMessenger',
@@ -311,15 +390,80 @@ const deployFn: DeployFunction = async (hre) => {
         )
       }
     },
-    4: async () => {
+  })
+
+  // Step 4 transfers ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
+  await doStep({
+    step: 4,
+    message: `
+      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
+    `,
+    checks: async () => {
       await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
+
       assert(
         (await L1StandardBridgeProxy.callStatic.getOwner({
           from: ethers.constants.AddressZero,
         })) === ProxyAdmin.address
       )
     },
-    5: async () => {
+  })
+
+  // Make sure the dynamic system configuration has been set.
+  if ((await isStep(5)) && !(await SystemDictator.dynamicConfigSet())) {
+    console.log(`
+      You must now set the dynamic L2OutputOracle configuration by calling the function
+      updateL2OutputOracleDynamicConfig. You will need to provide the
+      l2OutputOracleStartingBlockNumber and the l2OutputOracleStartingTimestamp which can both be
+      found by querying the last finalized block in the L2 node.
+    `)
+
+    if (isLiveDeployer) {
+      console.log(`Updating dynamic oracle config...`)
+
+      // Use default starting time if not provided
+      let deployL2StartingTimestamp =
+        hre.deployConfig.l2OutputOracleStartingTimestamp
+      if (deployL2StartingTimestamp < 0) {
+        const l1StartingBlock = await hre.ethers.provider.getBlock(
+          hre.deployConfig.l1StartingBlockTag
+        )
+        if (l1StartingBlock === null) {
+          throw new Error(
+            `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
+          )
+        }
+        deployL2StartingTimestamp = l1StartingBlock.timestamp
+      }
+
+      await SystemDictator.updateL2OutputOracleDynamicConfig({
+        l2OutputOracleStartingBlockNumber:
+          hre.deployConfig.l2OutputOracleStartingBlockNumber,
+        l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+      })
+    } else {
+      console.log(`Please update dynamic oracle config...`)
+    }
+
+    await awaitCondition(
+      async () => {
+        return SystemDictator.dynamicConfigSet()
+      },
+      30000,
+      1000
+    )
+  }
+
+  // Step 5 initializes all contracts and pauses the new L1CrossDomainMessenger.
+  await doStep({
+    step: 5,
+    message: `
+      Step 5 will initialize all Bedrock contracts but will leave the new L1CrossDomainMessenger
+      paused. After this step is executed, users will be able to deposit and withdraw assets via
+      the OptimismPortal but not via the L1CrossDomainMessenger. The Proposer will also be able to
+      submit L2 outputs to the L2OutputOracle.
+    `,
+    checks: async () => {
       // Check L2OutputOracle was initialized properly.
       await assertContractVariable(
         L2OutputOracle,
@@ -388,78 +532,29 @@ const deployFn: DeployFunction = async (hre) => {
         L1CrossDomainMessenger.address
       )
     },
-    6: async () => {
+  })
+
+  // Step 6 unpauses the new L1CrossDomainMessenger.
+  await doStep({
+    step: 6,
+    message: `
+      Step 6 will unpause the new L1CrossDomainMessenger. After this step is executed, users will
+      be able to deposit and withdraw assets via the L1CrossDomainMessenger and the system will be
+      fully operational.
+    `,
+    checks: async () => {
       await assertContractVariable(L1CrossDomainMessenger, 'paused', false)
     },
-  }
+  })
 
-  for (let i = 1; i <= 6; i++) {
-    const currentStep = await SystemDictator.currentStep()
-    if (currentStep === i) {
-      if (
-        currentStep > (await SystemDictator.PROXY_TRANSFER_STEP()) &&
-        !(await SystemDictator.dynamicConfigSet())
-      ) {
-        if (isLiveDeployer) {
-          console.log(`Updating dynamic oracle config...`)
+  // At the end we finalize the upgrade.
+  if (await isStep(7)) {
+    console.log(`
+      You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
+      transfer ownership of the ProxyAdmin and the L1CrossDomainMessenger to the final system owner
+      as specified in the deployment configuration.
+    `)
 
-          // Use default starting time if not provided
-          let deployL2StartingTimestamp =
-            hre.deployConfig.l2OutputOracleStartingTimestamp
-          if (deployL2StartingTimestamp < 0) {
-            const l1StartingBlock = await hre.ethers.provider.getBlock(
-              hre.deployConfig.l1StartingBlockTag
-            )
-            if (l1StartingBlock === null) {
-              throw new Error(
-                `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
-              )
-            }
-            deployL2StartingTimestamp = l1StartingBlock.timestamp
-          }
-
-          await SystemDictator.updateL2OutputOracleDynamicConfig({
-            l2OutputOracleStartingBlockNumber:
-              hre.deployConfig.l2OutputOracleStartingBlockNumber,
-            l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
-          })
-        } else {
-          console.log(`Please update dynamic oracle config...`)
-        }
-
-        await awaitCondition(
-          async () => {
-            return SystemDictator.dynamicConfigSet()
-          },
-          30000,
-          1000
-        )
-      }
-
-      if (isLiveDeployer) {
-        console.log(`Executing step ${i}...`)
-        await SystemDictator[`step${i}`]()
-      } else {
-        console.log(`Please execute step ${i}...`)
-      }
-
-      await awaitCondition(
-        async () => {
-          const step = await SystemDictator.currentStep()
-          return step === i + 1
-        },
-        30000,
-        1000
-      )
-
-      // Run post step checks
-      await checks[i]()
-    } else {
-      console.log(`Step ${i} executed`)
-    }
-  }
-
-  if ((await SystemDictator.currentStep()) === 7) {
     if (isLiveDeployer) {
       console.log(`Finalizing deployment...`)
       await SystemDictator.finalize()
