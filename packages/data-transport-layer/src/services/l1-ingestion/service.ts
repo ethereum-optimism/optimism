@@ -481,6 +481,14 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contractName: string,
     blockNumber: number
   ): Promise<string> {
+    if (this.options.l2ChainId === 420) {
+      if (blockNumber < 7260849) {
+        return '0x72281826E90dD8A65Ab686fF254eb45Be426DD22';
+      }
+
+      return '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378';
+    }
+
     const events = await this.state.contracts.Lib_AddressManager.queryFilter(
       this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
       this.state.startingL1BlockNumber,
