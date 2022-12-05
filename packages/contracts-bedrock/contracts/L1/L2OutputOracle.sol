@@ -8,11 +8,10 @@ import { Types } from "../libraries/Types.sol";
 /**
  * @custom:proxied
  * @title L2OutputOracle
- * @notice The L2 state is committed to in this contract
- *         The payable keyword is used on proposeL2Output to save gas on the msg.value check.
- *         This contract should be deployed behind an upgradable proxy
+ * @notice The L2OutputOracle contains an array of L2 state outputs, where each output is a
+ *         commitment to the state of the L2 chain. Other contracts like the OptimismPortal use
+ *         these outputs to verify information about the state of L2.
  */
-// slither-disable-next-line locked-ether
 contract L2OutputOracle is Initializable, Semver {
     /**
      * @notice The interval in L2 blocks at which checkpoints must be submitted. Although this is
@@ -76,12 +75,12 @@ contract L2OutputOracle is Initializable, Semver {
     /**
      * @custom:semver 0.0.1
      *
-     * @param _submissionInterval    Interval in blocks at which checkpoints must be submitted.
-     * @param _l2BlockTime           The time per L2 block, in seconds.
-     * @param _startingBlockNumber   The number of the first L2 block.
-     * @param _startingTimestamp     The timestamp of the first L2 block.
-     * @param _proposer              The address of the proposer.
-     * @param _challenger            The address of the challenger.
+     * @param _submissionInterval  Interval in blocks at which checkpoints must be submitted.
+     * @param _l2BlockTime         The time per L2 block, in seconds.
+     * @param _startingBlockNumber The number of the first L2 block.
+     * @param _startingTimestamp   The timestamp of the first L2 block.
+     * @param _proposer            The address of the proposer.
+     * @param _challenger          The address of the challenger.
      */
     constructor(
         uint256 _submissionInterval,
@@ -149,9 +148,9 @@ contract L2OutputOracle is Initializable, Semver {
     }
 
     /**
-     * @notice Accepts an outputRoot and the timestamp of the corresponding L2 block. The
-     *         timestamp must be equal to the current value returned by `nextTimestamp()` in order
-     *         to be accepted. This function may only be called by the Proposer.
+     * @notice Accepts an outputRoot and the timestamp of the corresponding L2 block. The timestamp
+     *         must be equal to the current value returned by `nextTimestamp()` in order to be
+     *         accepted. This function may only be called by the Proposer.
      *
      * @param _outputRoot    The L2 output of the checkpoint block.
      * @param _l2BlockNumber The L2 block number that resulted in _outputRoot.
@@ -321,8 +320,6 @@ contract L2OutputOracle is Initializable, Semver {
 
     /**
      * @notice Returns the L2 timestamp corresponding to a given L2 block number.
-     *         If the L2 block number provided is between checkpoints, this function will return the
-     *         timestamp of the previous checkpoint.
      *
      * @param _l2BlockNumber The L2 block number of the target block.
      *
