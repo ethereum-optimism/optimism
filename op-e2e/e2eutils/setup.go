@@ -98,7 +98,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2GenesisBlockParentHash:    common.Hash{},
 		L2GenesisBlockBaseFeePerGas: uint64ToBig(1000_000_000),
 
-		L2CrossDomainMessengerOwner: common.Address{0: 0x42, 19: 0xf2}, // tbd
 		GasPriceOracleOverhead:      2100,
 		GasPriceOracleScalar:        1000_000,
 		DeploymentWaitConfirmations: 1,
