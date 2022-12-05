@@ -70,7 +70,8 @@ const deployFn: DeployFunction = async (hre) => {
     L1ERC721Bridge,
   ] = await getContractsFromArtifacts(hre, [
     {
-      name: 'SystemDictator',
+      name: 'SystemDictatorProxy',
+      iface: 'SystemDictator',
       signerOrProvider: deployer,
     },
     {
