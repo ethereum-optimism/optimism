@@ -8,7 +8,7 @@ require (
 	github.com/ethereum-optimism/optimism/op-node v0.10.1
 	github.com/ethereum-optimism/optimism/op-service v0.10.1
 	github.com/ethereum/go-ethereum v1.10.26
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
 )
 
@@ -99,4 +99,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221104231810-30db39cae2be
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221205191237-0678a130d790
