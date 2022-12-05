@@ -8,7 +8,7 @@ require (
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/holiman/uint256 v1.2.0
 	github.com/mattn/go-isatty v0.0.16
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
 	github.com/urfave/cli/v2 v2.17.2-0.20221006022127-8f469abc00aa
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
@@ -54,4 +54,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221104231810-30db39cae2be
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221205191237-0678a130d790
