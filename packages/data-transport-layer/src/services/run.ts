@@ -29,6 +29,7 @@ type ethNetwork = 'mainnet' | 'kovan' | 'goerli'
       l1RpcProviderUser: config.str('l1-rpc-user'),
       l1RpcProviderPassword: config.str('l1-rpc-password'),
       addressManager: config.str('address-manager'),
+      l1SyncShutoffBlock: config.uint('l1-sync-shutoff-block'),
       pollingInterval: config.uint('polling-interval', 5000),
       logsPerPollingInterval: config.uint('logs-per-polling-interval', 2000),
       dangerouslyCatchAllErrors: config.bool(

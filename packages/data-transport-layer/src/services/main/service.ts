@@ -26,6 +26,7 @@ export interface L1DataTransportServiceOptions {
   l2RpcProvider: string
   l2RpcProviderUser?: string
   l2RpcProviderPassword?: string
+  l1SyncShutoffBlock?: number
   metrics?: Metrics
   dbPath: string
   logsPerPollingInterval: number
