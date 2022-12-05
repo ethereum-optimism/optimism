@@ -10,7 +10,6 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/l2geth/crypto"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -19,6 +18,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -91,6 +92,11 @@ func main() {
 				return err
 			}
 			log.Info("Set up L2 RPC Client", "chain-id", l2ChainID)
+
+			l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
+			if err != nil {
+				return err
+			}
 
 			l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
 			if err != nil {
@@ -221,10 +227,59 @@ func main() {
 				return err
 			}
 
+			receipt, err := bind.WaitMined(context.Background(), l1Client, tx)
+			if err != nil {
+				return err
+			}
+			if receipt.Status != types.ReceiptStatusSuccessful {
+				return errors.New("withdrawal proof unsuccessful")
+			}
+
 			log.Info("Withdrawal proven", "tx-hash", tx.Hash(), "withdrawal-hash", hash)
 
-			// TODO: - warp forward the L1 timestamp
-			//       - finalize the tx
+			block, err := l1Client.BlockByHash(context.Background(), receipt.BlockHash)
+			if err != nil {
+				return err
+			}
+
+			// Get the finalization period
+			finalizationPeriod, err := portal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+			if err != nil {
+				return err
+			}
+
+			future := block.Time() + finalizationPeriod.Uint64() + 1
+			var result bool
+			// TODO: double check this is the correct RPC
+			err = l1RpcClient.Call(&result, "hardhat_setTimestamp", future)
+			if err != nil {
+				return err
+			}
+
+			// Finalize withdrawal
+			tx, err = portal.FinalizeWithdrawalTransaction(
+				opts,
+				bindings.TypesWithdrawalTransaction{
+					Nonce:    withdrawal.Nonce,
+					Sender:   *withdrawal.Sender,
+					Target:   *withdrawal.Target,
+					Value:    withdrawal.Value,
+					GasLimit: withdrawal.GasLimit,
+					Data:     withdrawal.Data,
+				},
+			)
+
+			receipt, err = bind.WaitMined(context.Background(), l1Client, tx)
+			if err != nil {
+				return err
+			}
+			if receipt.Status != types.ReceiptStatusSuccessful {
+				return errors.New("withdrawal finalize unsuccessful")
+			}
+
+			// TODO: next we want to be sure that the execution was correct.
+			//       to do so we can do a debug_traceTransaction with the call
+			//       tracer and then ensure that the expected target is called.
 
 			return nil
 		},
