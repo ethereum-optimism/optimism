@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 var ErrInvalidDeployConfig = errors.New("invalid deploy config")
@@ -70,8 +72,8 @@ type DeployConfig struct {
 
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the L1CrossDomainMessenger predeploy
-	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
+	// Owner of the system on L1
+	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
@@ -147,11 +149,11 @@ func (d *DeployConfig) Check() error {
 	if d.SystemConfigOwner == (common.Address{}) {
 		return fmt.Errorf("%w: SystemConfigOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
+	if d.FinalSystemOwner == (common.Address{}) {
+		return fmt.Errorf("%w: FinalSystemOwner cannot be address(0)", ErrInvalidDeployConfig)
+	}
 	if d.ProxyAdminOwner == (common.Address{}) {
 		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L2CrossDomainMessengerOwner == (common.Address{}) {
-		return fmt.Errorf("%w: L2CrossDomainMessengerOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.BaseFeeVaultRecipient == (common.Address{}) {
 		log.Warn("BaseFeeVaultRecipient is address(0)")
@@ -267,6 +269,46 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	return nil
 }
 
+// RollupConfig converts a DeployConfig to a rollup.Config
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+	if d.OptimismPortalProxy == (common.Address{}) {
+		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
+	}
+	if d.SystemConfigProxy == (common.Address{}) {
+		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+
+	return &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1: eth.BlockID{
+				Hash:   l1StartBlock.Hash(),
+				Number: l1StartBlock.NumberU64(),
+			},
+			L2: eth.BlockID{
+				Hash:   l2GenesisBlockHash,
+				Number: l2GenesisBlockNumber,
+			},
+			L2Time: l1StartBlock.Time(),
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: d.BatchSenderAddress,
+				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+			},
+		},
+		BlockTime:              d.L2BlockTime,
+		MaxSequencerDrift:      d.MaxSequencerDrift,
+		SeqWindowSize:          d.SequencerWindowSize,
+		ChannelTimeout:         d.ChannelTimeout,
+		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
+		P2PSequencerAddress:    d.P2PSequencerAddress,
+		BatchInboxAddress:      d.BatchInboxAddress,
+		DepositContractAddress: d.OptimismPortalProxy,
+		L1SystemConfigAddress:  d.SystemConfigProxy,
+	}, nil
+}
+
 // NewDeployConfig reads a config file given a path on the filesystem.
 func NewDeployConfig(path string) (*DeployConfig, error) {
 	file, err := os.ReadFile(path)
@@ -343,7 +385,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
 		"_initialized": 1,
-		"_owner":       config.L2CrossDomainMessengerOwner,
+		"_owner":       config.ProxyAdminOwner,
 		// re-entrency lock
 		"_status":          1,
 		"_initializing":    false,
@@ -373,8 +415,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["GovernanceToken"] = state.StorageValues{
 		"_name":   "Optimism",
 		"_symbol": "OP",
-		// TODO: this should be set to the MintManager
-		"_owner": common.Address{},
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,

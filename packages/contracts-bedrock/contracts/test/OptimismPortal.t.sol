@@ -802,7 +802,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assert(address(bob).balance == bobBalanceBefore);
     }
 
-    function test_finalizeWithdrawalTransaction_differential_success(
+    function testDiff_finalizeWithdrawalTransaction_succeeds(
         address _sender,
         address _target,
         uint256 _value,

@@ -13,7 +13,9 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 /**
  * @custom:upgradeable
  * @title StandardBridge
- * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
+ * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
+ *         the core bridging logic, including escrowing tokens that are native to the local chain
+ *         and minting/burning tokens that are native to the remote chain.
  */
 abstract contract StandardBridge {
     using SafeERC20 for IERC20;

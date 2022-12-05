@@ -61,8 +61,10 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 	if conf.AdvertiseIP != nil {
 		localNode.SetStaticIP(conf.AdvertiseIP)
 	}
-	if conf.AdvertiseUDPPort != 0 {
+	if conf.AdvertiseUDPPort != 0 { // explicitly advertised port gets priority
 		localNode.SetFallbackUDP(int(conf.AdvertiseUDPPort))
+	} else if conf.ListenUDPPort != 0 { // otherwise default to the port we configured it to listen on
+		localNode.SetFallbackUDP(int(conf.ListenUDPPort))
 	}
 	if conf.AdvertiseTCPPort != 0 { // explicitly advertised port gets priority
 		localNode.Set(enr.TCP(conf.AdvertiseTCPPort))
