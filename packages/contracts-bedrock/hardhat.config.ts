@@ -29,6 +29,13 @@ const config: HardhatUserConfig = {
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       ],
     },
+    devnetL2: {
+      live: false,
+      url: 'http://localhost:9545',
+      accounts: [
+        'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+      ],
+    },
     hivenet: {
       chainId: Number(process.env.CHAIN_ID),
       url: process.env.L1_RPC || '',
