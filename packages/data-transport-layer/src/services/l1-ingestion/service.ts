@@ -481,6 +481,20 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     contractName: string,
     blockNumber: number
   ): Promise<string> {
+    if (this.options.l2ChainId === 420) {
+      if (contractName === 'StateCommitmentChain') {
+        if (blockNumber < 7260849) {
+          return '0x72281826E90dD8A65Ab686fF254eb45Be426DD22'
+        }
+
+        return '0x9c945aC97Baf48cB784AbBB61399beB71aF7A378'
+      }
+
+      if (contractName === 'CanonicalTransactionChain') {
+        return '0x607F755149cFEB3a14E1Dc3A4E2450Cde7dfb04D'
+      }
+    }
+
     const events = await this.state.contracts.Lib_AddressManager.queryFilter(
       this.state.contracts.Lib_AddressManager.filters.AddressSet(contractName),
       this.state.startingL1BlockNumber,
@@ -517,9 +531,16 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
     const filter =
       this.state.contracts.Lib_AddressManager.filters.OwnershipTransferred()
 
-    for (let i = 0; i < currentL1Block; i += this.options.logsPerPollingInterval) {
+    for (
+      let i = 0;
+      i < currentL1Block;
+      i += this.options.logsPerPollingInterval
+    ) {
       const start = i
-      const end = Math.min(i + this.options.logsPerPollingInterval, currentL1Block)
+      const end = Math.min(
+        i + this.options.logsPerPollingInterval,
+        currentL1Block
+      )
       this.logger.info(`Searching for ${filter} from ${start} to ${end}`)
 
       const events = await this.state.contracts.Lib_AddressManager.queryFilter(
