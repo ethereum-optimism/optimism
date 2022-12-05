@@ -67,6 +67,15 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		)
 	}
 
+	if uint64(config.L2OutputOracleStartingTimestamp) > l1Block.Time() {
+		return nil, fmt.Errorf(
+			"L2OutputOracleStartingTimestamp (%d) cannot be greater than the L1 block time (%d)",
+			config.L2OutputOracleStartingTimestamp,
+			l1Block.Time(),
+		)
+
+	}
+
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
 	})
