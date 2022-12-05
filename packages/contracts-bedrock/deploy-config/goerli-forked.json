@@ -1,29 +1,34 @@
 {
-  "finalSystemOwner": "0xf80267194936da1E98dB10bcE06F3147D580a62e",
-  "controller": "0xf80267194936da1E98dB10bcE06F3147D580a62e",
+  "finalSystemOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
 
-  "l1StartingBlockTag": "latest",
+  "l1StartingBlockTag": "0xcbcbf93fa6ef953a491466311fce85846252a808aa3cc6a8fd432afc5ea4487b",
   "l1ChainID": 5,
-  "l2ChainID": 111,
+  "l2ChainID": 420,
   "l2BlockTime": 2,
 
-  "maxSequencerDrift": 1000,
-  "sequencerWindowSize": 120,
+  "maxSequencerDrift": 1200,
+  "sequencerWindowSize": 3600,
   "channelTimeout": 120,
-  "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
-  "batchInboxAddress": "0xff00000000000000000000000000000000000002",
-  "batchSenderAddress": "0xa11d2b908470e17923fff184d48269bebbd9b2a5",
 
-  "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "p2pSequencerAddress": "0xCBABF46d40982B4530c0EAc9889f6e44e17f0383",
+  "batchInboxAddress": "0xff00000000000000000000000000000000000420",
+  "batchSenderAddress": "0x3a2baA0160275024A50C1be1FC677375E7DB4Bd7",
+  "l2OutputOracleSubmissionInterval": 20,
+  "l2OutputOracleStartingTimestamp": 1670043996,
+  "l2OutputOracleProposer": "0x88BCa4Af3d950625752867f826E073E337076581",
+  "l2OutputOracleChallenger": "0x88BCa4Af3d950625752867f826E073E337076581",
+  "finalizationPeriodSeconds": 2,
 
-  "l2OutputOracleSubmissionInterval": 6,
-  "l2OutputOracleStartingTimestamp": -1,
-  "l2OutputOracleProposer": "0x6c23a0dcdfc44b7a57bed148de598895e398d984",
-  "l2OutputOracleChallenger": "0x6925b8704ff96dee942623d6fb5e946ef5884b63",
+  "systemConfigOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
+  "proxyAdminOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
 
-  "baseFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
-  "l1FeeVaultRecipient": "0xc731837b696ca3d9720d23336925368ceaa58f83",
-  "sequencerFeeVaultRecipient": "0xf116a24056b647e3211d095c667e951536cdebaa",
+  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
 
-  "deploymentWaitConfirmations": 1
+
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000,
+  "eip1559Denominator": 50,
+  "eip1559Elasticity": 10
 }
