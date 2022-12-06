@@ -28,7 +28,7 @@ func DialClient(ctx context.Context, endpoint string, jwtSecret [32]byte) (clien
 }
 
 type rpcBlock struct {
-	*types.Header
+	types.Header
 	Transactions []*types.Transaction `json:"transactions"`
 }
 
@@ -38,7 +38,7 @@ func getBlock(ctx context.Context, client client.RPC, method string, tag string)
 	if err != nil {
 		return nil, err
 	}
-	return types.NewBlockWithHeader(bl.Header).WithBody(bl.Transactions, nil), nil
+	return types.NewBlockWithHeader(&bl.Header).WithBody(bl.Transactions, nil), nil
 }
 
 func getHeader(ctx context.Context, client client.RPC, method string, tag string) (*types.Header, error) {
