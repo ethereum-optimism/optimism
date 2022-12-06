@@ -31,7 +31,7 @@ const config: HardhatUserConfig = {
     },
     devnetL2: {
       live: false,
-      url: 'http://localhost:9545',
+      url: process.env.RPC_URL || 'http://localhost:9545',
       accounts: [
         'ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
       ],
