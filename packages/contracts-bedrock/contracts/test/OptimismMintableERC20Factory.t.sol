@@ -16,11 +16,11 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         super.setUp();
     }
 
-    function test_bridge() external {
+    function test_bridge_succeeds() external {
         assertEq(address(L2TokenFactory.bridge()), address(L2Bridge));
     }
 
-    function test_createStandardL2Token() external {
+    function test_createStandardL2Token_succeeds() external {
         address remote = address(4);
         address local = LibRLP.computeAddress(address(L2TokenFactory), 2);
 
@@ -34,7 +34,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 
-    function test_createStandardL2TokenSameTwice() external {
+    function test_createStandardL2Token_sameTwice_succeeds() external {
         address remote = address(4);
 
         vm.prank(alice);
@@ -52,7 +52,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
     }
 
-    function test_createStandardL2TokenShouldRevertIfRemoteIsZero() external {
+    function test_createStandardL2Token_remoteIsZero_succeeds() external {
         address remote = address(0);
         vm.expectRevert("OptimismMintableERC20Factory: must provide remote token address");
         L2TokenFactory.createStandardL2Token(remote, "Beep", "BOOP");
