@@ -109,6 +109,7 @@ func EngineAction(fn func(ctx *cli.Context, client client.RPC) error) cli.Action
 type Text interface {
 	encoding.TextUnmarshaler
 	fmt.Stringer
+	comparable
 }
 
 type TextFlag[T Text] struct {
@@ -120,6 +121,10 @@ func (a *TextFlag[T]) Set(value string) error {
 }
 
 func (a *TextFlag[T]) String() string {
+	var defaultValue T
+	if a.Value == defaultValue {
+		return "<nil>"
+	}
 	return a.Value.String()
 }
 
