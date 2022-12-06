@@ -59,32 +59,32 @@ contract ProxyAdmin_Test is Test {
         implementation = new SimpleStorage();
     }
 
-    function test_setImplementationName() external {
+    function test_setImplementationName_succeeds() external {
         vm.prank(alice);
         admin.setImplementationName(address(1), "foo");
         assertEq(admin.implementationName(address(1)), "foo");
     }
 
-    function test_onlyOwnerSetAddressManager() external {
+    function test_setAddressManager_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         admin.setAddressManager(AddressManager((address(0))));
     }
 
-    function test_onlyOwnerSetImplementationName() external {
+    function test_setImplementationName_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         admin.setImplementationName(address(0), "foo");
     }
 
-    function test_onlyOwnerSetProxyType() external {
+    function test_setProxyType_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         admin.setProxyType(address(0), ProxyAdmin.ProxyType.CHUGSPLASH);
     }
 
-    function test_owner() external {
+    function test_owner_succeeds() external {
         assertEq(admin.owner(), alice);
     }
 
-    function test_proxyType() external {
+    function test_proxyType_succeeds() external {
         assertEq(uint256(admin.proxyType(address(proxy))), uint256(ProxyAdmin.ProxyType.ERC1967));
         assertEq(
             uint256(admin.proxyType(address(chugsplash))),
@@ -96,15 +96,15 @@ contract ProxyAdmin_Test is Test {
         );
     }
 
-    function test_erc1967GetProxyImplementation() external {
+    function test_erc1967GetProxyImplementation_succeeds() external {
         getProxyImplementation(payable(proxy));
     }
 
-    function test_chugsplashGetProxyImplementation() external {
+    function test_chugsplashGetProxyImplementation_succeeds() external {
         getProxyImplementation(payable(chugsplash));
     }
 
-    function test_delegateResolvedGetProxyImplementation() external {
+    function test_delegateResolvedGetProxyImplementation_succeeds() external {
         getProxyImplementation(payable(resolved));
     }
 
@@ -123,15 +123,15 @@ contract ProxyAdmin_Test is Test {
         }
     }
 
-    function test_erc1967GetProxyAdmin() external {
+    function test_erc1967GetProxyAdmin_succeeds() external {
         getProxyAdmin(payable(proxy));
     }
 
-    function test_chugsplashGetProxyAdmin() external {
+    function test_chugsplashGetProxyAdmin_succeeds() external {
         getProxyAdmin(payable(chugsplash));
     }
 
-    function test_delegateResolvedGetProxyAdmin() external {
+    function test_delegateResolvedGetProxyAdmin_succeeds() external {
         getProxyAdmin(payable(resolved));
     }
 
@@ -140,15 +140,15 @@ contract ProxyAdmin_Test is Test {
         assertEq(owner, address(admin));
     }
 
-    function test_erc1967ChangeProxyAdmin() external {
+    function test_erc1967ChangeProxyAdmin_succeeds() external {
         changeProxyAdmin(payable(proxy));
     }
 
-    function test_chugsplashChangeProxyAdmin() external {
+    function test_chugsplashChangeProxyAdmin_succeeds() external {
         changeProxyAdmin(payable(chugsplash));
     }
 
-    function test_delegateResolvedChangeProxyAdmin() external {
+    function test_delegateResolvedChangeProxyAdmin_succeeds() external {
         changeProxyAdmin(payable(resolved));
     }
 
@@ -188,15 +188,15 @@ contract ProxyAdmin_Test is Test {
         }
     }
 
-    function test_erc1967Upgrade() external {
+    function test_erc1967Upgrade_succeeds() external {
         upgrade(payable(proxy));
     }
 
-    function test_chugsplashUpgrade() external {
+    function test_chugsplashUpgrade_succeeds() external {
         upgrade(payable(chugsplash));
     }
 
-    function test_delegateResolvedUpgrade() external {
+    function test_delegateResolvedUpgrade_succeeds() external {
         upgrade(payable(resolved));
     }
 
@@ -208,15 +208,15 @@ contract ProxyAdmin_Test is Test {
         assertEq(impl, address(implementation));
     }
 
-    function test_erc1967UpgradeAndCall() external {
+    function test_erc1967UpgradeAndCall_succeeds() external {
         upgradeAndCall(payable(proxy));
     }
 
-    function test_chugsplashUpgradeAndCall() external {
+    function test_chugsplashUpgradeAndCall_succeeds() external {
         upgradeAndCall(payable(chugsplash));
     }
 
-    function test_delegateResolvedUpgradeAndCall() external {
+    function test_delegateResolvedUpgradeAndCall_succeeds() external {
         upgradeAndCall(payable(resolved));
     }
 
@@ -235,7 +235,7 @@ contract ProxyAdmin_Test is Test {
         assertEq(got, 1);
     }
 
-    function test_onlyOwner() external {
+    function test_onlyOwner_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         admin.changeProxyAdmin(payable(proxy), address(0));
 
@@ -246,7 +246,7 @@ contract ProxyAdmin_Test is Test {
         admin.upgradeAndCall(payable(proxy), address(implementation), hex"");
     }
 
-    function test_isUpgrading() external {
+    function test_isUpgrading_succeeds() external {
         assertEq(false, admin.isUpgrading());
 
         vm.prank(alice);
