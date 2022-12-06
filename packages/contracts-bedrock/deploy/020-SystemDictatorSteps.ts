@@ -1,8 +1,10 @@
 import assert from 'assert'
+import readline from 'readline'
 
 import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { awaitCondition } from '@eth-optimism/core-utils'
+
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
 import '@nomiclabs/hardhat-ethers'
@@ -255,6 +257,12 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`L1ERC721Bridge already owned by MSD`)
   }
 
+  let deployL2StartingTimestamp =
+    hre.deployConfig.l2OutputOracleStartingTimestamp
+  let deployL2OutputOracleStartingBlockNumber =
+    hre.deployConfig.l2OutputOracleStartingBlockNumber
+  let deployL1StartingBlockTag = hre.deployConfig.l1StartingBlockTag
+
   const checks = {
     1: async () => {
       await assertContractVariable(
@@ -324,7 +332,7 @@ const deployFn: DeployFunction = async (hre) => {
       await assertContractVariable(
         L2OutputOracle,
         'latestBlockNumber',
-        hre.deployConfig.l2OutputOracleStartingBlockNumber
+        deployL2OutputOracleStartingBlockNumber
       )
 
       // Check OptimismPortal was initialized properly.
@@ -403,12 +411,37 @@ const deployFn: DeployFunction = async (hre) => {
         if (isLiveDeployer) {
           console.log(`Updating dynamic oracle config...`)
 
+          if (process.env.INTERACTIVE === 'true') {
+            console.log('Please shut down the old system now.')
+
+            const l1StartingBlockTag = await prompt(
+              `Please enter the starting L1 block tag for the new system:`,
+              ethers.utils.isHexString
+            )
+
+            const l2StartingBlockNumber = Number(
+              await prompt(
+                `Please enter the starting L2 block number for the new system:`,
+                (input) => Number.isInteger(Number(input))
+              )
+            )
+
+            const l1StartingBlock = await hre.ethers.provider.getBlock(
+              l1StartingBlockTag
+            )
+            if (l1StartingBlock === null) {
+              throw new Error(`Cannot fetch block tag ${l1StartingBlockTag}`)
+            }
+
+            deployL2StartingTimestamp = l1StartingBlock.timestamp
+            deployL2OutputOracleStartingBlockNumber = l2StartingBlockNumber
+            deployL1StartingBlockTag = l1StartingBlockTag
+          }
+
           // Use default starting time if not provided
-          let deployL2StartingTimestamp =
-            hre.deployConfig.l2OutputOracleStartingTimestamp
           if (deployL2StartingTimestamp < 0) {
             const l1StartingBlock = await hre.ethers.provider.getBlock(
-              hre.deployConfig.l1StartingBlockTag
+              deployL1StartingBlockTag
             )
             if (l1StartingBlock === null) {
               throw new Error(
@@ -420,7 +453,7 @@ const deployFn: DeployFunction = async (hre) => {
 
           await SystemDictator.updateL2OutputOracleDynamicConfig({
             l2OutputOracleStartingBlockNumber:
-              hre.deployConfig.l2OutputOracleStartingBlockNumber,
+              deployL2OutputOracleStartingBlockNumber,
             l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
           })
         } else {
@@ -478,8 +511,46 @@ const deployFn: DeployFunction = async (hre) => {
     await assertContractVariable(L1CrossDomainMessenger, 'owner', finalOwner)
     await assertContractVariable(ProxyAdmin, 'owner', finalOwner)
   }
+
+  if (process.env.INTERACTIVE) {
+    const config = {
+      ...hre.deployConfig,
+      l1StartingBlockTag: deployL1StartingBlockTag,
+      l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+      l2OutputOracleStartingBlockNumber:
+        deployL2OutputOracleStartingBlockNumber,
+    }
+    console.log(
+      'The deploy config has been updated. Please use the following for the L2 migration:'
+    )
+    console.log(JSON.stringify(config, null, 2))
+  }
 }
 
 deployFn.tags = ['SystemDictatorSteps']
 
 export default deployFn
+
+const prompt = async (
+  msg: string,
+  validator: (v: string) => boolean
+): Promise<string> => {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  })
+
+  while (true) {
+    const res = await new Promise<string>((resolve) => {
+      rl.question(`${msg} `, (answer) => {
+        resolve(answer)
+      })
+    })
+    if (!validator(res)) {
+      console.log(`Invalid input. Please try again.`)
+      continue
+    }
+    rl.close()
+    return res
+  }
+}
