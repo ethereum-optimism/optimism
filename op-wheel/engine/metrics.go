@@ -5,7 +5,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
@@ -32,9 +31,6 @@ func NewMetrics(procName string, registry *prometheus.Registry) *Metrics {
 		procName = "default"
 	}
 	ns := Namespace + "_" + procName
-
-	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	registry.MustRegister(collectors.NewGoCollector())
 	return &Metrics{
 		BlockFails: promauto.With(registry).NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
