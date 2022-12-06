@@ -26,6 +26,12 @@ import (
 const envVarPrefix = "OP_WHEEL"
 
 var (
+	GlobalGethLogLvlFlag = cli.StringFlag{
+		Name:   "geth-log-level",
+		Usage:  "Set the global geth logging level",
+		EnvVar: opservice.PrefixEnvVar("OP_WHEEL", "GETH_LOG_LEVEL"),
+		Value:  "error",
+	}
 	DataDirFlag = cli.StringFlag{
 		Name:      "data-dir",
 		Usage:     "Geth data dir location.",
@@ -34,10 +40,10 @@ var (
 		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, "DATA_DIR"),
 	}
 	EngineEndpoint = cli.StringFlag{
-		Name: "engine",
-		Usage: "Engine API RPC endpoint, can be HTTP/WS/IPC",
+		Name:     "engine",
+		Usage:    "Engine API RPC endpoint, can be HTTP/WS/IPC",
 		Required: true,
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ENGINE"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ENGINE"),
 	}
 	EngineJWTPath = cli.StringFlag{
 		Name:      "engine.jwt-secret",
@@ -47,28 +53,28 @@ var (
 		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, "ENGINE_JWT_SECRET"),
 	}
 	FeeRecipientFlag = cli.GenericFlag{
-		Name:      "fee-recipient",
-		Usage:     "fee-recipient of the block building",
-		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, "FEE_RECIPIENT"),
-		Value:     &TextFlag[*common.Address]{Value: &common.Address{1: 0x13, 2: 0x37}},
+		Name:   "fee-recipient",
+		Usage:  "fee-recipient of the block building",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "FEE_RECIPIENT"),
+		Value:  &TextFlag[*common.Address]{Value: &common.Address{1: 0x13, 2: 0x37}},
 	}
 	RandaoFlag = cli.GenericFlag{
-		Name:      "randao",
-		Usage:     "randao value of the block building",
-		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, "RANDAO"),
-		Value:     &TextFlag[*common.Hash]{Value: &common.Hash{1: 0x13, 2: 0x37}},
+		Name:   "randao",
+		Usage:  "randao value of the block building",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "RANDAO"),
+		Value:  &TextFlag[*common.Hash]{Value: &common.Hash{1: 0x13, 2: 0x37}},
 	}
 	BlockTimeFlag = cli.Uint64Flag{
-		Name:        "block-time",
-		Usage:       "block time, interval of timestamps between blocks to build, in seconds",
-		EnvVar:      opservice.PrefixEnvVar(envVarPrefix, "BLOCK_TIME"),
-		Value:       12,
+		Name:   "block-time",
+		Usage:  "block time, interval of timestamps between blocks to build, in seconds",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "BLOCK_TIME"),
+		Value:  12,
 	}
 	BuildingTime = cli.DurationFlag{
-		Name:        "building-time",
-		Usage:       "duration of of block building, this should be set to something lower than the block time.",
-		EnvVar:      opservice.PrefixEnvVar(envVarPrefix, "BUILDING_TIME"),
-		Value:       time.Second * 6,
+		Name:   "building-time",
+		Usage:  "duration of of block building, this should be set to something lower than the block time.",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "BUILDING_TIME"),
+		Value:  time.Second * 6,
 	}
 )
 
@@ -203,14 +209,14 @@ var (
 	CheatStorageReadAll = cli.Command{
 		Name:    "read-all",
 		Aliases: []string{"get-all"},
-		Usage: "Read all storage of the given account",
-		Flags: []cli.Flag{DataDirFlag, addrFlag("address", "Address to read all storage of")},
+		Usage:   "Read all storage of the given account",
+		Flags:   []cli.Flag{DataDirFlag, addrFlag("address", "Address to read all storage of")},
 		Action: CheatAction(true, func(ctx *cli.Context, ch *cheat.Cheater) error {
 			return ch.RunAndClose(cheat.StorageReadAll(addrFlagValue("address", ctx), ctx.App.Writer))
 		}),
 	}
 	CheatStorageDiffCmd = cli.Command{
-		Name: "diff",
+		Name:  "diff",
 		Usage: "Diff the storage of accounts A and B",
 		Flags: []cli.Flag{DataDirFlag, hashFlag("a", "address of account A"), hashFlag("b", "address of account B")},
 		Action: CheatAction(true, func(ctx *cli.Context, ch *cheat.Cheater) error {
@@ -218,7 +224,7 @@ var (
 		}),
 	}
 	CheatStoragePatchCmd = cli.Command{
-		Name: "patch",
+		Name:  "patch",
 		Usage: "Apply storage patch from STDIN to the given account address",
 		Flags: []cli.Flag{DataDirFlag, addrFlag("address", "Address to patch storage of")},
 		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
@@ -262,11 +268,11 @@ var (
 		Flags: []cli.Flag{
 			DataDirFlag,
 			cli.StringFlag{
-				Name: "config",
-				Usage: "Path to JSON config of OVM address replacements to apply.",
+				Name:     "config",
+				Usage:    "Path to JSON config of OVM address replacements to apply.",
 				Required: true,
-				EnvVar: opservice.PrefixEnvVar(envVarPrefix, "OVM_OWNERS"),
-				Value: "ovm-owners.json",
+				EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "OVM_OWNERS"),
+				Value:    "ovm-owners.json",
 			},
 		},
 		Action: CheatAction(false, func(ctx *cli.Context, ch *cheat.Cheater) error {
@@ -282,7 +288,7 @@ var (
 		}),
 	}
 	EngineBlockCmd = cli.Command{
-		Name: "block",
+		Name:  "block",
 		Usage: "build the next block using the Engine API",
 		Flags: []cli.Flag{
 			EngineEndpoint, EngineJWTPath,
@@ -307,8 +313,8 @@ var (
 		}),
 	}
 	EngineAutoCmd = cli.Command{
-		Name: "auto",
-		Usage: "Run a proof-of-nothing chain with fixed block time.",
+		Name:        "auto",
+		Usage:       "Run a proof-of-nothing chain with fixed block time.",
 		Description: "The block time can be changed. The execution engine must be synced to a post-Merge state first.",
 		Flags: []cli.Flag{
 			EngineEndpoint, EngineJWTPath,
@@ -342,7 +348,7 @@ var (
 		}),
 	}
 	EngineStatusCmd = cli.Command{
-		Name: "status",
+		Name:  "status",
 		Flags: []cli.Flag{EngineEndpoint, EngineJWTPath},
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			stat, err := engine.Status(context.Background(), client)
@@ -359,10 +365,10 @@ var (
 		Flags: []cli.Flag{
 			EngineEndpoint, EngineJWTPath,
 			cli.StringFlag{
-				Name: "source",
-				Usage: "Unauthenticated regular eth JSON RPC to pull block data from, can be HTTP/WS/IPC.",
+				Name:     "source",
+				Usage:    "Unauthenticated regular eth JSON RPC to pull block data from, can be HTTP/WS/IPC.",
 				Required: true,
-				EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ENGINE"),
+				EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ENGINE"),
 			},
 		},
 		Action: EngineAction(func(ctx *cli.Context, dest client.RPC) error {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"path/filepath"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -30,7 +31,8 @@ type Cheater struct {
 
 // OpenGethDB opens a geth database to apply cheats to.
 func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
-	db, err := rawdb.NewLevelDBDatabase(dataDirPath, 2048, 3000, "", readOnly)
+	// don't use readonly mode in actual DB, it doesn't work with Geth.
+	db, err := rawdb.NewLevelDBDatabaseWithFreezer(dataDirPath, 2048, 500, filepath.Join(dataDirPath, "ancient"), "", true)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
 	}
@@ -76,6 +78,10 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 
 	// commit the changes, and then update the state-root
 	stateRoot, err := state.Commit(true)
+	if err != nil {
+		_ = ch.Close()
+		return fmt.Errorf("failed to commit state change: %w", err)
+	}
 	header := block.Header()
 	header.Root = stateRoot
 	blockHash := header.Hash()
@@ -198,7 +204,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 		i := 0
 		for s.Scan() {
 			line := s.Text()
-			if len(line) < 1 || line[0] == '#' {  // skip empty lines and comments
+			if len(line) < 1 || line[0] == '#' { // skip empty lines and comments
 				continue
 			}
 			parts := strings.Split(line[1:], "=")
@@ -220,7 +226,7 @@ func StoragePatch(patch io.Reader, address common.Address) HeadFn {
 				return fmt.Errorf("unrecognized line diff token")
 			}
 			i += 1
-			if i % 1000 == 0 {  // for every 1000 values, commit to disk
+			if i%1000 == 0 { // for every 1000 values, commit to disk
 				if _, err := headState.Commit(true); err != nil {
 					return fmt.Errorf("failed to commit state to disk after patching %d entries: %w", i, err)
 				}

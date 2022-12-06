@@ -11,21 +11,19 @@ import (
 
 var Namespace = "op_node"
 
-
 type Metricer interface {
 	RecordBlockFail()
 	RecordBlockStats(hash common.Hash, num uint64, time uint64, txs uint64, gas uint64, baseFee float64)
 }
 
-
 type Metrics struct {
-	BlockFails  prometheus.Counter
+	BlockFails prometheus.Counter
 
-	BlockHash prometheus.Gauge
-	BlockNum prometheus.Gauge
-	BlockTime prometheus.Gauge
-	BlockTxs prometheus.Gauge
-	BlockGas prometheus.Gauge
+	BlockHash    prometheus.Gauge
+	BlockNum     prometheus.Gauge
+	BlockTime    prometheus.Gauge
+	BlockTxs     prometheus.Gauge
+	BlockGas     prometheus.Gauge
 	BlockBaseFee prometheus.Gauge
 }
 
@@ -82,7 +80,7 @@ func (r *Metrics) RecordBlockFail() {
 }
 
 func (r *Metrics) RecordBlockStats(hash common.Hash, num uint64, time uint64, txs uint64, gas uint64, baseFee float64) {
-	r.BlockHash.Set(float64(binary.LittleEndian.Uint64(hash[:])))  // for pretty block-color changing charts
+	r.BlockHash.Set(float64(binary.LittleEndian.Uint64(hash[:]))) // for pretty block-color changing charts
 	r.BlockNum.Set(float64(num))
 	r.BlockTime.Set(float64(time))
 	r.BlockTxs.Set(float64(txs))
