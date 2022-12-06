@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
@@ -95,6 +97,17 @@ func CheatAction(readOnly bool, fn func(ctx *cli.Context, ch *cheat.Cheater) err
 			return fmt.Errorf("failed to open geth db: %w", err)
 		}
 		return fn(ctx, ch)
+	}
+}
+
+func CheatRawDBAction(readOnly bool, fn func(ctx *cli.Context, db ethdb.Database) error) cli.ActionFunc {
+	return func(ctx *cli.Context) error {
+		dataDir := ctx.String(DataDirFlag.Name)
+		db, err := cheat.OpenGethRawDB(dataDir, readOnly)
+		if err != nil {
+			return fmt.Errorf("failed to open raw geth db: %w", err)
+		}
+		return fn(ctx, db)
 	}
 }
 
@@ -287,6 +300,30 @@ var (
 			return ch.RunAndClose(cheat.OvmOwners(&conf))
 		}),
 	}
+	CheatPrintHeadBlock = cli.Command{
+		Name:  "head-block",
+		Usage: "dump head block as JSON",
+		Flags: []cli.Flag{
+			DataDirFlag,
+		},
+		Action: CheatRawDBAction(true, func(c *cli.Context, db ethdb.Database) error {
+			enc := json.NewEncoder(c.App.Writer)
+			enc.SetIndent("  ", "  ")
+			return enc.Encode(rawdb.ReadHeadBlock(db))
+		}),
+	}
+	CheatPrintHeadHeader = cli.Command{
+		Name:  "head-header",
+		Usage: "dump head header as JSON",
+		Flags: []cli.Flag{
+			DataDirFlag,
+		},
+		Action: CheatRawDBAction(true, func(c *cli.Context, db ethdb.Database) error {
+			enc := json.NewEncoder(c.App.Writer)
+			enc.SetIndent("  ", "  ")
+			return enc.Encode(rawdb.ReadHeadHeader(db))
+		}),
+	}
 	EngineBlockCmd = cli.Command{
 		Name:  "block",
 		Usage: "build the next block using the Engine API",
@@ -392,6 +429,8 @@ var CheatCmd = cli.Command{
 		CheatSetBalanceCmd,
 		CheatSetNonceCmd,
 		CheatOvmOwnersCmd,
+		CheatPrintHeadBlock,
+		CheatPrintHeadHeader,
 	},
 }
 
