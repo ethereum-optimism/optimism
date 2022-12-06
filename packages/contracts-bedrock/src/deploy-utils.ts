@@ -8,13 +8,26 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import 'hardhat-deploy'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
+import { Deployment, DeployResult } from 'hardhat-deploy/dist/types'
 
-export const deployAndVerifyAndThen = async ({
+/**
+ * Wrapper around hardhat-deploy with some extra features.
+ *
+ * @param opts Options for the deployment.
+ * @param opts.hre HardhatRuntimeEnvironment.
+ * @param opts.contract Name of the contract to deploy.
+ * @param opts.name Name to use for the deployment file.
+ * @param opts.iface Interface to use for the returned contract.
+ * @param opts.args Arguments to pass to the contract constructor.
+ * @param opts.postDeployAction Action to perform after the contract is deployed.
+ * @returns Deployed contract object.
+ */
+export const deploy = async ({
   hre,
   name,
+  iface,
   args,
   contract,
-  iface,
   postDeployAction,
 }: {
   hre: HardhatRuntimeEnvironment
@@ -24,47 +37,47 @@ export const deployAndVerifyAndThen = async ({
   iface?: string
   postDeployAction?: (contract: Contract) => Promise<void>
 }) => {
-  const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
 
   // Hardhat deploy will usually do this check for us, but currently doesn't also consider
   // external deployments when doing this check. By doing the check ourselves, we also get to
   // consider external deployments. If we already have the deployment, return early.
-  const existing = await hre.deployments.getOrNull(name)
-  if (existing) {
-    console.log(
-      `skipping ${name} deployment, using existing at ${existing.address}`
-    )
-    return
+  let result: Deployment | DeployResult = await hre.deployments.getOrNull(name)
+  if (result) {
+    console.log(`skipping ${name}, using existing at ${result.address}`)
+  } else {
+    result = await hre.deployments.deploy(name, {
+      contract,
+      from: deployer,
+      args,
+      log: true,
+      waitConfirmations: hre.deployConfig.numDeployConfirmations,
+    })
   }
 
-  const result = await deploy(name, {
-    contract,
-    from: deployer,
-    args,
-    log: true,
-    waitConfirmations: hre.deployConfig.numDeployConfirmations,
-  })
-
+  // Always wait for the transaction to be mined, just in case.
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
 
-  if (result.newlyDeployed) {
-    if (postDeployAction) {
-      const signer = hre.ethers.provider.getSigner(deployer)
-      let abi = result.abi
-      if (iface !== undefined) {
-        const factory = await hre.ethers.getContractFactory(iface)
-        abi = factory.interface as any
-      }
+  // Create the contract object to return.
+  const created = getAdvancedContract({
+    hre,
+    contract: new Contract(
+      result.address,
+      iface !== undefined
+        ? (await hre.ethers.getContractFactory(iface)).interface
+        : result.abi,
+      hre.ethers.provider.getSigner(deployer)
+    ),
+  })
 
-      await postDeployAction(
-        getAdvancedContract({
-          hre,
-          contract: new Contract(result.address, abi, signer),
-        })
-      )
+  // Run post-deploy actions if necessary.
+  if ((result as DeployResult).newlyDeployed) {
+    if (postDeployAction) {
+      await postDeployAction(created)
     }
   }
+
+  return created
 }
 
 // Returns a version of the contract object which modifies all of the input contract's methods to:

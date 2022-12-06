@@ -20,23 +20,23 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         super.setUp();
     }
 
-    function test_L2MessengerPause() external {
+    function test_pause_succeeds() external {
         L2Messenger.pause();
         assert(L2Messenger.paused());
     }
 
-    function testCannot_L2MessengerPause() external {
+    function test_pause_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(address(0xABBA));
         L2Messenger.pause();
     }
 
-    function test_L2MessengerMessageVersion() external {
+    function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L2Messenger.messageNonce());
         assertEq(version, L2Messenger.MESSAGE_VERSION());
     }
 
-    function test_L2MessengerSendMessage() external {
+    function test_sendMessage_succeeds() external {
         bytes memory xDomainCallData = Encoding.encodeCrossDomainMessage(
             L2Messenger.messageNonce(),
             alice,
@@ -80,7 +80,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         L2Messenger.sendMessage(recipient, hex"ff", uint32(100));
     }
 
-    function test_L2MessengerTwiceSendMessage() external {
+    function test_sendMessage_twice_succeeds() external {
         uint256 nonce = L2Messenger.messageNonce();
         L2Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
         L2Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
@@ -88,12 +88,12 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(nonce + 2, L2Messenger.messageNonce());
     }
 
-    function test_L2MessengerXDomainSenderReverts() external {
+    function test_xDomainSender_senderNotSet_reverts() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
     }
 
-    function test_L2MessengerRelayMessageV0Fails() external {
+    function test_relayMessage_v0_reverts() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
@@ -113,7 +113,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         );
     }
 
-    function test_L2MessengerRelayMessageSucceeds() external {
+    function test_relayMessage_succeeds() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
@@ -151,7 +151,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
-    function test_L2MessengerRelayMessageToSystemContract() external {
+    function test_relayMessage_toSystemContract_reverts() external {
         address target = address(messagePasser);
         address sender = address(L1Messenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
@@ -170,7 +170,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
-    function test_L2MessengerxDomainMessageSenderResets() external {
+    function test_xDomainMessageSender_reset_succeeds() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
 
@@ -190,7 +190,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if paused
-    function test_L2MessengerRelayShouldRevertIfPaused() external {
+    function test_relayMessage_paused_reverts() external {
         vm.prank(L2Messenger.owner());
         L2Messenger.pause();
 
@@ -200,7 +200,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
 
     // relayMessage: should send a successful call to the target contract after the first message
     // fails and ETH gets stuck, but the second message succeeds
-    function test_L2MessengerRelayMessageFirstStuckSecondSucceeds() external {
+    function test_relayMessage_retry_succeeds() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
@@ -254,7 +254,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if recipient is trying to reenter
-    function test_L1MessengerRelayMessageRevertsOnReentrancy() external {
+    function test_relayMessage_reentrancy_reverts() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));

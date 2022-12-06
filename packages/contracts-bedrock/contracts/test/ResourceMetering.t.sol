@@ -27,7 +27,7 @@ contract ResourceMetering_Test is CommonTest {
         initialBlockNum = uint64(block.number);
     }
 
-    function test_initialResourceParams() external {
+    function test_meter_initialResourceParams_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
         assertEq(prevBaseFee, meter.INITIAL_BASE_FEE());
@@ -35,7 +35,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum);
     }
 
-    function test_updateParamsNoChange() external {
+    function test_meter_updateParamsNoChange_succeeds() external {
         meter.use(0); // equivalent to just updating the base fee and block number
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
         meter.use(0);
@@ -46,7 +46,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(postBlockNum, prevBlockNum);
     }
 
-    function test_updateOneEmptyBlock() external {
+    function test_meter_updateOneEmptyBlock_succeeds() external {
         vm.roll(initialBlockNum + 1);
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -57,7 +57,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum + 1);
     }
 
-    function test_updateTwoEmptyBlocks() external {
+    function test_meter_updateTwoEmptyBlocks_succeeds() external {
         vm.roll(initialBlockNum + 2);
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -67,7 +67,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum + 2);
     }
 
-    function test_updateTenEmptyBlocks() external {
+    function test_meter_updateTenEmptyBlocks_succeeds() external {
         vm.roll(initialBlockNum + 10);
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -77,7 +77,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum + 10);
     }
 
-    function test_updateNoGasDelta() external {
+    function test_meter_updateNoGasDelta_succeeds() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         meter.use(target);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -87,7 +87,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(prevBlockNum, initialBlockNum);
     }
 
-    function test_useMaxSucceeds() external {
+    function test_meter_useMax_succeeds() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         meter.use(target * elasticity);
@@ -102,7 +102,7 @@ contract ResourceMetering_Test is CommonTest {
         assertEq(postBaseFee, 1375000000);
     }
 
-    function test_useMoreThanMaxReverts() external {
+    function test_meter_useMoreThanMax_reverts() external {
         uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
