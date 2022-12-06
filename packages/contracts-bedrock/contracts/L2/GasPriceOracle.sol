@@ -10,10 +10,16 @@ import { L1Block } from "../L2/L1Block.sol";
  * @custom:predeploy 0x420000000000000000000000000000000000000F
  * @title GasPriceOracle
  * @notice This contract maintains the variables responsible for computing the L1 portion of the
- *         total fee charged on L2. The values stored in the contract are looked up as part of the
- *         L2 state transition function and used to compute the total fee paid by the user. The
- *         contract exposes an API that is useful for knowing how large the L1 portion of their
- *         transaction fee will be.
+ *         total fee charged on L2. Before Bedrock, this contract held variables in state that were
+ *         read during the state transition function to compute the L1 portion of the transaction
+ *         fee. After Bedrock, this contract now simply proxies the L1Block contract, which has
+ *         the values used to compute the L1 portion of the fee in its state.
+ *
+ *         The contract exposes an API that is useful for knowing how large the L1 portion of the
+ *         transaction fee will be. The following events were deprecated with Bedrock:
+ *         - event OverheadUpdated(uint256 overhead);
+ *         - event ScalarUpdated(uint256 scalar);
+ *         - event DecimalsUpdated(uint256 decimals);
  */
 contract GasPriceOracle is Semver {
     /**
@@ -55,21 +61,6 @@ contract GasPriceOracle is Semver {
      * @notice Number of decimals used in the scalar.
      */
     uint256 public constant decimals = 6;
-
-    /**
-     * @notice Emitted when the overhead value is updated.
-     */
-    event OverheadUpdated(uint256 overhead);
-
-    /**
-     * @notice Emitted when the scalar value is updated.
-     */
-    event ScalarUpdated(uint256 scalar);
-
-    /**
-     * @notice Emitted when the decimals value is updated.
-     */
-    event DecimalsUpdated(uint256 decimals);
 
     /**
      * @custom:semver 0.0.1
