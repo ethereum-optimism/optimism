@@ -382,6 +382,3 @@ export const assertDictatorConfig = async (
     }
   }
 }
-
-// Large balance to fund accounts with.
-export const BIG_BALANCE = ethers.BigNumber.from(`0xFFFFFFFFFFFFFFFFFFFF`)
