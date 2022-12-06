@@ -11,13 +11,13 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
-    function test_OptimismPortalConstructor() external {
+    function test_constructor_succeeds() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
     }
 
-    function test_OptimismPortalReceiveEth_success() external {
+    function test_receive_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(alice, alice, 100, 100, 100_000, false, hex"");
 
@@ -38,7 +38,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
-    function test_depositTransaction_NoValueEOA_success() external {
+    function test_depositTransaction_noValueEOA_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
         vm.expectEmit(true, true, false, true);
@@ -62,7 +62,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when a contract deposits a tx with 0 value
-    function test_depositTransaction_NoValueContract_success() external {
+    function test_depositTransaction_noValueContract_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -84,7 +84,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a contract creation with 0 value
-    function test_depositTransaction_createWithZeroValueForEOA_success() external {
+    function test_depositTransaction_createWithZeroValueForEOA_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
@@ -103,7 +103,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when a contract deposits a contract creation with 0 value
-    function test_depositTransaction_createWithZeroValueForContract_success() external {
+    function test_depositTransaction_createWithZeroValueForContract_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -119,7 +119,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when an EOA deposits a transaction with ETH
-    function test_depositTransaction_withEthValueFromEOA_success() external {
+    function test_depositTransaction_withEthValueFromEOA_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
@@ -145,7 +145,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when a contract deposits a transaction with ETH
-    function test_depositTransaction_withEthValueFromContract_success() external {
+    function test_depositTransaction_withEthValueFromContract_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -167,7 +167,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when an EOA deposits a contract creation with ETH
-    function test_depositTransaction_withEthValueAndEOAContractCreation_success() external {
+    function test_depositTransaction_withEthValueAndEOAContractCreation_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
@@ -193,7 +193,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when a contract deposits a contract creation with ETH
-    function test_depositTransaction_withEthValueAndContractContractCreation_success() external {
+    function test_depositTransaction_withEthValueAndContractContractCreation_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -215,7 +215,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(address(op).balance, NON_ZERO_VALUE);
     }
 
-    function test_simple_isOutputFinalized_success() external {
+    function test_simple_isOutputFinalized_succeeds() external {
         uint256 ts = block.timestamp;
         vm.mockCall(
             address(op.L2_ORACLE()),
@@ -234,7 +234,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.isOutputFinalized(0), true);
     }
 
-    function test_isOutputFinalized_success() external {
+    function test_isOutputFinalized_succeeds() external {
         uint256 checkpoint = oracle.nextBlockNumber();
         uint256 nextOutputIndex = oracle.nextOutputIndex();
         vm.roll(checkpoint);
@@ -397,7 +397,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash has
     // already been proven AND the output root has changed AND the l2BlockNumber stays the same.
-    function test_proveWithdrawalTransaction_replayProveChangedOutputRoot_success() external {
+    function test_proveWithdrawalTransaction_replayProveChangedOutputRoot_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
@@ -440,7 +440,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     }
 
     // Test: proveWithdrawalTransaction succeeds and emits the WithdrawalProven event.
-    function test_proveWithdrawalTransaction_validWithdrawalProof_success() external {
+    function test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
@@ -452,7 +452,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     }
 
     // Test: finalizeWithdrawalTransaction succeeds and emits the WithdrawalFinalized event.
-    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_success() external {
+    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_succeeds() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
         vm.expectEmit(true, true, true, true);
@@ -878,7 +878,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         proxy = Proxy(payable(address(op)));
     }
 
-    function test_params_initValuesOnProxy_success() external {
+    function test_params_initValuesOnProxy_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
             payable(address(proxy))
         ).params();
@@ -897,7 +897,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         OptimismPortal(opImpl).initialize();
     }
 
-    function test_upgradeToAndCall_upgrading_success() external {
+    function test_upgradeToAndCall_upgrading_succeeds() external {
         // Check an unused slot before upgrading.
         bytes32 slot21Before = vm.load(address(op), bytes32(uint256(21)));
         assertEq(bytes32(0), slot21Before);
