@@ -22,7 +22,7 @@ func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []
 			}
 		}
 
-		log.Info("hashes", "txHashes", txHashes)
+		log.Info("hashes", "txHashes", txHashes, "block", block.Number, "bhash", block.Hash)
 
 		// We don't trust the RPC to provide consistent cached receipt info that we use for critical rollup derivation work.
 		// Let's check everything quickly.
