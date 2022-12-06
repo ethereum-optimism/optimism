@@ -36,7 +36,7 @@ go get github.com/ethereum-optimism/optimism/op-service@$VERSION
 go get github.com/ethereum-optimism/optimism/op-chain-ops@$VERSION
 go mod tidy
 
-echo Please update the version to ${VERSION} in `op-node/version/version.go`
+echo Please update the version to ${VERSION} in op-node/version/version.go
 read -p "Press [Enter] key to start continue"
 
 
@@ -52,7 +52,7 @@ go get github.com/ethereum-optimism/optimism/op-service@$VERSION
 go get github.com/ethereum-optimism/optimism/op-node@$VERSION
 go mod tidy
 
-echo Please update the version to ${VERSION} in `op-proposer/cmd/main.go`
+echo Please update the version to ${VERSION} in op-proposer/cmd/main.go
 read -p "Press [Enter] key to start continue"
 
 git add .
@@ -68,7 +68,7 @@ go get github.com/ethereum-optimism/optimism/op-node@$VERSION
 go get github.com/ethereum-optimism/optimism/op-proposer@$VERSION
 go mod tidy
 
-echo Please update the version to ${VERSION} in `op-batcher/cmd/main.go`
+echo Please update the version to ${VERSION} in op-batcher/cmd/main.go
 read -p "Press [Enter] key to start continue"
 
 git add .
