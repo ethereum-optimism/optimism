@@ -5,7 +5,7 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 
 contract SafeCall_Test is CommonTest {
-    function test_safeCall(
+    function testFuzz_safeCall_succeeds(
         address from,
         address to,
         uint256 gas,

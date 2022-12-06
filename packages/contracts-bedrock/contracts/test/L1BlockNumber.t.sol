@@ -30,17 +30,17 @@ contract L1BlockNumberTest is Test {
         });
     }
 
-    function test_getL1BlockNumber() external {
+    function test_getL1BlockNumber_succeeds() external {
         assertEq(bn.getL1BlockNumber(), number);
     }
 
-    function test_fallback() external {
+    function test_fallback_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call(hex"");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));
     }
 
-    function test_receive() external {
+    function test_receive_succeeds() external {
         (bool success, bytes memory ret) = address(bn).call{ value: 1 }(hex"");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));

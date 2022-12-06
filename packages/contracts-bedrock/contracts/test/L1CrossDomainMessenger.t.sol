@@ -30,21 +30,21 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // pause: should pause the contract when called by the current owner
-    function test_L1MessengerPause() external {
+    function test_pause_succeeds() external {
         vm.prank(alice);
         L1Messenger.pause();
         assert(L1Messenger.paused());
     }
 
     // pause: should not pause the contract when called by account other than the owner
-    function testCannot_L1MessengerPause() external {
+    function test_pause_callerIsNotOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(address(0xABBA));
         L1Messenger.pause();
     }
 
     // unpause: should unpause the contract when called by the current owner
-    function test_L1MessengerUnpause() external {
+    function test_unpause_succeeds() external {
         vm.prank(alice);
         L1Messenger.pause();
         assert(L1Messenger.paused());
@@ -55,14 +55,14 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // unpause: should not unpause the contract when called by account other than the owner
-    function testCannot_L1MessengerUnpause() external {
+    function test_unpause_callerIsNotOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         vm.prank(address(0xABBA));
         L1Messenger.unpause();
     }
 
     // the version is encoded in the nonce
-    function test_L1MessengerMessageVersion() external {
+    function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
         assertEq(version, L1Messenger.MESSAGE_VERSION());
     }
@@ -70,7 +70,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // sendMessage: should be able to send a single message
     // TODO: this same test needs to be done with the legacy message type
     // by setting the message version to 0
-    function test_L1MessengerSendMessage() external {
+    function test_sendMessage_succeeds() external {
         // deposit transaction on the optimism portal should be called
         vm.expectCall(
             address(op),
@@ -123,7 +123,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // sendMessage: should be able to send the same message twice
-    function test_L1MessengerTwiceSendMessage() external {
+    function test_sendMessage_twice_succeeds() external {
         uint256 nonce = L1Messenger.messageNonce();
         L1Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
         L1Messenger.sendMessage(recipient, hex"aa", uint32(500_000));
@@ -131,7 +131,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(nonce + 2, L1Messenger.messageNonce());
     }
 
-    function test_L1MessengerXDomainSenderReverts() external {
+    function test_xDomainSender_notSet_reverts() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
     }
@@ -140,7 +140,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // TODO: might need a test contract
     // function test_xDomainSenderSetCorrectly() external {}
 
-    function test_L1MessengerRelayMessageV0Fails() external {
+    function test_relayMessage_v0_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
@@ -162,7 +162,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should send a successful call to the target contract
-    function test_L1MessengerRelayMessageSucceeds() external {
+    function test_relayMessage_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
@@ -201,7 +201,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
-    function test_L1MessengerRelayMessageToSystemContract() external {
+    function test_relayMessage_toSystemContract_reverts() external {
         // set the target to be the OptimismPortal
         address target = address(op);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
@@ -231,7 +231,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if eth is sent from a contract other than the standard bridge
-    function test_L1MessengerReplayMessageWithValue() external {
+    function test_replayMessage_withValue_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = hex"1111";
@@ -250,7 +250,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: the xDomainMessageSender is reset to the original value
-    function test_L1MessengerxDomainMessageSenderResets() external {
+    function test_xDomainMessageSender_reset_succeeds() external {
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
 
@@ -272,7 +272,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if paused
-    function test_L1MessengerRelayShouldRevertIfPaused() external {
+    function test_relayMessage_paused_reverts() external {
         vm.prank(L1Messenger.owner());
         L1Messenger.pause();
 
@@ -282,7 +282,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
     // relayMessage: should send a successful call to the target contract after the first message
     // fails and ETH gets stuck, but the second message succeeds
-    function test_L1MessengerRelayMessageFirstStuckSecondSucceeds() external {
+    function test_relayMessage_retryAfterFailure_succeeds() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         uint256 value = 100;
@@ -338,7 +338,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     }
 
     // relayMessage: should revert if recipient is trying to reenter
-    function test_L1MessengerRelayMessageRevertsOnReentrancy() external {
+    function test_relayMessage_reentrancy_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
         bytes memory message = abi.encodeWithSelector(

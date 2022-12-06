@@ -12,12 +12,12 @@ contract DeployerWhitelist_Test is CommonTest {
     }
 
     // The owner should be address(0)
-    function test_owner() external {
+    function test_owner_succeeds() external {
         assertEq(list.owner(), address(0));
     }
 
     // The storage slot for the owner must be the same
-    function test_storageSlots() external {
+    function test_storageSlots_succeeds() external {
         vm.prank(list.owner());
         list.setOwner(address(1));
 

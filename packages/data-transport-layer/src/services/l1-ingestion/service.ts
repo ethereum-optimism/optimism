@@ -228,7 +228,7 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
         )
 
         // Don't sync beyond the shutoff block!
-        if (this.options.l1SyncShutoffBlock !== undefined) {
+        if (Number.isInteger(this.options.l1SyncShutoffBlock)) {
           targetL1Block = Math.min(
             targetL1Block,
             this.options.l1SyncShutoffBlock
