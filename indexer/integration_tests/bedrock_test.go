@@ -201,14 +201,10 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NoError(t, err)
 		proofCl := gethclient.New(rpcClient)
 		receiptCl := ethclient.NewClient(rpcClient)
-		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader)
-		require.NoError(t, err)
-
 		oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
 		require.Nil(t, err)
-
-		l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, wParams.BlockNumber)
-		require.Nil(t, err)
+		wParams, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, wdTx.Hash(), finHeader, oracle)
+		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
 		// Prove our withdrawal
@@ -222,7 +218,7 @@ func TestBedrockIndexer(t *testing.T) {
 				GasLimit: wParams.GasLimit,
 				Data:     wParams.Data,
 			},
-			l2OutputIndex,
+			wParams.L2OutputIndex,
 			wParams.OutputRootProof,
 			wParams.WithdrawalProof,
 		)
@@ -236,7 +232,7 @@ func TestBedrockIndexer(t *testing.T) {
 			e2eutils.TimeoutCtx(t, time.Minute),
 			l1Client,
 			predeploys.DevOptimismPortalAddr,
-			wParams.BlockNumber,
+			finHeader.Number,
 		)
 		require.NoError(t, err)
 
