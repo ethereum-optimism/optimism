@@ -3,7 +3,7 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { predeploys } from '../src'
 import {
   assertContractVariable,
-  deployAndVerifyAndThen,
+  deploy,
   getContractFromArtifact,
 } from '../src/deploy-utils'
 
@@ -13,7 +13,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy__OVM_L1CrossDomainMessenger'
   )
 
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'L1StandardBridge',
     args: [L1CrossDomainMessengerProxy.address],

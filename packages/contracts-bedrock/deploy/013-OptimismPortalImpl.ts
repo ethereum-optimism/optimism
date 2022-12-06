@@ -3,7 +3,7 @@ import '@eth-optimism/hardhat-deploy-config'
 
 import {
   assertContractVariable,
-  deployAndVerifyAndThen,
+  deploy,
   getContractFromArtifact,
 } from '../src/deploy-utils'
 
@@ -13,7 +13,7 @@ const deployFn: DeployFunction = async (hre) => {
     'L2OutputOracleProxy'
   )
 
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'OptimismPortal',
     args: [
