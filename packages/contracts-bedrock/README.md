@@ -239,3 +239,39 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
 - `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
+
+## Deployment
+
+### Configuration
+
+You must configure a deployment before you can execute it.
+To configure a deployment, create a deployment configuration JSON file inside of the [`/deploy-config`](./deploy-config/) folder.
+The name of this JSON file **MUST** match the name of the network in your hardhat configuration.
+For example, if your network name is `mainnet` then your deployment configuration file must be named `mainnet.json`.
+
+See the below table for a specification for all configuration values.
+Configuration is separated into three categories.
+`Core Config` is the basic configuration for any Optimism Bedrock deployment.
+`L2 Network Config` is used to configure the L2 network
+`L1 Network Config` is used when spinning up an L1 network alongside your deployment (mainly used in development).
+
+| Name | Category | Required | Description |
+| ---- | -------- | -------- | ----------- |
+| finalSystemOwner | Core Config | Optional (see note) | **REQUIRED** for live network deployments but can be left out for test deployments, if unset then will default to the deployer address |
+| controller | Core Config |  Optional (see note) | **REQUIRED** for live network deployments but can be left out for test deployments, if unset then will default to the deployer address |
+| l1ChainID | Core Config |  Required | Chain ID for the L1 network |
+| l2ChainID | Core Config |  Required | Chain ID for the L2 network |
+| l2BlockTime | Core Config |  Required | Number of seconds between each L2 block |
+| maxSequencerDrift | Core Config |  Required | TODO |
+| sequencerWindowSize | Core Config |  Required | Size of the [Sequencing Window](TODO) in L1 blocks |
+| channelTimeout | Core Config |  Required | Number of seconds (w.r.t. L1 time) that a [Channel Frame](TODO) is valid when included in L1 |
+| p2pSequencerAddress | Core Config |  Required | Address of the key the Sequencer uses to sign blocks on the P2P network |
+| batchInboxAddress | Core Config |  Required | Address that transaction batches are sent to |
+| batchSenderAddress | Core Config |  Required | Address that nodes will accept transaction batches from |
+| l2OutputOracleSubmissionInterval | Core Config |  Required | Interval in L2 blocks between output submissions to the [L2OutputOracle](TODO) |
+| l2OutputOracleStartingBlockNumber | Core Config |  Required | TODO |
+| l2OutputOracleStartingTimestamp | Core Config |  Required | TODO |
+| l2OutputOracleProposer | Core Config |  Required | Address allowed to submit outputs to the [L2OutputOracle](TODO) |
+| l2OutputOracleChallenger | Core Config |  Required | Address allowed to delete outputs from the [L2OutputOracle](TODO) |
+| finalizationPeriodSeconds | Core Config |  Required | Output finalization period in seconds |
+| l1BlockTime | L1 Network Config | Optional |

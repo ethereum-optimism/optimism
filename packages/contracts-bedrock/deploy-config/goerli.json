@@ -20,8 +20,6 @@
   "l2OutputOracleChallenger": "DUMMY",
   "finalizationPeriodSeconds": 2,
 
-  "systemConfigOwner": "DUMMY",
-
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",

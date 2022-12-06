@@ -351,7 +351,7 @@ export const makeDictatorConfig = async (
       systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
     },
     systemConfigConfig: {
-      owner: hre.deployConfig.systemConfigOwner,
+      owner: finalOwner,
       overhead: hre.deployConfig.gasPriceOracleOverhead,
       scalar: hre.deployConfig.gasPriceOracleDecimals,
       batcherHash: hre.ethers.utils.hexZeroPad(
