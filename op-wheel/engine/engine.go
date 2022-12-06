@@ -160,7 +160,11 @@ func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logg
 			return ctx.Err()
 		case now := <-ticker.C:
 			blockTime := time.Duration(settings.BlockTime) * time.Second
-			buildTriggerTime := time.Unix(int64(lastPayload.Timestamp), 0).Add(blockTime - settings.BuildTime)
+			lastTime := uint64(0)
+			if lastPayload != nil {
+				lastTime = lastPayload.Timestamp
+			}
+			buildTriggerTime := time.Unix(int64(lastTime), 0).Add(blockTime - settings.BuildTime)
 
 			if lastPayload == nil || now.After(buildTriggerTime) {
 				buildTime := settings.BuildTime
