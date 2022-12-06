@@ -36,6 +36,14 @@ go get github.com/ethereum-optimism/optimism/op-service@$VERSION
 go get github.com/ethereum-optimism/optimism/op-chain-ops@$VERSION
 go mod tidy
 
+echo "package version" > version/version.go
+echo "" >> version/version.go
+echo "var (" >> version/version.go
+echo "	Version = \"0.0.0\"" >> version/version.go
+echo "	Meta = \"dev\"" >> version/version.go
+echo ")" >> version/version.go
+echo "" >> version/version.go
+
 git add .
 git commit -am 'chore: Upgrade op-node dependencies'
 git push $BEDROCK_TAGS_REMOTE
