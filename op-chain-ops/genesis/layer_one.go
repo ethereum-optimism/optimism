@@ -77,7 +77,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err := sysCfgABI.Pack(
 		"initialize",
-		config.SystemConfigOwner,
+		config.FinalSystemOwner,
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
@@ -263,7 +263,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 		{
 			Name: "SystemConfig",
 			Args: []interface{}{
-				config.SystemConfigOwner,
+				config.FinalSystemOwner,
 				uint642Big(config.GasPriceOracleOverhead),
 				uint642Big(config.GasPriceOracleScalar),
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway

@@ -41,7 +41,6 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         setter.set(1);
     }
 
-
     function test_onlyOwner_notOwner2_reverts() external {
         uint240 nonce = 0;
         address sender = bob;
