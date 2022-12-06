@@ -1,10 +1,7 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 
-import {
-  assertContractVariable,
-  deployAndVerifyAndThen,
-} from '../src/deploy-utils'
+import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const batcherHash = hre.ethers.utils.hexZeroPad(
@@ -12,7 +9,7 @@ const deployFn: DeployFunction = async (hre) => {
     32
   )
 
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'SystemConfig',
     args: [
