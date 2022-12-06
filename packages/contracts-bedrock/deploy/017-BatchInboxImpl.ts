@@ -5,7 +5,7 @@ import '@nomiclabs/hardhat-ethers'
 
 import {
   assertContractVariable,
-  deployAndVerifyAndThen,
+  deploy,
   getContractFromArtifact,
 } from '../src/deploy-utils'
 
@@ -16,7 +16,7 @@ const deployFn: DeployFunction = async (hre) => {
     'BatchInboxProxy'
   )
 
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'BatchInbox',
     args: [hre.deployConfig.batchSenderAddress, hre.deployConfig.batchInboxAddress],
