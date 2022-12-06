@@ -2,13 +2,10 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 
-import {
-  assertContractVariable,
-  deployAndVerifyAndThen,
-} from '../src/deploy-utils'
+import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'L2OutputOracle',
     args: [

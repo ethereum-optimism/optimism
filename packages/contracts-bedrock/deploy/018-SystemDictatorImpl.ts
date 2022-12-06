@@ -2,10 +2,10 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import 'hardhat-deploy'
 
-import { deployAndVerifyAndThen } from '../src/deploy-utils'
+import { deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'SystemDictator',
     args: [],

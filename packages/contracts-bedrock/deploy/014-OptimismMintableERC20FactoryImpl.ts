@@ -2,7 +2,7 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import {
   assertContractVariable,
-  deployAndVerifyAndThen,
+  deploy,
   getContractFromArtifact,
 } from '../src/deploy-utils'
 
@@ -12,7 +12,7 @@ const deployFn: DeployFunction = async (hre) => {
     'Proxy__OVM_L1StandardBridge'
   )
 
-  await deployAndVerifyAndThen({
+  await deploy({
     hre,
     name: 'OptimismMintableERC20Factory',
     args: [L1StandardBridgeProxy.address],
