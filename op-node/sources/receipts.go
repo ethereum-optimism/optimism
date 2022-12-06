@@ -44,24 +44,25 @@ func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []
 			if r.BlockHash != block.Hash {
 				return nil, fmt.Errorf("receipt %d has unexpected block hash %s, expected %s", i, r.BlockHash, block.Hash)
 			}
-			for j, log := range r.Logs {
-				if log.Index != logIndex {
-					return nil, fmt.Errorf("log %d (%d of tx %d) has unexpected log index %d", logIndex, j, i, log.Index)
+			for j, l := range r.Logs {
+				if l.Index != logIndex {
+					log.Warn("log index mismatch", "logIndex", j, "log.Index", l.Index)
+					//return nil, fmt.Errorf("log %d (%d of tx %d) has unexpected log index %d", logIndex, j, i, log.Index)
 				}
-				if log.TxIndex != uint(i) {
-					return nil, fmt.Errorf("log %d has unexpected tx index %d", log.Index, log.TxIndex)
+				if l.TxIndex != uint(i) {
+					return nil, fmt.Errorf("log %d has unexpected tx index %d", l.Index, l.TxIndex)
 				}
-				if log.BlockHash != block.Hash {
-					return nil, fmt.Errorf("log %d of block %s has unexpected block hash %s", log.Index, block.Hash, log.BlockHash)
+				if l.BlockHash != block.Hash {
+					return nil, fmt.Errorf("log %d of block %s has unexpected block hash %s", l.Index, block.Hash, l.BlockHash)
 				}
-				if log.BlockNumber != block.Number {
-					return nil, fmt.Errorf("log %d of block %d has unexpected block number %d", log.Index, block.Number, log.BlockNumber)
+				if l.BlockNumber != block.Number {
+					return nil, fmt.Errorf("log %d of block %d has unexpected block number %d", l.Index, block.Number, l.BlockNumber)
 				}
-				if log.TxHash != txHashes[i] {
-					return nil, fmt.Errorf("log %d of tx %s has unexpected tx hash %s", log.Index, txHashes[i], log.TxHash)
+				if l.TxHash != txHashes[i] {
+					return nil, fmt.Errorf("log %d of tx %s has unexpected tx hash %s", l.Index, txHashes[i], l.TxHash)
 				}
-				if log.Removed {
-					return nil, fmt.Errorf("canonical log (%d) must never be removed due to reorg", log.Index)
+				if l.Removed {
+					return nil, fmt.Errorf("canonical log (%d) must never be removed due to reorg", l.Index)
 				}
 				logIndex++
 			}
