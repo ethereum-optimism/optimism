@@ -47,7 +47,7 @@ contract Proxy_Test is Test {
         proxy.upgradeTo(address(simpleStorage));
     }
 
-    function test_implementationKey() external {
+    function test_implementationKey_succeeds() external {
         // The hardcoded implementation key should be correct
         vm.prank(alice);
         proxy.upgradeTo(address(6));
@@ -60,7 +60,7 @@ contract Proxy_Test is Test {
         assertEq(impl, address(6));
     }
 
-    function test_ownerKey() external {
+    function test_ownerKey_succeeds() external {
         // The hardcoded owner key should be correct
         vm.prank(alice);
         proxy.changeAdmin(address(6));
@@ -73,7 +73,7 @@ contract Proxy_Test is Test {
         assertEq(owner, address(6));
     }
 
-    function test_implementationProxyCallIfNotAdmin() external {
+    function test_proxyCallToImp_notAdmin_succeeds() external {
         // The implementation does not have a `upgradeTo`
         // method, calling `upgradeTo` not as the owner
         // should revert.
@@ -93,7 +93,7 @@ contract Proxy_Test is Test {
         assertEq(impl, address(64));
     }
 
-    function test_ownerProxyCallIfNotAdmin() external {
+    function test_ownerProxyCall_notAdmin_succeeds() external {
         // Calling `changeAdmin` not as the owner should revert
         // as the implementation does not have a `changeAdmin` method.
         vm.expectRevert();
@@ -118,7 +118,7 @@ contract Proxy_Test is Test {
         assertEq(owner, address(1));
     }
 
-    function test_itDelegatesToTheImplementation() external {
+    function test_delegatesToImpl_succeeds() external {
         // Call the storage setter on the proxy
         SimpleStorage(address(proxy)).set(1, 1);
 
@@ -140,7 +140,7 @@ contract Proxy_Test is Test {
         }
     }
 
-    function test_upgradeToAndCall() external {
+    function test_upgradeToAndCall_succeeds() external {
         {
             // There should be nothing in the current proxy storage
             uint256 expect = SimpleStorage(address(proxy)).get(1);
@@ -165,7 +165,7 @@ contract Proxy_Test is Test {
         assertEq(result, 1);
     }
 
-    function test_revertUpgradeToAndCall() external {
+    function test_upgradeToAndCall_functionDoesNotExist_reverts() external {
         // Get the current implementation address
         vm.prank(alice);
         address impl = proxy.implementation();
@@ -197,7 +197,7 @@ contract Proxy_Test is Test {
         );
     }
 
-    function test_payableUpgradeToAndCall() external {
+    function test_upgradeToAndCall_isPayable_succeeds() external {
         // Give alice some funds
         vm.deal(alice, 1 ether);
         // Set the implementation and call and send
@@ -217,7 +217,7 @@ contract Proxy_Test is Test {
         assertEq(address(proxy).balance, 1 ether);
     }
 
-    function test_clashingFunctionSignatures() external {
+    function test_upgradeTo_clashingFunctionSignatures_succeeds() external {
         // Clasher has a clashing function with the proxy.
         Clasher clasher = new Clasher();
 
@@ -253,13 +253,13 @@ contract Proxy_Test is Test {
 
     // Allow for `eth_call` to call proxy methods
     // by setting "from" to `address(0)`.
-    function test_zeroAddressCaller() external {
+    function test_implementation_zeroAddressCaller_succeeds() external {
         vm.prank(address(0));
         address impl = proxy.implementation();
         assertEq(impl, address(simpleStorage));
     }
 
-    function test_implementationZeroAddress() external {
+    function test_implementation_isZeroAddress_reverts() external {
         // Set `address(0)` as the implementation.
         vm.prank(alice);
         proxy.upgradeTo(address(0));

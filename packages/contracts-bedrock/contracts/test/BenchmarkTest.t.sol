@@ -60,14 +60,14 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
 }
 
 contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
-    function test_L1MessengerSendMessage_benchmark_0() external {
+    function test_sendMessage_benchmark_0() external {
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 
-    function test_L1MessengerSendMessage_benchmark_1() external {
+    function test_sendMessage_benchmark_1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
         // The amount of data typically sent during a bridge deposit.
         bytes
