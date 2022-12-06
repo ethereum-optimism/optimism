@@ -106,7 +106,7 @@ func (d *Sequencer) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l
 	// TODO: allowing to breathe when remaining time is in the negative is very generous,
 	//  we can reduce this if the block building timing gets better with PR 3818
 	d.log.Debug("using remaining time for better block production", "remaining_time", remaining)
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
 	payload, err := d.CompleteBuildingBlock(ctx)
 	if err != nil {
