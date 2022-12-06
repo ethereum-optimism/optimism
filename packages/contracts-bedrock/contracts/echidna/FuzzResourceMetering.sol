@@ -14,7 +14,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering {
         initialize();
     }
 
-    function initialize() public initializer {
+    function initialize() internal initializer {
         __ResourceMetering_init();
     }
 
