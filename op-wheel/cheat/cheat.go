@@ -30,12 +30,20 @@ type Cheater struct {
 	ReadOnly bool
 }
 
-// OpenGethDB opens a geth database to apply cheats to.
-func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
+func OpenGethRawDB(dataDirPath string, readOnly bool) (ethdb.Database, error) {
 	// don't use readonly mode in actual DB, it doesn't work with Geth.
 	db, err := rawdb.NewLevelDBDatabaseWithFreezer(dataDirPath, 2048, 500, filepath.Join(dataDirPath, "ancient"), "", readOnly)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
+	}
+	return db, nil
+}
+
+// OpenGethDB opens a geth database to apply cheats to.
+func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
+	db, err := OpenGethRawDB(dataDirPath, readOnly)
+	if err != nil {
+		return nil, err
 	}
 	ch, err := core.NewBlockChain(db, nil, nil, nil,
 		beacon.New(ethash.NewFullFaker()), vm.Config{}, nil, nil)
