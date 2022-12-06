@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -32,7 +33,7 @@ type Cheater struct {
 // OpenGethDB opens a geth database to apply cheats to.
 func OpenGethDB(dataDirPath string, readOnly bool) (*Cheater, error) {
 	// don't use readonly mode in actual DB, it doesn't work with Geth.
-	db, err := rawdb.NewLevelDBDatabaseWithFreezer(dataDirPath, 2048, 500, filepath.Join(dataDirPath, "ancient"), "", true)
+	db, err := rawdb.NewLevelDBDatabaseWithFreezer(dataDirPath, 2048, 500, filepath.Join(dataDirPath, "ancient"), "", readOnly)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
 	}
@@ -59,11 +60,11 @@ type HeadFn func(headState *state.StateDB) error
 // and updates the blockchain headers indexes to reflect the new state-root, so geth will believe the cheat
 // (unless it ever re-applies the block).
 func (ch *Cheater) RunAndClose(fn HeadFn) error {
-	block := ch.Blockchain.CurrentBlock()
-	if a, b := block.NumberU64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
+	preBlock := ch.Blockchain.CurrentBlock()
+	if a, b := preBlock.NumberU64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
 		return fmt.Errorf("cheating at genesis (head block %d <= genesis block %d) is not supported", a, b)
 	}
-	state, err := ch.Blockchain.StateAt(block.Root())
+	state, err := ch.Blockchain.StateAt(preBlock.Root())
 	if err != nil {
 		_ = ch.Close()
 		return fmt.Errorf("failed to look up head state: %w", err)
@@ -82,19 +83,22 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
 	}
-	header := block.Header()
+	header := preBlock.Header()
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
 	// based on core.BlockChain.writeHeadBlock:
 	// Add the block to the canonical chain number scheme and mark as the head
 	batch := ch.DB.NewBatch()
-	if ch.Blockchain.CurrentFinalizedBlock().Hash() == block.Hash() {
+	if ch.Blockchain.CurrentFinalizedBlock().Hash() == preBlock.Hash() {
 		rawdb.WriteFinalizedBlockHash(batch, blockHash)
 	}
+	rawdb.DeleteHeaderNumber(batch, preBlock.Hash())
 	rawdb.WriteHeadHeaderHash(batch, blockHash)
 	rawdb.WriteHeadFastBlockHash(batch, blockHash)
-	rawdb.WriteCanonicalHash(batch, blockHash, block.NumberU64())
+	rawdb.WriteCanonicalHash(batch, blockHash, preBlock.NumberU64())
+	rawdb.WriteHeaderNumber(batch, blockHash, preBlock.NumberU64())
+	rawdb.WriteHeader(batch, header)
 	// not keyed by blockhash, and we didn't remove any txs, so we just leave this one as-is.
 	// rawdb.WriteTxLookupEntriesByBlock(batch, block)
 	rawdb.WriteHeadBlockHash(batch, blockHash)
@@ -140,12 +144,24 @@ func StorageReadAll(address common.Address, w io.Writer) HeadFn {
 		storage := headState.StorageTrie(address)
 		iter := trie.NewIterator(storage.NodeIterator(nil))
 		for iter.Next() {
-			if _, err := fmt.Fprintf(w, "+ %x = %x\n", iter.Key, iter.Value); err != nil {
+			if _, err := fmt.Fprintf(w, "+ %x = %x\n", iter.Key, dbValueToHash(iter.Value)); err != nil {
 				return err
 			}
 		}
 		return nil
 	}
+}
+
+func dbValueToHash(enc []byte) common.Hash {
+	var value common.Hash
+	if len(enc) > 0 {
+		_, content, _, err := rlp.Split(enc)
+		if err != nil {
+			panic(err)
+		}
+		value.SetBytes(content)
+	}
+	return value
 }
 
 // StorageDiff compares the storage of two different accounts, and writes a patch with differences.
@@ -164,23 +180,23 @@ func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
 			}
 			if cmp := bytes.Compare(aIter.Key, bIter.Key); cmp < 0 {
 				// a is smaller, and thus missing in b. Print and move forward a
-				if _, err := fmt.Fprintf(out, "- %x = %x\n", aIter.Key, aIter.Value); err != nil {
+				if _, err := fmt.Fprintf(out, "- %x = %x\n", aIter.Key, dbValueToHash(aIter.Value)); err != nil {
 					return err
 				}
 				hasA = aIter.Next()
 			} else if cmp > 0 {
 				// b is smaller, and thus missing in a. Print and move forward b
-				if _, err := fmt.Fprintf(out, "+ %x = %x\n", bIter.Key, bIter.Value); err != nil {
+				if _, err := fmt.Fprintf(out, "+ %x = %x\n", bIter.Key, dbValueToHash(bIter.Value)); err != nil {
 					return err
 				}
 				hasB = bIter.Next()
 			} else if cmp == 0 {
 				// same key, now check if the values differ
 				if !bytes.Equal(aIter.Value, bIter.Value) {
-					if _, err := fmt.Fprintf(out, "- %x = %x\n", aIter.Key, aIter.Value); err != nil {
+					if _, err := fmt.Fprintf(out, "- %x = %x\n", aIter.Key, dbValueToHash(aIter.Value)); err != nil {
 						return err
 					}
-					if _, err := fmt.Fprintf(out, "+ %x = %x\n", bIter.Key, bIter.Value); err != nil {
+					if _, err := fmt.Fprintf(out, "+ %x = %x\n", bIter.Key, dbValueToHash(bIter.Value)); err != nil {
 						return err
 					}
 				}
