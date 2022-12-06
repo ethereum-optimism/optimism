@@ -21,10 +21,12 @@ func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []
 				return nil, fmt.Errorf("no transactions, but got non-empty receipt trie root: %s", receiptHash)
 			}
 		}
+
 		// We don't trust the RPC to provide consistent cached receipt info that we use for critical rollup derivation work.
 		// Let's check everything quickly.
 		logIndex := uint(0)
 		for i, r := range receipts {
+			log.Warn("got receipt", "hash", r.TxHash)
 			if r == nil { // on reorgs or other cases the receipts may disappear before they can be retrieved.
 				return nil, fmt.Errorf("receipt of tx %d returns nil on retrieval", i)
 			}
@@ -69,6 +71,7 @@ func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []
 		computed := types.DeriveSha(types.Receipts(receipts), hasher)
 		if receiptHash != computed {
 			log.Warn("receipt root mismatch", "expected", receiptHash, "got", computed)
+			return nil, fmt.Errorf("failed to fetch list of receipts: expected receipt root %s but computed %s from retrieved receipts", receiptHash, computed)
 		}
 		return receipts, nil
 	}
