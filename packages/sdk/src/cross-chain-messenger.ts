@@ -117,11 +117,6 @@ export class CrossChainMessenger {
   public bedrock: boolean
 
   /**
-   * Parameters for the L2OutputOracle contract.
-   */
-  private _l2OutputOracleParameters: L2OutputOracleParameters
-
-  /**
    * Creates a new CrossChainProvider instance.
    *
    * @param opts Options for the provider.
@@ -226,42 +221,6 @@ export class CrossChainMessenger {
     } else {
       return this.l2SignerOrProvider
     }
-  }
-
-  /**
-   * Accesses the L2OutputOracle parameters, with caching to avoid unnecessary requests.
-   *
-   * @returns The L2OutputOracle parameters.
-   */
-  public async getL2OutputOracleParameters(): Promise<L2OutputOracleParameters> {
-    if (this._l2OutputOracleParameters) {
-      return this._l2OutputOracleParameters
-    }
-
-    // Temporary logic to support legacy Bedrock testnets.
-    // TODO: Remove this once all legacy testnets are deprecated.
-    let startingBlockNumber: number
-    try {
-      startingBlockNumber = (
-        await this.contracts.l1.L2OutputOracle.startingBlockNumber()
-      ).toNumber()
-    } catch {
-      startingBlockNumber = (
-        await this.contracts.l1.L2OutputOracle.STARTING_BLOCK_NUMBER()
-      ).toNumber()
-    }
-
-    this._l2OutputOracleParameters = {
-      startingBlockNumber,
-      submissionInterval: (
-        await this.contracts.l1.L2OutputOracle.SUBMISSION_INTERVAL()
-      ).toNumber(),
-      l2BlockTime: (
-        await this.contracts.l1.L2OutputOracle.L2_BLOCK_TIME()
-      ).toNumber(),
-    }
-
-    return this._l2OutputOracleParameters
   }
 
   /**
