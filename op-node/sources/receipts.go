@@ -2,6 +2,7 @@ package sources
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
@@ -67,7 +68,7 @@ func makeReceiptsFn(block eth.BlockID, receiptHash common.Hash) func(txHashes []
 		hasher := trie.NewStackTrie(nil)
 		computed := types.DeriveSha(types.Receipts(receipts), hasher)
 		if receiptHash != computed {
-			return nil, fmt.Errorf("failed to fetch list of receipts: expected receipt root %s but computed %s from retrieved receipts", receiptHash, computed)
+			log.Warn("receipt root mismatch", "expected", receiptHash, "got", computed)
 		}
 		return receipts, nil
 	}
