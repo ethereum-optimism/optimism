@@ -353,10 +353,10 @@ var (
 		Name:        "auto",
 		Usage:       "Run a proof-of-nothing chain with fixed block time.",
 		Description: "The block time can be changed. The execution engine must be synced to a post-Merge state first.",
-		Flags: []cli.Flag{
+		Flags: append(append([]cli.Flag{
 			EngineEndpoint, EngineJWTPath,
 			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime,
-		},
+		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
 			logCfg := oplog.ReadCLIConfig(ctx)
 			if err := logCfg.Check(); err != nil {
