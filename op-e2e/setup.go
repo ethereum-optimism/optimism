@@ -90,8 +90,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2GenesisBlockParentHash:    common.Hash{},
 		L2GenesisBlockBaseFeePerGas: uint642big(7),
 
-		L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
-
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 

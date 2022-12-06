@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {
+    OwnableUpgradeable
+} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
@@ -23,7 +25,7 @@ import { BatchInbox } from "../L1/BatchInbox.sol";
  *         system. The SystemDictator is designed to support both fresh network deployments and
  *         upgrades to existing pre-Bedrock systems.
  */
-contract SystemDictator is Ownable {
+contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Basic system configuration.
      */
@@ -123,7 +125,7 @@ contract SystemDictator is Ownable {
     /**
      * @notice Current step;
      */
-    uint8 public currentStep = 1;
+    uint8 public currentStep;
 
     /**
      * @notice Whether or not dynamic config has been set.
@@ -154,8 +156,10 @@ contract SystemDictator is Ownable {
     /**
      * @param _config System configuration.
      */
-    constructor(DeployConfig memory _config) Ownable() {
+    function initialize(DeployConfig memory _config) public initializer {
         config = _config;
+        currentStep = 1;
+        __Ownable_init();
         _transferOwnership(config.globalConfig.controller);
     }
 

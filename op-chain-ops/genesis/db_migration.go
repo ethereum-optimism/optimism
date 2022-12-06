@@ -200,6 +200,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		EIP1559Denominator: config.EIP1559Denominator,
 		EIP1559Elasticity:  config.EIP1559Elasticity,
 	}
+	cfg.BedrockBlock = bedrockBlock.Number()
 	rawdb.WriteChainConfig(ldb, genesisHash, cfg)
 
 	log.Info(

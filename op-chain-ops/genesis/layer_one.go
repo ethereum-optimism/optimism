@@ -141,7 +141,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = l1XDMABI.Pack(
 		"initialize",
-		config.ProxyAdminOwner,
+		config.FinalSystemOwner,
 	)
 	if err != nil {
 		return nil, err

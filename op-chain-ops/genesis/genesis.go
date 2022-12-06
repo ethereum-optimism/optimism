@@ -53,6 +53,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		CancunBlock:                   nil,
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
+		BedrockBlock:                  new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator: eip1559Denom,
 			EIP1559Elasticity:  eip1559Elasticity,

@@ -1,6 +1,5 @@
 {
   "finalSystemOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
-  "controller": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
 
   "l1StartingBlockTag": "0xcadac04cba5a754737a335090120b8cfacf8101eccf2a8eca648ec4f3a5c1a68",
   "l1ChainID": 5700,
@@ -17,7 +16,6 @@
   "batchInboxAddress": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
 
-  "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
 
   "l2OutputOracleSubmissionInterval": 18000,
   "l2OutputOracleStartingTimestamp": -1,
@@ -32,7 +30,7 @@
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "proxyAdminOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
-  "l2CrossDomainMessengerOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
