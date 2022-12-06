@@ -62,3 +62,11 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		ListenPort: ctx.GlobalInt(PortFlagName),
 	}
 }
+
+func ReadLocalCLIConfig(ctx *cli.Context) CLIConfig {
+	return CLIConfig{
+		Enabled:    ctx.Bool(EnabledFlagName),
+		ListenAddr: ctx.String(ListenAddrFlagName),
+		ListenPort: ctx.Int(PortFlagName),
+	}
+}

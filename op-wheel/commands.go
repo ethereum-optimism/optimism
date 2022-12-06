@@ -358,7 +358,7 @@ var (
 			FeeRecipientFlag, RandaoFlag, BlockTimeFlag, BuildingTime,
 		}, oplog.CLIFlags(envVarPrefix)...), opmetrics.CLIFlags(envVarPrefix)...),
 		Action: EngineAction(func(ctx *cli.Context, client client.RPC) error {
-			logCfg := oplog.ReadCLIConfig(ctx)
+			logCfg := oplog.ReadLocalCLIConfig(ctx)
 			if err := logCfg.Check(); err != nil {
 				return fmt.Errorf("failed to parse log configuration: %w", err)
 			}
@@ -367,7 +367,7 @@ var (
 			settings := ParseBuildingArgs(ctx)
 			// TODO: finalize/safe flag
 
-			metricsCfg := opmetrics.ReadCLIConfig(ctx)
+			metricsCfg := opmetrics.ReadLocalCLIConfig(ctx)
 
 			return opservice.CloseAction(func(ctx context.Context, shutdown <-chan struct{}) error {
 				registry := opmetrics.NewRegistry()
