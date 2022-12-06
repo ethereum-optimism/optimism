@@ -13,7 +13,6 @@
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x7770000000000000000000000000000000000001",
   "l2OutputOracleChallenger": "0x7770000000000000000000000000000000000002",
-  "systemConfigOwner": "0x7770000000000000000000000000000000000003",
   "l1BlockTime": 15,
   "l1GenesisBlockNonce": "0x0",
   "cliqueSignerAddress": "0x0000000000000000000000000000000000000000",

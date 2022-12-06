@@ -71,7 +71,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleChallenger:         common.Address{}, // tbd
 
-		SystemConfigOwner: addresses.SysCfgOwner,
+		FinalSystemOwner: addresses.SysCfgOwner,
 
 		L1BlockTime:                 15,
 		L1GenesisBlockNonce:         0,
@@ -257,7 +257,7 @@ func ForkedDeployConfig(t require.TestingT, mnemonicCfg *MnemonicConfig, startBl
 		P2PSequencerAddress:              addrs.SequencerP2P,
 		BatchInboxAddress:                common.HexToAddress("0xff00000000000000000000000000000000000000"),
 		BatchSenderAddress:               addrs.Batcher,
-		SystemConfigOwner:                addrs.SysCfgOwner,
+		FinalSystemOwner:                 addrs.SysCfgOwner,
 		L1GenesisBlockDifficulty:         uint64ToBig(0),
 		L1GenesisBlockBaseFeePerGas:      uint64ToBig(0),
 		L2OutputOracleSubmissionInterval: 10,
