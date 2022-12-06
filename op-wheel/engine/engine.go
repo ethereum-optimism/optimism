@@ -194,6 +194,7 @@ func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logg
 					log.Error("failed to produce block", "err", err)
 					metrics.RecordBlockFail()
 				} else {
+					lastPayload = payload
 					log.Info("created block", "hash", payload.BlockHash, "number", payload.Number,
 						"timestamp", payload.Timestamp, "txs", len(payload.Transactions),
 						"gas", payload.GasUsed, "basefee", payload.BaseFeePerGas)
