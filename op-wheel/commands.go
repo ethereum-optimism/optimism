@@ -27,10 +27,11 @@ const envVarPrefix = "OP_WHEEL"
 
 var (
 	DataDirFlag = cli.StringFlag{
-		Name:     "data-dir",
-		Usage:    "Geth data dir location.",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "DATA_DIR"),
+		Name:      "data-dir",
+		Usage:     "Geth data dir location.",
+		Required:  true,
+		TakesFile: true,
+		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, "DATA_DIR"),
 	}
 	EngineEndpoint = cli.StringFlag{
 		Name: "engine",
@@ -39,10 +40,11 @@ var (
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ENGINE"),
 	}
 	EngineJWTPath = cli.StringFlag{
-		Name: "engine.jwt-secret",
-		Usage: "Path to JWT secret file used to authenticate Engine API communication with.",
-		Required: true,
-		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ENGINE_JWT_SECRET"),
+		Name:      "engine.jwt-secret",
+		Usage:     "Path to JWT secret file used to authenticate Engine API communication with.",
+		Required:  true,
+		TakesFile: true,
+		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, "ENGINE_JWT_SECRET"),
 	}
 	FeeRecipientFlag = cli.GenericFlag{
 		Name:      "fee-recipient",
@@ -117,6 +119,10 @@ type TextFlag[T Text] struct {
 }
 
 func (a *TextFlag[T]) Set(value string) error {
+	var defaultValue T
+	if a.Value == defaultValue {
+		return fmt.Errorf("cannot unmarshal into nil value")
+	}
 	return a.Value.UnmarshalText([]byte(value))
 }
 
@@ -134,26 +140,26 @@ func (a *TextFlag[T]) Get() T {
 
 var _ cli.Generic = (*TextFlag[*common.Address])(nil)
 
-func textFlag[T Text](name string, usage string) cli.GenericFlag {
+func textFlag[T Text](name string, usage string, value T) cli.GenericFlag {
 	return cli.GenericFlag{
-		Name:      name,
-		Usage:     usage,
-		EnvVar:    opservice.PrefixEnvVar(envVarPrefix, strings.ToUpper(name)),
-		Required:  true,
-		Value:     new(TextFlag[T]),
+		Name:     name,
+		Usage:    usage,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, strings.ToUpper(name)),
+		Required: true,
+		Value:    &TextFlag[T]{Value: value},
 	}
 }
 
 func addrFlag(name string, usage string) cli.GenericFlag {
-	return textFlag[*common.Address](name, usage)
+	return textFlag[*common.Address](name, usage, new(common.Address))
 }
 
 func hashFlag(name string, usage string) cli.GenericFlag {
-	return textFlag[*common.Hash](name, usage)
+	return textFlag[*common.Hash](name, usage, new(common.Hash))
 }
 
 func bigFlag(name string, usage string) cli.GenericFlag {
-	return textFlag[*big.Int](name, usage)
+	return textFlag[*big.Int](name, usage, new(big.Int))
 }
 
 func addrFlagValue(name string, ctx *cli.Context) common.Address {
