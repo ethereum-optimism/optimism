@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build:forge": "forge build",
-    "build:with-metadata": "hardhat clean && FOUNDRY_PROFILE=echidna hardhat compile",
+    "build:with-metadata": "FOUNDRY_PROFILE=echidna yarn build:forge",
     "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
@@ -38,12 +38,12 @@
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "typechain": "typechain --target ethers-v5 --out-dir dist/types --glob 'artifacts/!(build-info)/**/+([a-zA-Z0-9_]).json'",
-    "echidna:aliasing": "echidna-test --contract FuzzAddressAliasing --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:burn": "echidna-test --contract FuzzBurn --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:encoding": "echidna-test --contract FuzzEncoding --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:portal": "echidna-test --contract FuzzOptimismPortal --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:hashing": "echidna-test --contract FuzzHashing --format text --crytic-args --hardhat-ignore-compile .",
-    "echidna:metering": "echidna-test --contract FuzzResourceMetering --format text --crytic-args --hardhat-ignore-compile ."
+    "echidna:aliasing": "echidna-test --contract EchidnaFuzzAddressAliasing --config ./echidna.yaml .",
+    "echidna:burn": "echidna-test --contract EchidnaFuzzBurn --config ./echidna.yaml .",
+    "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --config ./echidna.yaml .",
+    "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --config ./echidna.yaml .",
+    "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --config ./echidna.yaml .",
+    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml ."
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.11.0",
