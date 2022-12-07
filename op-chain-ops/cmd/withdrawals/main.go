@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"strings"
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
-	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -43,7 +43,6 @@ func main() {
 				Value: "http://127.0.0.1:9545",
 				Usage: "RPC URL for an L2 Node",
 			},
-
 			&cli.StringFlag{
 				Name:  "optimism-portal-address",
 				Usage: "Address of the OptimismPortal on L1",
@@ -104,7 +103,8 @@ func main() {
 			}
 			gclient := gethclient.New(l2RpcClient)
 			log.Info("Set up L2 geth Client")
-
+			log.Debug(fmt.Sprintf("OVM path: %v", ctx.String("ovm-messages")))
+			log.Debug(fmt.Sprintf("EVM path: %v", ctx.String("evm-messages")))
 			ovmMessages, err := migration.NewSentMessage(ctx.String("ovm-messages"))
 			if err != nil {
 				return err
@@ -113,9 +113,10 @@ func main() {
 			if err != nil {
 				return err
 			}
+			log.Info("Created evm/ovm messages successfully")
 
 			optimismPortalAddress := ctx.String("optimism-portal-address")
-			if optimismPortalAddress == "" {
+			if len(optimismPortalAddress) == 0 {
 				return errors.New("OptimismPortal address not configured")
 			}
 			optimismPortalAddr := common.HexToAddress(optimismPortalAddress)
@@ -132,6 +133,7 @@ func main() {
 			if len(wds) == 0 {
 				return errors.New("no withdrawals")
 			}
+			log.Info("Converted migration data to withdrawals successfully")
 
 			l1xdmAddress := ctx.String("l1-crossdomain-messenger-address")
 			if l1xdmAddress == "" {
@@ -141,6 +143,7 @@ func main() {
 
 			// TODO: temp, should iterate over all instead of taking the first
 			wd := wds[0]
+
 			withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr)
 			if err != nil {
 				return err
@@ -155,17 +158,58 @@ func main() {
 			if err != nil {
 				return err
 			}
+			log.Info("Migrated first withdrawal successfully")
+
+			portal, err := bindings.NewOptimismPortal(optimismPortalAddr, l1Client)
+			if err != nil {
+				return err
+			}
+			log.Info(fmt.Sprintf("Deployed OptimismPortal successfully @ %v", optimismPortalAddr))
+
+			// -- snip --
+			period, err := portal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+			if err != nil {
+				return err
+			}
+			blockNo, err := l1Client.BlockNumber(context.Background())
+			if err != nil {
+				return err
+			}
+			log.Debug(fmt.Sprintf("Finalization Period (seconds): %v", period))
+			log.Debug(fmt.Sprintf("Current L1 block #: %v", blockNo))
+			// -- snip --
+
+			l2OracleAddr, err := portal.L2ORACLE(&bind.CallOpts{})
+			if err != nil {
+				return err
+			}
+			oracle, err := bindings.NewL2OutputOracleCaller(l2OracleAddr, l1Client)
+			if err != nil {
+				return nil
+			}
+			log.Debug(fmt.Sprintf("L2 Oracle Address: %v", l2OracleAddr))
 
 			transitionBlockNumber := new(big.Int).SetUint64(ctx.Uint64("bedrock-transition-block-number"))
-			bn, err := withdrawals.WaitForFinalizationPeriod(context.Background(), l1Client, optimismPortalAddr, transitionBlockNumber)
+			l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, transitionBlockNumber)
 			if err != nil {
 				return err
 			}
-			header, err := l2Client.HeaderByNumber(context.Background(), new(big.Int).SetUint64(bn))
+			l2Output, err := oracle.GetL2Output(&bind.CallOpts{}, l2OutputIndex)
 			if err != nil {
 				return err
 			}
-			proof, err := gclient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, header.Number)
+			log.Debug(fmt.Sprintf("L2 Output index: %v", l2OutputIndex.String()))
+			log.Debug(fmt.Sprintf("L2 Output root: %v", common.Bytes2Hex(l2Output.OutputRoot[:])))
+			log.Debug(fmt.Sprintf("L2 Bedrock Genesis block number: %v", transitionBlockNumber))
+			log.Debug(fmt.Sprintf("L2 block number of output: %v", l2Output.L2BlockNumber))
+
+			header, err := l2Client.HeaderByNumber(context.Background(), l2Output.L2BlockNumber)
+			if err != nil {
+				return err
+			}
+			log.Debug(fmt.Sprintf("Fetched header for L2 block #%v", l2Output.L2BlockNumber))
+
+			proof, err := gclient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, transitionBlockNumber)
 			if err != nil {
 				return err
 			}
@@ -176,19 +220,22 @@ func main() {
 			for i, s := range proof.StorageProof[0].Proof {
 				trieNodes[i] = common.FromHex(s)
 			}
+			log.Info("Generated proof and trie nodes successfully")
 
-			portal, err := bindings.NewOptimismPortal(optimismPortalAddr, l1Client)
-			if err != nil {
-				return err
+			outputRootProof := bindings.TypesOutputRootProof{
+				Version:                  [32]byte{},
+				StateRoot:                header.Root,
+				MessagePasserStorageRoot: proof.StorageHash,
+				LatestBlockhash:          header.Hash(),
 			}
 
-			l2OracleAddr, err := portal.L2ORACLE(&bind.CallOpts{})
-			oracle, err := bindings.NewL2OutputOracleCaller(l2OracleAddr, l1Client)
-			if err != nil {
-				return nil
-			}
-
-			l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, header.Number)
+			localOutputRootHash := crypto.Keccak256Hash(
+				outputRootProof.Version[:],
+				outputRootProof.StateRoot[:],
+				outputRootProof.MessagePasserStorageRoot[:],
+				outputRootProof.LatestBlockhash[:],
+			)
+			log.Debug(fmt.Sprintf("Do output root hashes match? : %v", localOutputRootHash.Hex() == common.Bytes2Hex(l2Output.OutputRoot[:])))
 
 			if ctx.String("private-key") == "" {
 				return errors.New("No private key to transact with")
@@ -203,23 +250,20 @@ func main() {
 				return err
 			}
 
+			wdTx := bindings.TypesWithdrawalTransaction{
+				Nonce:    withdrawal.Nonce,
+				Sender:   *withdrawal.Sender,
+				Target:   *withdrawal.Target,
+				Value:    withdrawal.Value,
+				GasLimit: withdrawal.GasLimit,
+				Data:     withdrawal.Data,
+			}
+
 			tx, err := portal.ProveWithdrawalTransaction(
 				opts,
-				bindings.TypesWithdrawalTransaction{
-					Nonce:    withdrawal.Nonce,
-					Sender:   *withdrawal.Sender,
-					Target:   *withdrawal.Target,
-					Value:    withdrawal.Value,
-					GasLimit: withdrawal.GasLimit,
-					Data:     withdrawal.Data,
-				},
+				wdTx,
 				l2OutputIndex,
-				bindings.TypesOutputRootProof{
-					Version:                  [32]byte{},
-					StateRoot:                header.Root,
-					MessagePasserStorageRoot: proof.StorageHash,
-					LatestBlockhash:          header.Hash(),
-				},
+				outputRootProof,
 				trieNodes,
 			)
 
@@ -235,7 +279,7 @@ func main() {
 				return errors.New("withdrawal proof unsuccessful")
 			}
 
-			log.Info("Withdrawal proven", "tx-hash", tx.Hash(), "withdrawal-hash", hash)
+			log.Info(fmt.Sprintf("Withdrawal proven (txHash: %v | withdrawalHash: %v)", tx.Hash().Hex(), hash.Hex()))
 
 			block, err := l1Client.BlockByHash(context.Background(), receipt.BlockHash)
 			if err != nil {
@@ -259,15 +303,13 @@ func main() {
 			// Finalize withdrawal
 			tx, err = portal.FinalizeWithdrawalTransaction(
 				opts,
-				bindings.TypesWithdrawalTransaction{
-					Nonce:    withdrawal.Nonce,
-					Sender:   *withdrawal.Sender,
-					Target:   *withdrawal.Target,
-					Value:    withdrawal.Value,
-					GasLimit: withdrawal.GasLimit,
-					Data:     withdrawal.Data,
-				},
+				wdTx,
 			)
+			if err != nil {
+				return err
+			}
+
+			log.Info(fmt.Sprintf("Withdrawal Finalized (txHash: %v | withdrawalHash: %v)", tx.Hash(), hash))
 
 			receipt, err = bind.WaitMined(context.Background(), l1Client, tx)
 			if err != nil {
