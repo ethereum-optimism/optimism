@@ -1,10 +1,12 @@
 package genesis
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -38,6 +40,10 @@ func CheckMigratedDB(ldb ethdb.Database) error {
 	}
 
 	if err := CheckPredeploys(db); err != nil {
+		return err
+	}
+
+	if err := CheckLegacyETH(db); err != nil {
 		return err
 	}
 
@@ -75,6 +81,17 @@ func CheckPredeploys(db vm.StateDB) error {
 		if adminAddr != predeploys.ProxyAdminAddr {
 			return fmt.Errorf("admin is %s when it should be % for %s", adminAddr, predeploys.ProxyAdminAddr, addr)
 		}
+	}
+	return nil
+}
+
+// CheckLegacyETH checks that the legacy eth migration was successful.
+// It currently only checks that the total supply was set to 0.
+func CheckLegacyETH(db vm.StateDB) error {
+	// Ensure total supply is set to 0
+	slot := db.GetState(predeploys.LegacyERC20ETHAddr, ether.GetOVMETHTotalSupplySlot())
+	if slot != (common.Hash{}) {
+		return errors.New("total supply not set to 0")
 	}
 	return nil
 }
