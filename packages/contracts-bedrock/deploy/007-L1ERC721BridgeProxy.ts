@@ -4,6 +4,7 @@ import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
+
   await deploy({
     hre,
     name: 'L1ERC721BridgeProxy',
