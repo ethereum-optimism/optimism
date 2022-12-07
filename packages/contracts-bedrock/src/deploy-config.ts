@@ -107,12 +107,12 @@ interface RequiredDeployConfig {
   /**
    * ERC20 symbol used for the L2 GovernanceToken.
    */
-  governanceTokenSymbol: string
+  governanceTokenSymbol?: string
 
   /**
    * ERC20 name used for the L2 GovernanceToken.
    */
-  governanceTokenName: string
+  governanceTokenName?: string
 
   /**
    * Owner of the L2 GovernanceToken. Has mint/burn capability.

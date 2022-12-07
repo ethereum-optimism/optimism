@@ -239,3 +239,85 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
 - `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
+
+## Deployment
+
+### Configuration
+
+You must configure a deployment before you can execute it.
+To configure a deployment, create a deployment configuration JSON file inside of the [`/deploy-config`](./deploy-config/) folder.
+The name of this JSON file **MUST** match the name of the network in your hardhat configuration.
+For example, if your network name is `mainnet` then your deployment configuration file must be named `mainnet.json`.
+
+See the below table for a specification for all configuration values.
+You **MUST** include any configuration values marked as **Required**.
+All other options have default values.
+Configuration is separated into three categories.
+
+#### Core Configuration
+
+Core configuration is the basic configuration required for all Optimism deployments.
+
+| Name | Required | Default | Description |
+| ---- | -------- | ------- | ----------- |
+| numDeployConfirmations | Optional | 1 | Number of confirmations to wait when deploying system contracts |
+| finalSystemOwner | Required | - | Address that will own all ownable contracts at the end of the deployment |
+| controller | Required | - | Address that will control the [SystemDictator](TODO) contract |
+| l1StartingBlockTag | Required | - | TODO |
+| l1ChainID | Required | - | Chain ID for the L1 network |
+| l2ChainID | Required | - | Chain ID for the L2 network |
+| l2BlockTime | Required | - | Number of seconds between each L2 block |
+| maxSequencerDrift | Required | - | TODO |
+| sequencerWindowSize | Required | - | Size of the [Sequencing Window](TODO) in L1 blocks |
+| channelTimeout | Required | - | Number of seconds that a [Channel Frame](TODO) is valid when included in L1 |
+| p2pSequencerAddress | Required | - | Address of the key the Sequencer uses to sign blocks on the P2P network |
+| batchInboxAddress | Required | - | Address that transaction batches are sent to |
+| batchSenderAddress | Required | - | Address that nodes will accept transaction batches from |
+| l2OutputOracleSubmissionInterval | Required | - | Interval in L2 blocks between output submissions to the [L2OutputOracle](TODO) |
+| l2OutputOracleStartingBlockNumber | Required | - | TODO |
+| l2OutputOracleStartingTimestamp | Required | - | TODO |
+| l2OutputOracleProposer | Required | - | Address allowed to submit outputs to the [L2OutputOracle](TODO) |
+| l2OutputOracleChallenger | Required | - | Address allowed to delete outputs from the [L2OutputOracle](TODO) |
+| finalizationPeriodSeconds | Required | - | Output finalization period in seconds |
+| governanceTokenOwner | Required | - | Owner of the L2 governance token |
+| governanceTokenSymbol | Optional | OP | Symbol for the L2 governance token |
+| governanceTokenName | Optional | Optimism | Name for the L2 governance token |
+
+#### L2 Network Configuration
+
+L2 network configuration is used to set up the initial state of the L2 network.
+Some of these values may not be used if migrating a legacy network to Bedrock.
+
+| Name | Required | Default | Description |
+| ---- | -------- | ------- | ----------- |
+| l2GenesisBlockNonce | Optional | 0 | Nonce for the L2 genesis block |
+| l2GenesisBlockExtraData | Optional | bytes32(0) | Extra data for the L2 genesis block |
+| l2GenesisBlockGasLimit | Optional | 15000000 | Gas limit for the L2 genesis block |
+| l2GenesisBlockDifficulty | Optional | 1 | Difficulty for the L2 genesis block |
+| l2GenesisBlockMixHash | Optional | bytes32(0) | Mix hash for the L2 genesis block |
+| l2GenesisBlockCoinbase | Optional | address(0) | Coinbase for the L2 genesis block |
+| l2GenesisBlockNumber | Optional | 0 | Block number for the L2 genesis block |
+| l2GenesisBlockGasUsed | Optional | 0 | Gas used for the L2 genesis block |
+| l2GenesisBlockParentHash | Optional | bytes32(0) | Parent hash for the L2 genesis block |
+| l2GenesisBlockBaseFeePerGas | Optional | 1 gwei | Base fee per gas for the L2 genesis block |
+| gasPriceOracleOverhead | Optional | 2100 | Initial [overhead](TODO) value for the [GasPriceOracle](TODO) |
+| gasPriceOracleScalar | Optional | 1000000 | Initial [scalar](TODO) value for the [GasPriceOracle](TODO) |
+
+#### L1 Network Configuration
+
+L1 network configuration is optional and only required when spinning up an L1 network alongside the L2 network.
+This configuration is primarily used for testing and development.
+
+| Name | Required | Default | Description |
+| ---- | -------- | ------- | ----------- |
+| cliqueSignerAddress | Optional | address(0) | Address that will sign blocks on the L1 network |
+| l1BlockTime | Optional | 15 | Seconds between blocks on the L1 network |
+| l1GenesisBlockNonce | Optional | 0 | Nonce for the L1 genesis block |
+| l1GenesisBlockGasLimit | Optional | 15000000 | Gas limit for the L1 genesis block |
+| l1GenesisBlockDifficulty | Optional | 1 | Difficulty for the L1 genesis block |
+| l1GenesisBlockMixHash | Optional | bytes32(0) | Mix hash for the L1 genesis block |
+| l1GenesisBlockCoinbase | Optional | address(0) | Coinbase for the L1 genesis block |
+| l1GenesisBlockNumber | Optional | 0 | Block number for the L1 genesis block |
+| l1GenesisBlockGasUsed | Optional | 0 | Gas used for the L1 genesis block |
+| l1GenesisBlockParentHash | Optional | bytes32(0) | Parent hash for the L1 genesis block |
+| l1GenesisBlockBaseFeePerGas | Optional | 1 gwei | Base fee per gas for the L1 genesis block |
