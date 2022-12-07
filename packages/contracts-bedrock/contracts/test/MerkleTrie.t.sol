@@ -5,7 +5,7 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { MerkleTrie } from "../libraries/trie/MerkleTrie.sol";
 
 contract MerkleTrie_Test is CommonTest {
-    function test_get_validProofSucceeds1() external {
+    function test_get_validProof1_succeeds() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579326262";
         bytes memory val = hex"6176616c32";
@@ -24,7 +24,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds2() external {
+    function test_get_validProof2_succeeds() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579316161";
         bytes memory val = hex"303132333435363738393031323334353637383930313233343536373839303132333435363738397878";
@@ -43,7 +43,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds3() external {
+    function test_get_validProof3_succeeds() external {
         bytes32 root = 0xf838216fa749aefa91e0b672a9c06d3e6e983f913d7107b5dab4af60b5f5abed;
         bytes memory key = hex"6b6579316161";
         bytes memory val = hex"303132333435363738393031323334353637383930313233343536373839303132333435363738397878";
@@ -60,7 +60,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds4() external {
+    function test_get_validProof4_succeeds() external {
         bytes32 root = 0x37956bab6bba472308146808d5311ac19cb4a7daae5df7efcc0f32badc97f55e;
         bytes memory key = hex"6b6579316161";
         bytes memory val = hex"3031323334";
@@ -77,7 +77,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds5() external {
+    function test_get_validProof5_succeeds() external {
         bytes32 root = 0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89;
         bytes memory key = hex"6b657931";
         bytes memory val = hex"30313233343536373839303132333435363738393031323334353637383930313233343536373839566572795f4c6f6e67";
@@ -96,7 +96,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds6() external {
+    function test_get_validProof6_succeeds() external {
         bytes32 root = 0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89;
         bytes memory key = hex"6b657932";
         bytes memory val = hex"73686f7274";
@@ -115,7 +115,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds7() external {
+    function test_get_validProof7_succeeds() external {
         bytes32 root = 0xcb65032e2f76c48b82b5c24b3db8f670ce73982869d38cd39a624f23d62a9e89;
         bytes memory key = hex"6b657933";
         bytes memory val = hex"31323334353637383930313233343536373839303132333435363738393031";
@@ -134,7 +134,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds8() external {
+    function test_get_validProof8_succeeds() external {
         bytes32 root = 0x72e6c01ad0c9a7b517d4bc68a5b323287fe80f0e68f5415b4b95ecbc8ad83978;
         bytes memory key = hex"61";
         bytes memory val = hex"61";
@@ -153,7 +153,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds9() external {
+    function test_get_validProof9_succeeds() external {
         bytes32 root = 0x72e6c01ad0c9a7b517d4bc68a5b323287fe80f0e68f5415b4b95ecbc8ad83978;
         bytes memory key = hex"62";
         bytes memory val = hex"62";
@@ -172,7 +172,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_validProofSucceeds10() external {
+    function test_get_validProof10_succeeds() external {
         bytes32 root = 0x72e6c01ad0c9a7b517d4bc68a5b323287fe80f0e68f5415b4b95ecbc8ad83978;
         bytes memory key = hex"63";
         bytes memory val = hex"63";
@@ -191,7 +191,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_nonexistentKey1() external {
+    function test_get_nonexistentKey1_reverts() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b657932";
         bytes[] memory proof = new bytes[](3);
@@ -207,7 +207,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_nonexistentKey2() external {
+    function test_get_nonexistentKey2_reverts() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"616e7972616e646f6d6b6579";
         bytes[] memory proof = new bytes[](1);
@@ -221,7 +221,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_wrongKeyProof() external {
+    function test_get_wrongKeyProof_reverts() external {
         bytes32 root = 0x2858eebfa9d96c8a9e6a0cae9d86ec9189127110f132d63f07d3544c2a75a696;
         bytes memory key = hex"6b6579316161";
         bytes[] memory proof = new bytes[](3);
@@ -237,7 +237,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_corruptedProof() external {
+    function test_get_corruptedProof_reverts() external {
         bytes32 root = 0x2858eebfa9d96c8a9e6a0cae9d86ec9189127110f132d63f07d3544c2a75a696;
         bytes memory key = hex"6b6579326262";
         bytes[] memory proof = new bytes[](5);
@@ -255,7 +255,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_invalidDataRemainder() external {
+    function test_get_invalidDataRemainder_reverts() external {
         bytes32 root = 0x278c88eb59beba4f8b94f940c41614bb0dd80c305859ebffcd6ce07c93ca3749;
         bytes memory key = hex"aa";
         bytes[] memory proof = new bytes[](3);
@@ -271,7 +271,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_invalidInternalNodeHash() external {
+    function test_get_invalidInternalNodeHash_reverts() external {
         bytes32 root = 0xa827dff1a657bb9bb9a1c3abe9db173e2f1359f15eb06f1647ea21ac7c95d8fa;
         bytes memory key = hex"aa";
         bytes[] memory proof = new bytes[](3);
@@ -287,7 +287,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_zeroBranchValueLength() external {
+    function test_get_zeroBranchValueLength_reverts() external {
         bytes32 root = 0xe04b3589eef96b237cd49ccb5dcf6e654a47682bfa0961d563ab843f7ad1e035;
         bytes memory key = hex"aa";
         bytes[] memory proof = new bytes[](2);
@@ -302,7 +302,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_zeroLengthKey() external {
+    function test_get_zeroLengthKey_reverts() external {
         bytes32 root = 0x54157fd62cdf2f474e7bfec2d3cd581e807bee38488c9590cb887add98936b73;
         bytes memory key = hex"";
         bytes[] memory proof = new bytes[](1);
@@ -316,7 +316,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_smallerPathThanKey1() external {
+    function test_get_smallerPathThanKey1_reverts() external {
         bytes32 root = 0xa513ba530659356fb7588a2c831944e80fd8aedaa5a4dc36f918152be2be0605;
         bytes memory key = hex"01";
         bytes[] memory proof = new bytes[](3);
@@ -332,7 +332,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_smallerPathThanKey2() external {
+    function test_get_smallerPathThanKey2_reverts() external {
         bytes32 root = 0xa06abffaec4ebe8ccde595f4547b864b4421b21c1fc699973f94710c9bc17979;
         bytes memory key = hex"aa";
         bytes[] memory proof = new bytes[](3);
@@ -348,7 +348,7 @@ contract MerkleTrie_Test is CommonTest {
         );
     }
 
-    function test_get_reverts_extraProofElements() external {
+    function test_get_extraProofElements_reverts() external {
         bytes32 root = 0x278c88eb59beba4f8b94f940c41614bb0dd80c305859ebffcd6ce07c93ca3749;
         bytes memory key = hex"aa";
         bytes[] memory proof = new bytes[](4);
