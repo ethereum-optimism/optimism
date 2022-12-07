@@ -8,6 +8,7 @@ import {
 
 const deployFn: DeployFunction = async (hre) => {
   const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
+
   await deploy({
     hre,
     name: 'OptimismPortalProxy',
