@@ -102,16 +102,17 @@ func (d *Sequencer) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l
 	}
 
 	payloadTime := time.Unix(int64(l2Head.Time+d.config.BlockTime), 0)
-	remaining := -time.Until(payloadTime)
-	// TODO: allowing to breathe when remaining time is in the negative is very generous,
-	//  we can reduce this if the block building timing gets better with PR 3818
-	d.log.Debug("using remaining time for better block production", "remaining_time", remaining)
+	remaining := time.Until(payloadTime)
 	// If there is more than 2 blocks worth of time remaining, then something is wrong with scheduling, abort.
-	if remaining > 2 * time.Second * time.Duration(d.config.BlockTime) {
-		return nil,  fmt.Errorf("block is being created too far in advance: we have %s remaining time", remaining)
-	} else if remaining > 100 * time.Millisecond {
-		// If we are not too close to the head time, then we are not in a rush to produce the block and we can take a breathe to include more transactions.
-		time.Sleep(remaining - 90 * time.Millesecond) // leave 0.09s for sealing the block, and do not sleep(0)
+	if remaining > 2*time.Second*time.Duration(d.config.BlockTime) {
+		return l2Head, nil, fmt.Errorf("block is being created too far in advance: we have %s remaining time", remaining)
+	} else if remaining > 100*time.Millisecond {
+		remaining -= 90 * time.Millisecond // leave 0.09s for sealing the block, and do not sleep(0)
+		d.log.Debug("using remaining time minus margin for better block production", "wait", remaining)
+		// If we are not too close to the head time, then we are not in a rush to produce the block and we can take a breath to include more transactions.
+		time.Sleep(remaining)
+	} else {
+		d.log.Warn("creating block with low time margin for building", "margin", remaining)
 	}
 
 	payload, err := d.CompleteBuildingBlock(ctx)
