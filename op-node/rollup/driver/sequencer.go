@@ -19,6 +19,11 @@ type Downloader interface {
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
+type SequencerMetrics interface {
+	RecordSequencerBuildingDiffTime(duration time.Duration)
+	RecordSequencerSealingTime(duration time.Duration)
+}
+
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.
 type Sequencer struct {
 	log    log.Logger
@@ -27,16 +32,20 @@ type Sequencer struct {
 	l1 Downloader
 	l2 derive.Engine
 
-	buildingOnto eth.ForkchoiceState
-	buildingID   eth.PayloadID
+	buildingOnto      eth.ForkchoiceState
+	buildingID        eth.PayloadID
+	buildingStartTime time.Time
+
+	metrics SequencerMetrics
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, l1 Downloader, l2 derive.Engine) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, l1 Downloader, l2 derive.Engine, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
-		log:    log,
-		config: cfg,
-		l1:     l1,
-		l2:     l2,
+		log:     log,
+		config:  cfg,
+		l1:      l1,
+		l2:      l2,
+		metrics: metrics,
 	}
 }
 
@@ -46,6 +55,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l2Head eth.L2BlockRe
 	if d.buildingID != (eth.PayloadID{}) { // This may happen when we decide to build a different block in response to a reorg. Or when previous block building failed.
 		d.log.Warn("did not finish previous block building, starting new building now", "prev_onto", d.buildingOnto.HeadBlockHash, "prev_payload_id", d.buildingID, "new_onto", l2Head)
 	}
+	d.buildingStartTime = time.Now()
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
@@ -85,46 +95,16 @@ func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPa
 	if d.buildingID == (eth.PayloadID{}) {
 		return nil, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
+	sealingStart := time.Now()
 
 	// Actually execute the block and add it to the head of the chain.
 	payload, errTyp, err := derive.ConfirmPayload(ctx, d.log, d.l2, d.buildingOnto, d.buildingID, false)
 	if err != nil {
-		return nil, fmt.Errorf("failed to complete building on top of L2 chain %s, error (%d): %w", d.buildingOnto.HeadBlockHash, errTyp, err)
+		return nil, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", d.buildingOnto.HeadBlockHash, d.buildingID, errTyp, err)
 	}
+	finishTime := time.Now()
+	d.metrics.RecordSequencerSealingTime(finishTime.Sub(sealingStart))
+	d.metrics.RecordSequencerBuildingDiffTime(finishTime.Sub(d.buildingStartTime) - time.Duration(d.config.BlockTime)*time.Second)
 	d.buildingID = eth.PayloadID{}
 	return payload, nil
-}
-
-// CreateNewBlock sequences a L2 block with immediate building and sealing.
-func (d *Sequencer) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error) {
-	if err := d.StartBuildingBlock(ctx, l2Head, l2SafeHead, l2Finalized, l1Origin); err != nil {
-		return l2Head, nil, err
-	}
-
-	payloadTime := time.Unix(int64(l2Head.Time+d.config.BlockTime), 0)
-	remaining := time.Until(payloadTime)
-	// If there is more than 2 blocks worth of time remaining, then something is wrong with scheduling, abort.
-	if remaining > 2*time.Second*time.Duration(d.config.BlockTime) {
-		return l2Head, nil, fmt.Errorf("block is being created too far in advance: we have %s remaining time", remaining)
-	} else if remaining > 100*time.Millisecond {
-		remaining -= 90 * time.Millisecond // leave 0.09s for sealing the block, and do not sleep(0)
-		d.log.Debug("using remaining time minus margin for better block production", "wait", remaining)
-		// If we are not too close to the head time, then we are not in a rush to produce the block and we can take a breath to include more transactions.
-		time.Sleep(remaining)
-	} else {
-		d.log.Warn("creating block with low time margin for building", "margin", remaining)
-		if remaining > -2*time.Second {
-			time.Sleep(time.Millisecond * 100) // temporary workaround: we still need time to include txs if we're lagging behind just a short bit because of bad sequencing scheduling.
-		}
-	}
-
-	payload, err := d.CompleteBuildingBlock(ctx)
-	if err != nil {
-		return l2Head, nil, err
-	}
-
-	// Generate an L2 block ref from the payload.
-	ref, err := derive.PayloadToBlockRef(payload, &d.config.Genesis)
-
-	return ref, payload, err
 }
