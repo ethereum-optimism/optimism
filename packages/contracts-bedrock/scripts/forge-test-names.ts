@@ -78,7 +78,7 @@ const main = async () => {
     }
   }
 
-  if (errors) {
+  if (errors.length > 0) {
     console.error(errors.join('\n'))
     process.exit(1)
   }
