@@ -208,11 +208,19 @@ func l2Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		addr, tx, _, err = bindings.DeployBobaTuringCredit(opts, backend, big.NewInt(10))
 		log.Info("MMDBG BobaTuringCredit", "addr", addr)
 	case "BobaL2":
+		bridge, ok := deployment.Args[0].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for bridge")
+		}
+		remoteToken, ok := deployment.Args[1].(common.Address)
+		if !ok {
+			return nil, fmt.Errorf("invalid type for remoteToken")
+		}
 		addr, tx, _, err = bindings.DeployOptimismMintableERC20(
 			opts,
 			backend,
-			deployment.Args[0].(common.Address),
-			deployment.Args[1].(common.Address),
+			bridge,
+			remoteToken,
 			"Boba L2", // Non-immutable slots are populated in genesis/config.go
 			"BOBA",
 		)
