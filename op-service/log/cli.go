@@ -5,10 +5,11 @@ import (
 	"os"
 	"strings"
 
-	opservice "github.com/ethereum-optimism/optimism/op-service"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 	"golang.org/x/term"
+
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 )
 
 const (
@@ -75,6 +76,14 @@ func DefaultCLIConfig() CLIConfig {
 		Format: "text",
 		Color:  term.IsTerminal(int(os.Stdout.Fd())),
 	}
+}
+
+func ReadLocalCLIConfig(ctx *cli.Context) CLIConfig {
+	cfg := DefaultCLIConfig()
+	cfg.Level = ctx.String(LevelFlagName)
+	cfg.Format = ctx.String(FormatFlagName)
+	cfg.Color = ctx.Bool(ColorFlagName)
+	return cfg
 }
 
 func ReadCLIConfig(ctx *cli.Context) CLIConfig {
