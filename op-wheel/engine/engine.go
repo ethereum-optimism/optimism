@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -183,6 +184,30 @@ func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logg
 				}
 				log.Info("status", "head", status.Head, "safe", status.Safe, "finalized", status.Finalized,
 					"head_time", status.Head.Time, "txs", status.Txs, "gas", status.Gas, "basefee", status.Gas)
+
+				// On a mocked "beacon epoch transition", update finalization and justification checkpoints.
+				// There are no gap slots, so we just go back 32 blocks.
+				if status.Head.Number%32 == 0 {
+					if status.Safe.Number+32 <= status.Head.Number {
+						safe, err := getHeader(ctx, client, "eth_getBlockByNumber", hexutil.Uint64(status.Head.Number-32).String())
+						if err != nil {
+							buildErr = err
+							log.Error("failed to find block for new safe block progress", "err", err)
+							continue
+						}
+						status.Safe = eth.L1BlockRef{Hash: safe.Hash(), Number: safe.Number.Uint64(), Time: safe.Time, ParentHash: safe.ParentHash}
+					}
+					if status.Finalized.Number+32 <= status.Safe.Number {
+						finalized, err := getHeader(ctx, client, "eth_getBlockByNumber", hexutil.Uint64(status.Safe.Number-32).String())
+						if err != nil {
+							buildErr = err
+							log.Error("failed to find block for new finalized block progress", "err", err)
+							continue
+						}
+						status.Finalized = eth.L1BlockRef{Hash: finalized.Hash(), Number: finalized.Number.Uint64(), Time: finalized.Time, ParentHash: finalized.ParentHash}
+					}
+				}
+
 				payload, err := BuildBlock(ctx, client, status, &BlockBuildingSettings{
 					BlockTime:    settings.BlockTime,
 					Random:       settings.Random,
