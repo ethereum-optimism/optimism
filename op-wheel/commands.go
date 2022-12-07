@@ -309,7 +309,14 @@ var (
 		Action: CheatRawDBAction(true, func(c *cli.Context, db ethdb.Database) error {
 			enc := json.NewEncoder(c.App.Writer)
 			enc.SetIndent("  ", "  ")
-			return enc.Encode(rawdb.ReadHeadBlock(db))
+			block := rawdb.ReadHeadBlock(db)
+			if block == nil {
+				return enc.Encode(nil)
+			}
+			return enc.Encode(engine.RPCBlock{
+				Header:       *block.Header(),
+				Transactions: block.Transactions(),
+			})
 		}),
 	}
 	CheatPrintHeadHeader = cli.Command{

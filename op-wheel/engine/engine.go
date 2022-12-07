@@ -28,13 +28,13 @@ func DialClient(ctx context.Context, endpoint string, jwtSecret [32]byte) (clien
 	return client.NewBaseRPCClient(rpcClient), nil
 }
 
-type rpcBlock struct {
+type RPCBlock struct {
 	types.Header
 	Transactions []*types.Transaction `json:"transactions"`
 }
 
 func getBlock(ctx context.Context, client client.RPC, method string, tag string) (*types.Block, error) {
-	var bl *rpcBlock
+	var bl *RPCBlock
 	err := client.CallContext(ctx, &bl, method, tag, true)
 	if err != nil {
 		return nil, err
