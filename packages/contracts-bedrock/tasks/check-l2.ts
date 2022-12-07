@@ -14,6 +14,10 @@ const adminSlot =
   '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103'
 const prefix = '0x420000000000000000000000000000000000'
 
+const logLoud = () => {
+  console.log('   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+}
+
 // checkPredeploys will ensure that all of the predeploys are set
 const checkPredeploys = async (hre: HardhatRuntimeEnvironment) => {
   console.log('Checking predeploys are configured correctly')
@@ -162,7 +166,9 @@ const check = {
     if (otherMessenger === hre.ethers.constants.AddressZero) {
       throw new Error('otherMessenger misconfigured')
     }
-    console.log(`  - otherMessenger: ${otherMessenger}`)
+    logLoud()
+    console.log(`  - OTHER_MESSENGER: ${otherMessenger}`)
+    logLoud()
 
     const l1CrossDomainMessenger =
       await L2CrossDomainMessenger.l1CrossDomainMessenger()
@@ -175,7 +181,9 @@ const check = {
     if (owner === hre.ethers.constants.AddressZero) {
       throw new Error('owner misconfigured')
     }
+    logLoud()
     console.log(`  - owner: ${owner}`)
+    logLoud()
 
     const MESSAGE_VERSION = await L2CrossDomainMessenger.MESSAGE_VERSION()
     console.log(`  - MESSAGE_VERSION: ${MESSAGE_VERSION}`)
@@ -246,7 +254,9 @@ const check = {
     if (OTHER_BRIDGE === hre.ethers.constants.AddressZero) {
       throw new Error('invalid OTHER_BRIDGE')
     }
+    logLoud()
     console.log(`  - OTHER_BRIDGE: ${OTHER_BRIDGE}`)
+    logLoud()
 
     const MESSENGER = await L2StandardBridge.MESSENGER()
     if (MESSENGER !== predeploys.L2CrossDomainMessenger) {
@@ -273,7 +283,9 @@ const check = {
     if (RECIPIENT === hre.ethers.constants.AddressZero) {
       throw new Error('undefined RECIPIENT')
     }
+    logLoud()
     console.log(`  - RECIPIENT: ${RECIPIENT}`)
+    logLoud()
 
     const l1FeeWallet = await SequencerFeeVault.l1FeeWallet()
     if (l1FeeWallet === hre.ethers.constants.AddressZero) {
@@ -438,7 +450,9 @@ const check = {
     console.log(`  - symbol: ${symbol}`)
 
     const owner = await GovernanceToken.owner()
+    logLoud()
     console.log(`  - owner: ${owner}`)
+    logLoud()
 
     const totalSupply = await GovernanceToken.totalSupply()
     console.log(`  - totalSupply: ${totalSupply}`)
@@ -461,11 +475,18 @@ const check = {
     if (MESSENGER === hre.ethers.constants.AddressZero) {
       throw new Error('MESSENGER misconfigured')
     }
+    console.log(`  - MESSENGER: ${MESSENGER}`)
 
     const OTHER_BRIDGE = await L2ERC721Bridge.OTHER_BRIDGE()
     if (OTHER_BRIDGE === hre.ethers.constants.AddressZero) {
       throw new Error('OTHER_BRIDGE misconfigured')
     }
+    logLoud()
+    console.log(`  - OTHER_BRIDGE: ${OTHER_BRIDGE}`)
+    logLoud()
+
+    await checkProxy(hre, 'L2ERC721Bridge')
+    await assertProxy(hre, 'L2ERC721Bridge')
   },
   // OptimismMintableERC721Factory
   // - check version
@@ -500,7 +521,9 @@ const check = {
     if (owner === hre.ethers.constants.AddressZero) {
       throw new Error('misconfigured owner')
     }
+    logLoud()
     console.log(`  - owner: ${owner}`)
+    logLoud()
 
     const addressManager = await ProxyAdmin.addressManager()
     console.log(`  - addressManager: ${addressManager}`)
@@ -525,7 +548,9 @@ const check = {
     if (RECIPIENT === hre.ethers.constants.AddressZero) {
       throw new Error(`RECIPIENT misconfigured`)
     }
+    logLoud()
     console.log(`  - RECIPIENT: ${RECIPIENT}`)
+    logLoud()
 
     assertSemver(version, 'BaseFeeVault')
     await checkProxy(hre, 'BaseFeeVault')
@@ -551,7 +576,9 @@ const check = {
     if (RECIPIENT === hre.ethers.constants.AddressZero) {
       throw new Error(`RECIPIENT misconfigured`)
     }
+    logLoud()
     console.log(`  - RECIPIENT: ${RECIPIENT}`)
+    logLoud()
 
     assertSemver(version, 'L1FeeVault')
     await checkProxy(hre, 'L1FeeVault')
@@ -583,9 +610,15 @@ task(
   'check-l2',
   'Checks a freshly migrated L2 system for correct migration'
 ).setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+  logLoud()
+  console.log('Manually check values wrapped in !!!!')
+  logLoud()
+  console.log()
+
   // Ensure that all the predeploys exist, including the not
   // currently configured ones
   await checkPredeploys(hre)
+  console.log()
   // Check the currently configured predeploys
   for (const [name, fn] of Object.entries(check)) {
     const address = predeploys[name]
