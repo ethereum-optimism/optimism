@@ -113,6 +113,9 @@ func (d *Sequencer) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l
 		time.Sleep(remaining)
 	} else {
 		d.log.Warn("creating block with low time margin for building", "margin", remaining)
+		if remaining > -2*time.Second {
+			time.Sleep(time.Millisecond * 100) // temporary workaround: we still need time to include txs if we're lagging behind just a short bit because of bad sequencing scheduling.
+		}
 	}
 
 	payload, err := d.CompleteBuildingBlock(ctx)
