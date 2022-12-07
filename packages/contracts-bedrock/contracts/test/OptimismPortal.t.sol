@@ -362,10 +362,10 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: proveWithdrawalTransaction reverts if the proof is invalid due to non-existence of
     // the withdrawal.
-    function test_proveWithdrawalTransaction_oninvalidWithdrawalProof_reverts() external {
+    function test_proveWithdrawalTransaction_onInvalidWithdrawalProof_reverts() external {
         // modify the default test values to invalidate the proof.
         _defaultTx.data = hex"abcd";
-        vm.expectRevert("OptimismPortal: invalid withdrawal inclusion proof");
+        vm.expectRevert("MerkleTrie: path remainder must share all nibbles with key");
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedOutputIndex,
