@@ -175,6 +175,7 @@ func TestBedrockIndexer(t *testing.T) {
 
 		require.Equal(t, 1, len(wdPage.Withdrawals))
 		withdrawal := wdPage.Withdrawals[0]
+		require.Nil(t, withdrawal.BedrockProvenTxHash)
 		require.Nil(t, withdrawal.BedrockFinalizedTxHash)
 		require.Equal(t, big.NewInt(0.5*params.Ether).String(), withdrawal.Amount)
 		require.Equal(t, wdTx.Hash().String(), withdrawal.TxHash)
@@ -207,25 +208,47 @@ func TestBedrockIndexer(t *testing.T) {
 		require.NoError(t, err)
 
 		l1Opts.Value = big.NewInt(0)
+		withdrawalTx := bindings.TypesWithdrawalTransaction{
+			Nonce:    wParams.Nonce,
+			Sender:   wParams.Sender,
+			Target:   wParams.Target,
+			Value:    wParams.Value,
+			GasLimit: wParams.GasLimit,
+			Data:     wParams.Data,
+		}
+
 		// Prove our withdrawal
 		proveTx, err := portal.ProveWithdrawalTransaction(
 			l1Opts,
-			bindings.TypesWithdrawalTransaction{
-				Nonce:    wParams.Nonce,
-				Sender:   wParams.Sender,
-				Target:   wParams.Target,
-				Value:    wParams.Value,
-				GasLimit: wParams.GasLimit,
-				Data:     wParams.Data,
-			},
+			withdrawalTx,
 			wParams.L2OutputIndex,
 			wParams.OutputRootProof,
 			wParams.WithdrawalProof,
 		)
 		require.NoError(t, err)
 
-		_, err = e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
+		proveReceipt, err := e2eutils.WaitReceiptOK(e2eutils.TimeoutCtx(t, time.Minute), l1Client, proveTx.Hash())
 		require.NoError(t, err)
+
+		wdPage = nil
+		require.NoError(t, e2eutils.WaitFor(e2eutils.TimeoutCtx(t, 30*time.Second), 100*time.Millisecond, func() (bool, error) {
+			res := new(db.PaginatedWithdrawals)
+			err := getJSON(makeURL(fmt.Sprintf("v1/withdrawals/%s", fromAddr)), res)
+			if err != nil {
+				return false, err
+			}
+
+			if res.Withdrawals[0].BedrockProvenTxHash == nil {
+				return false, nil
+			}
+
+			wdPage = res
+			return true, nil
+		}))
+
+		wd := wdPage.Withdrawals[0]
+		require.Equal(t, proveReceipt.TxHash.String(), *wd.BedrockProvenTxHash)
+		require.Nil(t, wd.BedrockFinalizedTxHash)
 
 		// Wait for the finalization period to elapse
 		_, err = withdrawals.WaitForFinalizationPeriod(
@@ -239,14 +262,7 @@ func TestBedrockIndexer(t *testing.T) {
 		// Send our finalize withdrawal transaction
 		finTx, err := portal.FinalizeWithdrawalTransaction(
 			l1Opts,
-			bindings.TypesWithdrawalTransaction{
-				Nonce:    wParams.Nonce,
-				Sender:   wParams.Sender,
-				Target:   wParams.Target,
-				Value:    wParams.Value,
-				GasLimit: wParams.GasLimit,
-				Data:     wParams.Data,
-			},
+			withdrawalTx,
 		)
 		require.NoError(t, err)
 
@@ -269,7 +285,8 @@ func TestBedrockIndexer(t *testing.T) {
 			return true, nil
 		}))
 
-		wd := wdPage.Withdrawals[0]
+		wd = wdPage.Withdrawals[0]
+		require.Equal(t, proveReceipt.TxHash.String(), *wd.BedrockProvenTxHash)
 		require.Equal(t, finReceipt.TxHash.String(), *wd.BedrockFinalizedTxHash)
 		require.True(t, *wd.BedrockFinalizedSuccess)
 
