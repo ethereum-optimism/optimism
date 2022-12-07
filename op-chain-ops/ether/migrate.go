@@ -34,7 +34,7 @@ var (
 	}
 )
 
-func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances []*migration.Allowance, chainID int, commit, noCheck bool) (common.Hash, error) {
+func MigrateLegacyETH(db ethdb.Database, stateDB *state.StateDB, addresses []common.Address, allowances []*migration.Allowance, chainID int, noCheck bool) error {
 	// Set of addresses that we will be migrating.
 	addressesToMigrate := make(map[common.Address]bool)
 	// Set of storage slots that we expect to see in the OVM ETH contract.
@@ -42,7 +42,7 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	// Chain params to use for integrity checking.
 	params := ParamsByChainID[chainID]
 	if params == nil {
-		return common.Hash{}, fmt.Errorf("no chain params for %d", chainID)
+		return fmt.Errorf("no chain params for %d", chainID)
 	}
 	log.Info("Chain params", "chain-id", chainID, "supply-delta", params.ExpectedSupplyDelta)
 
@@ -85,7 +85,7 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 		return nil
 	})
 	if err != nil {
-		return common.Hash{}, wrapErr(err, "error reading mint events")
+		return wrapErr(err, "error reading mint events")
 	}
 
 	// Make sure all addresses are accounted for by iterating over
@@ -96,9 +96,8 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	backingStateDB := state.NewDatabaseWithConfig(db, &trie.Config{
 		Preimages: true,
 	})
-	stateDB, err := state.New(root, backingStateDB, nil)
 	if err != nil {
-		return common.Hash{}, wrapErr(err, "error opening state DB")
+		return wrapErr(err, "error opening state DB")
 	}
 	storageTrie := stateDB.StorageTrie(OVMETHAddress)
 	storageIt := trie.NewIterator(storageTrie.NodeIterator(nil))
@@ -173,7 +172,7 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	log.Info("trie dumping started", "root", root)
 	tr, err := backingStateDB.OpenTrie(root)
 	if err != nil {
-		return common.Hash{}, err
+		return err
 	}
 	it := trie.NewIterator(tr.NodeIterator(nil))
 	totalMigrated := new(big.Int)
@@ -251,21 +250,5 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	stateDB.SetState(predeploys.LegacyERC20ETHAddr, getOVMETHTotalSupplySlot(), common.Hash{})
 	log.Info("Set the totalSupply to 0")
 
-	if !commit {
-		log.Info("dry run, skipping commit")
-		return common.Hash{}, nil
-	}
-
-	log.Info("committing state DB")
-	newRoot, err := stateDB.Commit(true)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	log.Info("committing trie DB")
-	if err := stateDB.Database().TrieDB().Commit(newRoot, true, nil); err != nil {
-		return common.Hash{}, err
-	}
-
-	return newRoot, nil
+	return nil
 }
