@@ -11,6 +11,7 @@ use (
 	./op-batcher
 	./op-bindings
 	./op-chain-ops
+	./op-wheel
 	./op-e2e
 	./op-exporter
 	./op-heartbeat
