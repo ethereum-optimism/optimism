@@ -21,8 +21,12 @@ type DepositsMap map[common.Hash][]db.Deposit
 // on block hashes.
 type InitiatedWithdrawalMap map[common.Hash][]db.Withdrawal
 
+// ProvenWithdrawalsMap is a collection of proven withdrawal
+// objects keyed on block hashses
+type ProvenWithdrawalsMap map[common.Hash][]db.ProvenWithdrawal
+
 // FinalizedWithdrawalsMap is a collection of finalized withdrawal
-// objected keyed on block hashes.
+// objects keyed on block hashes.
 type FinalizedWithdrawalsMap map[common.Hash][]db.FinalizedWithdrawal
 
 type Bridge interface {
