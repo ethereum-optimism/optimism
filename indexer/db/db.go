@@ -198,7 +198,12 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 		($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 	`
 
-	const updateWithdrawalStatement = `
+	const updateProvenWithdrawalStatement = `
+	UPDATE withdrawals SET (br_withdrawal_proven_tx_hash, br_withdrawal_proven_log_index) = ($1, $2)
+	WHERE br_withdrawal_hash = $3
+	`
+
+	const updateFinalizedWithdrawalStatement = `
 	UPDATE withdrawals SET (br_withdrawal_finalized_tx_hash, br_withdrawal_finalized_log_index, br_withdrawal_finalized_success) = ($1, $2, $3)
 	WHERE br_withdrawal_hash = $4
 	`
@@ -236,10 +241,24 @@ func (d *Database) AddIndexedL1Block(block *IndexedL1Block) error {
 			}
 		}
 
+		if len(block.ProvenWithdrawals) > 0 {
+			for _, wd := range block.ProvenWithdrawals {
+				_, err = tx.Exec(
+					updateProvenWithdrawalStatement,
+					wd.TxHash.String(),
+					wd.LogIndex,
+					wd.WithdrawalHash.String(),
+				)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
 		if len(block.FinalizedWithdrawals) > 0 {
 			for _, wd := range block.FinalizedWithdrawals {
 				_, err = tx.Exec(
-					updateWithdrawalStatement,
+					updateFinalizedWithdrawalStatement,
 					wd.TxHash.String(),
 					wd.LogIndex,
 					wd.Success,
@@ -486,6 +505,7 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 		withdrawals.l1_token, withdrawals.l2_token,
 		l2_tokens.name, l2_tokens.symbol, l2_tokens.decimals,
 		l2_blocks.number, l2_blocks.timestamp, withdrawals.br_withdrawal_hash,
+		withdrawals.br_withdrawal_proven_tx_hash, withdrawals.br_withdrawal_proven_log_index,
 		withdrawals.br_withdrawal_finalized_tx_hash, withdrawals.br_withdrawal_finalized_log_index,
 		withdrawals.br_withdrawal_finalized_success
 	FROM withdrawals
@@ -506,6 +526,8 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 			var withdrawal WithdrawalJSON
 			var l2Token Token
 			var wdHash sql.NullString
+			var proveTxHash sql.NullString
+			var proveLogIndex sql.NullInt32
 			var finTxHash sql.NullString
 			var finLogIndex sql.NullInt32
 			var finSuccess sql.NullBool
@@ -515,13 +537,21 @@ func (d *Database) GetWithdrawalsByAddress(address common.Address, page Paginati
 				&withdrawal.L1Token, &l2Token.Address,
 				&l2Token.Name, &l2Token.Symbol, &l2Token.Decimals,
 				&withdrawal.BlockNumber, &withdrawal.BlockTimestamp,
-				&wdHash, &finTxHash, &finLogIndex, &finSuccess,
+				&wdHash, &proveTxHash, &proveLogIndex,
+				&finTxHash, &finLogIndex, &finSuccess,
 			); err != nil {
 				return err
 			}
 			withdrawal.L2Token = &l2Token
 			if wdHash.Valid {
 				withdrawal.BedrockWithdrawalHash = &wdHash.String
+			}
+			if proveTxHash.Valid {
+				withdrawal.BedrockProvenTxHash = &proveTxHash.String
+			}
+			if proveLogIndex.Valid {
+				idx := int(proveLogIndex.Int32)
+				withdrawal.BedrockProvenLogIndex = &idx
 			}
 			if finTxHash.Valid {
 				withdrawal.BedrockFinalizedTxHash = &finTxHash.String
