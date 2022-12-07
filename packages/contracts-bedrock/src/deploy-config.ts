@@ -165,11 +165,9 @@ export const deployConfigSpec: {
   },
   finalSystemOwner: {
     type: 'address',
-    default: ethers.constants.AddressZero,
   },
   controller: {
     type: 'address',
-    default: ethers.constants.AddressZero,
   },
   l1StartingBlockTag: {
     type: 'string',

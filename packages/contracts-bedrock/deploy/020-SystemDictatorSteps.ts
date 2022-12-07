@@ -16,43 +16,6 @@ import {
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
-  let isLiveDeployer = false
-  let controller = hre.deployConfig.controller
-  if (controller === ethers.constants.AddressZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A controller address was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-      console.log('using a live deployer')
-      isLiveDeployer = true
-      controller = deployer
-    } else {
-      throw new Error(
-        `controller address MUST NOT be the deployer on live networks`
-      )
-    }
-  }
-
-  let finalOwner = hre.deployConfig.finalSystemOwner
-  if (finalOwner === ethers.constants.AddressZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-      finalOwner = deployer
-    } else {
-      throw new Error(`must specify the finalSystemOwner on live networks`)
-    }
-  }
-
   // Set up required contract references.
   const [
     SystemDictator,
@@ -127,6 +90,10 @@ const deployFn: DeployFunction = async (hre) => {
       signerOrProvider: deployer,
     },
   ])
+
+  // If we have the key for the controller then we don't need to wait for external txns.
+  const isLiveDeployer =
+    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
 
   // Transfer ownership of the ProxyAdmin to the SystemDictator.
   if ((await ProxyAdmin.owner()) !== SystemDictator.address) {
@@ -570,8 +537,16 @@ const deployFn: DeployFunction = async (hre) => {
       1000
     )
 
-    await assertContractVariable(L1CrossDomainMessenger, 'owner', finalOwner)
-    await assertContractVariable(ProxyAdmin, 'owner', finalOwner)
+    await assertContractVariable(
+      L1CrossDomainMessenger,
+      'owner',
+      hre.deployConfig.finalSystemOwner
+    )
+    await assertContractVariable(
+      ProxyAdmin,
+      'owner',
+      hre.deployConfig.finalSystemOwner
+    )
   }
 }
 
