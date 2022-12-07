@@ -3,6 +3,7 @@ package cheat
 import (
 	"bufio"
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"math/big"
@@ -20,6 +21,8 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
+
+var HundredETH = big.NewInt(0).Mul(big.NewInt(100), big.NewInt(1000000000000000000))
 
 type Cheater struct {
 	// The database of the chain with the head block that we patch the state-root of, once the state is updated.
@@ -95,6 +98,11 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
+	// We have to manually commit the updated state root to the database.
+	if err := state.Database().TrieDB().Commit(stateRoot, true, nil); err != nil {
+		return fmt.Errorf("error committing trie db: %w", err)
+	}
+
 	// based on core.BlockChain.writeHeadBlock:
 	// Add the block to the canonical chain number scheme and mark as the head
 	batch := ch.DB.NewBatch()
@@ -110,6 +118,23 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// not keyed by blockhash, and we didn't remove any txs, so we just leave this one as-is.
 	// rawdb.WriteTxLookupEntriesByBlock(batch, block)
 	rawdb.WriteHeadBlockHash(batch, blockHash)
+
+	// Geth stores the TD for each block separately from the block itself. We must update this
+	// manually, otherwise Geth thinks we haven't reached TTD yet and tries to build a block
+	// using Clique consensus, which causes a panic.
+	rawdb.WriteTd(batch, blockHash, preBlock.NumberU64(), ch.Blockchain.GetTd(preBlock.Hash(), preBlock.NumberU64()))
+
+	// Geth maintains an internal mapping between block bodies and their hashes. None of the database
+	// accessors above update this mapping, so we need to do it manually.
+	oldKey := blockBodyKey(preBlock.NumberU64(), preBlock.Hash())
+	oldBody := rawdb.ReadBodyRLP(ch.DB, preBlock.Hash(), preBlock.NumberU64())
+	newKey := blockBodyKey(preBlock.NumberU64(), blockHash)
+	if err := batch.Delete(oldKey); err != nil {
+		return fmt.Errorf("error deleting old block body key")
+	}
+	if err := batch.Put(newKey, oldBody); err != nil {
+		return fmt.Errorf("error setting new block body key")
+	}
 
 	// Flush the whole batch into the disk, exit the node if failed
 	if err := batch.Write(); err != nil {
@@ -268,14 +293,20 @@ type OvmOwnersConfig struct {
 
 func OvmOwners(conf *OvmOwnersConfig) HeadFn {
 	return func(headState *state.StateDB) error {
+		// Address manager owner
 		headState.SetState(common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"), common.Hash{}, conf.Owner.Hash())
+		// L1SB proxy owner
 		headState.SetState(common.HexToAddress("0x636Af16bf2f682dD3109e60102b8E1A089FedAa8"), common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"), conf.Owner.Hash())
+		// L1XDM owner
 		headState.SetState(common.HexToAddress("0x5086d1eEF304eb5284A0f6720f79403b4e9bE294"), common.Hash{31: 0x33}, conf.Owner.Hash())
+		// L1 ERC721 bridge owner
 		headState.SetState(common.HexToAddress("0x8DD330DdE8D9898d43b4dc840Da27A07dF91b3c9"), common.HexToHash("0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103"), conf.Owner.Hash())
+		// Legacy sequencer/proposer addresses
 		headState.SetState(common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"), common.HexToHash("0x2e0dfce60e9e27f035ce28f63c1bdd77cff6b13d8909da4d81d623ff9123fbdc"), conf.Sequencer.Hash())
 		headState.SetState(common.HexToAddress("0xa6f73589243a6A7a9023b1Fa0651b1d89c177111"), common.HexToHash("0x9776dbdebd0d5eedaea450b21da9901ecd5254e5136a3a9b7b0ecd532734d5b5"), conf.Proposer.Hash())
-
-		// TODO: do we want to fund accounts as well?
+		// Fund sequencer and proposer with 100 ETH
+		headState.SetBalance(conf.Sequencer, HundredETH)
+		headState.SetBalance(conf.Proposer, HundredETH)
 		return nil
 	}
 }
@@ -292,4 +323,18 @@ func SetNonce(addr common.Address, nonce uint64) HeadFn {
 		headState.SetNonce(addr, nonce)
 		return nil
 	}
+}
+
+// blockBodyKey returns the database key to use for storing the body of a block.
+// This function was copied from Geth's core/rawdb/accessors_chain.go.
+func blockBodyKey(number uint64, hash common.Hash) []byte {
+	return append(append([]byte("b"), encodeBlockNumber(number)...), hash.Bytes()...)
+}
+
+// encodeBlockNumber encodes a block number as big endian uint64. This function was
+// copied from Geth's core/rawdb/accessors_chain.go file.
+func encodeBlockNumber(number uint64) []byte {
+	enc := make([]byte, 8)
+	binary.BigEndian.PutUint64(enc, number)
+	return enc
 }
