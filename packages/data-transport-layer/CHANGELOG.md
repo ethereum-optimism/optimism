@@ -1,5 +1,14 @@
 # data transport layer
 
+## 0.5.48
+
+### Patch Changes
+
+- Updated dependencies [1e76cdb86]
+  - @eth-optimism/core-utils@0.11.0
+  - @eth-optimism/common-ts@0.6.7
+  - @eth-optimism/contracts@0.5.38
+
 ## 0.5.47
 
 ### Patch Changes

@@ -42,24 +42,20 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, sim)
 	require.NoError(t, err)
 
-	proposer, err := oracle.Proposer(callOpts)
+	proposer, err := oracle.PROPOSER(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, config.L2OutputOracleProposer, proposer)
 
-	owner, err := oracle.Owner(callOpts)
+	owner, err := oracle.CHALLENGER(callOpts)
 	require.NoError(t, err)
-	require.Equal(t, config.L2OutputOracleOwner, owner)
+	require.Equal(t, config.L2OutputOracleChallenger, owner)
 
 	// Same set of tests as exist in the deployment scripts
 	interval, err := oracle.SUBMISSIONINTERVAL(callOpts)
 	require.NoError(t, err)
 	require.EqualValues(t, config.L2OutputOracleSubmissionInterval, interval.Uint64())
 
-	histBlocks, err := oracle.HISTORICALTOTALBLOCKS(callOpts)
-	require.NoError(t, err)
-	require.EqualValues(t, 0, histBlocks.Uint64())
-
-	startBlock, err := oracle.STARTINGBLOCKNUMBER(callOpts)
+	startBlock, err := oracle.StartingBlockNumber(callOpts)
 	require.NoError(t, err)
 	require.EqualValues(t, 0, startBlock.Uint64())
 
@@ -73,7 +69,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 
 	msgr, err := bindings.NewL1CrossDomainMessenger(predeploys.DevL1CrossDomainMessengerAddr, sim)
 	require.NoError(t, err)
-	portalAddr, err := msgr.Portal(callOpts)
+	portalAddr, err := msgr.PORTAL(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevOptimismPortalAddr, portalAddr)
 
@@ -82,7 +78,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	msgrAddr, err := bridge.Messenger(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevL1CrossDomainMessengerAddr, msgrAddr)
-	otherBridge, err := bridge.OtherBridge(callOpts)
+	otherBridge, err := bridge.OTHERBRIDGE(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.L2StandardBridgeAddr, otherBridge)
 

@@ -52,7 +52,7 @@ const config: HardhatUserConfig = {
         },
       },
       companionNetworks: {
-        l1: 'ethereum',
+        l1: 'mainnet',
       },
     },
     'optimism-kovan': {
@@ -81,7 +81,7 @@ const config: HardhatUserConfig = {
         l1: 'goerli',
       },
     },
-    ethereum: {
+    mainnet: {
       chainId: 1,
       url: `https://mainnet.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
       accounts,
@@ -164,7 +164,7 @@ const config: HardhatUserConfig = {
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
       kovan: ['../contracts/deployments/kovan'],
-      ethereum: ['../contracts/deployments/mainnet'],
+      mainnet: ['../contracts/deployments/mainnet'],
     },
   },
   deployConfigSpec: configSpec,

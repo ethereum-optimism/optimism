@@ -23,8 +23,7 @@ contract OVM_L2ToL1MessagePasser is iOVM_L2ToL1MessagePasser {
      ********************/
 
     /**
-     * Passes a message to L1.
-     * @param _message Message to pass to L1.
+     * @inheritdoc iOVM_L2ToL1MessagePasser
      */
     // slither-disable-next-line external-function
     function passMessageToL1(bytes memory _message) public {

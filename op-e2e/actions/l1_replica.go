@@ -2,12 +2,7 @@ package actions
 
 import (
 	"errors"
-	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
@@ -19,6 +14,11 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 // L1CanonSrc is used to sync L1 from another node.
@@ -46,7 +46,7 @@ type L1Replica struct {
 }
 
 // NewL1Replica constructs a L1Replica starting at the given genesis.
-func NewL1Replica(log log.Logger, genesis *core.Genesis) *L1Replica {
+func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 	ethCfg := &ethconfig.Config{
 		NetworkId:                 genesis.Config.ChainID.Uint64(),
 		Genesis:                   genesis,
@@ -65,20 +65,17 @@ func NewL1Replica(log log.Logger, genesis *core.Genesis) *L1Replica {
 		},
 	}
 	n, err := node.New(nodeCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = n.Close()
+	})
 
 	backend, err := eth.New(n, ethCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
-	if err := n.Start(); err != nil {
-		panic(fmt.Errorf("failed to start L1 geth node: %w", err))
-	}
+	require.NoError(t, n.Start(), "failed to start L1 geth node")
 	return &L1Replica{
 		log:        log,
 		node:       n,
@@ -180,8 +177,16 @@ func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
 // ActL1FinalizeNext finalizes the next block, which must be marked as safe before doing so (see ActL1SafeNext).
 func (s *L1Replica) ActL1FinalizeNext(t Testing) {
 	safe := s.l1Chain.CurrentSafeBlock()
-	finalizedNum := s.l1Chain.CurrentFinalizedBlock().NumberU64()
-	if safe.NumberU64() <= finalizedNum {
+	safeNum := uint64(0)
+	if safe != nil {
+		safeNum = safe.NumberU64()
+	}
+	finalized := s.l1Chain.CurrentFinalizedBlock()
+	finalizedNum := uint64(0)
+	if finalized != nil {
+		finalizedNum = finalized.NumberU64()
+	}
+	if safeNum <= finalizedNum {
 		t.InvalidAction("need to move forward safe block before moving finalized block")
 		return
 	}
@@ -195,7 +200,11 @@ func (s *L1Replica) ActL1FinalizeNext(t Testing) {
 // ActL1SafeNext marks the next unsafe block as safe.
 func (s *L1Replica) ActL1SafeNext(t Testing) {
 	safe := s.l1Chain.CurrentSafeBlock()
-	next := s.l1Chain.GetBlockByNumber(safe.NumberU64() + 1)
+	safeNum := uint64(0)
+	if safe != nil {
+		safeNum = safe.NumberU64()
+	}
+	next := s.l1Chain.GetBlockByNumber(safeNum + 1)
 	if next == nil {
 		t.InvalidAction("if head of chain is marked as safe then there's no next block")
 		return

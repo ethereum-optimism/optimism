@@ -2,9 +2,25 @@ package actions
 
 import (
 	"context"
+	"os"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 )
+
+var enableParallelTesting bool = true
+
+func init() {
+	if os.Getenv("OP_E2E_DISABLE_PARALLEL") == "true" {
+		enableParallelTesting = false
+	}
+}
+
+func parallel(t e2eutils.TestingBase) {
+	t.Helper()
+	if enableParallelTesting {
+		t.Parallel()
+	}
+}
 
 // Testing is an interface to Go-like testing,
 // extended with a context getter for the test runner to shut down individual actions without interrupting the test,
@@ -50,9 +66,10 @@ type StatefulTesting interface {
 	State() ActionStatus
 }
 
-// NewDefaultTesting returns a new testing obj.
+// NewDefaultTesting returns a new testing obj, and enables parallel test execution.
 // Returns an interface, we're likely changing the behavior here as we build more action tests.
 func NewDefaultTesting(tb e2eutils.TestingBase) StatefulTesting {
+	parallel(tb)
 	return &defaultTesting{
 		TestingBase: tb,
 		ctx:         context.Background(),

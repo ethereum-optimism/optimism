@@ -18,7 +18,7 @@ contract OptimismMintableERC20Factory is Semver {
     /**
      * @notice Address of the StandardBridge on this chain.
      */
-    address public immutable bridge;
+    address public immutable BRIDGE;
 
     /**
      * @custom:legacy
@@ -46,8 +46,18 @@ contract OptimismMintableERC20Factory is Semver {
     /**
      * @param _bridge Address of the StandardBridge on this chain.
      */
-    constructor(address _bridge) Semver(0, 0, 1) {
-        bridge = _bridge;
+    constructor(address _bridge) Semver(1, 0, 0) {
+        BRIDGE = _bridge;
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Legacy getter for StandardBridge address.
+     *
+     * @return Address of the StandardBridge on this chain.
+     */
+    function bridge() external view returns (address) {
+        return BRIDGE;
     }
 
     /**
@@ -89,7 +99,7 @@ contract OptimismMintableERC20Factory is Semver {
         );
 
         address localToken = address(
-            new OptimismMintableERC20(bridge, _remoteToken, _name, _symbol)
+            new OptimismMintableERC20(BRIDGE, _remoteToken, _name, _symbol)
         );
 
         // Emit the old event too for legacy support.

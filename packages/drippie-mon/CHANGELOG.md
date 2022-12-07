@@ -1,5 +1,42 @@
 # @eth-optimism/drippie-mon
 
+## 0.3.23
+
+### Patch Changes
+
+- Updated dependencies [f49b71d50]
+- Updated dependencies [1bfe79f20]
+  - @eth-optimism/contracts-periphery@1.0.3
+  - @eth-optimism/sdk@1.7.0
+
+## 0.3.22
+
+### Patch Changes
+
+- 97b5f578c: Fixes how versions are imported for BaseServiceV2 services
+  - @eth-optimism/sdk@1.6.11
+
+## 0.3.21
+
+### Patch Changes
+
+- Updated dependencies [1e76cdb86]
+  - @eth-optimism/core-utils@0.11.0
+  - @eth-optimism/common-ts@0.6.7
+  - @eth-optimism/sdk@1.6.10
+
+## 0.3.20
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.6.9
+
+## 0.3.19
+
+### Patch Changes
+
+- @eth-optimism/sdk@1.6.8
+
 ## 0.3.18
 
 ### Patch Changes

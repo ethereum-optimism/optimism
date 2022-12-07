@@ -32,7 +32,7 @@ func TestL2EngineAPI(gt *testing.T) {
 	db := rawdb.NewMemoryDatabase()
 	sd.L2Cfg.MustCommit(db)
 
-	engine := NewL2Engine(log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 
 	l2Cl, err := sources.NewEngineClient(engine.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
 	require.NoError(t, err)
@@ -94,7 +94,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 	db := rawdb.NewMemoryDatabase()
 	sd.L2Cfg.MustCommit(db)
 
-	engine := NewL2Engine(log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	t.Cleanup(func() {
 		_ = engine.Close()
 	})
@@ -130,6 +130,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			SuggestedFeeRecipient: common.Address{'C'},
 			Transactions:          nil,
 			NoTxPool:              false,
+			GasLimit:              (*eth.Uint64Quantity)(&sd.RollupCfg.Genesis.SystemConfig.GasLimit),
 		})
 		require.NoError(t, err)
 		require.Equal(t, fcRes.PayloadStatus.Status, eth.ExecutionValid)
@@ -174,7 +175,7 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
-	engine := NewL2Engine(log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	engine := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
 	// mock an RPC failure
 	engine.ActL2RPCFail(t)
 	// check RPC failure

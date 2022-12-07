@@ -10,9 +10,6 @@ const nonceMask = BigNumber.from(
   '0x0000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff'
 )
 
-export const big0 = BigNumber.from(0)
-export const big1 = BigNumber.from(1)
-
 /**
  * Encodes the version into the nonce.
  *
@@ -34,8 +31,16 @@ export const encodeVersionedNonce = (
  *
  * @param nonce
  */
-export const decodeVersionedNonce = (nonce: BigNumber): BigNumber[] => {
-  return [nonce.and(nonceMask), nonce.shr(240)]
+export const decodeVersionedNonce = (
+  nonce: BigNumber
+): {
+  version: BigNumber
+  nonce: BigNumber
+} => {
+  return {
+    version: nonce.shr(240),
+    nonce: nonce.and(nonceMask),
+  }
 }
 
 /**
@@ -104,10 +109,10 @@ export const encodeCrossDomainMessage = (
   gasLimit: BigNumber,
   data: string
 ) => {
-  const [, version] = decodeVersionedNonce(nonce)
-  if (version.eq(big0)) {
+  const { version } = decodeVersionedNonce(nonce)
+  if (version.eq(0)) {
     return encodeCrossDomainMessageV0(target, sender, data, nonce)
-  } else if (version.eq(big1)) {
+  } else if (version.eq(1)) {
     return encodeCrossDomainMessageV1(
       nonce,
       sender,

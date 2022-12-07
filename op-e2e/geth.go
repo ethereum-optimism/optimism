@@ -143,6 +143,21 @@ func (f *fakeSafeFinalizedL1) Stop() error {
 	return nil
 }
 
+func defaultNodeConfig(name string, jwtPath string) *node.Config {
+	return &node.Config{
+		Name:        name,
+		WSHost:      "127.0.0.1",
+		WSPort:      0,
+		AuthAddr:    "127.0.0.1",
+		AuthPort:    0,
+		HTTPHost:    "127.0.0.1",
+		HTTPPort:    0,
+		WSModules:   []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
+		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
+		JWTSecret:   jwtPath,
+	}
+}
+
 // init a geth node.
 func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{

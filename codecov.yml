@@ -1,14 +1,30 @@
-comment: false
+comment:
+  layout: "reach, diff, flags, files"
+  behavior: default
+  require_changes: true    # only post the comment if coverage changes
 ignore:
   - "l2geth"
   - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
+  - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
+coverage:
+  status:
+    patch:
+      default:
+        target: auto  # target coverage is equal to the PR base
+        threshold: 0% # coverage is not allowed to reduce vs. the PR base
+        base: auto
 flag_management:
   # Note: flags should have the same name as the circleci job in which they
   # are uploaded.
   individual_flags:
-    - name: bedrock-go-tests
     - name: contracts-bedrock-tests
+      paths:
+        - packages/contracts-bedrock/contracts
+      statuses:
+        - type: patch
+          target: 100%
+    - name: bedrock-go-tests
     - name: common-ts-tests
     - name: contracts-tests
     - name: core-utils-tests

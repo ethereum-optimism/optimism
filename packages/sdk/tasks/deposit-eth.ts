@@ -1,3 +1,5 @@
+import { promises as fs } from 'fs'
+
 import { task, types } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
@@ -7,7 +9,13 @@ import {
 } from '@eth-optimism/contracts-bedrock'
 import { providers, utils } from 'ethers'
 
-import { CrossChainMessenger, MessageStatus, CONTRACT_ADDRESSES } from '../src'
+import {
+  CrossChainMessenger,
+  MessageStatus,
+  CONTRACT_ADDRESSES,
+  OEContractsLike,
+  DEFAULT_L2_CONTRACT_ADDRESSES,
+} from '../src'
 
 task('deposit-eth', 'Deposits WETH9 onto L2.')
   .addParam(
@@ -34,6 +42,12 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     'Follow up with a withdrawal',
     true,
     types.boolean
+  )
+  .addOptionalParam(
+    'l1ContractsJsonPath',
+    'Path to a JSON with L1 contract addresses in it',
+    '',
+    types.string
   )
   .addOptionalParam('withdrawAmount', 'Amount to withdraw', '', types.string)
   .setAction(async (args, hre) => {
@@ -70,7 +84,14 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
     )
 
     const l2ChainId = await l2Signer.getChainId()
-    const contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
+    let contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
+    if (args.l1ContractsJsonPath) {
+      const data = await fs.readFile(args.l1ContractsJsonPath)
+      contractAddrs = {
+        l1: JSON.parse(data.toString()),
+        l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+      } as OEContractsLike
+    }
 
     const Artifact__L2ToL1MessagePasser = await getContractDefinition(
       'L2ToL1MessagePasser'
@@ -135,6 +156,7 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       l1ChainId: await signer.getChainId(),
       l2ChainId,
       bedrock: true,
+      contracts: contractAddrs,
     })
 
     const opBalanceBefore = await signer.provider.getBalance(
@@ -207,8 +229,30 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
       `Withdrawal on L2 complete: ${ethWithdrawReceipt.transactionHash}`
     )
 
-    console.log('Waiting to be able to withdraw')
-    const interval = setInterval(async () => {
+    console.log('Waiting to be able to prove withdrawal')
+    const proveInterval = setInterval(async () => {
+      const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
+      console.log(`Message status: ${MessageStatus[currentStatus]}`)
+    }, 3000)
+
+    try {
+      await messenger.waitForMessageStatus(
+        ethWithdrawReceipt,
+        MessageStatus.READY_TO_PROVE
+      )
+    } finally {
+      clearInterval(proveInterval)
+    }
+
+    console.log('Proving eth withdrawal...')
+    const ethProve = await messenger.proveMessage(ethWithdrawReceipt)
+    const ethProveReceipt = await ethProve.wait()
+    if (ethProveReceipt.status !== 1) {
+      throw new Error('Prove withdrawal transaction reverted')
+    }
+
+    console.log('Waiting to be able to finalize withdrawal')
+    const finalizeInterval = setInterval(async () => {
       const currentStatus = await messenger.getMessageStatus(ethWithdrawReceipt)
       console.log(`Message status: ${MessageStatus[currentStatus]}`)
     }, 3000)
@@ -219,9 +263,10 @@ task('deposit-eth', 'Deposits WETH9 onto L2.')
         MessageStatus.READY_FOR_RELAY
       )
     } finally {
-      clearInterval(interval)
+      clearInterval(finalizeInterval)
     }
 
+    console.log('Finalizing eth withdrawal...')
     const ethFinalize = await messenger.finalizeMessage(ethWithdrawReceipt)
     const ethFinalizeReceipt = await ethFinalize.wait()
     if (ethFinalizeReceipt.status !== 1) {

@@ -5,8 +5,9 @@ import (
 	"context"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 // Channel In Reader reads a batch from the channel
@@ -83,7 +84,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
 	return batch.Batch, nil
 }
 
-func (cr *ChannelInReader) Reset(ctx context.Context, _ eth.L1BlockRef) error {
+func (cr *ChannelInReader) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	cr.nextBatchFn = nil
 	return io.EOF
 }

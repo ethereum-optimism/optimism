@@ -26,8 +26,8 @@ func FundDevAccounts(db vm.StateDB) {
 // a Proxy and ProxyAdmin deployment present so that the Proxy bytecode
 // can be set in state and the ProxyAdmin can be set as the admin of the
 // Proxy.
-func SetL2Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
-	return setProxies(db, proxyAdminAddr, bigL2PredeployNamespace, 2048)
+func SetL2Proxies(db vm.StateDB) error {
+	return setProxies(db, predeploys.ProxyAdminAddr, bigL2PredeployNamespace, 2048)
 }
 
 // SetL1Proxies will set each of the proxies in the state. It requires
@@ -48,14 +48,18 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
-		// There is no proxy at the governance token address
-		if addr == predeploys.GovernanceTokenAddr {
+		// There is no proxy at the governance token address or
+		// the proxy admin address. LegacyERC20ETH lives in the
+		// 0xDead namespace so it can be ignored here
+		if addr == predeploys.GovernanceTokenAddr || addr == predeploys.ProxyAdminAddr {
+			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}
 
 		db.CreateAccount(addr)
 		db.SetCode(addr, depBytecode)
 		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
+		log.Trace("Set proxy", "address", addr, "admin", proxyAdminAddr)
 	}
 	return nil
 }
@@ -71,15 +75,16 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 
 	for name, address := range predeploys.Predeploys {
 		log.Info("MMDBG SetImplementations", "name", name, "addr", address)
-		// Convert the address to the code address
+		// Convert the address to the code address unless it is
+		// designed to not be behind a proxy
 		var addr common.Address
 		switch *address {
 		case predeploys.GovernanceTokenAddr:
 			addr = predeploys.GovernanceTokenAddr
 		case predeploys.LegacyERC20ETHAddr:
 			addr = predeploys.LegacyERC20ETHAddr
-		case predeploys.BobaL2Addr:
-			addr = predeploys.BobaL2Addr
+		case predeploys.ProxyAdminAddr:
+			addr = predeploys.ProxyAdminAddr
 		default:
 			addr, err = AddressToCodeNamespace(*address)
 			if err != nil {
@@ -95,17 +100,20 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 		// Use the genrated bytecode when there are immutables
 		// otherwise use the artifact deployed bytecode
 		if bytecode, ok := deployResults[name]; ok {
+			log.Info("Setting deployed bytecode with immutables", "name", name, "address", addr)
 			db.SetCode(addr, bytecode)
 		} else {
 			depBytecode, err := bindings.GetDeployedBytecode(name)
 			if err != nil {
 				return err
 			}
+			log.Info("Setting deployed bytecode from solc compiler output", "name", name, "address", addr)
 			db.SetCode(addr, depBytecode)
 		}
 
 		// Set the storage values
 		if storageConfig, ok := storage[name]; ok {
+			log.Info("Setting storage", "name", name, "address", *address)
 			if err := state.SetStorage(name, *address, storageConfig, db); err != nil {
 				return err
 			}
@@ -117,36 +125,6 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 		}
 	}
 	return nil
-}
-
-// Get the storage layout of the LegacyMessagePasser
-// Iterate over the storage layout to know which storage slots to ignore
-// Iterate over each storage slot, compute the migration
-func MigrateDepositHashes(db vm.StateDB) error {
-	layout, err := bindings.GetStorageLayout("LegacyMessagePasser")
-	if err != nil {
-		return err
-	}
-
-	// Build a list of storage slots to ignore. The values in the
-	// mapping are guaranteed to not be in this list because they are
-	// hashes.
-	ignore := make(map[common.Hash]bool)
-	for _, entry := range layout.Storage {
-		encoded, err := state.EncodeUintValue(entry.Slot, 0)
-		if err != nil {
-			return err
-		}
-		ignore[encoded] = true
-	}
-
-	return db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
-		if _, ok := ignore[key]; ok {
-			return true
-		}
-		// TODO(tynes): Do the value migration here
-		return true
-	})
 }
 
 // SetPrecompileBalances will set a single wei at each precompile address.

@@ -7,14 +7,15 @@ import (
 	"math/rand"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 type fakeBatchQueueInput struct {
@@ -72,6 +73,66 @@ func L1Chain(l1Times []uint64) []eth.L1BlockRef {
 	return out
 }
 
+// TestBatchQueueNewOrigin tests that the batch queue properly saves the new origin
+// when the safehead's origin is ahead of the pipeline's origin (as is after a reset).
+// This issue was fixed in https://github.com/ethereum-optimism/optimism/pull/3694
+func TestBatchQueueNewOrigin(t *testing.T) {
+	log := testlog.Logger(t, log.LvlCrit)
+	l1 := L1Chain([]uint64{10, 15, 20, 25})
+	safeHead := eth.L2BlockRef{
+		Hash:           mockHash(10, 2),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           20,
+		L1Origin:       l1[2].ID(),
+		SequenceNumber: 0,
+	}
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 10,
+		},
+		BlockTime:         2,
+		MaxSequencerDrift: 600,
+		SeqWindowSize:     2,
+	}
+
+	input := &fakeBatchQueueInput{
+		batches: []*BatchData{nil},
+		errors:  []error{io.EOF},
+		origin:  l1[0],
+	}
+
+	bq := NewBatchQueue(log, cfg, input)
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
+	require.Equal(t, []eth.L1BlockRef{l1[0]}, bq.l1Blocks)
+
+	// Prev Origin: 0; Safehead Origin: 2; Internal Origin: 0
+	// Should return no data but keep the same origin
+	data, err := bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, data)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, []eth.L1BlockRef{l1[0]}, bq.l1Blocks)
+	require.Equal(t, l1[0], bq.origin)
+
+	// Prev Origin: 1; Safehead Origin: 2; Internal Origin: 0
+	// Should wipe l1blocks + advance internal origin
+	input.origin = l1[1]
+	data, err = bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, data)
+	require.Equal(t, io.EOF, err)
+	require.Empty(t, bq.l1Blocks)
+	require.Equal(t, l1[1], bq.origin)
+
+	// Prev Origin: 2; Safehead Origin: 2; Internal Origin: 1
+	// Should add to l1Blocks + advance internal origin
+	input.origin = l1[2]
+	data, err = bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, data)
+	require.Equal(t, io.EOF, err)
+	require.Equal(t, []eth.L1BlockRef{l1[2]}, bq.l1Blocks)
+	require.Equal(t, l1[2], bq.origin)
+}
+
 // TestBatchQueueEager adds a bunch of contiguous batches and asserts that
 // enough calls to `NextBatch` return all of those batches.
 func TestBatchQueueEager(t *testing.T) {
@@ -104,7 +165,7 @@ func TestBatchQueueEager(t *testing.T) {
 	}
 
 	bq := NewBatchQueue(log, cfg, input)
-	_ = bq.Reset(context.Background(), l1[0])
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
 	// Advance the origin
 	input.origin = l1[1]
 
@@ -155,7 +216,7 @@ func TestBatchQueueMissing(t *testing.T) {
 	}
 
 	bq := NewBatchQueue(log, cfg, input)
-	_ = bq.Reset(context.Background(), l1[0])
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
 
 	for i := 0; i < len(batches); i++ {
 		b, e := bq.NextBatch(context.Background(), safeHead)
@@ -205,5 +266,4 @@ func TestBatchQueueMissing(t *testing.T) {
 	require.Equal(t, b.Timestamp, uint64(18))
 	require.Empty(t, b.BatchV1.Transactions)
 	require.Equal(t, rollup.Epoch(1), b.EpochNum)
-
 }

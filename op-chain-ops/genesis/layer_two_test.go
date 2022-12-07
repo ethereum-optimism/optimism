@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/stretchr/testify/require"
@@ -31,17 +30,7 @@ func init() {
 var testKey, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 
 func TestBuildL2DeveloperGenesis(t *testing.T) {
-	hh, err := hardhat.New(
-		"alpha-1",
-		nil,
-		[]string{"../../packages/contracts-bedrock/deployments"},
-	)
-	require.Nil(t, err)
-
 	config, err := genesis.NewDeployConfig("./testdata/test-deploy-config-devnet-l1.json")
-	require.Nil(t, err)
-
-	proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
 	require.Nil(t, err)
 
 	backend := backends.NewSimulatedBackend(
@@ -52,9 +41,8 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 	)
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
-		ProxyAdmin: proxyAdmin.Address,
-	})
+
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
 	require.Nil(t, err)
 	require.NotNil(t, gen)
 
@@ -68,16 +56,16 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, ok, true)
 		require.Greater(t, len(account.Code), 0)
 
-		if name == "GovernanceToken" || name == "LegacyERC20ETH" {
+		if name == "GovernanceToken" || name == "LegacyERC20ETH" || name == "ProxyAdmin" {
 			continue
 		}
 
 		adminSlot, ok := account.Storage[genesis.AdminSlot]
 		require.Equal(t, ok, true)
-		require.Equal(t, adminSlot, proxyAdmin.Address.Hash())
+		require.Equal(t, adminSlot, predeploys.ProxyAdminAddr.Hash())
 		require.Equal(t, account.Code, depB)
 	}
-	require.Equal(t, 2339, len(gen.Alloc))
+	require.Equal(t, 2343, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
@@ -90,6 +78,9 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	require.Nil(t, err)
 	config.FundDevAccounts = false
 
+	err = config.InitDeveloperDeployedAddresses()
+	require.NoError(t, err)
+
 	backend := backends.NewSimulatedBackend(
 		core.GenesisAlloc{
 			crypto.PubkeyToAddress(testKey.PublicKey): {Balance: big.NewInt(10000000000000000)},
@@ -98,9 +89,8 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 	)
 	block, err := backend.BlockByNumber(context.Background(), common.Big0)
 	require.NoError(t, err)
-	gen, err := genesis.BuildL2DeveloperGenesis(config, block, &genesis.L2Addresses{
-		ProxyAdmin: common.Address{},
-	})
+
+	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
 	require.NoError(t, err)
-	require.Equal(t, 2317, len(gen.Alloc))
+	require.Equal(t, 2321, len(gen.Alloc))
 }

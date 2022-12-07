@@ -44,6 +44,7 @@
 [g-l1-origin]: glossary.md#l1-origin
 [g-deposit-tx-type]: glossary.md#deposited-transaction-type
 [g-finalized-l2-head]: glossary.md#finalized-l2-head
+[g-system-config]: glossary.md#system-configuration
 
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
@@ -299,12 +300,12 @@ Batcher transactions are encoded as `version_byte ++ rollup_payload` (where `++`
 | 0              | `frame ...` (one or more frames, concatenated) |
 
 Unknown versions make the batcher transaction invalid (it must be ignored by the rollup node).
+All frames in a batcher transaction must be parseable. If any one frame fails to parse, the all frames in the
+transaction are rejected.
 
-The `rollup_payload` may be right-padded with 0s, which will be ignored. It's allowed for them to be
-interpreted as frames for channel 0, which must always be ignored.
-
-> **TODO** specify batcher authentication (i.e. where do we store / make available the public keys of authorize batcher
-> signers)
+Batch transactions are authenticated by verifying that the `to` address of the transaction matches the batch inbox
+address, and the `from` address matches the batch-sender address in the [system configuration][g-system-config] at the
+time of the L1 block that the transaction data is read from.
 
 ### Frame Format
 
@@ -364,11 +365,10 @@ where:
 
 When decompressing a channel, we limit the amount of decompressed data to `MAX_RLP_BYTES_PER_CHANNEL` (currently
 10,000,000 bytes), in order to avoid "zip-bomb" types of attack (where a small compressed input decompresses to a
-humongous amount of data). If the decompressed data exceeds the limit, things proceeds as thought the channel contained
-only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes.
-
-When decoding batches, all batches that can be completly decoded below `MAX_RLP_BYTES_PER_CHANNEL` will be accepted
-even if the size of the channel is greater than `MAX_RLP_BYTES_PER_CHANNEL`.
+humongous amount of data). If the decompressed data exceeds the limit, things proceeds as though the channel contained
+only the first `MAX_RLP_BYTES_PER_CHANNEL` decompressed bytes. The limit is set on RLP decoding, so all batches that
+can be decoded in `MAX_RLP_BYTES_PER_CHANNEL` will be accepted ven if the size of the channel is greater than
+`MAX_RLP_BYTES_PER_CHANNEL`. The exact requirement is that `length(input) <= MAX_RLP_BYTES_PER_CHANNEL`.
 
 While the above pseudocode implies that all batches are known in advance, it is possible to perform streaming
 compression and decompression of RLP-encoded batches. This means it is possible to start including channel frames in a
@@ -459,6 +459,9 @@ Let's briefly describe each stage of the pipeline.
 In the *L1 Traversal* stage, we simply read the header of the next L1 block. In normal operations, these will be new
 L1 blocks as they get created, though we can also read old blocks while syncing, or in case of an L1 [re-org][g-reorg].
 
+Upon traversal of the L1 block, the [system configuration][g-system-config] copy used by the L1 retrieval stage is
+updated, such that the batch-sender authentication is always accurate to the exact L1 block that is read by the stage.
+
 ### L1 Retrieval
 
 In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and extract data for it. In
@@ -466,18 +469,18 @@ particular we extract a byte string that corresponds to the concatenation of the
 transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
 frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
 
-These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*.
+These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*. When
+adding frames the the channel, individual frames may be invalid, but the channel does not have a notion of validity
+until the channel timeout is up. This enables adding the option to do a partial read from the channel in the future.
 
 Some frames are ignored:
 
-- Frames where `frame.frame_number <= highest_frame_number`, where `highest_frame_number` is the highest frame number
-  that was previously encountered for this channel.
-  - i.e. in case of duplicate frame, the first frame read from L1 is considered canonical.
-- Frames with a higher number than that of the final frame of the channel (i.e. the first frame marked with
-  `frame.is_last == 1`) are ignored.
-  - These frames could still be written into the channel bank if we haven't seen the final frame yet. But they will
-      never be read out from the channel bank.
-- Frames with a channel ID whose timestamp are higher than that of the L1 block on which the frame appears.
+- Frames with the same frame number as an existing frame in the channel (a duplicate). The first seen frame is used.
+- Frames that attempt to close an already closed channel. This would be the second frame with `frame.is_last == 1` even
+  if the frame number of the second frame is not the same as the first frame which closed the channel.
+
+If a frame with `is_last == 1` is added to a channel, all frames with a higher frame number are removed from the
+channel.
 
 Channels are also recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
 queue the first time a frame belonging to the channel is seen. This structure is used in the next stage.
@@ -522,6 +525,14 @@ As currently implemented, each step in this stage performs the following actions
           frame are discarded.
   - Concatenate the data of the *contiguous frame sequence* (in sequential order) and push it to the next stage.
 
+The ordering of these actions is very important to be consistent across nodes & pipeline resets. The rollup node
+must attempt to do the following in order to maintain a consistent channel bank even in the presence of pruning.
+
+1. Attempt to read as many channels as possible from the channel bank.
+2. Load in a single frame
+3. Check if channel bank needs to be pruned & do so if needed.
+4. Go to step 1 once the channel bank is under it's size limit.
+
 > **TODO** Instead of waiting on the first seen channel (which might not contain the oldest batches, meaning buffering
 > further down the pipeline), we could process any channel in the queue that is ready. We could do this by checking for
 > channel readiness upon writing into the bank, and moving ready channel to the front of the queue.
@@ -539,8 +550,9 @@ During the *Batch Buffering* stage, we reorder batches by their timestamps. If b
 slots][g-time-slot] and a valid batch with a higher timestamp exists, this stage also generates empty batches to fill
 the gaps.
 
-Batches are pushed to the next stage whenever there is one or more sequential batch(es) directly following the timestamp
+Batches are pushed to the next stage whenever there is one sequential batch directly following the timestamp
 of the current [safe L2 head][g-safe-l2-head] (the last block that can be derived from the canonical L1 chain).
+The parent hash of the batch must also match the hash of the current safe L2 head.
 
 Note that the presence of any gaps in the batches derived from L1 means that this stage will need to buffer for a whole
 [sequencing window][g-sequencing-window] before it can generate empty batches (because the missing batch(es) could have
@@ -615,6 +627,9 @@ the [`PayloadAttributes`][g-payload-attr] structure. Such a structure encodes th
 a block, as well as other block inputs (timestamp, fee recipient, etc). Payload attributes derivation is detailed in the
 section [Deriving Payload Attributes section][deriving-payload-attr] below.
 
+This stage maintains its own copy of the [system configuration][g-system-config], independent of the L1 retrieval stage.
+The system configuration is updated with L1 log events whenever the L1 epoch referenced by the batch input changes.
+
 ### Engine Queue
 
 In the *Engine Queue* stage, the previously derived `PayloadAttributes` structures are buffered and sent to the
@@ -646,6 +661,12 @@ If consolidation fails, the unsafe L2 head is reset to the safe L2 head.
 
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the block to the
 execution engine to be converted into a proper L2 block, which will become both the new L2 safe and unsafe head.
+
+If a payload attributes created from a batch cannot be inserted into the chain because of a validation error (i.e. there
+was an invalid transaction or state transition in the block) the batch should be dropped & the safe head should not be
+advanced. The engine queue will attempt to use the next batch for that timestamp from the batch queue. If no valid batch
+is found, the rollup node will create a deposit only batch which should always pass validation because deposits are
+always valid.
 
 Interaction with the execution engine via the execution engine API is detailed in the [Communication with the Execution
 Engine][exec-engine-comm] section.
@@ -708,6 +729,7 @@ After deriving the transaction list, the rollup node constructs a [`PayloadAttri
 - `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions, all
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
+- `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
 

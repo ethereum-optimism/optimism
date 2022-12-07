@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -32,8 +31,8 @@ type L1Miner struct {
 }
 
 // NewL1Miner creates a new L1Replica that can also build blocks.
-func NewL1Miner(log log.Logger, genesis *core.Genesis) *L1Miner {
-	rep := NewL1Replica(log, genesis)
+func NewL1Miner(t Testing, log log.Logger, genesis *core.Genesis) *L1Miner {
+	rep := NewL1Replica(t, log, genesis)
 	return &L1Miner{
 		L1Replica: *rep,
 	}
@@ -70,7 +69,7 @@ func (s *L1Miner) ActL1StartBlock(timeDelta uint64) Action {
 			header.BaseFee = misc.CalcBaseFee(s.l1Cfg.Config, parent)
 			// At the transition, double the gas limit so the gas target is equal to the old gas limit.
 			if !s.l1Cfg.Config.IsLondon(parent.Number) {
-				header.GasLimit = parent.GasLimit * params.ElasticityMultiplier
+				header.GasLimit = parent.GasLimit * s.l1Cfg.Config.ElasticityMultiplier()
 			}
 		}
 
@@ -150,6 +149,11 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	if err != nil {
 		t.Fatalf("failed to insert block into l1 chain")
 	}
+}
+
+func (s *L1Miner) ActEmptyBlock(t Testing) {
+	s.ActL1StartBlock(12)(t)
+	s.ActL1EndBlock(t)
 }
 
 func (s *L1Miner) Close() error {

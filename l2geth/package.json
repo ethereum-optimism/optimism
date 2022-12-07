@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/l2geth",
-  "version": "0.5.25",
+  "version": "0.5.29",
   "private": true,
   "devDependencies": {}
 }

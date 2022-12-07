@@ -10,9 +10,12 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { Contract, ethers, Transaction } from 'ethers'
 import dateformat from 'dateformat'
 
+import { version } from '../package.json'
 import {
   findFirstUnfinalizedStateBatchIndex,
   findEventForStateBatch,
+  updateStateBatchEventCache,
+  PartialEvent,
 } from './helpers'
 
 type Options = {
@@ -38,8 +41,7 @@ type State = {
 export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   constructor(options?: Partial<Options>) {
     super({
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      version: require('../package.json').version,
+      version,
       name: 'fault-detector',
       loop: true,
       loopIntervalMs: 1000,
@@ -94,6 +96,10 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
     this.state.scc = this.state.messenger.contracts.l1.StateCommitmentChain
     this.state.fpw = (await this.state.scc.FRAUD_PROOF_WINDOW()).toNumber()
+
+    // Populate the event cache.
+    this.logger.info(`warming event cache, this might take a while...`)
+    await updateStateBatchEventCache(this.state.scc)
 
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
@@ -165,7 +171,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       latestIndex: latestBatchIndex,
     })
 
-    let event: ethers.Event
+    let event: PartialEvent
     try {
       event = await findEventForStateBatch(
         this.state.scc,
@@ -187,7 +193,9 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
 
     let batchTransaction: Transaction
     try {
-      batchTransaction = await event.getTransaction()
+      batchTransaction = await this.options.l1RpcProvider.getTransaction(
+        event.transactionHash
+      )
     } catch (err) {
       this.logger.error(`got error when connecting to node`, {
         error: err,

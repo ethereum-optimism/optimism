@@ -44,6 +44,7 @@
   - [Channel Timeout](#channel-timeout)
 - [L2 Chain Derivation](#l2-chain-derivation)
   - [L2 Derivation Inputs](#l2-derivation-inputs)
+  - [System Configuration](#system-configuration)
   - [Payload Attributes](#payload-attributes)
   - [L2 Genesis Block](#l2-genesis-block)
   - [L2 Chain Inception](#l2-chain-inception)
@@ -335,7 +336,7 @@ See the [corresponding section][spec-deposit-tx-type] of the deposits spec for m
 
 [deposit-contract]: glossary.md#deposit-contract
 
-The *deposit contract* is qn [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits are
+The *deposit contract* is an [L1] contract to which [EOAs][EOA] and contracts may send [deposits]. The deposits are
 emitted as log records (in Solidity, these are called *events*) for consumption by [rollup nodes][rollup-node].
 
 Advanced note: the deposits are not stored in calldata because they can be sent by contracts, in which case the calldata
@@ -524,6 +525,16 @@ L2 derivation inputs include:
   - basefee
 - [deposits] (as log data)
 - [sequencer batches][sequencer-batch] (as transaction data)
+- [System configuration][system-config] updates (as log data)
+
+## System Configuration
+
+[system-config]: glossary.md#system-configuration
+
+This term refers to the collection of dynamically configurable rollup parameters maintained
+by the [`SystemConfig`](./system_config.md) contract on L1 and read by the L2 [derivation] process.
+These parameters enable keys to be rotated regularly and external cost parameters to be adjusted
+without the network upgrade overhead of a hardfork.
 
 ## Payload Attributes
 
@@ -683,7 +694,7 @@ cf. [L1 Attributes Predeployed Contract Specification](deposits.md#l1-attributes
 
 ## L2 Output Root
 
-[l2-output]: glossary.md#l2-output
+[l2-output]: glossary.md#l2-output-root
 
 A 32 byte value which serves as a commitment to the current state of the L2 chain.
 

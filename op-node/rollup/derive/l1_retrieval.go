@@ -4,17 +4,20 @@ import (
 	"context"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type DataAvailabilitySource interface {
-	OpenData(ctx context.Context, id eth.BlockID) DataIter
+	OpenData(ctx context.Context, id eth.BlockID, batcherAddr common.Address) DataIter
 }
 
 type NextBlockProvider interface {
 	NextL1Block(context.Context) (eth.L1BlockRef, error)
 	Origin() eth.L1BlockRef
+	SystemConfig() eth.SystemConfig
 }
 
 type L1Retrieval struct {
@@ -50,7 +53,7 @@ func (l1r *L1Retrieval) NextData(ctx context.Context) ([]byte, error) {
 		} else if err != nil {
 			return nil, err
 		}
-		l1r.datas = l1r.dataSrc.OpenData(ctx, next.ID())
+		l1r.datas = l1r.dataSrc.OpenData(ctx, next.ID(), l1r.prev.SystemConfig().BatcherAddr)
 	}
 
 	l1r.log.Debug("fetching next piece of data")
@@ -69,8 +72,8 @@ func (l1r *L1Retrieval) NextData(ctx context.Context) ([]byte, error) {
 // ResetStep re-initializes the L1 Retrieval stage to block of it's `next` progress.
 // Note that we open up the `l1r.datas` here because it is requires to maintain the
 // internal invariants that later propagate up the derivation pipeline.
-func (l1r *L1Retrieval) Reset(ctx context.Context, base eth.L1BlockRef) error {
-	l1r.datas = l1r.dataSrc.OpenData(ctx, base.ID())
+func (l1r *L1Retrieval) Reset(ctx context.Context, base eth.L1BlockRef, sysCfg eth.SystemConfig) error {
+	l1r.datas = l1r.dataSrc.OpenData(ctx, base.ID(), sysCfg.BatcherAddr)
 	l1r.log.Info("Reset of L1Retrieval done", "origin", base)
 	return io.EOF
 }

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Owned } from "@rari-capital/solmate/src/auth/Owned.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { Proxy } from "./Proxy.sol";
 import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
@@ -32,7 +32,7 @@ interface IStaticL1ChugSplashProxy {
  *         based on the OpenZeppelin implementation. It has backwards compatibility logic to work
  *         with the various types of proxies that have been deployed by Optimism in the past.
  */
-contract ProxyAdmin is Owned {
+contract ProxyAdmin is Ownable {
     /**
      * @notice The proxy types that the ProxyAdmin can manage.
      *
@@ -76,7 +76,9 @@ contract ProxyAdmin is Owned {
     /**
      * @param _owner Address of the initial owner of this contract.
      */
-    constructor(address _owner) Owned(_owner) {}
+    constructor(address _owner) Ownable() {
+        _transferOwnership(_owner);
+    }
 
     /**
      * @notice Sets the proxy type for a given address. Only required for non-standard (legacy)
@@ -134,49 +136,6 @@ contract ProxyAdmin is Owned {
     }
 
     /**
-     * @notice Updates the admin of the given proxy address.
-     *
-     * @param _proxy    Address of the proxy to update.
-     * @param _newAdmin Address of the new proxy admin.
-     */
-    function changeProxyAdmin(address payable _proxy, address _newAdmin) external onlyOwner {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).changeAdmin(_newAdmin);
-        } else if (ptype == ProxyType.CHUGSPLASH) {
-            L1ChugSplashProxy(_proxy).setOwner(_newAdmin);
-        } else if (ptype == ProxyType.RESOLVED) {
-            addressManager.transferOwnership(_newAdmin);
-        } else {
-            revert("ProxyAdmin: unknown proxy type");
-        }
-    }
-
-    /**
-     * @notice Changes a proxy's implementation contract and delegatecalls the new implementation
-     *         with some given data. Useful for atomic upgrade-and-initialize calls.
-     *
-     * @param _proxy          Address of the proxy to upgrade.
-     * @param _implementation Address of the new implementation address.
-     * @param _data           Data to trigger the new implementation with.
-     */
-    function upgradeAndCall(
-        address payable _proxy,
-        address _implementation,
-        bytes memory _data
-    ) external payable onlyOwner {
-        ProxyType ptype = proxyType[_proxy];
-        if (ptype == ProxyType.ERC1967) {
-            Proxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
-        } else {
-            // reverts if proxy type is unknown
-            upgrade(_proxy, _implementation);
-            (bool success, ) = _proxy.call{ value: msg.value }(_data);
-            require(success, "ProxyAdmin: call to proxy after upgrade failed");
-        }
-    }
-
-    /**
      * @custom:legacy
      * @notice Legacy function used to tell ChugSplashProxy contracts if an upgrade is happening.
      *
@@ -229,6 +188,25 @@ contract ProxyAdmin is Owned {
     }
 
     /**
+     * @notice Updates the admin of the given proxy address.
+     *
+     * @param _proxy    Address of the proxy to update.
+     * @param _newAdmin Address of the new proxy admin.
+     */
+    function changeProxyAdmin(address payable _proxy, address _newAdmin) external onlyOwner {
+        ProxyType ptype = proxyType[_proxy];
+        if (ptype == ProxyType.ERC1967) {
+            Proxy(_proxy).changeAdmin(_newAdmin);
+        } else if (ptype == ProxyType.CHUGSPLASH) {
+            L1ChugSplashProxy(_proxy).setOwner(_newAdmin);
+        } else if (ptype == ProxyType.RESOLVED) {
+            addressManager.transferOwnership(_newAdmin);
+        } else {
+            revert("ProxyAdmin: unknown proxy type");
+        }
+    }
+
+    /**
      * @notice Changes a proxy's implementation contract.
      *
      * @param _proxy          Address of the proxy to upgrade.
@@ -251,6 +229,30 @@ contract ProxyAdmin is Owned {
             // It should not be possible to retrieve a ProxyType value which is not matched by
             // one of the previous conditions.
             assert(false);
+        }
+    }
+
+    /**
+     * @notice Changes a proxy's implementation contract and delegatecalls the new implementation
+     *         with some given data. Useful for atomic upgrade-and-initialize calls.
+     *
+     * @param _proxy          Address of the proxy to upgrade.
+     * @param _implementation Address of the new implementation address.
+     * @param _data           Data to trigger the new implementation with.
+     */
+    function upgradeAndCall(
+        address payable _proxy,
+        address _implementation,
+        bytes memory _data
+    ) external payable onlyOwner {
+        ProxyType ptype = proxyType[_proxy];
+        if (ptype == ProxyType.ERC1967) {
+            Proxy(_proxy).upgradeToAndCall{ value: msg.value }(_implementation, _data);
+        } else {
+            // reverts if proxy type is unknown
+            upgrade(_proxy, _implementation);
+            (bool success, ) = _proxy.call{ value: msg.value }(_data);
+            require(success, "ProxyAdmin: call to proxy after upgrade failed");
         }
     }
 }

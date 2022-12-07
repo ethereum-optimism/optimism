@@ -5,6 +5,12 @@ import (
 	"errors"
 	"io"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	gnode "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/node"
@@ -13,11 +19,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	gnode "github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 // L2Verifier is an actor that functions like a rollup node,
@@ -25,7 +26,10 @@ import (
 type L2Verifier struct {
 	log log.Logger
 
-	eng derive.Engine
+	eng interface {
+		derive.Engine
+		L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	}
 
 	// L2 rollup
 	derivation *derive.DerivationPipeline
@@ -45,12 +49,13 @@ type L2Verifier struct {
 
 type L2API interface {
 	derive.Engine
-	InfoByRpcNumber(ctx context.Context, num rpc.BlockNumber) (eth.BlockInfo, error)
+	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
+	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
 	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
 }
 
-func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config) *L2Verifier {
+func NewL2Verifier(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config) *L2Verifier {
 	metrics := &testutils.TestDerivationMetrics{}
 	pipeline := derive.NewDerivationPipeline(log, cfg, l1, eng, metrics)
 	pipeline.Reset()
@@ -66,6 +71,7 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.C
 		rollupCfg:      cfg,
 		rpc:            rpc.NewServer(),
 	}
+	t.Cleanup(rollupNode.rpc.Stop)
 
 	// setup RPC server for rollup node, hooked to the actor as backend
 	m := &testutils.TestRPCMetrics{}
@@ -85,14 +91,17 @@ func NewL2Verifier(log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.C
 			Authenticated: false,
 		},
 	}
-	if err := gnode.RegisterApis(apis, nil, rollupNode.rpc); err != nil {
-		panic(err)
-	}
+	require.NoError(t, gnode.RegisterApis(apis, nil, rollupNode.rpc), "failed to set up APIs")
 	return rollupNode
 }
 
 type l2VerifierBackend struct {
 	verifier *L2Verifier
+}
+
+func (s *l2VerifierBackend) BlockRefWithStatus(ctx context.Context, num uint64) (eth.L2BlockRef, *eth.SyncStatus, error) {
+	ref, err := s.verifier.eng.L2BlockRefByNumber(ctx, num)
+	return ref, s.verifier.SyncStatus(), err
 }
 
 func (s *l2VerifierBackend) SyncStatus(ctx context.Context) (*eth.SyncStatus, error) {
@@ -104,15 +113,28 @@ func (s *l2VerifierBackend) ResetDerivationPipeline(ctx context.Context) error {
 	return nil
 }
 
+func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
+	return s.derivation.Finalized()
+}
+
+func (s *L2Verifier) L2Safe() eth.L2BlockRef {
+	return s.derivation.SafeL2Head()
+}
+
+func (s *L2Verifier) L2Unsafe() eth.L2BlockRef {
+	return s.derivation.UnsafeL2Head()
+}
+
 func (s *L2Verifier) SyncStatus() *eth.SyncStatus {
 	return &eth.SyncStatus{
-		CurrentL1:   s.derivation.Origin(),
-		HeadL1:      s.l1State.L1Head(),
-		SafeL1:      s.l1State.L1Safe(),
-		FinalizedL1: s.l1State.L1Finalized(),
-		UnsafeL2:    s.derivation.UnsafeL2Head(),
-		SafeL2:      s.derivation.SafeL2Head(),
-		FinalizedL2: s.derivation.Finalized(),
+		CurrentL1:          s.derivation.Origin(),
+		CurrentL1Finalized: s.derivation.FinalizedL1(),
+		HeadL1:             s.l1State.L1Head(),
+		SafeL1:             s.l1State.L1Safe(),
+		FinalizedL1:        s.l1State.L1Finalized(),
+		UnsafeL2:           s.L2Unsafe(),
+		SafeL2:             s.L2Safe(),
+		FinalizedL2:        s.L2Finalized(),
 	}
 }
 
@@ -148,15 +170,16 @@ func (s *L2Verifier) ActL1HeadSignal(t Testing) {
 }
 
 func (s *L2Verifier) ActL1SafeSignal(t Testing) {
-	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
+	safe, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Safe)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1SafeBlock(head)
+	s.l1State.HandleNewL1SafeBlock(safe)
 }
 
 func (s *L2Verifier) ActL1FinalizedSignal(t Testing) {
-	head, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
+	finalized, err := s.l1.L1BlockRefByLabel(t.Ctx(), eth.Finalized)
 	require.NoError(t, err)
-	s.l1State.HandleNewL1FinalizedBlock(head)
+	s.l1State.HandleNewL1FinalizedBlock(finalized)
+	s.derivation.Finalize(finalized)
 }
 
 // ActL2PipelineStep runs one iteration of the L2 derivation pipeline

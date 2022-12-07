@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 type Genesis struct {
@@ -17,6 +18,10 @@ type Genesis struct {
 	L2 eth.BlockID `json:"l2"`
 	// Timestamp of L2 block
 	L2Time uint64 `json:"l2_time"`
+	// Initial system configuration values.
+	// The L2 genesis block may not include transactions, and thus cannot encode the config values,
+	// unlike later L2 blocks.
+	SystemConfig eth.SystemConfig `json:"system_config"`
 }
 
 type Config struct {
@@ -45,14 +50,12 @@ type Config struct {
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 
-	// L2 address used to send all priority fees to, also known as the coinbase address in the block.
-	FeeRecipientAddress common.Address `json:"fee_recipient_address"`
 	// L1 address that batches are sent to.
 	BatchInboxAddress common.Address `json:"batch_inbox_address"`
-	// Acceptable batch-sender address
-	BatchSenderAddress common.Address `json:"batch_sender_address"`
 	// L1 Deposit Contract Address
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
+	// L1 System Config Address
+	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
 }
 
 // Check verifies that the given configuration makes sense
@@ -78,17 +81,23 @@ func (cfg *Config) Check() error {
 	if cfg.Genesis.L2Time == 0 {
 		return errors.New("missing L2 genesis time")
 	}
+	if cfg.Genesis.SystemConfig.BatcherAddr == (common.Address{}) {
+		return errors.New("missing genesis system config batcher address")
+	}
+	if cfg.Genesis.SystemConfig.Overhead == (eth.Bytes32{}) {
+		return errors.New("missing genesis system config overhead")
+	}
+	if cfg.Genesis.SystemConfig.Scalar == (eth.Bytes32{}) {
+		return errors.New("missing genesis system config scalar")
+	}
+	if cfg.Genesis.SystemConfig.GasLimit == 0 {
+		return errors.New("missing genesis system config gas limit")
+	}
 	if cfg.P2PSequencerAddress == (common.Address{}) {
 		return errors.New("missing p2p sequencer address")
 	}
-	if cfg.FeeRecipientAddress == (common.Address{}) {
-		return errors.New("missing fee recipient address")
-	}
 	if cfg.BatchInboxAddress == (common.Address{}) {
 		return errors.New("missing batch inbox address")
-	}
-	if cfg.BatchSenderAddress == (common.Address{}) {
-		return errors.New("missing batch sender address")
 	}
 	if cfg.DepositContractAddress == (common.Address{}) {
 		return errors.New("missing deposit contract address")

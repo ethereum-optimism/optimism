@@ -68,8 +68,7 @@ to [`engine_forkchoiceUpdatedV1`][engine_forkchoiceUpdatedV1]: the extended `Pay
 
 #### Extended PayloadAttributesV1
 
-[`PayloadAttributesV1`][PayloadAttributesV1] is extended with a `transactions` field, equivalent to
-the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]:
+[`PayloadAttributesV1`][PayloadAttributesV1] is extended to:
 
 ```js
 PayloadAttributesV1: {
@@ -78,6 +77,7 @@ PayloadAttributesV1: {
     suggestedFeeRecipient: DATA (20 bytes)
     transactions: array of DATA
     noTxPool: bool
+    gasLimit: QUANTITY or null
 }
 ```
 
@@ -87,6 +87,7 @@ to a JSON array.
 
 Each item of the `transactions` array is a byte list encoding a transaction: `TransactionType ||
 TransactionPayload` or `LegacyTransaction`, as defined in [EIP-2718][eip-2718].
+This is equivalent to the `transactions` field in [`ExecutionPayloadV1`][ExecutionPayloadV1]
 
 The `transactions` field is optional:
 
@@ -100,6 +101,15 @@ The `noTxPool` is optional as well, and extends the `transactions` meaning:
 - If `false`, the execution engine is free to pack additional transactions from external sources like the tx pool
   into the payload, after any of the `transactions`. This is the default behavior a L1 node implements.
 - If `true`, the execution engine must not change anything about the given list of `transactions`.
+
+If the `transactions` field is present, the engine must execute the transactions in order and return `STATUS_INVALID`
+if there is an error processing the transactions. It must return `STATUS_VALID` if all of the transactions could
+be executed without error. **Note**: The state transition rules have been modified such that deposits will never fail
+so if `engine_forkchoiceUpdatedV1` returns `STATUS_INVALID` it is because a batched transaction is invalid.
+
+The `gasLimit` is optional w.r.t. compatibility with L1, but required when used as rollup.
+This field overrides the gas limit used during block-building.
+If not specified as rollup, a `STATUS_INVALID` is returned.
 
 [rollup-driver]: rollup-node.md
 

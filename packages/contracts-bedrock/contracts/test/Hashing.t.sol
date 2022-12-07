@@ -11,7 +11,7 @@ contract Hashing_Test is CommonTest {
         _setUp();
     }
 
-    function test_hashDepositSource() external {
+    function test_hashDepositSource_succeeds() external {
         bytes32 sourceHash = Hashing.hashDepositSource(
             0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959,
             0x1
@@ -20,20 +20,21 @@ contract Hashing_Test is CommonTest {
         assertEq(sourceHash, 0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc);
     }
 
-    function test_hashCrossDomainMessage_differential(
-        uint256 _nonce,
+    function testDiff_hashCrossDomainMessage_succeeds(
+        uint240 _nonce,
+        uint16 _version,
         address _sender,
         address _target,
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
     ) external {
-        // Discard any fuzz tests with an invalid version
-        (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-        vm.assume(version < 2);
+        // Ensure the version is valid
+        uint16 version = uint16(bound(uint256(_version), 0, 1));
+        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
 
         bytes32 _hash = ffi.hashCrossDomainMessage(
-            _nonce,
+            nonce,
             _sender,
             _target,
             _value,
@@ -42,7 +43,7 @@ contract Hashing_Test is CommonTest {
         );
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
-            _nonce,
+            nonce,
             _sender,
             _target,
             _value,
@@ -53,7 +54,7 @@ contract Hashing_Test is CommonTest {
         assertEq(hash, _hash);
     }
 
-    function test_hashWithdrawal_differential(
+    function testDiff_hashWithdrawal_succeeds(
         uint256 _nonce,
         address _sender,
         address _target,
@@ -70,7 +71,7 @@ contract Hashing_Test is CommonTest {
         assertEq(hash, _hash);
     }
 
-    function test_hashOutputRootProof_differential(
+    function testDiff_hashOutputRootProof_succeeds(
         bytes32 _version,
         bytes32 _stateRoot,
         bytes32 _messagePasserStorageRoot,
@@ -97,7 +98,7 @@ contract Hashing_Test is CommonTest {
 
     // TODO(tynes): foundry bug cannot serialize
     // bytes32 as strings with vm.toString
-    function test_hashDepositTransaction_differential(
+    function testDiff_hashDepositTransaction_succeeds(
         address _from,
         address _to,
         uint256 _mint,

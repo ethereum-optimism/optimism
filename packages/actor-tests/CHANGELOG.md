@@ -1,5 +1,62 @@
 # @eth-optimism/actor-tests
 
+## 0.0.14
+
+### Patch Changes
+
+- Updated dependencies [c025a1153]
+- Updated dependencies [f8697a607]
+- Updated dependencies [59adcaa09]
+- Updated dependencies [c71500a7e]
+- Updated dependencies [f49b71d50]
+- Updated dependencies [1bfe79f20]
+- Updated dependencies [ccaf5bc83]
+  - @eth-optimism/contracts-bedrock@0.10.0
+  - @eth-optimism/sdk@1.7.0
+
+## 0.0.13
+
+### Patch Changes
+
+- Updated dependencies [52079cc12]
+- Updated dependencies [13bfafb21]
+- Updated dependencies [eeae96941]
+- Updated dependencies [427831d86]
+  - @eth-optimism/contracts-bedrock@0.9.1
+  - @eth-optimism/sdk@1.6.11
+
+## 0.0.12
+
+### Patch Changes
+
+- Updated dependencies [1e76cdb86]
+- Updated dependencies [c02831144]
+- Updated dependencies [d58b0a397]
+- Updated dependencies [ff860ecf3]
+- Updated dependencies [cc5adbc61]
+- Updated dependencies [31c91ea74]
+- Updated dependencies [87702c741]
+  - @eth-optimism/core-utils@0.11.0
+  - @eth-optimism/contracts-bedrock@0.9.0
+  - @eth-optimism/sdk@1.6.10
+
+## 0.0.11
+
+### Patch Changes
+
+- Updated dependencies [db84317b]
+- Updated dependencies [9b90c732]
+  - @eth-optimism/contracts-bedrock@0.8.3
+  - @eth-optimism/sdk@1.6.9
+
+## 0.0.10
+
+### Patch Changes
+
+- Updated dependencies [7d7d9ba8]
+  - @eth-optimism/contracts-bedrock@0.8.2
+  - @eth-optimism/sdk@1.6.8
+
 ## 0.0.9
 
 ### Patch Changes

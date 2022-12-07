@@ -1,9 +1,7 @@
 package derive
 
 import (
-	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"math/rand"
 	"strconv"
@@ -21,8 +19,8 @@ import (
 type fakeChannelBankInput struct {
 	origin eth.L1BlockRef
 	data   []struct {
-		data []byte
-		err  error
+		frame Frame
+		err   error
 	}
 }
 
@@ -30,34 +28,28 @@ func (f *fakeChannelBankInput) Origin() eth.L1BlockRef {
 	return f.origin
 }
 
-func (f *fakeChannelBankInput) NextData(_ context.Context) ([]byte, error) {
+func (f *fakeChannelBankInput) NextFrame(_ context.Context) (Frame, error) {
 	out := f.data[0]
 	f.data = f.data[1:]
-	return out.data, out.err
+	return out.frame, out.err
 }
 
-func (f *fakeChannelBankInput) AddOutput(data []byte, err error) {
+func (f *fakeChannelBankInput) AddFrame(frame Frame, err error) {
 	f.data = append(f.data, struct {
-		data []byte
-		err  error
-	}{data: data, err: err})
+		frame Frame
+		err   error
+	}{frame: frame, err: err})
 }
 
 // ExpectNextFrameData takes a set of test frame & turns into the raw data
 // for reading into the channel bank via `NextData`
 func (f *fakeChannelBankInput) AddFrames(frames ...testFrame) {
-	data := new(bytes.Buffer)
-	data.WriteByte(DerivationVersion0)
 	for _, frame := range frames {
-		ff := frame.ToFrame()
-		if err := ff.MarshalBinary(data); err != nil {
-			panic(fmt.Errorf("error in making frame during test: %w", err))
-		}
+		f.AddFrame(frame.ToFrame(), nil)
 	}
-	f.AddOutput(data.Bytes(), nil)
 }
 
-var _ NextDataProvider = (*fakeChannelBankInput)(nil)
+var _ NextFrameProvider = (*fakeChannelBankInput)(nil)
 
 // format: <channelID-data>:<frame-number>:<content><optional-last-frame-marker "!">
 // example: "abc:0:helloworld!"
@@ -105,14 +97,19 @@ func TestChannelBankSimple(t *testing.T) {
 	input := &fakeChannelBankInput{origin: a}
 	input.AddFrames("a:0:first", "a:2:third!")
 	input.AddFrames("a:1:second")
-	input.AddOutput(nil, io.EOF)
+	input.AddFrame(Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
 	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
 
-	// Load the first + third frame
+	// Load the first frame
 	out, err := cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Load the third frame
+	out, err = cb.NextData(context.Background())
 	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
@@ -140,18 +137,26 @@ func TestChannelBankDuplicates(t *testing.T) {
 	input.AddFrames("a:0:first", "a:2:third!")
 	input.AddFrames("a:0:altfirst", "a:2:altthird!")
 	input.AddFrames("a:1:second")
-	input.AddOutput(nil, io.EOF)
+	input.AddFrame(Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
 	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
 
-	// Load the first + third frame
+	// Load the first frame
 	out, err := cb.NextData(context.Background())
 	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
+	// Load the third frame
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
 	// Load the duplicate frames
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
 	out, err = cb.NextData(context.Background())
 	require.ErrorIs(t, err, NotEnoughData)
 	require.Equal(t, []byte(nil), out)

@@ -228,7 +228,7 @@ Verifies a batch inclusion proof.
 
 | Name | Type | Description |
 |---|---|---|
-| _0 | bool | undefined
+| _0 | bool | Whether or not the batch inclusion proof is verified.
 
 
 

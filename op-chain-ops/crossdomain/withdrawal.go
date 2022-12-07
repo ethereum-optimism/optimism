@@ -9,6 +9,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+var (
+	SentMessageEventABI               = "SentMessage(address,address,bytes,uint256)"
+	SentMessageEventABIHash           = crypto.Keccak256Hash([]byte(SentMessageEventABI))
+	SentMessageExtension1EventABI     = "SentMessage(address,uint256)"
+	SentMessageExtension1EventABIHash = crypto.Keccak256Hash([]byte(SentMessageExtension1EventABI))
+	MessagePassedEventABI             = "MessagePassed(uint256,address,address,uint256,uint256,bytes,bytes32)"
+	MessagePassedEventABIHash         = crypto.Keccak256Hash([]byte(MessagePassedEventABI))
+)
+
 var _ WithdrawalMessage = (*Withdrawal)(nil)
 
 // Withdrawal represents a withdrawal transaction on L2

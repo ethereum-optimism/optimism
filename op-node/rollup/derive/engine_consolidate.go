@@ -4,8 +4,9 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 // AttributesMatchBlock checks if the L2 attributes pre-inputs match the output
@@ -27,6 +28,12 @@ func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 		if expect := block.Transactions[i]; !bytes.Equal(otx, expect) {
 			return fmt.Errorf("transaction %d does not match. expected: %v. got: %v", i, expect, otx)
 		}
+	}
+	if attrs.GasLimit == nil {
+		return fmt.Errorf("expected gaslimit in attributes to not be nil, expected %d", block.GasLimit)
+	}
+	if *attrs.GasLimit != block.GasLimit {
+		return fmt.Errorf("gas limit does not match. expected %d. got: %d", *attrs.GasLimit, block.GasLimit)
 	}
 	return nil
 }

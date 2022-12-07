@@ -23,6 +23,11 @@ library Predeploys {
     address internal constant L2_STANDARD_BRIDGE = 0x4200000000000000000000000000000000000010;
 
     /**
+     * @notice Address of the L2ERC721Bridge predeploy.
+     */
+    address internal constant L2_ERC721_BRIDGE = 0x4200000000000000000000000000000000000014;
+
+    /**
      * @notice Address of the SequencerFeeWallet predeploy.
      */
     address internal constant SEQUENCER_FEE_WALLET = 0x4200000000000000000000000000000000000011;
@@ -32,6 +37,12 @@ library Predeploys {
      */
     address internal constant OPTIMISM_MINTABLE_ERC20_FACTORY =
         0x4200000000000000000000000000000000000012;
+
+    /**
+     * @notice Address of the OptimismMintableERC721Factory predeploy.
+     */
+    address internal constant OPTIMISM_MINTABLE_ERC721_FACTORY =
+        0x4200000000000000000000000000000000000017;
 
     /**
      * @notice Address of the L1Block predeploy.
@@ -78,4 +89,19 @@ library Predeploys {
      *         L2ToL1MessagePasser contract instead.
      */
     address internal constant LEGACY_MESSAGE_PASSER = 0x4200000000000000000000000000000000000000;
+
+    /**
+     * @notice Address of the ProxyAdmin predeploy.
+     */
+    address internal constant PROXY_ADMIN = 0x4200000000000000000000000000000000000018;
+
+    /**
+     * @notice Address of the BaseFeeVault predeploy.
+     */
+    address internal constant BASE_FEE_VAULT = 0x4200000000000000000000000000000000000019;
+
+    /**
+     * @notice Address of the L1FeeVault predeploy.
+     */
+    address internal constant L1_FEE_VAULT = 0x420000000000000000000000000000000000001A;
 }

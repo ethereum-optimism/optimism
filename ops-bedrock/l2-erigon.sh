@@ -30,8 +30,10 @@ ERIGON_FLAGS=" \
   --pprof.addr=0.0.0.0 \
   --pprof.port=6061 \
   --authrpc.addr=0.0.0.0 \
-  --authrpc.port=8546 \
+  --authrpc.port=8551 \
+  --authrpc.vhosts=* \
   --authrpc.jwtsecret /config/test-jwt-secret.txt \
+  --networkid 901 \
   "
 
 RPC_FLAGS=" \

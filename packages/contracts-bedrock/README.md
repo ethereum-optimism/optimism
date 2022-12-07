@@ -1,5 +1,7 @@
 # Optimism Smart Contracts (Bedrock)
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=contracts-bedrock-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 This package contains the smart contracts that compose the on-chain component of Optimism's upcoming Bedrock upgrade.
 We've tried to maintain 100% backwards compatibility with the existing system while also introducing new useful features.
 You can find detailed specifications for the contracts contained within this package [here](../../specs).
@@ -53,6 +55,10 @@ npm install @eth-optimism/contracts-bedrock
 We work on this repository with a combination of [Hardhat](https://hardhat.org) and [Foundry](https://getfoundry.sh/).
 
 1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
+   A specific version must be used.
+   ```shell
+   foundryup -C c06b53287dc23c4e5b1b3e57c937a90114bbe166
+   ```
 2. Install node modules with yarn (v1) and Node.js (16+):
 
    ```shell
@@ -71,6 +77,17 @@ yarn build
 yarn test
 ```
 
+#### Running Echidna tests
+
+You must have [Echidna](https://github.com/crytic/echidna) installed.
+
+Contracts targetted for Echidna testing are located in `./contracts/echidna`
+Each target contract is tested with a separate yarn command, for example:
+
+```shell
+yarn echidna:aliasing
+```
+
 ### Deployment
 
 #### Configuration
@@ -84,6 +101,29 @@ yarn test
 2. Fill out the `L1_RPC` and `PRIVATE_KEY_DEPLOYER` environment variables in `.env`
 3. Run `npx hardhat deploy --network <network-name>` to deploy the L1 contracts
 4. Run `npx hardhat etherscan-verify --network <network-name> --sleep` to verify contracts on Etherscan
+
+## Tools
+
+### Layout Locking
+
+We use a system called "layout locking" as a safety mechanism to prevent certain contract variables from being moved to different storage slots accidentally.
+To lock a contract variable, add it to the `layout-lock.json` file which has the following format:
+
+```json
+{
+  "MyContractName": {
+    "myVariableName": {
+      "slot": 1,
+      "offset": 0,
+      "length": 32
+    }
+  }
+}
+```
+
+With the above config, the `validate-spacers` hardhat task will check that we have a contract called `MyContractName`, that the contract has a variable named `myVariableName`, and that the variable is in the correct position as defined in the lock file.
+You should add things to the `layout-lock.json` file when you want those variables to **never** change.
+Layout locking should be used in combination with diffing the `.storage-layout` file in CI.
 
 ## Standards and Conventions
 
@@ -154,3 +194,48 @@ After the initial Bedrock upgrade, contracts MUST use the following versioning s
 #### Exceptions
 
 We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
+
+### Tests
+
+Tests are written using Foundry.
+
+All test contracts and functions should be organized and named according to the following guidelines.
+
+These guidelines are also encoded in a script which can be run with:
+
+```
+ts-node scripts/forge-test-names.ts
+```
+
+*Note: This is a work in progress, not all test files are compliant with these guidelines.*
+
+#### Organizing Principles
+
+- Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
+- Every non-trivial state changing function should have a separate contract for happy and sad path
+   tests. This helps to make it very obvious where there are not yet sad path tests.
+- Simpler functions like getters and setters are grouped together into test contracts.
+
+#### Test function naming convention
+
+Test function names are split by underscores, into 3 or 4 parts. An example function name is `test_onlyOwner_callerIsNotOwner_reverts()`.
+
+The parts are: `[method]_[FunctionName]_[reason]_[success]`, where:
+
+- `[method]` is either `test`, `testFuzz`, or `testDiff`
+- `[FunctionName]` is the name of the function or higher level behavior being tested.
+- `[reason]` is an optional description for the behavior being tested.
+- `[status]` must be one of:
+  - `succeeds`: used for most happy path cases
+  - `reverts`: used for most sad path cases
+  - `works`: used for tests which include a mix of happy and sad assertions (these should be broken up if possible)
+  - `fails`: used for tests which 'fail' in some way other than reverting
+  - `benchmark`: used for tests intended to establish gas costs
+
+#### Contract Naming Conventions
+
+Test contracts should be named one of the following according to their use:
+
+- `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
+- `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
+- `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.

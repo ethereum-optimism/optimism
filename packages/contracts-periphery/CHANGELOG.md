@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.3
+
+### Patch Changes
+
+- f49b71d50: Updated forge-std version
+
 ## 1.0.2
 
 ### Patch Changes

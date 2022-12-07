@@ -1,5 +1,7 @@
 # @eth-optimism/drippie-mon
 
+[![codecov](https://codecov.io/gh/ethereum-optimism/optimism/branch/develop/graph/badge.svg?token=0VTG7PG7YR&flag=drippie-mon-tests)](https://codecov.io/gh/ethereum-optimism/optimism)
+
 `drippie-mon` is a simple service for monitoring Drippie contracts.
 
 ## Installation

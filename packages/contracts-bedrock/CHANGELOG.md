@@ -1,5 +1,58 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.10.0
+
+### Minor Changes
+
+- 59adcaa09: Deleted Unused Variables fundAccount , impersonatedTx
+- 1bfe79f20: Adds an implementation of the Two Step Withdrawals V2 proposal
+
+### Patch Changes
+
+- c025a1153: Fixes a severe vulnerability found in ToB's November 2022 audit of the Bedrock contracts
+- f8697a607: Removes historicalTotalBlocks from the L2OutputOracle
+- c71500a7e: Updates L2OutputOracle to easily delete multiple outputs at once
+- f49b71d50: Updated forge-std version
+- ccaf5bc83: Allows owner and proposer addresses to be the same in L2OutputOracle
+
+## 0.9.1
+
+### Patch Changes
+
+- 52079cc12: Has ProxyAdmin use Ownable instead of Owned
+- 13bfafb21: Tweaks variable ordering in OptimismPortal
+- eeae96941: Removes the unused DeployConfig contract
+- 427831d86: Add comments to SystemConfig.sol
+
+## 0.9.0
+
+### Minor Changes
+
+- 87702c741: Use SCREAMING_SNAKE_CASE for immutables
+
+### Patch Changes
+
+- c02831144: Introduces layout lock and more storage layout verification
+- d58b0a397: Cleans up remaining lint warnings
+- ff860ecf3: Introduces the MigrationSystemDictator for the Bedrock migration
+- cc5adbc61: Updates function ordering in ProxyAdmin to match original contract
+- 31c91ea74: Adds another assertion in the CrossDomainMessenger to explicitly identify an invariant which was previously implicit.
+- Updated dependencies [1e76cdb86]
+  - @eth-optimism/core-utils@0.11.0
+
+## 0.8.3
+
+### Patch Changes
+
+- db84317b: Various RLP updates
+- 9b90c732: Added codecov badge to readme
+
+## 0.8.2
+
+### Patch Changes
+
+- 7d7d9ba8: Moves initializers underneath constructors always
+
 ## 0.8.1
 
 ### Patch Changes

@@ -2,8 +2,8 @@ package actions
 
 import (
 	"errors"
-	"fmt"
 
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -58,7 +58,9 @@ type L2Engine struct {
 	failL2RPC error // mock error
 }
 
-func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string) *L2Engine {
+type EngineOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
+
+func NewL2Engine(t Testing, log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.BlockID, jwtPath string, options ...EngineOption) *L2Engine {
 	ethCfg := &ethconfig.Config{
 		NetworkId: genesis.Config.ChainID.Uint64(),
 		Genesis:   genesis,
@@ -73,14 +75,16 @@ func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.Bloc
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal"},
 		JWTSecret:   jwtPath,
 	}
+	for i, opt := range options {
+		require.NoError(t, opt(ethCfg, nodeCfg), "engine option %d failed", i)
+	}
 	n, err := node.New(nodeCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = n.Close()
+	})
 	backend, err := geth.New(n, ethCfg)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
 	chain := backend.BlockChain()
@@ -109,9 +113,7 @@ func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.Bloc
 			Authenticated: true,
 		},
 	})
-	if err := n.Start(); err != nil {
-		panic(fmt.Errorf("failed to start L2 op-geth node: %w", err))
-	}
+	require.NoError(t, n.Start(), "failed to start L2 op-geth node")
 
 	return eng
 }
@@ -119,6 +121,11 @@ func NewL2Engine(log log.Logger, genesis *core.Genesis, rollupGenesisL1 eth.Bloc
 func (s *L2Engine) EthClient() *ethclient.Client {
 	cl, _ := s.node.Attach() // never errors
 	return ethclient.NewClient(cl)
+}
+
+func (s *L2Engine) GethClient() *gethclient.Client {
+	cl, _ := s.node.Attach() // never errors
+	return gethclient.New(cl)
 }
 
 func (e *L2Engine) RPCClient() client.RPC {
@@ -179,7 +186,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {
 			e.l2TxFailed = append(e.l2TxFailed, tx)
-			t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(e.l2Transactions), err)
+			t.Fatalf("failed to apply transaction to L2 block (tx %d): %v", len(e.l2Transactions), err)
 		}
 		e.l2Receipts = append(e.l2Receipts, receipt)
 		e.l2Transactions = append(e.l2Transactions, tx)

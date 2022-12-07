@@ -1,23 +1,15 @@
 package genesis
 
 import (
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/core"
 )
 
-type L2Addresses struct {
-	ProxyAdmin                  common.Address
-	L1StandardBridgeProxy       common.Address
-	L1CrossDomainMessengerProxy common.Address
-}
-
 // BuildL2DeveloperGenesis will build the developer Optimism Genesis
 // Block. Suitable for devnets.
-func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block, l2Addrs *L2Addresses) (*core.Genesis, error) {
+func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block) (*core.Genesis, error) {
 	genspec, err := NewL2Genesis(config, l1StartBlock)
 	if err != nil {
 		return nil, err
@@ -30,52 +22,26 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block, l2
 	}
 	SetPrecompileBalances(db)
 
-	if l2Addrs == nil {
-		l2Addrs = &L2Addresses{
-			ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-			L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-			L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-		}
-	}
-
-	return BuildL2Genesis(db, config, l1StartBlock, l2Addrs)
+	return BuildL2Genesis(db, config, l1StartBlock)
 }
 
 // BuildL2Genesis will build the L2 Optimism Genesis Block
-func BuildL2Genesis(db *state.MemoryStateDB, config *DeployConfig, l1Block *types.Block, l2Addrs *L2Addresses) (*core.Genesis, error) {
-	// TODO(tynes): need a function for clearing old, unused storage slots.
-	// Each deployed contract on L2 needs to have its existing storage
-	// inspected and then cleared if they are no longer used.
-
-	if err := SetL2Proxies(db, l2Addrs.ProxyAdmin); err != nil {
+func BuildL2Genesis(db *state.MemoryStateDB, config *DeployConfig, l1Block *types.Block) (*core.Genesis, error) {
+	if err := SetL2Proxies(db); err != nil {
 		return nil, err
 	}
 
-	storage, err := NewL2StorageConfig(
-		config,
-		l1Block,
-		l2Addrs.L1StandardBridgeProxy,
-		l2Addrs.L1CrossDomainMessengerProxy,
-	)
+	storage, err := NewL2StorageConfig(config, l1Block)
 	if err != nil {
 		return nil, err
 	}
 
-	immutable, err := NewL2ImmutableConfig(
-		config,
-		l1Block,
-		l2Addrs.L1StandardBridgeProxy,
-		l2Addrs.L1CrossDomainMessengerProxy,
-	)
+	immutable, err := NewL2ImmutableConfig(config, l1Block)
 	if err != nil {
 		return nil, err
 	}
 
 	if err := SetImplementations(db, storage, immutable); err != nil {
-		return nil, err
-	}
-
-	if err := MigrateDepositHashes(db); err != nil {
 		return nil, err
 	}
 

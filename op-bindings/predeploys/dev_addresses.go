@@ -11,6 +11,8 @@ const (
 	DevAddressManager               = "0x6900000000000000000000000000000000000005"
 	DevProxyAdmin                   = "0x6900000000000000000000000000000000000006"
 	DevWETH9                        = "0x6900000000000000000000000000000000000007"
+	DevL1ERC721Bridge               = "0x6900000000000000000000000000000000000008"
+	DevSystemConfig                 = "0x6900000000000000000000000000000000000009"
 )
 
 var (
@@ -22,6 +24,8 @@ var (
 	DevAddressManagerAddr               = common.HexToAddress(DevAddressManager)
 	DevProxyAdminAddr                   = common.HexToAddress(DevProxyAdmin)
 	DevWETH9Addr                        = common.HexToAddress(DevWETH9)
+	DevL1ERC721BridgeAddr               = common.HexToAddress(DevL1ERC721Bridge)
+	DevSystemConfigAddr                 = common.HexToAddress(DevSystemConfig)
 
 	DevPredeploys = make(map[string]*common.Address)
 )
@@ -35,4 +39,6 @@ func init() {
 	DevPredeploys["AddressManager"] = &DevAddressManagerAddr
 	DevPredeploys["Admin"] = &DevProxyAdminAddr
 	DevPredeploys["WETH9"] = &DevWETH9Addr
+	DevPredeploys["L1ERC721Bridge"] = &DevL1ERC721BridgeAddr
+	DevPredeploys["SystemConfig"] = &DevSystemConfigAddr
 }

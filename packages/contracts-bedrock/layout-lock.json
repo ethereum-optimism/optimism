@@ -1,0 +1,65 @@
+{
+  "GasPriceOracle": {
+    "spacer_0_0_20": {
+      "slot": 0,
+      "offset": 0,
+      "length": 20
+    },
+    "spacer_1_0_32": {
+      "slot": 1,
+      "offset": 0,
+      "length": 32
+    },
+    "spacer_2_0_32": {
+      "slot": 2,
+      "offset": 0,
+      "length": 32
+    }
+  },
+  "L1CrossDomainMessenger": {
+    "spacer_0_0_20": {
+      "slot": 0,
+      "offset": 0,
+      "length": 20
+    },
+    "spacer_201_0_32": {
+      "slot": 201,
+      "offset": 0,
+      "length": 32
+    },
+    "spacer_202_0_32": {
+      "slot": 202,
+      "offset": 0,
+      "length": 32
+    }
+  },
+  "L2CrossDomainMessenger": {
+    "spacer_0_0_20": {
+      "slot": 0,
+      "offset": 0,
+      "length": 20
+    },
+    "spacer_201_0_32": {
+      "slot": 201,
+      "offset": 0,
+      "length": 32
+    },
+    "spacer_202_0_32": {
+      "slot": 202,
+      "offset": 0,
+      "length": 32
+    }
+  },
+  "L1StandardBridge": {
+    "spacer_0_0_20": {
+      "slot": 0,
+      "offset": 0,
+      "length": 20
+    },
+    "spacer_1_0_20": {
+      "slot": 1,
+      "offset": 0,
+      "length": 20
+    }
+  }
+}

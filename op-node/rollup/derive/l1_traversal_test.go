@@ -9,11 +9,15 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // TestL1TraversalNext tests that the `Next` function only returns
@@ -21,10 +25,20 @@ import (
 func TestL1TraversalNext(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	a := testutils.RandomBlockRef(rng)
-
-	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), nil)
 	// Load up the initial state with a reset
-	_ = tr.Reset(context.Background(), a)
+	l1Cfg := eth.SystemConfig{
+		BatcherAddr: testutils.RandomAddress(rng),
+		Overhead:    [32]byte{42},
+		Scalar:      [32]byte{69},
+	}
+	sysCfgAddr := testutils.RandomAddress(rng)
+	cfg := &rollup.Config{
+		Genesis:               rollup.Genesis{SystemConfig: l1Cfg},
+		L1SystemConfigAddress: sysCfgAddr,
+	}
+	tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, nil)
+
+	_ = tr.Reset(context.Background(), a, l1Cfg)
 
 	// First call should always succeed
 	ref, err := tr.NextL1Block(context.Background())
@@ -51,18 +65,27 @@ func TestL1TraversalAdvance(t *testing.T) {
 	// x is at the same height as b but does not extend `a`
 	x := testutils.RandomBlockRef(rng)
 	x.Number = b.Number
+	sysCfgAddr := testutils.RandomAddress(rng)
 
 	tests := []struct {
-		name        string
-		startBlock  eth.L1BlockRef
-		nextBlock   eth.L1BlockRef
-		fetcherErr  error
-		expectedErr error
+		name         string
+		startBlock   eth.L1BlockRef
+		nextBlock    eth.L1BlockRef
+		initialL1Cfg eth.SystemConfig
+		l1Receipts   []*types.Receipt
+		fetcherErr   error
+		expectedErr  error
 	}{
 		{
-			name:        "simple extension",
-			startBlock:  a,
-			nextBlock:   b,
+			name:       "simple extension",
+			startBlock: a,
+			nextBlock:  b,
+			initialL1Cfg: eth.SystemConfig{
+				BatcherAddr: common.Address{11},
+				Overhead:    [32]byte{22},
+				Scalar:      [32]byte{33},
+			},
+			l1Receipts:  []*types.Receipt{},
 			fetcherErr:  nil,
 			expectedErr: nil,
 		},
@@ -87,16 +110,31 @@ func TestL1TraversalAdvance(t *testing.T) {
 			fetcherErr:  errors.New("interrupted connection"),
 			expectedErr: ErrTemporary,
 		},
+		// TODO: add tests that cover the receipts to config data updates
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			src := &testutils.MockL1Source{}
 			src.ExpectL1BlockRefByNumber(test.startBlock.Number+1, test.nextBlock, test.fetcherErr)
+			info := &testutils.MockBlockInfo{
+				InfoHash:       test.nextBlock.Hash,
+				InfoParentHash: test.nextBlock.ParentHash,
+				InfoNum:        test.nextBlock.Number,
+				InfoTime:       test.nextBlock.Time,
+				// TODO: don't need full L1 info in receipts fetching API maybe?
+			}
+			if test.l1Receipts != nil {
+				src.ExpectFetchReceipts(test.nextBlock.Hash, info, test.l1Receipts, nil)
+			}
 
-			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), src)
+			cfg := &rollup.Config{
+				Genesis:               rollup.Genesis{SystemConfig: test.initialL1Cfg},
+				L1SystemConfigAddress: sysCfgAddr,
+			}
+			tr := NewL1Traversal(testlog.Logger(t, log.LvlError), cfg, src)
 			// Load up the initial state with a reset
-			_ = tr.Reset(context.Background(), test.startBlock)
+			_ = tr.Reset(context.Background(), test.startBlock, test.initialL1Cfg)
 
 			// Advance it + assert output
 			err := tr.AdvanceL1Block(context.Background())

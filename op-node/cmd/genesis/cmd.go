@@ -4,21 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
 
 	"github.com/urfave/cli"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 )
 
 var Subcommands = cli.Commands{
@@ -50,23 +47,31 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
+			// Add the developer L1 addresses to the config
+			if err := config.InitDeveloperDeployedAddresses(); err != nil {
+				return err
+			}
+
+			if err := config.Check(); err != nil {
+				return err
+			}
+
 			l1Genesis, err := genesis.BuildL1DeveloperGenesis(config)
 			if err != nil {
 				return err
 			}
 
 			l1StartBlock := l1Genesis.ToBlock()
-			l2Addrs := &genesis.L2Addresses{
-				ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-				L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-				L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-			}
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
 			if err != nil {
 				return err
 			}
 
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, predeploys.DevOptimismPortalAddr)
+			l2GenesisBlock := l2Genesis.ToBlock()
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
+			if err != nil {
+				return err
+			}
 
 			if err := writeGenesisFile(ctx.String("outfile.l1"), l1Genesis); err != nil {
 				return err
@@ -112,6 +117,9 @@ var Subcommands = cli.Commands{
 			if config.L1StartingBlockTag == nil {
 				return errors.New("must specify a starting block tag in genesis")
 			}
+			if config.L2GenesisBlockGasLimit == 0 { // TODO: this is a hotfix, need to set default values in more clean way + sanity check the config
+				config.L2GenesisBlockGasLimit = 15_000_000
+			}
 
 			client, err := ethclient.Dial(ctx.String("l1-rpc"))
 			if err != nil {
@@ -125,7 +133,7 @@ var Subcommands = cli.Commands{
 				l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
 			}
 			if err != nil {
-				return err
+				return fmt.Errorf("error getting l1 start block: %w", err)
 			}
 
 			depPath, network := filepath.Split(ctx.String("deployment-dir"))
@@ -134,33 +142,28 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			proxyAdmin, err := hh.GetDeployment("ProxyAdmin")
-			if err != nil {
+			// Read the appropriate deployment addresses from disk
+			if err := config.GetDeployedAddresses(hh); err != nil {
 				return err
 			}
-			l1SBP, err := hh.GetDeployment("L1StandardBridgeProxy")
-			if err != nil {
+			// Sanity check the config
+			if err := config.Check(); err != nil {
 				return err
 			}
-			l1XDMP, err := hh.GetDeployment("L1CrossDomainMessengerProxy")
+			// Build the developer L2 genesis block
+			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
 			if err != nil {
-				return err
-			}
-			portalProxy, err := hh.GetDeployment("OptimismPortalProxy")
-			if err != nil {
-				return err
-			}
-			l2Addrs := &genesis.L2Addresses{
-				ProxyAdmin:                  proxyAdmin.Address,
-				L1StandardBridgeProxy:       l1SBP.Address,
-				L1CrossDomainMessengerProxy: l1XDMP.Address,
-			}
-			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock, l2Addrs)
-			if err != nil {
-				return err
+				return fmt.Errorf("error creating l2 developer genesis: %w", err)
 			}
 
-			rollupConfig := makeRollupConfig(config, l1StartBlock, l2Genesis, portalProxy.Address)
+			l2GenesisBlock := l2Genesis.ToBlock()
+			rollupConfig, err := config.RollupConfig(l1StartBlock, l2GenesisBlock.Hash(), l2GenesisBlock.Number().Uint64())
+			if err != nil {
+				return err
+			}
+			if err := rollupConfig.Check(); err != nil {
+				return fmt.Errorf("generated rollup config does not pass validation: %w", err)
+			}
 
 			if err := writeGenesisFile(ctx.String("outfile.l2"), l2Genesis); err != nil {
 				return err
@@ -168,38 +171,6 @@ var Subcommands = cli.Commands{
 			return writeGenesisFile(ctx.String("outfile.rollup"), rollupConfig)
 		},
 	},
-}
-
-func makeRollupConfig(
-	config *genesis.DeployConfig,
-	l1StartBlock *types.Block,
-	l2Genesis *core.Genesis,
-	portalAddr common.Address,
-) *rollup.Config {
-	return &rollup.Config{
-		Genesis: rollup.Genesis{
-			L1: eth.BlockID{
-				Hash:   l1StartBlock.Hash(),
-				Number: l1StartBlock.NumberU64(),
-			},
-			L2: eth.BlockID{
-				Hash:   l2Genesis.ToBlock().Hash(),
-				Number: 0,
-			},
-			L2Time: l1StartBlock.Time(),
-		},
-		BlockTime:              config.L2BlockTime,
-		MaxSequencerDrift:      config.MaxSequencerDrift,
-		SeqWindowSize:          config.SequencerWindowSize,
-		ChannelTimeout:         config.ChannelTimeout,
-		L1ChainID:              new(big.Int).SetUint64(config.L1ChainID),
-		L2ChainID:              new(big.Int).SetUint64(config.L2ChainID),
-		P2PSequencerAddress:    config.P2PSequencerAddress,
-		FeeRecipientAddress:    config.OptimismL2FeeRecipient,
-		BatchInboxAddress:      config.BatchInboxAddress,
-		BatchSenderAddress:     config.BatchSenderAddress,
-		DepositContractAddress: portalAddr,
-	}
 }
 
 func writeGenesisFile(outfile string, input interface{}) error {

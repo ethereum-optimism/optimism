@@ -1,14 +1,23 @@
+import { promises as fs } from 'fs'
+
 import { task, types } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
+import { Event, Contract, Wallet, providers, utils } from 'ethers'
 import {
   predeploys,
   getContractDefinition,
 } from '@eth-optimism/contracts-bedrock'
-import { Event, Contract, Wallet, providers, utils } from 'ethers'
+import { sleep } from '@eth-optimism/core-utils'
 
-import { CrossChainMessenger, MessageStatus, CONTRACT_ADDRESSES } from '../src'
+import {
+  CrossChainMessenger,
+  MessageStatus,
+  CONTRACT_ADDRESSES,
+  OEContractsLike,
+  DEFAULT_L2_CONTRACT_ADDRESSES,
+} from '../src'
 
 const deployWETH9 = async (
   hre: HardhatRuntimeEnvironment,
@@ -24,8 +33,10 @@ const deployWETH9 = async (
     signer
   )
 
+  console.log('Sending deployment transaction')
   const WETH9 = await Factory__WETH9.deploy()
-  await WETH9.deployTransaction.wait()
+  const receipt = await WETH9.deployTransaction.wait()
+  console.log(`WETH9 deployed: ${receipt.transactionHash}`)
 
   if (wrap) {
     const deposit = await signer.sendTransaction({
@@ -102,6 +113,12 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     'http://localhost:7545',
     types.string
   )
+  .addOptionalParam(
+    'l1ContractsJsonPath',
+    'Path to a JSON with L1 contract addresses in it',
+    '',
+    types.string
+  )
   .setAction(async (args, hre) => {
     const signers = await hre.ethers.getSigners()
     if (signers.length === 0) {
@@ -127,7 +144,14 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     )
 
     const l2ChainId = await l2Signer.getChainId()
-    const contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
+    let contractAddrs = CONTRACT_ADDRESSES[l2ChainId]
+    if (args.l1ContractsJsonPath) {
+      const data = await fs.readFile(args.l1ContractsJsonPath)
+      contractAddrs = {
+        l1: JSON.parse(data.toString()),
+        l2: DEFAULT_L2_CONTRACT_ADDRESSES,
+      } as OEContractsLike
+    }
 
     const Artifact__L2ToL1MessagePasser = await getContractDefinition(
       'L2ToL1MessagePasser'
@@ -192,6 +216,7 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
       l1ChainId: await signer.getChainId(),
       l2ChainId,
       bedrock: true,
+      contracts: contractAddrs,
     })
 
     console.log('Deploying WETH9 to L1')
@@ -223,18 +248,35 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     await depositTx.wait()
     console.log(`ERC20 deposited - ${depositTx.hash}`)
 
-    const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
-    if (messageReceipt.receiptStatus !== 1) {
-      throw new Error('deposit failed')
+    // Deposit might get reorged, wait 30s and also log for reorgs.
+    let prevBlockHash: string = ''
+    for (let i = 0; i < 30; i++) {
+      const messageReceipt = await messenger.waitForMessageReceipt(depositTx)
+      if (messageReceipt.receiptStatus !== 1) {
+        console.log(`Deposit failed, retrying...`)
+      }
+
+      if (
+        prevBlockHash !== '' &&
+        messageReceipt.transactionReceipt.blockHash !== prevBlockHash
+      ) {
+        console.log(
+          `Block hash changed from ${prevBlockHash} to ${messageReceipt.transactionReceipt.blockHash}`
+        )
+
+        // Wait for stability, we want at least 30 seconds after any reorg
+        i = 0
+      }
+
+      prevBlockHash = messageReceipt.transactionReceipt.blockHash
+      await sleep(1000)
     }
 
     const l2Balance = await OptimismMintableERC20.balanceOf(address)
     if (l2Balance.lt(utils.parseEther('1'))) {
       throw new Error('bad deposit')
     }
-    console.log(
-      `Deposit success - ${messageReceipt.transactionReceipt.transactionHash}`
-    )
+    console.log(`Deposit success`)
 
     console.log('Starting withdrawal')
     const preBalance = await WETH9.balanceOf(signer.address)
@@ -280,17 +322,29 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
 
     const now = Math.floor(Date.now() / 1000)
 
+    console.log('Waiting for message to be able to be proved')
+    await messenger.waitForMessageStatus(withdraw, MessageStatus.READY_TO_PROVE)
+
+    console.log('Proving withdrawal...')
+    const prove = await messenger.proveMessage(withdraw)
+    const proveReceipt = await prove.wait()
+    console.log(proveReceipt)
+    if (proveReceipt.status !== 1) {
+      throw new Error('Prove withdrawal transaction reverted')
+    }
+
     console.log('Waiting for message to be able to be relayed')
     await messenger.waitForMessageStatus(
       withdraw,
       MessageStatus.READY_FOR_RELAY
     )
 
+    console.log('Finalizing withdrawal...')
     const finalize = await messenger.finalizeMessage(withdraw)
-    const receipt = await finalize.wait()
+    const finalizeReceipt = await finalize.wait()
     console.log(`Took ${Math.floor(Date.now() / 1000) - now} seconds`)
 
-    for (const log of receipt.logs) {
+    for (const log of finalizeReceipt.logs) {
       switch (log.address) {
         case OptimismPortal.address: {
           const parsed = OptimismPortal.interface.parseLog(log)

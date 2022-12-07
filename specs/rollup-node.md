@@ -72,4 +72,4 @@ The input and return types here are as defined by the [engine API specs][engine-
         OR `String` - one of `"safe"`, `"latest"`, or `"pending"`.
 - returns:
   1. `version`: `DATA`, 32 Bytes - the output root version number, beginning with 0.
-  1. `l2OutputRoot`: `DATA`, 32 Bytes - the output root
+  1. `l2OutputRoot`: `DATA`, 32 Bytes - the output root.

@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/solc"
 )
 
-const L1BlockNumberStorageLayoutJSON = "{\"storage\":null,\"types\":null}"
+const L1BlockNumberStorageLayoutJSON = "{\"storage\":null,\"types\":{}}"
 
 var L1BlockNumberStorageLayout = new(solc.StorageLayout)
 

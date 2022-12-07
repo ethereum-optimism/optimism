@@ -5,8 +5,8 @@
 **Table of Contents**
 
 - [Overview](#overview)
-- [OVM\_L2ToL1MessagePasser](#ovm%5C_l2tol1messagepasser)
-- [OVM\_DeployerWhitelist](#ovm%5C_deployerwhitelist)
+- [L2ToL1MessagePasser](#l2tol1messagepasser)
+- [DeployerWhitelist](#deployerwhitelist)
 - [OVM\_ETH](#ovm%5C_eth)
 - [WETH9](#weth9)
 - [L2CrossDomainMessenger](#l2crossdomainmessenger)
@@ -14,10 +14,9 @@
 - [SequencerFeeVault](#sequencerfeevault)
 - [OptimismMintableERC20Factory](#optimismmintableerc20factory)
 - [L1BlockNumber](#l1blocknumber)
-- [OVM\_GasPriceOracle](#ovm%5C_gaspriceoracle)
-- [Reserved System Address 1](#reserved-system-address-1)
-- [Reserved System Address 2](#reserved-system-address-2)
+- [GasPriceOracle](#gaspriceoracle)
 - [L1Block](#l1block)
+- [ProxyAdmin](#proxyadmin)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -37,24 +36,28 @@ The following table includes each of the predeploys. The system version
 indicates when the predeploy was introduced. The possible values are `Legacy`
 or `Bedrock`. Deprecated contracts should not be used.
 
-| Name                         | Address                                    | Introduced | Deprecated |
-| ---------------------------- | ------------------------------------------ | ---------- | ---------- |
-| LegacyMessagePasser          | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        |
-| DeployerWhitelist            | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
-| LegacyERC20ETH               | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
-| WETH9                        | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
-| L2CrossDomainMessenger       | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
-| L2StandardBridge             | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
-| SequencerFeeVault            | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
-| OptimismMintableERC20Factory | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
-| L1BlockNumber                | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
-| GasPriceOracle               | 0x420000000000000000000000000000000000000F | Legacy     | No         |
-| Reserved System Address 1    | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
-| Reserved System Address 2    | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
-| L1Block                      | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
-| L2ToL1MessagePasser          | 0x4200000000000000000000000000000000000016 | Bedrock    | No         |
+| Name                          | Address                                    | Introduced | Deprecated |
+| ----------------------------- | ------------------------------------------ | ---------- | ---------- |
+| LegacyMessagePasser           | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        |
+| DeployerWhitelist             | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
+| LegacyERC20ETH                | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
+| WETH9                         | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
+| L2CrossDomainMessenger        | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
+| L2StandardBridge              | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
+| SequencerFeeVault             | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
+| OptimismMintableERC20Factory  | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
+| L1BlockNumber                 | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
+| GasPriceOracle                | 0x420000000000000000000000000000000000000F | Legacy     | No         |
+| GovernanceToken               | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
+| L1Block                       | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
+| L2ToL1MessagePasser           | 0x4200000000000000000000000000000000000016 | Bedrock    | No         |
+| L2ERC721Bridge                | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
+| OptimismMintableERC721Factory | 0x4200000000000000000000000000000000000017 | Bedrock    | No         |
+| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         |
+| BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         |
+| L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         |
 
-## OVM\_L2ToL1MessagePasser
+## L2ToL1MessagePasser
 
 The `OVM_L2ToL1MessagePasser` stores commitments to withdrawal transactions.
 When a user is submitting the withdrawing transaction on L1, they provide a
@@ -74,9 +77,9 @@ interface iLegacyOVM_L2ToL1MessagePasser {
 }
 ```
 
-## OVM\_DeployerWhitelist
+## DeployerWhitelist
 
-The `OVM_DeployerWhitelist` is a predeploy used to provide additional
+The `DeployerWhitelist` is a predeploy used to provide additional
 safety during the initial phases of Optimism. It is owned by the
 Optimism team, and defines accounts which are allowed to deploy contracts to the
 network.
@@ -91,7 +94,7 @@ In the Bedrock system, this contract will no longer be used as part of the
 This contract is deprecated and its usage should be avoided.
 
 ```solidity
-interface iOVM_DeployerWhitelist {
+interface iDeployerWhitelist {
     event OwnerChanged(address,address);
     event WhitelistStatusChanged(address,bool);
     event WhitelistDisabled(address);
@@ -250,9 +253,9 @@ interface iOVM_L1BlockNumber {
 }
 ```
 
-## OVM\_GasPriceOracle
+## GasPriceOracle
 
-The `OVM_GasPriceOracle` is pushed the L1 basefee and the L2 gas price by
+The `GasPriceOracle` is pushed the L1 basefee and the L2 gas price by
 an offchain actor. The offchain actor observes the L1 blockheaders to get the
 L1 basefee as well as the gas usage on L2 to compute what the L2 gas price
 should be based on a congestion control algorithm.
@@ -262,7 +265,7 @@ Bedrock, but it is still used to hold the `overhead`, `scalar`, and `decimals`
 values which are used to compute the L1 portion of the transaction fee.
 
 ```solidity
-interface OVM_GasPriceOracle {
+interface GasPriceOracle {
     /**
      * @dev Returns the current gas price on L2
      */
@@ -324,14 +327,6 @@ interface OVM_GasPriceOracle {
 }
 ```
 
-## Reserved System Address 1
-
-Reserved for future use.
-
-## Reserved System Address 2
-
-Reserved for future use.
-
 ## L1Block
 
 [l1-block-predeploy]: glossary.md#l1-attributes-predeployed-contract
@@ -379,3 +374,9 @@ interface L1Block {
     ) external;
 }
 ```
+
+## ProxyAdmin
+
+The `ProxyAdmin` is the owner of all of the proxy contracts set at the
+predeploys. It is not behind a proxy itself. The owner of the `ProxyAdmin` will
+have the ability to upgrade any of the other predeploy contracts.

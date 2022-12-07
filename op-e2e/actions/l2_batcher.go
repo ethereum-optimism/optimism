@@ -7,15 +7,17 @@ import (
 	"io"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 type SyncStatusAPI interface {
@@ -61,6 +63,7 @@ type L2Batcher struct {
 	l2BufferedBlock  eth.BlockID
 	l2SubmittedBlock eth.BlockID
 	l2BatcherCfg     *BatcherCfg
+	batcherAddr      common.Address
 }
 
 func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherCfg, api SyncStatusAPI, l1 L1TxAPI, l2 BlocksAPI) *L2Batcher {
@@ -72,6 +75,7 @@ func NewL2Batcher(log log.Logger, rollupCfg *rollup.Config, batcherCfg *BatcherC
 		l2:            l2,
 		l2BatcherCfg:  batcherCfg,
 		l1Signer:      types.LatestSignerForChainID(rollupCfg.L1ChainID),
+		batcherAddr:   crypto.PubkeyToAddress(batcherCfg.BatcherKey.PublicKey),
 	}
 }
 
@@ -104,15 +108,23 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 		s.l2BufferedBlock = syncStatus.SafeL2.ID()
 		s.l2ChannelOut = nil
 	}
+	// Add the next unsafe block to the channel
+	if s.l2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
+		if s.l2BufferedBlock.Number > syncStatus.UnsafeL2.Number || s.l2BufferedBlock.Hash != syncStatus.UnsafeL2.Hash {
+			s.log.Error("detected a reorg in L2 chain vs previous buffered information, resetting to safe head now", "safe_head", syncStatus.SafeL2)
+			s.l2SubmittedBlock = syncStatus.SafeL2.ID()
+			s.l2BufferedBlock = syncStatus.SafeL2.ID()
+			s.l2ChannelOut = nil
+		} else {
+			s.log.Info("nothing left to submit")
+			return
+		}
+	}
 	// Create channel if we don't have one yet
 	if s.l2ChannelOut == nil {
 		ch, err := derive.NewChannelOut()
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
-	}
-	// Add the next unsafe block to the channel
-	if s.l2BufferedBlock.Number >= syncStatus.UnsafeL2.Number {
-		return
 	}
 	block, err := s.l2.BlockByNumber(t.Ctx(), big.NewInt(int64(s.l2BufferedBlock.Number+1)))
 	require.NoError(t, err, "need l2 block %d from sync status", s.l2SubmittedBlock.Number+1)
@@ -125,6 +137,7 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 	if err := s.l2ChannelOut.AddBlock(block); err != nil { // should always succeed
 		t.Fatalf("failed to add block to channel: %v", err)
 	}
+	s.l2BufferedBlock = eth.ToBlockID(block)
 }
 
 func (s *L2Batcher) ActL2ChannelClose(t Testing) {
@@ -148,14 +161,14 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
 	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		s.l2ChannelOut = nil
 		s.l2Submitting = false
-		// there may still be some data to submit
 	} else if err != nil {
 		s.l2Submitting = false
 		t.Fatalf("failed to output channel data to frame: %v", err)
 	}
 
-	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.rollupCfg.BatchSenderAddress)
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
 	require.NoError(t, err, "need batcher nonce")
 
 	gasTipCap := big.NewInt(2 * params.GWei)
@@ -180,4 +193,18 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 
 	err = s.l1.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "need to send tx")
+}
+
+func (s *L2Batcher) ActBufferAll(t Testing) {
+	stat, err := s.syncStatusAPI.SyncStatus(t.Ctx())
+	require.NoError(t, err)
+	for s.l2BufferedBlock.Number < stat.UnsafeL2.Number {
+		s.ActL2BatchBuffer(t)
+	}
+}
+
+func (s *L2Batcher) ActSubmitAll(t Testing) {
+	s.ActBufferAll(t)
+	s.ActL2ChannelClose(t)
+	s.ActL2BatchSubmit(t)
 }

@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Semver } from "../universal/Semver.sol";
 import { L2StandardBridge } from "./L2StandardBridge.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
+import { FeeVault } from "../universal/FeeVault.sol";
 
 /**
  * @custom:proxied
@@ -12,38 +13,23 @@ import { Predeploys } from "../libraries/Predeploys.sol";
  * @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
  *         transaction processing and block production.
  */
-contract SequencerFeeVault is Semver {
+contract SequencerFeeVault is FeeVault, Semver {
     /**
-     * @notice Minimum balance before a withdrawal can be triggered.
+     * @custom:spacer l1FeeWallet
+     * @notice Spacer for backwards compatibility.
      */
-    uint256 public constant MIN_WITHDRAWAL_AMOUNT = 15 ether;
-
-    /**
-     * @notice Wallet that will receive the fees on L1.
-     */
-    address public l1FeeWallet;
+    address private spacer_0_0_20;
 
     /**
      * @custom:semver 0.0.1
      */
-    constructor() Semver(0, 0, 1) {}
+    constructor(address _recipient) FeeVault(_recipient, 10 ether) Semver(0, 0, 1) {}
 
     /**
-     * @notice Allow the contract to receive ETH.
+     * @custom:legacy
+     * @notice: Legacy getter for the recipient
      */
-    receive() external payable {}
-
-    /**
-     * @notice Triggers a withdrawal of funds to the L1 fee wallet.
-     */
-    function withdraw() external {
-        require(
-            address(this).balance >= MIN_WITHDRAWAL_AMOUNT,
-            "SequencerFeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-        );
-
-        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).withdrawTo{
-            value: address(this).balance
-        }(Predeploys.LEGACY_ERC20_ETH, l1FeeWallet, address(this).balance, 0, bytes(""));
+    function l1FeeWallet() public view returns (address) {
+        return RECIPIENT;
     }
 }

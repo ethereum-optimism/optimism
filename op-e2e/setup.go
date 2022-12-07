@@ -11,6 +11,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
+	geth_eth "github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/rpc"
+	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
+	"github.com/stretchr/testify/require"
+
 	bss "github.com/ethereum-optimism/optimism/op-batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
@@ -24,16 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core"
-	geth_eth "github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/rpc"
-	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -45,68 +46,73 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 	require.NoError(t, err)
 	addresses := secrets.Addresses()
 
+	deployConfig := &genesis.DeployConfig{
+		L1ChainID:   900,
+		L2ChainID:   901,
+		L2BlockTime: 2,
+
+		FinalizationPeriodSeconds: 60 * 60 * 24,
+		MaxSequencerDrift:         10,
+		SequencerWindowSize:       30,
+		ChannelTimeout:            10,
+		P2PSequencerAddress:       addresses.SequencerP2P,
+		BatchInboxAddress:         common.Address{0: 0x52, 19: 0xff}, // tbd
+		BatchSenderAddress:        addresses.Batcher,
+
+		L2OutputOracleSubmissionInterval: 4,
+		L2OutputOracleStartingTimestamp:  -1,
+		L2OutputOracleProposer:           addresses.Proposer,
+		L2OutputOracleChallenger:         common.Address{}, // tbd
+
+		SystemConfigOwner: addresses.SysCfgOwner,
+
+		L1BlockTime:                 2,
+		L1GenesisBlockNonce:         4660,
+		CliqueSignerAddress:         addresses.CliqueSigner,
+		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
+		L1GenesisBlockGasLimit:      8_000_000,
+		L1GenesisBlockDifficulty:    uint642big(1),
+		L1GenesisBlockMixHash:       common.Hash{},
+		L1GenesisBlockCoinbase:      common.Address{},
+		L1GenesisBlockNumber:        0,
+		L1GenesisBlockGasUsed:       0,
+		L1GenesisBlockParentHash:    common.Hash{},
+		L1GenesisBlockBaseFeePerGas: uint642big(7),
+
+		L2GenesisBlockNonce:         0,
+		L2GenesisBlockExtraData:     []byte{},
+		L2GenesisBlockGasLimit:      8_000_000,
+		L2GenesisBlockDifficulty:    uint642big(1),
+		L2GenesisBlockMixHash:       common.Hash{},
+		L2GenesisBlockCoinbase:      common.Address{0: 0x12},
+		L2GenesisBlockNumber:        0,
+		L2GenesisBlockGasUsed:       0,
+		L2GenesisBlockParentHash:    common.Hash{},
+		L2GenesisBlockBaseFeePerGas: uint642big(7),
+
+		L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
+
+		GasPriceOracleOverhead: 2100,
+		GasPriceOracleScalar:   1_000_000,
+
+		DeploymentWaitConfirmations: 1,
+
+		EIP1559Elasticity:  2,
+		EIP1559Denominator: 8,
+
+		FundDevAccounts: true,
+	}
+
+	if err := deployConfig.InitDeveloperDeployedAddresses(); err != nil {
+		panic(err)
+	}
+
 	return SystemConfig{
 		Secrets: secrets,
 
 		Premine: make(map[common.Address]*big.Int),
 
-		DeployConfig: &genesis.DeployConfig{
-			L1ChainID:   900,
-			L2ChainID:   901,
-			L2BlockTime: 2,
-
-			FinalizationPeriodSeconds: 60 * 60 * 24,
-			MaxSequencerDrift:         10,
-			SequencerWindowSize:       30,
-			ChannelTimeout:            10,
-			P2PSequencerAddress:       addresses.SequencerP2P,
-			BatchInboxAddress:         common.Address{0: 0x52, 19: 0xff}, // tbd
-			BatchSenderAddress:        addresses.Batcher,
-
-			L2OutputOracleSubmissionInterval: 4,
-			L2OutputOracleStartingTimestamp:  -1,
-			L2OutputOracleProposer:           addresses.Proposer,
-			L2OutputOracleOwner:              common.Address{}, // tbd
-
-			L1BlockTime:                 2,
-			L1GenesisBlockNonce:         4660,
-			CliqueSignerAddress:         addresses.CliqueSigner,
-			L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-			L1GenesisBlockGasLimit:      5_000_000,
-			L1GenesisBlockDifficulty:    uint642big(1),
-			L1GenesisBlockMixHash:       common.Hash{},
-			L1GenesisBlockCoinbase:      common.Address{},
-			L1GenesisBlockNumber:        0,
-			L1GenesisBlockGasUsed:       0,
-			L1GenesisBlockParentHash:    common.Hash{},
-			L1GenesisBlockBaseFeePerGas: uint642big(7),
-
-			L2GenesisBlockNonce:         0,
-			L2GenesisBlockExtraData:     []byte{},
-			L2GenesisBlockGasLimit:      5_000_000,
-			L2GenesisBlockDifficulty:    uint642big(1),
-			L2GenesisBlockMixHash:       common.Hash{},
-			L2GenesisBlockCoinbase:      common.Address{0: 0x12},
-			L2GenesisBlockNumber:        0,
-			L2GenesisBlockGasUsed:       0,
-			L2GenesisBlockParentHash:    common.Hash{},
-			L2GenesisBlockBaseFeePerGas: uint642big(7),
-
-			OptimismBaseFeeRecipient:    common.Address{0: 0x52, 19: 0xf0}, // tbd
-			OptimismL1FeeRecipient:      common.Address{0: 0x52, 19: 0xf1},
-			OptimismL2FeeRecipient:      common.Address{0: 0x52, 19: 0xf2}, // tbd
-			L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
-			GasPriceOracleOwner:         addresses.Alice,                   // tbd
-			GasPriceOracleOverhead:      0,
-			GasPriceOracleScalar:        0,
-			GasPriceOracleDecimals:      0,
-			DeploymentWaitConfirmations: 1,
-
-			EIP1559Elasticity:  2,
-			EIP1559Denominator: 8,
-
-			FundDevAccounts: true,
-		},
+		DeployConfig:           deployConfig,
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
@@ -140,7 +146,8 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
-		P2PTopology: nil, // no P2P connectivity by default
+		P2PTopology:           nil, // no P2P connectivity by default
+		NonFinalizedProposals: false,
 	}
 }
 
@@ -151,11 +158,6 @@ func writeDefaultJWT(t *testing.T) string {
 		t.Fatalf("failed to prepare jwt file for geth: %v", err)
 	}
 	return jwtPath
-}
-
-type L2OOContractConfig struct {
-	SubmissionFrequency   *big.Int
-	HistoricalTotalBlocks *big.Int
 }
 
 type DepositContractConfig struct {
@@ -182,6 +184,9 @@ type SystemConfig struct {
 	// A nil map disables P2P completely.
 	// Any node name not in the topology will not have p2p enabled.
 	P2PTopology map[string][]string
+
+	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
+	NonFinalizedProposals bool
 }
 
 type System struct {
@@ -258,12 +263,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	l1Block := l1Genesis.ToBlock()
-	l2Addrs := &genesis.L2Addresses{
-		ProxyAdmin:                  predeploys.DevProxyAdminAddr,
-		L1StandardBridgeProxy:       predeploys.DevL1StandardBridgeAddr,
-		L1CrossDomainMessengerProxy: predeploys.DevL1CrossDomainMessengerAddr,
-	}
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block, l2Addrs)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	if err != nil {
 		return nil, err
 	}
@@ -279,7 +279,8 @@ func (cfg SystemConfig) Start() (*System, error) {
 					Hash:   l2Genesis.ToBlock().Hash(),
 					Number: 0,
 				},
-				L2Time: uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				L2Time:       uint64(cfg.DeployConfig.L1GenesisBlockTimestamp),
+				SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 			},
 			BlockTime:              cfg.DeployConfig.L2BlockTime,
 			MaxSequencerDrift:      cfg.DeployConfig.MaxSequencerDrift,
@@ -288,10 +289,9 @@ func (cfg SystemConfig) Start() (*System, error) {
 			L1ChainID:              cfg.L1ChainIDBig(),
 			L2ChainID:              cfg.L2ChainIDBig(),
 			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
-			FeeRecipientAddress:    l2Genesis.Coinbase,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
-			BatchSenderAddress:     cfg.DeployConfig.BatchSenderAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
+			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -486,13 +486,13 @@ func (cfg SystemConfig) Start() (*System, error) {
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       3 * time.Second,
 		SafeAbortNonceTooLowCount: 3,
+		AllowNonFinalized:         cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",

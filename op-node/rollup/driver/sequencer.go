@@ -50,7 +50,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l2Head eth.L2BlockRe
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.config, d.l1, l2Head, l2Head.Time+d.config.BlockTime, l1Origin.ID())
+	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.config, d.l1, d.l2, l2Head, l2Head.Time+d.config.BlockTime, l1Origin.ID())
 	if err != nil {
 		return err
 	}
@@ -100,6 +100,14 @@ func (d *Sequencer) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l
 	if err := d.StartBuildingBlock(ctx, l2Head, l2SafeHead, l2Finalized, l1Origin); err != nil {
 		return l2Head, nil, err
 	}
+
+	payloadTime := time.Unix(int64(l2Head.Time+d.config.BlockTime), 0)
+	remaining := -time.Until(payloadTime)
+	// TODO: allowing to breathe when remaining time is in the negative is very generous,
+	//  we can reduce this if the block building timing gets better with PR 3818
+	d.log.Debug("using remaining time for better block production", "remaining_time", remaining)
+	time.Sleep(500 * time.Millisecond)
+
 	payload, err := d.CompleteBuildingBlock(ctx)
 	if err != nil {
 		return l2Head, nil, err

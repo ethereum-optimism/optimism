@@ -58,7 +58,7 @@ byte sequence. The first version has `0x00` as the version byte and then as the 
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
 
-- `bytes32 sourceHash`: the source-hash, uniquely identifies the origin of the deposit
+- `bytes32 sourceHash`: the source-hash, uniquely identifies the origin of the deposit.
 - `address from`: The address of the sender account.
 - `address to`: The address of the recipient account, or the null (zero-length) address if the
   deposited transaction is a contract creation.
@@ -214,9 +214,20 @@ A predeployed contract on L2 at address `0x4200000000000000000000000000000000000
 certain block variables from the corresponding L1 block in storage, so that they may be accessed
 during the execution of the subsequent deposited transactions.
 
-Apart from the regular L1 attributes, a `sequenceNumber` attribute is stored.
-This equals the L2 block number relative to the start of the epoch, i.e. the L2 block distance to the
-L2 block height that the L1 attributes last changed, and reset to 0 at the start of a new epoch.
+The predeploy stores the following values:
+
+- L1 block attributes:
+  - `number` (`uint64`)
+  - `timestamp` (`uint64`)
+  - `basefee` (`uint256`)
+  - `hash` (`bytes32`)
+- `sequenceNumber` (`uint64`): This equals the L2 block number relative to the start of the epoch,
+  i.e. the L2 block distance to the L2 block height that the L1 attributes last changed,
+  and reset to 0 at the start of a new epoch.
+- System configurables tied to the L1 block, see [System configuration specification](./system_config.md):
+  - `batcherHash` (`bytes32`): A versioned commitment to the batch-submitter(s) currently operating.
+  - `l1FeeOverhead` (`uint256`): The L1 fee overhead to apply to L1 cost computation of transactions in this L2 block.
+  - `l1FeeScalar` (`uint256`): The L1 fee scalar to apply to L1 cost computation of transactions in this L2 block.
 
 The contract implements an authorization scheme, such that it only accepts state-changing calls from
 the [depositor account][depositor-account].

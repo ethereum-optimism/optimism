@@ -4,14 +4,15 @@ import (
 	"context"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-type NextDataProvider interface {
-	NextData(ctx context.Context) ([]byte, error)
+type NextFrameProvider interface {
+	NextFrame(ctx context.Context) (Frame, error)
 	Origin() eth.L1BlockRef
 }
 
@@ -34,14 +35,14 @@ type ChannelBank struct {
 	channels     map[ChannelID]*Channel // channels by ID
 	channelQueue []ChannelID            // channels in FIFO order
 
-	prev    NextDataProvider
+	prev    NextFrameProvider
 	fetcher L1Fetcher
 }
 
 var _ ResetableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextDataProvider, fetcher L1Fetcher) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher) *ChannelBank {
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
@@ -73,42 +74,34 @@ func (cb *ChannelBank) prune() {
 }
 
 // IngestData adds new L1 data to the channel bank.
-// Read() should be called repeatedly first, until everything has been read, before adding new data.\
-func (cb *ChannelBank) IngestData(data []byte) {
+// Read() should be called repeatedly first, until everything has been read, before adding new data.
+func (cb *ChannelBank) IngestFrame(f Frame) {
 	origin := cb.Origin()
-	cb.log.Debug("channel bank got new data", "origin", origin, "data_len", len(data))
+	log := log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber)
+	log.Debug("channel bank got new data")
 
-	// TODO: Why is the prune here?
-	cb.prune()
+	currentCh, ok := cb.channels[f.ID]
+	if !ok {
+		// create new channel if it doesn't exist yet
+		currentCh = NewChannel(f.ID, origin)
+		cb.channels[f.ID] = currentCh
+		cb.channelQueue = append(cb.channelQueue, f.ID)
+	}
 
-	frames, err := ParseFrames(data)
-	if err != nil {
-		cb.log.Warn("malformed frame", "err", err)
+	// check if the channel is not timed out
+	if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < origin.Number {
+		log.Warn("channel is timed out, ignore frame")
 		return
 	}
 
-	// Process each frame
-	for _, f := range frames {
-		currentCh, ok := cb.channels[f.ID]
-		if !ok {
-			// create new channel if it doesn't exist yet
-			currentCh = NewChannel(f.ID, origin)
-			cb.channels[f.ID] = currentCh
-			cb.channelQueue = append(cb.channelQueue, f.ID)
-		}
-
-		// check if the channel is not timed out
-		if currentCh.OpenBlockNumber()+cb.cfg.ChannelTimeout < origin.Number {
-			cb.log.Warn("channel is timed out, ignore frame", "channel", f.ID, "frame", f.FrameNumber)
-			continue
-		}
-
-		cb.log.Trace("ingesting frame", "channel", f.ID, "frame_number", f.FrameNumber, "length", len(f.Data))
-		if err := currentCh.AddFrame(f, origin); err != nil {
-			cb.log.Warn("failed to ingest frame into channel", "channel", f.ID, "frame_number", f.FrameNumber, "err", err)
-			continue
-		}
+	log.Trace("ingesting frame")
+	if err := currentCh.AddFrame(f, origin); err != nil {
+		log.Warn("failed to ingest frame into channel", "err", err)
+		return
 	}
+
+	// Prune after the frame is loaded.
+	cb.prune()
 }
 
 // Read the raw data of the first channel, if it's timed-out or closed.
@@ -156,17 +149,17 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 	}
 
 	// Then load data into the channel bank
-	if data, err := cb.prev.NextData(ctx); err == io.EOF {
+	if frame, err := cb.prev.NextFrame(ctx); err == io.EOF {
 		return nil, io.EOF
 	} else if err != nil {
 		return nil, err
 	} else {
-		cb.IngestData(data)
+		cb.IngestFrame(frame)
 		return nil, NotEnoughData
 	}
 }
 
-func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef) error {
+func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
 	cb.channels = make(map[ChannelID]*Channel)
 	cb.channelQueue = make([]ChannelID, 0, 10)
 	return io.EOF
