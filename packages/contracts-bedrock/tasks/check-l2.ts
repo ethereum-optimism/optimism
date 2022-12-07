@@ -585,10 +585,7 @@ task(
 ).setAction(async (_, hre: HardhatRuntimeEnvironment) => {
   // Ensure that all the predeploys exist, including the not
   // currently configured ones
-
-  // TODO: this check takes some time
-  //await checkPredeploys(hre)
-
+  await checkPredeploys(hre)
   // Check the currently configured predeploys
   for (const [name, fn] of Object.entries(check)) {
     const address = predeploys[name]
