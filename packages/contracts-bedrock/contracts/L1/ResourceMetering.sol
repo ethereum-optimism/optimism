@@ -103,15 +103,16 @@ abstract contract ResourceMetering is Initializable {
             // Empty block means there was no demand for deposits in that block, so we should
             // reflect this lack of demand in the fee.
             if (blockDiff > 1) {
-                // Update the base fee by repeatedly applying the exponent 1-(1/change_denominator)
+                // Update the base fee by multiplying by 1-(1/change_denominator)
                 // blockDiff - 1 times. Simulates multiple empty blocks. Clamp the resulting value
                 // between min and max.
                 newBaseFee = Arithmetic.clamp(
-                    Arithmetic.cdexp(
-                        newBaseFee,
-                        BASE_FEE_MAX_CHANGE_DENOMINATOR,
-                        int256(blockDiff - 1)
-                    ),
+                    newBaseFee *
+                        Arithmetic.cdexp(
+                            (BASE_FEE_MAX_CHANGE_DENOMINATOR - 1),
+                            BASE_FEE_MAX_CHANGE_DENOMINATOR,
+                            int256(blockDiff - 1)
+                        ),
                     MINIMUM_BASE_FEE,
                     MAXIMUM_BASE_FEE
                 );
