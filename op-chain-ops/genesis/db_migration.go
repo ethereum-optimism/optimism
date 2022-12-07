@@ -121,11 +121,17 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	log.Info("Starting to migrate ERC20 ETH")
 	addrs := migrationData.Addresses()
-	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit, noCheck)
+	err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
-	log.Info("Completed ERC20 ETH migration", "root", newRoot)
+	log.Info("Completed ERC20 ETH migration")
+
+	newRoot, err := db.Commit(true)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("committing state DB", "root", newRoot)
 
 	// Set the amount of gas used so that EIP 1559 starts off stable
 	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
@@ -170,6 +176,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	if !commit {
 		log.Info("Dry run complete")
 		return res, nil
+	}
+
+	log.Info("committing trie DB")
+	if err := db.Database().TrieDB().Commit(newRoot, true, nil); err != nil {
+		return nil, err
 	}
 
 	rawdb.WriteTd(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), bedrockBlock.Difficulty())
