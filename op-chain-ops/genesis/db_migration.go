@@ -227,7 +227,30 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		"hash", bedrockHeader.Hash().String(),
 	)
 
+	postDB, err := state.New(newRoot, underlyingDB, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckPredeploys(postDB); err != nil {
+		return nil, err
+	}
+
 	return res, nil
+}
+
+// CheckPredeploys will check that there is code at each predeploy
+// address
+func CheckPredeploys(db vm.StateDB) error {
+	for i := uint64(0); i <= 2048; i++ {
+		bigAddr := new(big.Int).Or(bigL2PredeployNamespace, new(big.Int).SetUint64(i))
+		addr := common.BigToAddress(bigAddr)
+		code := db.GetCode(addr)
+		if len(code) == 0 {
+			return fmt.Errorf("no code found at %s", addr)
+		}
+	}
+	return nil
 }
 
 // CheckWithdrawals will ensure that the entire list of withdrawals is being
