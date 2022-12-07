@@ -5,10 +5,10 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { sleep } from '@eth-optimism/core-utils'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { Deployment, DeployResult } from 'hardhat-deploy/dist/types'
 import 'hardhat-deploy'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
-import { Deployment, DeployResult } from 'hardhat-deploy/dist/types'
 
 /**
  * Wrapper around hardhat-deploy with some extra features.
@@ -80,11 +80,18 @@ export const deploy = async ({
   return created
 }
 
-// Returns a version of the contract object which modifies all of the input contract's methods to:
-// 1. Waits for a confirmed receipt with more than deployConfig.numDeployConfirmations confirmations.
-// 2. Include simple resubmission logic, ONLY for Kovan, which appears to drop transactions.
+/**
+ * Returns a version of the contract object which modifies all of the input contract's methods to:
+ * 1. Waits for a confirmed receipt with more than numDeployConfirmations confirmations.
+ * 2. Include simple resubmission logic, ONLY for Kovan, which appears to drop transactions.
+ *
+ * @param opts Options for the contract.
+ * @param opts.hre HardhatRuntimeEnvironment.
+ * @param opts.contract Contract to wrap.
+ * @returns Wrapped contract object.
+ */
 export const getAdvancedContract = (opts: {
-  hre: any
+  hre: HardhatRuntimeEnvironment
   contract: Contract
 }): Contract => {
   // Temporarily override Object.defineProperty to bypass ether's object protection.
@@ -159,10 +166,20 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
+/**
+ * Creates a contract object from a deployed artifact.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param name Name of the deployed contract to get an object for.
+ * @param opts Options for the contract.
+ * @param opts.iface Optional interface to use for the contract object.
+ * @param opts.signerOrProvider Optional signer or provider to use for the contract object.
+ * @returns Contract object.
+ */
 export const getContractFromArtifact = async (
-  hre: any,
+  hre: HardhatRuntimeEnvironment,
   name: string,
-  options: {
+  opts: {
     iface?: string
     signerOrProvider?: Signer | Provider | string
   } = {}
@@ -173,17 +190,17 @@ export const getContractFromArtifact = async (
   // Get the deployed contract's interface.
   let iface = new hre.ethers.utils.Interface(artifact.abi)
   // Override with optional iface name if requested.
-  if (options.iface) {
-    const factory = await hre.ethers.getContractFactory(options.iface)
+  if (opts.iface) {
+    const factory = await hre.ethers.getContractFactory(opts.iface)
     iface = factory.interface
   }
 
   let signerOrProvider: Signer | Provider = hre.ethers.provider
-  if (options.signerOrProvider) {
-    if (typeof options.signerOrProvider === 'string') {
-      signerOrProvider = hre.ethers.provider.getSigner(options.signerOrProvider)
+  if (opts.signerOrProvider) {
+    if (typeof opts.signerOrProvider === 'string') {
+      signerOrProvider = hre.ethers.provider.getSigner(opts.signerOrProvider)
     } else {
-      signerOrProvider = options.signerOrProvider
+      signerOrProvider = opts.signerOrProvider
     }
   }
 
@@ -197,8 +214,15 @@ export const getContractFromArtifact = async (
   })
 }
 
+/**
+ * Gets multiple contract objects from their respective deployed artifacts.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param configs Array of contract names and options.
+ * @returns Array of contract objects.
+ */
 export const getContractsFromArtifacts = async (
-  hre: any,
+  hre: HardhatRuntimeEnvironment,
   configs: Array<{
     name: string
     iface?: string
@@ -212,6 +236,13 @@ export const getContractsFromArtifacts = async (
   return contracts
 }
 
+/**
+ * Helper function for asserting that a contract variable is set to the expected value.
+ *
+ * @param contract Contract object to query.
+ * @param variable Name of the variable to query.
+ * @param expected Expected value of the variable.
+ */
 export const assertContractVariable = async (
   contract: ethers.Contract,
   variable: string,
@@ -243,8 +274,15 @@ export const assertContractVariable = async (
   )
 }
 
+/**
+ * Returns the address for a given deployed contract by name.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param name Name of the deployed contract.
+ * @returns Address of the deployed contract.
+ */
 export const getDeploymentAddress = async (
-  hre: any,
+  hre: HardhatRuntimeEnvironment,
   name: string
 ): Promise<string> => {
   const deployment = await hre.deployments.get(name)
