@@ -51,6 +51,11 @@ export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
         return target[prop]
       }
 
+      // Make sure toJSON exists
+      if (prop === 'toJSON') {
+        return () => target
+      }
+
       // Explicitly throw if the property is not found since I can't yet figure out a good way to
       // handle the necessary typings.
       throw new Error(
