@@ -7,19 +7,19 @@ interface RequiredDeployConfig {
   /**
    * Number of confirmations to wait when deploying contracts.
    */
-  numDeployConfirmations: number
+  numDeployConfirmations?: number
 
   /**
    * Address that will own the entire system on L1 when the deploy is complete.
    */
-  finalSystemOwner: string
+  finalSystemOwner?: string
 
   /**
    * Address that will own the entire system on L1 during the deployment process. This address will
    * not own the system after the deployment is complete, ownership will be transferred to the
    * final system owner.
    */
-  controller: string
+  controller?: string
 
   /**
    * The L2 genesis script uses this to fill the storage of the L1Block info predeploy. The rollup
@@ -84,12 +84,12 @@ interface RequiredDeployConfig {
   /**
    * Starting block number for the output oracle.
    */
-  l2OutputOracleStartingBlockNumber: number
+  l2OutputOracleStartingBlockNumber?: number
 
   /**
    * Starting timestamp for the output oracle.
    */
-  l2OutputOracleStartingTimestamp: number
+  l2OutputOracleStartingTimestamp?: number
 
   /**
    * Address of the L2 output oracle proposer.

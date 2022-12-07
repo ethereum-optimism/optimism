@@ -52,7 +52,7 @@
     "ethereum-waffle": "^3.4.0",
     "hardhat-gas-reporter": "^1.0.7",
     "hardhat-deploy": "^0.11.4",
-    "prettier": "^2.3.1",
+    "prettier": "^2.8.0",
     "prettier-plugin-solidity": "^1.0.0-beta.18",
     "solhint": "^3.3.6",
     "solidity-coverage": "^0.7.19",
