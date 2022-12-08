@@ -78,8 +78,8 @@ const main = async () => {
     }
   }
 
-  if (errors) {
-    console.error(errors.join('\n'))
+  if (errors.length > 0) {
+    console.error(...errors)
     process.exit(1)
   }
 }

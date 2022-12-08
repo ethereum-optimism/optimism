@@ -43,7 +43,7 @@ func makeTestRequest(i int) (*string, rpc.BatchElem) {
 	out := new(string)
 	return out, rpc.BatchElem{
 		Method: "testing_foobar",
-		Args:   []interface{}{i},
+		Args:   []any{i},
 		Result: out,
 		Error:  nil,
 	}
@@ -94,7 +94,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 		for _, elem := range bc.elems {
 			batch = append(batch, rpc.BatchElem{
 				Method: "testing_foobar",
-				Args:   []interface{}{elem.id},
+				Args:   []any{elem.id},
 				Result: new(string),
 				Error:  nil,
 			})

@@ -139,7 +139,7 @@ func (s *EthClient) SubscribeNewHead(ctx context.Context, ch chan<- *types.Heade
 	return s.client.EthSubscribe(ctx, ch, "newHeads")
 }
 
-func (s *EthClient) headerCall(ctx context.Context, method string, id interface{}) (*HeaderInfo, error) {
+func (s *EthClient) headerCall(ctx context.Context, method string, id any) (*HeaderInfo, error) {
 	var header *rpcHeader
 	err := s.client.CallContext(ctx, &header, method, id, false) // headers are just blocks without txs
 	if err != nil {
@@ -156,7 +156,7 @@ func (s *EthClient) headerCall(ctx context.Context, method string, id interface{
 	return info, nil
 }
 
-func (s *EthClient) blockCall(ctx context.Context, method string, id interface{}) (*HeaderInfo, types.Transactions, error) {
+func (s *EthClient) blockCall(ctx context.Context, method string, id any) (*HeaderInfo, types.Transactions, error) {
 	var block *rpcBlock
 	err := s.client.CallContext(ctx, &block, method, id, true)
 	if err != nil {
@@ -174,7 +174,7 @@ func (s *EthClient) blockCall(ctx context.Context, method string, id interface{}
 	return info, txs, nil
 }
 
-func (s *EthClient) payloadCall(ctx context.Context, method string, id interface{}) (*eth.ExecutionPayload, error) {
+func (s *EthClient) payloadCall(ctx context.Context, method string, id any) (*eth.ExecutionPayload, error) {
 	var block *rpcBlock
 	err := s.client.CallContext(ctx, &block, method, id, true)
 	if err != nil {

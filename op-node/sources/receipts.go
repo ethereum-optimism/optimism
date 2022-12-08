@@ -77,7 +77,7 @@ func makeReceiptRequest(txHash common.Hash) (*types.Receipt, rpc.BatchElem) {
 	out := new(types.Receipt)
 	return out, rpc.BatchElem{
 		Method: "eth_getTransactionReceipt",
-		Args:   []interface{}{txHash},
+		Args:   []any{txHash},
 		Result: &out, // receipt may become nil, double pointer is intentional
 	}
 }

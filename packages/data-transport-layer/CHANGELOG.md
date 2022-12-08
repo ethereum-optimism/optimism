@@ -1,5 +1,23 @@
 # data transport layer
 
+## 0.5.49
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- 7c90d5a48: Patch for fast Goerli sync
+- 902985f2c: Add L1 sync shutoff block
+- 21ee72b3a: Give users a nicer revert when connected to wrong RPC
+- 36bd8fbff: Updates the DTL in preparation for shutoff during the Bedrock migration. So long, DTL!
+- e941ee73f: Fixes a bug with the DTL shutoff block logic
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [c975c9620]
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [136ea1785]
+  - @eth-optimism/contracts@0.5.39
+  - @eth-optimism/core-utils@0.12.0
+  - @eth-optimism/common-ts@0.6.8
+
 ## 0.5.48
 
 ### Patch Changes

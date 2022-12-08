@@ -1,5 +1,25 @@
 # @eth-optimism/actor-tests
 
+## 0.0.15
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- 1d3c749a2: Updates the version of TypeScript
+- Updated dependencies [43f33f39f]
+- Updated dependencies [237a351f1]
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [767585b07]
+- Updated dependencies [c975c9620]
+- Updated dependencies [1594678e0]
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [136ea1785]
+- Updated dependencies [4d13f0afe]
+- Updated dependencies [7300a7ca7]
+  - @eth-optimism/contracts-bedrock@0.11.0
+  - @eth-optimism/sdk@1.8.0
+  - @eth-optimism/core-utils@0.12.0
+
 ## 0.0.14
 
 ### Patch Changes

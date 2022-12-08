@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.4
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+
 ## 1.0.3
 
 ### Patch Changes
