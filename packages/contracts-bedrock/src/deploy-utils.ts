@@ -3,123 +3,95 @@ import assert from 'assert'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep, getChainId } from '@eth-optimism/core-utils'
+import { sleep } from '@eth-optimism/core-utils'
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { Deployment, DeployResult } from 'hardhat-deploy/dist/types'
+import 'hardhat-deploy'
+import '@eth-optimism/hardhat-deploy-config'
+import '@nomiclabs/hardhat-ethers'
 
-export interface DictatorConfig {
-  globalConfig: {
-    proxyAdmin: string
-    controller: string
-    finalOwner: string
-    addressManager: string
-  }
-  proxyAddressConfig: {
-    l2OutputOracleProxy: string
-    optimismPortalProxy: string
-    l1CrossDomainMessengerProxy: string
-    l1StandardBridgeProxy: string
-    optimismMintableERC20FactoryProxy: string
-    l1ERC721BridgeProxy: string
-    systemConfigProxy: string
-  }
-  implementationAddressConfig: {
-    l2OutputOracleImpl: string
-    optimismPortalImpl: string
-    l1CrossDomainMessengerImpl: string
-    l1StandardBridgeImpl: string
-    optimismMintableERC20FactoryImpl: string
-    l1ERC721BridgeImpl: string
-    portalSenderImpl: string
-    systemConfigImpl: string
-  }
-  l2OutputOracleConfig: {
-    l2OutputOracleProposer: string
-    l2OutputOracleOwner: string
-  }
-  systemConfigConfig: {
-    owner: string
-    overhead: number
-    scalar: number
-    batcherHash: string
-    gasLimit: number
-  }
-}
-
-export const deployAndVerifyAndThen = async ({
+/**
+ * Wrapper around hardhat-deploy with some extra features.
+ *
+ * @param opts Options for the deployment.
+ * @param opts.hre HardhatRuntimeEnvironment.
+ * @param opts.contract Name of the contract to deploy.
+ * @param opts.name Name to use for the deployment file.
+ * @param opts.iface Interface to use for the returned contract.
+ * @param opts.args Arguments to pass to the contract constructor.
+ * @param opts.postDeployAction Action to perform after the contract is deployed.
+ * @returns Deployed contract object.
+ */
+export const deploy = async ({
   hre,
   name,
+  iface,
   args,
   contract,
-  iface,
   postDeployAction,
 }: {
-  hre: any
+  hre: HardhatRuntimeEnvironment
   name: string
   args: any[]
   contract?: string
   iface?: string
   postDeployAction?: (contract: Contract) => Promise<void>
 }) => {
-  const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
 
-  const result = await deploy(name, {
-    contract,
-    from: deployer,
-    args,
-    log: true,
-    waitConfirmations: hre.deployConfig.numDeployConfirmations,
-  })
+  // Hardhat deploy will usually do this check for us, but currently doesn't also consider
+  // external deployments when doing this check. By doing the check ourselves, we also get to
+  // consider external deployments. If we already have the deployment, return early.
+  let result: Deployment | DeployResult = await hre.deployments.getOrNull(name)
+  if (result) {
+    console.log(`skipping ${name}, using existing at ${result.address}`)
+  } else {
+    result = await hre.deployments.deploy(name, {
+      contract,
+      from: deployer,
+      args,
+      log: true,
+      waitConfirmations: hre.deployConfig.numDeployConfirmations,
+    })
+  }
 
+  // Always wait for the transaction to be mined, just in case.
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
 
-  if (result.newlyDeployed) {
-    if (!(await isHardhatNode(hre)) && hre.network.config.live !== false) {
-      // Verification sometimes fails, even when the contract is correctly deployed and eventually
-      // verified. Possibly due to a race condition. We don't want to halt the whole deployment
-      // process just because that happens.
-      try {
-        console.log('Verifying on Etherscan...')
-        await hre.run('verify:verify', {
-          address: result.address,
-          constructorArguments: args,
-        })
-        console.log('Successfully verified on Etherscan')
-      } catch (error) {
-        console.log('Error when verifying bytecode on Etherscan:')
-        console.log(error)
-      }
+  // Create the contract object to return.
+  const created = getAdvancedContract({
+    hre,
+    contract: new Contract(
+      result.address,
+      iface !== undefined
+        ? (await hre.ethers.getContractFactory(iface)).interface
+        : result.abi,
+      hre.ethers.provider.getSigner(deployer)
+    ),
+  })
 
-      try {
-        console.log('Verifying on Sourcify...')
-        await hre.run('sourcify')
-        console.log('Successfully verified on Sourcify')
-      } catch (error) {
-        console.log('Error when verifying bytecode on Sourcify:')
-        console.log(error)
-      }
-    }
+  // Run post-deploy actions if necessary.
+  if ((result as DeployResult).newlyDeployed) {
     if (postDeployAction) {
-      const signer = hre.ethers.provider.getSigner(deployer)
-      let abi = result.abi
-      if (iface !== undefined) {
-        const factory = await hre.ethers.getContractFactory(iface)
-        abi = factory.interface
-      }
-      await postDeployAction(
-        getAdvancedContract({
-          hre,
-          contract: new Contract(result.address, abi, signer),
-        })
-      )
+      await postDeployAction(created)
     }
   }
+
+  return created
 }
 
-// Returns a version of the contract object which modifies all of the input contract's methods to:
-// 1. Waits for a confirmed receipt with more than deployConfig.numDeployConfirmations confirmations.
-// 2. Include simple resubmission logic, ONLY for Kovan, which appears to drop transactions.
+/**
+ * Returns a version of the contract object which modifies all of the input contract's methods to:
+ * 1. Waits for a confirmed receipt with more than numDeployConfirmations confirmations.
+ * 2. Include simple resubmission logic, ONLY for Kovan, which appears to drop transactions.
+ *
+ * @param opts Options for the contract.
+ * @param opts.hre HardhatRuntimeEnvironment.
+ * @param opts.contract Contract to wrap.
+ * @returns Wrapped contract object.
+ */
 export const getAdvancedContract = (opts: {
-  hre: any
+  hre: HardhatRuntimeEnvironment
   contract: Contract
 }): Contract => {
   // Temporarily override Object.defineProperty to bypass ether's object protection.
@@ -194,10 +166,20 @@ export const getAdvancedContract = (opts: {
   return contract
 }
 
+/**
+ * Creates a contract object from a deployed artifact.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param name Name of the deployed contract to get an object for.
+ * @param opts Options for the contract.
+ * @param opts.iface Optional interface to use for the contract object.
+ * @param opts.signerOrProvider Optional signer or provider to use for the contract object.
+ * @returns Contract object.
+ */
 export const getContractFromArtifact = async (
-  hre: any,
+  hre: HardhatRuntimeEnvironment,
   name: string,
-  options: {
+  opts: {
     iface?: string
     signerOrProvider?: Signer | Provider | string
   } = {}
@@ -208,17 +190,17 @@ export const getContractFromArtifact = async (
   // Get the deployed contract's interface.
   let iface = new hre.ethers.utils.Interface(artifact.abi)
   // Override with optional iface name if requested.
-  if (options.iface) {
-    const factory = await hre.ethers.getContractFactory(options.iface)
+  if (opts.iface) {
+    const factory = await hre.ethers.getContractFactory(opts.iface)
     iface = factory.interface
   }
 
   let signerOrProvider: Signer | Provider = hre.ethers.provider
-  if (options.signerOrProvider) {
-    if (typeof options.signerOrProvider === 'string') {
-      signerOrProvider = hre.ethers.provider.getSigner(options.signerOrProvider)
+  if (opts.signerOrProvider) {
+    if (typeof opts.signerOrProvider === 'string') {
+      signerOrProvider = hre.ethers.provider.getSigner(opts.signerOrProvider)
     } else {
-      signerOrProvider = options.signerOrProvider
+      signerOrProvider = opts.signerOrProvider
     }
   }
 
@@ -232,8 +214,15 @@ export const getContractFromArtifact = async (
   })
 }
 
+/**
+ * Gets multiple contract objects from their respective deployed artifacts.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param configs Array of contract names and options.
+ * @returns Array of contract objects.
+ */
 export const getContractsFromArtifacts = async (
-  hre: any,
+  hre: HardhatRuntimeEnvironment,
   configs: Array<{
     name: string
     iface?: string
@@ -247,10 +236,13 @@ export const getContractsFromArtifacts = async (
   return contracts
 }
 
-export const isHardhatNode = async (hre) => {
-  return (await getChainId(hre.ethers.provider)) === 31337
-}
-
+/**
+ * Helper function for asserting that a contract variable is set to the expected value.
+ *
+ * @param contract Contract object to query.
+ * @param variable Name of the variable to query.
+ * @param expected Expected value of the variable.
+ */
 export const assertContractVariable = async (
   contract: ethers.Contract,
   variable: string,
@@ -282,123 +274,17 @@ export const assertContractVariable = async (
   )
 }
 
+/**
+ * Returns the address for a given deployed contract by name.
+ *
+ * @param hre HardhatRuntimeEnvironment.
+ * @param name Name of the deployed contract.
+ * @returns Address of the deployed contract.
+ */
 export const getDeploymentAddress = async (
-  hre: any,
+  hre: HardhatRuntimeEnvironment,
   name: string
 ): Promise<string> => {
   const deployment = await hre.deployments.get(name)
   return deployment.address
 }
-
-export const makeDictatorConfig = async (
-  hre: any,
-  controller: string,
-  finalOwner: string,
-  fresh: boolean
-): Promise<DictatorConfig> => {
-  return {
-    globalConfig: {
-      proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-      controller,
-      finalOwner,
-      addressManager: fresh
-        ? ethers.constants.AddressZero
-        : await getDeploymentAddress(hre, 'Lib_AddressManager'),
-    },
-    proxyAddressConfig: {
-      l2OutputOracleProxy: await getDeploymentAddress(
-        hre,
-        'L2OutputOracleProxy'
-      ),
-      optimismPortalProxy: await getDeploymentAddress(
-        hre,
-        'OptimismPortalProxy'
-      ),
-      l1CrossDomainMessengerProxy: await getDeploymentAddress(
-        hre,
-        fresh
-          ? 'L1CrossDomainMessengerProxy'
-          : 'Proxy__OVM_L1CrossDomainMessenger'
-      ),
-      l1StandardBridgeProxy: await getDeploymentAddress(
-        hre,
-        fresh ? 'L1StandardBridgeProxy' : 'Proxy__OVM_L1StandardBridge'
-      ),
-      optimismMintableERC20FactoryProxy: await getDeploymentAddress(
-        hre,
-        'OptimismMintableERC20FactoryProxy'
-      ),
-      l1ERC721BridgeProxy: await getDeploymentAddress(
-        hre,
-        'L1ERC721BridgeProxy'
-      ),
-      systemConfigProxy: await getDeploymentAddress(hre, 'SystemConfigProxy'),
-    },
-    implementationAddressConfig: {
-      l2OutputOracleImpl: await getDeploymentAddress(hre, 'L2OutputOracle'),
-      optimismPortalImpl: await getDeploymentAddress(hre, 'OptimismPortal'),
-      l1CrossDomainMessengerImpl: await getDeploymentAddress(
-        hre,
-        'L1CrossDomainMessenger'
-      ),
-      l1StandardBridgeImpl: await getDeploymentAddress(hre, 'L1StandardBridge'),
-      optimismMintableERC20FactoryImpl: await getDeploymentAddress(
-        hre,
-        'OptimismMintableERC20Factory'
-      ),
-      l1ERC721BridgeImpl: await getDeploymentAddress(hre, 'L1ERC721Bridge'),
-      portalSenderImpl: await getDeploymentAddress(hre, 'PortalSender'),
-      systemConfigImpl: await getDeploymentAddress(hre, 'SystemConfig'),
-    },
-    l2OutputOracleConfig: {
-      l2OutputOracleProposer: hre.deployConfig.l2OutputOracleProposer,
-      l2OutputOracleOwner: hre.deployConfig.l2OutputOracleOwner,
-    },
-    systemConfigConfig: {
-      owner: hre.deployConfig.systemConfigOwner,
-      overhead: hre.deployConfig.gasPriceOracleOverhead,
-      scalar: hre.deployConfig.gasPriceOracleDecimals,
-      batcherHash: hre.ethers.utils.hexZeroPad(
-        hre.deployConfig.batchSenderAddress,
-        32
-      ),
-      gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
-    },
-  }
-}
-
-export const assertDictatorConfig = async (
-  dictator: Contract,
-  config: DictatorConfig
-) => {
-  const dictatorConfig = await dictator.config()
-  for (const [outerConfigKey, outerConfigValue] of Object.entries(config)) {
-    for (const [innerConfigKey, innerConfigValue] of Object.entries(
-      outerConfigValue
-    )) {
-      let have = dictatorConfig[outerConfigKey][innerConfigKey]
-      let want = innerConfigValue as any
-
-      if (ethers.utils.isAddress(want)) {
-        want = want.toLowerCase()
-        have = have.toLowerCase()
-      } else if (typeof want === 'number') {
-        want = ethers.BigNumber.from(want)
-        have = ethers.BigNumber.from(have)
-        assert(
-          want.eq(have),
-          `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
-        )
-        return
-      }
-
-      assert(
-        want === have,
-        `incorrect config for ${outerConfigKey}.${innerConfigKey}. Want: ${want}, have: ${have}`
-      )
-    }
-  }
-}
-
-// Large balance to fund accounts with.
-export const BIG_BALANCE = ethers.BigNumber.from(`0xFFFFFFFFFFFFFFFFFFFF`)

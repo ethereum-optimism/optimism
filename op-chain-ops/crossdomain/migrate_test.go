@@ -25,11 +25,9 @@ func TestMigrateWithdrawal(t *testing.T) {
 	}
 
 	l1CrossDomainMessenger := common.HexToAddress("0x25ace71c97B33Cc4729CF772ae268934F7ab5fA1")
-	l1StandardBridge := common.HexToAddress("0x99C9fc46f92E8a1c0deC1b1747d010903E884bE1")
-
 	for i, legacy := range withdrawals {
 		t.Run(fmt.Sprintf("test%d", i), func(t *testing.T) {
-			withdrawal, err := crossdomain.MigrateWithdrawal(legacy, &l1CrossDomainMessenger, &l1StandardBridge)
+			withdrawal, err := crossdomain.MigrateWithdrawal(legacy, &l1CrossDomainMessenger)
 			require.Nil(t, err)
 			require.NotNil(t, withdrawal)
 

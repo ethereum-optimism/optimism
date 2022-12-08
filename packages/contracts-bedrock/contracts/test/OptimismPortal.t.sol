@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { stdError } from "forge-std/Test.sol";
 import { Portal_Initializer, CommonTest, NextImpl } from "./CommonTest.t.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
@@ -10,13 +11,13 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
-    function test_OptimismPortalConstructor() external {
+    function test_constructor_succeeds() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
     }
 
-    function test_OptimismPortalReceiveEth_success() external {
+    function test_receive_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(alice, alice, 100, 100, 100_000, false, hex"");
 
@@ -37,7 +38,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
-    function test_depositTransaction_NoValueEOA_success() external {
+    function test_depositTransaction_noValueEOA_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
         vm.expectEmit(true, true, false, true);
@@ -61,7 +62,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when a contract deposits a tx with 0 value
-    function test_depositTransaction_NoValueContract_success() external {
+    function test_depositTransaction_noValueContract_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -83,7 +84,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when an EOA deposits a contract creation with 0 value
-    function test_depositTransaction_createWithZeroValueForEOA_success() external {
+    function test_depositTransaction_createWithZeroValueForEOA_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
@@ -102,7 +103,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should emit the correct log when a contract deposits a contract creation with 0 value
-    function test_depositTransaction_createWithZeroValueForContract_success() external {
+    function test_depositTransaction_createWithZeroValueForContract_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -118,7 +119,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when an EOA deposits a transaction with ETH
-    function test_depositTransaction_withEthValueFromEOA_success() external {
+    function test_depositTransaction_withEthValueFromEOA_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
@@ -144,7 +145,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when a contract deposits a transaction with ETH
-    function test_depositTransaction_withEthValueFromContract_success() external {
+    function test_depositTransaction_withEthValueFromContract_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -166,7 +167,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when an EOA deposits a contract creation with ETH
-    function test_depositTransaction_withEthValueAndEOAContractCreation_success() external {
+    function test_depositTransaction_withEthValueAndEOAContractCreation_succeeds() external {
         // EOA emulation
         vm.prank(address(this), address(this));
 
@@ -192,7 +193,7 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 
     // Test: depositTransaction should increase its eth balance when a contract deposits a contract creation with ETH
-    function test_depositTransaction_withEthValueAndContractContractCreation_success() external {
+    function test_depositTransaction_withEthValueAndContractContractCreation_succeeds() external {
         vm.expectEmit(true, true, false, true);
         emitTransactionDeposited(
             AddressAliasHelper.applyL1ToL2Alias(address(this)),
@@ -214,53 +215,49 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(address(op).balance, NON_ZERO_VALUE);
     }
 
-    function test_simple_isBlockFinalized_success() external {
+    function test_simple_isOutputFinalized_succeeds() external {
+        uint256 ts = block.timestamp;
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(bytes32(uint256(1)), startingBlockNumber))
+            abi.encode(
+                Types.OutputProposal(bytes32(uint256(1)), uint128(ts), uint128(startingBlockNumber))
+            )
         );
 
         // warp to the finalization period
-        vm.warp(startingBlockNumber + op.FINALIZATION_PERIOD_SECONDS());
-        assertEq(op.isBlockFinalized(startingBlockNumber), false);
+        vm.warp(ts + op.FINALIZATION_PERIOD_SECONDS());
+        assertEq(op.isOutputFinalized(0), false);
+
         // warp past the finalization period
-        vm.warp(startingBlockNumber + op.FINALIZATION_PERIOD_SECONDS() + 1);
-        assertEq(op.isBlockFinalized(startingBlockNumber), true);
+        vm.warp(ts + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        assertEq(op.isOutputFinalized(0), true);
     }
 
-    function test_isBlockFinalized_success() external {
+    function test_isOutputFinalized_succeeds() external {
         uint256 checkpoint = oracle.nextBlockNumber();
+        uint256 nextOutputIndex = oracle.nextOutputIndex();
         vm.roll(checkpoint);
         vm.warp(oracle.computeL2Timestamp(checkpoint) + 1);
-        vm.prank(oracle.proposer());
+        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
         uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
         vm.warp(finalizationHorizon);
         // The checkpointed block should not be finalized until 1 second from now.
-        assertEq(op.isBlockFinalized(checkpoint), false);
+        assertEq(op.isOutputFinalized(nextOutputIndex), false);
         // Nor should a block after it
-        vm.expectRevert(
-            "L2OutputOracle: block number cannot be greater than the latest block number"
-        );
-        assertEq(op.isBlockFinalized(checkpoint + 1), false);
-        // Nor a block before it, even though the finalization period has passed, there is
-        // not yet a checkpoint block on top of it for which that is true.
-        assertEq(op.isBlockFinalized(checkpoint - 1), false);
+        vm.expectRevert(stdError.indexOOBError);
+        assertEq(op.isOutputFinalized(nextOutputIndex + 1), false);
 
         // warp past the finalization period
         vm.warp(finalizationHorizon + 1);
         // It should now be finalized.
-        assertEq(op.isBlockFinalized(checkpoint), true);
-        // So should the block before it.
-        assertEq(op.isBlockFinalized(checkpoint - 1), true);
+        assertEq(op.isOutputFinalized(nextOutputIndex), true);
         // But not the block after it.
-        vm.expectRevert(
-            "L2OutputOracle: block number cannot be greater than the latest block number"
-        );
-        assertEq(op.isBlockFinalized(checkpoint + 1), false);
+        vm.expectRevert(stdError.indexOOBError);
+        assertEq(op.isOutputFinalized(nextOutputIndex + 1), false);
     }
 }
 
@@ -268,6 +265,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
+    uint256 _proposedOutputIndex;
     uint256 _proposedBlockNumber;
     bytes32 _stateRoot;
     bytes32 _storageRoot;
@@ -306,18 +304,19 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             latestBlockhash: bytes32(uint256(0))
         });
         _proposedBlockNumber = oracle.nextBlockNumber();
+        _proposedOutputIndex = oracle.nextOutputIndex();
     }
 
     // Get the system into a nice ready-to-use state.
     function setUp() public override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
-        vm.prank(oracle.proposer());
+        vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
-            oracle.getL2Output(_proposedBlockNumber).timestamp +
+            oracle.getL2Output(_proposedOutputIndex).timestamp +
                 op.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
@@ -342,7 +341,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.expectRevert("OptimismPortal: you cannot send messages to the portal contract");
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -355,7 +354,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.expectRevert("OptimismPortal: invalid output root proof");
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -363,13 +362,13 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: proveWithdrawalTransaction reverts if the proof is invalid due to non-existence of
     // the withdrawal.
-    function test_proveWithdrawalTransaction_oninvalidWithdrawalProof_reverts() external {
+    function test_proveWithdrawalTransaction_onInvalidWithdrawalProof_reverts() external {
         // modify the default test values to invalidate the proof.
         _defaultTx.data = hex"abcd";
-        vm.expectRevert("OptimismPortal: invalid withdrawal inclusion proof");
+        vm.expectRevert("MerkleTrie: path remainder must share all nibbles with key");
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -382,7 +381,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -390,7 +389,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.expectRevert("OptimismPortal: withdrawal hash has already been proven");
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -398,12 +397,12 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash has
     // already been proven AND the output root has changed AND the l2BlockNumber stays the same.
-    function test_proveWithdrawalTransaction_replayProveChangedOutputRoot_success() external {
+    function test_proveWithdrawalTransaction_replayProveChangedOutputRoot_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -430,7 +429,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -441,26 +440,26 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     }
 
     // Test: proveWithdrawalTransaction succeeds and emits the WithdrawalProven event.
-    function test_proveWithdrawalTransaction_validWithdrawalProof_success() external {
+    function test_proveWithdrawalTransaction_validWithdrawalProof_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
     }
 
     // Test: finalizeWithdrawalTransaction succeeds and emits the WithdrawalFinalized event.
-    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_success() external {
+    function test_finalizeWithdrawalTransaction_provenWithdrawalHash_succeeds() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -491,7 +490,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -520,7 +519,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -555,7 +554,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -568,7 +567,13 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(bytes32(uint256(0)), _proposedBlockNumber))
+            abi.encode(
+                Types.OutputProposal(
+                    bytes32(uint256(0)),
+                    uint128(block.timestamp),
+                    uint128(_proposedBlockNumber)
+                )
+            )
         );
 
         // Attempt to finalize the withdrawal
@@ -591,7 +596,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -604,7 +609,13 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(_outputRoot, block.timestamp + 1))
+            abi.encode(
+                Types.OutputProposal(
+                    _outputRoot,
+                    uint128(block.timestamp + 1),
+                    uint128(_proposedBlockNumber)
+                )
+            )
         );
 
         // Attempt to finalize the withdrawal
@@ -625,7 +636,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -645,12 +656,18 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(_outputRoot, recentTimestamp)
+            abi.encode(
+                Types.OutputProposal(
+                    _outputRoot,
+                    uint128(recentTimestamp),
+                    uint128(_proposedBlockNumber)
+                )
+            )
         );
 
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -665,7 +682,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
             _defaultTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             _outputRootProof,
             _withdrawalProof
         );
@@ -705,12 +722,18 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Hashing.hashOutputRootProof(outputRootProof), _proposedBlockNumber)
+            abi.encode(
+                Types.OutputProposal(
+                    Hashing.hashOutputRootProof(outputRootProof),
+                    uint128(block.timestamp),
+                    uint128(_proposedBlockNumber)
+                )
+            )
         );
 
         op.proveWithdrawalTransaction(
             insufficientGasTx,
-            _proposedBlockNumber,
+            _proposedOutputIndex,
             outputRootProof,
             withdrawalProof
         );
@@ -751,7 +774,13 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
-            abi.encode(Types.OutputProposal(outputRoot, finalizedTimestamp))
+            abi.encode(
+                Types.OutputProposal(
+                    outputRoot,
+                    uint128(finalizedTimestamp),
+                    uint128(_proposedBlockNumber)
+                )
+            )
         );
 
         vm.expectEmit(true, true, true, true);
@@ -773,7 +802,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assert(address(bob).balance == bobBalanceBefore);
     }
 
-    function test_finalizeWithdrawalTransaction_differential_success(
+    function testDiff_finalizeWithdrawalTransaction_succeeds(
         address _sender,
         address _target,
         uint256 _value,
@@ -785,7 +814,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Total ETH supply is currently about 120M ETH.
         uint256 value = bound(_value, 0, 200_000_000 ether);
         uint256 gasLimit = bound(_gasLimit, 0, 50_000_000);
-        uint256 nonce = messagePasser.nonce();
+        uint256 nonce = messagePasser.messageNonce();
         Types.WithdrawalTransaction memory _tx = Types.WithdrawalTransaction({
             nonce: nonce,
             sender: _sender,
@@ -849,7 +878,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         proxy = Proxy(payable(address(op)));
     }
 
-    function test_params_initValuesOnProxy_success() external {
+    function test_params_initValuesOnProxy_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
             payable(address(proxy))
         ).params();
@@ -868,7 +897,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         OptimismPortal(opImpl).initialize();
     }
 
-    function test_upgradeToAndCall_upgrading_success() external {
+    function test_upgradeToAndCall_upgrading_succeeds() external {
         // Check an unused slot before upgrading.
         bytes32 slot21Before = vm.load(address(op), bytes32(uint256(21)));
         assertEq(bytes32(0), slot21Before);

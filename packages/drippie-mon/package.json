@@ -40,6 +40,6 @@
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.7.0",
-    "ts-node": "^10.0.0"
+    "ts-node": "^10.9.1"
   }
 }

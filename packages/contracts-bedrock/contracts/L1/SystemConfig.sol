@@ -32,9 +32,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint256 public constant VERSION = 0;
 
     /**
-     * @notice Minimum gas limit. This should not be lower than the maximum deposit
-     *         gas resource limit in the ResourceMetering contract used by OptimismPortal,
-     *         to ensure the L2 block always has sufficient gas to process deposits.
+     * @notice Minimum gas limit. This should not be lower than the maximum deposit gas resource
+     *         limit in the ResourceMetering contract used by OptimismPortal, to ensure the L2
+     *         block always has sufficient gas to process deposits.
      */
     uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
 

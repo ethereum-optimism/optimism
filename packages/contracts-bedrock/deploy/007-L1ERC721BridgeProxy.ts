@@ -1,20 +1,17 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
-import {
-  assertContractVariable,
-  deployAndVerifyAndThen,
-  getDeploymentAddress,
-} from '../src/deploy-utils'
+import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
-  await deployAndVerifyAndThen({
+  const { deployer } = await hre.getNamedAccounts()
+
+  await deploy({
     hre,
     name: 'L1ERC721BridgeProxy',
     contract: 'Proxy',
-    args: [proxyAdmin],
+    args: [deployer],
     postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'admin', proxyAdmin)
+      await assertContractVariable(contract, 'admin', deployer)
     },
   })
 }

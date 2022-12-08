@@ -25,7 +25,7 @@ contract L1BlockTest is CommonTest {
         });
     }
 
-    function test_updatesValues(
+    function testFuzz_updatesValues_succeeds(
         uint64 n,
         uint64 t,
         uint256 b,
@@ -47,27 +47,27 @@ contract L1BlockTest is CommonTest {
         assertEq(lb.l1FeeScalar(), fs);
     }
 
-    function test_number() external {
+    function test_number_succeeds() external {
         assertEq(lb.number(), uint64(1));
     }
 
-    function test_timestamp() external {
+    function test_timestamp_succeeds() external {
         assertEq(lb.timestamp(), uint64(2));
     }
 
-    function test_basefee() external {
+    function test_basefee_succeeds() external {
         assertEq(lb.basefee(), 3);
     }
 
-    function test_hash() external {
+    function test_hash_succeeds() external {
         assertEq(lb.hash(), NON_ZERO_HASH);
     }
 
-    function test_sequenceNumber() external {
+    function test_sequenceNumber_succeeds() external {
         assertEq(lb.sequenceNumber(), uint64(4));
     }
 
-    function test_updateValues() external {
+    function test_updateValues_succeeds() external {
         vm.prank(depositor);
         lb.setL1BlockValues({
             _number: type(uint64).max,

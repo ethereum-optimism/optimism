@@ -1,6 +1,7 @@
 package ether
 
 import (
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -33,13 +34,17 @@ var (
 	}
 )
 
-func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances []*migration.Allowance, chainID int, commit bool) (common.Hash, error) {
+func MigrateLegacyETH(db ethdb.Database, stateDB *state.StateDB, addresses []common.Address, allowances []*migration.Allowance, chainID int, noCheck bool) error {
 	// Set of addresses that we will be migrating.
 	addressesToMigrate := make(map[common.Address]bool)
 	// Set of storage slots that we expect to see in the OVM ETH contract.
 	storageSlotsToMigrate := make(map[common.Hash]int)
 	// Chain params to use for integrity checking.
 	params := ParamsByChainID[chainID]
+	if params == nil {
+		return fmt.Errorf("no chain params for %d", chainID)
+	}
+	log.Info("Chain params", "chain-id", chainID, "supply-delta", params.ExpectedSupplyDelta)
 
 	// Iterate over each address list, and read the addresses they
 	// contain into memory. Also calculate the storage slots for each
@@ -80,7 +85,7 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 		return nil
 	})
 	if err != nil {
-		return common.Hash{}, wrapErr(err, "error reading mint events")
+		return wrapErr(err, "error reading mint events")
 	}
 
 	// Make sure all addresses are accounted for by iterating over
@@ -91,9 +96,8 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	backingStateDB := state.NewDatabaseWithConfig(db, &trie.Config{
 		Preimages: true,
 	})
-	stateDB, err := state.New(root, backingStateDB, nil)
 	if err != nil {
-		return common.Hash{}, wrapErr(err, "error opening state DB")
+		return wrapErr(err, "error opening state DB")
 	}
 	storageTrie := stateDB.StorageTrie(OVMETHAddress)
 	storageIt := trie.NewIterator(storageTrie.NodeIterator(nil))
@@ -120,7 +124,11 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 		default:
 			// Check if this slot is a variable. If it isn't, abort.
 			if !ignoredSlots[k] {
-				log.Crit("missed storage key", "k", k.String(), "v", v.String())
+				if noCheck {
+					log.Error("missed storage key", "k", k.String(), "v", v.String())
+				} else {
+					log.Crit("missed storage key", "k", k.String(), "v", v.String())
+				}
 			}
 		}
 
@@ -132,13 +140,23 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	// had supply bugs.
 	delta := new(big.Int).Sub(totalSupply, totalFound)
 	if delta.Cmp(params.ExpectedSupplyDelta) != 0 {
-		log.Crit(
-			"supply mismatch",
-			"migrated", totalFound.String(),
-			"supply", totalSupply.String(),
-			"delta", delta.String(),
-			"exp_delta", params.ExpectedSupplyDelta.String(),
-		)
+		if noCheck {
+			log.Error(
+				"supply mismatch",
+				"migrated", totalFound.String(),
+				"supply", totalSupply.String(),
+				"delta", delta.String(),
+				"exp_delta", params.ExpectedSupplyDelta.String(),
+			)
+		} else {
+			log.Crit(
+				"supply mismatch",
+				"migrated", totalFound.String(),
+				"supply", totalSupply.String(),
+				"delta", delta.String(),
+				"exp_delta", params.ExpectedSupplyDelta.String(),
+			)
+		}
 	}
 
 	log.Info(
@@ -154,7 +172,7 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	log.Info("trie dumping started", "root", root)
 	tr, err := backingStateDB.OpenTrie(root)
 	if err != nil {
-		return common.Hash{}, err
+		return err
 	}
 	it := trie.NewIterator(tr.NodeIterator(nil))
 	totalMigrated := new(big.Int)
@@ -176,7 +194,11 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 
 		// No accounts should have a balance in state. If they do, bail.
 		if data.Balance.Sign() > 0 {
-			log.Crit("account has non-zero balance in state - should never happen", "addr", addr)
+			if noCheck {
+				log.Error("account has non-zero balance in state - should never happen", "addr", addr)
+			} else {
+				log.Crit("account has non-zero balance in state - should never happen", "addr", addr)
+			}
 		}
 
 		// Actually perform the migration by setting the appropriate values in state.
@@ -209,32 +231,24 @@ func MigrateLegacyETH(db ethdb.Database, addresses []common.Address, allowances 
 	// Make sure that the amount we migrated matches the amount in
 	// our original state.
 	if totalMigrated.Cmp(totalFound) != 0 {
-		log.Crit(
-			"total migrated does not equal total OVM eth found",
-			"migrated", totalMigrated,
-			"found", totalFound,
-		)
+		if noCheck {
+			log.Debug(
+				"total migrated does not equal total OVM eth found",
+				"migrated", totalMigrated,
+				"found", totalFound,
+			)
+		} else {
+			log.Crit(
+				"total migrated does not equal total OVM eth found",
+				"migrated", totalMigrated,
+				"found", totalFound,
+			)
+		}
 	}
 
 	// Set the total supply to 0
 	stateDB.SetState(predeploys.LegacyERC20ETHAddr, getOVMETHTotalSupplySlot(), common.Hash{})
 	log.Info("Set the totalSupply to 0")
 
-	if !commit {
-		log.Info("dry run, skipping commit")
-		return common.Hash{}, nil
-	}
-
-	log.Info("committing state DB")
-	newRoot, err := stateDB.Commit(true)
-	if err != nil {
-		return common.Hash{}, err
-	}
-
-	log.Info("committing trie DB")
-	if err := stateDB.Database().TrieDB().Commit(newRoot, true, nil); err != nil {
-		return common.Hash{}, err
-	}
-
-	return newRoot, nil
+	return nil
 }

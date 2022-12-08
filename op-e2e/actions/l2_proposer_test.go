@@ -73,7 +73,7 @@ func TestProposer(gt *testing.T) {
 	outputOracleContract, err := bindings.NewL2OutputOracle(sd.DeploymentsL1.L2OutputOracleProxy, miner.EthClient())
 	require.NoError(t, err)
 	block := sequencer.SyncStatus().FinalizedL2
-	outputOnL1, err := outputOracleContract.GetL2Output(nil, new(big.Int).SetUint64(block.Number))
+	outputOnL1, err := outputOracleContract.GetL2OutputAfter(nil, new(big.Int).SetUint64(block.Number))
 	require.NoError(t, err)
 	require.Less(t, block.Time, outputOnL1.Timestamp.Uint64(), "output is registered with L1 timestamp of proposal tx, past L2 block")
 	outputComputed, err := sequencer.RollupClient().OutputAtBlock(t.Ctx(), block.Number)

@@ -124,7 +124,7 @@ function deleteL2Output(bytes32 _l2Output) external
 /**
  * @notice Computes the block number of the next L2 block that needs to be checkpointed.
  */
-function nextBlockNumber() public view returns (uint256) {
+function getNextBlockNumber() public view returns (uint256) {
 ```
 
 ## Security Considerations

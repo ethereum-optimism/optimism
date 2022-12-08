@@ -104,7 +104,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 		// timestamp set in the contract constructor.
 		if l2ooBlockNumber.Cmp(initialOutputBlockNumber) > 0 {
 			// Retrieve the l2 output committed at this updated timestamp.
-			committedL2Output, err := l2OutputOracle.GetL2Output(&bind.CallOpts{}, l2ooBlockNumber)
+			committedL2Output, err := l2OutputOracle.GetL2OutputAfter(&bind.CallOpts{}, l2ooBlockNumber)
 			require.NotEqual(t, [32]byte{}, committedL2Output.OutputRoot, "Empty L2 Output")
 			require.Nil(t, err)
 
@@ -566,7 +566,7 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
 	// Wait for tx to be mined on the L2 sequencer chain
-	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
+	receiptSeq, err := waitForTransaction(tx.Hash(), l2Seq, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
 	// Wait until the block it was first included in shows up in the safe chain on the verifier
@@ -836,7 +836,10 @@ func TestWithdrawals(t *testing.T) {
 	receiptCl := ethclient.NewClient(rpcClient)
 
 	// Now create withdrawal
-	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
+	oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+	require.Nil(t, err)
+
+	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header, oracle)
 	require.Nil(t, err)
 
 	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
@@ -855,7 +858,7 @@ func TestWithdrawals(t *testing.T) {
 			GasLimit: params.GasLimit,
 			Data:     params.Data,
 		},
-		params.BlockNumber,
+		params.L2OutputIndex,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
@@ -869,7 +872,7 @@ func TestWithdrawals(t *testing.T) {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
-	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, params.BlockNumber)
+	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
 	require.Nil(t, err)
 
 	// Finalize withdrawal

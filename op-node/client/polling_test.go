@@ -197,6 +197,7 @@ func TestPollingClientClose(t *testing.T) {
 }
 
 func requireChansEqual(t *testing.T, chans []chan *types.Header, root common.Hash) {
+	t.Helper()
 	for _, ch := range chans {
 		header := <-ch
 		require.Equal(t, root, header.Root)

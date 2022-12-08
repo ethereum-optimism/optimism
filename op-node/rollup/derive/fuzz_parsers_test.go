@@ -141,6 +141,7 @@ var (
 
 // EncodeDepositOpaqueDataV0 performs ABI encoding to create the opaque data field of the deposit event.
 func EncodeDepositOpaqueDataV0(t *testing.T, mint *big.Int, value *big.Int, gasLimit uint64, isCreation bool, data []byte) []byte {
+	t.Helper()
 	// in OptimismPortal.sol:
 	// bytes memory opaqueData = abi.encodePacked(msg.value, _value, _gasLimit, _isCreation, _data);
 	// Geth does not support abi.encodePacked, so we emulate it here by slicing of the padding from the individual elements

@@ -26,7 +26,7 @@ contract Semver_Test is CommonTest {
     /**
      * @notice Test the version getter
      */
-    function test_version() external {
+    function test_version_succeeds() external {
         assertEq(semver.version(), "7.8.0");
     }
 
@@ -35,7 +35,7 @@ contract Semver_Test is CommonTest {
      *         be able to be accessed from behind a proxy without needing
      *         to initialize the contract.
      */
-    function test_behindProxy() external {
+    function test_behindProxy_succeeds() external {
         Proxy proxy = new Proxy(alice);
         vm.prank(alice);
         proxy.upgradeTo(address(semver));

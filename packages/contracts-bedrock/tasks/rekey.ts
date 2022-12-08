@@ -12,7 +12,7 @@ task('rekey', 'Generates a new set of keys for a test network').setAction(
       'optimismBaseFeeRecipient',
       'optimismL1FeeRecipient',
       'p2pSequencerAddress',
-      'l2OutputOracleOwner',
+      'l2OutputOracleChallenger',
       'batchSenderAddress',
     ]
 

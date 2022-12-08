@@ -25,7 +25,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     struct ProvenWithdrawal {
         bytes32 outputRoot;
         uint128 timestamp;
-        uint128 l2BlockNumber;
+        uint128 l2OutputIndex;
     }
 
     /**
@@ -153,13 +153,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice Proves a withdrawal transaction.
      *
      * @param _tx              Withdrawal transaction to finalize.
-     * @param _l2BlockNumber   L2 block number of the outputRoot.
+     * @param _l2OutputIndex   L2 output index to prove against.
      * @param _outputRootProof Inclusion proof of the L2ToL1MessagePasser contract's storage root.
      * @param _withdrawalProof Inclusion proof of the withdrawal in L2ToL1MessagePasser contract.
      */
     function proveWithdrawalTransaction(
         Types.WithdrawalTransaction memory _tx,
-        uint256 _l2BlockNumber,
+        uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
     ) external {
@@ -177,7 +177,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Get the output root and load onto the stack to prevent multiple mloads. This will
         // fail if there is no output root for the given block number.
-        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2BlockNumber).outputRoot;
+        bytes32 outputRoot = L2_ORACLE.getL2Output(_l2OutputIndex).outputRoot;
 
         // Verify that the output root can be generated with the elements in the proof.
         require(
@@ -195,7 +195,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Only allow re-proving a withdrawal transaction if the output root has changed.
         require(
             provenWithdrawal.timestamp == 0 ||
-                (_l2BlockNumber == provenWithdrawal.l2BlockNumber &&
+                (_l2OutputIndex == provenWithdrawal.l2OutputIndex &&
                     outputRoot != provenWithdrawal.outputRoot),
             "OptimismPortal: withdrawal hash has already been proven"
         );
@@ -219,7 +219,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         provenWithdrawals[withdrawalHash] = ProvenWithdrawal({
             outputRoot: outputRoot,
             timestamp: uint128(block.timestamp),
-            l2BlockNumber: uint128(_l2BlockNumber)
+            l2OutputIndex: uint128(_l2OutputIndex)
         });
 
         // Emit a `WithdrawalProven` event.
@@ -263,7 +263,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
 
         // Grab the OutputProposal from the L2 Oracle
         Types.OutputProposal memory proposal = L2_ORACLE.getL2Output(
-            provenWithdrawal.l2BlockNumber
+            provenWithdrawal.l2OutputIndex
         );
 
         // Check that the output proposal hasn't been updated.
@@ -313,13 +313,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice Determine if a given block number is finalized. Reverts if the call to
+     * @notice Determine if a given output is finalized. Reverts if the call to
      *         L2_ORACLE.getL2Output reverts. Returns a boolean otherwise.
      *
-     * @param _l2BlockNumber The number of the L2 block.
+     * @param _l2OutputIndex Index of the L2 output to check.
      */
-    function isBlockFinalized(uint256 _l2BlockNumber) external view returns (bool) {
-        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2BlockNumber).timestamp);
+    function isOutputFinalized(uint256 _l2OutputIndex) external view returns (bool) {
+        return _isFinalizationPeriodElapsed(L2_ORACLE.getL2Output(_l2OutputIndex).timestamp);
     }
 
     /**

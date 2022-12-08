@@ -25,15 +25,15 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         setter = new XDomainSetter2();
     }
 
-    function test_revertNotSetOnlyOwner() external {
+    function test_onlyOwner_notMessenger_reverts() external {
         vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
         setter.set(1);
     }
 
-    function test_revertNotSetOnlyOwner2() external {
-        // set the xdomain messenger storage slot
+    function test_onlyOwner_notOwner_reverts() external {
+        // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
-        bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(setter));
+        bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(alice));
         vm.store(address(L2Messenger), key, value);
 
         vm.prank(address(L2Messenger));
@@ -41,7 +41,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         setter.set(1);
     }
 
-    function test_revertOnlyOwner() external {
+    function test_onlyOwner_notOwner2_reverts() external {
         uint240 nonce = 0;
         address sender = bob;
         address target = address(setter);
@@ -76,7 +76,7 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         assertEq(setter.value(), 0);
     }
 
-    function test_onlyOwner() external {
+    function test_onlyOwner_succeeds() external {
         address owner = setter.owner();
 
         // Simulate the L2 execution where the call is coming from

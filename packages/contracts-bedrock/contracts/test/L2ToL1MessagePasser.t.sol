@@ -25,14 +25,14 @@ contract L2ToL1MessagePasserTest is CommonTest {
         messagePasser = new L2ToL1MessagePasser();
     }
 
-    function test_fuzz_initiateWithdrawal(
+    function testFuzz_initiateWithdrawal_succeeds(
         address _sender,
         address _target,
         uint256 _value,
         uint256 _gasLimit,
         bytes memory _data
     ) external {
-        uint256 nonce = messagePasser.nonce();
+        uint256 nonce = messagePasser.messageNonce();
 
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
@@ -60,10 +60,10 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     // Test: initiateWithdrawal should emit the correct log when called by a contract
-    function test_initiateWithdrawal_fromContract() external {
+    function test_initiateWithdrawal_fromContract_succeeds() external {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction(
-                messagePasser.nonce(),
+                messagePasser.messageNonce(),
                 address(this),
                 address(4),
                 100,
@@ -74,7 +74,7 @@ contract L2ToL1MessagePasserTest is CommonTest {
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
-            messagePasser.nonce(),
+            messagePasser.messageNonce(),
             address(this),
             address(4),
             100,
@@ -88,12 +88,12 @@ contract L2ToL1MessagePasserTest is CommonTest {
     }
 
     // Test: initiateWithdrawal should emit the correct log when called by an EOA
-    function test_initiateWithdrawal_fromEOA() external {
+    function test_initiateWithdrawal_fromEOA_succeeds() external {
         uint256 gasLimit = 64000;
         address target = address(4);
         uint256 value = 100;
         bytes memory data = hex"ff";
-        uint256 nonce = messagePasser.nonce();
+        uint256 nonce = messagePasser.messageNonce();
 
         // EOA emulation
         vm.prank(alice, alice);
@@ -110,11 +110,11 @@ contract L2ToL1MessagePasserTest is CommonTest {
         // the sent messages mapping is filled
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
         // the nonce increments
-        assertEq(nonce + 1, messagePasser.nonce());
+        assertEq(nonce + 1, messagePasser.messageNonce());
     }
 
     // Test: burn should destroy the ETH held in the contract
-    function test_burn() external {
+    function test_burn_succeeds() external {
         messagePasser.initiateWithdrawal{ value: NON_ZERO_VALUE }(
             NON_ZERO_ADDRESS,
             NON_ZERO_GASLIMIT,

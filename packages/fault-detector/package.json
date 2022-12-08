@@ -44,7 +44,7 @@
     "ethers": "^5.7.0",
     "hardhat": "^2.9.6",
     "lodash": "^4.17.21",
-    "ts-node": "^10.8.2"
+    "ts-node": "^10.9.1"
   },
   "dependencies": {
     "@eth-optimism/common-ts": "^0.6.7",

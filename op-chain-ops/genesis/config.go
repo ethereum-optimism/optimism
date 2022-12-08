@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/immutables"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 var ErrInvalidDeployConfig = errors.New("invalid deploy config")
@@ -40,10 +42,7 @@ type DeployConfig struct {
 	L2OutputOracleSubmissionInterval uint64         `json:"l2OutputOracleSubmissionInterval"`
 	L2OutputOracleStartingTimestamp  int            `json:"l2OutputOracleStartingTimestamp"`
 	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
-	L2OutputOracleOwner              common.Address `json:"l2OutputOracleOwner"`
-	L2OutputOracleGenesisL2Output    common.Hash    `json:"l2OutputOracleGenesisL2Output"`
-
-	SystemConfigOwner common.Address `json:"systemConfigOwner"`
+	L2OutputOracleChallenger         common.Address `json:"l2OutputOracleChallenger"`
 
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
@@ -71,8 +70,8 @@ type DeployConfig struct {
 
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the L1CrossDomainMessenger predeploy
-	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
+	// Owner of the system on L1
+	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
@@ -142,20 +141,14 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleProposer == (common.Address{}) {
 		return fmt.Errorf("%w: L2OutputOracleProposer cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.L2OutputOracleOwner == (common.Address{}) {
-		return fmt.Errorf("%w: L2OutputOracleOwner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.L2OutputOracleChallenger == (common.Address{}) {
+		return fmt.Errorf("%w: L2OutputOracleChallenger cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.L2OutputOracleGenesisL2Output == (common.Hash{}) {
-		log.Warn("L2OutputOracleGenesisL2Output is bytes32(0)")
-	}
-	if d.SystemConfigOwner == (common.Address{}) {
-		return fmt.Errorf("%w: SystemConfigOwner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.FinalSystemOwner == (common.Address{}) {
+		return fmt.Errorf("%w: FinalSystemOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.ProxyAdminOwner == (common.Address{}) {
 		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
-	}
-	if d.L2CrossDomainMessengerOwner == (common.Address{}) {
-		return fmt.Errorf("%w: L2CrossDomainMessengerOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.BaseFeeVaultRecipient == (common.Address{}) {
 		log.Warn("BaseFeeVaultRecipient is address(0)")
@@ -186,6 +179,18 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.OptimismPortalProxy == (common.Address{}) {
 		return fmt.Errorf("%w: OptimismPortalProxy cannot be address(0)", ErrInvalidDeployConfig)
+	}
+	if d.EIP1559Denominator == 0 {
+		return fmt.Errorf("%w: EIP1559Denominator cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.EIP1559Elasticity == 0 {
+		return fmt.Errorf("%w: EIP1559Elasticity cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisBlockGasLimit == 0 {
+		return fmt.Errorf("%w: L2 genesis block gas limit cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.L2GenesisBlockBaseFeePerGas == nil {
+		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -257,6 +262,46 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
 	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
+}
+
+// RollupConfig converts a DeployConfig to a rollup.Config
+func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
+	if d.OptimismPortalProxy == (common.Address{}) {
+		return nil, errors.New("OptimismPortalProxy cannot be address(0)")
+	}
+	if d.SystemConfigProxy == (common.Address{}) {
+		return nil, errors.New("SystemConfigProxy cannot be address(0)")
+	}
+
+	return &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1: eth.BlockID{
+				Hash:   l1StartBlock.Hash(),
+				Number: l1StartBlock.NumberU64(),
+			},
+			L2: eth.BlockID{
+				Hash:   l2GenesisBlockHash,
+				Number: l2GenesisBlockNumber,
+			},
+			L2Time: l1StartBlock.Time(),
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: d.BatchSenderAddress,
+				Overhead:    eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleOverhead))),
+				Scalar:      eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(d.GasPriceOracleScalar))),
+				GasLimit:    uint64(d.L2GenesisBlockGasLimit),
+			},
+		},
+		BlockTime:              d.L2BlockTime,
+		MaxSequencerDrift:      d.MaxSequencerDrift,
+		SeqWindowSize:          d.SequencerWindowSize,
+		ChannelTimeout:         d.ChannelTimeout,
+		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
+		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
+		P2PSequencerAddress:    d.P2PSequencerAddress,
+		BatchInboxAddress:      d.BatchInboxAddress,
+		DepositContractAddress: d.OptimismPortalProxy,
+		L1SystemConfigAddress:  d.SystemConfigProxy,
+	}, nil
 }
 
 // NewDeployConfig reads a config file given a path on the filesystem.
@@ -331,11 +376,11 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 
 	storage["L2ToL1MessagePasser"] = state.StorageValues{
-		"nonce": 0,
+		"msgNonce": 0,
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
 		"_initialized": 1,
-		"_owner":       config.L2CrossDomainMessengerOwner,
+		"_owner":       config.ProxyAdminOwner,
 		// re-entrency lock
 		"_status":          1,
 		"_initializing":    false,
@@ -354,10 +399,8 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"l1FeeScalar":    config.GasPriceOracleScalar,
 	}
 	storage["LegacyERC20ETH"] = state.StorageValues{
-		"bridge":      predeploys.L2StandardBridge,
-		"remoteToken": common.Address{},
-		"_name":       "Ether",
-		"_symbol":     "ETH",
+		"_name":   "Ether",
+		"_symbol": "ETH",
 	}
 	storage["WETH9"] = state.StorageValues{
 		"name":     "Wrapped Ether",
@@ -367,8 +410,6 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["GovernanceToken"] = state.StorageValues{
 		"_name":   "Optimism",
 		"_symbol": "OP",
-		// TODO: this should be set to the MintManager
-		"_owner": common.Address{},
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,

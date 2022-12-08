@@ -397,6 +397,8 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 	require.NoError(t, err)
 	l2OutputBlock, err := s.L2.env.EthCl.BlockByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
+	l2OutputIndex, err := s.L1.env.Bindings.L2OutputOracle.GetL2OutputIndexAfter(&bind.CallOpts{}, l2OutputBlockNr)
+	require.NoError(t, err)
 
 	// Check if the L2 output is even old enough to include the withdrawal
 	if l2OutputBlock.NumberU64() < l2WithdrawalBlock.NumberU64() {
@@ -407,7 +409,7 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 	// We generate a proof for the latest L2 output, which shouldn't require archive-node data if it's recent enough.
 	header, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
-	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header)
+	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller)
 	require.NoError(t, err)
 
 	// Create the prove tx
@@ -421,7 +423,7 @@ func (s *CrossLayerUser) ProveWithdrawal(t Testing, l2TxHash common.Hash) common
 			GasLimit: params.GasLimit,
 			Data:     params.Data,
 		},
-		params.BlockNumber,
+		l2OutputIndex,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
@@ -478,7 +480,7 @@ func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash) com
 	// params for the `WithdrawalTransaction` type generated in the bindings.
 	header, err := s.L2.env.EthCl.HeaderByNumber(t.Ctx(), l2OutputBlockNr)
 	require.NoError(t, err)
-	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header)
+	params, err := withdrawals.ProveWithdrawalParameters(t.Ctx(), s.L2.env.Bindings.ProofClient, s.L2.env.EthCl, s.lastL2WithdrawalTxHash, header, &s.L1.env.Bindings.L2OutputOracle.L2OutputOracleCaller)
 	require.NoError(t, err)
 
 	// Create the withdrawal tx

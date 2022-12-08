@@ -77,7 +77,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err := sysCfgABI.Pack(
 		"initialize",
-		config.SystemConfigOwner,
+		config.FinalSystemOwner,
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
@@ -102,11 +102,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = l2ooABI.Pack(
 		"initialize",
-		config.L2OutputOracleGenesisL2Output,
 		big.NewInt(0),
 		uint642Big(uint64(config.L1GenesisBlockTimestamp)),
-		config.L2OutputOracleProposer,
-		config.L2OutputOracleOwner,
 	)
 	if err != nil {
 		return nil, err
@@ -144,7 +141,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = l1XDMABI.Pack(
 		"initialize",
-		config.ProxyAdminOwner,
+		config.FinalSystemOwner,
 	)
 	if err != nil {
 		return nil, err
@@ -266,7 +263,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 		{
 			Name: "SystemConfig",
 			Args: []interface{}{
-				config.SystemConfigOwner,
+				config.FinalSystemOwner,
 				uint642Big(config.GasPriceOracleOverhead),
 				uint642Big(config.GasPriceOracleScalar),
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
@@ -278,11 +275,10 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Args: []interface{}{
 				uint642Big(config.L2OutputOracleSubmissionInterval),
 				uint642Big(config.L2BlockTime),
-				[32]byte(config.L2OutputOracleGenesisL2Output),
 				big.NewInt(0),
 				uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 				config.L2OutputOracleProposer,
-				config.L2OutputOracleOwner,
+				config.L2OutputOracleChallenger,
 			},
 		},
 		{
@@ -340,11 +336,10 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			backend,
 			deployment.Args[0].(*big.Int),
 			deployment.Args[1].(*big.Int),
-			deployment.Args[2].([32]byte),
+			deployment.Args[2].(*big.Int),
 			deployment.Args[3].(*big.Int),
-			deployment.Args[4].(*big.Int),
+			deployment.Args[4].(common.Address),
 			deployment.Args[5].(common.Address),
-			deployment.Args[6].(common.Address),
 		)
 	case "OptimismPortal":
 		_, tx, _, err = bindings.DeployOptimismPortal(

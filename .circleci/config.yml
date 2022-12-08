@@ -237,6 +237,7 @@ jobs:
       - run:
           name: test and generate coverage
           command: yarn coverage:lcov
+          no_output_timeout: 15m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -261,6 +262,47 @@ jobs:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
+
+  bedrock-echidna-build:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: {at: "."}
+      - run:
+          name: Check if we should run
+          command: |
+            shopt -s inherit_errexit
+            CHANGED=$(check-changed "(contracts-bedrock/contracts)" || echo "TRUE")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
+          name: Compile with metadata hash
+          command: yarn build:with-metadata
+          working_directory: packages/contracts-bedrock
+      - persist_to_workspace:
+          root: .
+          paths:
+            - "node_modules"
+            - packages/contracts-bedrock
+
+  bedrock-echidna-run:
+    docker:
+    - image: ethereumoptimism/ci-builder:latest
+    parameters:
+      echidna_target:
+        description: Which echidna fuzz contract to run
+        type: string
+    steps:
+      - checkout
+      - attach_workspace: {at: "."}
+      - run:
+          name: Echidna Fuzz <<parameters.echidna_target>>
+          command: yarn echidna:<<parameters.echidna_target>>
+          working_directory: packages/contracts-bedrock
+          no_output_timeout: 15m
 
   op-bindings-build:
     docker:
@@ -536,7 +578,7 @@ jobs:
 
   devnet:
     machine:
-      image: ubuntu-2004:2022.07.1
+      image: ubuntu-2204:2022.10.2
       docker_layer_caching: true
     parameters:
       deploy:
@@ -547,13 +589,6 @@ jobs:
       DOCKER_BUILDKIT: 1
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(contracts-bedrock|op-bindings|op-batcher|op-node|op-proposer|ops-bedrock|sdk|.circlec)/" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
       - run:
           name: Install latest golang
           command: |
@@ -775,6 +810,13 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - bedrock-echidna-build:
+          requires:
+            - yarn-monorepo
+      - bedrock-echidna-run:
+          echidna_target: aliasing
+          requires:
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
@@ -950,8 +992,6 @@ workflows:
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          context:
-            - gcr
       - docker-publish:
           name: op-node-docker-publish
           docker_name: op-node
@@ -966,8 +1006,6 @@ workflows:
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          context:
-            - gcr
       - docker-publish:
           name: op-batcher-docker-publish
           docker_name: op-batcher
@@ -982,8 +1020,6 @@ workflows:
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          context:
-            - gcr
       - docker-publish:
           name: op-proposer-docker-publish
           docker_name: op-proposer
@@ -1018,6 +1054,62 @@ workflows:
             - op-proposer-docker-build
   release:
     jobs:
+      - docker-build:
+          name: op-node-docker-build
+          docker_file: op-node/Dockerfile
+          docker_name: op-node
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-node-docker-publish
+          docker_name: op-node
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-node-docker-build
+      - docker-build:
+          name: op-batcher-docker-build
+          docker_file: op-batcher/Dockerfile
+          docker_name: op-batcher
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-batcher-docker-publish
+          docker_name: op-batcher
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-batcher-docker-build
+      - docker-build:
+          name: op-proposer-docker-build
+          docker_file: op-proposer/Dockerfile
+          docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-proposer-docker-publish
+          docker_name: op-proposer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-proposer-docker-build
+      - docker-build:
+          name: op-migrate-docker-build
+          docker_file: op-chain-ops/Dockerfile
+          docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-migrate-docker-publish
+          docker_name: op-migrate
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-migrate-docker-build
       - docker-tag-op-stack-release:
           name: docker-tag-op-stack-release
           filters:
@@ -1025,5 +1117,9 @@ workflows:
               only: /^op-[a-z0-9\-]*\/v.*/
             branches:
               ignore: /.*/
+          requires:
+            - op-node-docker-publish
+            - op-proposer-docker-publish
+            - op-batcher-docker-publish
           context:
             - gcr-release
