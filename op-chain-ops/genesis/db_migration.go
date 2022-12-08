@@ -3,8 +3,9 @@ package genesis
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"math/big"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -46,26 +47,26 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
 		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
 
-		//return &MigrationResult{
-		//	TransitionHeight:    *num,
-		//	TransitionTimestamp: header.Time,
-		//	TransitionBlockHash: hash,
-		//}, nil
+		return &MigrationResult{
+			TransitionHeight:    *num,
+			TransitionTimestamp: header.Time,
+			TransitionBlockHash: hash,
+		}, nil
 	}
 
 	// Ensure monotonic timestamps
-	//if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
-	//	return nil, fmt.Errorf(
-	//		"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
-	//	)
-	//}
+	if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
+		return nil, fmt.Errorf(
+			"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
+		)
+	}
 
 	// Ensure that the starting timestamp is safe
-	//if config.L2OutputOracleStartingTimestamp <= 0 {
-	//	return nil, fmt.Errorf(
-	//		"L2 output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
-	//	)
-	//}
+	if config.L2OutputOracleStartingTimestamp <= 0 {
+		return nil, fmt.Errorf(
+			"L2 output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
+		)
+	}
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,

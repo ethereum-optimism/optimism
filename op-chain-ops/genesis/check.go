@@ -44,9 +44,9 @@ func CheckMigratedDB(ldb ethdb.Database) error {
 	}
 	log.Info("checked predeploys")
 
-	//if err := CheckLegacyETH(db); err != nil {
-	//	return err
-	//}
+	if err := CheckLegacyETH(db); err != nil {
+		return err
+	}
 	log.Info("checked legacy eth")
 
 	return nil
