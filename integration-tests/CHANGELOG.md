@@ -1,5 +1,12 @@
 # @eth-optimism/integration-tests
 
+## 0.5.22
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- 1d3c749a2: Updates the version of TypeScript
+
 ## 0.5.21
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.30
+
+### Patch Changes
+
+- 0e8652c29: Close down the syncservice more cleanly
+
 ## 0.5.29
 
 ### Patch Changes

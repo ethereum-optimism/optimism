@@ -1,5 +1,24 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.11.0
+
+### Minor Changes
+
+- 4d13f0afe: Refactors the MerkleTrie get function to throw explicitly instead of returning an existence boolean
+
+### Patch Changes
+
+- 43f33f39f: Add echidna test commands
+- 237a351f1: Add tests to the SystemConfig contract
+- 1d3c749a2: Bumps the version of ts-node used
+- 1594678e0: Add echidna test for AliasHelper
+- 1d3c749a2: Updates the version of TypeScript
+- 136ea1785: Refactors the L2OutputOracle to key the l2Outputs mapping by index instead of by L2 block number.
+- 7300a7ca7: Document test function naming convention and create a script for checking.
+- Updated dependencies [c975c9620]
+- Updated dependencies [136ea1785]
+  - @eth-optimism/core-utils@0.12.0
+
 ## 0.10.0
 
 ### Minor Changes

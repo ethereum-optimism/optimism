@@ -1,5 +1,24 @@
 # @eth-optimism/fault-detector
 
+## 0.4.0
+
+### Minor Changes
+
+- ab5c1b897: Includes a new event caching mechanism for running the fault detector against Geth.
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [767585b07]
+- Updated dependencies [c975c9620]
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [136ea1785]
+  - @eth-optimism/contracts@0.5.39
+  - @eth-optimism/sdk@1.8.0
+  - @eth-optimism/core-utils@0.12.0
+  - @eth-optimism/common-ts@0.6.8
+
 ## 0.3.2
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/indexer
 
+## 0.5.0
+
+### Minor Changes
+
+- f030d8660: Adds support for the OptimismPortal's new `WithdrawalProven` event to the indexer
+
 ## 0.4.0
 
 ### Minor Changes
