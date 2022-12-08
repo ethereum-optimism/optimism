@@ -12,6 +12,10 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     bool failedMaxRaiseBaseFeePerBlock;
     bool failedMaxLowerBaseFeePerBlock;
 
+    // Used as a special flag for the purpose of identifying unchecked math errors specifically
+    // in the test contracts, not the target contracts themselves.
+    bool underflow;
+
     constructor() {
         initialize();
     }
@@ -74,33 +78,50 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
                 ((uint256(params.prevBaseFee) - cachedPrevBaseFee) < maxBaseFeeChange);
         }
 
-        // If the last blocked used less than the target amount of gas ensure this block's baseFee
-        // decreased, but not by more than the max amount
+        // If the last blocked used less than the target amount of gas, (or was empty),
+        // ensure that: this block's baseFee was decreased, but not by more than the max amount
         if (
             (cachedPrevBoughtGas < uint256(TARGET_RESOURCE_LIMIT)) ||
             (uint256(params.prevBlockNum) - cachedPrevBlockNum > 1)
         ) {
+            // Invariant: baseFee should decrease
             failedLowerBaseFee =
                 failedLowerBaseFee ||
                 (uint256(params.prevBaseFee) > cachedPrevBaseFee);
-            if (params.prevBlockNum - cachedPrevBlockNum == 1) {
-                failedMaxLowerBaseFeePerBlock =
-                    failedMaxLowerBaseFeePerBlock ||
-                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBaseFeeChange);
-            }
 
-            // Update the maxBaseFeeChange to account for multiple blocks having passed
-            maxBaseFeeChange = uint256(
-                Arithmetic.cdexp(
-                    int256(cachedPrevBaseFee),
-                    BASE_FEE_MAX_CHANGE_DENOMINATOR,
-                    int256(uint256(params.prevBlockNum) - cachedPrevBlockNum)
-                )
-            );
-            if (params.prevBlockNum - cachedPrevBlockNum > 1) {
+            if (params.prevBlockNum - cachedPrevBlockNum == 1) {
+                // No empty blocks
+                // Invariant: baseFee should not have decreased by more than the maximum amount
                 failedMaxLowerBaseFeePerBlock =
                     failedMaxLowerBaseFeePerBlock ||
-                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBaseFeeChange);
+                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) <= maxBaseFeeChange);
+            } else if (params.prevBlockNum - cachedPrevBlockNum > 1) {
+                // We have at least one empty block
+                // Update the maxBaseFeeChange to account for multiple blocks having passed
+                unchecked {
+                    maxBaseFeeChange = uint256(
+                        int256(cachedPrevBaseFee) -
+                            Arithmetic.clamp(
+                                Arithmetic.cdexp(
+                                    int256(cachedPrevBaseFee),
+                                    BASE_FEE_MAX_CHANGE_DENOMINATOR,
+                                    int256(uint256(params.prevBlockNum) - cachedPrevBlockNum)
+                                ),
+                                MINIMUM_BASE_FEE,
+                                MAXIMUM_BASE_FEE
+                            )
+                    );
+                }
+
+                // Detect an underflow in the previous calculation.
+                // Without using unchecked above, and detecting the underflow here, echidna would
+                // otherwise ignore the revert.
+                underflow = underflow || maxBaseFeeChange > cachedPrevBaseFee;
+
+                // Invariant: baseFee should not have decreased by more than the maximum amount
+                failedMaxLowerBaseFeePerBlock =
+                    failedMaxLowerBaseFeePerBlock ||
+                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) <= maxBaseFeeChange);
             }
         }
     }
@@ -129,5 +150,9 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
 
     function echidna_never_exceed_max_decrease() public view returns (bool) {
         return !failedMaxLowerBaseFeePerBlock;
+    }
+
+    function echidna_underflow() public view returns (bool) {
+        return !underflow;
     }
 }
