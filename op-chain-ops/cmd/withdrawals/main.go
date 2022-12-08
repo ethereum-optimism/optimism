@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
@@ -91,11 +92,6 @@ func main() {
 				return err
 			}
 			log.Info("Set up L2 RPC Client", "chain-id", l2ChainID)
-
-			l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
-			if err != nil {
-				return err
-			}
 
 			l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
 			if err != nil {
@@ -235,7 +231,7 @@ func main() {
 				outputRootProof.MessagePasserStorageRoot[:],
 				outputRootProof.LatestBlockhash[:],
 			)
-			log.Debug(fmt.Sprintf("Do output root hashes match? : %v", localOutputRootHash.Hex() == common.Bytes2Hex(l2Output.OutputRoot[:])))
+			log.Debug(fmt.Sprintf("Do output root hashes match? : %v", localOutputRootHash.Hex()[2:] == common.Bytes2Hex(l2Output.OutputRoot[:])))
 
 			if ctx.String("private-key") == "" {
 				return errors.New("No private key to transact with")
@@ -281,24 +277,9 @@ func main() {
 
 			log.Info(fmt.Sprintf("Withdrawal proven (txHash: %v | withdrawalHash: %v)", tx.Hash().Hex(), hash.Hex()))
 
-			block, err := l1Client.BlockByHash(context.Background(), receipt.BlockHash)
-			if err != nil {
-				return err
-			}
-
-			// Get the finalization period
-			finalizationPeriod, err := portal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-
-			future := block.Time() + finalizationPeriod.Uint64() + 1
-			var result bool
-			// TODO: double check this is the correct RPC
-			err = l1RpcClient.Call(&result, "hardhat_setTimestamp", future)
-			if err != nil {
-				return err
-			}
+			// Block the thread for 10s (`hardhat_setTimestamp` is not exposed)
+			// The finalization period is 2s, so this should be more than enough.
+			time.Sleep(10 * time.Second)
 
 			// Finalize withdrawal
 			tx, err = portal.FinalizeWithdrawalTransaction(
@@ -309,8 +290,6 @@ func main() {
 				return err
 			}
 
-			log.Info(fmt.Sprintf("Withdrawal Finalized (txHash: %v | withdrawalHash: %v)", tx.Hash(), hash))
-
 			receipt, err = bind.WaitMined(context.Background(), l1Client, tx)
 			if err != nil {
 				return err
@@ -318,6 +297,8 @@ func main() {
 			if receipt.Status != types.ReceiptStatusSuccessful {
 				return errors.New("withdrawal finalize unsuccessful")
 			}
+
+			log.Info(fmt.Sprintf("Withdrawal Finalized (txHash: %v | withdrawalHash: %v)", tx.Hash(), hash))
 
 			// TODO: next we want to be sure that the execution was correct.
 			//       to do so we can do a debug_traceTransaction with the call
