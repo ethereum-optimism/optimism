@@ -59,8 +59,8 @@ export const deploy = async ({
   await hre.ethers.provider.waitForTransaction(result.transactionHash)
 
   // Create the contract object to return.
-  const created = getAdvancedContract({
-    hre,
+  const created = asAdvancedContract({
+    confirmations: hre.deployConfig.numDeployConfirmations,
     contract: new Contract(
       result.address,
       iface !== undefined
@@ -81,18 +81,19 @@ export const deploy = async ({
 }
 
 /**
- * Returns a version of the contract object which modifies all of the input contract's methods to:
- * 1. Waits for a confirmed receipt with more than numDeployConfirmations confirmations.
- * 2. Include simple resubmission logic, ONLY for Kovan, which appears to drop transactions.
+ * Returns a version of the contract object which modifies all of the input contract's methods to
+ * automatically await transaction receipts and confirmations. Will also throw if we timeout while
+ * waiting for a transaction to be included in a block.
  *
  * @param opts Options for the contract.
  * @param opts.hre HardhatRuntimeEnvironment.
  * @param opts.contract Contract to wrap.
  * @returns Wrapped contract object.
  */
-export const getAdvancedContract = (opts: {
-  hre: HardhatRuntimeEnvironment
+export const asAdvancedContract = (opts: {
   contract: Contract
+  confirmations?: number
+  gasPrice?: number
 }): Contract => {
   // Temporarily override Object.defineProperty to bypass ether's object protection.
   const def = Object.defineProperty
@@ -114,32 +115,25 @@ export const getAdvancedContract = (opts: {
   for (const fnName of Object.keys(contract.functions)) {
     const fn = contract[fnName].bind(contract)
     ;(contract as any)[fnName] = async (...args: any) => {
-      // We want to use the gas price that has been configured at the beginning of the deployment.
-      // However, if the function being triggered is a "constant" (static) function, then we don't
-      // want to provide a gas price because we're prone to getting insufficient balance errors.
-      let gasPrice: number | undefined
-      try {
-        gasPrice = opts.hre.deployConfig.gasPrice
-      } catch (err) {
-        // Fine, no gas price
-      }
-
+      // We want to use the configured gas price but we need to set the gas price to zero if we're
+      // triggering a static function.
+      let gasPrice = opts.gasPrice
       if (contract.interface.getFunction(fnName).constant) {
         gasPrice = 0
       }
 
+      // Now actually trigger the transaction (or call).
       const tx = await fn(...args, {
         gasPrice,
       })
 
+      // Meant for static calls, we don't need to wait for anything, we get the result right away.
       if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
         return tx
       }
 
-      // Special logic for:
-      // (1) handling confirmations
-      // (2) handling an issue on Kovan specifically where transactions get dropped for no
-      //     apparent reason.
+      // Wait for the transaction to be included in a block and wait for the specified number of
+      // deployment confirmations.
       const maxTimeout = 120
       let timeout = 0
       while (true) {
@@ -147,16 +141,10 @@ export const getAdvancedContract = (opts: {
         const receipt = await contract.provider.getTransactionReceipt(tx.hash)
         if (receipt === null) {
           timeout++
-          if (timeout > maxTimeout && opts.hre.network.name === 'kovan') {
-            // Special resubmission logic ONLY required on Kovan.
-            console.log(
-              `WARNING: Exceeded max timeout on transaction. Attempting to submit transaction again...`
-            )
-            return contract[fnName](...args)
+          if (timeout > maxTimeout) {
+            throw new Error('timeout exceeded waiting for txn to be mined')
           }
-        } else if (
-          receipt.confirmations >= opts.hre.deployConfig.numDeployConfirmations
-        ) {
+        } else if (receipt.confirmations >= (opts.confirmations || 0)) {
           return tx
         }
       }
@@ -204,8 +192,8 @@ export const getContractFromArtifact = async (
     }
   }
 
-  return getAdvancedContract({
-    hre,
+  return asAdvancedContract({
+    confirmations: hre.deployConfig.numDeployConfirmations,
     contract: new hre.ethers.Contract(
       artifact.address,
       iface,
