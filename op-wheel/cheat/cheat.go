@@ -124,6 +124,10 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// using Clique consensus, which causes a panic.
 	rawdb.WriteTd(batch, blockHash, preBlock.NumberU64(), ch.Blockchain.GetTd(preBlock.Hash(), preBlock.NumberU64()))
 
+	// Need to copy over receipts since they are keyed by block hash.
+	receipts := rawdb.ReadReceipts(ch.DB, preBlock.Hash(), preBlock.NumberU64(), ch.Blockchain.Config())
+	rawdb.WriteReceipts(batch, blockHash, preBlock.NumberU64(), receipts)
+
 	// Geth maintains an internal mapping between block bodies and their hashes. None of the database
 	// accessors above update this mapping, so we need to do it manually.
 	oldKey := blockBodyKey(preBlock.NumberU64(), preBlock.Hash())
