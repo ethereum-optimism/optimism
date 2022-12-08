@@ -41,8 +41,8 @@ func main() {
 	app.Writer = os.Stdout
 	app.ErrWriter = os.Stderr
 	app.Commands = []cli.Command{
-		//wheel.CheatCmd,
-		//wheel.EngineCmd,
+		wheel.CheatCmd,
+		wheel.EngineCmd,
 	}
 
 	err := app.Run(os.Args)
