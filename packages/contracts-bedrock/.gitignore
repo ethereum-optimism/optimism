@@ -10,4 +10,4 @@ src/contract-artifacts.ts
 tmp-artifacts
 deployments/mainnet-forked
 deploy-config/mainnet-forked.json
-go-fuzz/fuzz
+test-case-generator/fuzz

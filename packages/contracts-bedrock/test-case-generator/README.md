@@ -1,10 +1,10 @@
-# `go-fuzz`
+# `ctb-test-case-generator`
 
 A lightweight input fuzzing utility used for testing various Bedrock contracts.
 
 <pre>
-├── go-fuzz
-│   ├── <a href="./cmd">cmd</a>: `go-fuzz`'s binary
+├── test-case-generator
+│   ├── <a href="./cmd">cmd</a>: `ctb-test-case-genertor`'s binary
 │   └── <a href="./trie">trie</a>: Utility for generating random merkle trie roots / inclusion proofs
 </pre>
 
