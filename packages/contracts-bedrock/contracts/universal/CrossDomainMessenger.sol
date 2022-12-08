@@ -71,6 +71,14 @@ abstract contract CrossDomainMessenger is
     uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     /**
+     * @notice Address to use when estimating gas for a message where the minimum gas limit on the
+     *         message would not be sufficient to successfully execute the message. We use
+     *         address(1) because we want to guarantee that the estimation address will never have
+     *         code and address(1) is the ecrecover precompile on all EVM-equivalent chains.
+     */
+    address public constant ESTIMATION_ADDRESS = address(1);
+
+    /**
      * @notice Minimum amount of gas required to relay a message.
      */
     uint256 internal constant RELAY_GAS_REQUIRED = 45_000;
@@ -329,6 +337,15 @@ abstract contract CrossDomainMessenger is
         } else {
             receivedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
+
+            // Revert in this case if the transaction was triggered by the estimation address. This
+            // should only be possible during gas estimation or we have bigger problems. Reverting
+            // here will make the behavior of gas estimation change such that the gas limit
+            // computed will be the amount required to relay the message, even if that amount is
+            // greater than the minimum gas limit specified by the user.
+            if (tx.origin == ESTIMATION_ADDRESS) {
+                revert("CrossDomainMessenger: failed to relay message");
+            }
         }
     }
 
