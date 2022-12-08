@@ -302,7 +302,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Trigger the call to the target contract. We use SafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
         // call to run out of gas via a returndata bomb.
-        bool success = SafeCall.call(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
+        bool success = SafeCall.call(
+            _tx.target,
+            gasleft() - FINALIZE_GAS_BUFFER,
+            _tx.value,
+            _tx.data
+        );
 
         // Reset the l2Sender back to the default value.
         l2Sender = DEFAULT_L2_SENDER;
