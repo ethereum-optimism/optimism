@@ -290,11 +290,16 @@ jobs:
 
   bedrock-echidna-run:
     docker:
-    - image: ethereumoptimism/ci-builder:latest
+      - image: ethereumoptimism/ci-builder:latest
     parameters:
       echidna_target:
         description: Which echidna fuzz contract to run
         type: string
+      size:
+        description: Custom resource class size for the run
+        type: string
+        default: large
+    resource_class: <<parameters.size>>
     steps:
       - checkout
       - attach_workspace: {at: "."}
@@ -815,6 +820,15 @@ workflows:
             - yarn-monorepo
       - bedrock-echidna-run:
           echidna_target: aliasing
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          echidna_target: "burn:eth"
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          echidna_target: "burn:gas"
+          size: 2xlarge
           requires:
             - bedrock-echidna-build
       - op-bindings-build:
