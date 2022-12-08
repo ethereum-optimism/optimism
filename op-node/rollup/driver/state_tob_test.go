@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,9 +29,12 @@ type TestDummyOutputImpl struct {
 	l2Head   eth.L2BlockRef
 }
 
-func (d *TestDummyOutputImpl) StartBuildingBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) error {
+func (d *TestDummyOutputImpl) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool) {
+	return 0, d.l1Origin != (eth.L1BlockRef{})
+}
+
+func (d *TestDummyOutputImpl) StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error {
 	d.l1Origin = l1Origin
-	d.l2Head = l2Head
 	return nil
 }
 
@@ -132,7 +136,7 @@ func TestRejectCreateBlockBadTimestamp(t *testing.T) {
 	l2HeadRef.Time = l2l1OriginBlock.Time - (cfg.BlockTime * 2)
 
 	// Create our outputter
-	outputProvider := &TestDummyOutputImpl{cfg: &cfg, willError: false}
+	outputProvider := &TestDummyOutputImpl{cfg: &cfg, l2Head: l2HeadRef, willError: false}
 
 	// Create our state
 	s := Driver{
@@ -218,7 +222,7 @@ func FuzzRejectCreateBlockBadTimestamp(f *testing.F) {
 		l2HeadRef.Time = currentL2HeadTime
 
 		// Create our outputter
-		outputProvider := &TestDummyOutputImpl{cfg: &cfg, willError: forceOutputFail}
+		outputProvider := &TestDummyOutputImpl{cfg: &cfg, l2Head: l2HeadRef, willError: forceOutputFail}
 
 		// Create our state
 		s := Driver{

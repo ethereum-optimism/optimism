@@ -23,6 +23,8 @@ type SyncStatus = eth.SyncStatus
 // sealingDuration defines the expected time it takes to seal the block
 const sealingDuration = time.Millisecond * 50
 
+var UninitializedL1StateErr = errors.New("the L1 Head in L1 State is not initialized yet")
+
 type Driver struct {
 	l1State L1StateIface
 
@@ -133,12 +135,10 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 // startNewL2Block starts sequencing a new L2 block on top of the unsafe L2 Head.
 func (s *Driver) startNewL2Block(ctx context.Context) error {
 	l2Head := s.derivation.UnsafeL2Head()
-	l2Safe := s.derivation.SafeL2Head()
-	l2Finalized := s.derivation.Finalized()
 
 	l1Head := s.l1State.L1Head()
 	if l1Head == (eth.L1BlockRef{}) {
-		return derive.NewTemporaryError(errors.New("the L1 Head in L1 State is not initialized yet"))
+		return UninitializedL1StateErr
 	}
 
 	// Figure out which L1 origin block we're going to be building on top of.
@@ -165,7 +165,7 @@ func (s *Driver) startNewL2Block(ctx context.Context) error {
 	}
 
 	// Start creating the new block.
-	return s.sequencer.StartBuildingBlock(ctx, l2Head, l2Safe.ID(), l2Finalized.ID(), l1Origin)
+	return s.sequencer.StartBuildingBlock(ctx, l1Origin)
 }
 
 // completeNewBlock completes a previously started L2 block sequencing job.
@@ -209,60 +209,6 @@ func (s *Driver) eventLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	blockTime := time.Duration(s.config.BlockTime) * time.Second
-
-	// If sequencing: at all times, one of these is nil, and the other is non-nil.
-	// buildStartTimeCh starts creation of a block.
-	// buildSealTimeCh completes creation of a block.
-	var buildStartTimeCh, buildSealTimeCh <-chan time.Time
-	// timer, reused to support both of the above time channels
-	var buildingTimer *time.Timer
-
-	reqBuild := func(buildErr error) {
-		if !s.driverConfig.SequencerEnabled {
-			// if we are not sequencing, then ignore the request.
-			return
-		}
-		if buildSealTimeCh != nil {
-			// something made us choose to cancel the building job, e.g. as response to a deep enough reorg.
-			buildSealTimeCh = nil
-			s.log.Warn("cancelling previously scheduled block sealing job in favor of new block building task!")
-		}
-		var delay time.Duration
-		if buildErr != nil {
-			// TODO: maybe define sequencer-specific errors, instead of reusing the derivation errors?
-			if errors.Is(buildErr, derive.ErrCritical) {
-				s.log.Error("critical sequencing error! Stopping sequencer scheduler.", "err", buildErr)
-				return
-			} else if errors.Is(buildErr, derive.ErrTemporary) {
-				// temporary errors are not so bad, just retry in 500ms
-				delay = 500 * time.Millisecond
-			} else {
-				// we just hit an unknown type of error, delay a re-attempt by as much as a block
-				delay = blockTime
-			}
-		} else if !s.idleDerivation {
-			// if we are syncing, retry 1 block time later
-			delay = blockTime
-		} else {
-			// Building should start ASAP after the current block time.
-			// If the L2 chain is ahead into the future due to a previous inaccuracy, we can wait.
-			head := s.derivation.UnsafeL2Head()
-			payloadTime := time.Unix(int64(head.Time), 0)
-			delay = time.Until(payloadTime)
-		}
-		s.log.Info("scheduled next block", "delay", delay)
-		buildingTimer.Reset(delay)
-		// reset the scheduled block starting time
-		buildStartTimeCh = buildingTimer.C
-	}
-
-	if s.driverConfig.SequencerEnabled {
-		buildingTimer = time.NewTimer(time.Second)
-		defer buildingTimer.Stop()
-		reqBuild(nil) // request initial block
-	}
-
 	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
 	stepReqCh := make(chan struct{}, 1)
 
@@ -303,51 +249,46 @@ func (s *Driver) eventLoop() {
 	// L1 chain that we need to handle.
 	reqStep()
 
+	blockTime := time.Duration(s.config.BlockTime) * time.Second
+
+	var sequenceErr error
+	var sequenceErrTime time.Time
+	sequencerTimer := time.NewTimer(0)
+	var sequencerCh <-chan time.Time
+
 	for {
+		var sealNext bool
+		if s.driverConfig.SequencerEnabled {
+			delay, seal := s.sequencer.PlanNextSequencerAction(sequenceErr)
+			if sequenceErr != nil && time.Since(sequenceErrTime) > delay {
+				sequenceErr = nil
+			}
+			sequencerCh = sequencerTimer.C
+			sequencerTimer.Reset(delay)
+			sealNext = seal
+		} else {
+			sequencerCh = nil
+		}
+
 		select {
-		case <-buildSealTimeCh:
-			buildSealTimeCh = nil
-			// try to seal the current block task, and allow it to take up to 3 seconds.
-			// If this fails we will simply start a new block building job.
-			ctx, cancel := context.WithTimeout(ctx, 3*blockTime)
-			err := s.completeNewBlock(ctx)
-			cancel()
-			if err != nil {
-				s.log.Error("failed to complete block sealing", "err", err)
-			}
-			reqBuild(err)
-		case <-buildStartTimeCh:
-			if !s.idleDerivation {
-				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", s.l1State.L1Head())
-				reqBuild(nil)
-				break
-			}
-			head := s.derivation.UnsafeL2Head()
-			payloadTime := time.Unix(int64(head.Time+s.config.BlockTime), 0)
-			if remainingTime := time.Until(payloadTime); remainingTime > blockTime {
-				s.log.Info("too early to build future block, rescheduling block building start now", "head", head, "head_time", head.Time, "block_time", s.config.BlockTime)
-				reqBuild(nil)
-				break
-			}
-			// Start the block building, don't allow the starting of sequencing to get stuck for more the time of 1 block.
-			ctx, cancel := context.WithTimeout(ctx, blockTime)
-			err := s.startNewL2Block(ctx)
-			cancel()
-			if err != nil {
-				s.log.Error("failed to start block building", "err", err)
-				reqBuild(err)
-				break
-			}
-			// finish 10ms before payloadTime
-			sealDelay := time.Until(payloadTime)
-			if sealDelay < sealingDuration {
-				sealDelay = 0 // if there's not enough time for sealing, don't wait.
+		case <-sequencerCh:
+			s.log.Info("sequencing now!", "seal", sealNext, "idle_derivation", s.idleDerivation)
+			if sealNext {
+				// try to seal the current block task, and allow it to take up to 3 block times.
+				// If this fails we will simply start a new block building job.
+				ctx, cancel := context.WithTimeout(ctx, 3*blockTime)
+				sequenceErr = s.completeNewBlock(ctx)
+				cancel()
 			} else {
-				sealDelay -= sealingDuration
+				// Start the block building, don't allow the starting of sequencing to get stuck for more the time of 1 block.
+				ctx, cancel := context.WithTimeout(ctx, blockTime)
+				sequenceErr = s.startNewL2Block(ctx)
+				cancel()
 			}
-			buildSealTimeCh = buildingTimer.C
-			buildStartTimeCh = nil
-			buildingTimer.Reset(sealDelay)
+			if sequenceErr != nil {
+				s.log.Error("sequencing error", "err", sequenceErr)
+				sequenceErrTime = time.Now()
+			}
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
