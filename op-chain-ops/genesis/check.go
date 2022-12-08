@@ -66,8 +66,17 @@ func CheckPredeploys(db vm.StateDB) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
+		// There must be an admin
+		admin := db.GetState(addr, AdminSlot)
+		adminAddr := common.BytesToAddress(admin.Bytes())
+		if adminAddr != predeploys.ProxyAdminAddr {
+			return fmt.Errorf("admin is %s when it should be % for %s", adminAddr, predeploys.ProxyAdminAddr, addr)
+		}
+	}
+
+	for _, addr := range predeploys.Predeploys {
 		// There must be an implementation
-		impl := db.GetState(addr, ImplementationSlot)
+		impl := db.GetState(*addr, ImplementationSlot)
 		implAddr := common.BytesToAddress(impl.Bytes())
 		if implAddr == (common.Address{}) {
 			return fmt.Errorf("no implementation for %s", addr)
@@ -76,14 +85,8 @@ func CheckPredeploys(db vm.StateDB) error {
 		if len(implCode) == 0 {
 			return fmt.Errorf("no code found at predeploy impl %s", addr)
 		}
-
-		// There must be an admin
-		admin := db.GetState(addr, AdminSlot)
-		adminAddr := common.BytesToAddress(admin.Bytes())
-		if adminAddr != predeploys.ProxyAdminAddr {
-			return fmt.Errorf("admin is %s when it should be % for %s", adminAddr, predeploys.ProxyAdminAddr, addr)
-		}
 	}
+
 	return nil
 }
 
