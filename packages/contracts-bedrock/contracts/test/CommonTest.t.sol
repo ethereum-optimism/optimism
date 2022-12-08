@@ -639,7 +639,7 @@ contract FFIInterface is Test {
         )
     {
         string[] memory cmds = new string[](5);
-        cmds[0] = "./go-fuzz/fuzz";
+        cmds[0] = "./test-case-generator/fuzz";
         cmds[1] = "-m";
         cmds[2] = "trie";
         cmds[3] = "-v";
