@@ -2,7 +2,6 @@ module github.com/ethereum-optimism/optimism/op-e2e
 
 go 1.18
 
-replace github.com/ethereum-optimism/optimism/op-chain-ops v0.10.0 => ../op-chain-ops
 
 require (
 	github.com/docker/docker v20.10.21+incompatible
