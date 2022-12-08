@@ -74,6 +74,8 @@ func CheckPredeploys(db vm.StateDB) error {
 		}
 	}
 
+	// For each predeploy, check that we've set the implementation correctly when
+	// necessary and that there's code at the implementation.
 	for _, proxyAddr := range predeploys.Predeploys {
 		implAddr, special, err := mapImplementationAddress(proxyAddr)
 		if err != nil {

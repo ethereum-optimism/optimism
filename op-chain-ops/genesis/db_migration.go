@@ -76,20 +76,20 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	// Convert all of the messages into legacy withdrawals
-	//withdrawals, err := migrationData.ToWithdrawals()
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
-	//}
+	withdrawals, err := migrationData.ToWithdrawals()
+	if err != nil {
+		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
+	}
 
-	//if !noCheck {
-	//	log.Info("Checking withdrawals...")
-	//	if err := CheckWithdrawals(db, withdrawals); err != nil {
-	//		return nil, fmt.Errorf("withdrawals mismatch: %w", err)
-	//	}
-	//	log.Info("Withdrawals accounted for!")
-	//} else {
-	//	log.Info("Skipping checking withdrawals")
-	//}
+	if !noCheck {
+		log.Info("Checking withdrawals...")
+		if err := CheckWithdrawals(db, withdrawals); err != nil {
+			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
+		}
+		log.Info("Withdrawals accounted for!")
+	} else {
+		log.Info("Skipping checking withdrawals")
+	}
 
 	// Now start the migration
 	log.Info("Setting the Proxies")
@@ -97,26 +97,26 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
-	//storage, err := NewL2StorageConfig(config, l1Block)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot create storage config: %w", err)
-	//}
-	//
-	//immutable, err := NewL2ImmutableConfig(config, l1Block)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot create immutable config: %w", err)
-	//}
-	//
-	//if err := SetImplementations(db, storage, immutable); err != nil {
-	//	return nil, fmt.Errorf("cannot set implementations: %w", err)
-	//}
+	storage, err := NewL2StorageConfig(config, l1Block)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create storage config: %w", err)
+	}
 
-	//log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	//err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
-	//}
-	//log.Info("Completed withdrawal migration")
+	immutable, err := NewL2ImmutableConfig(config, l1Block)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create immutable config: %w", err)
+	}
+
+	if err := SetImplementations(db, storage, immutable); err != nil {
+		return nil, fmt.Errorf("cannot set implementations: %w", err)
+	}
+
+	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
+	if err != nil {
+		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
+	}
+	log.Info("Completed withdrawal migration")
 
 	log.Info("Starting to migrate ERC20 ETH")
 	//addrs := migrationData.Addresses()
