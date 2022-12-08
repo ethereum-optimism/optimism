@@ -7,7 +7,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -46,11 +45,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
 		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
 
-		return &MigrationResult{
-			TransitionHeight:    *num,
-			TransitionTimestamp: header.Time,
-			TransitionBlockHash: hash,
-		}, nil
+		//return &MigrationResult{
+		//	TransitionHeight:    *num,
+		//	TransitionTimestamp: header.Time,
+		//	TransitionBlockHash: hash,
+		//}, nil
 	}
 
 	// Ensure monotonic timestamps
@@ -120,11 +119,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	log.Info("Completed withdrawal migration")
 
 	log.Info("Starting to migrate ERC20 ETH")
-	addrs := migrationData.Addresses()
-	err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
-	if err != nil {
-		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
-	}
+	//addrs := migrationData.Addresses()
+	//err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
+	//if err != nil {
+	//	return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
+	//}
 	log.Info("Completed ERC20 ETH migration")
 
 	newRoot, err := db.Commit(true)
