@@ -13,6 +13,9 @@ import { RLPReader } from "../rlp/RLPReader.sol";
 library MerkleTrie {
     /**
      * @notice Struct representing a node in the trie.
+     *
+     * @custom:field encoded The RLP-encoded node.
+     * @custom:field decoded The RLP-decoded node.
      */
     struct TrieNode {
         bytes encoded;
