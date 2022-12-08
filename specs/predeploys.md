@@ -12,12 +12,13 @@
 - [WETH9](#weth9)
 - [L2CrossDomainMessenger](#l2crossdomainmessenger)
 - [L2StandardBridge](#l2standardbridge)
-- [SequencerFeeVault](#sequencerfeevault)
 - [OptimismMintableERC20Factory](#optimismmintableerc20factory)
+- [OptimismMintableERC721Factory](#optimismmintableerc721factory)
 - [L1BlockNumber](#l1blocknumber)
 - [GasPriceOracle](#gaspriceoracle)
 - [L1Block](#l1block)
 - [ProxyAdmin](#proxyadmin)
+- [SequencerFeeVault](#sequencerfeevault)
 - [BaseFeeVault](#basefeevault)
 - [L1FeeVault](#l1feevault)
 
@@ -25,9 +26,9 @@
 
 ## Overview
 
-Predeployed smart contracts exist on Optimism at predetermined addresses in
-the genesis state. They are similar to precompiles but instead run directly
-in the EVM instead of running native code outside of the EVM.
+[Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy] exist on Optimism
+at predetermined addresses in the genesis state. They are  similar to precompiles but instead run
+directly in the EVM instead of running  native code outside of the EVM.
 
 Predeploys are used instead of precompiles to make it easier for multiclient
 implementations as well as allowing for more integration with hardhat/foundry
@@ -78,7 +79,10 @@ of the withdrawing transaction on L1. The expected account that includes
 the storage slot is hardcoded into the L1 logic. After the bedrock upgrade,
 the `L2ToL1MessagePasser` is used instead. Finalizing withdrawals from this
 contract will no longer be supported after the Bedrock and is only left
-to allow for alternative bridges that may depend on it.
+to allow for alternative bridges that may depend on it. This contract does
+not forward calls to the `L2ToL1MessagePasser` and calling it is considered
+a no-op in context of doing withdrawals through the `CrossDomainMessenger`
+system.
 
 Any pending withdrawals that have not been finalized are migrated to the
 `L2ToL1MessagePasser` as part of the upgrade so that they can still be
@@ -104,7 +108,7 @@ permissionlessly removed from the L2 supply by calling the `burn()` function.
 
 Address: `0x4200000000000000000000000000000000000002`
 
-The `DeployerWhitelist` is a predeploy used to provide additional
+The `DeployerWhitelist` is a predeploy that was used to provide additional
 safety during the initial phases of Optimism. It is owned by the
 Optimism foundation and defines the accounts that are allowed to deploy contracts to the
 network.
@@ -142,7 +146,7 @@ Address: `0x4200000000000000000000000000000000000006`
 
 `WETH9` is the standard implementation of Wrapped Ether on Optimism. It is a
 commonly used contract and is placed as a predeploy so that it is at a
-deterministic address across chains.
+deterministic address across Optimism based networks.
 
 ## L2CrossDomainMessenger
 
@@ -151,7 +155,8 @@ deterministic address across chains.
 Address: `0x4200000000000000000000000000000000000007`
 
 The `L2CrossDomainMessenger` gives a higher level API for sending cross domain
-messages. It maintains a mapping of L1 messages that have been relayed to L2
+messages compared to directly calling the `L2ToL1MessagePasser`.
+It maintains a mapping of L1 messages that have been relayed to L2
 to prevent replay attacks and also allows for replayability if the L1 to L2
 transaction reverts on L2.
 
@@ -179,25 +184,6 @@ token to the specified account.
 To withdraw a token from L2 to L1, the user will burn the token on L2 and the
 `L2StandardBridge` will send a message to the `L1StandardBridge` which will
 unlock the underlying token and transfer it to the specified account.
-
-## SequencerFeeVault
-
-[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/SequencerFeeVault.sol)
-
-Address: `0x4200000000000000000000000000000000000011`
-
-The `SequencerFeeVault` accumulates any transaction tips and is the value of
-`block.coinbase`. When enough fees accumulate in this account, they can be
-permissionlessly withdrawn to an immutable L1 address.
-
-To change the L1 address that fees are withdrawn to, the contract must be
-upgraded by changing its proxy's implementation key.
-
-## OptimismMintableERC20Factory
-
-[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/OptimismMintableERC721Factory.sol)
-
-Address: `0x4200000000000000000000000000000000000012`
 
 The `OptimismMintableERC20Factory` can be used to create an ERC20 token contract
 on a remote domain that maps to an ERC20 token contract on the local domain
@@ -270,6 +256,42 @@ Address: `0x4200000000000000000000000000000000000018`
 The `ProxyAdmin` is the owner of all of the proxy contracts set at the
 predeploys. It is not behind a proxy itself. The owner of the `ProxyAdmin` will
 have the ability to upgrade any of the other predeploy contracts.
+
+## SequencerFeeVault
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/SequencerFeeVault.sol)
+
+Address: `0x4200000000000000000000000000000000000011`
+
+The `SequencerFeeVault` accumulates any transaction tips and is the value of
+`block.coinbase`. When enough fees accumulate in this account, they can be
+permissionlessly withdrawn to an immutable L1 address.
+
+To change the L1 address that fees are withdrawn to, the contract must be
+upgraded by changing its proxy's implementation key.
+
+## OptimismMintableERC20Factory
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol)
+
+Address: `0x4200000000000000000000000000000000000012`
+
+The `OptimismMintableERC20Factory` is responsible for creating ERC20 contracts on L2 that can be
+used for depositing native L1 tokens into. These ERC20 contracts can be created permisionlessly
+and implement the interface required by the `StandardBridge` to just work with deposits and withdrawals.
+
+Each ERC20 contract that is created by the `OptimismMintableERC20Factory` allows for the `L2StandardBridge` to mint
+and burn tokens, depending on if the user is depositing from L1 to L2 or withdrawaing from L2 to L1.
+
+## OptimismMintableERC721Factory
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/OptimismMintableERC721Factory.sol)
+
+Address: `0x4200000000000000000000000000000000000017`
+
+The `OptimismMintableERC721Factory` is responsible for creating ERC721 contracts on L2 that can be used for
+depositing native L1 NFTs into.
+
 
 ## BaseFeeVault
 
