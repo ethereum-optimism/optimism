@@ -84,13 +84,13 @@ func CheckPredeploys(db vm.StateDB) error {
 			impl := db.GetState(*proxyAddr, ImplementationSlot)
 			implAddr := common.BytesToAddress(impl.Bytes())
 			if implAddr == (common.Address{}) {
-				return fmt.Errorf("no implementation for %s", proxyAddr)
+				return fmt.Errorf("no implementation for %s", *proxyAddr)
 			}
 		}
 
 		implCode := db.GetCode(implAddr)
 		if len(implCode) == 0 {
-			return fmt.Errorf("no code found at predeploy impl %s", addr)
+			return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
 		}
 	}
 
