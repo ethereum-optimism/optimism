@@ -173,7 +173,7 @@ var Subcommands = cli.Commands{
 	},
 }
 
-func writeGenesisFile(outfile string, input interface{}) error {
+func writeGenesisFile(outfile string, input any) error {
 	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
 	if err != nil {
 		return err

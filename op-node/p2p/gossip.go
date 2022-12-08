@@ -155,7 +155,7 @@ func validationResultString(v pubsub.ValidationResult) string {
 func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
 		res := fn(ctx, id, message)
-		var src interface{}
+		var src any
 		src = id
 		if id == self {
 			src = "self"
@@ -395,10 +395,10 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 }
 
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
-type MessageHandler func(ctx context.Context, from peer.ID, msg interface{}) error
+type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
 
 func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error) MessageHandler {
-	return func(ctx context.Context, from peer.ID, msg interface{}) error {
+	return func(ctx context.Context, from peer.ID, msg any) error {
 		payload, ok := msg.(*eth.ExecutionPayload)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)

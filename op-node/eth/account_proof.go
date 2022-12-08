@@ -27,7 +27,7 @@ type AccountResult struct {
 
 // Verify an account proof from the getProof RPC. See https://eips.ethereum.org/EIPS/eip-1186
 func (res *AccountResult) Verify(stateRoot common.Hash) error {
-	accountClaimed := []interface{}{uint64(res.Nonce), (*big.Int)(res.Balance).Bytes(), res.StorageHash, res.CodeHash}
+	accountClaimed := []any{uint64(res.Nonce), (*big.Int)(res.Balance).Bytes(), res.StorageHash, res.CodeHash}
 	accountClaimedValue, err := rlp.EncodeToBytes(accountClaimed)
 	if err != nil {
 		return fmt.Errorf("failed to encode account from retrieved values: %w", err)
