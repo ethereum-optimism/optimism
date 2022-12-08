@@ -1,5 +1,13 @@
 # @eth-optimism/ci-builder
 
+## 0.3.7
+
+### Patch Changes
+
+- 18d1ce3f4: Require rebuild on null ref
+- 1594678e0: Add echidna test for AliasHelper
+- 74fd040ce: Pin echidna version
+
 ## 0.3.6
 
 ### Patch Changes

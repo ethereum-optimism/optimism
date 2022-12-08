@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.39
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- 1d3c749a2: Updates the version of TypeScript
+- Updated dependencies [c975c9620]
+- Updated dependencies [136ea1785]
+  - @eth-optimism/core-utils@0.12.0
+
 ## 0.5.38
 
 ### Patch Changes

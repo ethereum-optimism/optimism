@@ -1,5 +1,19 @@
 # @eth-optimism/contracts-governance
 
+## 0.1.8
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- 1d3c749a2: Updates the version of TypeScript
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [767585b07]
+- Updated dependencies [c975c9620]
+- Updated dependencies [136ea1785]
+  - @eth-optimism/hardhat-deploy-config@0.2.5
+  - @eth-optimism/sdk@1.8.0
+  - @eth-optimism/core-utils@0.12.0
+
 ## 0.1.7
 
 ### Patch Changes
