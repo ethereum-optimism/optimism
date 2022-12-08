@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/big"
@@ -21,11 +22,27 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
+
+// callFrame represents the response returned from geth's
+// `debug_traceTransaction` callTracer
+type callFrame struct {
+	Type    string      `json:"type"`
+	From    string      `json:"from"`
+	To      string      `json:"to,omitempty"`
+	Value   string      `json:"value,omitempty"`
+	Gas     string      `json:"gas"`
+	GasUsed string      `json:"gasUsed"`
+	Input   string      `json:"input"`
+	Output  string      `json:"output,omitempty"`
+	Error   string      `json:"error,omitempty"`
+	Calls   []callFrame `json:"calls,omitempty"`
+}
 
 func main() {
 	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
@@ -93,6 +110,11 @@ func main() {
 			}
 			log.Info("Set up L2 RPC Client", "chain-id", l2ChainID)
 
+			l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
+			if err != nil {
+				return err
+			}
+
 			l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
 			if err != nil {
 				return err
@@ -138,7 +160,7 @@ func main() {
 			l1xdmAddr := common.HexToAddress(l1xdmAddress)
 
 			// TODO: temp, should iterate over all instead of taking the first
-			wd := wds[0]
+			wd := wds[6]
 
 			withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr)
 			if err != nil {
@@ -277,9 +299,10 @@ func main() {
 
 			log.Info(fmt.Sprintf("Withdrawal proven (txHash: %v | withdrawalHash: %v)", tx.Hash().Hex(), hash.Hex()))
 
-			// Block the thread for 10s (`hardhat_setTimestamp` is not exposed)
-			// The finalization period is 2s, so this should be more than enough.
-			time.Sleep(10 * time.Second)
+			// Block the thread for 25s (`hardhat_setTimestamp` is not exposed)
+			// The finalization period is 2s, so the extra buffer is just to ensure
+			// that we don't try to finalize before the period has elapsed.
+			time.Sleep(25 * time.Second)
 
 			// Finalize withdrawal
 			tx, err = portal.FinalizeWithdrawalTransaction(
@@ -303,6 +326,19 @@ func main() {
 			// TODO: next we want to be sure that the execution was correct.
 			//       to do so we can do a debug_traceTransaction with the call
 			//       tracer and then ensure that the expected target is called.
+
+			var finalizationTrace callFrame
+			tracer := "callTracer"
+			traceConfig := tracers.TraceConfig{
+				Tracer: &tracer,
+			}
+			l1RpcClient.Call(&finalizationTrace, "debug_traceTransaction", receipt.TxHash, traceConfig)
+
+			traceJson, err := json.MarshalIndent(finalizationTrace, "", "    ")
+			if err != nil {
+				return err
+			}
+			log.Info(fmt.Sprintf("Withdrawal Finalization Trace: %v", string(traceJson)))
 
 			return nil
 		},
