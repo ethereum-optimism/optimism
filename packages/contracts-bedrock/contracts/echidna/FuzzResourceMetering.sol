@@ -6,11 +6,11 @@ import { StdUtils } from "forge-std/Test.sol";
 
 contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     bool failedMaxGasPerBlock;
-    bool failedRaiseBasefee;
-    bool failedLowerBasefee;
-    bool failedNeverBelowMinBasefee;
-    bool failedMaxRaiseBasefeePerBlock;
-    bool failedMaxLowerBasefeePerBlock;
+    bool failedRaiseBaseFee;
+    bool failedLowerBaseFee;
+    bool failedNeverBelowMinBaseFee;
+    bool failedMaxRaiseBaseFeePerBlock;
+    bool failedMaxLowerBaseFeePerBlock;
 
     constructor() {
         initialize();
@@ -32,7 +32,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
 
         // check that the last block's base fee hasn't dropped below the minimum
         if (cachedPrevBaseFee < uint256(MINIMUM_BASE_FEE)) {
-            failedNeverBelowMinBasefee = true;
+            failedNeverBelowMinBaseFee = true;
         }
         // check that the last block didn't consume more than the max amount of gas
         if (cachedPrevBoughtGas > uint256(MAX_RESOURCE_LIMIT)) {
@@ -42,7 +42,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         // Part2: we perform the gas burn
 
         // force the gasToBurn into the correct range based on whether we intend to
-        // raise or lower the basefee after this block, respectively
+        // raise or lower the baseFee after this block, respectively
         uint256 gasToBurn;
         if (_raiseBaseFee) {
             gasToBurn = bound(
@@ -59,38 +59,38 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         // Part 3: we run checks and modify our invariant flags based on the updated params values
 
         // Calculate the maximum allowed baseFee change (per block)
-        uint256 maxBasefeeChange = cachedPrevBaseFee / uint256(BASE_FEE_MAX_CHANGE_DENOMINATOR);
+        uint256 maxBaseFeeChange = cachedPrevBaseFee / uint256(BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
         // If the last block used more than the target amount of gas (and there were no
-        // empty blocks in between), ensure this block's basefee increased, but not by
+        // empty blocks in between), ensure this block's baseFee increased, but not by
         // more than the max amount per block
         if (
             (cachedPrevBoughtGas > uint256(TARGET_RESOURCE_LIMIT)) &&
             (uint256(params.prevBlockNum) - cachedPrevBlockNum == 1)
         ) {
-            failedRaiseBasefee = failedRaiseBasefee || (params.prevBaseFee <= cachedPrevBaseFee);
-            failedMaxRaiseBasefeePerBlock =
-                failedMaxRaiseBasefeePerBlock ||
-                ((uint256(params.prevBaseFee) - cachedPrevBaseFee) < maxBasefeeChange);
+            failedRaiseBaseFee = failedRaiseBaseFee || (params.prevBaseFee <= cachedPrevBaseFee);
+            failedMaxRaiseBaseFeePerBlock =
+                failedMaxRaiseBaseFeePerBlock ||
+                ((uint256(params.prevBaseFee) - cachedPrevBaseFee) < maxBaseFeeChange);
         }
 
-        // If the last blocked used less than the target amount of gas ensure this block's basefee
+        // If the last blocked used less than the target amount of gas ensure this block's baseFee
         // decreased, but not by more than the max amount
         if (
             (cachedPrevBoughtGas < uint256(TARGET_RESOURCE_LIMIT)) ||
             (uint256(params.prevBlockNum) - cachedPrevBlockNum > 1)
         ) {
-            failedLowerBasefee =
-                failedLowerBasefee ||
+            failedLowerBaseFee =
+                failedLowerBaseFee ||
                 (uint256(params.prevBaseFee) > cachedPrevBaseFee);
             if (params.prevBlockNum - cachedPrevBlockNum == 1) {
-                failedMaxLowerBasefeePerBlock =
-                    failedMaxLowerBasefeePerBlock ||
-                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBasefeeChange);
+                failedMaxLowerBaseFeePerBlock =
+                    failedMaxLowerBaseFeePerBlock ||
+                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBaseFeeChange);
             }
 
-            // Update the maxBasefeeChange to account for multiple blocks having passed
-            maxBasefeeChange = uint256(
+            // Update the maxBaseFeeChange to account for multiple blocks having passed
+            maxBaseFeeChange = uint256(
                 Arithmetic.cdexp(
                     int256(cachedPrevBaseFee),
                     BASE_FEE_MAX_CHANGE_DENOMINATOR,
@@ -98,25 +98,25 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
                 )
             );
             if (params.prevBlockNum - cachedPrevBlockNum > 1) {
-                failedMaxLowerBasefeePerBlock =
-                    failedMaxLowerBasefeePerBlock ||
-                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBasefeeChange);
+                failedMaxLowerBaseFeePerBlock =
+                    failedMaxLowerBaseFeePerBlock ||
+                    ((cachedPrevBaseFee - uint256(params.prevBaseFee)) < maxBaseFeeChange);
             }
         }
     }
 
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) {}
 
-    function echidna_high_usage_raise_basefee() public view returns (bool) {
-        return !failedRaiseBasefee;
+    function echidna_high_usage_raise_baseFee() public view returns (bool) {
+        return !failedRaiseBaseFee;
     }
 
-    function echidna_low_usage_lower_basefee() public view returns (bool) {
-        return !failedLowerBasefee;
+    function echidna_low_usage_lower_baseFee() public view returns (bool) {
+        return !failedLowerBaseFee;
     }
 
-    function echidna_never_below_min_basefee() public view returns (bool) {
-        return !failedNeverBelowMinBasefee;
+    function echidna_never_below_min_baseFee() public view returns (bool) {
+        return !failedNeverBelowMinBaseFee;
     }
 
     function echidna_never_above_max_gas_limit() public view returns (bool) {
@@ -124,10 +124,10 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     function echidna_never_exceed_max_increase() public view returns (bool) {
-        return !failedMaxRaiseBasefeePerBlock;
+        return !failedMaxRaiseBaseFeePerBlock;
     }
 
     function echidna_never_exceed_max_decrease() public view returns (bool) {
-        return !failedMaxLowerBasefeePerBlock;
+        return !failedMaxLowerBaseFeePerBlock;
     }
 }
