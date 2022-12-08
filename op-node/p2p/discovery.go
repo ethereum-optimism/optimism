@@ -75,7 +75,7 @@ func (conf *Config) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort 
 	} else {
 		return nil, nil, fmt.Errorf("no TCP port to put in discovery record")
 	}
-	dat := OptimismENRData{
+	dat := ChainENRData{
 		chainID: rollupCfg.L2ChainID.Uint64(),
 		version: 0,
 	}
@@ -167,18 +167,18 @@ func enrToAddrInfo(r *enode.Node) (*peer.AddrInfo, *crypto.Secp256k1PublicKey, e
 	}, pub, nil
 }
 
-// The discovery ENRs are just key-value lists, and we filter them by records tagged with the "optimism" key,
+// The discovery ENRs are just key-value lists, and we filter them by records tagged with the "chain" key,
 // and then check the chain ID and version.
-type OptimismENRData struct {
+type ChainENRData struct {
 	chainID uint64
 	version uint64
 }
 
-func (o *OptimismENRData) ENRKey() string {
-	return "optimism"
+func (o *ChainENRData) ENRKey() string {
+	return "chain"
 }
 
-func (o *OptimismENRData) EncodeRLP(w io.Writer) error {
+func (o *ChainENRData) EncodeRLP(w io.Writer) error {
 	out := make([]byte, 2*binary.MaxVarintLen64)
 	offset := binary.PutUvarint(out, o.chainID)
 	offset += binary.PutUvarint(out[offset:], o.version)
@@ -187,7 +187,7 @@ func (o *OptimismENRData) EncodeRLP(w io.Writer) error {
 	return rlp.Encode(w, out)
 }
 
-func (o *OptimismENRData) DecodeRLP(s *rlp.Stream) error {
+func (o *ChainENRData) DecodeRLP(s *rlp.Stream) error {
 	b, err := s.Bytes()
 	if err != nil {
 		return fmt.Errorf("failed to decode outer ENR entry: %w", err)
@@ -208,11 +208,11 @@ func (o *OptimismENRData) DecodeRLP(s *rlp.Stream) error {
 	return nil
 }
 
-var _ enr.Entry = (*OptimismENRData)(nil)
+var _ enr.Entry = (*ChainENRData)(nil)
 
 func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) bool {
 	return func(node *enode.Node) bool {
-		var dat OptimismENRData
+		var dat ChainENRData
 		err := node.Load(&dat)
 		// if the entry does not exist, or if it is invalid, then ignore the node
 		if err != nil {
@@ -347,7 +347,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			log.Info("stopped peer discovery")
 			return // no ctx error, expected close
 		case found := <-randomNodesCh:
-			var dat OptimismENRData
+			var dat ChainENRData
 			if err := found.Load(&dat); err != nil { // we already filtered on chain ID and version
 				continue
 			}
@@ -362,7 +362,7 @@ func (n *NodeP2P) DiscoveryProcess(ctx context.Context, log log.Logger, cfg *rol
 			// Tag the peer, we'd rather have the connection manager prune away old peers,
 			// or peers on different chains, or anyone we have not seen via discovery.
 			// There is no tag score decay yet, so just set it to 42.
-			n.ConnectionManager().TagPeer(info.ID, fmt.Sprintf("optimism-%d-%d", dat.chainID, dat.version), 42)
+			n.ConnectionManager().TagPeer(info.ID, fmt.Sprintf("chain-%d-%d", dat.chainID, dat.version), 42)
 			log.Debug("discovered peer", "peer", info.ID, "nodeID", found.ID(), "addr", info.Addrs[0])
 		case <-connectTicker.C:
 			connected := n.Host().Network().Peers()
