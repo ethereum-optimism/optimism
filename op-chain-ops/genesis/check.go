@@ -69,7 +69,7 @@ func CheckPredeploys(db vm.StateDB) error {
 		// There must be an admin
 		admin := db.GetState(addr, AdminSlot)
 		adminAddr := common.BytesToAddress(admin.Bytes())
-		if addr != predeploys.ProxyAdminAddr && adminAddr != predeploys.ProxyAdminAddr {
+		if addr != predeploys.ProxyAdminAddr && addr != predeploys.GovernanceTokenAddr && adminAddr != predeploys.ProxyAdminAddr {
 			return fmt.Errorf("admin is %s when it should be %s for %s", adminAddr, predeploys.ProxyAdminAddr, addr)
 		}
 	}
