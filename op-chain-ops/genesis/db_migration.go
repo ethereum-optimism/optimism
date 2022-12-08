@@ -53,18 +53,18 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	// Ensure monotonic timestamps
-	if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
-		return nil, fmt.Errorf(
-			"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
-		)
-	}
+	//if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
+	//	return nil, fmt.Errorf(
+	//		"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
+	//	)
+	//}
 
 	// Ensure that the starting timestamp is safe
-	if config.L2OutputOracleStartingTimestamp <= 0 {
-		return nil, fmt.Errorf(
-			"L2 output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
-		)
-	}
+	//if config.L2OutputOracleStartingTimestamp <= 0 {
+	//	return nil, fmt.Errorf(
+	//		"L2 output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
+	//	)
+	//}
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
