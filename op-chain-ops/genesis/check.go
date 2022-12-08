@@ -39,13 +39,15 @@ func CheckMigratedDB(ldb ethdb.Database) error {
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	//if err := CheckPredeploys(db); err != nil {
-	//	return err
-	//}
-
-	if err := CheckLegacyETH(db); err != nil {
+	if err := CheckPredeploys(db); err != nil {
 		return err
 	}
+	log.Info("checked predeploys")
+
+	//if err := CheckLegacyETH(db); err != nil {
+	//	return err
+	//}
+	log.Info("checked legacy eth")
 
 	return nil
 }
