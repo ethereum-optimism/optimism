@@ -836,16 +836,13 @@ func TestWithdrawals(t *testing.T) {
 	receiptCl := ethclient.NewClient(rpcClient)
 
 	// Now create withdrawal
-	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header)
-	require.Nil(t, err)
-
-	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
-	require.Nil(t, err)
-
 	oracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
 	require.Nil(t, err)
 
-	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, params.BlockNumber)
+	params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header, oracle)
+	require.Nil(t, err)
+
+	portal, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
 
 	opts.Value = nil
@@ -861,7 +858,7 @@ func TestWithdrawals(t *testing.T) {
 			GasLimit: params.GasLimit,
 			Data:     params.Data,
 		},
-		l2OutputIndex,
+		params.L2OutputIndex,
 		params.OutputRootProof,
 		params.WithdrawalProof,
 	)
@@ -875,7 +872,7 @@ func TestWithdrawals(t *testing.T) {
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
 	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
-	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, params.BlockNumber)
+	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
 	require.Nil(t, err)
 
 	// Finalize withdrawal

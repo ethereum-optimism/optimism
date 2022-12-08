@@ -14,40 +14,6 @@ import {
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
-  let controller = hre.deployConfig.controller
-  if (controller === ethers.constants.AddressZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A controller address was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-      controller = deployer
-    } else {
-      throw new Error(
-        `controller address MUST NOT be the deployer on live networks`
-      )
-    }
-  }
-
-  let finalOwner = hre.deployConfig.finalSystemOwner
-  if (finalOwner === ethers.constants.AddressZero) {
-    if (hre.network.config.live === false) {
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!!`)
-      console.log(`WARNING!!! A proxy admin owner address was not provided.`)
-      console.log(
-        `WARNING!!! Make sure you are ONLY doing this on a test network.`
-      )
-      finalOwner = deployer
-    } else {
-      throw new Error(`must specify the finalSystemOwner on live networks`)
-    }
-  }
-
   // Load the contracts we need to interact with.
   const [
     SystemDictator,
@@ -77,8 +43,8 @@ const deployFn: DeployFunction = async (hre) => {
   const config = {
     globalConfig: {
       proxyAdmin: await getDeploymentAddress(hre, 'ProxyAdmin'),
-      controller,
-      finalOwner,
+      controller: hre.deployConfig.controller,
+      finalOwner: hre.deployConfig.finalSystemOwner,
       addressManager: await getDeploymentAddress(hre, 'Lib_AddressManager'),
     },
     proxyAddressConfig: {
@@ -135,7 +101,7 @@ const deployFn: DeployFunction = async (hre) => {
       batchInboxOwner: hre.deployConfig.batchInboxAddress,
     },
     systemConfigConfig: {
-      owner: hre.deployConfig.systemConfigOwner,
+      owner: hre.deployConfig.finalSystemOwner,
       overhead: hre.deployConfig.gasPriceOracleOverhead,
       scalar: hre.deployConfig.gasPriceOracleDecimals,
       batcherHash: hre.ethers.utils.hexZeroPad(
@@ -207,12 +173,14 @@ const deployFn: DeployFunction = async (hre) => {
   if (
     (await SystemDictatorProxy.callStatic.admin({
       from: ethers.constants.AddressZero,
-    })) !== controller
+    })) !== hre.deployConfig.controller
   ) {
     console.log('Transferring ownership of the SystemDictator proxy...')
 
     // Transfer ownership to the controller address.
-    await SystemDictatorProxyWithSigner.transferOwnership(controller)
+    await SystemDictatorProxyWithSigner.transferOwnership(
+      hre.deployConfig.controller
+    )
 
     // Wait for the transaction to execute properly.
     await awaitCondition(
@@ -220,7 +188,7 @@ const deployFn: DeployFunction = async (hre) => {
         return (
           (await SystemDictatorProxy.callStatic.admin({
             from: ethers.constants.AddressZero,
-          })) === controller
+          })) === hre.deployConfig.controller
         )
       },
       30000,

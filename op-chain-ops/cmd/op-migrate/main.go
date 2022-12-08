@@ -179,8 +179,27 @@ func main() {
 
 			dryRun := ctx.Bool("dry-run")
 			noCheck := ctx.Bool("no-check")
+			// Perform the migration
 			res, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
 			if err != nil {
+				return err
+			}
+
+			// Close the database handle
+			if err := ldb.Close(); err != nil {
+				return err
+			}
+
+			postLDB, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
+			if err != nil {
+				return err
+			}
+
+			if err := genesis.CheckMigratedDB(postLDB); err != nil {
+				return err
+			}
+
+			if err := postLDB.Close(); err != nil {
 				return err
 			}
 

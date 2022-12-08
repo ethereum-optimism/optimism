@@ -26,7 +26,7 @@ RUN source $HOME/.profile && \
 
 FROM ethereum/client-go:alltools-v1.10.25 as geth
 
-FROM ghcr.io/crytic/echidna/echidna:testing-master as echidna-test
+FROM ghcr.io/crytic/echidna/echidna:v2.0.4 as echidna-test
 
 FROM python:3.8.13-slim-bullseye
 

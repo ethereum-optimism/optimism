@@ -42,6 +42,6 @@
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "ethereum-waffle": "^3.3.0",
     "hardhat": "^2.9.6",
-    "ts-node": "^10.0.0"
+    "ts-node": "^10.9.1"
   }
 }

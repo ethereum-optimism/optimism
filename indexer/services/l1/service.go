@@ -246,6 +246,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 	}()
 
 	bridgeDepositsCh := make(chan bridge.DepositsMap, len(s.bridges))
+	provenWithdrawalsCh := make(chan bridge.ProvenWithdrawalsMap, 1)
 	finalizedWithdrawalsCh := make(chan bridge.FinalizedWithdrawalsMap, 1)
 	errCh := make(chan error, len(s.bridges)+1)
 
@@ -259,6 +260,14 @@ func (s *Service) Update(newHeader *types.Header) error {
 			bridgeDepositsCh <- deposits
 		}(bridgeImpl)
 	}
+	go func() {
+		provenWithdrawals, err := s.portal.GetProvenWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
+		if err != nil {
+			errCh <- err
+			return
+		}
+		provenWithdrawalsCh <- provenWithdrawals
+	}()
 	go func() {
 		finalizedWithdrawals, err := s.portal.GetFinalizedWithdrawalsByBlockRange(s.ctx, startHeight, endHeight)
 		if err != nil {
@@ -291,6 +300,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 		}
 	}
 
+	provenWithdrawalsByBlockHash := <-provenWithdrawalsCh
 	finalizedWithdrawalsByBlockHash := <-finalizedWithdrawalsCh
 
 	var stateBatches map[common.Hash][]db.StateBatch
@@ -307,11 +317,12 @@ func (s *Service) Update(newHeader *types.Header) error {
 		number := header.Number.Uint64()
 		deposits := depositsByBlockHash[blockHash]
 		batches := stateBatches[blockHash]
+		provenWds := provenWithdrawalsByBlockHash[blockHash]
 		finalizedWds := finalizedWithdrawalsByBlockHash[blockHash]
 
 		// Always record block data in the last block
 		// in the list of headers
-		if len(deposits) == 0 && len(batches) == 0 && len(finalizedWds) == 0 && i != len(headers)-1 {
+		if len(deposits) == 0 && len(batches) == 0 && len(provenWds) == 0 && len(finalizedWds) == 0 && i != len(headers)-1 {
 			continue
 		}
 
@@ -321,6 +332,7 @@ func (s *Service) Update(newHeader *types.Header) error {
 			Number:               number,
 			Timestamp:            header.Time,
 			Deposits:             deposits,
+			ProvenWithdrawals:    provenWds,
 			FinalizedWithdrawals: finalizedWds,
 		}
 

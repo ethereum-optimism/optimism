@@ -38,6 +38,7 @@ func Beat(
 
 	send := func() {
 		req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(payloadJSON))
+		req.Header.Set("User-Agent", fmt.Sprintf("op-node/%s", payload.Version))
 		req.Header.Set("Content-Type", "application/json")
 		if err != nil {
 			log.Error("error creating heartbeat HTTP request", "err", err)

@@ -91,7 +91,7 @@
     "solhint": "^3.3.6",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.17",
-    "ts-node": "^10.8.2",
+    "ts-node": "^10.9.1",
     "typechain": "^8.1.0"
   }
 }

@@ -64,7 +64,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleChallenger:         common.Address{}, // tbd
 
-		SystemConfigOwner: addresses.SysCfgOwner,
+		FinalSystemOwner: addresses.SysCfgOwner,
 
 		L1BlockTime:                 2,
 		L1GenesisBlockNonce:         4660,

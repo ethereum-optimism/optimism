@@ -35,6 +35,6 @@
     "eslint-plugin-prettier": "^3.4.0",
     "ethers": "^5.7.0",
     "prom-client": "^14.0.1",
-    "typescript": "^4.3.5"
+    "typescript": "^4.9.3"
   }
 }
