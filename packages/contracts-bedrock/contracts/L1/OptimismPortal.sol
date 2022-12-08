@@ -20,7 +20,11 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
-     * @notice Represents a proven withdrawal
+     * @notice Represents a proven withdrawal.
+     *
+     * @custom:field outputRoot    Root of the L2 output this was proven against.
+     * @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
+     * @custom:field l2OutputIndex Index of the output this was proven against.
      */
     struct ProvenWithdrawal {
         bytes32 outputRoot;

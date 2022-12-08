@@ -16,6 +16,10 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice Represents the various parameters that control the way in which resources are
      *         metered. Corresponds to the EIP-1559 resource metering system.
+     *
+     * @custom:field prevBaseFee   Base fee from the previous block(s).
+     * @custom:field prevBoughtGas Amount of gas bought so far in the current block.
+     * @custom:field prevBlockNum  Last block number that the base fee was updated.
      */
     struct ResourceParams {
         uint128 prevBaseFee;
