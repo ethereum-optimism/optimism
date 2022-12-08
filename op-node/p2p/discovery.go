@@ -216,7 +216,7 @@ func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) boo
 		err := node.Load(&dat)
 		// if the entry does not exist, or if it is invalid, then ignore the node
 		if err != nil {
-			log.Debug("discovered node record has no optimism info", "node", node.ID(), "err", err)
+			log.Debug("discovered node record has no chain info", "node", node.ID(), "err", err)
 			return false
 		}
 		// check chain ID matches
