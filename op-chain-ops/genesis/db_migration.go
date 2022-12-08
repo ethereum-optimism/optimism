@@ -3,6 +3,7 @@ package genesis
 import (
 	"bytes"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -119,11 +120,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	log.Info("Completed withdrawal migration")
 
 	log.Info("Starting to migrate ERC20 ETH")
-	//addrs := migrationData.Addresses()
-	//err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
-	//}
+	addrs := migrationData.Addresses()
+	err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
+	if err != nil {
+		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
+	}
 	log.Info("Completed ERC20 ETH migration")
 
 	newRoot, err := db.Commit(true)
