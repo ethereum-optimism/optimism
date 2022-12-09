@@ -109,34 +109,53 @@ library Bytes {
      *
      * @param _bytes Input byte array to convert.
      *
-     * @return Resulting nibble array.
+     * @return nibbles Resulting nibble array.
      */
-    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
-        uint256 bytesLength = _bytes.length;
-        bytes memory nibbles = new bytes(bytesLength * 2);
-        bytes1 b;
+    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory nibbles) {
+        // Allocate memory for the `nibbles` array.
+        nibbles = new bytes(_bytes.length << 1);
 
-        for (uint256 i = 0; i < bytesLength; ) {
-            b = _bytes[i];
-            nibbles[i * 2] = b >> 4;
-            nibbles[i * 2 + 1] = b & 0x0f;
-            unchecked {
-                ++i;
+        assembly {
+            // Load the length of the passed bytes array from memory
+            let bytesLength := mload(_bytes)
+
+            // Store the memory offset of the _bytes array's contents on the stack
+            let bytesStart := add(_bytes, 0x20)
+
+            // Store the memory offset of the nibbles array's contents on the stack
+            let nibblesStart := add(nibbles, 0x20)
+
+            // Loop through each byte in the input array
+            for {
+                let i := 0x00
+            } lt(i, bytesLength) {
+                i := add(i, 0x01)
+            } {
+                // Get the starting offset of the next 2 bytes in the nibbles array
+                let offset := add(nibblesStart, shl(0x01, i))
+
+                // Load the byte at the current index within the `_bytes` array
+                let b := byte(0x00, mload(add(bytesStart, i)))
+
+                // Pull out the first nibble and store it in the new array
+                mstore8(offset, shr(0x04, b))
+                // Pull out the second nibble and store it in the new array
+                mstore8(add(offset, 0x01), and(b, 0x0F))
             }
         }
-
-        return nibbles;
     }
 
     /**
      * @notice Compares two byte arrays by comparing their keccak256 hashes.
      *
-     * @param _bytes First byte array to compare.
-     * @param _other Second byte array to compare.
+     * @param a First byte array to compare.
+     * @param b Second byte array to compare.
      *
-     * @return True if the two byte arrays are equal, false otherwise.
+     * @return _eq True if the two byte arrays are equal, false otherwise.
      */
-    function equal(bytes memory _bytes, bytes memory _other) internal pure returns (bool) {
-        return keccak256(_bytes) == keccak256(_other);
+    function equal(bytes memory a, bytes memory b) internal pure returns (bool _eq) {
+        assembly {
+            _eq := eq(keccak256(a, mload(a)), keccak256(b, mload(b)))
+        }
     }
 }
