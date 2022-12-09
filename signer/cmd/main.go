@@ -26,8 +26,22 @@ func main() {
 	app.Name = "signer"
 	app.Usage = "Signing Service"
 	app.Description = ""
+	app.Commands = []cli.Command{
+		{
+			Name:  "client",
+			Usage: "test client for signer service",
+			Subcommands: []cli.Command{
+				{
+					Name:   "sign",
+					Usage:  "sign a transaction",
+					Action: signer.ClientSign(Version),
+					Flags:  signer.ClientSignCLIFlags("SIGNER"),
+				},
+			},
+		},
+	}
 
-	app.Action = signer.Main(Version)
+	app.Action = signer.Server(Version)
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)

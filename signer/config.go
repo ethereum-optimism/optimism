@@ -1,11 +1,17 @@
 package app
 
 import (
+	"github.com/urfave/cli"
+
+	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	"github.com/urfave/cli"
+)
+
+const (
+	ClientEndpointFlagName = "endpoint"
 )
 
 func CLIFlags(envPrefix string) []cli.Flag {
@@ -17,9 +23,22 @@ func CLIFlags(envPrefix string) []cli.Flag {
 	return flags
 }
 
-type Config struct {
-	RPCConfig oprpc.CLIConfig
+func ClientSignCLIFlags(envPrefix string) []cli.Flag {
+	flags := []cli.Flag{
+		cli.StringFlag{
+			Name:   ClientEndpointFlagName,
+			Usage:  "Signer endpoint the client will connect to",
+			Value:  "http://localhost:8080",
+			EnvVar: opservice.PrefixEnvVar(envPrefix, "CLIENT_ENDPOINT"),
+		},
+	}
+	return flags
+}
 
+type Config struct {
+	ClientEndpoint string
+
+	RPCConfig     oprpc.CLIConfig
 	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
 	PprofConfig   oppprof.CLIConfig
@@ -42,10 +61,12 @@ func (c Config) Check() error {
 }
 
 func NewConfig(ctx *cli.Context) Config {
-	return Config{
-		RPCConfig:     oprpc.ReadCLIConfig(ctx),
-		LogConfig:     oplog.ReadCLIConfig(ctx),
-		MetricsConfig: opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:   oppprof.ReadCLIConfig(ctx),
+	cfg := Config{
+		ClientEndpoint: ctx.String(ClientEndpointFlagName),
+		RPCConfig:      oprpc.ReadCLIConfig(ctx),
+		LogConfig:      oplog.ReadCLIConfig(ctx),
+		MetricsConfig:  opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:    oppprof.ReadCLIConfig(ctx),
 	}
+	return cfg
 }
