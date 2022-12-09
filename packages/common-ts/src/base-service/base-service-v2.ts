@@ -11,7 +11,7 @@ import promBundle from 'express-prom-bundle'
 import bodyParser from 'body-parser'
 import morgan from 'morgan'
 
-import { Logger } from '../common/logger'
+import { Logger, LogLevel } from '../common/logger'
 import { Metric, Gauge, Counter } from './metrics'
 import { validators } from './validators'
 
@@ -23,6 +23,7 @@ export type StandardOptions = {
   loopIntervalMs?: number
   port?: number
   hostname?: string
+  logLevel?: LogLevel
 }
 
 export type OptionsSpec<TOptions extends Options> = {
@@ -155,6 +156,7 @@ export abstract class BaseServiceV2<
       loopIntervalMs?: number
       port?: number
       hostname?: string
+      logLevel?: LogLevel
     }
   ) {
     this.loop = params.loop !== undefined ? params.loop : true
@@ -175,6 +177,11 @@ export abstract class BaseServiceV2<
         validator: validators.str,
         desc: 'Hostname for the app server',
         default: params.hostname || '0.0.0.0',
+      },
+      logLevel: {
+        validator: validators.logLevel,
+        desc: 'Log level',
+        default: params.logLevel || 'debug',
       },
     }
 
@@ -322,7 +329,10 @@ export abstract class BaseServiceV2<
 
     // Set up everything else.
     this.loopIntervalMs = this.options.loopIntervalMs
-    this.logger = new Logger({ name: params.name })
+    this.logger = new Logger({
+      name: params.name,
+      level: this.options.logLevel,
+    })
     this.healthy = true
 
     // Gracefully handle stop signals.

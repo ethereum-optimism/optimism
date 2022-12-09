@@ -3,7 +3,15 @@ import pinoms, { Streams } from 'pino-multi-stream'
 import { createWriteStream } from 'pino-sentry'
 import { NodeOptions } from '@sentry/node'
 
-export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal'
+export const logLevels = [
+  'trace',
+  'debug',
+  'info',
+  'warn',
+  'error',
+  'fatal',
+] as const
+export type LogLevel = typeof logLevels[number]
 
 export interface LoggerOptions {
   name: string
