@@ -28,11 +28,11 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         super._setUp();
     }
 
-    function test_attest() external {
+    function test_attest_single() external {
         AttestationStation attestationStation = new AttestationStation();
+        attestationStation.initialize();
 
         // alice is going to attest about bob
-        vm.prank(alice_attestor);
         AttestationStation.AttestationData memory attestationData = AttestationStation
             .AttestationData({
                 about: bob,
@@ -44,6 +44,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         assertEq(attestationStation.attestations(address(this), address(this), "test"), "");
 
         // make attestation
+        vm.prank(alice_attestor);
         attestationStation.attest(attestationData.about, attestationData.key, attestationData.val);
 
         // assert the attestation is there
@@ -64,6 +65,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
             val: new_val
         });
 
+        vm.prank(alice_attestor);
         attestationStation.attest(attestationData.about, attestationData.key, attestationData.val);
 
         // assert the attestation is updated
@@ -83,7 +85,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         vm.prank(alice_attestor);
 
         AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](2);
+            memory attestationData = new AttestationStation.AttestationData[](3);
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("test-key:string"),
