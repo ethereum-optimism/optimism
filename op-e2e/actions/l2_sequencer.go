@@ -5,6 +5,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -27,7 +28,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 	ver := NewL2Verifier(t, log, l1, eng, cfg)
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, l1, eng),
+		sequencer:               driver.NewSequencer(log, cfg, l1, eng, ver.derivation, metrics.NoopMetrics),
 		l1OriginSelector:        driver.NewL1OriginSelector(log, cfg, l1, seqConfDepth),
 		seqOldOrigin:            false,
 		failL2GossipUnsafeBlock: nil,
@@ -60,7 +61,7 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 		origin = l1Origin
 	}
 
-	err := s.sequencer.StartBuildingBlock(t.Ctx(), parent, s.derivation.SafeL2Head().ID(), s.derivation.Finalized().ID(), origin)
+	err := s.sequencer.StartBuildingBlock(t.Ctx(), origin)
 	require.NoError(t, err, "failed to start block building")
 
 	s.l2Building = true
