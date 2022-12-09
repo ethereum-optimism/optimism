@@ -50,8 +50,31 @@ contract Optimist is
      */
     function mint(address _recipient) public {
         require(balanceOf(_recipient) == 0, "Optimist::mint: ALREADY_MINTED");
+        require(isWhitelisted(_recipient), "Optimist::mint: NOT_WHITELISTED");
         uint256 tokenId = uint256(uint160(_recipient));
         _safeMint(_recipient, tokenId);
+    }
+
+    /**
+     * @notice Returns the URI for the token metadata.
+     * @dev The token URI will be stored at baseURI + '/' + tokenId + .json
+     * @param tokenId The token ID to query.
+     * @return The URI for the given token ID.
+     */
+    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+        if (ownerOf(tokenId) == address(0)) {
+            revert("Optimist:::tokenURI: TOKEN_URI_DNE");
+        }
+        return string(abi.encodePacked(baseURI(), "/", Strings.toHexString(tokenId), ".json"));
+    }
+
+    /**
+     * @notice  Returns whether an address is whitelisted
+     * @dev     The whitelist is an attestation by the admin of this contract
+     * @return  boolean  Whether the address is whitelisted
+     */
+    function isWhitelisted(address _recipient) public view returns (bool) {
+        return attestationStation.attestations(admin, _recipient, bytes32("op.pfp.can-mint:bool")).length > 0;
     }
 
     /**
