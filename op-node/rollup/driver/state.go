@@ -255,25 +255,38 @@ func (s *Driver) eventLoop() {
 	var sequenceErrTime time.Time
 	sequencerTimer := time.NewTimer(0)
 	var sequencerCh <-chan time.Time
+	var sequencingPlannedOnto eth.BlockID
+	var sequencerSealNext bool
+	planSequencerAction := func() {
+		delay, seal, onto := s.sequencer.PlanNextSequencerAction(sequenceErr)
+		if sequenceErr != nil && time.Since(sequenceErrTime) > delay {
+			sequenceErr = nil
+		}
+		sequencerCh = sequencerTimer.C
+		if len(sequencerCh) > 0 { // empty if not already drained before resetting
+			<-sequencerCh
+		}
+		sequencerTimer.Reset(delay)
+		sequencingPlannedOnto = onto
+		sequencerSealNext = seal
+	}
 
 	for {
-		var sealNext bool
+		// If we are sequencing, update the trigger for the next sequencer action.
+		// This may adjust at any time based on fork-choice changes or previous errors.
 		if s.driverConfig.SequencerEnabled {
-			delay, seal := s.sequencer.PlanNextSequencerAction(sequenceErr)
-			if sequenceErr != nil && time.Since(sequenceErrTime) > delay {
-				sequenceErr = nil
+			// update sequencer time if the head changed
+			if sequencingPlannedOnto != s.derivation.UnsafeL2Head().ID() {
+				planSequencerAction()
 			}
-			sequencerCh = sequencerTimer.C
-			sequencerTimer.Reset(delay)
-			sealNext = seal
 		} else {
 			sequencerCh = nil
 		}
 
 		select {
 		case <-sequencerCh:
-			s.log.Info("sequencing now!", "seal", sealNext, "idle_derivation", s.idleDerivation)
-			if sealNext {
+			s.log.Info("sequencing now!", "seal", sequencerSealNext, "idle_derivation", s.idleDerivation)
+			if sequencerSealNext {
 				// try to seal the current block task, and allow it to take up to 3 block times.
 				// If this fails we will simply start a new block building job.
 				ctx, cancel := context.WithTimeout(ctx, 3*blockTime)
@@ -289,6 +302,7 @@ func (s *Driver) eventLoop() {
 				s.log.Error("sequencing error", "err", sequenceErr)
 				sequenceErrTime = time.Now()
 			}
+			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())

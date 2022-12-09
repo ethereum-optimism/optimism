@@ -75,7 +75,7 @@ type L1OriginSelectorIface interface {
 type SequencerIface interface {
 	StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error
 	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
-	PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool)
+	PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID)
 }
 
 type Network interface {

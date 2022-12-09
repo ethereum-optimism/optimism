@@ -29,8 +29,8 @@ type TestDummyOutputImpl struct {
 	l2Head   eth.L2BlockRef
 }
 
-func (d *TestDummyOutputImpl) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool) {
-	return 0, d.l1Origin != (eth.L1BlockRef{})
+func (d *TestDummyOutputImpl) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID) {
+	return 0, d.l1Origin != (eth.L1BlockRef{}), d.l2Head.ParentID()
 }
 
 func (d *TestDummyOutputImpl) StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error {

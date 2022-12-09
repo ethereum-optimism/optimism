@@ -140,21 +140,21 @@ func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPa
 // PlanNextSequencerAction returns a desired delay till the next action, and if we should seal the block:
 // - true whenever we need to complete a block
 // - false whenever we need to start a block
-func (d *Sequencer) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool) {
+func (d *Sequencer) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID) {
 	blockTime := time.Duration(d.config.BlockTime) * time.Second
+	head := d.engineState.UnsafeL2Head()
 
 	// based on the build error, delay and start over again
 	if sequenceErr != nil {
 		if errors.Is(sequenceErr, UninitializedL1StateErr) {
 			// temporary errors are not so bad, just retry in 500ms
-			return 500 * time.Millisecond, false
+			return 500 * time.Millisecond, false, head.ID()
 		} else {
 			// we just hit an unknown type of error, delay a re-attempt by as much as a block
-			return blockTime, false
+			return blockTime, false, head.ID()
 		}
 	}
 
-	head := d.engineState.UnsafeL2Head()
 	payloadTime := time.Unix(int64(head.Time+d.config.BlockTime), 0)
 	remainingTime := time.Until(payloadTime)
 
@@ -163,19 +163,19 @@ func (d *Sequencer) PlanNextSequencerAction(sequenceErr error) (delay time.Durat
 	if d.buildingID != (eth.PayloadID{}) && d.buildingOnto.Hash == head.Hash {
 		// if we started building already, then we will schedule the sealing.
 		if remainingTime < sealingDuration {
-			return 0, true // if there's not enough time for sealing, don't wait.
+			return 0, true, head.ID() // if there's not enough time for sealing, don't wait.
 		} else {
 			// finish with margin of sealing duration before payloadTime
-			return remainingTime - sealingDuration, true
+			return remainingTime - sealingDuration, true, head.ID()
 		}
 	} else {
 		// if we did not yet start building, then we will schedule the start.
 		if remainingTime > blockTime {
 			// if we have too much time, then wait before starting the build
-			return remainingTime - blockTime, false
+			return remainingTime - blockTime, false, head.ID()
 		} else {
 			// otherwise start instantly
-			return 0, false
+			return 0, false, head.ID()
 		}
 	}
 }
