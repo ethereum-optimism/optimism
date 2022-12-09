@@ -111,9 +111,9 @@ library Bytes {
      *
      * @return nibbles Resulting nibble array.
      */
-    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory nibbles) {
+    function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
         // Allocate memory for the `nibbles` array.
-        nibbles = new bytes(_bytes.length << 1);
+        bytes memory nibbles = new bytes(_bytes.length << 1);
 
         assembly {
             // Load the length of the passed bytes array from memory
@@ -143,6 +143,8 @@ library Bytes {
                 mstore8(add(offset, 0x01), and(b, 0x0F))
             }
         }
+
+        return nibbles;
     }
 
     /**
@@ -153,9 +155,11 @@ library Bytes {
      *
      * @return _eq True if the two byte arrays are equal, false otherwise.
      */
-    function equal(bytes memory _a, bytes memory _b) internal pure returns (bool _eq) {
+    function equal(bytes memory _a, bytes memory _b) internal pure returns (bool) {
+        bool _eq;
         assembly {
             _eq := eq(keccak256(_a, mload(_a)), keccak256(_b, mload(_b)))
         }
+        return _eq;
     }
 }
