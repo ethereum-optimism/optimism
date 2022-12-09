@@ -303,6 +303,14 @@ jobs:
       - checkout
       - attach_workspace: {at: "."}
       - run:
+          name: Check if we should run
+          command: |
+            shopt -s inherit_errexit
+            CHANGED=$(check-changed "(contracts-bedrock/contracts)" || echo "TRUE")
+            if [[ "$CHANGED" = "FALSE" ]]; then
+              circleci step halt
+            fi
+      - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: yarn echidna:<<parameters.echidna_target>>
           working_directory: packages/contracts-bedrock
