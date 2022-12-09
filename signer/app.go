@@ -11,13 +11,17 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/pkg/errors"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/signer/client"
 	"github.com/ethereum-optimism/optimism/signer/service"
 )
 
-func Main(version string) func(cliCtx *cli.Context) error {
+func Server(version string) func(cliCtx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
 		cfg := NewConfig(cliCtx)
 		if err := cfg.Check(); err != nil {
@@ -83,6 +87,44 @@ func Main(version string) func(cliCtx *cli.Context) error {
 		<-interruptChannel
 		cancel()
 		_ = server.Stop()
+
+		return nil
+	}
+}
+
+func ClientSign(version string) func(cliCtx *cli.Context) error {
+	return func(cliCtx *cli.Context) error {
+		cfg := NewConfig(cliCtx)
+		if err := cfg.Check(); err != nil {
+			return fmt.Errorf("invalid CLI flags: %w", err)
+		}
+
+		txarg := cliCtx.Args().First()
+		if txarg == "" {
+			return errors.New("no transaction argument was provided")
+		}
+		txraw, err := hexutil.Decode(txarg)
+		if err != nil {
+			return errors.New("failed to decode transaction argument")
+		}
+
+		client, err := client.NewSignerClient(cfg.ClientEndpoint)
+		if err != nil {
+			return err
+		}
+
+		tx := &types.Transaction{}
+		if err := tx.UnmarshalBinary(txraw); err != nil {
+			return errors.Wrap(err, "failed to unmarshal transaction argument")
+		}
+
+		tx, err = client.SignTransaction(context.Background(), tx)
+		if err != nil {
+			return err
+		}
+
+		result, _ := tx.MarshalJSON()
+		fmt.Println(string(result))
 
 		return nil
 	}
