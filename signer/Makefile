@@ -9,6 +9,9 @@ LDFLAGS := -ldflags "$(LDFLAGSSTRING)"
 
 all: build
 
+docker:
+	docker build ../ -f Dockerfile -t signer:latest
+
 build:
 	env GO111MODULE=on go build -v $(LDFLAGS) -o ./bin/signer ./cmd
 
@@ -16,6 +19,8 @@ clean:
 	rm ./bin/signer
 
 test:
+	[ '$(shell mockgen --version)' = 'v1.6.0' ] || go install github.com/golang/mock/mockgen@v1.6.0
+	go generate ./...
 	go test -v ./...
 
 lint:
@@ -25,4 +30,5 @@ lint:
 	build \
 	clean \
 	test \
-	lint
+	lint \
+	docker

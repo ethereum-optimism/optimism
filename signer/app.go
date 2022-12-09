@@ -11,6 +11,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/signer/service"
@@ -24,14 +25,15 @@ func Main(version string) func(cliCtx *cli.Context) error {
 		}
 
 		l := oplog.NewLogger(cfg.LogConfig)
+		log.Root().SetHandler(l.GetHandler())
 
-		service := service.NewSignerService(l)
+		signer := service.NewSignerService(l)
 
 		ctx, cancel := context.WithCancel(context.Background())
 
 		pprofConfig := cfg.PprofConfig
 		if pprofConfig.Enabled {
-			l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+			l.Info("Starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
 			go func() {
 				if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
 					l.Error("error starting pprof", "err", err)
@@ -40,10 +42,11 @@ func Main(version string) func(cliCtx *cli.Context) error {
 		}
 
 		registry := opmetrics.NewRegistry()
+		registry.MustRegister(service.MetricSignTransactionTotal)
 		metricsCfg := cfg.MetricsConfig
 		if metricsCfg.Enabled {
 			l.Info(
-				"starting metrics server",
+				"Starting metrics server",
 				"addr",
 				metricsCfg.ListenAddr,
 				"port",
@@ -51,7 +54,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			)
 			go func() {
 				if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-					l.Error("error starting metrics server", err)
+					l.Error("error starting metrics server", "err", err)
 				}
 			}()
 		}
@@ -61,9 +64,10 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			rpcCfg.ListenAddr,
 			rpcCfg.ListenPort,
 			version,
+			oprpc.WithLogger(l),
 		)
-		service.RegisterAPIs(server)
-		l.Info("starting rpc server", "addr", rpcCfg.ListenAddr, "port", rpcCfg.ListenPort)
+		signer.RegisterAPIs(server)
+		l.Info("Starting rpc server", "addr", rpcCfg.ListenAddr, "port", rpcCfg.ListenPort)
 		if err := server.Start(); err != nil {
 			cancel()
 			return fmt.Errorf("error starting RPC server: %w", err)

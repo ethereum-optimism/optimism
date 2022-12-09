@@ -10,8 +10,10 @@ import (
 
 func CLIFlags(envPrefix string) []cli.Flag {
 	flags := []cli.Flag{}
-	flags = append(flags, opmetrics.CLIFlags(envPrefix)...)
+	flags = append(flags, oprpc.CLIFlags(envPrefix)...)
 	flags = append(flags, oplog.CLIFlags(envPrefix)...)
+	flags = append(flags, opmetrics.CLIFlags(envPrefix)...)
+	flags = append(flags, oppprof.CLIFlags(envPrefix)...)
 	return flags
 }
 
