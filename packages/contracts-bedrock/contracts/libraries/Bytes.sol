@@ -158,7 +158,7 @@ library Bytes {
     function equal(bytes memory _a, bytes memory _b) internal pure returns (bool) {
         bool _eq;
         assembly {
-            _eq := eq(keccak256(_a, mload(_a)), keccak256(_b, mload(_b)))
+            _eq := eq(keccak256(add(_a, 0x20), mload(_a)), keccak256(add(_b, 0x20), mload(_b)))
         }
         return _eq;
     }
