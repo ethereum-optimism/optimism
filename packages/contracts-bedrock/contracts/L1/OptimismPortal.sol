@@ -39,11 +39,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256 internal constant DEPOSIT_VERSION = 0;
 
     /**
-     * @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
-     */
-    address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
-
-    /**
      * @notice The L2 gas limit set when eth is deposited using the receive() function.
      */
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
@@ -131,7 +126,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice Initializer;
      */
     function initialize() public initializer {
-        l2Sender = DEFAULT_L2_SENDER;
+        l2Sender = Constants.DEFAULT_L2_SENDER;
         __ResourceMetering_init();
     }
 
@@ -239,7 +234,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         // Prevent nested withdrawals within withdrawals.
         require(
-            l2Sender == DEFAULT_L2_SENDER,
+            l2Sender == Constants.DEFAULT_L2_SENDER,
             "OptimismPortal: can only trigger one withdrawal per transaction"
         );
 
@@ -315,7 +310,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         );
 
         // Reset the l2Sender back to the default value.
-        l2Sender = DEFAULT_L2_SENDER;
+        l2Sender = Constants.DEFAULT_L2_SENDER;
 
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
