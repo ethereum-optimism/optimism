@@ -160,7 +160,8 @@ func main() {
 			l1xdmAddr := common.HexToAddress(l1xdmAddress)
 
 			// TODO: temp, should iterate over all instead of taking the first
-			wd := wds[6]
+			wd := wds[11]
+			log.Debug(fmt.Sprintf("wd addr: %v", wd.Target))
 
 			withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr)
 			if err != nil {
@@ -304,6 +305,14 @@ func main() {
 			// that we don't try to finalize before the period has elapsed.
 			time.Sleep(25 * time.Second)
 
+			// Get the ETH balance of the withdrawal target *before* the finalization
+			targetBalBefore, err := l1Client.BalanceAt(context.Background(), common.BytesToAddress(wd.Target.Bytes()), nil)
+			if err != nil {
+				return err
+			}
+
+			log.Debug(fmt.Sprintf("Target balance before finalization: %v", targetBalBefore))
+
 			// Finalize withdrawal
 			tx, err = portal.FinalizeWithdrawalTransaction(
 				opts,
@@ -323,22 +332,42 @@ func main() {
 
 			log.Info(fmt.Sprintf("Withdrawal Finalized (txHash: %v | withdrawalHash: %v)", tx.Hash(), hash))
 
-			// TODO: next we want to be sure that the execution was correct.
-			//       to do so we can do a debug_traceTransaction with the call
-			//       tracer and then ensure that the expected target is called.
-
 			var finalizationTrace callFrame
 			tracer := "callTracer"
 			traceConfig := tracers.TraceConfig{
 				Tracer: &tracer,
 			}
-			l1RpcClient.Call(&finalizationTrace, "debug_traceTransaction", receipt.TxHash, traceConfig)
+			err = l1RpcClient.Call(&finalizationTrace, "debug_traceTransaction", receipt.TxHash, traceConfig)
+			if err != nil {
+				return err
+			}
 
 			traceJson, err := json.MarshalIndent(finalizationTrace, "", "    ")
 			if err != nil {
 				return err
 			}
 			log.Info(fmt.Sprintf("Withdrawal Finalization Trace: %v", string(traceJson)))
+
+			// Get the ETH balance of the withdrawal target *after* the finalization
+			targetBalAfter, err := l1Client.BalanceAt(context.Background(), common.BytesToAddress(wd.Target.Bytes()), nil)
+			if err != nil {
+				return err
+			}
+
+			log.Debug(fmt.Sprintf("Target balance after finalization: %v", targetBalAfter))
+
+			// Ensure that the target's balance was increased correctly
+			wdValue, err := wd.Value()
+			if err != nil {
+				return err
+			}
+
+			log.Debug(fmt.Sprintf("Withdrawal value: %v", wdValue))
+			log.Debug(fmt.Sprintf("Target balance diff: %v", new(big.Int).Sub(targetBalAfter, targetBalBefore)))
+
+			if new(big.Int).Sub(targetBalAfter, targetBalBefore).Cmp(wdValue) != 0 {
+				return errors.New("target balance was not increased correctly")
+			}
 
 			return nil
 		},
