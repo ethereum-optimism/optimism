@@ -57,6 +57,8 @@ type Metricer interface {
 	IncStreamCount()
 	DecStreamCount()
 	RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter)
+	RecordSequencerBuildingDiffTime(duration time.Duration)
+	RecordSequencerSealingTime(duration time.Duration)
 }
 
 type Metrics struct {
@@ -79,6 +81,12 @@ type Metrics struct {
 	DerivationErrors *EventMetrics
 	SequencingErrors *EventMetrics
 	PublishingErrors *EventMetrics
+
+	SequencerBuildingDiffDurationSeconds prometheus.Histogram
+	SequencerBuildingDiffTotal           prometheus.Counter
+
+	SequencerSealingDurationSeconds prometheus.Histogram
+	SequencerSealingTotal           prometheus.Counter
 
 	UnsafePayloadsBufferLen     prometheus.Gauge
 	UnsafePayloadsBufferMemSize prometheus.Gauge
@@ -104,6 +112,8 @@ type Metrics struct {
 
 	registry *prometheus.Registry
 }
+
+var _ Metricer = (*Metrics)(nil)
 
 func NewMetrics(procName string) *Metrics {
 	if procName == "" {
@@ -281,6 +291,31 @@ func NewMetrics(procName string) *Metrics {
 			"direction",
 		}),
 
+		SequencerBuildingDiffDurationSeconds: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_building_diff_seconds",
+			Buckets: []float64{
+				-10, -5, -2.5, -1, -.5, -.25, -.1, -0.05, -0.025, -0.01, -0.005,
+				.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			Help: "Histogram of Sequencer building time, minus block time",
+		}),
+		SequencerBuildingDiffTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencer_building_diff_total",
+			Help:      "Number of sequencer block building jobs",
+		}),
+		SequencerSealingDurationSeconds: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+			Namespace: ns,
+			Name:      "sequencer_sealing_seconds",
+			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			Help:      "Histogram of Sequencer block sealing time",
+		}),
+		SequencerSealingTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+			Namespace: ns,
+			Name:      "sequencer_sealing_total",
+			Help:      "Number of sequencer block sealing jobs",
+		}),
+
 		registry: registry,
 	}
 }
@@ -448,6 +483,21 @@ func (m *Metrics) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.Bandwi
 	}
 }
 
+// RecordSequencerBuildingDiffTime tracks the amount of time the sequencer was allowed between
+// start to finish, incl. sealing, minus the block time.
+// Ideally this is 0, realistically the sequencer scheduler may be busy with other jobs like syncing sometimes.
+func (m *Metrics) RecordSequencerBuildingDiffTime(duration time.Duration) {
+	m.SequencerBuildingDiffTotal.Inc()
+	m.SequencerBuildingDiffDurationSeconds.Observe(float64(duration) / float64(time.Second))
+}
+
+// RecordSequencerSealingTime tracks the amount of time the sequencer took to finish sealing the block.
+// Ideally this is 0, realistically it may take some time.
+func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
+	m.SequencerSealingTotal.Inc()
+	m.SequencerSealingDurationSeconds.Observe(float64(duration) / float64(time.Second))
+}
+
 // Serve starts the metrics server on the given hostname and port.
 // The server will be closed when the passed-in context is cancelled.
 func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
@@ -467,7 +517,7 @@ func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 
 type noopMetricer struct{}
 
-var NoopMetrics = new(noopMetricer)
+var NoopMetrics Metricer = new(noopMetricer)
 
 func (n *noopMetricer) RecordInfo(version string) {
 }
@@ -538,4 +588,10 @@ func (n *noopMetricer) DecStreamCount() {
 }
 
 func (n *noopMetricer) RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter) {
+}
+
+func (n *noopMetricer) RecordSequencerBuildingDiffTime(duration time.Duration) {
+}
+
+func (n *noopMetricer) RecordSequencerSealingTime(duration time.Duration) {
 }
