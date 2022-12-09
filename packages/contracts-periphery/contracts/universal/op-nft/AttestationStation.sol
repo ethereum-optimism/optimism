@@ -44,8 +44,12 @@ contract AttestationStation is Initializable, Semver {
      * @param   _attestations  The array of attestation data.
      */
     function attest(AttestationData[] memory _attestations) public {
-        for (uint256 i = 0; i < _attestations.length; ++i) {
+        uint256 length = _attestations.length;
+        for (uint256 i = 0; i < length; ) {
             _attest(_attestations[i].about, _attestations[i].key, _attestations[i].val);
+            unchecked {
+                ++i;
+            }
         }
     }
 }
