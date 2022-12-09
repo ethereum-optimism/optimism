@@ -23,14 +23,17 @@ contract AttestationStation is Initializable, OwnableUpgradeable, Semver {
         bytes val
     );
 
-    constructor() Semver(0, 0, 1) {}
+    constructor(address owner) Semver(0, 0, 1) {
+        initialize(owner);
+    }
 
     /**
      * @notice  Initialize the Optimist contract.
      * @dev     Initializes the AttestationStation contract with msg.sender as owner
      */
-    function initialize() public initializer {
+    function initialize(address owner) public initializer {
         __Ownable_init();
+        transferOwnership(owner);
     }
 
     /**
