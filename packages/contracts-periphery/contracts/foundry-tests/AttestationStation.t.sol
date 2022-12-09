@@ -31,6 +31,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
     function test_attest_single() external {
         AttestationStation attestationStation = new AttestationStation();
 
+        AttestationStation.AttestationData[]
+            memory attestationDataArr = new AttestationStation.AttestationData[](1);
+
         // alice is going to attest about bob
         AttestationStation.AttestationData memory attestationData = AttestationStation
             .AttestationData({
@@ -44,7 +47,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         // make attestation
         vm.prank(alice_attestor);
-        attestationStation.attest(attestationData.about, attestationData.key, attestationData.val);
+        attestationDataArr[0] = attestationData;
+        attestationStation.attest(attestationDataArr);
 
         // assert the attestation is there
         assertEq(
@@ -65,7 +69,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         });
 
         vm.prank(alice_attestor);
-        attestationStation.attest(attestationData.about, attestationData.key, attestationData.val);
+        attestationDataArr[0] = attestationData;
+        attestationStation.attest(attestationDataArr);
 
         // assert the attestation is updated
         assertEq(
@@ -75,6 +80,60 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
                 attestationData.key
             ),
             attestationData.val
+        );
+    }
+
+    function test_attest_bulk() external {
+        AttestationStation attestationStation = new AttestationStation();
+
+        vm.prank(alice_attestor);
+
+        AttestationStation.AttestationData[]
+            memory attestationData = new AttestationStation.AttestationData[](3);
+        attestationData[0] = AttestationStation.AttestationData({
+            about: bob,
+            key: bytes32("test-key:string"),
+            val: bytes("test-value")
+        });
+
+        attestationData[1] = AttestationStation.AttestationData({
+            about: bob,
+            key: bytes32("test-key2"),
+            val: bytes("test-value2")
+        });
+
+        attestationData[2] = AttestationStation.AttestationData({
+            about: sally,
+            key: bytes32("test-key:string"),
+            val: bytes("test-value3")
+        });
+
+        attestationStation.attest(attestationData);
+
+        // assert the attestations are there
+        assertEq(
+            attestationStation.attestations(
+                alice_attestor,
+                attestationData[0].about,
+                attestationData[0].key
+            ),
+            attestationData[0].val
+        );
+        assertEq(
+            attestationStation.attestations(
+                alice_attestor,
+                attestationData[1].about,
+                attestationData[1].key
+            ),
+            attestationData[1].val
+        );
+        assertEq(
+            attestationStation.attestations(
+                alice_attestor,
+                attestationData[2].about,
+                attestationData[2].key
+            ),
+            attestationData[2].val
         );
     }
 }
