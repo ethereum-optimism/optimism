@@ -7,7 +7,9 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 /**
  * @title AttestationStation
  * @dev   Contract for creating attestations.
- * @notice This contract is not yet audited.
+ * @notice The AttestationStation contract is a contract for creating on chain attestations
+ *         It has a very simple interface for creating attestations.
+ *         This contract is not yet audited
  */
 contract AttestationStation is Semver {
     /**
