@@ -15,9 +15,9 @@ contract AttestationStation is Semver {
     /**
      * @notice Struct representing data that is being attested
      *
-     * @custom:field about                    Address being attested about (not creator/msg.sender)
-     * @custom:field key                      A bytes32 key for the attestation.
-     * @custom:field val                      The attestation as arbitrary bytes
+     * @custom:field about Address being attested about (not creator/msg.sender)
+     * @custom:field key   A bytes32 key for the attestation.
+     * @custom:field val   The attestation as arbitrary bytes
      */
     struct AttestationData {
         address about;
