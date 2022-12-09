@@ -48,7 +48,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         // assert the attestation is there
         assertEq(
-            attestationStation.readAttestation(
+            attestationStation.attestations(
                 alice_attestor,
                 attestationData.about,
                 attestationData.key
@@ -69,7 +69,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         // assert the attestation is updated
         assertEq(
-            attestationStation.readAttestation(
+            attestationStation.attestations(
                 alice_attestor,
                 attestationData.about,
                 attestationData.key
@@ -107,7 +107,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         // assert the attestations are there
         assertEq(
-            attestationStation.readAttestation(
+            attestationStation.attestations(
                 alice_attestor,
                 attestationData[0].about,
                 attestationData[0].key
@@ -115,7 +115,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
             attestationData[0].val
         );
         assertEq(
-            attestationStation.readAttestation(
+            attestationStation.attestations(
                 alice_attestor,
                 attestationData[1].about,
                 attestationData[1].key
@@ -123,7 +123,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
             attestationData[1].val
         );
         assertEq(
-            attestationStation.readAttestation(
+            attestationStation.attestations(
                 alice_attestor,
                 attestationData[2].about,
                 attestationData[2].key

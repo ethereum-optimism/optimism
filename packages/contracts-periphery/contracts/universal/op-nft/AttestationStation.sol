@@ -48,17 +48,4 @@ contract AttestationStation is Initializable, Semver {
             attest(_attestations[i].about, _attestations[i].key, _attestations[i].val);
         }
     }
-
-    /**
-     * @notice  Reads an attestation
-     * @return  val bytes  The attestation
-     */
-    function readAttestation(
-        address _creator,
-        address _about,
-        bytes32 _key
-    ) public view returns (bytes memory val) {
-        val = this.attestations(_creator, _about, _key);
-        return val;
-    }
 }
