@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.17;
+pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -30,15 +30,17 @@ contract AttestationStation is Initializable, Semver {
     /**
      * @notice  Attest to the given data.
      * @dev     Attests to the given data from the sender.
-     * @param   _attestation  The attestation data.
+     * @param   _about  The address of the attestation subject.
+     * @param   _key  The key of the attestation.
+     * @param   _val  The value of the attestation.
      */
-    function attest(AttestationData memory _attestation) public {
-        attestations[msg.sender][_attestation.about][_attestation.key] = _attestation.val;
+    function attest(address _about, bytes32 _key, bytes memory _val) public {
+        attestations[msg.sender][_about][_key] = _val;
         emit AttestationCreated(
             msg.sender,
-            _attestation.about,
-            _attestation.key,
-            _attestation.val
+            _about,
+            _key,
+            _val
         );
     }
 
@@ -54,44 +56,11 @@ contract AttestationStation is Initializable, Semver {
     }
 
     /**
-     * @notice  Attest to the given data.
-     * @dev     Attests to the given data from the sender.
-     * @dev     This is very convenient for people using etherscan
-     * @param   about  The address of the attestation subject.
-     * @param   keyStr  The key of the attestation.
-     * @param   valStr  The value of the attestation.
-     */
-    function attestString(address memory _about, string memory _keyStr, string memory _valStr) public {
-        attest(
-            _about,
-            bytes32(_keyStr),
-            bytes(_valStr)
-        );
-    }
-
-    /**
      * @notice  Reads an attestation
-     * @return  bytes  The attestation
+     * @return  val bytes  The attestation
      */
-    function readAttestation(address memory creator, address memory about,  bytes32 memory key) public view returns (bytes memory val) {
-        val = attestationStation.attestations(admin, about, key);
+    function readAttestation(address creator, address about,  bytes32 key) public view returns (bytes memory val) {
+        val = this.attestations(creator, about, key);
         return val;
-    }
-
-    /**
-     * @notice Reads an attestation string
-     * @dev This is very convenient for people using etherscan
-     * @dev This is also convenient for people who don't understand bytes
-     * @dev Takes in a string key instead of a bytes32
-     * @return The attestation formatted as a string
-     */
-    function readAttestationString(address memory creator, address memory about,  string memory keyStr) public view returns (string memory valStr) {
-        val = attestationStation.attestations(
-            admin,
-            about,
-            bytes32(keyStr)
-        );
-        valStr = string(abi.encodePacked((val)));
-        return valStr;
     }
 }
