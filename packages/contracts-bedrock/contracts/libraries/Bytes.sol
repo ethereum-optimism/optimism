@@ -109,7 +109,7 @@ library Bytes {
      *
      * @param _bytes Input byte array to convert.
      *
-     * @return nibbles Resulting nibble array.
+     * @return Resulting nibble array.
      */
     function toNibbles(bytes memory _bytes) internal pure returns (bytes memory) {
         // Allocate memory for the `nibbles` array.
@@ -153,7 +153,7 @@ library Bytes {
      * @param _a First byte array to compare.
      * @param _b Second byte array to compare.
      *
-     * @return _eq True if the two byte arrays are equal, false otherwise.
+     * @return True if the two byte arrays are equal, false otherwise.
      */
     function equal(bytes memory _a, bytes memory _b) internal pure returns (bool) {
         bool _eq;
