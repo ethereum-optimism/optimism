@@ -56,11 +56,11 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
             attestationData.val
         );
 
-        bytes memory new_val = bytes32("new updated value");
+        bytes memory new_val = bytes("new updated value");
         // make a new attestations to same about and key
         attestationData = AttestationStation.AttestationData({
             about: attestationData.about,
-            key: attestationStation.key,
+            key: attestationData.key,
             val: new_val
         });
 
