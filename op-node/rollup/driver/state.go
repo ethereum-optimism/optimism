@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	gosync "sync"
 	"time"
@@ -22,8 +21,6 @@ type SyncStatus = eth.SyncStatus
 
 // sealingDuration defines the expected time it takes to seal the block
 const sealingDuration = time.Millisecond * 50
-
-var UninitializedL1StateErr = errors.New("the L1 Head in L1 State is not initialized yet")
 
 type Driver struct {
 	l1State L1StateIface
@@ -61,11 +58,10 @@ type Driver struct {
 	// L2 Signals:
 	unsafeL2Payloads chan *eth.ExecutionPayload
 
-	l1               L1Chain
-	l2               L2Chain
-	l1OriginSelector L1OriginSelectorIface
-	sequencer        SequencerIface
-	network          Network // may be nil, network for is optional
+	l1        L1Chain
+	l2        L2Chain
+	sequencer SequencerIface
+	network   Network // may be nil, network for is optional
 
 	metrics     Metrics
 	log         log.Logger
@@ -132,75 +128,6 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	}
 }
 
-// startNewL2Block starts sequencing a new L2 block on top of the unsafe L2 Head.
-func (s *Driver) startNewL2Block(ctx context.Context) error {
-	l2Head := s.derivation.UnsafeL2Head()
-
-	l1Head := s.l1State.L1Head()
-	if l1Head == (eth.L1BlockRef{}) {
-		return UninitializedL1StateErr
-	}
-
-	// Figure out which L1 origin block we're going to be building on top of.
-	l1Origin, err := s.l1OriginSelector.FindL1Origin(ctx, l1Head, l2Head)
-	if err != nil {
-		s.log.Error("Error finding next L1 Origin", "err", err)
-		return err
-	}
-
-	// Rollup is configured to not start producing blocks until a specific L1 block has been
-	// reached. Don't produce any blocks until we're at that genesis block.
-	if l1Origin.Number < s.config.Genesis.L1.Number {
-		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis", "next", l1Origin.ID(), "genesis", s.config.Genesis.L1)
-		return fmt.Errorf("the L1 origin %s cannot be before genesis at %s", l1Origin, s.config.Genesis.L1)
-	}
-
-	// Should never happen. Sequencer will halt if we get into this situation somehow.
-	nextL2Time := l2Head.Time + s.config.BlockTime
-	if nextL2Time < l1Origin.Time {
-		s.log.Error("Cannot build L2 block for time before L1 origin",
-			"l2Unsafe", l2Head, "nextL2Time", nextL2Time, "l1Origin", l1Origin, "l1OriginTime", l1Origin.Time)
-		return fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
-			l2Head, nextL2Time, l1Origin, l1Origin.Time)
-	}
-
-	// Start creating the new block.
-	return s.sequencer.StartBuildingBlock(ctx, l1Origin)
-}
-
-// completeNewBlock completes a previously started L2 block sequencing job.
-func (s *Driver) completeNewBlock(ctx context.Context) error {
-	payload, err := s.sequencer.CompleteBuildingBlock(ctx)
-	if err != nil {
-		s.metrics.RecordSequencingError()
-		s.log.Error("Failed to seal block as sequencer", "err", err)
-		return err
-	}
-
-	// Generate an L2 block ref from the payload.
-	newUnsafeL2Head, err := derive.PayloadToBlockRef(payload, &s.config.Genesis)
-	if err != nil {
-		s.metrics.RecordSequencingError()
-		s.log.Error("Sequenced payload cannot be transformed into valid L2 block reference", "err", err)
-		return fmt.Errorf("sequenced payload cannot be transformed into valid L2 block reference: %w", err)
-	}
-
-	// Update our L2 head block based on the new unsafe block we just generated.
-	s.derivation.SetUnsafeHead(newUnsafeL2Head)
-
-	s.log.Info("Sequenced new l2 block", "l2_unsafe", newUnsafeL2Head, "l1_origin", newUnsafeL2Head.L1Origin, "txs", len(payload.Transactions), "time", newUnsafeL2Head.Time)
-	s.metrics.CountSequencedTxs(len(payload.Transactions))
-
-	if s.network != nil {
-		if err := s.network.PublishL2Payload(ctx, payload); err != nil {
-			s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-			s.metrics.RecordPublishingError()
-			// publishing of unsafe data via p2p is optional. Errors are not severe enough to change/halt sequencing but should be logged and metered.
-		}
-	}
-	return nil
-}
-
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
@@ -249,34 +176,23 @@ func (s *Driver) eventLoop() {
 	// L1 chain that we need to handle.
 	reqStep()
 
-	blockTime := time.Duration(s.config.BlockTime) * time.Second
-
-	var sequenceErr error
-	var sequenceErrTime time.Time
 	sequencerTimer := time.NewTimer(0)
 	var sequencerCh <-chan time.Time
-	var sequencingPlannedOnto eth.BlockID
-	var sequencerSealNext bool
 	planSequencerAction := func() {
-		delay, seal, onto := s.sequencer.PlanNextSequencerAction(sequenceErr)
-		if sequenceErr != nil && time.Since(sequenceErrTime) > delay {
-			sequenceErr = nil
-		}
+		delay := s.sequencer.PlanNextSequencerAction()
 		sequencerCh = sequencerTimer.C
 		if len(sequencerCh) > 0 { // empty if not already drained before resetting
 			<-sequencerCh
 		}
 		sequencerTimer.Reset(delay)
-		sequencingPlannedOnto = onto
-		sequencerSealNext = seal
 	}
 
 	for {
-		// If we are sequencing, update the trigger for the next sequencer action.
+		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 		// This may adjust at any time based on fork-choice changes or previous errors.
-		if s.driverConfig.SequencerEnabled {
+		if s.driverConfig.SequencerEnabled && s.l1State.L1Head() != (eth.L1BlockRef{}) {
 			// update sequencer time if the head changed
-			if sequencingPlannedOnto != s.derivation.UnsafeL2Head().ID() {
+			if s.sequencer.BuildingOnto().ID() != s.derivation.UnsafeL2Head().ID() {
 				planSequencerAction()
 			}
 		} else {
@@ -285,22 +201,14 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			s.log.Info("sequencing now!", "seal", sequencerSealNext, "idle_derivation", s.idleDerivation)
-			if sequencerSealNext {
-				// try to seal the current block task, and allow it to take up to 3 block times.
-				// If this fails we will simply start a new block building job.
-				ctx, cancel := context.WithTimeout(ctx, 3*blockTime)
-				sequenceErr = s.completeNewBlock(ctx)
-				cancel()
-			} else {
-				// Start the block building, don't allow the starting of sequencing to get stuck for more the time of 1 block.
-				ctx, cancel := context.WithTimeout(ctx, blockTime)
-				sequenceErr = s.startNewL2Block(ctx)
-				cancel()
-			}
-			if sequenceErr != nil {
-				s.log.Error("sequencing error", "err", sequenceErr)
-				sequenceErrTime = time.Now()
+			payload := s.sequencer.RunNextSequencerAction(ctx, s.l1State.L1Head())
+			if s.network != nil && payload != nil {
+				// Publishing of unsafe data via p2p is optional.
+				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
+				if err := s.network.PublishL2Payload(ctx, payload); err != nil {
+					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+					s.metrics.RecordPublishingError()
+				}
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case payload := <-s.unsafeL2Payloads:
