@@ -834,6 +834,11 @@ workflows:
           requires:
             - bedrock-echidna-build
       - bedrock-echidna-run:
+          name: Bedrock Echidna Encoding Test
+          echidna_target: encoding
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
           name: Bedrock Echidna Metering Test
           echidna_target: metering
           requires:
