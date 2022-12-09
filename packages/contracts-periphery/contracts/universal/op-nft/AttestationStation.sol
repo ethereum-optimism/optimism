@@ -29,11 +29,11 @@ contract AttestationStation is Initializable, Semver {
      * @param   _key  The key of the attestation.
      * @param   _val  The value of the attestation.
      */
-    function attest(
+    function _attest(
         address _about,
         bytes32 _key,
         bytes memory _val
-    ) public {
+    ) private {
         attestations[msg.sender][_about][_key] = _val;
         emit AttestationCreated(msg.sender, _about, _key, _val);
     }
@@ -43,9 +43,9 @@ contract AttestationStation is Initializable, Semver {
      * @dev     Attests to the given data from the sender.
      * @param   _attestations  The array of attestation data.
      */
-    function attestBulk(AttestationData[] memory _attestations) public {
+    function attest(AttestationData[] memory _attestations) public {
         for (uint256 i = 0; i < _attestations.length; ++i) {
-            attest(_attestations[i].about, _attestations[i].key, _attestations[i].val);
+            _attest(_attestations[i].about, _attestations[i].key, _attestations[i].val);
         }
     }
 }
