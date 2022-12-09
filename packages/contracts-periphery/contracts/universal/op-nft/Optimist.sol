@@ -7,6 +7,7 @@ import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721Burnab
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./AttestationStation.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Optimist is
     Initializable,
@@ -75,6 +76,17 @@ contract Optimist is
      */
     function isWhitelisted(address _recipient) public view returns (bool) {
         return attestationStation.attestations(admin, _recipient, bytes32("op.pfp.can-mint:bool")).length > 0;
+    }
+
+    /**
+     * @notice  Returns whether an address is whitelisted
+     * @dev     The whitelist is an attestation by the admin of this contract
+     * @return  boolean  Whether the address is whitelisted
+     */
+    function tokenIdOfOwner(address _owner) public view returns (uint256) {
+        return attestationStation.attestations(admin, _recipient, bytes32("op.pfp.can-mint:bool")).length > 0;
+        require(balanceOf(_recipient) > 0, "Optimist::tokenIdOfOwner: NOT_MINTED");
+        return uint256(uint160(_recipient));
     }
 
     /**
