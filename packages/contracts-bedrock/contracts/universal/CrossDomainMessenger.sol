@@ -13,6 +13,7 @@ import {
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @custom:legacy
@@ -69,14 +70,6 @@ abstract contract CrossDomainMessenger is
      * @notice Extra gas added to base gas for each byte of calldata in a message.
      */
     uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
-
-    /**
-     * @notice Address to use when estimating gas for a message where the minimum gas limit on the
-     *         message would not be sufficient to successfully execute the message. We use
-     *         address(1) because we want to guarantee that the estimation address will never have
-     *         code and address(1) is the ecrecover precompile on all EVM-equivalent chains.
-     */
-    address public constant ESTIMATION_ADDRESS = address(1);
 
     /**
      * @notice Minimum amount of gas required to relay a message.
@@ -343,7 +336,7 @@ abstract contract CrossDomainMessenger is
             // here will make the behavior of gas estimation change such that the gas limit
             // computed will be the amount required to relay the message, even if that amount is
             // greater than the minimum gas limit specified by the user.
-            if (tx.origin == ESTIMATION_ADDRESS) {
+            if (tx.origin == Constants.ESTIMATION_ADDRESS) {
                 revert("CrossDomainMessenger: failed to relay message");
             }
         }
