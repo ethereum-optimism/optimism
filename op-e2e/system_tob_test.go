@@ -10,7 +10,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
@@ -106,4 +108,48 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	if gpoScalar.Cmp(scalarValue) != 0 {
 		t.Errorf("scalar that was found (%v) is not what was set (%v)", gpoScalar, scalarValue)
 	}
+}
+
+// TestL2SequencerRPCDepositTx checks that the L2 sequencer will not accept DepositTx type transactions.
+// The acceptance of these transactions would allow for arbitrary minting of ETH in L2.
+func TestL2SequencerRPCDepositTx(t *testing.T) {
+	parallel(t)
+	// Setup our logger handler
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	// Create our system configuration for L1/L2 and start it
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	// Obtain our sequencer, verifier, and transactor keypair.
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
+	txSigningKey := sys.cfg.Secrets.Alice
+	require.Nil(t, err)
+
+	// Create a deposit tx to send over RPC.
+	tx := types.NewTx(&types.DepositTx{
+		SourceHash:          common.Hash{},
+		From:                crypto.PubkeyToAddress(txSigningKey.PublicKey),
+		To:                  &common.Address{0xff, 0xff},
+		Mint:                big.NewInt(1000),
+		Value:               big.NewInt(1000),
+		Gas:                 0,
+		IsSystemTransaction: false,
+		Data:                nil,
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	err = l2Seq.SendTransaction(ctx, tx)
+	cancel()
+	require.Error(t, err, "a DepositTx was accepted by L2 sequencer over RPC when it should not have been.")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	err = l2Verif.SendTransaction(ctx, tx)
+	cancel()
+	require.Error(t, err, "a DepositTx was accepted by L2 verifier over RPC when it should not have been.")
 }
