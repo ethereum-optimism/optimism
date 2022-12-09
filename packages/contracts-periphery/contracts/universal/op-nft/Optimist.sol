@@ -59,7 +59,7 @@ contract Optimist is
      * @dev     Returns the base URI for the Optimist token from the attestation.
      * @return  string  The token URI.
      */
-    function _baseURI() internal view override returns (string memory) {
+    function baseURI() public view returns (string memory) {
         return
             string(
                 abi.encodePacked(
