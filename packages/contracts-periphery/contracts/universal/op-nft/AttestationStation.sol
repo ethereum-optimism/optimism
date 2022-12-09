@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
-contract AttestationStation is Initializable, OwnableUpgradeable, Semver {
+contract AttestationStation is Initializable, Semver {
     struct AttestationData {
         address about;
         bytes32 key;
@@ -23,18 +20,7 @@ contract AttestationStation is Initializable, OwnableUpgradeable, Semver {
         bytes val
     );
 
-    constructor(address owner) Semver(0, 0, 1) {
-        initialize(owner);
-    }
-
-    /**
-     * @notice  Initialize the Optimist contract.
-     * @dev     Initializes the AttestationStation contract with msg.sender as owner
-     */
-    function initialize(address owner) public initializer {
-        __Ownable_init();
-        transferOwnership(owner);
-    }
+    constructor() Semver(0, 0, 1) {}
 
     /**
      * @notice  Attest to the given data.

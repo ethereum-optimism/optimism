@@ -30,7 +30,6 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
     function test_attest_single() external {
         AttestationStation attestationStation = new AttestationStation();
-        attestationStation.initialize();
 
         // alice is going to attest about bob
         AttestationStation.AttestationData memory attestationData = AttestationStation
