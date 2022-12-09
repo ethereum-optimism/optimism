@@ -32,7 +32,6 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         // alice is going to attest about bob
         vm.prank(alice_attestor);
-        address creator = alice_attestor;
         AttestationStation.AttestationData memory attestationData = AttestationStation
             .AttestationData({
             about: bob,
@@ -52,7 +51,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         // assert the attestation is there
         assertEq(
             attestationStation.readAttestation(
-                creator,
+                alice_attestor,
                 attestationData.about,
                 attestationData.key,
             ),
@@ -72,11 +71,64 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         // assert the attestation is updated
         assertEq(
             attestationStation.readAttestation(
-                creator,
+                alice_attestor,
                 attestationData.about,
                 attestationData.key,
             ),
             attestationData.val
+        );
+    }
+
+    function test_attest_bulk() external {
+        AttestationStation attestationStation = new AttestationStation();
+
+        vm.prank(alice_attestor);
+
+        AttestationStation.AttestationData[] memory attestationData = new AttestationStation.AttestationData[](2);
+        attestationData[0] = AttestationStation.AttestationData({
+            about: bob,
+            key: bytes32("test-key:string"),
+            val: bytes("test-value")
+        });
+
+        attestationData[1] = AttestationStation.AttestationData({
+            about: bob,
+            key: bytes32("test-key2",
+            val: bytes("test-value2")
+        });
+
+        attestationData[2] = AttestationStation.AttestationData({
+            about: sally,
+            key: bytes32("test-key:string",
+            val: bytes("test-value3")
+        });
+
+        attestationStation.attestBulk(attestationData);
+
+        // assert the attestations are there
+        assertEq(
+            attestationStation.readAttestation(
+                alice_attestor,
+                attestationData[0].about,
+                attestationData[0].key,
+            ),
+            attestationData[0].val
+        );
+        assertEq(
+            attestationStation.readAttestation(
+                alice_attestor,
+                attestationData[1].about,
+                attestationData[1].key,
+            ),
+            attestationData[1].val
+        );
+        assertEq(
+            attestationStation.readAttestation(
+                alice_attestor,
+                attestationData[2].about,
+                attestationData[2].key,
+            ),
+            attestationData[2].val
         );
     }
 }
