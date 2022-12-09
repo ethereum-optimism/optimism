@@ -148,14 +148,14 @@ library Bytes {
     /**
      * @notice Compares two byte arrays by comparing their keccak256 hashes.
      *
-     * @param a First byte array to compare.
-     * @param b Second byte array to compare.
+     * @param _a First byte array to compare.
+     * @param _b Second byte array to compare.
      *
      * @return _eq True if the two byte arrays are equal, false otherwise.
      */
-    function equal(bytes memory a, bytes memory b) internal pure returns (bool _eq) {
+    function equal(bytes memory _a, bytes memory _b) internal pure returns (bool _eq) {
         assembly {
-            _eq := eq(keccak256(a, mload(a)), keccak256(b, mload(b)))
+            _eq := eq(keccak256(_a, mload(_a)), keccak256(_b, mload(_b)))
         }
     }
 }
