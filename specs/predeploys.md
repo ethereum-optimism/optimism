@@ -12,13 +12,13 @@
 - [WETH9](#weth9)
 - [L2CrossDomainMessenger](#l2crossdomainmessenger)
 - [L2StandardBridge](#l2standardbridge)
-- [OptimismMintableERC20Factory](#optimismmintableerc20factory)
-- [OptimismMintableERC721Factory](#optimismmintableerc721factory)
 - [L1BlockNumber](#l1blocknumber)
 - [GasPriceOracle](#gaspriceoracle)
 - [L1Block](#l1block)
 - [ProxyAdmin](#proxyadmin)
 - [SequencerFeeVault](#sequencerfeevault)
+- [OptimismMintableERC20Factory](#optimismmintableerc20factory)
+- [OptimismMintableERC721Factory](#optimismmintableerc721factory)
 - [BaseFeeVault](#basefeevault)
 - [L1FeeVault](#l1feevault)
 
@@ -291,7 +291,6 @@ Address: `0x4200000000000000000000000000000000000017`
 
 The `OptimismMintableERC721Factory` is responsible for creating ERC721 contracts on L2 that can be used for
 depositing native L1 NFTs into.
-
 
 ## BaseFeeVault
 
