@@ -30,17 +30,6 @@ contract AttestationStation is Initializable, Semver {
     /**
      * @notice  Attest to the given data.
      * @dev     Attests to the given data from the sender.
-     * @param   _attestations  The array of attestation data.
-     */
-    function attestBulk(AttestationData[] memory _attestations) public {
-        for (uint256 i = 0; i < _attestations.length; ++i) {
-            attest(_attestations[i]);
-        }
-    }
-
-    /**
-     * @notice  Attest to the given data.
-     * @dev     Attests to the given data from the sender.
      * @param   _attestation  The attestation data.
      */
     function attest(AttestationData memory _attestation) public {
@@ -56,15 +45,24 @@ contract AttestationStation is Initializable, Semver {
     /**
      * @notice  Attest to the given data.
      * @dev     Attests to the given data from the sender.
+     * @param   _attestations  The array of attestation data.
+     */
+    function attestBulk(AttestationData[] memory _attestations) public {
+        for (uint256 i = 0; i < _attestations.length; ++i) {
+            attest(_attestations[i].about, _attestations[i].key, _attestations[i].val);
+        }
+    }
+
+    /**
+     * @notice  Attest to the given data.
+     * @dev     Attests to the given data from the sender.
      * @dev     This is very convenient for people using etherscan
      * @param   about  The address of the attestation subject.
      * @param   keyStr  The key of the attestation.
      * @param   valStr  The value of the attestation.
      */
     function attestString(address memory _about, string memory _keyStr, string memory _valStr) public {
-        attestations[msg.sender][_about][bytes32(_keyStr)] = bytes(_valStr);
-        emit AttestationCreated(
-            msg.sender,
+        attest(
             _about,
             bytes32(_keyStr),
             bytes(_valStr)
