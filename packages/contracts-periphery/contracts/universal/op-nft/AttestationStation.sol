@@ -54,6 +54,24 @@ contract AttestationStation is Initializable, Semver {
     }
 
     /**
+     * @notice  Attest to the given data.
+     * @dev     Attests to the given data from the sender.
+     * @dev     This is very convenient for people using etherscan
+     * @param   about  The address of the attestation subject.
+     * @param   keyStr  The key of the attestation.
+     * @param   valStr  The value of the attestation.
+     */
+    function attestString(address memory _about, string memory _keyStr, string memory _valStr) public {
+        attestations[msg.sender][_about][bytes32(_keyStr)] = bytes(_valStr);
+        emit AttestationCreated(
+            msg.sender,
+            _about,
+            bytes32(_keyStr),
+            bytes(_valStr)
+        );
+    }
+
+    /**
      * @notice  Reads an attestation
      * @return  bytes  The attestation
      */
@@ -65,6 +83,7 @@ contract AttestationStation is Initializable, Semver {
     /**
      * @notice Reads an attestation string
      * @dev This is very convenient for people using etherscan
+     * @dev This is also convenient for people who don't understand bytes
      * @dev Takes in a string key instead of a bytes32
      * @return The attestation formatted as a string
      */
