@@ -2,7 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title AttestationStation
