@@ -52,4 +52,29 @@ contract AttestationStation is Initializable, Semver {
             _attestation.val
         );
     }
+
+    /**
+     * @notice  Reads an attestation
+     * @return  bytes  The attestation
+     */
+    function readAttestation(address memory creator, address memory about,  bytes32 memory key) public view returns (bytes memory val) {
+        val = attestationStation.attestations(admin, about, key);
+        return val;
+    }
+
+    /**
+     * @notice Reads an attestation string
+     * @dev This is very convenient for people using etherscan
+     * @dev Takes in a string key instead of a bytes32
+     * @return The attestation formatted as a string
+     */
+    function readAttestationString(address memory creator, address memory about,  string memory keyStr) public view returns (string memory valStr) {
+        val = attestationStation.attestations(
+            admin,
+            about,
+            bytes32(keyStr)
+        );
+        valStr = string(abi.encodePacked((val)));
+        return valStr;
+    }
 }
