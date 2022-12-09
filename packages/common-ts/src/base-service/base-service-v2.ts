@@ -281,16 +281,12 @@ export abstract class BaseServiceV2<
     // names into lower case for the validation step. We'll turn the names back into their original
     // names when we're done.
     const cleaned = cleanEnv<TOptions>(
-      { ...config.env, ...config.args },
+      { ...config.env, ...config.args, ...(params.options || {}) },
       Object.entries(params.optionsSpec || {}).reduce((acc, [key, val]) => {
         acc[key.toLowerCase()] = val.validator({
           desc: val.desc,
           default: val.default,
         })
-        return acc
-      }, {}) as any,
-      Object.entries(params.options || {}).reduce((acc, [key, val]) => {
-        acc[key.toLowerCase()] = val
         return acc
       }, {}) as any
     )
