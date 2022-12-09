@@ -82,13 +82,6 @@ abstract contract CrossDomainMessenger is
     uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
 
     /**
-     * @notice Initial value for the xDomainMsgSender variable. We set this to a non-zero value
-     *         because performing an SSTORE on a non-zero value is significantly cheaper than on a
-     *         zero value.
-     */
-    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
-
-    /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
     address public immutable OTHER_MESSENGER;
@@ -322,7 +315,7 @@ abstract contract CrossDomainMessenger is
 
         xDomainMsgSender = _sender;
         bool success = SafeCall.call(_target, gasleft() - RELAY_GAS_BUFFER, _value, _message);
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
 
         if (success == true) {
             successfulMessages[versionedHash] = true;
@@ -351,7 +344,7 @@ abstract contract CrossDomainMessenger is
      */
     function xDomainMessageSender() external view returns (address) {
         require(
-            xDomainMsgSender != DEFAULT_XDOMAIN_SENDER,
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER,
             "CrossDomainMessenger: xDomainMessageSender is not set"
         );
 
@@ -399,7 +392,7 @@ abstract contract CrossDomainMessenger is
      */
     // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init() internal onlyInitializing {
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();
