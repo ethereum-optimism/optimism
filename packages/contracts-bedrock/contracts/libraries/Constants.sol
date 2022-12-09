@@ -17,4 +17,11 @@ library Constants {
      *         never have any code on any EVM chain.
      */
     address internal constant ESTIMATION_ADDRESS = address(1);
+
+    /**
+     * @notice Value used for the L2 sender storage slot in both the OptimismPortal and the
+     *         CrossDomainMessenger contracts before an actual sender is set. This value is
+     *         non-zero to reduce the gas cost of message passing transactions.
+     */
+    address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 }
