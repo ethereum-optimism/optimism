@@ -156,10 +156,6 @@ library Bytes {
      * @return True if the two byte arrays are equal, false otherwise.
      */
     function equal(bytes memory _a, bytes memory _b) internal pure returns (bool) {
-        bool _eq;
-        assembly {
-            _eq := eq(keccak256(add(_a, 0x20), mload(_a)), keccak256(add(_b, 0x20), mload(_b)))
-        }
-        return _eq;
+        return keccak256(_a) == keccak256(_b);
     }
 }

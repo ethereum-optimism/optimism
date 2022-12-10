@@ -13,7 +13,6 @@ contract Bytes_Test is Test {
         uint256 bytesLength = _bytes.length;
         bytes memory nibbles = new bytes(bytesLength * 2);
         bytes1 b;
-
         for (uint256 i = 0; i < bytesLength; ) {
             b = _bytes[i];
             nibbles[i * 2] = b >> 4;
@@ -22,6 +21,8 @@ contract Bytes_Test is Test {
         }
 
         // Ensure that the two implementations are equivalent
+        assertEq(_nibbles.length, nibbles.length);
+        assertEq(nibbles.length, _bytes.length * 2);
         assertEq(_nibbles, nibbles);
     }
 
@@ -40,25 +41,16 @@ contract Bytes_Test is Test {
         _nibbles[8] = 0x09;
         _nibbles[9] = 0x00;
 
-        assertEq(Bytes.toNibbles(_bytes), _nibbles);
+        bytes memory nibbles = Bytes.toNibbles(_bytes);
+
+        assertEq(nibbles.length, _bytes.length * 2);
+        assertEq(_nibbles, nibbles);
     }
 
     /// @dev Test that the `toNibbles` function returns a zero-length array when given an empty array.
     function test_toNibbles_zeroLength_succeeds() public {
-        assertEq(Bytes.toNibbles(hex""), hex"");
-    }
-
-    /// @dev Test that the `equals` function works as expected.
-    function testFuzz_equals_succeeds(bytes memory _a) public {
-        assertTrue(Bytes.equal(_a, _a));
-        assertEq(_a, _a);
-    }
-
-    /// @dev Test that the `equals` function returns false when passed
-    /// non-equal byte arrays.
-    function testFuzz_equals_diffInputs_fails(bytes memory _a, bytes memory _b) public {
-        vm.assume(keccak256(_a) != keccak256(_b));
-
-        assertFalse(Bytes.equal(_a, _b));
+        bytes memory nibbles = Bytes.toNibbles(hex"");
+        assertEq(nibbles.length, 0);
+        assertEq(nibbles, hex"");
     }
 }
