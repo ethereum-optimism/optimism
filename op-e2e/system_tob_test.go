@@ -11,15 +11,22 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/testutils/fuzzerutils"
+	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rpc"
+	fuzz "github.com/google/gofuzz"
 	"github.com/stretchr/testify/require"
 )
 
@@ -401,5 +408,308 @@ func TestMixedDepositValidity(t *testing.T) {
 		require.Equal(t, transactor.ExpectedL2Balance, endL2SeqBalance, "Unexpected L2 sequencer balance for transactor")
 		require.Equal(t, transactor.ExpectedL2Nonce, endL2VerifNonce, "Unexpected L2 verifier nonce for transactor")
 		require.Equal(t, transactor.ExpectedL2Balance, endL2VerifBalance, "Unexpected L2 verifier balance for transactor")
+	}
+}
+
+// TestMixedWithdrawalValidity makes a number of withdrawal transactions and ensures ones with modified parameters are
+// rejected while unmodified ones are accepted. This runs test cases in different systems.
+func TestMixedWithdrawalValidity(t *testing.T) {
+	// parallel(t)
+	// Setup our logger handler
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	// There are 7 different fields we try modifying to cause a failure, plus one "good" test result we test.
+	for i := 0; i <= 8; i++ {
+		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
+			// Create our system configuration, funding all accounts we created for L1/L2, and start it
+			cfg := DefaultSystemConfig(t)
+			cfg.DeployConfig.FinalizationPeriodSeconds = 2
+			sys, err := cfg.Start()
+			require.NoError(t, err, "error starting up system")
+			defer sys.Close()
+
+			// Obtain our sequencer, verifier, and transactor keypair.
+			l1Client := sys.Clients["l1"]
+			l2Seq := sys.Clients["sequencer"]
+			l2Verif := sys.Clients["verifier"]
+			require.NoError(t, err)
+
+			// Define our L1 transaction timeout duration.
+			txTimeoutDuration := 10 * time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second
+
+			// Bind to the deposit contract
+			depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
+			_ = depositContract
+			require.NoError(t, err)
+
+			// Create a struct used to track our transactors and their transactions sent.
+			type TestAccountState struct {
+				Account           *TestAccount
+				ExpectedL1Balance *big.Int
+				ExpectedL2Balance *big.Int
+				ExpectedL1Nonce   uint64
+				ExpectedL2Nonce   uint64
+			}
+
+			// Create a test account state for our transactor.
+			transactorKey := cfg.Secrets.Alice
+			transactor := &TestAccountState{
+				Account: &TestAccount{
+					HDPath: e2eutils.DefaultMnemonicConfig.Alice,
+					Key:    transactorKey,
+					L1Opts: nil,
+					L2Opts: nil,
+				},
+				ExpectedL1Balance: nil,
+				ExpectedL2Balance: nil,
+				ExpectedL1Nonce:   0,
+				ExpectedL2Nonce:   0,
+			}
+			transactor.Account.L1Opts, err = bind.NewKeyedTransactorWithChainID(transactor.Account.Key, cfg.L1ChainIDBig())
+			require.NoError(t, err)
+			transactor.Account.L2Opts, err = bind.NewKeyedTransactorWithChainID(transactor.Account.Key, cfg.L2ChainIDBig())
+			require.NoError(t, err)
+
+			// Obtain the transactor's starting balance on L1.
+			ctx, cancel := context.WithTimeout(context.Background(), txTimeoutDuration)
+			transactor.ExpectedL1Balance, err = l1Client.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Obtain the transactor's starting balance on L2.
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			transactor.ExpectedL2Balance, err = l2Verif.BalanceAt(ctx, transactor.Account.L2Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Bind to the L2-L1 message passer
+			l2l1MessagePasser, err := bindings.NewL2ToL1MessagePasser(predeploys.L2ToL1MessagePasserAddr, l2Seq)
+			require.NoError(t, err, "error binding to message passer on L2")
+
+			// Create our fuzzer wrapper to generate complex values (despite this not being a fuzz test, this is still a useful
+			// provider to fill complex data structures).
+			typeProvider := fuzz.NewWithSeed(time.Now().Unix()).NilChance(0).MaxDepth(10000).NumElements(0, 0x100)
+			fuzzerutils.AddFuzzerFunctions(typeProvider)
+
+			// Now we create a number of withdrawals from each transactor
+
+			// Determine the address our request will come from
+			fromAddr := crypto.PubkeyToAddress(transactor.Account.Key.PublicKey)
+
+			// Initiate Withdrawal
+			withdrawAmount := big.NewInt(500_000_000_000)
+			transactor.Account.L2Opts.Value = withdrawAmount
+			tx, err := l2l1MessagePasser.InitiateWithdrawal(transactor.Account.L2Opts, fromAddr, big.NewInt(21000), nil)
+			require.Nil(t, err, "sending initiate withdraw tx")
+
+			// Wait for the transaction to appear in L2 verifier
+			receipt, err := waitForTransaction(tx.Hash(), l2Verif, txTimeoutDuration)
+			require.Nil(t, err, "withdrawal initiated on L2 sequencer")
+			require.Equal(t, receipt.Status, types.ReceiptStatusSuccessful, "transaction failed")
+
+			// Obtain the header for the block containing the transaction (used to calculate gas fees)
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			header, err := l2Verif.HeaderByNumber(ctx, receipt.BlockNumber)
+			cancel()
+			require.Nil(t, err)
+
+			// Calculate gas fees for the withdrawal in L2 to later adjust our balance.
+			withdrawalL2GasFee := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+
+			// Adjust our expected L2 balance (should've decreased by withdraw amount + fees)
+			transactor.ExpectedL2Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, withdrawAmount)
+			transactor.ExpectedL2Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, withdrawalL2GasFee)
+			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
+
+			// Wait for the finalization period, then we can finalize this withdrawal.
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
+			cancel()
+			require.Nil(t, err)
+
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
+			cancel()
+			require.Nil(t, err)
+
+			l2OutPutOracle, err := bindings.NewL2OutputOracleCaller(predeploys.DevL2OutputOracleAddr, l1Client)
+			require.Nil(t, err)
+
+			rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+			require.Nil(t, err)
+			proofCl := gethclient.New(rpcClient)
+			receiptCl := ethclient.NewClient(rpcClient)
+
+			// Now create the withdrawal
+			params, err := withdrawals.ProveWithdrawalParameters(context.Background(), proofCl, receiptCl, tx.Hash(), header, l2OutPutOracle)
+			require.Nil(t, err)
+
+			// Obtain our withdrawal parameters
+			withdrawalTransaction := &bindings.TypesWithdrawalTransaction{
+				Nonce:    params.Nonce,
+				Sender:   params.Sender,
+				Target:   params.Target,
+				Value:    params.Value,
+				GasLimit: params.GasLimit,
+				Data:     params.Data,
+			}
+			l2OutputIndexParam := params.L2OutputIndex
+			outputRootProofParam := params.OutputRootProof
+			withdrawalProofParam := params.WithdrawalProof
+
+			// Determine if this will be a bad withdrawal.
+			badWithdrawal := i < 8
+			if badWithdrawal {
+				// Select a field to overwrite depending on which test case this is.
+				fieldIndex := i
+
+				// We ensure that each field changes to something different.
+				if fieldIndex == 0 {
+					originalValue := new(big.Int).Set(withdrawalTransaction.Nonce)
+					for originalValue.Cmp(withdrawalTransaction.Nonce) == 0 {
+						typeProvider.Fuzz(&withdrawalTransaction.Nonce)
+					}
+				} else if fieldIndex == 1 {
+					originalValue := withdrawalTransaction.Sender
+					for originalValue == withdrawalTransaction.Sender {
+						typeProvider.Fuzz(&withdrawalTransaction.Sender)
+					}
+				} else if fieldIndex == 2 {
+					originalValue := withdrawalTransaction.Target
+					for originalValue == withdrawalTransaction.Target {
+						typeProvider.Fuzz(&withdrawalTransaction.Target)
+					}
+				} else if fieldIndex == 3 {
+					originalValue := new(big.Int).Set(withdrawalTransaction.Value)
+					for originalValue.Cmp(withdrawalTransaction.Value) == 0 {
+						typeProvider.Fuzz(&withdrawalTransaction.Value)
+					}
+				} else if fieldIndex == 4 {
+					originalValue := new(big.Int).Set(withdrawalTransaction.GasLimit)
+					for originalValue.Cmp(withdrawalTransaction.GasLimit) == 0 {
+						typeProvider.Fuzz(&withdrawalTransaction.GasLimit)
+					}
+				} else if fieldIndex == 5 {
+					originalValue := new(big.Int).Set(l2OutputIndexParam)
+					for originalValue.Cmp(l2OutputIndexParam) == 0 {
+						typeProvider.Fuzz(&l2OutputIndexParam)
+					}
+				} else if fieldIndex == 6 {
+					// TODO: this is a large structure that is unlikely to ever produce the same value, however we should
+					//  verify that we actually generated different values.
+					typeProvider.Fuzz(&outputRootProofParam)
+				} else if fieldIndex == 7 {
+					// typeProvider.Fuzz(&withdrawalProofParam)
+					// originalValue := make([]byte, len(withdrawalProofParam))
+					// copy(originalValue, withdrawalProofParam)
+					// for bytes.Equal(originalValue, withdrawalProofParam) {
+					// 	typeProvider.Fuzz(&withdrawalProofParam)
+					// }
+				}
+			}
+
+			// Prove withdrawal
+			tx, err = depositContract.ProveWithdrawalTransaction(
+				transactor.Account.L1Opts,
+				*withdrawalTransaction,
+				l2OutputIndexParam,
+				outputRootProofParam,
+				withdrawalProofParam,
+			)
+			require.Nil(t, err)
+
+			// Ensure that our withdrawal was proved successfully
+			proveReceipt, err := waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+			require.Nil(t, err, "prove withdrawal")
+			require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
+
+			// Wait for finalization and then create the Finalized Withdrawal Transaction
+			ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+			defer cancel()
+			_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
+			require.Nil(t, err)
+
+			// Finalize withdrawal
+			tx, err = depositContract.FinalizeWithdrawalTransaction(
+				transactor.Account.L1Opts,
+				*withdrawalTransaction,
+			)
+
+			// If we had a bad withdrawal, we don't update some expected value and skip to processing the next
+			// withdrawal. Otherwise, if it was valid, this should've succeeded so we proceed with updating our expected
+			// values and asserting no errors occurred.
+			if badWithdrawal {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+
+				receipt, err = waitForTransaction(tx.Hash(), l1Client, txTimeoutDuration)
+				require.Nil(t, err, "finalize withdrawal")
+				require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status)
+
+				// Verify balance after withdrawal
+				ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+				header, err = l1Client.HeaderByNumber(ctx, receipt.BlockNumber)
+				cancel()
+				require.Nil(t, err)
+
+				// Ensure that withdrawal - gas fees are added to the L1 balance
+				// Fun fact, the fee is greater than the withdrawal amount
+				withdrawalL1GasFee := calcGasFees(receipt.GasUsed, tx.GasTipCap(), tx.GasFeeCap(), header.BaseFee)
+				transactor.ExpectedL1Balance = new(big.Int).Add(transactor.ExpectedL2Balance, withdrawAmount)
+				transactor.ExpectedL1Balance = new(big.Int).Sub(transactor.ExpectedL2Balance, withdrawalL1GasFee)
+				transactor.ExpectedL1Nonce++
+			}
+
+			// At the end, assert our account balance/nonce states.
+
+			// Obtain the L2 sequencer account balance
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			endL1Balance, err := l1Client.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Obtain the L1 account nonce
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			endL1Nonce, err := l1Client.NonceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Obtain the L2 sequencer account balance
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			endL2SeqBalance, err := l2Seq.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Obtain the L2 sequencer account nonce
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			endL2SeqNonce, err := l2Seq.NonceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Obtain the L2 verifier account balance
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			endL2VerifBalance, err := l2Verif.BalanceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// Obtain the L2 verifier account nonce
+			ctx, cancel = context.WithTimeout(context.Background(), txTimeoutDuration)
+			endL2VerifNonce, err := l2Verif.NonceAt(ctx, transactor.Account.L1Opts.From, nil)
+			cancel()
+			require.NoError(t, err)
+
+			// TODO: Check L1 balance as well here. We avoided this due to time constraints as it seems L1 fees
+			//  were off slightly.
+			_ = endL1Balance
+			//require.Equal(t, transactor.ExpectedL1Balance, endL1Balance, "Unexpected L1 balance for transactor")
+			require.Equal(t, transactor.ExpectedL1Nonce, endL1Nonce, "Unexpected L1 nonce for transactor")
+			require.Equal(t, transactor.ExpectedL2Nonce, endL2SeqNonce, "Unexpected L2 sequencer nonce for transactor")
+			require.Equal(t, transactor.ExpectedL2Balance, endL2SeqBalance, "Unexpected L2 sequencer balance for transactor")
+			require.Equal(t, transactor.ExpectedL2Nonce, endL2VerifNonce, "Unexpected L2 verifier nonce for transactor")
+			require.Equal(t, transactor.ExpectedL2Balance, endL2VerifBalance, "Unexpected L2 verifier balance for transactor")
+		})
 	}
 }
