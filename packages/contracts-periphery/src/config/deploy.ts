@@ -12,6 +12,16 @@ export interface DeployConfig {
    * the DDD to transfer ownership to the final contract owner very quickly after deployment.
    */
   ddd: string
+
+  /**
+   * Address of the Proxy owner on L2
+   */
+  l2ProxyOwnerAddress: string
+
+  /**
+   * Number of confs before considering it final
+   */
+  numDeployConfirmations?: number
 }
 
 /**
@@ -20,5 +30,12 @@ export interface DeployConfig {
 export const configSpec: DeployConfigSpec<DeployConfig> = {
   ddd: {
     type: 'address',
+  },
+  l2ProxyOwnerAddress: {
+    type: 'address',
+  },
+  numDeployConfirmations: {
+    type: 'number',
+    default: 1,
   },
 }
