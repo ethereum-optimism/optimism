@@ -14,6 +14,8 @@ import morgan from 'morgan'
 import { Logger, LogLevel } from '../common/logger'
 import { Metric, Gauge, Counter } from './metrics'
 import { validators } from './validators'
+import { TrpcApi } from './trpc'
+import { Metrics } from '../common'
 
 export type Options = {
   [key: string]: any
@@ -51,6 +53,18 @@ export type MetricsSpec<TMetrics extends MetricsV2> = {
 }
 
 export type ExpressRouter = Router
+
+// need to make an example to infer the type
+class ExampleTRPCApi<
+  TMetrics extends MetricsV2,
+  TRoutes extends TrpcApi<TMetrics>['routes']
+> extends TrpcApi<TMetrics> {
+  routes: TRoutes = this.router({}) as any
+}
+type ExtendedTrpcApi<
+  TMetrics extends MetricsV2,
+  TRoutes
+> = typeof ExampleTRPCApi<TMetrics, TRoutes>
 
 /**
  * BaseServiceV2 is an advanced but simple base class for long-running TypeScript services.
@@ -426,6 +440,10 @@ export abstract class BaseServiceV2<
 
       // Register user routes.
       const router = express.Router()
+      if (this.TrpcApi) {
+        const trpc = new this.TrpcApi(this.metrics, this.logger)
+        router.use('trpc', trpc.createExpressMiddleware())
+      }
       if (this.routes) {
         this.routes(router)
       }
@@ -537,6 +555,21 @@ export abstract class BaseServiceV2<
    * @param router Express router.
    */
   protected routes?(router: ExpressRouter): Promise<void>
+
+  /**
+   * Add a TRPC API class to use TRPC.
+   * Trpc is a typesafe way of creating an api
+   * that allows you to automatically use a typesafe client
+   * on typescript microservices and frontends with no build/generation
+   * step.
+   *
+   * @example
+   * // alternatively import from another file
+   * trpc: class MyTRPCApi extends TrpcApi {
+   *  // define your api here
+   * }
+   */
+  protected TrpcApi: ExtendedTrpcApi<TMetrics, StandardMetrics & Metrics>
 
   /**
    * Main function. Runs repeatedly when run() is called.
