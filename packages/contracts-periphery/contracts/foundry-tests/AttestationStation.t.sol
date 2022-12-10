@@ -43,7 +43,14 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
             });
 
         // assert the attestation starts empty
-        assertEq(attestationStation.attestations(address(this), address(this), "test"), "");
+        assertEq(
+            attestationStation.attestations(
+                attestationData.about,
+                attestationData.key,
+                attestationData.value
+            ),
+            ""
+        );
 
         // make attestation
         vm.prank(alice_attestor);
