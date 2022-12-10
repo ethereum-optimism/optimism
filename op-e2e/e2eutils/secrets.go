@@ -105,6 +105,7 @@ func (m *MnemonicConfig) Secrets() (*Secrets, error) {
 		Alice:        alice,
 		Bob:          bob,
 		Mallory:      mallory,
+		Wallet:       wallet,
 	}, nil
 }
 
@@ -123,6 +124,9 @@ type Secrets struct {
 	Alice   *ecdsa.PrivateKey
 	Bob     *ecdsa.PrivateKey
 	Mallory *ecdsa.PrivateKey
+
+	// Share the wallet to be able to generate more accounts
+	Wallet *hdwallet.Wallet
 }
 
 // EncodePrivKey encodes the given private key in 32 bytes
