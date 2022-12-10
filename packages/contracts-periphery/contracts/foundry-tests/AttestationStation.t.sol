@@ -47,7 +47,7 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
             attestationStation.attestations(
                 attestationData.about,
                 attestationData.key,
-                attestationData.value
+                attestationData.val
             ),
             ""
         );

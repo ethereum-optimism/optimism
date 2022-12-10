@@ -4,15 +4,15 @@ pragma solidity 0.8.15;
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 
 /**
- * @title AttestationStation
- * @dev   Contract for creating attestations.
+ * @title  AttestationStation
+ * @dev    Contract for creating attestations.
  * @notice The AttestationStation contract is a contract for creating on chain attestations
  *         It has a very simple interface for creating attestations.
  *         This contract is not yet audited
  */
 contract AttestationStation is Semver {
     /**
-     * @notice Struct representing data that is being attested
+     * @notice       Struct representing data that is being attested
      *
      * @custom:field about Address being attested about (not creator/msg.sender)
      * @custom:field key   A bytes32 key for the attestation.
@@ -26,9 +26,9 @@ contract AttestationStation is Semver {
 
     /**
      * @notice Maps addresses to attestations
-     * @dev addresses map to attestations map of
-     *      `about` addresses to key/values
-     *      key/values are a map of bytes32 to bytes
+     * @dev    addresses map to attestations map of
+     *         about addresses to key/values
+     *         key/values are a map of bytes32 to bytes
      */
     mapping(address => mapping(address => mapping(bytes32 => bytes))) public attestations;
 
