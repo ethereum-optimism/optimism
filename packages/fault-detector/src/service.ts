@@ -1,5 +1,6 @@
 import {
   BaseServiceV2,
+  StandardOptions,
   ExpressRouter,
   Gauge,
   validators,
@@ -39,13 +40,15 @@ type State = {
 }
 
 export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
-  constructor(options?: Partial<Options>) {
+  constructor(options?: Partial<Options & StandardOptions>) {
     super({
       version,
       name: 'fault-detector',
       loop: true,
-      loopIntervalMs: 1000,
-      options,
+      options: {
+        loopIntervalMs: 1000,
+        ...options,
+      },
       optionsSpec: {
         l1RpcProvider: {
           validator: validators.provider,
