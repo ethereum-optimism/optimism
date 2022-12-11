@@ -385,16 +385,15 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev Contract owner should be able to renounce owneership
+     * @dev Contract owner should NOT be able to renounce owneership
      */
     function test_optimist_renounce_ownership() external {
         AttestationStation attestationStation = new AttestationStation();
         Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
 
         vm.prank(alice_admin);
+        vm.expectRevert("CANNOT_RENOUNCE_OWNERSHIP");
         optimist.renounceOwnership();
-        // expect alice_admin to not be owner now
-        assertEq(optimist.owner(), address(0));
     }
 
     /**

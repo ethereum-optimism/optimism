@@ -172,4 +172,17 @@ contract Optimist is Initializable, ERC721BurnableUpgradeable, OwnableUpgradeabl
     ) internal virtual override {
         revert("SBT_SET_APPROVAL_FOR_ALL");
     }
+
+    /**
+     * @notice  Attestations
+     * @dev     Override internal function to prevent transfer of ownership to 0 address
+     *          The owner is who can attest to the Optimist contract
+     *          To renounce ownership we should do two things
+     *          1. Upgrade contract to a version that attests as the contract
+     *          2. Attest to baseURI and can-mint with the contract
+     *          3. Transfer ownership to the contract
+     */
+    function renounceOwnership() public pure override {
+        revert("CANNOT_RENOUNCE_OWNERSHIP");
+    }
 }
