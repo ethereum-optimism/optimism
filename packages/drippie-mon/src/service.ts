@@ -41,11 +41,11 @@ export class DrippieMonService extends BaseServiceV2<
         rpc: {
           validator: validators.provider,
           desc: 'Provider for network where Drippie is deployed',
-          secret: true,
         },
         drippieAddress: {
           validator: validators.str,
           desc: 'Address of Drippie contract',
+          public: true,
         },
       },
       metricsSpec: {
