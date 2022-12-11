@@ -157,8 +157,8 @@ contract Optimist is Initializable, ERC721BurnableUpgradeable, OwnableUpgradeabl
      * @notice  Soulbound
      * @dev     Override internal function to prevent transfers of the Optimist token.
      */
-    function approve(address _to, uint256) public pure override {
-        require(_to == address(0), "SBT_APPROVE");
+    function approve(address, uint256) public pure override {
+        revert("SBT_APPROVE");
     }
 
     /**
