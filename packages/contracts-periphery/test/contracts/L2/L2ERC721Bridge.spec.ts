@@ -137,7 +137,7 @@ describe('L2ERC721Bridge', () => {
 
       // Assert that nobody owns the L2 token initially
       await expect(L2ERC721.ownerOf(TOKEN_ID)).to.be.revertedWith(
-        'ERC721: owner query for nonexistent token'
+        'ERC721: invalid token ID'
       )
 
       // Successfully finalizes the deposit.
@@ -279,7 +279,7 @@ describe('L2ERC721Bridge', () => {
 
       // Assert that the token isn't owned by anyone
       await expect(L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
-        'ERC721: owner query for nonexistent token'
+        'ERC721: invalid token ID'
       )
 
       const withdrawalCallToMessenger =
@@ -372,7 +372,7 @@ describe('L2ERC721Bridge', () => {
 
       // Assert that the token isn't owned by anyone
       await expect(L2Token.ownerOf(TOKEN_ID)).to.be.revertedWith(
-        'ERC721: owner query for nonexistent token'
+        'ERC721: invalid token ID'
       )
 
       const withdrawalCallToMessenger =
