@@ -85,7 +85,7 @@ contract Optimist is Initializable, ERC721BurnableUpgradeable, OwnableUpgradeabl
      * @return The URI for the given token ID.
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        require(ownerOf(tokenId) != address(0), "Optimist:::tokenURI: TOKEN_URI_DNE");
+        require(ownerOf(tokenId) != address(0), "NOT_MINTED");
         return
             string(
                 abi.encodePacked(
@@ -114,7 +114,7 @@ contract Optimist is Initializable, ERC721BurnableUpgradeable, OwnableUpgradeabl
      * @return  uint256 decimal tokenId
      */
     function tokenIdOfOwner(address _owner) public view returns (uint256) {
-        require(balanceOf(_owner) > 0, "Optimist::tokenIdOfOwner: NOT_MINTED");
+        require(balanceOf(_owner) > 0, "NOT_MINTED");
         return _tokenIdOfOwner(_owner);
     }
 

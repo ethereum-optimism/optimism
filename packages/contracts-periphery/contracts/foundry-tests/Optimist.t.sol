@@ -212,6 +212,18 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
+     * @dev The tokenURI should revert if token not minted
+     */
+    function test_optimist_token_uri_not_minted() external {
+        AttestationStation attestationStation = new AttestationStation();
+        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+
+        // tokenURI should revert if token not minted
+        vm.expectRevert("ERC721: invalid token ID");
+        optimist.tokenURI(256);
+    }
+
+    /**
      * @dev Should return a boolean of if the address is whitelisted
      */
     function test_optimist_is_whitelisted() external {
@@ -262,6 +274,18 @@ contract OptimistTest is Optimist_Initializer {
         // assert tokenid is correct
         uint256 expectedId = 256;
         assertEq(optimist.tokenIdOfOwner(address(bob)), expectedId);
+    }
+
+    /**
+     * @dev tokeidOfOwner should revert if token is not minted
+     */
+    function test_optimist_token_id_of_owner_not_minted() external {
+        AttestationStation attestationStation = new AttestationStation();
+        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+
+        // expect to revert
+        vm.expectRevert("NOT_MINTED");
+        optimist.tokenIdOfOwner(bob);
     }
 
     /**
