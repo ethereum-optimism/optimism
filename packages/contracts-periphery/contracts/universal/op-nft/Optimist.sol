@@ -18,7 +18,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     /**
      * @notice The attestation station contract where owner makes attestations
      */
-    AttestationStation public attestationStation;
+    AttestationStation public immutable attestationStation;
 
     /**
      * @notice The length of the address
@@ -40,6 +40,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         address _admin,
         address _attestationStation
     ) Semver(0, 0, 1) {
+        attestationStation = AttestationStation(_attestationStation);
         initialize(_name, _symbol, _admin, _attestationStation);
     }
 
@@ -61,7 +62,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         __ERC721Burnable_init();
         __Ownable_init();
         transferOwnership(_admin);
-        attestationStation = AttestationStation(_attestationStation);
     }
 
     /**
