@@ -3,8 +3,8 @@ pragma solidity 0.8.15;
 import { Encoding } from "../libraries/Encoding.sol";
 
 contract EchidnaFuzzEncoding {
-    bool failedRoundtripAToB;
-    bool failedRoundtripBToA;
+    bool internal failedRoundtripAToB;
+    bool internal failedRoundtripBToA;
 
     /**
      * @notice Takes a pair of integers to be encoded into a versioned nonce with the
