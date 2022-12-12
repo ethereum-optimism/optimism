@@ -50,17 +50,16 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         l1RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1',
-          secret: true,
         },
         l2RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
-          secret: true,
         },
         startBatchIndex: {
           validator: validators.num,
           default: -1,
           desc: 'Batch index to start checking from',
+          public: true,
         },
       },
       metricsSpec: {
