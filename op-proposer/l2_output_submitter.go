@@ -199,8 +199,8 @@ func NewL2OutputSubmitter(
 		RollupClient:      rollupClient,
 		AllowNonFinalized: cfg.AllowNonFinalized,
 		L2OOAddr:          l2ooAddress,
-		ChainID:           chainID,
-		PrivKey:           l2OutputPrivKey,
+		From:              crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey),
+		SignerFn:          l2output.SignerFnForPrivateKey(l2OutputPrivKey, chainID),
 	})
 	if err != nil {
 		return nil, err

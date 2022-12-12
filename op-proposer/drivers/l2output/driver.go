@@ -42,11 +42,26 @@ type Config struct {
 	// L2OOAddr is the L1 contract address of the L2 Output Oracle.
 	L2OOAddr common.Address
 
-	// ChainID is the L1 chain ID used for proposal transaction signing
-	ChainID *big.Int
+	// From is the address to send transactions from
+	From common.Address
 
-	// Privkey used for proposal transaction signing
-	PrivKey *ecdsa.PrivateKey
+	// SignerFn is the function used to sign transactions
+	SignerFn bind.SignerFn
+}
+
+func SignerFnForPrivateKey(key *ecdsa.PrivateKey, chainID *big.Int) bind.SignerFn {
+	from := crypto.PubkeyToAddress(key.PublicKey)
+	signer := types.LatestSignerForChainID(chainID)
+	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+		if address != from {
+			return nil, bind.ErrNotAuthorized
+		}
+		signature, err := crypto.Sign(signer.Hash(tx).Bytes(), key)
+		if err != nil {
+			return nil, err
+		}
+		return tx.WithSignature(signer, signature)
+	}
 }
 
 type Driver struct {
@@ -74,14 +89,13 @@ func NewDriver(cfg Config) (*Driver, error) {
 		cfg.L2OOAddr, parsed, cfg.L1Client, cfg.L1Client, cfg.L1Client,
 	)
 
-	walletAddr := crypto.PubkeyToAddress(cfg.PrivKey.PublicKey)
-	cfg.Log.Info("Configured driver", "wallet", walletAddr, "l2-output-contract", cfg.L2OOAddr)
+	cfg.Log.Info("Configured driver", "wallet", cfg.From, "l2-output-contract", cfg.L2OOAddr)
 
 	return &Driver{
 		cfg:             cfg,
 		l2ooContract:    l2ooContract,
 		rawL2ooContract: rawL2ooContract,
-		walletAddr:      walletAddr,
+		walletAddr:      cfg.From,
 		l:               cfg.Log,
 	}, nil
 }
@@ -184,13 +198,13 @@ func (d *Driver) CraftTx(ctx context.Context, start, end, nonce *big.Int) (*type
 		return nil, fmt.Errorf("output for L2 block %s is still unsafe", output.BlockRef)
 	}
 
-	opts, err := bind.NewKeyedTransactorWithChainID(d.cfg.PrivKey, d.cfg.ChainID)
-	if err != nil {
-		return nil, err
+	opts := &bind.TransactOpts{
+		From:    d.cfg.From,
+		Signer:  d.cfg.SignerFn,
+		Context: ctx,
+		Nonce:   nonce,
+		NoSend:  true,
 	}
-	opts.Context = ctx
-	opts.Nonce = nonce
-	opts.NoSend = true
 
 	// Note: the CurrentL1 is up to (and incl.) what the safe chain and finalized chain have been derived from,
 	// and should be a quite recent L1 block (depends on L1 conf distance applied to rollup node).
@@ -227,16 +241,13 @@ func (d *Driver) CraftTx(ctx context.Context, start, end, nonce *big.Int) (*type
 //
 // NOTE: This method SHOULD NOT publish the resulting transaction.
 func (d *Driver) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
-	opts, err := bind.NewKeyedTransactorWithChainID(
-		d.cfg.PrivKey, d.cfg.ChainID,
-	)
-	if err != nil {
-		return nil, err
+	opts := &bind.TransactOpts{
+		From:    d.cfg.From,
+		Signer:  d.cfg.SignerFn,
+		Context: ctx,
+		Nonce:   new(big.Int).SetUint64(tx.Nonce()),
+		NoSend:  true,
 	}
-	opts.Context = ctx
-	opts.Nonce = new(big.Int).SetUint64(tx.Nonce())
-	opts.NoSend = true
-
 	return d.rawL2ooContract.RawTransact(opts, tx.Data())
 }
 
