@@ -151,19 +151,19 @@ func (d *DeployConfig) Check() error {
 		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.BaseFeeVaultRecipient == (common.Address{}) {
-		log.Warn("BaseFeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: BaseFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L1FeeVaultRecipient == (common.Address{}) {
-		log.Warn("L1FeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: L1FeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
-		log.Warn("SequencerFeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOverhead == 0 {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
 	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is address(0)")
+		log.Warn("GasPriceOracleScalar is 0")
 	}
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
