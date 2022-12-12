@@ -5,6 +5,8 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 import { predeploys } from '../src'
 
+import assert from 'assert'
+
 // expectedSemver is the semver version of the contracts
 // deployed at bedrock deployment
 const expectedSemver = '0.0.1'
@@ -16,6 +18,12 @@ const prefix = '0x420000000000000000000000000000000000'
 
 const logLoud = () => {
   console.log('   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+}
+
+const yell = (msg: string) => {
+  logLoud()
+  console.log(msg)
+  logLoud()
 }
 
 // checkPredeploys will ensure that all of the predeploys are set
@@ -128,9 +136,7 @@ const check = {
     assertSemver(version, 'DeployerWhitelist')
 
     const owner = await DeployerWhitelist.owner()
-    if (owner !== hre.ethers.constants.AddressZero) {
-      throw new Error('owner misconfigured')
-    }
+    assert(owner === hre.ethers.constants.AddressZero)
     console.log(`  - owner: ${owner}`)
 
     await checkProxy(hre, 'DeployerWhitelist')
@@ -158,32 +164,24 @@ const check = {
     )
 
     const xDomainMessageSender = '0x' + xDomainMessageSenderSlot.slice(26)
-    if (xDomainMessageSender !== '0x000000000000000000000000000000000000dead') {
-      throw new Error('xDomainMessageSender not set')
-    }
+    assert(
+      xDomainMessageSender === '0x000000000000000000000000000000000000dead'
+    )
 
     const otherMessenger = await L2CrossDomainMessenger.OTHER_MESSENGER()
-    if (otherMessenger === hre.ethers.constants.AddressZero) {
-      throw new Error('otherMessenger misconfigured')
-    }
-    logLoud()
-    console.log(`  - OTHER_MESSENGER: ${otherMessenger}`)
-    logLoud()
+    assert(otherMessenger !== hre.ethers.constants.AddressZero)
+    yell(`  - OTHER_MESSENGER: ${otherMessenger}`)
 
     const l1CrossDomainMessenger =
       await L2CrossDomainMessenger.l1CrossDomainMessenger()
-    console.log(`  - l1CrossDomainMessenger: ${l1CrossDomainMessenger}`)
+    yell(`  - l1CrossDomainMessenger: ${l1CrossDomainMessenger}`)
 
     await checkProxy(hre, 'L2CrossDomainMessenger')
     await assertProxy(hre, 'L2CrossDomainMessenger')
 
     const owner = await L2CrossDomainMessenger.owner()
-    if (owner === hre.ethers.constants.AddressZero) {
-      throw new Error('owner misconfigured')
-    }
-    logLoud()
-    console.log(`  - owner: ${owner}`)
-    logLoud()
+    assert(owner !== hre.ethers.constants.AddressZero)
+    yell(`  - owner: ${owner}`)
 
     const MESSAGE_VERSION = await L2CrossDomainMessenger.MESSAGE_VERSION()
     console.log(`  - MESSAGE_VERSION: ${MESSAGE_VERSION}`)
@@ -213,9 +211,7 @@ const check = {
     console.log(`  - legacy spacer: ${spacer}`)
 
     const initialized = '0x' + slot.slice(24, 26)
-    if (initialized !== '0x01') {
-      throw new Error('not initialized')
-    }
+    assert(initialized === '0x01')
     console.log(`  - initialized: ${initialized}`)
   },
   // GasPriceOracle
@@ -231,9 +227,7 @@ const check = {
     assertSemver(version, 'GasPriceOracle')
 
     const decimals = await GasPriceOracle.decimals()
-    if (!decimals.eq(6)) {
-      throw new Error('decimals misconfigured')
-    }
+    assert(decimals.eq(6))
     console.log(`  - decimals: ${decimals.toNumber()}`)
 
     await checkProxy(hre, 'GasPriceOracle')
@@ -251,17 +245,11 @@ const check = {
     assertSemver(version, 'L2StandardBridge', '0.0.2')
 
     const OTHER_BRIDGE = await L2StandardBridge.OTHER_BRIDGE()
-    if (OTHER_BRIDGE === hre.ethers.constants.AddressZero) {
-      throw new Error('invalid OTHER_BRIDGE')
-    }
-    logLoud()
-    console.log(`  - OTHER_BRIDGE: ${OTHER_BRIDGE}`)
-    logLoud()
+    assert(OTHER_BRIDGE !== hre.ethers.constants.AddressZero)
+    yell(`  - OTHER_BRIDGE: ${OTHER_BRIDGE}`)
 
     const MESSENGER = await L2StandardBridge.MESSENGER()
-    if (MESSENGER !== predeploys.L2CrossDomainMessenger) {
-      throw new Error('misconfigured MESSENGER')
-    }
+    assert(MESSENGER === predeploys.L2CrossDomainMessenger)
 
     await checkProxy(hre, 'L2StandardBridge')
     await assertProxy(hre, 'L2StandardBridge')
@@ -280,17 +268,11 @@ const check = {
     assertSemver(version, 'SequencerFeeVault')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
-    if (RECIPIENT === hre.ethers.constants.AddressZero) {
-      throw new Error('undefined RECIPIENT')
-    }
-    logLoud()
-    console.log(`  - RECIPIENT: ${RECIPIENT}`)
-    logLoud()
+    assert(RECIPIENT !== hre.ethers.constants.AddressZero)
+    yell(`  - RECIPIENT: ${RECIPIENT}`)
 
     const l1FeeWallet = await SequencerFeeVault.l1FeeWallet()
-    if (l1FeeWallet === hre.ethers.constants.AddressZero) {
-      throw new Error('undefined l1FeeWallet')
-    }
+    assert(l1FeeWallet !== hre.ethers.constants.AddressZero)
     console.log(`  - l1FeeWallet: ${l1FeeWallet}`)
 
     const MIN_WITHDRAWAL_AMOUNT =
@@ -312,9 +294,7 @@ const check = {
     assertSemver(version, 'OptimismMintableERC20Factory', '1.0.0')
 
     const BRIDGE = await OptimismMintableERC20Factory.BRIDGE()
-    if (BRIDGE === hre.ethers.constants.AddressZero) {
-      throw new Error('BRIDGE misconfigured')
-    }
+    assert(BRIDGE !== hre.ethers.constants.AddressZero)
 
     await checkProxy(hre, 'OptimismMintableERC20Factory')
     await assertProxy(hre, 'OptimismMintableERC20Factory')
@@ -362,37 +342,26 @@ const check = {
     )
 
     const name = await LegacyERC20ETH.name()
-    if (name !== 'Ether') {
-      throw new Error('name mismatch')
-    }
+    assert(name === 'Ether')
     console.log(`  - name: ${name}`)
 
     const symbol = await LegacyERC20ETH.symbol()
-    if (symbol !== 'ETH') {
-      throw new Error('symbol mismatch')
-    }
+    assert(symbol === 'ETH')
     console.log(`  - symbol: ${symbol}`)
 
     const decimals = await LegacyERC20ETH.decimals()
-    if (decimals !== 18) {
-      throw new Error('decimals mismatch')
-    }
+    assert(decimals === 18)
     console.log(`  - decimals: ${decimals}`)
 
     const BRIDGE = await LegacyERC20ETH.BRIDGE()
-    if (BRIDGE !== predeploys.L2StandardBridge) {
-      throw new Error('BRIDGE misconfigured')
-    }
+    assert(BRIDGE === predeploys.L2StandardBridge)
 
     const REMOTE_TOKEN = await LegacyERC20ETH.REMOTE_TOKEN()
-    if (REMOTE_TOKEN !== hre.ethers.constants.AddressZero) {
-      throw new Error('REMOTE_TOKEN misconfigured')
-    }
+    assert(REMOTE_TOKEN === hre.ethers.constants.AddressZero)
 
     const totalSupply = await LegacyERC20ETH.totalSupply()
-    if (!totalSupply.eq(0)) {
-      throw new Error('totalSupply not 0')
-    }
+    assert(totalSupply.eq(0))
+    console.log(`  - totalSupply: ${totalSupply}`)
 
     await checkProxy(hre, 'LegacyERC20ETH')
     // No proxy at this address, don't call assertProxy
@@ -406,21 +375,15 @@ const check = {
     const WETH9 = await hre.ethers.getContractAt('WETH9', predeploys.WETH9)
 
     const name = await WETH9.name()
-    if (name !== 'Wrapped Ether') {
-      throw new Error('name misconfigured')
-    }
+    assert(name === 'Wrapped Ether')
     console.log(`  - name: ${name}`)
 
     const symbol = await WETH9.symbol()
-    if (symbol !== 'WETH') {
-      throw new Error('symbol misconfigured')
-    }
+    assert(symbol === 'WETH')
     console.log(`  - symbol: ${symbol}`)
 
     const decimals = await WETH9.decimals()
-    if (decimals !== 18) {
-      throw new Error('decimals misconfigured')
-    }
+    assert(decimals === 18)
     console.log(`  - decimals: ${decimals}`)
 
     await checkProxy(hre, 'WETH9')
@@ -438,21 +401,15 @@ const check = {
     )
 
     const name = await GovernanceToken.name()
-    if (name !== 'Optimism') {
-      throw new Error('name misconfigured')
-    }
+    assert(name === 'Optimism')
     console.log(`  - name: ${name}`)
 
     const symbol = await GovernanceToken.symbol()
-    if (symbol !== 'OP') {
-      throw new Error('symbol misconfigured')
-    }
+    assert(symbol === 'OP')
     console.log(`  - symbol: ${symbol}`)
 
     const owner = await GovernanceToken.owner()
-    logLoud()
-    console.log(`  - owner: ${owner}`)
-    logLoud()
+    yell(`  - owner: ${owner}`)
 
     const totalSupply = await GovernanceToken.totalSupply()
     console.log(`  - totalSupply: ${totalSupply}`)
@@ -472,18 +429,12 @@ const check = {
     assertSemver(version, 'L2ERC721Bridge')
 
     const MESSENGER = await L2ERC721Bridge.MESSENGER()
-    if (MESSENGER === hre.ethers.constants.AddressZero) {
-      throw new Error('MESSENGER misconfigured')
-    }
+    assert(MESSENGER !== hre.ethers.constants.AddressZero)
     console.log(`  - MESSENGER: ${MESSENGER}`)
 
     const OTHER_BRIDGE = await L2ERC721Bridge.OTHER_BRIDGE()
-    if (OTHER_BRIDGE === hre.ethers.constants.AddressZero) {
-      throw new Error('OTHER_BRIDGE misconfigured')
-    }
-    logLoud()
-    console.log(`  - OTHER_BRIDGE: ${OTHER_BRIDGE}`)
-    logLoud()
+    assert(OTHER_BRIDGE !== hre.ethers.constants.AddressZero)
+    yell(`  - OTHER_BRIDGE: ${OTHER_BRIDGE}`)
 
     await checkProxy(hre, 'L2ERC721Bridge')
     await assertProxy(hre, 'L2ERC721Bridge')
@@ -500,10 +451,12 @@ const check = {
     assertSemver(version, 'OptimismMintableERC721Factory', '1.0.0')
 
     const BRIDGE = await OptimismMintableERC721Factory.BRIDGE()
+    assert(BRIDGE !== hre.ethers.constants.AddressZero)
     console.log(`  - BRIDGE: ${BRIDGE}`)
 
     const REMOTE_CHAIN_ID =
       await OptimismMintableERC721Factory.REMOTE_CHAIN_ID()
+    assert(REMOTE_CHAIN_ID !== 0)
     console.log(`  - REMOTE_CHAIN_ID: ${REMOTE_CHAIN_ID}`)
 
     await checkProxy(hre, 'OptimismMintableERC721Factory')
@@ -518,12 +471,8 @@ const check = {
     )
 
     const owner = await ProxyAdmin.owner()
-    if (owner === hre.ethers.constants.AddressZero) {
-      throw new Error('misconfigured owner')
-    }
-    logLoud()
-    console.log(`  - owner: ${owner}`)
-    logLoud()
+    assert(owner !== hre.ethers.constants.AddressZero)
+    yell(`  - owner: ${owner}`)
 
     const addressManager = await ProxyAdmin.addressManager()
     console.log(`  - addressManager: ${addressManager}`)
@@ -545,12 +494,8 @@ const check = {
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
 
     const RECIPIENT = await BaseFeeVault.RECIPIENT()
-    if (RECIPIENT === hre.ethers.constants.AddressZero) {
-      throw new Error(`RECIPIENT misconfigured`)
-    }
-    logLoud()
-    console.log(`  - RECIPIENT: ${RECIPIENT}`)
-    logLoud()
+    assert(RECIPIENT !== hre.ethers.constants.AddressZero)
+    yell(`  - RECIPIENT: ${RECIPIENT}`)
 
     assertSemver(version, 'BaseFeeVault')
     await checkProxy(hre, 'BaseFeeVault')
@@ -573,12 +518,8 @@ const check = {
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
 
     const RECIPIENT = await L1FeeVault.RECIPIENT()
-    if (RECIPIENT === hre.ethers.constants.AddressZero) {
-      throw new Error(`RECIPIENT misconfigured`)
-    }
-    logLoud()
-    console.log(`  - RECIPIENT: ${RECIPIENT}`)
-    logLoud()
+    assert(RECIPIENT !== hre.ethers.constants.AddressZero)
+    yell(`  - RECIPIENT: ${RECIPIENT}`)
 
     assertSemver(version, 'L1FeeVault')
     await checkProxy(hre, 'L1FeeVault')
@@ -610,9 +551,7 @@ task(
   'check-l2',
   'Checks a freshly migrated L2 system for correct migration'
 ).setAction(async (_, hre: HardhatRuntimeEnvironment) => {
-  logLoud()
-  console.log('Manually check values wrapped in !!!!')
-  logLoud()
+  yell('Manually check values wrapped in !!!!')
   console.log()
 
   // Ensure that all the predeploys exist, including the not
