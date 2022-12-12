@@ -42,17 +42,16 @@ export class HealthcheckService extends BaseServiceV2<
         referenceRpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1',
-          secret: true,
         },
         targetRpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
-          secret: true,
         },
         onDivergenceWaitMs: {
           validator: validators.num,
           desc: 'Waiting time in ms per loop when divergence is detected',
           default: 60_000,
+          public: true,
         },
       },
       metricsSpec: {
