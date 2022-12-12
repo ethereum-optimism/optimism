@@ -856,6 +856,11 @@ workflows:
           echidna_target: hashing
           requires:
             - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Portal Test
+          echidna_target: portal
+          requires:
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
