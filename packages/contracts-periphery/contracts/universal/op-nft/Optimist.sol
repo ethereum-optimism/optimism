@@ -4,7 +4,6 @@ pragma solidity 0.8.15;
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "./AttestationStation.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -15,7 +14,7 @@ import "@openzeppelin/contracts/utils/Strings.sol";
  *         It uses attestations for its base URI and whitelist
  *         This contract is not yet audited
  */
-contract Optimist is Initializable, ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
+contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     /**
      * @notice The attestation station contract where owner makes attestations
      */
