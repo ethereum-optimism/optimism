@@ -158,6 +158,11 @@ export abstract class BaseServiceV2<
     // commander for anything besides the ability to run `ts-node ./service.ts --help`.
     const program = new Command()
     for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
+      // Skip options that are not meant to be used by the user.
+      if (['useEnv', 'useArgv'].includes(optionName)) {
+        continue
+      }
+
       program.addOption(
         new Option(`--${optionName.toLowerCase()}`, `${optionSpec.desc}`).env(
           `${opSnakeCase(
@@ -197,8 +202,8 @@ export abstract class BaseServiceV2<
     dotenv.config()
     const config = new Config(params.name)
     config.load({
-      env: true,
-      argv: true,
+      env: params.options?.useEnv ?? true,
+      argv: params.options?.useEnv ?? true,
     })
 
     // Clean configuration values using the options spec.
