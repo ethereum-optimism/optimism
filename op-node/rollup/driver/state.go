@@ -20,6 +20,11 @@ import (
 // Deprecated: use eth.SyncStatus instead.
 type SyncStatus = eth.SyncStatus
 
+// sealingDuration defines the expected time it takes to seal the block
+const sealingDuration = time.Millisecond * 50
+
+var UninitializedL1StateErr = errors.New("the L1 Head in L1 State is not initialized yet")
+
 type Driver struct {
 	l1State L1StateIface
 
@@ -127,16 +132,13 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	}
 }
 
-// createNewL2Block builds a L2 block on top of the L2 Head (unsafe). Used by Sequencer nodes to
-// construct new L2 blocks. Verifier nodes will use handleEpoch instead.
-func (s *Driver) createNewL2Block(ctx context.Context) error {
+// startNewL2Block starts sequencing a new L2 block on top of the unsafe L2 Head.
+func (s *Driver) startNewL2Block(ctx context.Context) error {
 	l2Head := s.derivation.UnsafeL2Head()
-	l2Safe := s.derivation.SafeL2Head()
-	l2Finalized := s.derivation.Finalized()
 
 	l1Head := s.l1State.L1Head()
 	if l1Head == (eth.L1BlockRef{}) {
-		return derive.NewTemporaryError(errors.New("L1 Head in L1 State is not initizalited yet"))
+		return UninitializedL1StateErr
 	}
 
 	// Figure out which L1 origin block we're going to be building on top of.
@@ -150,7 +152,7 @@ func (s *Driver) createNewL2Block(ctx context.Context) error {
 	// reached. Don't produce any blocks until we're at that genesis block.
 	if l1Origin.Number < s.config.Genesis.L1.Number {
 		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis", "next", l1Origin.ID(), "genesis", s.config.Genesis.L1)
-		return nil
+		return fmt.Errorf("the L1 origin %s cannot be before genesis at %s", l1Origin, s.config.Genesis.L1)
 	}
 
 	// Should never happen. Sequencer will halt if we get into this situation somehow.
@@ -162,11 +164,25 @@ func (s *Driver) createNewL2Block(ctx context.Context) error {
 			l2Head, nextL2Time, l1Origin, l1Origin.Time)
 	}
 
-	// Actually create the new block.
-	newUnsafeL2Head, payload, err := s.sequencer.CreateNewBlock(ctx, l2Head, l2Safe.ID(), l2Finalized.ID(), l1Origin)
+	// Start creating the new block.
+	return s.sequencer.StartBuildingBlock(ctx, l1Origin)
+}
+
+// completeNewBlock completes a previously started L2 block sequencing job.
+func (s *Driver) completeNewBlock(ctx context.Context) error {
+	payload, err := s.sequencer.CompleteBuildingBlock(ctx)
 	if err != nil {
-		s.log.Error("Could not extend chain as sequencer", "err", err, "l2_parent", l2Head, "l1_origin", l1Origin)
+		s.metrics.RecordSequencingError()
+		s.log.Error("Failed to seal block as sequencer", "err", err)
 		return err
+	}
+
+	// Generate an L2 block ref from the payload.
+	newUnsafeL2Head, err := derive.PayloadToBlockRef(payload, &s.config.Genesis)
+	if err != nil {
+		s.metrics.RecordSequencingError()
+		s.log.Error("Sequenced payload cannot be transformed into valid L2 block reference", "err", err)
+		return fmt.Errorf("sequenced payload cannot be transformed into valid L2 block reference: %w", err)
 	}
 
 	// Update our L2 head block based on the new unsafe block we just generated.
@@ -182,7 +198,6 @@ func (s *Driver) createNewL2Block(ctx context.Context) error {
 			// publishing of unsafe data via p2p is optional. Errors are not severe enough to change/halt sequencing but should be logged and metered.
 		}
 	}
-
 	return nil
 }
 
@@ -194,31 +209,8 @@ func (s *Driver) eventLoop() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start a ticker to produce L2 blocks at a constant rate. Ticker will only run if we're
-	// running in Sequencer mode.
-	var l2BlockCreationTickerCh <-chan time.Time
-	if s.driverConfig.SequencerEnabled {
-		l2BlockCreationTicker := time.NewTicker(time.Duration(s.config.BlockTime) * time.Second)
-		defer l2BlockCreationTicker.Stop()
-		l2BlockCreationTickerCh = l2BlockCreationTicker.C
-	}
-
 	// stepReqCh is used to request that the driver attempts to step forward by one L1 block.
 	stepReqCh := make(chan struct{}, 1)
-
-	// l2BlockCreationReqCh is used to request that the driver create a new L2 block. Only used if
-	// we're running in Sequencer mode, because otherwise we'll be deriving our blocks via the
-	// stepping process.
-	l2BlockCreationReqCh := make(chan struct{}, 1)
-
-	// reqL2BlockCreation requests that a block be created. Won't deadlock if the channel is full.
-	reqL2BlockCreation := func() {
-		select {
-		case l2BlockCreationReqCh <- struct{}{}:
-		// Don't deadlock if the channel is already full
-		default:
-		}
-	}
 
 	// channel, nil by default (not firing), but used to schedule re-attempts with delay
 	var delayedStepReq <-chan time.Time
@@ -257,39 +249,60 @@ func (s *Driver) eventLoop() {
 	// L1 chain that we need to handle.
 	reqStep()
 
+	blockTime := time.Duration(s.config.BlockTime) * time.Second
+
+	var sequenceErr error
+	var sequenceErrTime time.Time
+	sequencerTimer := time.NewTimer(0)
+	var sequencerCh <-chan time.Time
+	var sequencingPlannedOnto eth.BlockID
+	var sequencerSealNext bool
+	planSequencerAction := func() {
+		delay, seal, onto := s.sequencer.PlanNextSequencerAction(sequenceErr)
+		if sequenceErr != nil && time.Since(sequenceErrTime) > delay {
+			sequenceErr = nil
+		}
+		sequencerCh = sequencerTimer.C
+		if len(sequencerCh) > 0 { // empty if not already drained before resetting
+			<-sequencerCh
+		}
+		sequencerTimer.Reset(delay)
+		sequencingPlannedOnto = onto
+		sequencerSealNext = seal
+	}
+
 	for {
+		// If we are sequencing, update the trigger for the next sequencer action.
+		// This may adjust at any time based on fork-choice changes or previous errors.
+		if s.driverConfig.SequencerEnabled {
+			// update sequencer time if the head changed
+			if sequencingPlannedOnto != s.derivation.UnsafeL2Head().ID() {
+				planSequencerAction()
+			}
+		} else {
+			sequencerCh = nil
+		}
+
 		select {
-		case <-l2BlockCreationTickerCh:
-			s.log.Trace("L2 Creation Ticker")
-			s.snapshot("L2 Creation Ticker")
-			reqL2BlockCreation()
-
-		case <-l2BlockCreationReqCh:
-			s.snapshot("L2 Block Creation Request")
-			if !s.idleDerivation {
-				s.log.Warn("not creating block, node is deriving new l2 data", "head_l1", s.l1State.L1Head())
-				break
+		case <-sequencerCh:
+			s.log.Info("sequencing now!", "seal", sequencerSealNext, "idle_derivation", s.idleDerivation)
+			if sequencerSealNext {
+				// try to seal the current block task, and allow it to take up to 3 block times.
+				// If this fails we will simply start a new block building job.
+				ctx, cancel := context.WithTimeout(ctx, 3*blockTime)
+				sequenceErr = s.completeNewBlock(ctx)
+				cancel()
+			} else {
+				// Start the block building, don't allow the starting of sequencing to get stuck for more the time of 1 block.
+				ctx, cancel := context.WithTimeout(ctx, blockTime)
+				sequenceErr = s.startNewL2Block(ctx)
+				cancel()
 			}
-			ctx, cancel := context.WithTimeout(ctx, 20*time.Minute)
-			err := s.createNewL2Block(ctx)
-			cancel()
-			if err != nil {
-				s.log.Error("Error creating new L2 block", "err", err)
-				s.metrics.RecordSequencingError()
-				break // if we fail, we wait for the next block creation trigger.
+			if sequenceErr != nil {
+				s.log.Error("sequencing error", "err", sequenceErr)
+				sequenceErrTime = time.Now()
 			}
-
-			// We need to catch up to the next origin as quickly as possible. We can do this by
-			// requesting a new block ASAP instead of waiting for the next tick.
-			// We don't request a block if the confirmation depth is not met.
-			l2Head := s.derivation.UnsafeL2Head()
-			if wallClock := uint64(time.Now().Unix()); l2Head.Time+s.config.BlockTime <= wallClock {
-				s.log.Trace("Building another L2 block asap to catch up with wallclock",
-					"l2_unsafe", l2Head, "l2_unsafe_time", l2Head.Time, "wallclock", wallClock)
-				// But not too quickly to minimize busy-waiting for new blocks
-				time.AfterFunc(time.Millisecond*10, reqL2BlockCreation)
-			}
-
+			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())

@@ -2,6 +2,7 @@ package driver
 
 import (
 	"context"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,6 +29,8 @@ type Metrics interface {
 
 	RecordL1ReorgDepth(d uint64)
 	CountSequencedTxs(count int)
+
+	SequencerMetrics
 }
 
 type L1Chain interface {
@@ -70,11 +73,9 @@ type L1OriginSelectorIface interface {
 }
 
 type SequencerIface interface {
-	StartBuildingBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) error
+	StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error
 	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
-
-	// createNewBlock builds a new block based on the L2 Head, L1 Origin, and the current mempool.
-	CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error)
+	PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID)
 }
 
 type Network interface {
@@ -84,11 +85,11 @@ type Network interface {
 
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
 func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
-	sequencer := NewSequencer(log, cfg, l1, l2)
 	l1State := NewL1State(log, metrics)
 	findL1Origin := NewL1OriginSelector(log, cfg, l1, driverCfg.SequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
+	sequencer := NewSequencer(log, cfg, l1, l2, derivationPipeline, metrics)
 
 	return &Driver{
 		l1State:          l1State,

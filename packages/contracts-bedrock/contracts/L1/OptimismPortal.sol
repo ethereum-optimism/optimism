@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import { Constants } from "../libraries/Constants.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
@@ -20,7 +21,11 @@ import { Semver } from "../universal/Semver.sol";
  */
 contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
-     * @notice Represents a proven withdrawal
+     * @notice Represents a proven withdrawal.
+     *
+     * @custom:field outputRoot    Root of the L2 output this was proven against.
+     * @custom:field timestamp     Timestamp at whcih the withdrawal was proven.
+     * @custom:field l2OutputIndex Index of the output this was proven against.
      */
     struct ProvenWithdrawal {
         bytes32 outputRoot;
@@ -32,11 +37,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice Version of the deposit event.
      */
     uint256 internal constant DEPOSIT_VERSION = 0;
-
-    /**
-     * @notice Value used to reset the l2Sender, this is more efficient than setting it to zero.
-     */
-    address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
      * @notice The L2 gas limit set when eth is deposited using the receive() function.
@@ -126,7 +126,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice Initializer;
      */
     function initialize() public initializer {
-        l2Sender = DEFAULT_L2_SENDER;
+        l2Sender = Constants.DEFAULT_L2_SENDER;
         __ResourceMetering_init();
     }
 
@@ -234,7 +234,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
         // Prevent nested withdrawals within withdrawals.
         require(
-            l2Sender == DEFAULT_L2_SENDER,
+            l2Sender == Constants.DEFAULT_L2_SENDER,
             "OptimismPortal: can only trigger one withdrawal per transaction"
         );
 
@@ -302,14 +302,26 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Trigger the call to the target contract. We use SafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
         // call to run out of gas via a returndata bomb.
-        bool success = SafeCall.call(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
+        bool success = SafeCall.call(
+            _tx.target,
+            gasleft() - FINALIZE_GAS_BUFFER,
+            _tx.value,
+            _tx.data
+        );
 
         // Reset the l2Sender back to the default value.
-        l2Sender = DEFAULT_L2_SENDER;
+        l2Sender = Constants.DEFAULT_L2_SENDER;
 
         // All withdrawals are immediately finalized. Replayability can
         // be achieved through contracts built on top of this contract
         emit WithdrawalFinalized(withdrawalHash, success);
+
+        // Reverting here is useful for determining the exact gas cost to successfully execute the
+        // sub call to the target contract if the minimum gas limit specified by the user would not
+        // be sufficient to execute the sub call.
+        if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
+            revert("OptimismPortal: withdrawal failed");
+        }
     }
 
     /**
