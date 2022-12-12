@@ -3,8 +3,6 @@ pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
-import { TestERC20 } from "../testing/helpers/TestERC20.sol";
-import { TestERC721 } from "../testing/helpers/TestERC721.sol";
 import { AssetReceiver } from "../universal/AssetReceiver.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 
@@ -45,9 +43,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         // assert the attestation starts empty
         assertEq(
             attestationStation.attestations(
+                alice_attestor,
                 attestationData.about,
-                attestationData.key,
-                attestationData.val
+                attestationData.key
             ),
             ""
         );
