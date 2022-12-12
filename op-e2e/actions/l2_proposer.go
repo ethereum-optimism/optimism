@@ -38,8 +38,8 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		RollupClient:      rollupCl,
 		AllowNonFinalized: cfg.AllowNonFinalized,
 		L2OOAddr:          cfg.OutputOracleAddr,
-		ChainID:           chainID,
-		PrivKey:           cfg.ProposerKey,
+		From:              crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey),
+		SignerFn:          l2output.SignerFnForPrivateKey(cfg.ProposerKey, chainID),
 	})
 	require.NoError(t, err)
 	return &L2Proposer{

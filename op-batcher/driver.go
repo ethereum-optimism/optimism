@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -138,16 +139,19 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		BatchInboxAddress: batchInboxAddress,
 		ChannelTimeout:    cfg.ChannelTimeout,
 		ChainID:           chainID,
-		PrivKey:           sequencerPrivKey,
 		PollInterval:      cfg.PollInterval,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	signerFn := func(rawTx types.TxData) (*types.Transaction, error) {
+		return types.SignNewTx(sequencerPrivKey, types.LatestSignerForChainID(chainID), rawTx)
+	}
+
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
+		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client, signerFn),
 		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),
