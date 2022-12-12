@@ -5,6 +5,10 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { MerkleTrie } from "../libraries/trie/MerkleTrie.sol";
 
 contract MerkleTrie_Test is CommonTest {
+    function setUp() public {
+        _setUp();
+    }
+
     function test_get_validProof1_succeeds() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579326262";
@@ -257,7 +261,7 @@ contract MerkleTrie_Test is CommonTest {
         bytes[] memory proof = new bytes[](1);
         proof[0] = hex"c78320f00082b443";
 
-        vm.expectRevert("MerkleTrie: path remainder must share all nibbles with key");
+        vm.expectRevert("MerkleTrie: empty key");
         MerkleTrie.get(key, proof, root);
     }
 
@@ -297,6 +301,121 @@ contract MerkleTrie_Test is CommonTest {
         proof[3] = hex"c32081aa";
 
         vm.expectRevert("MerkleTrie: value node must be last node in proof (leaf)");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_validProofs_success(bytes4) external {
+        // Generate a test case with a valid proof of inclusion for the k/v pair in the trie.
+        (bytes32 root, bytes memory key, bytes memory val, bytes[] memory proof) = ffi
+            .getMerkleTrieFuzzCase("valid");
+
+        // Assert that our expected value is equal to our actual value.
+        assertEq(val, MerkleTrie.get(key, proof, root));
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidRoot_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "valid"
+        );
+
+        bytes32 rootHash = keccak256(abi.encodePacked(root));
+        vm.expectRevert("MerkleTrie: invalid root hash");
+        MerkleTrie.get(key, proof, rootHash);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_extraProofElements_reverts(bytes4) external {
+        // Generate an invalid test case with an extra proof element attached to an otherwise
+        // valid proof of inclusion for the passed k/v.
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "extra_proof_elems"
+        );
+
+        vm.expectRevert("MerkleTrie: value node must be last node in proof (leaf)");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidLargeInternalHash_reverts(bytes4) external {
+        // Generate an invalid test case where a long proof element is incorrect for the root.
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "invalid_large_internal_hash"
+        );
+
+        vm.expectRevert("MerkleTrie: invalid large internal hash");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidInternalNodeHash_reverts(bytes4) external {
+        // Generate an invalid test case where a small proof element is incorrect for the root.
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "invalid_internal_node_hash"
+        );
+
+        vm.expectRevert("MerkleTrie: invalid internal node hash");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_corruptedProof_reverts(bytes4) external {
+        // Generate an invalid test case where the proof is malformed.
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "corrupted_proof"
+        );
+
+        vm.expectRevert("RLPReader: decoded item type for list is not a list item");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_invalidDataRemainder_reverts(bytes4) external {
+        // Generate an invalid test case where a random element of the proof has more bytes than the
+        // length designates within the RLP list encoding.
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "invalid_data_remainder"
+        );
+
+        vm.expectRevert("RLPReader: list item has an invalid data remainder");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_prefixedValidKey_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof and a valid key that is prefixed
+        // with random bytes
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "prefixed_valid_key"
+        );
+
+        // Ambiguous revert check- all that we care is that it *does* fail. This case may
+        // fail within different branches.
+        vm.expectRevert();
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_emptyKey_reverts(bytes4) external {
+        // Get a random test case with a valid trie / proof and an empty key
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "empty_key"
+        );
+
+        vm.expectRevert("MerkleTrie: empty key");
+        MerkleTrie.get(key, proof, root);
+    }
+
+    /// @notice The `bytes4` parameter is to enable parallel fuzz runs; it is ignored.
+    function testFuzz_get_partialProof_reverts(bytes4) external {
+        // Get a random test case with a valid trie / partially correct proof
+        (bytes32 root, bytes memory key, , bytes[] memory proof) = ffi.getMerkleTrieFuzzCase(
+            "partial_proof"
+        );
+
+        vm.expectRevert("MerkleTrie: ran out of proof elements");
         MerkleTrie.get(key, proof, root);
     }
 }
