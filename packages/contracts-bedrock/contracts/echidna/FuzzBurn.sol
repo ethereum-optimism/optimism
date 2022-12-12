@@ -4,7 +4,7 @@ import { Burn } from "../libraries/Burn.sol";
 import { StdUtils } from "forge-std/Test.sol";
 
 contract EchidnaFuzzBurnEth is StdUtils {
-    bool failedEthBurn;
+    bool internal failedEthBurn;
 
     /**
      * @notice Takes an integer amount of eth to burn through the Burn library and
@@ -33,7 +33,7 @@ contract EchidnaFuzzBurnEth is StdUtils {
 }
 
 contract EchidnaFuzzBurnGas is StdUtils {
-    bool failedGasBurn;
+    bool internal failedGasBurn;
 
     /**
      * @notice Takes an integer amount of gas to burn through the Burn library and

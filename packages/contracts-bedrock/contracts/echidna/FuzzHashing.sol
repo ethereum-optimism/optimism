@@ -4,9 +4,9 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
 contract EchidnaFuzzHashing {
-    bool failedCrossDomainHashHighVersion;
-    bool failedCrossDomainHashV0;
-    bool failedCrossDomainHashV1;
+    bool internal failedCrossDomainHashHighVersion;
+    bool internal failedCrossDomainHashV0;
+    bool internal failedCrossDomainHashV1;
 
     /**
      * @notice Takes the necessary parameters to perform a cross domain hash with a randomly
