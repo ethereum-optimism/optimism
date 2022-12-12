@@ -59,7 +59,6 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
 │   ├── <a href="./packages/drippie-mon">drippie-mon</a>: Service for monitoring Drippie instances
 │   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
-│   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
 │   └── <a href="./packages/sdk">sdk</a>: provides a set of tools for interacting with Optimism
 ├── <a href="./batch-submitter">batch-submitter</a>: Service for submitting batches of transactions and results to L1

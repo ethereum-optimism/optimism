@@ -16,7 +16,6 @@
 /packages/drippie-mon           @smartcontracts
 /packages/fault-detector        @tynes @smartcontracts
 /packages/hardhat-deploy-config @tynes @smartcontracts @maurelian
-/packages/message-relayer       @tynes @smartcontracts
 /packages/migration-data        @tynes @smartcontracts @mslipper
 /packages/replica-healthcheck   @tynes @smartcontracts @mslipper
 /packages/sdk                   @smartcontracts @roninjin10 @nickbalestra

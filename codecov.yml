@@ -35,6 +35,5 @@ flag_management:
     - name: dtl-tests
     - name: drippie-mon-tests
     - name: fault-detector-tests
-    - name: message-relayer-tests
     - name: replica-healthcheck-tests
     - name: sdk-tests

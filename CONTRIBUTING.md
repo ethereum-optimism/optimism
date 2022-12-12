@@ -119,7 +119,6 @@ This will build the following containers:
 * [`dtl`](https://hub.docker.com/r/ethereumoptimism/data-transport-layer): service that indexes transaction data from the L1 chain
 * [`l2geth`](https://hub.docker.com/r/ethereumoptimism/l2geth): L2 geth node running in Sequencer mode
 * [`verifier`](https://hub.docker.com/r/ethereumoptimism/go-ethereum): L2 geth node running in Verifier mode
-* [`relayer`](https://hub.docker.com/r/ethereumoptimism/message-relayer): helper process that relays messages between L1 and L2
 * [`batch_submitter`](https://hub.docker.com/r/ethereumoptimism/batch-submitter-service): service that submits batches of Sequencer transactions to the L1 chain
 * [`integration_tests`](https://hub.docker.com/r/ethereumoptimism/integration-tests): integration tests in a box
 

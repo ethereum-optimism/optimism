@@ -676,7 +676,7 @@ jobs:
           name: Check if we should run
           command: |
             shopt -s inherit_errexit
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/" || echo "TRUE")
+            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/" || echo "TRUE")
             if [[ "$CHANGED" = "FALSE" ]]; then
               circleci step halt
             fi
@@ -899,13 +899,6 @@ workflows:
           coverage_flag: fault-detector-tests
           package_name: fault-detector
           dependencies: "(common-ts|contracts|core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: message-relayer-tests
-          coverage_flag: message-relayer-tests
-          package_name: message-relayer
-          dependencies: "(common-ts|core-utils|sdk)"
           requires:
             - yarn-monorepo
       - js-lint-test:

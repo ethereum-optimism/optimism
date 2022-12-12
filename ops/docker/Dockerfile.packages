@@ -44,7 +44,6 @@ COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/pa
 COPY packages/contracts-governance/package.json ./packages/contracts-governance/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-config/package.json
-COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
@@ -88,12 +87,6 @@ FROM base as integration-tests
 WORKDIR /opt/optimism/integration-tests
 COPY ./ops/scripts/integration-tests.sh ./
 CMD ["yarn", "test:integration"]
-
-
-FROM base as message-relayer
-WORKDIR /opt/optimism/packages/message-relayer
-COPY ./ops/scripts/relayer.sh .
-CMD ["npm", "run", "start"]
 
 
 FROM base as fault-detector
