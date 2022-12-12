@@ -1,11 +1,12 @@
+import assert from 'assert'
+
 import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { Contract } from 'ethers'
 
 import { predeploys } from '../src'
-
-import assert from 'assert'
 
 // expectedSemver is the semver version of the contracts
 // deployed at bedrock deployment
@@ -57,7 +58,12 @@ const checkPredeploys = async (hre: HardhatRuntimeEnvironment) => {
 }
 
 // assertSemver will ensure that the semver is the correct version
-const assertSemver = (version: string, name: string, override?: string) => {
+const assertSemver = async (
+  contract: Contract,
+  name: string,
+  override?: string
+) => {
+  const version = await contract.version()
   let target = expectedSemver
   if (override) {
     target = override
@@ -116,9 +122,7 @@ const check = {
       predeploys.LegacyMessagePasser
     )
 
-    const version = await LegacyMessagePasser.version()
-    assertSemver(version, 'LegacyMessagePasser')
-
+    await assertSemver(LegacyMessagePasser, 'LegacyMessagePasser')
     await checkProxy(hre, 'LegacyMessagePasser')
     await assertProxy(hre, 'LegacyMessagePasser')
   },
@@ -132,8 +136,7 @@ const check = {
       predeploys.DeployerWhitelist
     )
 
-    const version = await DeployerWhitelist.version()
-    assertSemver(version, 'DeployerWhitelist')
+    await assertSemver(DeployerWhitelist, 'DeployerWhitelist')
 
     const owner = await DeployerWhitelist.owner()
     assert(owner === hre.ethers.constants.AddressZero)
@@ -155,8 +158,7 @@ const check = {
       predeploys.L2CrossDomainMessenger
     )
 
-    const version = await L2CrossDomainMessenger.version()
-    assertSemver(version, 'L2CrossDomainMessenger')
+    await assertSemver(L2CrossDomainMessenger, 'L2CrossDomainMessenger')
 
     const xDomainMessageSenderSlot = await hre.ethers.provider.getStorageAt(
       predeploys.L2CrossDomainMessenger,
@@ -223,8 +225,7 @@ const check = {
       predeploys.GasPriceOracle
     )
 
-    const version = await GasPriceOracle.version()
-    assertSemver(version, 'GasPriceOracle')
+    await assertSemver(GasPriceOracle, 'GasPriceOracle')
 
     const decimals = await GasPriceOracle.decimals()
     assert(decimals.eq(6))
@@ -241,8 +242,7 @@ const check = {
       predeploys.L2StandardBridge
     )
 
-    const version = await L2StandardBridge.version()
-    assertSemver(version, 'L2StandardBridge', '0.0.2')
+    await assertSemver(L2StandardBridge, 'L2StandardBridge', '0.0.2')
 
     const OTHER_BRIDGE = await L2StandardBridge.OTHER_BRIDGE()
     assert(OTHER_BRIDGE !== hre.ethers.constants.AddressZero)
@@ -264,8 +264,7 @@ const check = {
       predeploys.SequencerFeeVault
     )
 
-    const version = await SequencerFeeVault.version()
-    assertSemver(version, 'SequencerFeeVault')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -290,8 +289,11 @@ const check = {
       predeploys.OptimismMintableERC20Factory
     )
 
-    const version = await OptimismMintableERC20Factory.version()
-    assertSemver(version, 'OptimismMintableERC20Factory', '1.0.0')
+    await assertSemver(
+      OptimismMintableERC20Factory,
+      'OptimismMintableERC20Factory',
+      '1.0.0'
+    )
 
     const BRIDGE = await OptimismMintableERC20Factory.BRIDGE()
     assert(BRIDGE !== hre.ethers.constants.AddressZero)
@@ -307,8 +309,7 @@ const check = {
       predeploys.L1BlockNumber
     )
 
-    const version = await L1BlockNumber.version()
-    assertSemver(version, 'L1BlockNumber')
+    await assertSemver(L1BlockNumber, 'L1BlockNumber')
 
     await checkProxy(hre, 'L1BlockNumber')
     await assertProxy(hre, 'L1BlockNumber')
@@ -321,8 +322,7 @@ const check = {
       predeploys.L1Block
     )
 
-    const version = await L1Block.version()
-    assertSemver(version, 'L1Block')
+    await assertSemver(L1Block, 'L1Block')
 
     await checkProxy(hre, 'L1Block')
     await assertProxy(hre, 'L1Block')
@@ -425,8 +425,7 @@ const check = {
       predeploys.L2ERC721Bridge
     )
 
-    const version = await L2ERC721Bridge.version()
-    assertSemver(version, 'L2ERC721Bridge')
+    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge')
 
     const MESSENGER = await L2ERC721Bridge.MESSENGER()
     assert(MESSENGER !== hre.ethers.constants.AddressZero)
@@ -447,8 +446,11 @@ const check = {
       predeploys.OptimismMintableERC721Factory
     )
 
-    const version = await OptimismMintableERC721Factory.version()
-    assertSemver(version, 'OptimismMintableERC721Factory', '1.0.0')
+    await assertSemver(
+      OptimismMintableERC721Factory,
+      'OptimismMintableERC721Factory',
+      '1.0.0'
+    )
 
     const BRIDGE = await OptimismMintableERC721Factory.BRIDGE()
     assert(BRIDGE !== hre.ethers.constants.AddressZero)
@@ -487,8 +489,7 @@ const check = {
       predeploys.BaseFeeVault
     )
 
-    const version = await BaseFeeVault.version()
-    assertSemver(version, 'BaseFeeVault')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -497,7 +498,6 @@ const check = {
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
 
-    assertSemver(version, 'BaseFeeVault')
     await checkProxy(hre, 'BaseFeeVault')
     await assertProxy(hre, 'BaseFeeVault')
   },
@@ -511,8 +511,7 @@ const check = {
       predeploys.L1FeeVault
     )
 
-    const version = await L1FeeVault.version()
-    assertSemver(version, 'L1FeeVault')
+    await assertSemver(L1FeeVault, 'L1FeeVault')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -521,7 +520,6 @@ const check = {
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
     yell(`  - RECIPIENT: ${RECIPIENT}`)
 
-    assertSemver(version, 'L1FeeVault')
     await checkProxy(hre, 'L1FeeVault')
     await assertProxy(hre, 'L1FeeVault')
   },
@@ -533,8 +531,7 @@ const check = {
       predeploys.L2ToL1MessagePasser
     )
 
-    const version = await L2ToL1MessagePasser.version()
-    assertSemver(version, 'L2ToL1MessagePasser')
+    await assertSemver(L2ToL1MessagePasser, 'L2ToL1MessagePasser')
 
     const MESSAGE_VERSION = await L2ToL1MessagePasser.MESSAGE_VERSION()
     console.log(`  - MESSAGE_VERSION: ${MESSAGE_VERSION}`)
