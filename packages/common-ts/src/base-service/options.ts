@@ -30,6 +30,8 @@ export type StandardOptions = {
   port?: number
   hostname?: string
   logLevel?: LogLevel
+  useEnv?: boolean
+  useArgv?: boolean
 }
 
 /**
@@ -58,6 +60,18 @@ export const stdOptionsSpec: OptionsSpec<StandardOptions> = {
     validator: validators.logLevel,
     desc: 'Log level',
     default: 'debug',
+    public: true,
+  },
+  useEnv: {
+    validator: validators.bool,
+    desc: 'For programmatic use, whether to use environment variables',
+    default: true,
+    public: true,
+  },
+  useArgv: {
+    validator: validators.bool,
+    desc: 'For programmatic use, whether to use command line arguments',
+    default: true,
     public: true,
   },
 }
