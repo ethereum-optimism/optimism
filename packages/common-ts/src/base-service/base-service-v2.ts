@@ -31,7 +31,7 @@ export type OptionsSpec<TOptions extends Options> = {
     validator: (spec?: Spec<TOptions[P]>) => ValidatorSpec<TOptions[P]>
     desc: string
     default?: TOptions[P]
-    secret?: boolean
+    public?: boolean
   }
 }
 
@@ -167,21 +167,25 @@ export abstract class BaseServiceV2<
         validator: validators.num,
         desc: 'Loop interval in milliseconds',
         default: params.loopIntervalMs || 0,
+        public: true,
       },
       port: {
         validator: validators.num,
         desc: 'Port for the app server',
         default: params.port || 7300,
+        public: true,
       },
       hostname: {
         validator: validators.str,
         desc: 'Hostname for the app server',
         default: params.hostname || '0.0.0.0',
+        public: true,
       },
       logLevel: {
         validator: validators.logLevel,
         desc: 'Log level',
         default: params.logLevel || 'debug',
+        public: true,
       },
     }
 
@@ -194,7 +198,7 @@ export abstract class BaseServiceV2<
     // List of options that can safely be logged.
     const publicOptionNames = Object.entries(params.optionsSpec)
       .filter(([, spec]) => {
-        return spec.secret !== true
+        return spec.public
       })
       .map(([key]) => {
         return key
