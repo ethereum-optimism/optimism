@@ -1,5 +1,6 @@
 import {
   BaseServiceV2,
+  StandardOptions,
   Gauge,
   Counter,
   validators,
@@ -30,13 +31,15 @@ export class DrippieMonService extends BaseServiceV2<
   DrippieMonMetrics,
   DrippieMonState
 > {
-  constructor(options?: Partial<DrippieMonOptions>) {
+  constructor(options?: Partial<DrippieMonOptions & StandardOptions>) {
     super({
       version,
       name: 'drippie-mon',
       loop: true,
-      loopIntervalMs: 60_000,
-      options,
+      options: {
+        loopIntervalMs: 60_000,
+        ...options,
+      },
       optionsSpec: {
         rpc: {
           validator: validators.provider,
