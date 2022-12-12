@@ -5,6 +5,7 @@ temp
 .nyc_output
 coverage.json
 *.tsbuildinfo
+**/lcov.info
 
 yarn-error.log
 .yarn/*
