@@ -23,12 +23,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice The length of the address
-     * used to format token ids into address strings
-     */
-    uint8 private constant _ADDRESS_LENGTH = 20;
-
-    /**
      * @notice  Initialize the Optimist contract.
      * @dev     call initialize function
      * @param   _name  The token name.
@@ -43,7 +37,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         address _attestationStation
     ) Semver(0, 0, 1) {
         ATTESTATION_STATION = AttestationStation(_attestationStation);
-        initialize(_name, _symbol, _admin, _attestationStation);
+        initialize(_name, _symbol, _admin);
     }
 
     /**
@@ -90,7 +84,8 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
                 abi.encodePacked(
                     baseURI(),
                     "/",
-                    Strings.toHexString(tokenId, _ADDRESS_LENGTH),
+                    // convert tokenId to hex string formatted like an address (20)
+                    Strings.toHexString(tokenId, 20),
                     ".json"
                 )
             );
