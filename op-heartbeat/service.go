@@ -79,9 +79,11 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) error 
 
 	metrics := NewMetrics(registry)
 	metrics.RecordVersion(version)
-	handler := Handler(l, metrics)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", HealthzHandler)
+	mux.Handle("/", Handler(l, metrics))
 	recorder := opmetrics.NewPromHTTPRecorder(registry, MetricsNamespace)
-	mw := opmetrics.NewHTTPRecordingMiddleware(recorder, handler)
+	mw := opmetrics.NewHTTPRecordingMiddleware(recorder, mux)
 
 	server := &http.Server{
 		Addr:           net.JoinHostPort(cfg.HTTPAddr, strconv.Itoa(cfg.HTTPPort)),
@@ -124,4 +126,8 @@ func Handler(l log.Logger, metrics Metrics) http.HandlerFunc {
 
 		w.WriteHeader(204)
 	}
+}
+
+func HealthzHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(204)
 }

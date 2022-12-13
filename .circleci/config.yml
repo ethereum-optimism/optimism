@@ -959,6 +959,10 @@ workflows:
           binary_name: bss-core
           working_directory: bss-core
           build: false
+      - go-lint-test-build:
+          name: op-heartbeat tests
+          binary_name: op-heartbeat
+          working_directory: op-heartbeat
       - geth-tests
       - integration-tests
       - semgrep-scan
@@ -1072,6 +1076,20 @@ workflows:
             - gcr
           requires:
             - op-proposer-docker-build
+      - docker-build:
+          name: op-heartbeat-docker-build
+          docker_file: op-heartbeat/Dockerfile
+          docker_name: op-heartbeat
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-heartbeat-docker-publish
+          docker_name: op-heartbeat
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-heartbeat-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
