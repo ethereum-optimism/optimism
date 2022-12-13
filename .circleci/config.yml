@@ -872,13 +872,6 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: contracts-governance-tests
-          coverage_flag: contracts-governance-tests
-          package_name: contracts-governance
-          dependencies: "(core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
           name: contracts-periphery-tests
           coverage_flag: contracts-periphery-tests
           package_name: contracts-periphery

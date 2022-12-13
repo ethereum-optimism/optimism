@@ -9,7 +9,6 @@
 /packages/common-ts             @tynes @smartcontracts
 /packages/contracts             @tynes @smartcontracts @maurelian
 /packages/contracts-bedrock     @tynes @smartcontracts @maurelian
-/packages/contracts-governance  @tynes @smartcontracts @maurelian
 /packages/contracts-periphery   @tynes @smartcontracts @maurelian
 /packages/core-utils            @tynes @smartcontracts
 /packages/data-transport-layer  @tynes @smartcontracts

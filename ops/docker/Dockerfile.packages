@@ -41,7 +41,6 @@ COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/contracts-bedrock/package.json ./packages/contracts-bedrock/package.json
 COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
-COPY packages/contracts-governance/package.json ./packages/contracts-governance/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-config/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
@@ -71,7 +70,6 @@ FROM alpine:3.16.2 as contract-artifacts-bedrock
 RUN mkdir -p /artifacts
 WORKDIR /artifacts
 COPY --from=base /opt/optimism/packages/contracts-bedrock/artifacts  /artifacts/contracts-bedrock
-COPY --from=base /opt/optimism/packages/contracts-governance/artifacts  /artifacts/contracts-governance
 CMD ["echo", "0"]
 
 FROM base as deployer-bedrock
