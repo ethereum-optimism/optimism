@@ -13,7 +13,7 @@ require (
 	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.3
 	github.com/ethereum-optimism/optimism/op-node v0.10.3
 	github.com/ethereum-optimism/optimism/op-proposer v0.10.3
-	github.com/ethereum-optimism/optimism/op-service v0.10.3
+	github.com/ethereum-optimism/optimism/op-service v0.10.4-0.20221213024528-ed796b7b65ad
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/libp2p/go-libp2p v0.23.3
 	github.com/stretchr/testify v1.8.1
