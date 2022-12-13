@@ -34,17 +34,13 @@ contract OptimistTest is Optimist_Initializer {
 
     function test_optimist_initialize() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
         // expect name to be set
         assertEq(optimist.name(), name);
         // expect symbol to be set
         assertEq(optimist.symbol(), symbol);
-        // expect admin to be set
-        assertEq(optimist.owner(), alice_admin);
         // expect attestationStation to be set
-        assertEq(address(optimist.attestationStation()), address(attestationStation));
-        // expect to be ownable
-        assertEq(optimist.owner(), alice_admin);
+        assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
     }
 
     /**
@@ -53,7 +49,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_mint_happy_path() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
         // bob should start with 0 balance
         assertEq(optimist.balanceOf(bob), 0);
 
@@ -82,7 +78,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_mint_secondary_minter() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -110,10 +106,10 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_mint_no_attestation() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         vm.prank(bob);
-        vm.expectRevert("NOT_WHITELISTED");
+        vm.expectRevert("Optimist: address is not whitelisted");
         optimist.mint(bob);
     }
 
@@ -122,7 +118,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_mint_already_minted() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -144,7 +140,7 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 1);
 
         // attempt to mint again
-        vm.expectRevert("ALREADY_MINTED");
+        vm.expectRevert("ERC721: token already minted");
         optimist.mint(bob);
     }
 
@@ -154,7 +150,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_baseURI() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // set baseURI
         AttestationStation.AttestationData[]
@@ -177,7 +173,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_token_uri() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         // attest baseURI
@@ -212,23 +208,11 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev The tokenURI should revert if token not minted
-     */
-    function test_optimist_token_uri_not_minted() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
-
-        // tokenURI should revert if token not minted
-        vm.expectRevert("ERC721: invalid token ID");
-        optimist.tokenURI(256);
-    }
-
-    /**
      * @dev Should return a boolean of if the address is whitelisted
      */
     function test_optimist_is_whitelisted() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -253,7 +237,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_token_id_of_owner() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -277,23 +261,11 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev tokeidOfOwner should revert if token is not minted
-     */
-    function test_optimist_token_id_of_owner_not_minted() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
-
-        // expect to revert
-        vm.expectRevert("NOT_MINTED");
-        optimist.tokenIdOfOwner(bob);
-    }
-
-    /**
      * @dev It should revert if anybody attemps token transfer
      */
     function test_optimist_sbt_transfer() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -312,12 +284,12 @@ contract OptimistTest is Optimist_Initializer {
         optimist.mint(bob);
 
         // attempt to transfer to sally
-        vm.expectRevert(bytes("SBT_TRANSFER"));
+        vm.expectRevert(bytes("Optimist: soul bound token"));
         vm.prank(bob);
         optimist.transferFrom(bob, sally, 256);
 
         // attempt to transfer to sally
-        vm.expectRevert(bytes("SBT_TRANSFER"));
+        vm.expectRevert(bytes("Optimist: soul bound token"));
         vm.prank(bob);
         optimist.safeTransferFrom(bob, sally, 256);
     }
@@ -327,7 +299,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_sbt_approve() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -347,7 +319,7 @@ contract OptimistTest is Optimist_Initializer {
 
         // attempt to approve sally
         vm.prank(bob);
-        vm.expectRevert("SBT_APPROVE");
+        vm.expectRevert("Optimist: soul bound token");
         optimist.approve(address(attestationStation), 256);
 
         assertEq(optimist.getApproved(256), address(0));
@@ -358,7 +330,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_burn() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -389,10 +361,10 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_renounce_ownership() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         vm.prank(alice_admin);
-        vm.expectRevert("CANNOT_RENOUNCE_OWNERSHIP");
+        vm.expectRevert("Optimist: soul bound token");
         optimist.renounceOwnership();
     }
 
@@ -401,7 +373,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_transfer_ownership() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         vm.prank(alice_admin);
         optimist.transferOwnership(bob);
@@ -413,7 +385,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_set_approval_for_all() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         // whitelist bob
         AttestationStation.AttestationData[]
@@ -431,7 +403,7 @@ contract OptimistTest is Optimist_Initializer {
         vm.prank(bob);
         optimist.mint(bob);
         vm.prank(alice_admin);
-        vm.expectRevert(bytes("SBT_SET_APPROVAL_FOR_ALL"));
+        vm.expectRevert(bytes("Optimist: soul bound token"));
         optimist.setApprovalForAll(alice_admin, true);
 
         // expect approval amount to stil be 0
@@ -445,7 +417,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_supports_interface() external {
         AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, address(attestationStation));
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
 
         bytes4 interface721 = 0x80ac58cd;
         // check that it supports erc721 interface
