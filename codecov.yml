@@ -30,7 +30,6 @@ flag_management:
     - name: contracts-tests
     - name: core-utils-tests
     - name: actor-tests-tests
-    - name: contracts-governance-tests
     - name: contracts-periphery-tests
     - name: dtl-tests
     - name: drippie-mon-tests

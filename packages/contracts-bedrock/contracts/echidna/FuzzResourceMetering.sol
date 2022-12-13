@@ -5,16 +5,16 @@ import { Arithmetic } from "../libraries/Arithmetic.sol";
 import { StdUtils } from "forge-std/Test.sol";
 
 contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
-    bool failedMaxGasPerBlock;
-    bool failedRaiseBaseFee;
-    bool failedLowerBaseFee;
-    bool failedNeverBelowMinBaseFee;
-    bool failedMaxRaiseBaseFeePerBlock;
-    bool failedMaxLowerBaseFeePerBlock;
+    bool internal failedMaxGasPerBlock;
+    bool internal failedRaiseBaseFee;
+    bool internal failedLowerBaseFee;
+    bool internal failedNeverBelowMinBaseFee;
+    bool internal failedMaxRaiseBaseFeePerBlock;
+    bool internal failedMaxLowerBaseFeePerBlock;
 
     // Used as a special flag for the purpose of identifying unchecked math errors specifically
     // in the test contracts, not the target contracts themselves.
-    bool underflow;
+    bool internal underflow;
 
     constructor() {
         initialize();

@@ -93,6 +93,8 @@ library MerkleTrie {
         bytes[] memory _proof,
         bytes32 _root
     ) internal pure returns (bytes memory) {
+        require(_key.length > 0, "MerkleTrie: empty key");
+
         TrieNode[] memory proof = _parseProof(_proof);
         bytes memory key = Bytes.toNibbles(_key);
         bytes memory currentNodeID = abi.encodePacked(_root);

@@ -856,6 +856,11 @@ workflows:
           echidna_target: hashing
           requires:
             - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Portal Test
+          echidna_target: portal
+          requires:
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
@@ -863,13 +868,6 @@ workflows:
           name: actor-tests-tests
           coverage_flag: actor-tests-tests
           package_name: actor-tests
-          dependencies: "(core-utils|sdk)"
-          requires:
-            - yarn-monorepo
-      - js-lint-test:
-          name: contracts-governance-tests
-          coverage_flag: contracts-governance-tests
-          package_name: contracts-governance
           dependencies: "(core-utils|sdk)"
           requires:
             - yarn-monorepo
@@ -954,6 +952,10 @@ workflows:
           binary_name: bss-core
           working_directory: bss-core
           build: false
+      - go-lint-test-build:
+          name: op-heartbeat tests
+          binary_name: op-heartbeat
+          working_directory: op-heartbeat
       - geth-tests
       - integration-tests
       - semgrep-scan
@@ -1067,6 +1069,20 @@ workflows:
             - gcr
           requires:
             - op-proposer-docker-build
+      - docker-build:
+          name: op-heartbeat-docker-build
+          docker_file: op-heartbeat/Dockerfile
+          docker_name: op-heartbeat
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: op-heartbeat-docker-publish
+          docker_name: op-heartbeat
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - op-heartbeat-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
