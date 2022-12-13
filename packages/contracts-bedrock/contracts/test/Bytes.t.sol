@@ -53,6 +53,18 @@ contract Bytes_Test is Test {
         assertEq(Bytes.slice(input, 31, 2), hex"1122");
     }
 
+    /// @dev Tests that the `slice` function works as expected when slicing between
+    /// multiple words in memory. In this case, we test that a 34 byte slice between
+    /// 3 separate words returns the correct result.
+    function test_slice_acrossMultipleWords_works() public {
+        bytes
+            memory input = hex"000000000000000000000000000000000000000000000000000000000000001122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF1100000000000000000000000000000000000000000000000000000000000000";
+        bytes
+            memory expected = hex"1122FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF11";
+
+        assertEq(Bytes.slice(input, 31, 34), expected);
+    }
+
     /// @dev Tests that, when given an input bytes array of length `n`,
     /// the `slice` function will always revert if `_start + _length > n`.
     function testFuzz_slice_outOfBounds_reverts(
@@ -138,7 +150,7 @@ contract Bytes_Test is Test {
         assertEq(input.length, 0);
         assertEq(expected.length, 0);
         assertEq(actual.length, 0);
-        assertEq(Bytes.toNibbles(input), expected);
+        assertEq(actual, expected);
     }
 
     /// @dev Test that the `equal` function in the `Bytes` library returns `false` if given
