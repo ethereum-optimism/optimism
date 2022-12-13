@@ -130,6 +130,22 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
+     * @notice  Soulbound
+     * @dev     Override function to prevent transfers of the Optimist token.
+     */
+    function approve(address, uint256) public pure override {
+        revert("Optimist: soul bound token");
+    }
+
+    /**
+     * @notice  Soulbound
+     * @dev     Override function to prevent transfers of the Optimist token.
+     */
+    function setApprovalForAll(address, bool) public virtual override {
+        revert("Optimist: soul bound token");
+    }
+
+    /**
      * @notice  (Internal) Soulbound
      * @dev     Override internal function to prevent transfers of the Optimist token.
      * @param   _from  The address of the token sender.
@@ -141,21 +157,5 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         uint256
     ) internal virtual override {
         require(_from == address(0) || _to == address(0), "Optimist: soul bound token");
-    }
-
-    /**
-     * @notice  Soulbound
-     * @dev     Override internal function to prevent transfers of the Optimist token.
-     */
-    function approve(address, uint256) public pure override {
-        revert("Optimist: soul bound token");
-    }
-
-    /**
-     * @notice  Soulbound
-     * @dev     Override internal function to prevent transfers of the Optimist token.
-     */
-    function setApprovalForAll(address, bool) public virtual override {
-        revert("Optimist: soul bound token");
     }
 }
