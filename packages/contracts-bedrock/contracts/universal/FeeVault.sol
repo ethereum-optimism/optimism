@@ -25,6 +25,11 @@ abstract contract FeeVault {
     address public immutable RECIPIENT;
 
     /**
+     * @notice Total amount of wei processed by the contract.
+     */
+    uint256 public totalProcessed;
+
+    /**
      * @param _recipient - The L1 account that funds can be withdrawn to.
      * @param _minWithdrawalAmount - The min amount of funds before a withdrawal
      *        can be triggered.
@@ -49,6 +54,8 @@ abstract contract FeeVault {
         );
 
         uint256 value = address(this).balance;
+        totalProcessed += value;
+
         emit Withdrawal(value, RECIPIENT, msg.sender);
 
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
