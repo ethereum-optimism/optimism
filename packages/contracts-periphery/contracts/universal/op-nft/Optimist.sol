@@ -13,6 +13,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  * @dev    Contract for Optimist SBT
  * @notice The Optimist contract is a SBT representing real humans
  *         It uses attestations for its base URI and allowList
+ *         This contract is meant to live on L2
  *         This contract is not yet audited
  */
 contract Optimist is ERC721BurnableUpgradeable, Semver {
