@@ -63,7 +63,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -94,7 +94,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -135,7 +135,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -193,13 +193,13 @@ contract OptimistTest is Optimist_Initializer {
         // attest baseURI
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](2);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
             val: bytes("true")
         });
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[1] = AttestationStation.AttestationData({
             about: address(optimist),
             key: bytes32("optimist.base-uri"),
@@ -228,7 +228,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -267,7 +267,7 @@ contract OptimistTest is Optimist_Initializer {
 
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: will,
             key: bytes32("optimist.can-mint"),
@@ -289,7 +289,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -320,7 +320,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -348,7 +348,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
@@ -376,7 +376,7 @@ contract OptimistTest is Optimist_Initializer {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non null value
+        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: bob,
             key: bytes32("optimist.can-mint"),
