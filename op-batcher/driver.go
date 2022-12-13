@@ -83,21 +83,19 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
 	}
 
-	signerFn := func(rawTx types.TxData) (*types.Transaction, error) {
-		tx := types.NewTx(rawTx)
-		s := types.LatestSignerForChainID(tx.ChainId())
-		h := s.Hash(tx)
-		sig, err := crypto.Sign(h[:], sequencerPrivKey)
-		if err != nil {
-			return nil, err
+	signer := func(chainID *big.Int) SignerFn {
+		signer := types.LatestSignerForChainID(chainID)
+		return func(rawTx types.TxData) (*types.Transaction, error) {
+			return types.SignNewTx(sequencerPrivKey, signer, rawTx)
 		}
-		return tx.WithSignature(s, sig)
 	}
 
-	return NewBatchSubmitterWithSignerFn(cfg, addr, signerFn, l)
+	return NewBatchSubmitterWithSigner(cfg, addr, signer, l)
 }
 
-func NewBatchSubmitterWithSignerFn(cfg Config, addr common.Address, signerFn SignerFn, l log.Logger) (*BatchSubmitter, error) {
+type SignerFactory func(chainID *big.Int) SignerFn
+
+func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerFactory, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
@@ -162,7 +160,7 @@ func NewBatchSubmitterWithSignerFn(cfg Config, addr common.Address, signerFn Sig
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signerFn),
+		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
 		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),
