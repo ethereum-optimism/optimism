@@ -66,7 +66,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @param   _recipient  The address of the token recipient.
      */
     function mint(address _recipient) public {
-        require(balanceOf(_recipient) == 0, "ALREADY_MINTED");
         require(isWhitelisted(_recipient), "NOT_WHITELISTED");
         _safeMint(_recipient, tokenIdOfOwner(_recipient));
     }
