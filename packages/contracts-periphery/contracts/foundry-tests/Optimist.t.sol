@@ -6,14 +6,16 @@ import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract Optimist_Initializer is Test {
-    address alice_admin = address(128);
-    address bob = address(256);
-    address sally = address(512);
-    string name = "Optimist name";
-    string symbol = "OPTIMISTSYMBOL";
-    string base_uri = "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
+    address constant alice_admin = address(128);
+    address constant bob = address(256);
+    address constant sally = address(512);
+    string constant name = "Optimist name";
+    string constant symbol = "OPTIMISTSYMBOL";
+    string constant base_uri =
+        "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
     AttestationStation attestationStation;
     Optimist optimist;
 
@@ -364,8 +366,8 @@ contract OptimistTest is Optimist_Initializer {
      * @dev should support erc721 interface
      */
     function test_optimist_supports_interface() external {
-        bytes4 interface721 = 0x80ac58cd;
+        bytes4 iface721 = type(IERC721).interfaceId;
         // check that it supports erc721 interface
-        assertEq(optimist.supportsInterface(interface721), true);
+        assertEq(optimist.supportsInterface(iface721), true);
     }
 }
