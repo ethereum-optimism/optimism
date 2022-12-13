@@ -5,6 +5,7 @@ import (
 	"crypto/ecdsa"
 	"errors"
 	"fmt"
+	"math/big"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -131,8 +133,6 @@ func NewL2OutputSubmitter(
 	gitVersion string,
 	l log.Logger,
 ) (*L2OutputSubmitter, error) {
-
-	ctx := context.Background()
 	var l2OutputPrivKey *ecdsa.PrivateKey
 	var err error
 
@@ -161,6 +161,23 @@ func NewL2OutputSubmitter(
 			return nil, err
 		}
 	}
+
+	signer := func(chainID *big.Int) bind.SignerFn {
+		return opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID)
+	}
+	return NewL2OutputSubmitterWithSigner(cfg, crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey), signer, gitVersion, l)
+}
+
+type SignerFactory func(chainID *big.Int) bind.SignerFn
+
+func NewL2OutputSubmitterWithSigner(
+	cfg Config,
+	from common.Address,
+	signer SignerFactory,
+	gitVersion string,
+	l log.Logger,
+) (*L2OutputSubmitter, error) {
+	ctx := context.Background()
 
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
 	if err != nil {
@@ -200,8 +217,8 @@ func NewL2OutputSubmitter(
 		RollupClient:      rollupClient,
 		AllowNonFinalized: cfg.AllowNonFinalized,
 		L2OOAddr:          l2ooAddress,
-		From:              crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey),
-		SignerFn:          opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID),
+		From:              from,
+		SignerFn:          signer(chainID),
 	})
 	if err != nil {
 		return nil, err
