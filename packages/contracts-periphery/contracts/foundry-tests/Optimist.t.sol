@@ -72,6 +72,13 @@ contract OptimistTest is Optimist_Initializer {
         vm.prank(alice_admin);
         attestationStation.attest(attestationData);
 
+        bytes memory data = abi.encodeWithSelector(
+            attestationStation.attestations.selector,
+            alice_admin,
+            bob,
+            bytes32("optimist.can-mint")
+        );
+        vm.expectCall(address(attestationStation), data);
         // mint an NFT
         vm.prank(bob);
         optimist.mint(bob);
@@ -96,6 +103,13 @@ contract OptimistTest is Optimist_Initializer {
         vm.prank(alice_admin);
         attestationStation.attest(attestationData);
 
+        bytes memory data = abi.encodeWithSelector(
+            attestationStation.attestations.selector,
+            alice_admin,
+            bob,
+            bytes32("optimist.can-mint")
+        );
+        vm.expectCall(address(attestationStation), data);
         // mint as sally instead of bob
         vm.prank(sally);
         optimist.mint(bob);
@@ -158,7 +172,7 @@ contract OptimistTest is Optimist_Initializer {
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
-            address(alice_admin),
+            alice_admin,
             address(optimist),
             bytes32("optimist.base-uri")
         );
@@ -223,8 +237,22 @@ contract OptimistTest is Optimist_Initializer {
         vm.prank(alice_admin);
         attestationStation.attest(attestationData);
 
+        bytes memory data = abi.encodeWithSelector(
+            attestationStation.attestations.selector,
+            alice_admin,
+            bob,
+            bytes32("optimist.can-mint")
+        );
+        vm.expectCall(address(attestationStation), data);
         // assert bob is whitelisted
         assertEq(optimist.isOnAllowList(bob), true);
+        data = abi.encodeWithSelector(
+            attestationStation.attestations.selector,
+            alice_admin,
+            sally,
+            bytes32("optimist.can-mint")
+        );
+        vm.expectCall(address(attestationStation), data);
         // assert sally is not whitelisted
         assertEq(optimist.isOnAllowList(sally), false);
     }
