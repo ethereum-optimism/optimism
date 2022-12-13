@@ -72,6 +72,23 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     }
 
     /**
+     * @notice  Returns decimal tokenid for a given address
+     * @return  uint256 decimal tokenId
+     */
+    function baseURI() public view returns (string memory) {
+        return
+            string(
+                abi.encodePacked(
+                    ATTESTATION_STATION.attestations(
+                        owner(),
+                        address(this),
+                        bytes32("optimist.base-uri")
+                    )
+                )
+            );
+    }
+
+    /**
      * @notice Returns the URI for the token metadata.
      * @dev The token URI will be stored at baseURI + '/' + tokenId + .json
      * @param tokenId The token ID to query.
@@ -114,23 +131,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
 
     function _tokenIdOfOwner(address _owner) internal pure returns (uint256) {
         return uint256(uint160(_owner));
-    }
-
-    /**
-     * @notice  Returns decimal tokenid for a given address
-     * @return  uint256 decimal tokenId
-     */
-    function baseURI() public view returns (string memory) {
-        return
-            string(
-                abi.encodePacked(
-                    ATTESTATION_STATION.attestations(
-                        owner(),
-                        address(this),
-                        bytes32("optimist.base-uri")
-                    )
-                )
-            );
     }
 
     /**
