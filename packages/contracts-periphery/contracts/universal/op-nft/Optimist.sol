@@ -122,7 +122,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @notice  Returns decimal tokenid for a given address
      * @return  uint256 decimal tokenId
      */
-    function tokenIdOfOwner(address _owner) public view returns (uint256) {
+    function tokenIdOfOwner(address _owner) public pure returns (uint256) {
         return uint256(uint160(_owner));
     }
 
