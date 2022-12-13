@@ -7,6 +7,12 @@ import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import { Proxy } from "@eth-optimism/contracts-bedrock/contracts/universal/Proxy.sol";
+import {
+    L2OutputOracle_Initializer,
+    NextImpl
+} from "@eth-optimism/contracts-bedrock/contracts/test/CommonTest.t.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Optimist_Initializer is Test {
     address constant alice_admin = address(128);
@@ -369,5 +375,21 @@ contract OptimistTest is Optimist_Initializer {
         bytes4 iface721 = type(IERC721).interfaceId;
         // check that it supports erc721 interface
         assertEq(optimist.supportsInterface(iface721), true);
+    }
+
+    function test_upgradeToAndCall() external {
+        Proxy proxyAttestation = Proxy(payable(address(attestationStation)));
+        Proxy proxyOptimist = Proxy(payable(address(optimist)));
+
+        bytes32 slots21BeforeAttestation = vm.load(
+            address(attestationStation),
+            bytes32(uint256(21))
+        );
+        bytes32 slots21BeforeOptimist = vm.load(address(optimist), bytes32(uint256(21)));
+
+        assertEq(bytes32(0), slots21BeforeAttestation);
+        assertEq(bytes32(0), slots21BeforeOptimist);
+
+        // upgrade to new contract
     }
 }
