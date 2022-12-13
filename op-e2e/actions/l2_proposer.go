@@ -12,6 +12,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
 type ProposerCfg struct {
@@ -39,7 +40,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		AllowNonFinalized: cfg.AllowNonFinalized,
 		L2OOAddr:          cfg.OutputOracleAddr,
 		From:              crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey),
-		SignerFn:          l2output.SignerFnForPrivateKey(cfg.ProposerKey, chainID),
+		SignerFn:          opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID),
 	})
 	require.NoError(t, err)
 	return &L2Proposer{

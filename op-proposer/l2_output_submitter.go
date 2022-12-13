@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -200,7 +201,7 @@ func NewL2OutputSubmitter(
 		AllowNonFinalized: cfg.AllowNonFinalized,
 		L2OOAddr:          l2ooAddress,
 		From:              crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey),
-		SignerFn:          l2output.SignerFnForPrivateKey(l2OutputPrivKey, chainID),
+		SignerFn:          opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID),
 	})
 	if err != nil {
 		return nil, err
