@@ -631,6 +631,10 @@ jobs:
                 command: |
                   make devnet-up-deploy
             - run:
+                name: Check L2 config
+                command: npx hardhat check-l2 --network devnetL2
+                working_directory: packages/contracts-bedrock
+            - run:
                 name: Deposit ERC20 through the bridge
                 command: timeout 5m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
@@ -651,6 +655,10 @@ jobs:
                 name: Bring up the stack
                 command: |
                   make devnet-up
+            - run:
+                name: Check L2 config
+                command: npx hardhat check-l2 --network devnetL2
+                working_directory: packages/contracts-bedrock
             - run:
                 name: Deposit ERC20 through the bridge
                 command: timeout 10m npx hardhat deposit-erc20 --network devnetL1
