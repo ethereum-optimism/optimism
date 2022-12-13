@@ -94,7 +94,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @return The URI for the given token ID.
      */
     function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
-        require(ownerOf(tokenId) != address(0), "NOT_MINTED");
         return
             string(
                 abi.encodePacked(
