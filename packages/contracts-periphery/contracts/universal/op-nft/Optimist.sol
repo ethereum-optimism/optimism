@@ -40,6 +40,11 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         address _attestor,
         AttestationStation _attestationStation
     ) Semver(0, 0, 1) {
+        require(_attestor != address(0), "Optimist: Attestor cannot be zero address");
+        require(
+            address(_attestationStation) != address(0),
+            "Optimist: AttestationStation cannot be zero address"
+        );
         ATTESTOR = _attestor;
         ATTESTATION_STATION = _attestationStation;
         initialize(_name, _symbol);
@@ -65,7 +70,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
      */
     function mint(address _recipient) public {
         require(isWhitelisted(_recipient), "Optimist: address is not whitelisted");
-        _safeMint(_recipient, tokenIdOfOwner(_recipient));
+        _safeMint(_recipient, tokenIdOfAddress(_recipient));
     }
 
     /**
@@ -120,7 +125,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
      * @notice  Returns decimal tokenid for a given address
      * @return  uint256 decimal tokenId
      */
-    function tokenIdOfOwner(address _owner) public pure returns (uint256) {
+    function tokenIdOfAddress(address _owner) public pure returns (uint256) {
         return uint256(uint160(_owner));
     }
 
@@ -150,11 +155,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
      * @notice  Soulbound
      * @dev     Override internal function to prevent transfers of the Optimist token.
      */
-    function _setApprovalForAll(
-        address,
-        address,
-        bool
-    ) internal virtual override {
+    function setApprovalForAll(address, bool) public virtual override {
         revert("Optimist: soul bound token");
     }
 }
