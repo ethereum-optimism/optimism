@@ -2,7 +2,6 @@ package op_batcher
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"time"
@@ -11,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -33,10 +31,10 @@ type TransactionManager struct {
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, privKey *ecdsa.PrivateKey, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
-		senderAddress:     crypto.PubkeyToAddress(privKey.PublicKey),
+		senderAddress:     senderAddress,
 		chainID:           chainID,
 		txMgr:             txmgr.NewSimpleTxManager("batcher", txMgrConfg, l1Client),
 		l1Client:          l1Client,
