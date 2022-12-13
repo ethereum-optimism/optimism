@@ -44,8 +44,6 @@ type BatchSubmitter struct {
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
-	ctx := context.Background()
-
 	var err error
 	var sequencerPrivKey *ecdsa.PrivateKey
 	var addr common.Address
@@ -84,6 +82,23 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 
 		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
 	}
+
+	signerFn := func(rawTx types.TxData) (*types.Transaction, error) {
+		tx := types.NewTx(rawTx)
+		s := types.LatestSignerForChainID(tx.ChainId())
+		h := s.Hash(tx)
+		sig, err := crypto.Sign(h[:], sequencerPrivKey)
+		if err != nil {
+			return nil, err
+		}
+		return tx.WithSignature(s, sig)
+	}
+
+	return NewBatchSubmitterWithSignerFn(cfg, addr, signerFn, l)
+}
+
+func NewBatchSubmitterWithSignerFn(cfg Config, addr common.Address, signerFn SignerFn, l log.Logger) (*BatchSubmitter, error) {
+	ctx := context.Background()
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
 	if err != nil {
@@ -143,10 +158,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-
-	signerFn := func(rawTx types.TxData) (*types.Transaction, error) {
-		return types.SignNewTx(sequencerPrivKey, types.LatestSignerForChainID(chainID), rawTx)
-	}
 
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
