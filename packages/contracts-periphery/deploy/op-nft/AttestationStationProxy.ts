@@ -3,20 +3,23 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
+import {
+  assertContractVariable,
+  deploy,
+  getDeploymentAddress,
+} from '@eth-optimism/contracts-bedrock/src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const { deployer } = await hre.getNamedAccounts()
-  const { deploy } = hre.deployments
+  const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
 
-  console.log(`Deploying AttestationStationProxy to ${hre.network.name}`)
-  console.log(`Using deployer ${deployer}`)
-
-  await deploy('AttestationStationProxy', {
+  await deploy({
+    hre,
+    name: 'AttestationStationProxy',
     contract: 'Proxy',
-    from: deployer,
-    args: [deployer],
-    log: true,
-    waitConfirmations: 1,
+    args: [proxyAdmin],
+    postDeployAction: async (contract) => {
+      await assertContractVariable(contract, 'admin', proxyAdmin)
+    },
   })
 
   const Deployment__AttestationStationProxy = await hre.deployments.get(
