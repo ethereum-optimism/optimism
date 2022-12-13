@@ -66,7 +66,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @param   _recipient  The address of the token recipient.
      */
     function mint(address _recipient) public {
-        require(isWhitelisted(_recipient), "NOT_WHITELISTED");
+        require(isWhitelisted(_recipient), "Optimist: address is not whitelisted");
         _safeMint(_recipient, tokenIdOfOwner(_recipient));
     }
 
@@ -137,7 +137,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         address _to,
         uint256
     ) internal virtual override {
-        require(_from == address(0) || _to == address(0), "SBT_TRANSFER");
+        require(_from == address(0) || _to == address(0), "Optimist: soul bound token");
     }
 
     /**
@@ -145,7 +145,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @dev     Override internal function to prevent transfers of the Optimist token.
      */
     function approve(address, uint256) public pure override {
-        revert("SBT_APPROVE");
+        revert("Optimist: soul bound token");
     }
 
     /**
@@ -157,7 +157,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         address,
         bool
     ) internal virtual override {
-        revert("SBT_SET_APPROVAL_FOR_ALL");
+        revert("Optimist: soul bound token");
     }
 
     /**
@@ -170,6 +170,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      *          3. Transfer ownership to the contract
      */
     function renounceOwnership() public pure override {
-        revert("CANNOT_RENOUNCE_OWNERSHIP");
+        revert("Optimist: soul bound token");
     }
 }
