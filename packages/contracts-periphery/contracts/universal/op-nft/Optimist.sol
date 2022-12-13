@@ -20,7 +20,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     /**
      * @notice The attestation station contract where owner makes attestations
      */
-    AttestationStation public immutable attestationStation;
+    AttestationStation public immutable ATTESTATION_STATION;
 
     /**
      * @notice The length of the address
@@ -42,7 +42,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         address _admin,
         address _attestationStation
     ) Semver(0, 0, 1) {
-        attestationStation = AttestationStation(_attestationStation);
+        ATTESTATION_STATION = AttestationStation(_attestationStation);
         initialize(_name, _symbol, _admin, _attestationStation);
     }
 
@@ -52,13 +52,11 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @param   _name  The token name.
      * @param   _symbol  The token symbol.
      * @param   _admin  The administrator address.
-     * @param   _attestationStation  The address of the attestation station contract.
      */
     function initialize(
         string memory _name,
         string memory _symbol,
-        address _admin,
-        address _attestationStation
+        address _admin
     ) public initializer {
         __ERC721_init(_name, _symbol);
         __ERC721Burnable_init();
@@ -105,7 +103,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      */
     function isWhitelisted(address _recipient) public view returns (bool) {
         return
-            attestationStation
+            ATTESTATION_STATION
                 .attestations(owner(), _recipient, bytes32("optimist.can-mint"))
                 .length > 0;
     }
@@ -131,7 +129,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         return
             string(
                 abi.encodePacked(
-                    attestationStation.attestations(
+                    ATTESTATION_STATION.attestations(
                         owner(),
                         address(this),
                         bytes32("optimist.base-uri")
