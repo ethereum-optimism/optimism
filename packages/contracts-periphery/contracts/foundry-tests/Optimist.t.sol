@@ -5,7 +5,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 import { Optimist } from "../universal/op-nft/Optimist.sol";
-import "@openzeppelin/contracts/utils/Strings.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract Optimist_Initializer is Test {
     address alice_admin = address(128);
