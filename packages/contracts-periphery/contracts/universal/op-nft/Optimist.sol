@@ -5,7 +5,6 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
 import {
     ERC721BurnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { AttestationStation } from "./AttestationStation.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -16,28 +15,30 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  *         It uses attestations for its base URI and whitelist
  *         This contract is not yet audited
  */
-contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
+contract Optimist is ERC721BurnableUpgradeable, Semver {
     /**
      * @notice The attestation station contract where owner makes attestations
      */
     AttestationStation public immutable ATTESTATION_STATION;
+    address public immutable ATTESTOR;
 
     /**
      * @notice  Initialize the Optimist contract.
      * @dev     call initialize function
      * @param   _name  The token name.
      * @param   _symbol  The token symbol.
-     * @param   _admin  The administrator address.
+     * @param   _attestor  The administrator address who makes attestations.
      * @param   _attestationStation  The address of the attestation station contract.
      */
     constructor(
         string memory _name,
         string memory _symbol,
-        address _admin,
+        address _attestor,
         AttestationStation _attestationStation
     ) Semver(0, 0, 1) {
+        ATTESTOR = _attestor;
         ATTESTATION_STATION = _attestationStation;
-        initialize(_name, _symbol, _admin);
+        initialize(_name, _symbol);
     }
 
     /**
@@ -45,17 +46,10 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @dev     Initializes the Optimist contract with the given parameters.
      * @param   _name  The token name.
      * @param   _symbol  The token symbol.
-     * @param   _admin  The administrator address.
      */
-    function initialize(
-        string memory _name,
-        string memory _symbol,
-        address _admin
-    ) public initializer {
+    function initialize(string memory _name, string memory _symbol) public initializer {
         __ERC721_init(_name, _symbol);
         __ERC721Burnable_init();
-        __Ownable_init();
-        transferOwnership(_admin);
     }
 
     /**
@@ -79,7 +73,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
             string(
                 abi.encodePacked(
                     ATTESTATION_STATION.attestations(
-                        owner(),
+                        ATTESTOR,
                         address(this),
                         bytes32("optimist.base-uri")
                     )
@@ -114,7 +108,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     function isWhitelisted(address _recipient) public view returns (bool) {
         return
             ATTESTATION_STATION
-                .attestations(owner(), _recipient, bytes32("optimist.can-mint"))
+                .attestations(ATTESTOR, _recipient, bytes32("optimist.can-mint"))
                 .length > 0;
     }
 
@@ -157,19 +151,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         address,
         bool
     ) internal virtual override {
-        revert("Optimist: soul bound token");
-    }
-
-    /**
-     * @notice  Attestations
-     * @dev     Override internal function to prevent transfer of ownership to 0 address
-     *          The owner is who can attest to the Optimist contract
-     *          To renounce ownership we should do two things
-     *          1. Upgrade contract to a version that attests as the contract
-     *          2. Attest to baseURI and can-mint with the contract
-     *          3. Transfer ownership to the contract
-     */
-    function renounceOwnership() public pure override {
         revert("Optimist: soul bound token");
     }
 }

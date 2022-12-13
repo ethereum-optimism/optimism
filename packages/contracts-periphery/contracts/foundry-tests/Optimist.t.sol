@@ -357,30 +357,6 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev Contract owner should NOT be able to renounce owneership
-     */
-    function test_optimist_renounce_ownership() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
-        vm.prank(alice_admin);
-        vm.expectRevert("Optimist: soul bound token");
-        optimist.renounceOwnership();
-    }
-
-    /**
-     * @dev Contract owner should be able to transfer owneership
-     */
-    function test_optimist_transfer_ownership() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
-        vm.prank(alice_admin);
-        optimist.transferOwnership(bob);
-        assertEq(optimist.owner(), bob);
-    }
-
-    /**
      * @dev setApprovalForAll should revert as sbt
      */
     function test_optimist_set_approval_for_all() external {
