@@ -224,11 +224,14 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_token_id_of_owner() external {
         // whitelist bob
+        uint256 willTokenId = 1024;
+        address will = address(1024);
+
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
         // we are using true but it can be any non null value
         attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
+            about: will,
             key: bytes32("optimist.can-mint"),
             val: bytes("true")
         });
@@ -236,12 +239,9 @@ contract OptimistTest is Optimist_Initializer {
         attestationStation.attest(attestationData);
 
         // mint as bob
-        vm.prank(bob);
-        optimist.mint(bob);
+        optimist.mint(will);
 
-        // assert tokenid is correct
-        uint256 expectedId = 256;
-        assertEq(optimist.tokenIdOfAddress(address(bob)), expectedId);
+        assertEq(optimist.tokenIdOfAddress(will), willTokenId);
     }
 
     /**
