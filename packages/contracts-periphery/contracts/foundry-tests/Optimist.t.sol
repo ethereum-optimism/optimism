@@ -51,7 +51,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev Bob should be able to mint an NFT if he is whitelisted
+     * @dev Bob should be able to mint an NFT if he is allowlisted
      * by the attestation station and has a balance of 0
      */
     function test_optimist_mint_happy_path() external {
@@ -108,7 +108,7 @@ contract OptimistTest is Optimist_Initializer {
      */
     function test_optimist_mint_no_attestation() external {
         vm.prank(bob);
-        vm.expectRevert("Optimist: address is not whitelisted");
+        vm.expectRevert("Optimist: address is not on allowList");
         optimist.mint(bob);
     }
 
@@ -200,7 +200,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev Should return a boolean of if the address is whitelisted
      */
-    function test_optimist_is_whitelisted() external {
+    function test_optimist_is_on_allow_list() external {
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -214,9 +214,9 @@ contract OptimistTest is Optimist_Initializer {
         attestationStation.attest(attestationData);
 
         // assert bob is whitelisted
-        assertEq(optimist.isWhitelisted(bob), true);
+        assertEq(optimist.isOnAllowList(bob), true);
         // assert sally is not whitelisted
-        assertEq(optimist.isWhitelisted(sally), false);
+        assertEq(optimist.isOnAllowList(sally), false);
     }
 
     /**

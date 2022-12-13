@@ -12,7 +12,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
  * @title  Optimist
  * @dev    Contract for Optimist SBT
  * @notice The Optimist contract is a SBT representing real humans
- *         It uses attestations for its base URI and whitelist
+ *         It uses attestations for its base URI and allowList
  *         This contract is not yet audited
  */
 contract Optimist is ERC721BurnableUpgradeable, Semver {
@@ -22,7 +22,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice The attestor attests to the baseURI and whitelist
+     * @notice The attestor attests to the baseURI and allowList
      */
     address public immutable ATTESTOR;
 
@@ -69,7 +69,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
      * @param   _recipient  The address of the token recipient.
      */
     function mint(address _recipient) public {
-        require(isWhitelisted(_recipient), "Optimist: address is not whitelisted");
+        require(isOnAllowList(_recipient), "Optimist: address is not on allowList");
         _safeMint(_recipient, tokenIdOfAddress(_recipient));
     }
 
@@ -110,11 +110,11 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice  Returns whether an address is whitelisted
-     * @dev     The whitelist is an attestation by the admin of this contract
-     * @return  boolean  Whether the address is whitelisted
+     * @notice  Returns whether an address is allowList
+     * @dev     The allowList is an attestation by the admin of this contract
+     * @return  boolean  Whether the address is allowList
      */
-    function isWhitelisted(address _recipient) public view returns (bool) {
+    function isOnAllowList(address _recipient) public view returns (bool) {
         return
             ATTESTATION_STATION
                 .attestations(ATTESTOR, _recipient, bytes32("optimist.can-mint"))
