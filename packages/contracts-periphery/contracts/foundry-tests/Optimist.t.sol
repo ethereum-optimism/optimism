@@ -14,6 +14,8 @@ contract Optimist_Initializer is Test {
     string name = "Optimist name";
     string symbol = "OPTIMISTSYMBOL";
     string base_uri = "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
+    AttestationStation attestationStation;
+    Optimist optimist;
 
     function _setUp() public {
         // Give alice and bob and sally some ETH
@@ -24,6 +26,12 @@ contract Optimist_Initializer is Test {
         vm.label(alice_admin, "alice_admin");
         vm.label(bob, "bob");
         vm.label(sally, "sally");
+        _initializeContracts();
+    }
+
+    function _initializeContracts() internal {
+        attestationStation = new AttestationStation();
+        optimist = new Optimist(name, symbol, alice_admin, attestationStation);
     }
 }
 
@@ -31,11 +39,6 @@ contract OptimistTest is Optimist_Initializer {
     function setUp() public {
         super._setUp();
         _initializeContracts();
-    }
-
-    function _initializeContracts() internal {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
     }
 
     function test_optimist_initialize() external {
@@ -238,7 +241,7 @@ contract OptimistTest is Optimist_Initializer {
 
         // assert tokenid is correct
         uint256 expectedId = 256;
-        assertEq(optimist.tokenIdOfOwner(address(bob)), expectedId);
+        assertEq(optimist.tokenIdOfAddress(address(bob)), expectedId);
     }
 
     /**
