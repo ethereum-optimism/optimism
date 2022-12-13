@@ -2,8 +2,6 @@
 pragma solidity 0.8.15;
 
 import { Semver } from "../universal/Semver.sol";
-import { L2StandardBridge } from "./L2StandardBridge.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
 import { FeeVault } from "../universal/FeeVault.sol";
 
 /**
