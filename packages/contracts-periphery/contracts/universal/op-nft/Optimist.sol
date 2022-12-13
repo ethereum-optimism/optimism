@@ -34,9 +34,9 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
         string memory _name,
         string memory _symbol,
         address _admin,
-        address _attestationStation
+        AttestationStation _attestationStation
     ) Semver(0, 0, 1) {
-        ATTESTATION_STATION = AttestationStation(_attestationStation);
+        ATTESTATION_STATION = _attestationStation;
         initialize(_name, _symbol, _admin);
     }
 
