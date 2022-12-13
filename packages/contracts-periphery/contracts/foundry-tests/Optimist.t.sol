@@ -155,6 +155,14 @@ contract OptimistTest is Optimist_Initializer {
             key: bytes32("optimist.base-uri"),
             val: bytes(base_uri)
         });
+
+        bytes memory data = abi.encodeWithSelector(
+            attestationStation.attestations.selector,
+            address(alice_admin),
+            address(optimist),
+            bytes32("optimist.base-uri")
+        );
+        vm.expectCall(address(attestationStation), data);
         vm.prank(alice_admin);
         attestationStation.attest(attestationData);
 
