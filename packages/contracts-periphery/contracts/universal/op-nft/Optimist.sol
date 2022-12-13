@@ -40,11 +40,6 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         address _attestor,
         AttestationStation _attestationStation
     ) Semver(0, 0, 1) {
-        require(_attestor != address(0), "Optimist: Attestor cannot be zero address");
-        require(
-            address(_attestationStation) != address(0),
-            "Optimist: AttestationStation cannot be zero address"
-        );
         ATTESTOR = _attestor;
         ATTESTATION_STATION = _attestationStation;
         initialize(_name, _symbol);
