@@ -153,6 +153,12 @@ contract Bytes_Test is Test {
         assertEq(actual, expected);
     }
 
+    /// @dev Test that the `toNibbles` function in the `Bytes` library is equivalent to the
+    /// Yul implementation.
+    function testDiff_toNibbles_succeeds(bytes memory _input) public {
+        assertEq(Bytes.toNibbles(_input), toNibblesYul(_input));
+    }
+
     /// @dev Test that the `equal` function in the `Bytes` library returns `false` if given
     /// two non-equal byte arrays.
     function testFuzz_equal_notEqual_works(bytes memory _a, bytes memory _b) public {
@@ -171,7 +177,8 @@ contract Bytes_Test is Test {
     ////////////////////////////////////////////////////////////////
 
     /// @dev Utility function to manually check equality of two dynamic `bytes` arrays in memory.
-    function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool _eq) {
+    function manualEq(bytes memory _a, bytes memory _b) internal pure returns (bool) {
+        bool _eq;
         assembly {
             _eq := and(
                 // Check if the contents of the two bytes arrays are equal in memory.
@@ -181,5 +188,43 @@ contract Bytes_Test is Test {
                 eq(mload(_a), mload(_b))
             )
         }
+        return _eq;
+    }
+
+    /// @dev Utility function to diff test Solidity version of `toNibbles`
+    function toNibblesYul(bytes memory _bytes) internal pure returns (bytes memory) {
+        // Allocate memory for the `nibbles` array.
+        bytes memory nibbles = new bytes(_bytes.length << 1);
+
+        assembly {
+            // Load the length of the passed bytes array from memory
+            let bytesLength := mload(_bytes)
+
+            // Store the memory offset of the _bytes array's contents on the stack
+            let bytesStart := add(_bytes, 0x20)
+
+            // Store the memory offset of the nibbles array's contents on the stack
+            let nibblesStart := add(nibbles, 0x20)
+
+            // Loop through each byte in the input array
+            for {
+                let i := 0x00
+            } lt(i, bytesLength) {
+                i := add(i, 0x01)
+            } {
+                // Get the starting offset of the next 2 bytes in the nibbles array
+                let offset := add(nibblesStart, shl(0x01, i))
+
+                // Load the byte at the current index within the `_bytes` array
+                let b := byte(0x00, mload(add(bytesStart, i)))
+
+                // Pull out the first nibble and store it in the new array
+                mstore8(offset, shr(0x04, b))
+                // Pull out the second nibble and store it in the new array
+                mstore8(add(offset, 0x01), and(b, 0x0F))
+            }
+        }
+
+        return nibbles;
     }
 }
