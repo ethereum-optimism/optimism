@@ -30,11 +30,15 @@ contract Optimist_Initializer is Test {
 contract OptimistTest is Optimist_Initializer {
     function setUp() public {
         super._setUp();
+        _initializeContracts();
+    }
+
+    function _initializeContracts() internal {
+        AttestationStation attestationStation = new AttestationStation();
+        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
     }
 
     function test_optimist_initialize() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
         // expect name to be set
         assertEq(optimist.name(), name);
         // expect symbol to be set
@@ -48,8 +52,6 @@ contract OptimistTest is Optimist_Initializer {
      * by the attestation station and has a balance of 0
      */
     function test_optimist_mint_happy_path() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
         // bob should start with 0 balance
         assertEq(optimist.balanceOf(bob), 0);
 
@@ -77,9 +79,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Sally should be able to mint a token on behalf of bob
      */
     function test_optimist_mint_secondary_minter() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -105,9 +104,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Bob should not be able to mint an NFT if he is not whitelisted
      */
     function test_optimist_mint_no_attestation() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         vm.prank(bob);
         vm.expectRevert("Optimist: address is not whitelisted");
         optimist.mint(bob);
@@ -117,9 +113,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Bob's tx should revert if he already minted
      */
     function test_optimist_mint_already_minted() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -149,9 +142,6 @@ contract OptimistTest is Optimist_Initializer {
      * by the owner of contract alice_admin
      */
     function test_optimist_baseURI() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // set baseURI
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -172,9 +162,6 @@ contract OptimistTest is Optimist_Initializer {
      * for a minted token
      */
     function test_optimist_token_uri() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         // attest baseURI
         AttestationStation.AttestationData[]
@@ -211,9 +198,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Should return a boolean of if the address is whitelisted
      */
     function test_optimist_is_whitelisted() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -236,9 +220,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Should return the token id of the owner
      */
     function test_optimist_token_id_of_owner() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -264,9 +245,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev It should revert if anybody attemps token transfer
      */
     function test_optimist_sbt_transfer() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -298,9 +276,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev It should revert if anybody attemps approve
      */
     function test_optimist_sbt_approve() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -329,9 +304,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev It should be able to burn token
      */
     function test_optimist_burn() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -360,9 +332,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev setApprovalForAll should revert as sbt
      */
     function test_optimist_set_approval_for_all() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         // whitelist bob
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -392,9 +361,6 @@ contract OptimistTest is Optimist_Initializer {
      * @dev should support erc721 interface
      */
     function test_optimist_supports_interface() external {
-        AttestationStation attestationStation = new AttestationStation();
-        Optimist optimist = new Optimist(name, symbol, alice_admin, attestationStation);
-
         bytes4 interface721 = 0x80ac58cd;
         // check that it supports erc721 interface
         assertEq(optimist.supportsInterface(interface721), true);
