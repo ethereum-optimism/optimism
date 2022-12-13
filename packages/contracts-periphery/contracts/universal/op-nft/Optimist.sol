@@ -68,7 +68,7 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
     function mint(address _recipient) public {
         require(balanceOf(_recipient) == 0, "ALREADY_MINTED");
         require(isWhitelisted(_recipient), "NOT_WHITELISTED");
-        _safeMint(_recipient, _tokenIdOfOwner(_recipient));
+        _safeMint(_recipient, tokenIdOfOwner(_recipient));
     }
 
     /**
@@ -125,11 +125,6 @@ contract Optimist is ERC721BurnableUpgradeable, OwnableUpgradeable, Semver {
      * @return  uint256 decimal tokenId
      */
     function tokenIdOfOwner(address _owner) public view returns (uint256) {
-        require(balanceOf(_owner) > 0, "NOT_MINTED");
-        return _tokenIdOfOwner(_owner);
-    }
-
-    function _tokenIdOfOwner(address _owner) internal pure returns (uint256) {
         return uint256(uint160(_owner));
     }
 
