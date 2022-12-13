@@ -20,6 +20,10 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
      * @notice The attestation station contract where owner makes attestations
      */
     AttestationStation public immutable ATTESTATION_STATION;
+
+    /**
+     * @notice The attestor attests to the baseURI and whitelist
+     */
     address public immutable ATTESTOR;
 
     /**
