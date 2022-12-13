@@ -2,7 +2,6 @@ package l2output
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -47,21 +45,6 @@ type Config struct {
 
 	// SignerFn is the function used to sign transactions
 	SignerFn bind.SignerFn
-}
-
-func SignerFnForPrivateKey(key *ecdsa.PrivateKey, chainID *big.Int) bind.SignerFn {
-	from := crypto.PubkeyToAddress(key.PublicKey)
-	signer := types.LatestSignerForChainID(chainID)
-	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-		if address != from {
-			return nil, bind.ErrNotAuthorized
-		}
-		signature, err := crypto.Sign(signer.Hash(tx).Bytes(), key)
-		if err != nil {
-			return nil, err
-		}
-		return tx.WithSignature(signer, signature)
-	}
 }
 
 type Driver struct {

@@ -113,6 +113,8 @@ github.com/ethereum-optimism/optimism/op-node v0.10.3 h1:96KbEtbfJTg5GXtNqLnrDPn
 github.com/ethereum-optimism/optimism/op-node v0.10.3/go.mod h1:fsRLXH68xaLhjfr67MPEtjCocCzSXGhZIre536QccIw=
 github.com/ethereum-optimism/optimism/op-service v0.10.3 h1:gr+eVq6CzxMFqo0/9n6EoUkpumtYZEzO84gti6ekj/s=
 github.com/ethereum-optimism/optimism/op-service v0.10.3/go.mod h1:hCY0nAeGYp3YqB0NpLmOzUdXV/5t9EyukHMTJL3pIUQ=
+github.com/ethereum-optimism/optimism/op-service v0.10.4-0.20221213024528-ed796b7b65ad h1:cpb0s9Ewe3jBxIS5B86KdmHeaH5Rg9R2gs6t6VjsLnQ=
+github.com/ethereum-optimism/optimism/op-service v0.10.4-0.20221213024528-ed796b7b65ad/go.mod h1:7INvNCJGwVgNT4gz9Yupx7PAEJeu+F/JtHKv1fOr+9Q=
 github.com/fjl/memsize v0.0.1 h1:+zhkb+dhUgx0/e+M8sF0QqiouvMQUiKR+QYvdxIOKcQ=
 github.com/fjl/memsize v0.0.1/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
 github.com/fsnotify/fsnotify v1.4.7/go.mod h1:jwhsz4b93w/PPRr/qN1Yymfu8t87LnFCMoQvtojpjFo=
