@@ -55,6 +55,8 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.symbol(), symbol);
         // expect attestationStation to be set
         assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
+        assertEq(optimist.ATTESTOR(), alice_admin);
+        assertEq(optimist.version(), "0.0.1");
     }
 
     /**
@@ -325,6 +327,10 @@ contract OptimistTest is Optimist_Initializer {
         vm.expectRevert(bytes("Optimist: soul bound token"));
         vm.prank(bob);
         optimist.safeTransferFrom(bob, sally, 256);
+        // attempt to transfer to sally
+        vm.expectRevert(bytes("Optimist: soul bound token"));
+        vm.prank(bob);
+        optimist.safeTransferFrom(bob, sally, 256, bytes("0x"));
     }
 
     /**
