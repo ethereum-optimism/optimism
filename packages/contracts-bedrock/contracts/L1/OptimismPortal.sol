@@ -200,14 +200,23 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
+        // Compute the storage slot of the withdrawal hash in the L2ToL1MessagePasser contract.
+        bytes32 storageKey = keccak256(
+            abi.encode(
+                withdrawalHash,
+                uint256(0) // The withdrawals mapping is at the first slot in the layout.
+            )
+        );
+
         // Verify that the hash of this withdrawal was stored in the L2toL1MessagePasser contract on
         // L2. If this is true, then we know that this withdrawal was actually triggered on L2
         // and can therefore be relayed on L1.
         require(
-            _verifyWithdrawalInclusion(
-                withdrawalHash,
-                _outputRootProof.messagePasserStorageRoot,
-                _withdrawalProof
+            SecureMerkleTrie.verifyInclusionProof(
+                abi.encode(storageKey),
+                hex"01",
+                _withdrawalProof,
+                _outputRootProof.messagePasserStorageRoot
             ),
             "OptimismPortal: invalid withdrawal inclusion proof"
         );
@@ -389,34 +398,5 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
         return block.timestamp > _timestamp + FINALIZATION_PERIOD_SECONDS;
-    }
-
-    /**
-     * @notice Verifies a Merkle Trie inclusion proof that a given withdrawal hash is present in
-     *         the storage of the L2ToL1MessagePasser contract.
-     *
-     * @param _withdrawalHash Hash of the withdrawal to verify.
-     * @param _storageRoot    Root of the storage of the L2ToL1MessagePasser contract.
-     * @param _proof          Inclusion proof of the withdrawal hash in the storage root.
-     */
-    function _verifyWithdrawalInclusion(
-        bytes32 _withdrawalHash,
-        bytes32 _storageRoot,
-        bytes[] memory _proof
-    ) internal pure returns (bool) {
-        bytes32 storageKey = keccak256(
-            abi.encode(
-                _withdrawalHash,
-                uint256(0) // The withdrawals mapping is at the first slot in the layout.
-            )
-        );
-
-        return
-            SecureMerkleTrie.verifyInclusionProof(
-                abi.encode(storageKey),
-                hex"01",
-                _proof,
-                _storageRoot
-            );
     }
 }
