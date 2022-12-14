@@ -25,7 +25,6 @@ contract Optimist_Initializer is Test {
     function attestBaseuri(string memory _baseUri) internal {
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData(
             address(optimist),
             bytes32("optimist.base-uri"),
