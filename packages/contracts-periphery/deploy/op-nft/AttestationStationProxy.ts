@@ -9,12 +9,16 @@ import {
 } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
 import { utils } from 'ethers'
 
+import type { DeployConfig } from '../../src'
+
 const { getAddress } = utils
 
 /**
  * Deploys the AttestationStationProxy
  */
 const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
+  const deployConfig = hre.deployConfig as DeployConfig
+
   const { deployer } = await hre.getNamedAccounts()
 
   console.log(`Deploying AttestationStationProxy with ${deployer}`)
@@ -30,6 +34,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     args: [deployer],
     postDeployAction: async (contract) => {
       await assertContractVariable(contract, 'admin', deployer)
+      await assertContractVariable(contract, 'version', '1.0.0')
     },
   })
 
@@ -62,7 +67,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     console.log('implementation already set to AttestationStation contract')
   }
 
-  const l2ProxyOwnerAddress = hre.deployConfig.l2ProxyOwnerAddress
+  const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
   const admin = await Proxy.callStatic.admin()
   console.log(`admin is set to ${admin}`)
   if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
