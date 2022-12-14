@@ -10,6 +10,7 @@ import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract Optimist_Initializer is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Initialized(uint8);
 
     address constant alice_admin = address(128);
     address constant bob = address(256);
@@ -35,6 +36,8 @@ contract Optimist_Initializer is Test {
 
     function _initializeContracts() internal {
         attestationStation = new AttestationStation();
+        vm.expectEmit(true, true, false, false);
+        emit Initialized(1);
         optimist = new Optimist(name, symbol, alice_admin, attestationStation);
     }
 }
