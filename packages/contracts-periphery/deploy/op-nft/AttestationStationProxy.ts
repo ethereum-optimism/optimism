@@ -4,7 +4,9 @@ import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
-import { utils } from 'ethers'
+import { ethers, utils } from 'ethers'
+
+import type { DeployConfig } from '../../src'
 
 const { getAddress } = utils
 
@@ -12,6 +14,8 @@ const { getAddress } = utils
  * Deploys the AttestationStationProxy
  */
 const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
+  const deployConfig = hre.deployConfig as DeployConfig
+
   const { deployer } = await hre.getNamedAccounts()
   const ddd = hre.deployConfig.ddd
 
@@ -57,7 +61,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     addr
   )
 
-  const implementation = await Proxy.callStatic.implementation()
+  const implementation = await Proxy.callStatic.implementation({
+    from: ethers.constants.AddressZero,
+  })
   console.log(`implementation is set to ${implementation}`)
   if (
     getAddress(implementation) !==
@@ -75,8 +81,10 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     console.log('implementation already set to AttestationStation contract')
   }
 
-  const l2ProxyOwnerAddress = hre.deployConfig.l2ProxyOwnerAddress
-  const admin = await Proxy.callStatic.admin()
+  const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
+  const admin = await Proxy.callStatic.admin({
+    from: ethers.constants.AddressZero,
+  })
   console.log(`admin is set to ${admin}`)
   if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
     console.log('admin not set correctly')
@@ -90,11 +98,11 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   }
   console.log('Contract deployment complete')
 
-  // Assert that the variables are set correctly
-  assertContractVariable(AttestationStation, 'version', '0.0.1')
+  await assertContractVariable(Proxy, 'admin', l2ProxyOwnerAddress)
+  await assertContractVariable(AttestationStation, 'version', '1.0.0')
 }
 
-deployFn.tags = ['AttestationStationProxy']
+deployFn.tags = ['AttestationStationProxy', 'OptimistEnvironment']
 deployFn.dependencies = ['AttestationStation']
 
 export default deployFn
