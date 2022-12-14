@@ -4,30 +4,32 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import {
-  assertContractVariable,
-  deploy,
-} from '@eth-optimism/contracts-bedrock/src/deploy-utils'
+import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
 import { utils } from 'ethers'
 
 const { getAddress } = utils
 
 const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await hre.getNamedAccounts()
+  const ddd = hre.deployConfig.ddd
+
+  if (getAddress(deployer) !== getAddress(ddd)) {
+    throw new Error('Must deploy with the ddd')
+  }
 
   const Deployment__Optimist = await hre.deployments.get('Optimist')
 
   console.log(`Deploying OptimistProxy with ${deployer}`)
 
-  await deploy({
-    hre,
-    name: 'OptimistProxy',
+  const { deploy } = await hre.deployments.deterministic('OptimistProxy', {
+    salt: hre.ethers.utils.solidityKeccak256(['string'], ['OptimistProxy']),
     contract: 'Proxy',
+    from: deployer,
     args: [deployer],
-    postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'admin', deployer)
-    },
+    log: true,
   })
+
+  await deploy()
 
   const Deployment__OptimistProxy = await hre.deployments.get('OptimistProxy')
   console.log(`OptimistProxy deployed to ${Deployment__OptimistProxy.address}`)
@@ -79,6 +81,20 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   } else {
     console.log('admin already set to proxy owner address')
   }
+
+  const Deployment__AttestationStation = await hre.deployments.get(
+    'AttestationStationProxy'
+  )
+
+  assertContractVariable(Optimist, 'name', hre.deployConfig.optimistName)
+  assertContractVariable(Optimist, 'symbol', hre.deployConfig.optimistSymbol)
+  assertContractVariable(
+    Optimist,
+    'ATTESTATION_STATION',
+    Deployment__AttestationStation.address
+  )
+  assertContractVariable(Optimist, 'ATTESTOR', hre.deployConfig.attestorAddress)
+  assertContractVariable(Optimist, 'version', '0.0.1')
 }
 
 deployFn.tags = ['OptimistProxy']
