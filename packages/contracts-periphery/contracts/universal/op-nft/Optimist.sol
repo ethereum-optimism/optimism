@@ -9,34 +9,28 @@ import { AttestationStation } from "./AttestationStation.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
- * @title  Optimist
  * @author Optimism Collective
  * @author Gitcoin
- * @dev    Contract for Optimist SBT
- * @notice The Optimist contract is a SBT representing real humans
- *         It uses attestations for its base URI and allowList
- *         This contract is meant to live on L2
- *         This contract is not yet audited
+ * @title Optimist
+ * @notice A Soul Bound Token for real humans only(tm).
  */
 contract Optimist is ERC721BurnableUpgradeable, Semver {
     /**
-     * @notice The attestation station contract where owner makes attestations
+     * @notice Address of the AttestationStation contract.
      */
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice The attestor attests to the baseURI and allowList
+     * @notice Attestor who attests to baseURI and allowlist.
      */
     address public immutable ATTESTOR;
 
     /**
-     * @notice  Initialize the Optimist contract.
      * @custom:semver 1.0.0
-     * @dev     call initialize function
-     * @param   _name  The token name.
-     * @param   _symbol  The token symbol.
-     * @param   _attestor  The administrator address who makes attestations.
-     * @param   _attestationStation  The address of the attestation station contract.
+     * @param _name               Token name.
+     * @param _symbol             Token symbol.
+     * @param _attestor           Address of the attestor.
+     * @param _attestationStation Address of the AttestationStation contract.
      */
     constructor(
         string memory _name,
@@ -50,10 +44,10 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice  Initialize the Optimist contract.
-     * @dev     Initializes the Optimist contract with the given parameters.
-     * @param   _name  The token name.
-     * @param   _symbol  The token symbol.
+     * @notice Initializes the Optimist contract.
+     *
+     * @param _name   Token name.
+     * @param _symbol Token symbol.
      */
     function initialize(string memory _name, string memory _symbol) public initializer {
         __ERC721_init(_name, _symbol);
@@ -61,11 +55,11 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice  Mint the Optimist token.
-     * @dev     Mints the Optimist token to the give recipient address.
-     *          Limits the number of tokens that can be minted to one per address.
-     *          The tokenId is the uint256 of the recipient address.
-     * @param   _recipient  The address of the token recipient.
+     * @notice Allows an address to mint an Optimist NFT. Token ID is the uint256 representation
+     *         of the recipient's address. Recipients must be permitted to mint, eventually anyone
+     *         will be able to mint. One token per address.
+     *
+     * @param _recipient Address of the token recipient.
      */
     function mint(address _recipient) public {
         require(isOnAllowList(_recipient), "Optimist: address is not on allowList");
@@ -73,8 +67,9 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice  Returns decimal tokenid for a given address
-     * @return  uint256 decimal tokenId
+     * @notice Returns the baseURI for all tokens.
+     *
+     * @return BaseURI for all tokens.
      */
     function baseURI() public view returns (string memory) {
         return
@@ -90,28 +85,31 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Returns the URI for the token metadata.
-     * @dev The token URI will be stored at baseURI + '/' + tokenId + .json
-     * @param tokenId The token ID to query.
-     * @return The URI for the given token ID.
+     * @notice Returns the token URI for a given token by ID
+     *
+     * @param _tokenId Token ID to query.
+
+     * @return Token URI for the given token by ID.
      */
-    function tokenURI(uint256 tokenId) public view virtual override returns (string memory) {
+    function tokenURI(uint256 _tokenId) public view virtual override returns (string memory) {
         return
             string(
                 abi.encodePacked(
                     baseURI(),
                     "/",
-                    // convert tokenId to hex string formatted like an address (20)
-                    Strings.toHexString(tokenId, 20),
+                    // Properly format the token ID as a 20 byte hex string (address).
+                    Strings.toHexString(_tokenId, 20),
                     ".json"
                 )
             );
     }
 
     /**
-     * @notice  Returns whether an address is allowList
-     * @dev     The allowList is an attestation by the admin of this contract
-     * @return  boolean  Whether the address is allowList
+     * @notice Checks whether a given address is allowed to mint the Optimist NFT yet. Since the
+     *         Optimist NFT will also be used as part of the Citizens House, mints are currently
+     *         restricted. Eventually anyone will be able to mint.
+     *
+     * @return Whether or not the address is allowed to mint yet.
      */
     function isOnAllowList(address _recipient) public view returns (bool) {
         return
@@ -121,34 +119,34 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice  Returns decimal tokenid for a given address
-     * @return  uint256 decimal tokenId
+     * @notice Returns the token ID for the token owned by a given address. This is the uint256
+     *         representation of the given address.
+     *
+     * @return Token ID for the token owned by the given address.
      */
     function tokenIdOfAddress(address _owner) public pure returns (uint256) {
         return uint256(uint160(_owner));
     }
 
     /**
-     * @notice  Soulbound
-     * @dev     Override function to prevent transfers of the Optimist token.
+     * @notice Disabled for the Optimist NFT (Soul Bound Token).
      */
     function approve(address, uint256) public pure override {
         revert("Optimist: soul bound token");
     }
 
     /**
-     * @notice  Soulbound
-     * @dev     Override function to prevent transfers of the Optimist token.
+     * @notice Disabled for the Optimist NFT (Soul Bound Token).
      */
     function setApprovalForAll(address, bool) public virtual override {
         revert("Optimist: soul bound token");
     }
 
     /**
-     * @notice  (Internal) Soulbound
-     * @dev     Override internal function to prevent transfers of the Optimist token.
-     * @param   _from  The address of the token sender.
-     * @param   _to    The address of the token recipient.
+     * @notice Prevents transfers of the Optimist NFT (Soul Bound Token).
+     *
+     * @param _from Address of the token sender.
+     * @param _to   Address of the token recipient.
      */
     function _beforeTokenTransfer(
         address _from,
