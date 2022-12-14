@@ -19,7 +19,7 @@
     "test": "yarn test:contracts",
     "test:contracts": "hardhat test --show-stack-traces",
     "test:forge": "forge test",
-    "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage",
+    "test:coverage": "NODE_OPTIONS=--max_old_space_size=8192 hardhat coverage && yarn test:coverage:forge",
     "test:coverage:forge": "forge coverage",
     "test:slither": "slither .",
     "gas-snapshot": "forge snapshot",
