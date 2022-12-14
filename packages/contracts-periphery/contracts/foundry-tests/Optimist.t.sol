@@ -9,6 +9,8 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract Optimist_Initializer is Test {
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+
     address constant alice_admin = address(128);
     address constant bob = address(256);
     address constant sally = address(512);
@@ -72,6 +74,10 @@ contract OptimistTest is Optimist_Initializer {
         vm.prank(alice_admin);
         attestationStation.attest(attestationData);
 
+        uint256 tokenId = uint256(uint160(bob));
+        vm.expectEmit(true, true, true, true);
+        emit Transfer(address(0), bob, tokenId);
+
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
             alice_admin,
@@ -110,6 +116,11 @@ contract OptimistTest is Optimist_Initializer {
             bytes32("optimist.can-mint")
         );
         vm.expectCall(address(attestationStation), data);
+
+        uint256 tokenId = uint256(uint160(bob));
+        vm.expectEmit(true, true, true, true);
+        emit Transfer(address(0), bob, tokenId);
+
         // mint as sally instead of bob
         vm.prank(sally);
         optimist.mint(bob);
