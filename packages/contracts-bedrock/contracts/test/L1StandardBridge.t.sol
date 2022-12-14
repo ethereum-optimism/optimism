@@ -16,7 +16,7 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
         assert(L1Bridge.OTHER_BRIDGE() == L2Bridge);
         assert(L1Bridge.messenger() == L1Messenger);
         assert(L1Bridge.MESSENGER() == L1Messenger);
-        assertEq(L1Bridge.version(), "0.0.2");
+        assertEq(L1Bridge.version(), "1.0.0");
     }
 }
 
