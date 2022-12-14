@@ -61,6 +61,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
+		log.Error("Error intializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
 			return nil, multierror.Append(err, closeErr)
@@ -162,21 +163,21 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	var err error
-	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
+	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
 	if n.p2pNode != nil {
-		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
+		server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
 	if cfg.RPC.EnableAdmin {
-		n.server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
+		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
 	}
 	n.log.Info("Starting JSON-RPC server")
-	if err := n.server.Start(); err != nil {
+	if err := server.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
 	}
+	n.server = server
 	return nil
 }
 
