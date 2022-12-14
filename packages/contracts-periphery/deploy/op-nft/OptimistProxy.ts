@@ -5,7 +5,7 @@ import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
-import { utils } from 'ethers'
+import { ethers, utils } from 'ethers'
 
 import type { DeployConfig } from '../../src'
 
@@ -48,7 +48,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     Deployment__OptimistProxy.address
   )
 
-  const implementation = await Proxy.callStatic.implementation()
+  const implementation = await Proxy.callStatic.implementation({
+    from: ethers.constants.AddressZero,
+  })
   console.log(`implementation set to ${implementation}`)
   if (getAddress(implementation) !== getAddress(Deployment__Optimist.address)) {
     console.log('implementation not set to Optimist contract')
@@ -73,7 +75,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   }
 
   const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
-  const admin = await Proxy.callStatic.admin()
+  const admin = await Proxy.callStatic.admin({
+    from: ethers.constants.AddressZero,
+  })
   console.log(`admin set to ${admin}`)
   if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
     console.log('detected admin is not set')
@@ -106,7 +110,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   )
 }
 
-deployFn.tags = ['OptimistProxy']
+deployFn.tags = ['OptimistProxy', 'OptimistEnvironment']
 deployFn.dependencies = ['AttestationStationProxy', 'Optimist']
 
 export default deployFn
