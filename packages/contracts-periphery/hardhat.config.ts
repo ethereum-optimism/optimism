@@ -55,19 +55,6 @@ const config: HardhatUserConfig = {
         l1: 'mainnet',
       },
     },
-    'optimism-kovan': {
-      chainId: 69,
-      url: 'https://kovan.optimism.io',
-      accounts,
-      verify: {
-        etherscan: {
-          apiKey: getenv('OPTIMISTIC_ETHERSCAN_API_KEY'),
-        },
-      },
-      companionNetworks: {
-        l1: 'kovan',
-      },
-    },
     'optimism-goerli': {
       chainId: 420,
       url: 'https://goerli.optimism.io',
@@ -117,19 +104,6 @@ const config: HardhatUserConfig = {
         },
       },
     },
-    kovan: {
-      chainId: 42,
-      url: `https://kovan.infura.io/v3/${getenv('INFURA_PROJECT_ID')}`,
-      accounts,
-      verify: {
-        etherscan: {
-          apiKey: getenv('ETHEREUM_ETHERSCAN_API_KEY'),
-        },
-      },
-      companionNetworks: {
-        l2: 'optimism-kovan',
-      },
-    },
     'ops-l2': {
       chainId: 17,
       accounts: [
@@ -163,7 +137,6 @@ const config: HardhatUserConfig = {
     ],
     deployments: {
       goerli: ['../contracts/deployments/goerli'],
-      kovan: ['../contracts/deployments/kovan'],
       mainnet: ['../contracts/deployments/mainnet'],
     },
   },
