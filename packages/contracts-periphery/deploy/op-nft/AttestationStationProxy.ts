@@ -3,10 +3,7 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
-import {
-  assertContractVariable,
-  deploy,
-} from '@eth-optimism/contracts-bedrock/src/deploy-utils'
+import { assertContractVariable } from '@eth-optimism/contracts-bedrock/src/deploy-utils'
 import { utils } from 'ethers'
 
 const { getAddress } = utils
@@ -16,6 +13,11 @@ const { getAddress } = utils
  */
 const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await hre.getNamedAccounts()
+  const ddd = hre.deployConfig.ddd
+
+  if (getAddress(deployer) !== getAddress(ddd)) {
+    throw new Error('Must deploy with the ddd')
+  }
 
   console.log(`Deploying AttestationStationProxy with ${deployer}`)
 
@@ -23,15 +25,21 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     'AttestationStation'
   )
 
-  await deploy({
-    hre,
-    name: 'AttestationStationProxy',
-    contract: 'Proxy',
-    args: [deployer],
-    postDeployAction: async (contract) => {
-      await assertContractVariable(contract, 'admin', deployer)
-    },
-  })
+  const { deploy } = await hre.deployments.deterministic(
+    'AttestationStationProxy',
+    {
+      salt: hre.ethers.utils.solidityKeccak256(
+        ['string'],
+        ['AttestationStationProxy']
+      ),
+      contract: 'Proxy',
+      from: deployer,
+      args: [deployer],
+      log: true,
+    }
+  )
+
+  await deploy()
 
   const Deployment__AttestationStationProxy = await hre.deployments.get(
     'AttestationStationProxy'
@@ -43,6 +51,11 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   )
 
   const Proxy = await hre.ethers.getContractAt('Proxy', addr)
+
+  const AttestationStation = await hre.ethers.getContractAt(
+    'AttestationStation',
+    addr
+  )
 
   const implementation = await Proxy.callStatic.implementation()
   console.log(`implementation is set to ${implementation}`)
@@ -76,6 +89,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     console.log('admin already set to L2 Proxy Owner Address')
   }
   console.log('Contract deployment complete')
+
+  // Assert that the variables are set correctly
+  assertContractVariable(AttestationStation, 'version', '0.0.1')
 }
 
 deployFn.tags = ['AttestationStationProxy']
