@@ -577,7 +577,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
-	require.Equal(t, received, published[:len(received)])
+	require.ElementsMatch(t, received, published[:len(received)])
 
 	// Verify that the tx was received via p2p
 	require.Contains(t, received, receiptVerif.BlockHash)
