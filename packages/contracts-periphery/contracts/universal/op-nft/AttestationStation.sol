@@ -5,6 +5,8 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
 
 /**
  * @title AttestationStation
+ * @author Optimism Collective
+ * @author Gitcoin
  * @notice Where attestations live.
  */
 contract AttestationStation is Semver {
