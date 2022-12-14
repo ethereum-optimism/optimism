@@ -90,7 +90,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     'AttestationStationProxy'
   )
 
-  await assertContractVariable(Optimist, 'admin', deployer)
+  await assertContractVariable(Proxy, 'admin', l2ProxyOwnerAddress)
   await assertContractVariable(Optimist, 'name', deployConfig.optimistName)
   await assertContractVariable(Optimist, 'verson', '1.0.0')
   await assertContractVariable(Optimist, 'symbol', deployConfig.optimistSymbol)
