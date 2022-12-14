@@ -29,6 +29,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
 
     /**
      * @notice  Initialize the Optimist contract.
+     * @custom:semver 1.0.0
      * @dev     call initialize function
      * @param   _name  The token name.
      * @param   _symbol  The token symbol.
@@ -40,7 +41,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         string memory _symbol,
         address _attestor,
         AttestationStation _attestationStation
-    ) Semver(0, 0, 1) {
+    ) Semver(1, 0, 0) {
         ATTESTOR = _attestor;
         ATTESTATION_STATION = _attestationStation;
         initialize(_name, _symbol);

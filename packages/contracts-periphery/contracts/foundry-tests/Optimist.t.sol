@@ -56,7 +56,7 @@ contract OptimistTest is Optimist_Initializer {
         // expect attestationStation to be set
         assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimist.ATTESTOR(), alice_admin);
-        assertEq(optimist.version(), "0.0.1");
+        assertEq(optimist.version(), "1.0.0");
     }
 
     /**
