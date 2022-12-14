@@ -84,9 +84,9 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	}
 
 	signer := func(chainID *big.Int) SignerFn {
-		signer := types.LatestSignerForChainID(chainID)
+		s := types.LatestSignerForChainID(chainID)
 		return func(rawTx types.TxData) (*types.Transaction, error) {
-			return types.SignNewTx(sequencerPrivKey, signer, rawTx)
+			return types.SignNewTx(sequencerPrivKey, s, rawTx)
 		}
 	}
 
