@@ -22,6 +22,31 @@ contract Optimist_Initializer is Test {
     AttestationStation attestationStation;
     Optimist optimist;
 
+    function attestBaseuri(string memory _baseUri) internal {
+        AttestationStation.AttestationData[]
+            memory attestationData = new AttestationStation.AttestationData[](1);
+        attestationData[0] = AttestationStation.AttestationData(
+            address(optimist),
+            bytes32("optimist.base-uri"),
+            bytes(_baseUri)
+        );
+        vm.prank(alice_admin);
+        attestationStation.attest(attestationData);
+    }
+
+    function attestAllowlist(address _about) internal {
+        AttestationStation.AttestationData[]
+            memory attestationData = new AttestationStation.AttestationData[](1);
+        // we are using true but it can be any non empty value
+        attestationData[0] = AttestationStation.AttestationData({
+            about: _about,
+            key: bytes32("optimist.can-mint"),
+            val: bytes("true")
+        });
+        vm.prank(alice_admin);
+        attestationStation.attest(attestationData);
+    }
+
     function _setUp() public {
         // Give alice and bob and sally some ETH
         vm.deal(alice_admin, 1 ether);
@@ -68,16 +93,7 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 0);
 
         // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         uint256 tokenId = uint256(uint160(bob));
         vm.expectEmit(true, true, true, true);
@@ -102,17 +118,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Sally should be able to mint a token on behalf of bob
      */
     function test_optimist_mint_secondary_minter() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
@@ -148,17 +154,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Bob's tx should revert if he already minted
      */
     function test_optimist_mint_already_minted() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         // mint initial nft with bob
         vm.prank(bob);
@@ -177,14 +173,7 @@ contract OptimistTest is Optimist_Initializer {
      * by the owner of contract alice_admin
      */
     function test_optimist_baseURI() external {
-        // set baseURI
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        attestationData[0] = AttestationStation.AttestationData({
-            about: address(optimist),
-            key: bytes32("optimist.base-uri"),
-            val: bytes(base_uri)
-        });
+        attestBaseuri(base_uri);
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
@@ -194,7 +183,6 @@ contract OptimistTest is Optimist_Initializer {
         );
         vm.expectCall(address(attestationStation), data);
         vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
 
         // assert baseURI is set
         assertEq(optimist.baseURI(), base_uri);
@@ -205,24 +193,9 @@ contract OptimistTest is Optimist_Initializer {
      * for a minted token
      */
     function test_optimist_token_uri() external {
-        // whitelist bob
-        // attest baseURI
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](2);
+        attestAllowlist(bob);
         // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        // we are using true but it can be any non empty value
-        attestationData[1] = AttestationStation.AttestationData({
-            about: address(optimist),
-            key: bytes32("optimist.base-uri"),
-            val: bytes(base_uri)
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestBaseuri(base_uri);
 
         // mint an NFT
         vm.prank(bob);
@@ -241,17 +214,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Should return a boolean of if the address is whitelisted
      */
     function test_optimist_is_on_allow_list() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
@@ -281,18 +244,8 @@ contract OptimistTest is Optimist_Initializer {
         uint256 willTokenId = 1024;
         address will = address(1024);
 
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: will,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(will);
 
-        // mint as bob
         optimist.mint(will);
 
         assertEq(optimist.tokenIdOfAddress(will), willTokenId);
@@ -302,17 +255,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev It should revert if anybody attemps token transfer
      */
     function test_optimist_sbt_transfer() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -337,17 +280,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev It should revert if anybody attemps approve
      */
     function test_optimist_sbt_approve() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -365,17 +298,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev It should be able to burn token
      */
     function test_optimist_burn() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -393,17 +316,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev setApprovalForAll should revert as sbt
      */
     function test_optimist_set_approval_for_all() external {
-        // whitelist bob
-        AttestationStation.AttestationData[]
-            memory attestationData = new AttestationStation.AttestationData[](1);
-        // we are using true but it can be any non empty value
-        attestationData[0] = AttestationStation.AttestationData({
-            about: bob,
-            key: bytes32("optimist.can-mint"),
-            val: bytes("true")
-        });
-        vm.prank(alice_admin);
-        attestationStation.attest(attestationData);
+        attestAllowlist(bob);
 
         // mint as bob
         vm.prank(bob);
