@@ -54,9 +54,11 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   },
   optimistName: {
     type: 'string',
+    default: 'Optimist',
   },
   optimistSymbol: {
     type: 'string',
+    default: 'OPTIMIST',
   },
   attestorAddress: {
     type: 'address',
