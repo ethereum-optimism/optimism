@@ -94,7 +94,7 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 0);
 
         // whitelist bob
-        attestAllowlist((bob));
+        attestAllowlist(bob);
 
         uint256 tokenId = uint256(uint160(bob));
         vm.expectEmit(true, true, true, true);
