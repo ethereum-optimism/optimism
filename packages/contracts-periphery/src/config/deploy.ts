@@ -14,14 +14,31 @@ export interface DeployConfig {
   ddd: string
 
   /**
-   * Address of the Proxy owner on L2
-   */
-  l2ProxyOwnerAddress: string
-
-  /**
    * Number of confs before considering it final
    */
   numDeployConfirmations?: number
+
+  /**
+   * Name of the NFT in the Optimist contract.
+   */
+  optimistName: string
+
+  /**
+   * Symbol of the NFT in the Optimist contract.
+   */
+  optimistSymbol: string
+
+  /**
+   * Address of the priviledged attestor for the Optimist contract.
+   */
+  attestorAddress: string
+
+  /**
+   * Address of the owner of the proxies on L2. There will be a ProxyAdmin deployed as a predeploy
+   * after bedrock, so the owner of proxies should be updated to that after the upgrade.
+   * This currently is used as the owner of the nft related proxies.
+   */
+  l2ProxyOwnerAddress: string
 }
 
 /**
@@ -31,11 +48,20 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   ddd: {
     type: 'address',
   },
-  l2ProxyOwnerAddress: {
-    type: 'address',
-  },
   numDeployConfirmations: {
     type: 'number',
     default: 1,
+  },
+  optimistName: {
+    type: 'string',
+  },
+  optimistSymbol: {
+    type: 'string',
+  },
+  attestorAddress: {
+    type: 'address',
+  },
+  l2ProxyOwnerAddress: {
+    type: 'address',
   },
 }
