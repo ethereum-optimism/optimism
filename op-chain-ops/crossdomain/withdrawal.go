@@ -4,6 +4,7 @@ import (
 	"errors"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -138,4 +139,17 @@ func (w *Withdrawal) StorageSlot() (common.Hash, error) {
 
 	slot := crypto.Keccak256(preimage)
 	return common.BytesToHash(slot), nil
+}
+
+// WithdrawalTransaction will convert the Withdrawal to a type
+// suitable for sending a transaction.
+func (w *Withdrawal) WithdrawalTransaction() bindings.TypesWithdrawalTransaction {
+	return bindings.TypesWithdrawalTransaction{
+		Nonce:    w.Nonce,
+		Sender:   *w.Sender,
+		Target:   *w.Target,
+		Value:    w.Value,
+		GasLimit: w.GasLimit,
+		Data:     w.Data,
+	}
 }
