@@ -4,6 +4,7 @@ import {
   ExpressRouter,
   Gauge,
   validators,
+  waitForProvider,
 } from '@eth-optimism/common-ts'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
@@ -85,6 +86,18 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   }
 
   async init(): Promise<void> {
+    // Connect to L1.
+    await waitForProvider(this.options.l1RpcProvider, {
+      logger: this.logger,
+      name: 'L1',
+    })
+
+    // Connect to L2.
+    await waitForProvider(this.options.l2RpcProvider, {
+      logger: this.logger,
+      name: 'L2',
+    })
+
     this.state.messenger = new CrossChainMessenger({
       l1SignerOrProvider: this.options.l1RpcProvider,
       l2SignerOrProvider: this.options.l2RpcProvider,
