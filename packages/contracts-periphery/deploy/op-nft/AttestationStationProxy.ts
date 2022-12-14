@@ -91,7 +91,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   console.log('Contract deployment complete')
 
   // Assert that the variables are set correctly
-  assertContractVariable(AttestationStation, 'version', '0.0.1')
+  assertContractVariable(AttestationStation, 'version', '1.0.0')
 }
 
 deployFn.tags = ['AttestationStationProxy']
