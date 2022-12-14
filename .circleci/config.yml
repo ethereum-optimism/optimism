@@ -279,7 +279,7 @@ jobs:
             fi
       - run:
           name: Compile with metadata hash
-          command: yarn build:with-metadata
+          command: yarn clean && yarn build:with-metadata
           working_directory: packages/contracts-bedrock
       - persist_to_workspace:
           root: .
