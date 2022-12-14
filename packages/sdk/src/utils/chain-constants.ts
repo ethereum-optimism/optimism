@@ -19,7 +19,6 @@ export const DEPOSIT_CONFIRMATION_BLOCKS: {
 } = {
   [L2ChainID.OPTIMISM]: 50 as const,
   [L2ChainID.OPTIMISM_GOERLI]: 12 as const,
-  [L2ChainID.OPTIMISM_KOVAN]: 12 as const,
   [L2ChainID.OPTIMISM_HARDHAT_LOCAL]: 2 as const,
   [L2ChainID.OPTIMISM_HARDHAT_DEVNET]: 2 as const,
   [L2ChainID.OPTIMISM_BEDROCK_LOCAL_DEVNET]: 2 as const,
@@ -31,7 +30,6 @@ export const CHAIN_BLOCK_TIMES: {
 } = {
   [L1ChainID.MAINNET]: 13 as const,
   [L1ChainID.GOERLI]: 15 as const,
-  [L1ChainID.KOVAN]: 4 as const,
   [L1ChainID.HARDHAT_LOCAL]: 1 as const,
   [L1ChainID.BEDROCK_LOCAL_DEVNET]: 15 as const,
 }
@@ -89,10 +87,6 @@ export const CONTRACT_ADDRESSES: {
 } = {
   [L2ChainID.OPTIMISM]: {
     l1: getL1ContractsByNetworkName('mainnet'),
-    l2: DEFAULT_L2_CONTRACT_ADDRESSES,
-  },
-  [L2ChainID.OPTIMISM_KOVAN]: {
-    l1: getL1ContractsByNetworkName('kovan'),
     l2: DEFAULT_L2_CONTRACT_ADDRESSES,
   },
   [L2ChainID.OPTIMISM_GOERLI]: {
@@ -185,28 +179,6 @@ export const BRIDGE_ADAPTER_DATA: {
     DAI: {
       Adapter: DAIBridgeAdapter,
       l1Bridge: '0x10E6593CDda8c58a1d0f14C5164B376352a55f2F' as const,
-      l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
-    },
-  },
-  [L2ChainID.OPTIMISM_KOVAN]: {
-    wstETH: {
-      Adapter: DAIBridgeAdapter,
-      l1Bridge: '0x65321bf24210b81500230dCEce14Faa70a9f50a7' as const,
-      l2Bridge: '0x2E34e7d705AfaC3C4665b6feF31Aa394A1c81c92' as const,
-    },
-    BitBTC: {
-      Adapter: StandardBridgeAdapter,
-      l1Bridge: '0x0b651A42F32069d62d5ECf4f2a7e5Bd3E9438746' as const,
-      l2Bridge: '0x0CFb46528a7002a7D8877a5F7a69b9AaF1A9058e' as const,
-    },
-    USX: {
-      Adapter: StandardBridgeAdapter,
-      l1Bridge: '0x40E862341b2416345F02c41Ac70df08525150dC7' as const,
-      l2Bridge: '0xB4d37826b14Cd3CB7257A2A5094507d701fe715f' as const,
-    },
-    DAI: {
-      Adapter: DAIBridgeAdapter,
-      l1Bridge: '0xb415e822C4983ecD6B1c1596e8a5f976cf6CD9e3' as const,
       l2Bridge: '0x467194771dAe2967Aef3ECbEDD3Bf9a310C76C65' as const,
     },
   },
