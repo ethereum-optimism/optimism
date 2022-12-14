@@ -94,7 +94,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     Deployment__AttestationStation.address
   )
   assertContractVariable(Optimist, 'ATTESTOR', hre.deployConfig.attestorAddress)
-  assertContractVariable(Optimist, 'version', '0.0.1')
+  assertContractVariable(Optimist, 'version', '1.0.0')
 }
 
 deployFn.tags = ['OptimistProxy']
