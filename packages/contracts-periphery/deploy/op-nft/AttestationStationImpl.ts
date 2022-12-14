@@ -29,6 +29,6 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   console.log(`AttestationStation deployed to ${addr}`)
 }
 
-deployFn.tags = ['AttestationStation', 'AttestationStationEnvironment']
+deployFn.tags = ['AttestationStation', 'OptimistEnvironment']
 
 export default deployFn
