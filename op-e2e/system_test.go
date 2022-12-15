@@ -342,9 +342,12 @@ func TestPendingGasLimit(t *testing.T) {
 		checkGasLimit(l2Seq, nil, 20_000_000)
 		latestVerifHeader := checkGasLimit(l2Verif, nil, 20_000_000)
 
+		// Stop once the verifier passes genesis:
+		// this implies we checked a new block from the sequencer, on both sequencer and verifier nodes.
 		if latestVerifHeader.Number.Uint64() > 0 {
 			break
 		}
+		time.Sleep(500 * time.Millisecond)
 	}
 }
 
