@@ -46,6 +46,7 @@
     "@ethersproject/transactions": "^5.7.0",
     "@ethersproject/properties": "^5.7.0",
     "@ethersproject/web": "^5.7.0",
+    "browserify-zlib": "^0.2.0",
     "bufio": "^1.0.7",
     "chai": "^4.3.4"
   },

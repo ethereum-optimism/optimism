@@ -1,10 +1,18 @@
-import zlib from 'zlib'
-
 import { parse, serialize, Transaction } from '@ethersproject/transactions'
 import { Struct, BufferWriter, BufferReader } from 'bufio'
 import { id } from '@ethersproject/hash'
 
 import { remove0x } from '../common'
+
+// zlib isn't available in the browser. We prefer the native module, but the browserified version
+// is fine if necessary. Native module is slightly faster based on empirical testing but both pass
+// our tests.
+let zlib: any
+try {
+  zlib = require('zlib')
+} catch (err) {
+  zlib = require('browserify-zlib')
+}
 
 export interface BatchContext {
   numSequencedTransactions: number

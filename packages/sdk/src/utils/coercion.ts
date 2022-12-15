@@ -1,5 +1,3 @@
-import assert from 'assert'
-
 import {
   Provider,
   TransactionReceipt,
@@ -7,6 +5,7 @@ import {
 } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { ethers, BigNumber } from 'ethers'
+import { assert } from '@eth-optimism/core-utils'
 
 import {
   SignerOrProviderLike,

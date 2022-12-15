@@ -10,6 +10,18 @@ interface deviationRanges {
   absoluteLowerDeviation?: number
 }
 
+/**
+ * Simple assertion function. Implemented directly since Node's assert isn't available in browser.
+ *
+ * @param condition Condition to assert.
+ * @param message Message to throw if condition is false.
+ */
+export const assert = (condition: boolean, message?: string): void => {
+  if (!condition) {
+    throw new Error(message || 'Assertion failed')
+  }
+}
+
 export const awaitCondition = async (
   cond: () => Promise<boolean>,
   rate = 1000,
