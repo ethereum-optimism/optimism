@@ -274,8 +274,9 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: contracts-bedrock,contracts
+      # TEMP for testing
+      # - check-changed:
+      #     patterns: contracts-bedrock,contracts
       - run:
           name: Compile with metadata hash
           command: yarn clean && yarn build:with-metadata
@@ -301,8 +302,9 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: contracts-bedrock,contracts
+      # TEMP for testing
+      # - check-changed:
+      #     patterns: contracts-bedrock,contracts
       - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: yarn echidna:<<parameters.echidna_target>>
