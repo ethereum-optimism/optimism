@@ -364,7 +364,7 @@ jobs:
             fi
       - run:
           name: Lint
-          command: yarn lint:check
+          command: yarn lint && git diff --exit-code
           working_directory: packages/<<parameters.package_name>>
       - run:
           name: Test
