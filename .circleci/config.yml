@@ -61,7 +61,7 @@ jobs:
             fi
       - run:
           name: Install dependencies
-          command: yarn --frozen-lockfile
+          command: rm -f yarn.lock && yarn && git diff --exit-code
       - run:
           name: print forge version
           command: forge --version
