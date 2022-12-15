@@ -2,6 +2,7 @@ package rpc
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -11,6 +12,7 @@ import (
 
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -32,9 +34,18 @@ type Server struct {
 	httpRecorder   opmetrics.HTTPRecorder
 	httpServer     *http.Server
 	log            log.Logger
+	tls            *ServerTLSConfig
+	middlewares    []Middleware
+}
+
+type ServerTLSConfig struct {
+	Config    *tls.Config
+	CLIConfig *optls.CLIConfig // paths to certificate and key files
 }
 
 type ServerOption func(b *Server)
+
+type Middleware func(next http.Handler) http.Handler
 
 func WithAPIs(apis []rpc.API) ServerOption {
 	return func(b *Server) {
@@ -90,6 +101,22 @@ func WithLogger(lgr log.Logger) ServerOption {
 	}
 }
 
+// WithTLSConfig configures TLS for the RPC server
+// If this option is passed, the server will use ListenAndServeTLS
+func WithTLSConfig(tls *ServerTLSConfig) ServerOption {
+	return func(b *Server) {
+		b.tls = tls
+	}
+}
+
+// WithMiddleware adds an http.Handler to the rpc server handler stack
+// The added middleware is invoked directly before the RPC callback
+func WithMiddleware(middleware func(http.Handler) (hdlr http.Handler)) ServerOption {
+	return func(b *Server) {
+		b.middlewares = append(b.middlewares, middleware)
+	}
+}
+
 func NewServer(host string, port int, appVersion string, opts ...ServerOption) *Server {
 	endpoint := net.JoinHostPort(host, strconv.Itoa(port))
 	bs := &Server{
@@ -108,6 +135,9 @@ func NewServer(host string, port int, appVersion string, opts ...ServerOption) *
 	}
 	for _, opt := range opts {
 		opt(bs)
+	}
+	if bs.tls != nil {
+		bs.httpServer.TLSConfig = bs.tls.Config
 	}
 	bs.AddAPI(rpc.API{
 		Namespace: "health",
@@ -132,16 +162,34 @@ func (b *Server) Start() error {
 		return fmt.Errorf("error registering APIs: %w", err)
 	}
 
-	nodeHdlr := node.NewHTTPHandlerStack(srv, b.corsHosts, b.vHosts, b.jwtSecret)
+	// rpc middleware
+	var nodeHdlr http.Handler = srv
+	for _, middleware := range b.middlewares {
+		nodeHdlr = middleware(nodeHdlr)
+	}
+	nodeHdlr = node.NewHTTPHandlerStack(nodeHdlr, b.corsHosts, b.vHosts, b.jwtSecret)
+
 	mux := http.NewServeMux()
 	mux.Handle(b.rpcPath, nodeHdlr)
 	mux.Handle(b.healthzPath, b.healthzHandler)
-	metricsMW := oplog.NewLoggingMiddleware(b.log, opmetrics.NewHTTPRecordingMiddleware(b.httpRecorder, mux))
-	b.httpServer.Handler = metricsMW
+
+	// http middleware
+	var handler http.Handler = mux
+	handler = optls.NewPeerTLSMiddleware(handler)
+	handler = opmetrics.NewHTTPRecordingMiddleware(b.httpRecorder, handler)
+	handler = oplog.NewLoggingMiddleware(b.log, handler)
+	b.httpServer.Handler = handler
+
 	errCh := make(chan error, 1)
 	go func() {
-		if err := b.httpServer.ListenAndServe(); err != nil {
-			errCh <- err
+		if b.tls != nil {
+			if err := b.httpServer.ListenAndServeTLS(b.tls.CLIConfig.TLSCert, b.tls.CLIConfig.TLSKey); err != nil {
+				errCh <- err
+			}
+		} else {
+			if err := b.httpServer.ListenAndServe(); err != nil {
+				errCh <- err
+			}
 		}
 	}()
 
