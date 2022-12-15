@@ -268,7 +268,6 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: {at: "."}
       # - run:
       #     name: Check if we should run
       #     command: |
@@ -277,6 +276,10 @@ jobs:
       #       if [[ "$CHANGED" = "FALSE" ]]; then
       #         circleci step halt
       #       fi
+      - run:
+          name: Install dependencies
+          command: yarn --frozen-lockfile
+          working_directory: packages/contracts-bedrock
       - run:
           name: Compile with metadata hash
           command: yarn clean && yarn build:with-metadata
@@ -830,9 +833,7 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
-      - bedrock-echidna-build:
-          requires:
-            - yarn-monorepo
+      - bedrock-echidna-build
       - bedrock-echidna-run:
           name: Bedrock Echidna Alias Test
           echidna_target: aliasing
