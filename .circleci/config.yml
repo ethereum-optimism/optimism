@@ -269,10 +269,13 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: { at: "." }
       # TEMP for testing
       # - check-changed:
       #     patterns: contracts-bedrock,contracts
+      - run:
+          name: Install dependencies
+          command: yarn --frozen-lockfile
+          working_directory: packages/contracts-bedrock
       - run:
           name: Compile with metadata hash
           command: yarn clean && yarn build:with-metadata
@@ -809,6 +812,43 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
+      - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Alias Test
+          echidna_target: aliasing
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Eth Burn Test
+          echidna_target: "burn:eth"
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Gas Burn Test
+          echidna_target: "burn:gas"
+          size: 2xlarge
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Encoding Test
+          echidna_target: encoding
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Metering Test
+          echidna_target: metering
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Hashing Test
+          echidna_target: hashing
+          requires:
+            - bedrock-echidna-build
+      - bedrock-echidna-run:
+          name: Bedrock Echidna Portal Test
+          echidna_target: portal
+          requires:
+            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
