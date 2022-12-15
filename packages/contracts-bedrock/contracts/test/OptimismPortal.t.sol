@@ -476,7 +476,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     function test_finalizeWithdrawalTransaction_ifWithdrawalNotProven_reverts() external {
         uint256 bobBalanceBefore = address(bob).balance;
 
-        vm.expectRevert("OptimismPortal: withdrawal has not been proven");
+        vm.expectRevert("OptimismPortal: withdrawal has not been proven yet");
         op.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore);
