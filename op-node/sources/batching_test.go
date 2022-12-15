@@ -49,12 +49,6 @@ func makeTestRequest(i int) (*string, rpc.BatchElem) {
 	}
 }
 
-func makeTestResults() func(keys []int, values []*string) ([]*string, error) {
-	return func(keys []int, values []*string) ([]*string, error) {
-		return values, nil
-	}
-}
-
 func (tc *batchTestCase) GetBatch(ctx context.Context, b []rpc.BatchElem) error {
 	if ctx.Err() != nil {
 		return ctx.Err()
@@ -103,7 +97,7 @@ func (tc *batchTestCase) Run(t *testing.T) {
 			tc.On("get", batch).Once().Run(makeMock(bci, bc)).Return([]error{bc.rpcErr}) // wrap to preserve nil as type of error
 		}
 	}
-	iter := NewIterativeBatchCall[int, *string, []*string](keys, makeTestRequest, makeTestResults(), tc.GetBatch, tc.batchSize)
+	iter := NewIterativeBatchCall[int, *string](keys, makeTestRequest, tc.GetBatch, tc.batchSize)
 	for i, bc := range tc.batchCalls {
 		ctx := context.Background()
 		if bc.makeCtx != nil {

@@ -9,17 +9,19 @@ import (
 	"strings"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 
 	"github.com/urfave/cli"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 // NewConfig creates a Config from the provided flags or environment variables.
@@ -97,6 +99,7 @@ func NewL1EndpointConfig(ctx *cli.Context) (*node.L1EndpointConfig, error) {
 	return &node.L1EndpointConfig{
 		L1NodeAddr: ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC: ctx.GlobalBool(flags.L1TrustRPC.Name),
+		L1RPCKind:  sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
 	}, nil
 }
 

@@ -285,7 +285,7 @@ func TestRestartOpGeth(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	// L1
 	miner := NewL1Miner(t, log, sd.L1Cfg)
-	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false))
+	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 	// Sequencer
 	seqEng := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, dbOption)

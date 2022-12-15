@@ -63,6 +63,12 @@ var (
 		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
 		EnvVar: prefixEnvVar("L1_TRUST_RPC"),
 	}
+	L1RPCProviderKind = cli.StringFlag{
+		Name:   "l1.rpckind",
+		Usage:  "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: alchemy, quicknode, infura, parity, nethermind, debug_geth, erigon, basic, any.",
+		EnvVar: prefixEnvVar("L1_RPC_KIND"),
+		Value:  "basic",
+	}
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -182,6 +188,7 @@ var optionalFlags = append([]cli.Flag{
 	RollupConfig,
 	Network,
 	L1TrustRPC,
+	L1RPCProviderKind,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
