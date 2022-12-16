@@ -16,14 +16,17 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /**
      * @notice Enum representing different types of updates.
      *
-     * @custom:value BATCHER    Represents an update to the batcher hash.
-     * @custom:value GAS_CONFIG Represents an update to txn fee config on L2.
-     * @custom:value GAS_LIMIT  Represents an update to gas limit on L2.
+     * @custom:value BATCHER           Represents an update to the batcher hash.
+     * @custom:value GAS_CONFIG        Represents an update to txn fee config on L2.
+     * @custom:value GAS_LIMIT         Represents an update to gas limit on L2.
+     * @custom:value UNSAFE_BLOCK_KEY  Represents an update to the signer key for unsafe
+     *                                 block distrubution.
      */
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
-        GAS_LIMIT
+        GAS_LIMIT,
+        UNSAFE_BLOCK_KEY
     }
 
     /**
@@ -55,6 +58,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public batcherHash;
 
     /**
+     * @notice Address corresponding to the key that can propagate unsafe blocks
+     *         across the p2p network.
+     */
+    address public unsafeBlockSigner;
+
+    /**
      * @notice L2 gas limit.
      */
     uint64 public gasLimit;
@@ -82,9 +91,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
-        uint64 _gasLimit
+        uint64 _gasLimit,
+        address _unsafeBlockSigner
     ) Semver(1, 0, 0) {
-        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit);
+        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
     }
 
     /**
@@ -101,7 +111,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
-        uint64 _gasLimit
+        uint64 _gasLimit,
+        address _unsafeBlockSigner
     ) public initializer {
         require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
         __Ownable_init();
@@ -110,6 +121,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         scalar = _scalar;
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
+        unsafeBlockSigner = _unsafeBlockSigner;
     }
 
     /**
@@ -137,6 +149,13 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
         bytes memory data = abi.encode(_overhead, _scalar);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
+    }
+
+    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+        unsafeBlockSigner = _unsafeBlockSigner;
+
+        bytes memory data = abi.encode(_unsafeBlockSigner);
+        emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_KEY, data);
     }
 
     /**
