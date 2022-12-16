@@ -102,6 +102,21 @@ interface RequiredDeployConfig {
   l2OutputOracleChallenger: string
 
   /**
+   * ERC20 symbol used for the L2 GovernanceToken.
+   */
+  governanceTokenSymbol: string
+
+  /**
+   * ERC20 name used for the L2 GovernanceToken.
+   */
+  governanceTokenName: string
+
+  /**
+   * Owner of the L2 GovernanceToken. Has mint/burn capability.
+   */
+  governanceTokenOwner: string
+
+  /**
    * Output finalization period in seconds.
    */
   finalizationPeriodSeconds: number
@@ -314,5 +329,16 @@ export const deployConfigSpec: {
   gasPriceOracleDecimals: {
     type: 'number',
     default: 6,
+  },
+  governanceTokenSymbol: {
+    type: 'string',
+    default: 'OP',
+  },
+  governanceTokenName: {
+    type: 'string',
+    default: 'Optimism',
+  },
+  governanceTokenOwner: {
+    type: 'string',
   },
 }
