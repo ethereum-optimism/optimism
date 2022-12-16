@@ -277,8 +277,8 @@ jobs:
           command: yarn --frozen-lockfile
           working_directory: packages/contracts-bedrock
       - run:
-          name: Compile with metadata hash
-          command: yarn clean && yarn build:with-metadata
+          name: Compile without metadata hash
+          command: FOUNDRY_PROFILE=echidna yarn build
           working_directory: packages/contracts-bedrock
       - persist_to_workspace:
           root: .
