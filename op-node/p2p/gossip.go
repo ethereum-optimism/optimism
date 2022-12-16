@@ -165,6 +165,18 @@ func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.Val
 	}
 }
 
+func guardGossipValidator(log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
+	return func(ctx context.Context, id peer.ID, message *pubsub.Message) (result pubsub.ValidationResult) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Error("gossip validation panic", "err", err, "peer", id)
+				result = pubsub.ValidationReject
+			}
+		}()
+		return fn(ctx, id, message)
+	}
+}
+
 type seenBlocks struct {
 	sync.Mutex
 	blockHashes []common.Hash
@@ -358,7 +370,7 @@ func (p *publisher) Close() error {
 }
 
 func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, gossipIn GossipIn) (GossipOut, error) {
-	val := logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg))
+	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg)))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
 		val,
