@@ -622,8 +622,8 @@ func (s *SyncService) GasPriceOracleOwnerAddress() *common.Address {
 	return &s.gasPriceOracleOwnerAddress
 }
 
-/// Update the execution context's timestamp and blocknumber
-/// over time. This is only necessary for the sequencer.
+// Update the execution context's timestamp and blocknumber
+// over time. This is only necessary for the sequencer.
 func (s *SyncService) updateL1BlockNumber() error {
 	context, err := s.client.GetLatestEthContext()
 	if err != nil {
@@ -838,7 +838,7 @@ func (s *SyncService) applyTransactionToTip(tx *types.Transaction) error {
 	// network split.
 	// Note that it should never be possible for the timestamp to be set to
 	// 0 when running as a verifier.
-	shouldMalleateTimestamp := !s.verifier && tx.QueueOrigin() == types.QueueOriginL1ToL2
+	shouldMalleateTimestamp := !s.verifier && !s.IsSyncing() && tx.QueueOrigin() == types.QueueOriginL1ToL2
 	if tx.L1Timestamp() == 0 || shouldMalleateTimestamp {
 		// Get the latest known timestamp
 		current := time.Unix(int64(ts), 0)
