@@ -144,7 +144,7 @@ const deployFn: DeployFunction = async (hre) => {
   if (
     needsProxyTransfer &&
     (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) !==
-    ethers.constants.AddressZero &&
+      ethers.constants.AddressZero &&
     (await L1CrossDomainMessenger.owner()) !== SystemDictator.address
   ) {
     if (isLiveDeployer) {
@@ -323,7 +323,7 @@ const deployFn: DeployFunction = async (hre) => {
     checks: async () => {
       assert(
         (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
-        ethers.constants.AddressZero
+          ethers.constants.AddressZero
       )
     },
   })
@@ -359,7 +359,7 @@ const deployFn: DeployFunction = async (hre) => {
       for (const dead of deads) {
         assert(
           (await AddressManager.getAddress(dead)) ===
-          ethers.constants.AddressZero
+            ethers.constants.AddressZero
         )
       }
     },
