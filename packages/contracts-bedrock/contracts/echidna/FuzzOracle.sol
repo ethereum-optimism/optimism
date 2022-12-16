@@ -24,9 +24,7 @@ contract ModL2OutputOracle is L2OutputOracle {
             _proposer,
             _challenger
         )
-    {
-        // ...
-    }
+    {}
 
     /**
      * @dev This function is a modified version of `proposeL2Output` that removes
@@ -39,6 +37,14 @@ contract ModL2OutputOracle is L2OutputOracle {
         require(
             _l2BlockNumber == nextBlockNumber(),
             "L2OutputOracle: block number must be equal to next expected block number"
+        );
+        require(
+            computeL2Timestamp(_l2BlockNumber) < block.timestamp,
+            "L2OutputOracle: cannot propose L2 output in the future"
+        );
+        require(
+            _outputRoot != bytes32(0),
+            "L2OutputOracle: L2 output proposal cannot be the zero hash"
         );
 
         emit OutputProposed(_outputRoot, nextOutputIndex(), block.timestamp, _l2BlockNumber);
