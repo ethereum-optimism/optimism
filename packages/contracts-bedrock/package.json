@@ -46,7 +46,8 @@
     "echidna:encoding": "echidna-test --contract EchidnaFuzzEncoding --config ./echidna.yaml .",
     "echidna:portal": "echidna-test --contract EchidnaFuzzOptimismPortal --config ./echidna.yaml .",
     "echidna:hashing": "echidna-test --contract EchidnaFuzzHashing --config ./echidna.yaml .",
-    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml ."
+    "echidna:metering": "echidna-test --contract EchidnaFuzzResourceMetering --config ./echidna.yaml .",
+    "echidna:oracle": "echidna-test --contract EchidnaFuzzL2OutputOracle --config ./echidna.yaml ."
   },
   "dependencies": {
     "@eth-optimism/core-utils": "^0.12.0",
