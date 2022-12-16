@@ -31,6 +31,7 @@ const deployFn: DeployFunction = async (hre) => {
     L1ERC721BridgeProxy,
     L1ERC721BridgeProxyWithSigner,
     L1ERC721Bridge,
+    SystemConfigProxy,
   ] = await getContractsFromArtifacts(hre, [
     {
       name: 'SystemDictatorProxy',
@@ -89,6 +90,11 @@ const deployFn: DeployFunction = async (hre) => {
       iface: 'L1ERC721Bridge',
       signerOrProvider: deployer,
     },
+    {
+      name: 'SystemConfigProxy',
+      iface: 'SystemConfig',
+      signerOrProvider: deployer,
+    },
   ])
 
   // If we have the key for the controller then we don't need to wait for external txns.
@@ -138,7 +144,7 @@ const deployFn: DeployFunction = async (hre) => {
   if (
     needsProxyTransfer &&
     (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) !==
-      ethers.constants.AddressZero &&
+    ethers.constants.AddressZero &&
     (await L1CrossDomainMessenger.owner()) !== SystemDictator.address
   ) {
     if (isLiveDeployer) {
@@ -317,7 +323,7 @@ const deployFn: DeployFunction = async (hre) => {
     checks: async () => {
       assert(
         (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
-          ethers.constants.AddressZero
+        ethers.constants.AddressZero
       )
     },
   })
@@ -353,7 +359,7 @@ const deployFn: DeployFunction = async (hre) => {
       for (const dead of deads) {
         assert(
           (await AddressManager.getAddress(dead)) ===
-            ethers.constants.AddressZero
+          ethers.constants.AddressZero
         )
       }
     },
@@ -497,6 +503,37 @@ const deployFn: DeployFunction = async (hre) => {
         L1ERC721Bridge,
         'messenger',
         L1CrossDomainMessenger.address
+      )
+
+      // Check the SystemConfig was initialized properly.
+      await assertContractVariable(
+        SystemConfigProxy,
+        'owner',
+        hre.deployConfig.finalSystemOwner
+      )
+
+      await assertContractVariable(
+        SystemConfigProxy,
+        'overhead',
+        hre.deployConfig.gasPriceOracleOverhead
+      )
+
+      await assertContractVariable(
+        SystemConfigProxy,
+        'scalar',
+        hre.deployConfig.gasPriceOracleScalar
+      )
+
+      await assertContractVariable(
+        SystemConfigProxy,
+        'batcherHash',
+        ethers.utils.hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
+      )
+
+      await assertContractVariable(
+        SystemConfigProxy,
+        'gasLimit',
+        hre.deployConfig.l2GenesisBlockGasLimit
       )
     },
   })
