@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -57,6 +58,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	if uint64(config.L2OutputOracleStartingTimestamp) <= header.Time {
 		return nil, fmt.Errorf(
 			"L2 output oracle starting timestamp (%d) is less than the header timestamp (%d)", config.L2OutputOracleStartingTimestamp, header.Time,
+		)
+	}
+
+	// Ensure that the starting timestamp is safe
+	if config.L2OutputOracleStartingTimestamp <= 0 {
+		return nil, fmt.Errorf(
+			"L2 output oracle starting timestamp (%d) cannot be <= 0", config.L2OutputOracleStartingTimestamp,
 		)
 	}
 
@@ -114,11 +122,17 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	log.Info("Starting to migrate ERC20 ETH")
 	addrs := migrationData.Addresses()
-	newRoot, err := ether.MigrateLegacyETH(ldb, addrs, migrationData.OvmAllowances, int(config.L1ChainID), commit, noCheck)
+	err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
-	log.Info("Completed ERC20 ETH migration", "root", newRoot)
+	log.Info("Completed ERC20 ETH migration")
+
+	newRoot, err := db.Commit(true)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("committing state DB", "root", newRoot)
 
 	// Set the amount of gas used so that EIP 1559 starts off stable
 	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
@@ -165,6 +179,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return res, nil
 	}
 
+	log.Info("committing trie DB")
+	if err := db.Database().TrieDB().Commit(newRoot, true, nil); err != nil {
+		return nil, err
+	}
+
 	rawdb.WriteTd(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), bedrockBlock.Difficulty())
 	rawdb.WriteBlock(ldb, bedrockBlock)
 	rawdb.WriteReceipts(ldb, bedrockBlock.Hash(), bedrockBlock.NumberU64(), nil)
@@ -193,6 +212,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		EIP1559Denominator: config.EIP1559Denominator,
 		EIP1559Elasticity:  config.EIP1559Elasticity,
 	}
+	cfg.BedrockBlock = bedrockBlock.Number()
 	rawdb.WriteChainConfig(ldb, genesisHash, cfg)
 
 	log.Info(

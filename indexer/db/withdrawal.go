@@ -40,6 +40,8 @@ type WithdrawalJSON struct {
 	TxHash                   string          `json:"transactionHash"`
 	Batch                    *StateBatchJSON `json:"batch"`
 	BedrockWithdrawalHash    *string         `json:"bedrockWithdrawalHash"`
+	BedrockProvenTxHash      *string         `json:"bedrockProvenTxHash"`
+	BedrockProvenLogIndex    *int            `json:"bedrockProvenLogIndex"`
 	BedrockFinalizedTxHash   *string         `json:"bedrockFinalizedTxHash"`
 	BedrockFinalizedLogIndex *int            `json:"bedrockFinalizedLogIndex"`
 	BedrockFinalizedSuccess  *bool           `json:"bedrockFinalizedSuccess"`
@@ -73,6 +75,14 @@ func (f FinalizationState) SQL() string {
 	}
 
 	return ""
+}
+
+type ProvenWithdrawal struct {
+	From           common.Address
+	To             common.Address
+	WithdrawalHash common.Hash
+	TxHash         common.Hash
+	LogIndex       uint
 }
 
 type FinalizedWithdrawal struct {

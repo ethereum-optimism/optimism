@@ -124,6 +124,8 @@ CREATE TABLE IF NOT EXISTS airdrops (
 
 const updateWithdrawalsTable = `
 ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS br_withdrawal_hash VARCHAR NULL;
+ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS br_withdrawal_proven_tx_hash VARCHAR NULL;
+ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS br_withdrawal_proven_log_index INTEGER NULL;
 ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS br_withdrawal_finalized_tx_hash VARCHAR NULL;
 ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS br_withdrawal_finalized_log_index INTEGER NULL;
 ALTER TABLE withdrawals ADD COLUMN IF NOT EXISTS br_withdrawal_finalized_success BOOLEAN NULL;

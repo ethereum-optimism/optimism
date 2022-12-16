@@ -1,5 +1,6 @@
 {
   "finalSystemOwner": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "controller": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
 
   "l1StartingBlockTag": "earliest",
   "l1ChainID": 900,
@@ -12,8 +13,6 @@
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "batchInboxAddress": "0xff00000000000000000000000000000000000000",
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
-
-  "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
 
   "l2OutputOracleSubmissionInterval": 6,
   "l2OutputOracleStartingTimestamp": -1,

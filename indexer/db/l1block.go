@@ -11,6 +11,7 @@ type IndexedL1Block struct {
 	Number               uint64
 	Timestamp            uint64
 	Deposits             []Deposit
+	ProvenWithdrawals    []ProvenWithdrawal
 	FinalizedWithdrawals []FinalizedWithdrawal
 }
 

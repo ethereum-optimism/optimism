@@ -14,7 +14,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         super.setUp();
     }
 
-    function test_initialize() external {
+    function test_initialize_succeeds() external {
         assertEq(address(L2Bridge.messenger()), address(L2Messenger));
 
         assertEq(address(L2Bridge.OTHER_BRIDGE()), address(L1Bridge));
@@ -22,7 +22,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     // receive
     // - can accept ETH
-    function test_receive() external {
+    function test_receive_succeeds() external {
         assertEq(address(messagePasser).balance, 0);
 
         vm.expectEmit(true, true, true, true);
@@ -41,7 +41,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     // withrdraw
     // - requires amount == msg.value
-    function test_cannotWithdrawEthWithoutSendingIt() external {
+    function test_withdraw_insufficientValue_reverts() external {
         assertEq(address(messagePasser).balance, 0);
 
         vm.expectRevert("StandardBridge: bridging ETH must include sufficient ETH value");
@@ -53,7 +53,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - token is burned
     // - emits WithdrawalInitiated
     // - calls Withdrawer.initiateWithdrawal
-    function test_withdraw() external {
+    function test_withdraw_succeeds() external {
         // Alice has 100 L2Token
         deal(address(L2Token), alice, 100, true);
         assertEq(L2Token.balanceOf(alice), 100);
@@ -66,7 +66,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         assertEq(L2Token.balanceOf(alice), 0);
     }
 
-    function test_withdraw_onlyEOA() external {
+    function test_withdraw_notEOA_reverts() external {
         // This contract has 100 L2Token
         deal(address(L2Token), address(this), 100, true);
 
@@ -78,7 +78,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - token is burned
     // - emits WithdrawalInitiated w/ correct recipient
     // - calls Withdrawer.initiateWithdrawal
-    function test_withdrawTo() external {
+    function test_withdrawTo_succeeds() external {
         deal(address(L2Token), alice, 100, true);
 
         vm.prank(alice, alice);
@@ -93,7 +93,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - only callable by l1TokenBridge
     // - supported token pair emits DepositFinalized
     // - invalid deposit calls Withdrawer.initiateWithdrawal
-    function test_finalizeDeposit() external {
+    function test_finalizeDeposit_succeeds() external {
         // TODO: events and calls
 
         vm.mockCall(
@@ -116,7 +116,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
 
-    function test_finalizeBridgeETH_incorrectValueReverts() external {
+    function test_finalizeBridgeETH_incorrectValue_reverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
@@ -128,7 +128,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.finalizeBridgeETH{ value: 50 }(alice, alice, 100, hex"");
     }
 
-    function test_finalizeBridgeETH_sendToSelfReverts() external {
+    function test_finalizeBridgeETH_sendToSelf_reverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
@@ -140,7 +140,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.finalizeBridgeETH{ value: 100 }(alice, address(L2Bridge), 100, hex"");
     }
 
-    function test_finalizeBridgeETH_sendToMessengerReverts() external {
+    function test_finalizeBridgeETH_sendToMessenger_reverts() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),

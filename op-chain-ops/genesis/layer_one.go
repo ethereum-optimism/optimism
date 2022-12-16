@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/deployer"
@@ -79,7 +80,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err := sysCfgABI.Pack(
 		"initialize",
-		config.SystemConfigOwner,
+		config.FinalSystemOwner,
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
@@ -143,7 +144,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = l1XDMABI.Pack(
 		"initialize",
-		config.ProxyAdminOwner,
+		config.FinalSystemOwner,
 	)
 	if err != nil {
 		return nil, err
@@ -291,7 +292,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 		{
 			Name: "SystemConfig",
 			Args: []interface{}{
-				config.SystemConfigOwner,
+				config.FinalSystemOwner,
 				uint642Big(config.GasPriceOracleOverhead),
 				uint642Big(config.GasPriceOracleScalar),
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway

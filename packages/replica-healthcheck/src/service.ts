@@ -1,6 +1,7 @@
 import { Provider, Block } from '@ethersproject/abstract-provider'
 import {
   BaseServiceV2,
+  StandardOptions,
   Counter,
   Gauge,
   validators,
@@ -32,27 +33,28 @@ export class HealthcheckService extends BaseServiceV2<
   HealthcheckMetrics,
   HealthcheckState
 > {
-  constructor(options?: Partial<HealthcheckOptions>) {
+  constructor(options?: Partial<HealthcheckOptions & StandardOptions>) {
     super({
       version,
       name: 'healthcheck',
-      loopIntervalMs: 5000,
-      options,
+      options: {
+        loopIntervalMs: 5000,
+        ...options,
+      },
       optionsSpec: {
         referenceRpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1',
-          secret: true,
         },
         targetRpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
-          secret: true,
         },
         onDivergenceWaitMs: {
           validator: validators.num,
           desc: 'Waiting time in ms per loop when divergence is detected',
           default: 60_000,
+          public: true,
         },
       },
       metricsSpec: {

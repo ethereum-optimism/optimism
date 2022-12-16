@@ -6,14 +6,16 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
-import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./SupportedInterfaces.sol";
+import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./IOptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
 /**
  * @custom:upgradeable
  * @title StandardBridge
- * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges.
+ * @notice StandardBridge is a base contract for the L1 and L2 standard ERC20 bridges. It handles
+ *         the core bridging logic, including escrowing tokens that are native to the local chain
+ *         and minting/burning tokens that are native to the remote chain.
  */
 abstract contract StandardBridge {
     using SafeERC20 for IERC20;

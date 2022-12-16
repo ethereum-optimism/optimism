@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -43,8 +44,6 @@ type BatchSubmitter struct {
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
-	ctx := context.Background()
-
 	var err error
 	var sequencerPrivKey *ecdsa.PrivateKey
 	var addr common.Address
@@ -83,6 +82,21 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 
 		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
 	}
+
+	signer := func(chainID *big.Int) SignerFn {
+		s := types.LatestSignerForChainID(chainID)
+		return func(rawTx types.TxData) (*types.Transaction, error) {
+			return types.SignNewTx(sequencerPrivKey, s, rawTx)
+		}
+	}
+
+	return NewBatchSubmitterWithSigner(cfg, addr, signer, l)
+}
+
+type SignerFactory func(chainID *big.Int) SignerFn
+
+func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerFactory, l log.Logger) (*BatchSubmitter, error) {
+	ctx := context.Background()
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
 	if err != nil {
@@ -138,7 +152,6 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		BatchInboxAddress: batchInboxAddress,
 		ChannelTimeout:    cfg.ChannelTimeout,
 		ChainID:           chainID,
-		PrivKey:           sequencerPrivKey,
 		PollInterval:      cfg.PollInterval,
 	}
 
@@ -147,7 +160,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, sequencerPrivKey, l1Client),
+		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
 		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),

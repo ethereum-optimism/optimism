@@ -1,5 +1,5 @@
 /* Imports: External */
-import { BaseService, Metrics } from '@eth-optimism/common-ts'
+import { BaseService, LegacyMetrics } from '@eth-optimism/common-ts'
 import { LevelUp } from 'levelup'
 import level from 'level'
 import { Counter } from 'prom-client'
@@ -26,7 +26,8 @@ export interface L1DataTransportServiceOptions {
   l2RpcProvider: string
   l2RpcProviderUser?: string
   l2RpcProviderPassword?: string
-  metrics?: Metrics
+  l1SyncShutoffBlock?: number
+  metrics?: LegacyMetrics
   dbPath: string
   logsPerPollingInterval: number
   pollingInterval: number
@@ -65,7 +66,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     l1IngestionService?: L1IngestionService
     l2IngestionService?: L2IngestionService
     l1TransportServer: L1TransportServer
-    metrics: Metrics
+    metrics: LegacyMetrics
     failureCounter: Counter<string>
   } = {} as any
 
@@ -80,7 +81,7 @@ export class L1DataTransportService extends BaseService<L1DataTransportServiceOp
     this.logger.info(`L2 chain ID is: ${this.options.l2ChainId}`)
     this.logger.info(`BSS HF1 will activate at: ${bssHf1Index}`)
 
-    this.state.metrics = new Metrics({
+    this.state.metrics = new LegacyMetrics({
       labels: {
         environment: this.options.nodeEnv,
         network: this.options.ethNetworkName,

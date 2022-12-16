@@ -18,15 +18,15 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(new SequencerFeeVault(recipient)).code);
     }
 
-    function test_minWithdrawalAmount() external {
+    function test_minWithdrawalAmount_succeeds() external {
         assertEq(vault.MIN_WITHDRAWAL_AMOUNT(), 10 ether);
     }
 
-    function test_constructor() external {
+    function test_constructor_succeeds() external {
         assertEq(vault.l1FeeWallet(), recipient);
     }
 
-    function test_receive() external {
+    function test_receive_succeeds() external {
         assertEq(address(vault).balance, 0);
 
         vm.prank(alice);
@@ -36,7 +36,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         assertEq(address(vault).balance, 100);
     }
 
-    function test_revertWithdraw() external {
+    function test_withdraw_notEnough_reverts() external {
         assert(address(vault).balance < vault.MIN_WITHDRAWAL_AMOUNT());
 
         vm.expectRevert(
@@ -45,12 +45,17 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         vault.withdraw();
     }
 
-    function test_withdraw() external {
-        vm.deal(address(vault), vault.MIN_WITHDRAWAL_AMOUNT() + 1);
+    function test_withdraw_succeeds() external {
+        uint256 amount = vault.MIN_WITHDRAWAL_AMOUNT() + 1;
+        vm.deal(address(vault), amount);
+
+        // No ether has been withdrawn yet
+        assertEq(vault.totalProcessed(), 0);
 
         vm.expectEmit(true, true, true, true);
         emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
 
+        // The entire vault's balance is withdrawn
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,
             address(vault).balance,
@@ -63,5 +68,8 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         );
 
         vault.withdraw();
+
+        // The withdrawal was successful
+        assertEq(vault.totalProcessed(), amount);
     }
 }

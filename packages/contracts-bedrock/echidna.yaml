@@ -1,0 +1,9 @@
+cryticArgs: ["--hardhat-ignore-compile"]
+format: text
+
+# Set the timeout to 3 minutes to keep CI from getting too long.
+# The tool also adds 2 or 3 minutes before/after the actual timeout window.
+timeout: 180
+
+# Prevent calls to the (non-existent) fallback function of EchidnaFuzzResourceMetering
+filterFunctions: [EchidnaFuzzResourceMetering.*fallback*()]

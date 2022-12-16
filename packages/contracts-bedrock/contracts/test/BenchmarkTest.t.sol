@@ -37,6 +37,61 @@ function setPrevBaseFee(
 // In order to achieve this we make no assertions, and handle everything else in the setUp()
 // function.
 contract GasBenchMark_OptimismPortal is Portal_Initializer {
+    // Reusable default values for a test withdrawal
+    Types.WithdrawalTransaction _defaultTx;
+
+    uint256 _proposedOutputIndex;
+    uint256 _proposedBlockNumber;
+    bytes[] _withdrawalProof;
+    Types.OutputRootProof internal _outputRootProof;
+    bytes32 _outputRoot;
+
+    // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
+    constructor() {
+        super.setUp();
+        _defaultTx = Types.WithdrawalTransaction({
+            nonce: 0,
+            sender: alice,
+            target: bob,
+            value: 100,
+            gasLimit: 100_000,
+            data: hex""
+        });
+
+        // Get withdrawal proof data we can use for testing.
+        bytes32 _storageRoot;
+        bytes32 _stateRoot;
+        (_stateRoot, _storageRoot, _outputRoot, , _withdrawalProof) = ffi
+            .getProveWithdrawalTransactionInputs(_defaultTx);
+
+        // Setup a dummy output root proof for reuse.
+        _outputRootProof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: _stateRoot,
+            messagePasserStorageRoot: _storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        _proposedBlockNumber = oracle.nextBlockNumber();
+        _proposedOutputIndex = oracle.nextOutputIndex();
+    }
+
+    // Get the system into a nice ready-to-use state.
+    function setUp() public override {
+        // Configure the oracle to return the output root we've prepared.
+        vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
+        vm.prank(oracle.PROPOSER());
+        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+
+        // Warp beyond the finalization period for the block we've proposed.
+        vm.warp(
+            oracle.getL2Output(_proposedOutputIndex).timestamp +
+                op.FINALIZATION_PERIOD_SECONDS() +
+                1
+        );
+        // Fund the portal so that we can withdraw ETH.
+        vm.deal(address(op), 0xFFFFFFFF);
+    }
+
     function test_depositTransaction_benchmark() external {
         op.depositTransaction{ value: NON_ZERO_VALUE }(
             NON_ZERO_ADDRESS,
@@ -57,17 +112,26 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
             NON_ZERO_DATA
         );
     }
+
+    function test_proveWithdrawalTransaction_benchmark() external {
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+    }
 }
 
 contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
-    function test_L1MessengerSendMessage_benchmark_0() external {
+    function test_sendMessage_benchmark_0() external {
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 
-    function test_L1MessengerSendMessage_benchmark_1() external {
+    function test_sendMessage_benchmark_1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
         // The amount of data typically sent during a bridge deposit.
         bytes

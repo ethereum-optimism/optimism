@@ -1,7 +1,6 @@
 package sequencer
 
 import (
-	"crypto/ecdsa"
 	"math/big"
 	"time"
 
@@ -38,9 +37,6 @@ type Config struct {
 
 	// Chain ID of the L1 chain to submit txs to.
 	ChainID *big.Int
-
-	// Private key to sign batch txs with
-	PrivKey *ecdsa.PrivateKey
 
 	PollInterval time.Duration
 }

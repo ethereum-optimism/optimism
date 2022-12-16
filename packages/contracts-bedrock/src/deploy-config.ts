@@ -5,16 +5,21 @@ import { ethers } from 'ethers'
  */
 interface RequiredDeployConfig {
   /**
+   * Number of confirmations to wait when deploying contracts.
+   */
+  numDeployConfirmations?: number
+
+  /**
    * Address that will own the entire system on L1 when the deploy is complete.
    */
-  finalSystemOwner: string
+  finalSystemOwner?: string
 
   /**
    * Address that will own the entire system on L1 during the deployment process. This address will
    * not own the system after the deployment is complete, ownership will be transferred to the
    * final system owner.
    */
-  controller: string
+  controller?: string
 
   /**
    * The L2 genesis script uses this to fill the storage of the L1Block info predeploy. The rollup
@@ -79,12 +84,12 @@ interface RequiredDeployConfig {
   /**
    * Starting block number for the output oracle.
    */
-  l2OutputOracleStartingBlockNumber: number
+  l2OutputOracleStartingBlockNumber?: number
 
   /**
    * Starting timestamp for the output oracle.
    */
-  l2OutputOracleStartingTimestamp: number
+  l2OutputOracleStartingTimestamp?: number
 
   /**
    * Address of the L2 output oracle proposer.
@@ -100,20 +105,15 @@ interface RequiredDeployConfig {
    * Output finalization period in seconds.
    */
   finalizationPeriodSeconds: number
-
-  /**
-   * Owner of the SystemConfig contract.
-   */
-  systemConfigOwner: string
 }
 
 /**
  * Optional deployment configuration when spinning up an L1 network as part of the deployment.
  */
 interface OptionalL1DeployConfig {
+  cliqueSignerAddress: string
   l1BlockTime: number
   l1GenesisBlockNonce: string
-  cliqueSignerAddress: string
   l1GenesisBlockGasLimit: string
   l1GenesisBlockDifficulty: string
   l1GenesisBlockMixHash: string
@@ -138,13 +138,9 @@ interface OptionalL2DeployConfig {
   l2GenesisBlockGasUsed: string
   l2GenesisBlockParentHash: string
   l2GenesisBlockBaseFeePerGas: string
-  optimismBaseFeeRecipient: string
-  optimismL1FeeRecipient: string
-  l2CrossDomainMessengerOwner: string
   gasPriceOracleOverhead: number
   gasPriceOracleScalar: number
   gasPriceOracleDecimals: number
-  numDeployConfirmations: number
 }
 
 /**
@@ -163,13 +159,15 @@ export const deployConfigSpec: {
     default?: any
   }
 } = {
+  numDeployConfirmations: {
+    type: 'number',
+    default: 1,
+  },
   finalSystemOwner: {
     type: 'address',
-    default: ethers.constants.AddressZero,
   },
   controller: {
     type: 'address',
-    default: ethers.constants.AddressZero,
   },
   l1StartingBlockTag: {
     type: 'string',
@@ -221,8 +219,9 @@ export const deployConfigSpec: {
     type: 'number',
     default: 2,
   },
-  systemConfigOwner: {
+  cliqueSignerAddress: {
     type: 'address',
+    default: ethers.constants.AddressZero,
   },
   l1BlockTime: {
     type: 'number',
@@ -231,10 +230,6 @@ export const deployConfigSpec: {
   l1GenesisBlockNonce: {
     type: 'string', // uint64
     default: '0x0',
-  },
-  cliqueSignerAddress: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
   },
   l1GenesisBlockGasLimit: {
     type: 'string',
@@ -308,18 +303,6 @@ export const deployConfigSpec: {
     type: 'string', // uint256
     default: ethers.BigNumber.from(1000_000_000).toHexString(), // 1 gwei
   },
-  optimismBaseFeeRecipient: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
-  },
-  optimismL1FeeRecipient: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
-  },
-  l2CrossDomainMessengerOwner: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
-  },
   gasPriceOracleOverhead: {
     type: 'number',
     default: 2100,
@@ -331,9 +314,5 @@ export const deployConfigSpec: {
   gasPriceOracleDecimals: {
     type: 'number',
     default: 6,
-  },
-  numDeployConfirmations: {
-    type: 'number',
-    default: 1,
   },
 }

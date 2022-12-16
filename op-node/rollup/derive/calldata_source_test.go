@@ -29,6 +29,7 @@ type testTx struct {
 }
 
 func (tx *testTx) Create(t *testing.T, signer types.Signer, rng *rand.Rand) *types.Transaction {
+	t.Helper()
 	out, err := types.SignNewTx(tx.author, signer, &types.DynamicFeeTx{
 		ChainID:   signer.ChainID(),
 		Nonce:     0,

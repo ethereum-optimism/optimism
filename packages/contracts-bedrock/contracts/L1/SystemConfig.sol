@@ -32,9 +32,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint256 public constant VERSION = 0;
 
     /**
-     * @notice Minimum gas limit. This should not be lower than the maximum deposit
-     *         gas resource limit in the ResourceMetering contract used by OptimismPortal,
-     *         to ensure the L2 block always has sufficient gas to process deposits.
+     * @notice Minimum gas limit. This should not be lower than the maximum deposit gas resource
+     *         limit in the ResourceMetering contract used by OptimismPortal, to ensure the L2
+     *         block always has sufficient gas to process deposits.
      */
     uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
 
@@ -69,7 +69,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      *
      * @param _owner       Initial owner of the contract.
      * @param _overhead    Initial overhead value.
@@ -83,7 +83,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _scalar,
         bytes32 _batcherHash,
         uint64 _gasLimit
-    ) Semver(0, 0, 1) {
+    ) Semver(1, 0, 0) {
         initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit);
     }
 

@@ -12,7 +12,7 @@ contract LegacyMessagePasser_Test is CommonTest {
         messagePasser = new LegacyMessagePasser();
     }
 
-    function test_LegacyMessagePasser_passMessageToL1_Succeeds() external {
+    function test_passMessageToL1_succeeds() external {
         vm.prank(alice);
         messagePasser.passMessageToL1(hex"ff");
         assert(messagePasser.sentMessages(keccak256(abi.encodePacked(hex"ff", alice))));

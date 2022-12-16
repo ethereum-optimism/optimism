@@ -5,61 +5,96 @@
 **Table of Contents**
 
 - [Overview](#overview)
+- [LegacyMessagePasser](#legacymessagepasser)
 - [L2ToL1MessagePasser](#l2tol1messagepasser)
 - [DeployerWhitelist](#deployerwhitelist)
-- [OVM\_ETH](#ovm%5C_eth)
+- [LegacyERC20ETH](#legacyerc20eth)
 - [WETH9](#weth9)
 - [L2CrossDomainMessenger](#l2crossdomainmessenger)
 - [L2StandardBridge](#l2standardbridge)
-- [SequencerFeeVault](#sequencerfeevault)
-- [OptimismMintableERC20Factory](#optimismmintableerc20factory)
 - [L1BlockNumber](#l1blocknumber)
 - [GasPriceOracle](#gaspriceoracle)
 - [L1Block](#l1block)
 - [ProxyAdmin](#proxyadmin)
+- [SequencerFeeVault](#sequencerfeevault)
+- [OptimismMintableERC20Factory](#optimismmintableerc20factory)
+- [OptimismMintableERC721Factory](#optimismmintableerc721factory)
+- [BaseFeeVault](#basefeevault)
+- [L1FeeVault](#l1feevault)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Overview
 
-Predeployed smart contracts exist on Optimism at predetermined addresses in
-the genesis state. They are similar to precompiles but instead run directly
-in the EVM instead of running native code outside of the EVM.
+[Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy] exist on Optimism
+at predetermined addresses in the genesis state. They are  similar to precompiles but instead run
+directly in the EVM instead of running  native code outside of the EVM.
 
-Predeploy addresses exist in 2 byte namespaces where the prefixes
-are one of:
+Predeploys are used instead of precompiles to make it easier for multiclient
+implementations as well as allowing for more integration with hardhat/foundry
+network forking.
 
-- `0x420000000000000000000000000000000000xxxx`
-- `0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeADxxxx`
+Predeploy addresses exist in 1 byte namespace `0x42000000000000000000000000000000000000xx`.
+Proxies are set at each possible predeploy address except for the
+`GovernanceToken` and the `ProxyAdmin`.
+
+The `LegacyERC20ETH` predeploy lives at a special address `0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000`
+and there is no proxy deployed at that account.
 
 The following table includes each of the predeploys. The system version
 indicates when the predeploy was introduced. The possible values are `Legacy`
 or `Bedrock`. Deprecated contracts should not be used.
 
-| Name                          | Address                                    | Introduced | Deprecated |
-| ----------------------------- | ------------------------------------------ | ---------- | ---------- |
-| LegacyMessagePasser           | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        |
-| DeployerWhitelist             | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        |
-| LegacyERC20ETH                | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        |
-| WETH9                         | 0x4200000000000000000000000000000000000006 | Legacy     | No         |
-| L2CrossDomainMessenger        | 0x4200000000000000000000000000000000000007 | Legacy     | No         |
-| L2StandardBridge              | 0x4200000000000000000000000000000000000010 | Legacy     | No         |
-| SequencerFeeVault             | 0x4200000000000000000000000000000000000011 | Legacy     | No         |
-| OptimismMintableERC20Factory  | 0x4200000000000000000000000000000000000012 | Legacy     | No         |
-| L1BlockNumber                 | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        |
-| GasPriceOracle                | 0x420000000000000000000000000000000000000F | Legacy     | No         |
-| GovernanceToken               | 0x4200000000000000000000000000000000000042 | Legacy     | No         |
-| L1Block                       | 0x4200000000000000000000000000000000000015 | Bedrock    | No         |
-| L2ToL1MessagePasser           | 0x4200000000000000000000000000000000000016 | Bedrock    | No         |
-| L2ERC721Bridge                | 0x4200000000000000000000000000000000000014 | Legacy     | No         |
-| OptimismMintableERC721Factory | 0x4200000000000000000000000000000000000017 | Bedrock    | No         |
-| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         |
-| BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         |
-| L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         |
+| Name                          | Address                                    | Introduced | Deprecated | Proxied |
+| ----------------------------- | ------------------------------------------ | ---------- | ---------- | ------- |
+| LegacyMessagePasser           | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        | Yes     |
+| DeployerWhitelist             | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        | Yes     |
+| LegacyERC20ETH                | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        | No      |
+| WETH9                         | 0x4200000000000000000000000000000000000006 | Legacy     | No         | Yes     |
+| L2CrossDomainMessenger        | 0x4200000000000000000000000000000000000007 | Legacy     | No         | Yes     |
+| L2StandardBridge              | 0x4200000000000000000000000000000000000010 | Legacy     | No         | Yes     |
+| SequencerFeeVault             | 0x4200000000000000000000000000000000000011 | Legacy     | No         | Yes     |
+| OptimismMintableERC20Factory  | 0x4200000000000000000000000000000000000012 | Legacy     | No         | Yes     |
+| L1BlockNumber                 | 0x4200000000000000000000000000000000000013 | Legacy     | Yes        | Yes     |
+| GasPriceOracle                | 0x420000000000000000000000000000000000000F | Legacy     | No         | Yes     |
+| GovernanceToken               | 0x4200000000000000000000000000000000000042 | Legacy     | No         | No      |
+| L1Block                       | 0x4200000000000000000000000000000000000015 | Bedrock    | No         | Yes     |
+| L2ToL1MessagePasser           | 0x4200000000000000000000000000000000000016 | Bedrock    | No         | Yes     |
+| L2ERC721Bridge                | 0x4200000000000000000000000000000000000014 | Legacy     | No         | Yes     |
+| OptimismMintableERC721Factory | 0x4200000000000000000000000000000000000017 | Bedrock    | No         | Yes     |
+| ProxyAdmin                    | 0x4200000000000000000000000000000000000018 | Bedrock    | No         | No      |
+| BaseFeeVault                  | 0x4200000000000000000000000000000000000019 | Bedrock    | No         | Yes     |
+| L1FeeVault                    | 0x420000000000000000000000000000000000001a | Bedrock    | No         | Yes     |
+
+## LegacyMessagePasser
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/LegacyMessagePasser.sol)
+
+Address: `0x4200000000000000000000000000000000000000`
+
+The `LegacyMessagePasser` contract stores commitments to withdrawal
+transactions before the Bedrock upgrade. A merkle proof to a particular
+storage slot that commits to the withdrawal transaction is used as part
+of the withdrawing transaction on L1. The expected account that includes
+the storage slot is hardcoded into the L1 logic. After the bedrock upgrade,
+the `L2ToL1MessagePasser` is used instead. Finalizing withdrawals from this
+contract will no longer be supported after the Bedrock and is only left
+to allow for alternative bridges that may depend on it. This contract does
+not forward calls to the `L2ToL1MessagePasser` and calling it is considered
+a no-op in context of doing withdrawals through the `CrossDomainMessenger`
+system.
+
+Any pending withdrawals that have not been finalized are migrated to the
+`L2ToL1MessagePasser` as part of the upgrade so that they can still be
+finalized.
 
 ## L2ToL1MessagePasser
 
-The `OVM_L2ToL1MessagePasser` stores commitments to withdrawal transactions.
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L2ToL1MessagePasser.sol)
+
+Address: `0x4200000000000000000000000000000000000016`
+
+The `L2ToL1MessagePasser` stores commitments to withdrawal transactions.
 When a user is submitting the withdrawing transaction on L1, they provide a
 proof that the transaction that they withdrew on L2 is in the `sentMessages`
 mapping of this contract.
@@ -67,21 +102,15 @@ mapping of this contract.
 Any withdrawn ETH accumulates into this contract on L2 and can be
 permissionlessly removed from the L2 supply by calling the `burn()` function.
 
-The legacy interface is not preserved but included below.
-
-```solidity
-interface iLegacyOVM_L2ToL1MessagePasser {
-    event L2ToL1Message(uint256 _nonce, address _sender, bytes _data);
-    function sentMessages(bytes32 _msgHash) public returns (bool);
-    function passMessageToL1(bytes calldata _message) external;
-}
-```
-
 ## DeployerWhitelist
 
-The `DeployerWhitelist` is a predeploy used to provide additional
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/DeployerWhitelist.sol)
+
+Address: `0x4200000000000000000000000000000000000002`
+
+The `DeployerWhitelist` is a predeploy that was used to provide additional
 safety during the initial phases of Optimism. It is owned by the
-Optimism team, and defines accounts which are allowed to deploy contracts to the
+Optimism foundation and defines the accounts that are allowed to deploy contracts to the
 network.
 
 Arbitrary contract deployment has been enabled and it is not possible to turn
@@ -93,109 +122,46 @@ In the Bedrock system, this contract will no longer be used as part of the
 
 This contract is deprecated and its usage should be avoided.
 
-```solidity
-interface iDeployerWhitelist {
-    event OwnerChanged(address,address);
-    event WhitelistStatusChanged(address,bool);
-    event WhitelistDisabled(address);
+## LegacyERC20ETH
 
-    function owner() public return (address);
-    function setOwner(address _owner) public;
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/LegacyERC20ETH.sol)
 
-    function whitelist(address) public returns (bool);
+Address: `0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000`
 
-    /**
-     * @dev Adds or removes an address from the deployment whitelist.
-     * @param _deployer Address to update permissions for.
-     * @param _isWhitelisted Whether or not the address is whitelisted.
-     */
-    function setWhitelistedDeployer(address _deployer, bool _isWhitelisted) external;
+The `LegacyERC20ETH` predeploy represents all ether in the system before the
+Bedrock upgrade. All ETH was represented as an ERC20 token and users could opt
+into the ERC20 interface or the native ETH interface.
 
-    /**
-     * @dev Permanently enables arbitrary contract deployment and deletes the owner.
-     */
-    function enableArbitraryContractDeployment() external;
-
-    /**
-     * @dev Checks whether an address is allowed to deploy contracts.
-     * @param _deployer Address to check.
-     * @return _allowed Whether or not the address can deploy contracts.
-     */
-    function isDeployerAllowed(address _deployer) external view returns (bool);
-}
-```
-
-## OVM\_ETH
-
-The `OVM_ETH` contains the ERC20 represented balances of ETH that has been
-deposited to L2. As part of the Bedrock upgrade, the balances will be migrated
-from this contract to the actual Ethereum level accounts to preserve EVM
-equivalence.
+The upgrade to Bedrock migrates all ether out of this contract and moves it to
+its native representation. All of the stateful methods in this contract will
+revert after the Bedrock upgrade.
 
 This contract is deprecated and its usage should be avoided.
 
-```solidity
-interface iOVM_ETH {
-    event Mint(address indexed _account, uint256 _amount);
-    event Burn(address indexed _account, uint256 _amount);
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    function supportsInterface(bytes4 interfaceId) external view returns (bool);
-    function l1Token() external returns (address);
-    function mint(address _to, uint256 _amount) external;
-    function burn(address _from, uint256 _amount) external;
-    function totalSupply() external view returns (uint256);
-    function balanceOf(address account) external view returns (uint256);
-    function transfer(address to, uint256 amount) external returns (bool);
-    function allowance(address owner, address spender) external view returns (uint256);
-    function approve(address spender, uint256 amount) external returns (bool);
-    function transferFrom(
-        address from,
-        address to,
-        uint256 amount
-    ) external returns (bool);
-}
-```
-
 ## WETH9
 
-`WETH9` is the standard implementation of Wrapped Ether on Optimism.
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/vendor/WETH9.sol)
 
-```solidity
-interface WETH9 {
-    function name() public returns (string);
-    function symbol() public returns (string);
-    function decimals public returns (uint8);
+Address: `0x4200000000000000000000000000000000000006`
 
-    event  Approval(address indexed src, address indexed guy, uint wad);
-    event  Transfer(address indexed src, address indexed dst, uint wad);
-    event  Deposit(address indexed dst, uint wad);
-    event  Withdrawal(address indexed src, uint wad);
-
-    function balanceOf(address) public returns (uint);
-    function allowance(address, address) public returns (uint);
-
-    function deposit() public;
-    function withdraw(uint wad) public;
-    function totalSupply() public view returns (uint);
-    function approve(address guy, uint wad) public returns (bool);
-    function transfer(address dst, uint wad) public returns (bool);
-
-    function transferFrom(
-        address src,
-        address dst,
-        uint wad
-    ) public returns (bool);
-}
-```
+`WETH9` is the standard implementation of Wrapped Ether on Optimism. It is a
+commonly used contract and is placed as a predeploy so that it is at a
+deterministic address across Optimism based networks.
 
 ## L2CrossDomainMessenger
 
-The `L2CrossDomainMessenger` is used to give a better user experience when
-sending cross domain messages from L2 to L1. It extends the
-`CrossDomainMessenger`, which allows for replayability of messages. Any calls
-through the `l1CrossDomainMessenger` go through the `L2CrossDomainMessenger`.
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L2CrossDomainMessenger.sol)
+
+Address: `0x4200000000000000000000000000000000000007`
+
+The `L2CrossDomainMessenger` gives a higher level API for sending cross domain
+messages compared to directly calling the `L2ToL1MessagePasser`.
+It maintains a mapping of L1 messages that have been relayed to L2
+to prevent replay attacks and also allows for replayability if the L1 to L2
+transaction reverts on L2.
+
+Any calls to the `L1CrossDomainMessenger` on L1 are serialized such that they
+go through the `L2CrossDomainMessenger` on L2.
 
 The `relayMessage` function executes a transaction from the remote domain while
 the `sendMessage` function sends a transaction to be executed on the remote
@@ -203,37 +169,21 @@ domain through the remote domain's `relayMessage` function.
 
 ## L2StandardBridge
 
-The `L2StandardBridge` is part of the ERC20 and ETH bridging system.
-Users can send ERC20s or ETH to the `L1StandardBridge` and receive the asset on
-L1 through the `L2StandardBridge`. Users can also withdraw their assets through the
-`L2StandardBridge` to L1.
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L2StandardBridge.sol)
 
-## SequencerFeeVault
+Address: `0x4200000000000000000000000000000000000010`
 
-Transaction fees accumulate in this predeploy and can be withdrawn by anybody
-but only to the set `l1FeeWallet`.
+The `L2StandardBridge` is a higher level API built on top of the
+`L2CrossDomainMessenger` that gives a standard interface for sending ETH or
+ERC20 tokens across domains.
 
-```solidity
-interface SequencerFeeVault {
-    /**
-     * @dev The minimal withdrawal amount in wei for a single withdrawal
-     */
-    function MIN_WITHDRAWAL_AMOUNT() public returns (uint256);
+To deposit a token from L1 to L2, the `L1StandardBridge` locks the token and
+sends a cross domain message to the `L2StandardBridge` which then mints the
+token to the specified account.
 
-    /**
-     * @dev The address on L1 that fees are withdrawn to
-     */
-    function l1FeeWallet() public returns (address);
-
-    /**
-     * @dev Call this to withdraw the ether held in this
-     * account to the L1 fee wallet on L1.
-     */
-    function withdraw() public;
-}
-```
-
-## OptimismMintableERC20Factory
+To withdraw a token from L2 to L1, the user will burn the token on L2 and the
+`L2StandardBridge` will send a message to the `L1StandardBridge` which will
+unlock the underlying token and transfer it to the specified account.
 
 The `OptimismMintableERC20Factory` can be used to create an ERC20 token contract
 on a remote domain that maps to an ERC20 token contract on the local domain
@@ -241,142 +191,124 @@ where tokens can be deposited to the remote domain. It deploys an
 `OptimismMintableERC20` which has the interface that works with the
 `StandardBridge`.
 
+This contract can also be deployed on L1 to allow for L2 native tokens to be
+withdrawn to L1.
+
 ## L1BlockNumber
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/legacy/L1BlockNumber.sol)
+
+Address: `0x4200000000000000000000000000000000000013`
 
 The `L1BlockNumber` returns the last known L1 block number. This contract was
 introduced in the legacy system and should be backwards compatible by calling
 out to the `L1Block` contract under the hood.
 
-```solidity
-interface iOVM_L1BlockNumber {
-    function getL1BlockNumber() external view returns (uint256);
-}
-```
+It is recommended to use the `L1Block` contract for getting information about
+L1 on L2.
 
 ## GasPriceOracle
 
-The `GasPriceOracle` is pushed the L1 basefee and the L2 gas price by
-an offchain actor. The offchain actor observes the L1 blockheaders to get the
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/GasPriceOracle.sol)
+
+Address: `0x420000000000000000000000000000000000000F`
+
+In the legacy system, the `GasPriceOracle` was a permissioned contract
+that was pushed the L1 basefee and the L2 gas price by an offchain actor.
+The offchain actor observes the L1 blockheaders to get the
 L1 basefee as well as the gas usage on L2 to compute what the L2 gas price
 should be based on a congestion control algorithm.
 
-Its usage to be pushed the L2 gas price by an offchain actor is deprecated in
-Bedrock, but it is still used to hold the `overhead`, `scalar`, and `decimals`
-values which are used to compute the L1 portion of the transaction fee.
+After Bedrock, the `GasPriceOracle` is no longer a permissioned contract
+and only exists to preserve the API for offchain gas estimation. The
+function `getL1Fee(bytes)` accepts an unsigned RLP transaction and will return
+the L1 portion of the fee. This fee pays for using L1 as a data availability
+layer and should be added to the L2 portion of the fee, which pays for
+execution, to compute the total transaction fee.
 
-```solidity
-interface GasPriceOracle {
-    /**
-     * @dev Returns the current gas price on L2
-     */
-    function gasPrice() public returns (uint256);
+The values used to compute the L2 portion of the fee are:
 
-    /**
-     * @dev Returns the latest known L1 basefee
-     */
-    function l1BaseFee() public returns (uint256);
+- scalar
+- overhead
+- decimals
 
-    /**
-     * @dev Returns the amortized cost of
-     * batch submission per transaction
-     */
-    function overhead() public returns (uint256);
-
-    /**
-     * @dev Returns the value to scale the fee up by
-     */
-    function scalar() public returns (uint256);
-
-    /**
-     * @dev The number of decimals of the scalar
-     */
-    function decimals() public returns (uint256);
-
-    /**
-     * Allows the owner to modify the l2 gas price.
-     * @param _gasPrice New l2 gas price.
-     */
-    function setGasPrice(uint256 _gasPrice) public;
-
-    /**
-     * Allows the owner to modify the l1 base fee.
-     * @param _baseFee New l1 base fee
-     */
-    function setL1BaseFee(uint256 _baseFee) public;
-
-    /**
-     * Allows the owner to modify the overhead.
-     * @param _overhead New overhead
-     */
-    function setOverhead(uint256 _overhead) public;
-
-    /**
-     * Allows the owner to modify the scalar.
-     * @param _scalar New scalar
-     */
-    function setScalar(uint256 _scalar) public;
-
-    /**
-     * Allows the owner to modify the decimals.
-     * @param _decimals New decimals
-     */
-    function setDecimals(uint256 _decimals) public;
-
-    function getL1Fee(bytes memory _data) public view returns (uint256);
-    function getL1GasUsed(bytes memory _data) public view returns (uint256);
-}
-```
+After the Bedrock upgrade, these values are instead managed by the
+`SystemConfig` contract on L2. The `scalar` and `overhead` values
+are sent to the `L1Block` contract each block and the `decimals` value
+has been hardcoded to 6.
 
 ## L1Block
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L1Block.sol)
+
+Address: `0x4200000000000000000000000000000000000015`
 
 [l1-block-predeploy]: glossary.md#l1-attributes-predeployed-contract
 
 The [L1Block][l1-block-predeploy] was introduced in Bedrock and is responsible for
 maintaining L1 context in L2. This allows for L1 state to be accessed in L2.
 
-```solidity
-interface L1Block {
-    /**
-     * @dev Returns the special account that can only send
-     * transactions to this contract
-     */
-    function DEPOSITOR_ACCOUNT() public returns (address);
-
-    /**
-     * @dev Returns the latest known L1 block number
-     */
-    function number() public returns (uint256);
-
-    /**
-     * @dev Returns the latest known L1 timestamp
-     */
-    function timestamp() public returns (uint256);
-
-    /**
-     * @dev Returns the latest known L1 basefee
-     */
-    function basefee() public returns (uint256);
-
-    /**
-     * @dev Returns the latest known L1 transaction hash
-     */
-    function hash() public returns (bytes32);
-
-    /**
-     * @dev sets the latest L1 block attributes
-     */
-    function setL1BlockValues(
-        uint64 _number,
-        uint64 _timestamp,
-        uint256 _basefee,
-        bytes32 _hash,
-        uint64 _sequenceNumber
-    ) external;
-}
-```
-
 ## ProxyAdmin
+
+[ProxyAdmin](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol)
+Address: `0x4200000000000000000000000000000000000018`
 
 The `ProxyAdmin` is the owner of all of the proxy contracts set at the
 predeploys. It is not behind a proxy itself. The owner of the `ProxyAdmin` will
 have the ability to upgrade any of the other predeploy contracts.
+
+## SequencerFeeVault
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/SequencerFeeVault.sol)
+
+Address: `0x4200000000000000000000000000000000000011`
+
+The `SequencerFeeVault` accumulates any transaction tips and is the value of
+`block.coinbase`. When enough fees accumulate in this account, they can be
+permissionlessly withdrawn to an immutable L1 address.
+
+To change the L1 address that fees are withdrawn to, the contract must be
+upgraded by changing its proxy's implementation key.
+
+## OptimismMintableERC20Factory
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/OptimismMintableERC20Factory.sol)
+
+Address: `0x4200000000000000000000000000000000000012`
+
+The `OptimismMintableERC20Factory` is responsible for creating ERC20 contracts on L2 that can be
+used for depositing native L1 tokens into. These ERC20 contracts can be created permisionlessly
+and implement the interface required by the `StandardBridge` to just work with deposits and withdrawals.
+
+Each ERC20 contract that is created by the `OptimismMintableERC20Factory` allows for the `L2StandardBridge` to mint
+and burn tokens, depending on if the user is depositing from L1 to L2 or withdrawaing from L2 to L1.
+
+## OptimismMintableERC721Factory
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/OptimismMintableERC721Factory.sol)
+
+Address: `0x4200000000000000000000000000000000000017`
+
+The `OptimismMintableERC721Factory` is responsible for creating ERC721 contracts on L2 that can be used for
+depositing native L1 NFTs into.
+
+## BaseFeeVault
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/BaseFeeVault.sol)
+
+Address: `0x4200000000000000000000000000000000000019`
+
+The `BaseFeeVault` predeploy receives the basefees on L2. The basefee is not
+burnt on L2 like it is on L1. Once the contract has received a certain amount
+of fees, the ETH can be permissionlessly withdrawn to an immutable address on
+L1.
+
+## L1FeeVault
+
+[Implementation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/L2/L1FeeVault.sol)
+
+Address: `0x420000000000000000000000000000000000001a`
+
+The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
+Once the contract has received a certain amount of fees, the ETH can be
+permissionlessly withdrawn to an immutable address on L1.

@@ -3,12 +3,12 @@ module github.com/ethereum-optimism/optimism/op-chain-ops
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.1
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.4
 	github.com/ethereum-optimism/optimism/op-node v0.10.1
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/holiman/uint256 v1.2.0
 	github.com/mattn/go-isatty v0.0.16
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
 	github.com/urfave/cli/v2 v2.17.2-0.20221006022127-8f469abc00aa
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa
@@ -55,4 +55,5 @@ require (
 )
 
 replace github.com/ethereum/go-ethereum v1.10.26 => ../op-geth
-//replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221104231810-30db39cae2be
+//replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221205191237-0678a130d790
+

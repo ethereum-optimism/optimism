@@ -50,31 +50,32 @@ contract GasPriceOracle_Test is CommonTest {
         });
     }
 
-    function test_l1BaseFee() external {
+    function test_l1BaseFee_succeeds() external {
         assertEq(gasOracle.l1BaseFee(), basefee);
     }
 
-    function test_gasPrice() external {
+    function test_gasPrice_succeeds() external {
         vm.fee(100);
         uint256 gasPrice = gasOracle.gasPrice();
         assertEq(gasPrice, 100);
     }
 
-    function test_baseFee() external {
+    function test_baseFee_succeeds() external {
         vm.fee(64);
         uint256 gasPrice = gasOracle.baseFee();
         assertEq(gasPrice, 64);
     }
 
-    function test_scalar() external {
+    function test_scalar_succeeds() external {
         assertEq(gasOracle.scalar(), l1FeeScalar);
     }
 
-    function test_overhead() external {
+    function test_overhead_succeeds() external {
         assertEq(gasOracle.overhead(), l1FeeOverhead);
     }
 
-    function test_setGasPriceReverts() external {
+    // Removed in bedrock
+    function test_setGasPrice_doesNotExist_reverts() external {
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature("setGasPrice(uint256)", 1)
         );
@@ -83,7 +84,8 @@ contract GasPriceOracle_Test is CommonTest {
         assertEq(returndata, hex"");
     }
 
-    function test_setL1BaseFeeReverts() external {
+    // Removed in bedrock
+    function test_setL1BaseFee_doesNotExist_reverts() external {
         (bool success, bytes memory returndata) = address(gasOracle).call(
             abi.encodeWithSignature("setL1BaseFee(uint256)", 1)
         );

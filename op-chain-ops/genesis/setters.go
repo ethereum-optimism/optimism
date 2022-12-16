@@ -74,23 +74,15 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	}
 
 	for name, address := range predeploys.Predeploys {
-		log.Info("MMDBG SetImplementations", "name", name, "addr", address)
 		// Convert the address to the code address unless it is
 		// designed to not be behind a proxy
-		var addr common.Address
-		switch *address {
-		case predeploys.GovernanceTokenAddr:
-			addr = predeploys.GovernanceTokenAddr
-		case predeploys.LegacyERC20ETHAddr:
-			addr = predeploys.LegacyERC20ETHAddr
-		case predeploys.ProxyAdminAddr:
-			addr = predeploys.ProxyAdminAddr
-		default:
-			addr, err = AddressToCodeNamespace(*address)
-			if err != nil {
-				return err
-			}
-			// Set the implementation slot in the predeploy proxy
+		addr, special, err := mapImplementationAddress(address)
+		if err != nil {
+			return err
+		}
+		log.Info("MMDBG SetImplementations", "name", name, "addr", addr, "special", special)
+
+		if !special {
 			db.SetState(*address, ImplementationSlot, addr.Hash())
 		}
 
@@ -136,4 +128,24 @@ func SetPrecompileBalances(db vm.StateDB) {
 		db.CreateAccount(addr)
 		db.AddBalance(addr, common.Big1)
 	}
+}
+
+func mapImplementationAddress(addrP *common.Address) (common.Address, bool, error) {
+	var addr common.Address
+	var err error
+	var special bool
+	switch *addrP {
+	case predeploys.GovernanceTokenAddr:
+		addr = predeploys.GovernanceTokenAddr
+		special = true
+	case predeploys.LegacyERC20ETHAddr:
+		addr = predeploys.LegacyERC20ETHAddr
+		special = true
+	case predeploys.ProxyAdminAddr:
+		addr = predeploys.ProxyAdminAddr
+		special = true
+	default:
+		addr, err = AddressToCodeNamespace(*addrP)
+	}
+	return addr, special, err
 }

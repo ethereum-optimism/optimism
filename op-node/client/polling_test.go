@@ -33,7 +33,7 @@ func (m *MockRPC) Close() {
 	m.closed = true
 }
 
-func (m *MockRPC) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (m *MockRPC) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
@@ -61,7 +61,7 @@ func (m *MockRPC) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
 	return nil
 }
 
-func (m *MockRPC) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (m *MockRPC) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	m.t.Fatal("EthSubscribe should not be called")
 	return nil, nil
 }
@@ -197,6 +197,7 @@ func TestPollingClientClose(t *testing.T) {
 }
 
 func requireChansEqual(t *testing.T, chans []chan *types.Header, root common.Hash) {
+	t.Helper()
 	for _, ch := range chans {
 		header := <-ch
 		require.Equal(t, root, header.Root)

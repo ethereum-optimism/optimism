@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/hardhat-deploy-config",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "[Optimism] Hardhat deploy configuration plugin",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "ethers": "^5.7.0",
-    "ts-node": "^10.8.2",
+    "ts-node": "^10.9.1",
     "hardhat": "^2.9.6"
   }
 }

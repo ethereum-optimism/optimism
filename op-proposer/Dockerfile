@@ -9,6 +9,7 @@ COPY ./op-node /app/op-node
 COPY ./op-proposer /app/op-proposer
 COPY ./op-service /app/op-service
 COPY ./op-geth /app/op-geth
+COPY ./.git /app/.git
 
 WORKDIR /app/op-proposer
 

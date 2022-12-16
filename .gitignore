@@ -5,6 +5,7 @@ temp
 .nyc_output
 coverage.json
 *.tsbuildinfo
+**/lcov.info
 
 yarn-error.log
 .yarn/*
@@ -15,7 +16,6 @@ yarn-error.log
 dist
 artifacts
 cache
-./.idea
 
 l2geth/build/bin
 packages/contracts/deployments/custom
@@ -57,3 +57,6 @@ op-exporter
 
 
 __pycache__
+
+# Ignore echidna artifacts
+crytic-export

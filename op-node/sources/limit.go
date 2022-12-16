@@ -32,7 +32,7 @@ func (lc *limitClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem) 
 	return lc.c.BatchCallContext(ctx, b)
 }
 
-func (lc *limitClient) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (lc *limitClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	lc.wg.Add(1)
 	defer lc.wg.Done()
 	lc.sema <- struct{}{}
@@ -40,7 +40,7 @@ func (lc *limitClient) CallContext(ctx context.Context, result interface{}, meth
 	return lc.c.CallContext(ctx, result, method, args...)
 }
 
-func (lc *limitClient) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (lc *limitClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	// subscription doesn't count towards request limit
 	return lc.c.EthSubscribe(ctx, channel, args...)
 }

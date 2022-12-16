@@ -13,6 +13,9 @@ import { RLPReader } from "../rlp/RLPReader.sol";
 library MerkleTrie {
     /**
      * @notice Struct representing a node in the trie.
+     *
+     * @custom:field encoded The RLP-encoded node.
+     * @custom:field decoded The RLP-decoded node.
      */
     struct TrieNode {
         bytes encoded;
@@ -55,11 +58,6 @@ library MerkleTrie {
     uint8 internal constant PREFIX_LEAF_ODD = 3;
 
     /**
-     * @notice RLP representation of `NULL`.
-     */
-    bytes internal constant RLP_NULL = hex"80";
-
-    /**
      * @notice Verifies a proof that a given key/value pair is present in the trie.
      *
      * @param _key   Key of the node to search for, as a hex string.
@@ -78,8 +76,7 @@ library MerkleTrie {
         bytes[] memory _proof,
         bytes32 _root
     ) internal pure returns (bool) {
-        (bool exists, bytes memory value) = get(_key, _proof, _root);
-        return (exists && Bytes.equal(_value, value));
+        return Bytes.equal(_value, get(_key, _proof, _root));
     }
 
     /**
@@ -89,71 +86,29 @@ library MerkleTrie {
      * @param _proof Merkle trie inclusion proof for the key.
      * @param _root  Known root of the Merkle trie.
      *
-     * @return Whether or not the key exists.
      * @return Value of the key if it exists.
      */
     function get(
         bytes memory _key,
         bytes[] memory _proof,
         bytes32 _root
-    ) internal pure returns (bool, bytes memory) {
+    ) internal pure returns (bytes memory) {
+        require(_key.length > 0, "MerkleTrie: empty key");
+
         TrieNode[] memory proof = _parseProof(_proof);
-        (uint256 pathLength, bytes memory keyRemainder, bool isFinalNode) = _walkNodePath(
-            proof,
-            _key,
-            _root
-        );
-
-        bool noRemainder = keyRemainder.length == 0;
-
-        require(noRemainder || isFinalNode, "MerkleTrie: provided proof is invalid");
-
-        bytes memory value = noRemainder ? _getNodeValue(proof[pathLength - 1]) : bytes("");
-
-        return (value.length > 0, value);
-    }
-
-    /**
-     * @notice Walks through a proof using a provided key.
-     *
-     * @param _proof Inclusion proof to walk through.
-     * @param _key   Key to use for the walk.
-     * @param _root  Known root of the trie.
-     *
-     * @return Length of the final path
-     * @return Portion of the key remaining after the walk.
-     * @return Whether or not we've hit a dead end.
-     */
-    // solhint-disable-next-line code-complexity
-    function _walkNodePath(
-        TrieNode[] memory _proof,
-        bytes memory _key,
-        bytes32 _root
-    )
-        private
-        pure
-        returns (
-            uint256,
-            bytes memory,
-            bool
-        )
-    {
-        uint256 pathLength = 0;
         bytes memory key = Bytes.toNibbles(_key);
-
         bytes memory currentNodeID = abi.encodePacked(_root);
         uint256 currentKeyIndex = 0;
-        uint256 currentKeyIncrement = 0;
-        TrieNode memory currentNode;
 
         // Proof is top-down, so we start at the first element (root).
-        for (uint256 i = 0; i < _proof.length; i++) {
-            currentNode = _proof[i];
-            currentKeyIndex += currentKeyIncrement;
+        for (uint256 i = 0; i < proof.length; i++) {
+            TrieNode memory currentNode = proof[i];
 
-            // Keep track of the proof elements we actually need.
-            // It's expensive to resize arrays, so this simply reduces gas costs.
-            pathLength += 1;
+            // Key index should never exceed total key length or we'll be out of bounds.
+            require(
+                currentKeyIndex <= key.length,
+                "MerkleTrie: key index exceeds total key length"
+            );
 
             if (currentKeyIndex == 0) {
                 // First proof element is always the root node.
@@ -177,17 +132,31 @@ library MerkleTrie {
 
             if (currentNode.decoded.length == BRANCH_NODE_LENGTH) {
                 if (currentKeyIndex == key.length) {
-                    // We've hit the end of the key
-                    // meaning the value should be within this branch node.
-                    break;
+                    // Value is the last element of the decoded list (for branch nodes). There's
+                    // some ambiguity in the Merkle trie specification because bytes(0) is a
+                    // valid value to place into the trie, but for branch nodes bytes(0) can exist
+                    // even when the value wasn't explicitly placed there. Geth treats a value of
+                    // bytes(0) as "key does not exist" and so we do the same.
+                    bytes memory value = RLPReader.readBytes(currentNode.decoded[TREE_RADIX]);
+                    require(
+                        value.length > 0,
+                        "MerkleTrie: value length must be greater than zero (branch)"
+                    );
+
+                    // Extra proof elements are not allowed.
+                    require(
+                        i == proof.length - 1,
+                        "MerkleTrie: value node must be last node in proof (branch)"
+                    );
+
+                    return value;
                 } else {
                     // We're not at the end of the key yet.
                     // Figure out what the next node ID should be and continue.
                     uint8 branchKey = uint8(key[currentKeyIndex]);
                     RLPReader.RLPItem memory nextNode = currentNode.decoded[branchKey];
                     currentNodeID = _getNodeID(nextNode);
-                    currentKeyIncrement = 1;
-                    continue;
+                    currentKeyIndex += 1;
                 }
             } else if (currentNode.decoded.length == LEAF_OR_EXTENSION_NODE_LENGTH) {
                 bytes memory path = _getNodePath(currentNode);
@@ -197,38 +166,49 @@ library MerkleTrie {
                 bytes memory keyRemainder = Bytes.slice(key, currentKeyIndex);
                 uint256 sharedNibbleLength = _getSharedNibbleLength(pathRemainder, keyRemainder);
 
+                // Whether this is a leaf node or an extension node, the path remainder MUST be a
+                // prefix of the key remainder (or be equal to the key remainder) or the proof is
+                // considered invalid.
                 require(
-                    keyRemainder.length >= pathRemainder.length,
-                    "MerkleTrie: invalid key length for leaf or extension node"
+                    pathRemainder.length == sharedNibbleLength,
+                    "MerkleTrie: path remainder must share all nibbles with key"
                 );
 
                 if (prefix == PREFIX_LEAF_EVEN || prefix == PREFIX_LEAF_ODD) {
-                    if (
-                        pathRemainder.length == sharedNibbleLength &&
-                        keyRemainder.length == sharedNibbleLength
-                    ) {
-                        // The key within this leaf matches our key exactly.
-                        // Increment the key index to reflect that we have no remainder.
-                        currentKeyIndex += sharedNibbleLength;
-                    }
+                    // Prefix of 2 or 3 means this is a leaf node. For the leaf node to be valid,
+                    // the key remainder must be exactly equal to the path remainder. We already
+                    // did the necessary byte comparison, so it's more efficient here to check that
+                    // the key remainder length equals the shared nibble length, which implies
+                    // equality with the path remainder (since we already did the same check with
+                    // the path remainder and the shared nibble length).
+                    require(
+                        keyRemainder.length == sharedNibbleLength,
+                        "MerkleTrie: key remainder must be identical to path remainder"
+                    );
 
-                    // We've hit a leaf node, so our next node should be NULL.
-                    currentNodeID = RLP_NULL;
-                    break;
+                    // Our Merkle Trie is designed specifically for the purposes of the Ethereum
+                    // state trie. Empty values are not allowed in the state trie, so we can safely
+                    // say that if the value is empty, the key should not exist and the proof is
+                    // invalid.
+                    bytes memory value = RLPReader.readBytes(currentNode.decoded[1]);
+                    require(
+                        value.length > 0,
+                        "MerkleTrie: value length must be greater than zero (leaf)"
+                    );
+
+                    // Extra proof elements are not allowed.
+                    require(
+                        i == proof.length - 1,
+                        "MerkleTrie: value node must be last node in proof (leaf)"
+                    );
+
+                    return value;
                 } else if (prefix == PREFIX_EXTENSION_EVEN || prefix == PREFIX_EXTENSION_ODD) {
-                    if (sharedNibbleLength != pathRemainder.length) {
-                        // Our extension node is not identical to the remainder.
-                        // We've hit the end of this path
-                        // updates will need to modify this extension.
-                        currentNodeID = RLP_NULL;
-                        break;
-                    } else {
-                        // Our extension shares some nibbles.
-                        // Carry on to the next node.
-                        currentNodeID = _getNodeID(currentNode.decoded[1]);
-                        currentKeyIncrement = sharedNibbleLength;
-                        continue;
-                    }
+                    // Prefix of 0 or 1 means this is an extension node. We move onto the next node
+                    // in the proof and increment the key index by the length of the path remainder
+                    // which is equal to the shared nibble length.
+                    currentNodeID = _getNodeID(currentNode.decoded[1]);
+                    currentKeyIndex += sharedNibbleLength;
                 } else {
                     revert("MerkleTrie: received a node with an unknown prefix");
                 }
@@ -237,11 +217,7 @@ library MerkleTrie {
             }
         }
 
-        return (
-            pathLength,
-            Bytes.slice(key, currentKeyIndex),
-            Bytes.equal(currentNodeID, RLP_NULL)
-        );
+        revert("MerkleTrie: ran out of proof elements");
     }
 
     /**
@@ -285,17 +261,6 @@ library MerkleTrie {
      */
     function _getNodePath(TrieNode memory _node) private pure returns (bytes memory) {
         return Bytes.toNibbles(RLPReader.readBytes(_node.decoded[0]));
-    }
-
-    /**
-     * @notice Gets the value for a node.
-     *
-     * @param _node Node to get a value for.
-     *
-     * @return Node value, as hex bytes.
-     */
-    function _getNodeValue(TrieNode memory _node) private pure returns (bytes memory) {
-        return RLPReader.readBytes(_node.decoded[_node.decoded.length - 1]);
     }
 
     /**

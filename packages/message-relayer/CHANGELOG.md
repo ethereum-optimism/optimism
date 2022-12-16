@@ -1,5 +1,17 @@
 # @eth-optimism/message-relayer
 
+## 0.5.23
+
+### Patch Changes
+
+- 1d3c749a2: Bumps the version of ts-node used
+- Updated dependencies [767585b07]
+- Updated dependencies [c975c9620]
+- Updated dependencies [136ea1785]
+  - @eth-optimism/sdk@1.8.0
+  - @eth-optimism/core-utils@0.12.0
+  - @eth-optimism/common-ts@0.6.8
+
 ## 0.5.22
 
 ### Patch Changes

@@ -44,8 +44,6 @@ type DeployConfig struct {
 	L2OutputOracleProposer           common.Address `json:"l2OutputOracleProposer"`
 	L2OutputOracleChallenger         common.Address `json:"l2OutputOracleChallenger"`
 
-	SystemConfigOwner common.Address `json:"systemConfigOwner"`
-
 	L1BlockTime                 uint64         `json:"l1BlockTime"`
 	L1GenesisBlockTimestamp     hexutil.Uint64 `json:"l1GenesisBlockTimestamp"`
 	L1GenesisBlockNonce         hexutil.Uint64 `json:"l1GenesisBlockNonce"`
@@ -72,8 +70,9 @@ type DeployConfig struct {
 
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
-	// Owner of the L1CrossDomainMessenger predeploy
-	L2CrossDomainMessengerOwner common.Address `json:"l2CrossDomainMessengerOwner"`
+
+	// Owner of the system on L1
+	FinalSystemOwner common.Address `json:"finalSystemOwner"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
@@ -146,29 +145,26 @@ func (d *DeployConfig) Check() error {
 	if d.L2OutputOracleChallenger == (common.Address{}) {
 		return fmt.Errorf("%w: L2OutputOracleChallenger cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.SystemConfigOwner == (common.Address{}) {
-		return fmt.Errorf("%w: SystemConfigOwner cannot be address(0)", ErrInvalidDeployConfig)
+	if d.FinalSystemOwner == (common.Address{}) {
+		return fmt.Errorf("%w: FinalSystemOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.ProxyAdminOwner == (common.Address{}) {
 		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
-	if d.L2CrossDomainMessengerOwner == (common.Address{}) {
-		return fmt.Errorf("%w: L2CrossDomainMessengerOwner cannot be address(0)", ErrInvalidDeployConfig)
-	}
 	if d.BaseFeeVaultRecipient == (common.Address{}) {
-		log.Warn("BaseFeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: BaseFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L1FeeVaultRecipient == (common.Address{}) {
-		log.Warn("L1FeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: L1FeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
-		log.Warn("SequencerFeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOverhead == 0 {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
 	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is address(0)")
+		log.Warn("GasPriceOracleScalar is 0")
 	}
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
@@ -388,7 +384,7 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	}
 	storage["L2CrossDomainMessenger"] = state.StorageValues{
 		"_initialized": 1,
-		"_owner":       config.L2CrossDomainMessengerOwner,
+		"_owner":       config.ProxyAdminOwner,
 		// re-entrency lock
 		"_status":          1,
 		"_initializing":    false,
@@ -418,8 +414,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 	storage["GovernanceToken"] = state.StorageValues{
 		"_name":   "Optimism",
 		"_symbol": "OP",
-		// TODO: this should be set to the MintManager
-		"_owner": common.Address{},
+	}
+	storage["ProxyAdmin"] = state.StorageValues{
+		"_owner": config.ProxyAdminOwner,
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,

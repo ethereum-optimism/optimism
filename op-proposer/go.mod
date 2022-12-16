@@ -4,11 +4,11 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.1
-	github.com/ethereum-optimism/optimism/op-node v0.10.1
-	github.com/ethereum-optimism/optimism/op-service v0.10.1
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.4
+	github.com/ethereum-optimism/optimism/op-node v0.10.4
+	github.com/ethereum-optimism/optimism/op-service v0.10.4
 	github.com/ethereum/go-ethereum v1.10.26
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
 )
 
@@ -100,4 +100,4 @@ require (
 )
 
 replace github.com/ethereum/go-ethereum v1.10.26 => ../op-geth
-//replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221104231810-30db39cae2be
+//replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221205191237-0678a130d790

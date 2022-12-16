@@ -2,13 +2,14 @@ import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import {
   assertContractVariable,
-  deployAndVerifyAndThen,
+  deploy,
   getDeploymentAddress,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const proxyAdmin = await getDeploymentAddress(hre, 'ProxyAdmin')
-  await deployAndVerifyAndThen({
+
+  await deploy({
     hre,
     name: 'L2OutputOracleProxy',
     contract: 'Proxy',

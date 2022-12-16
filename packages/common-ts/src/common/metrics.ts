@@ -14,7 +14,7 @@ export interface MetricsOptions {
   labels?: Object
 }
 
-export class Metrics {
+export class LegacyMetrics {
   options: MetricsOptions
   client: typeof prometheus
   registry: Registry

@@ -64,7 +64,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2OutputOracleProposer:           addresses.Proposer,
 		L2OutputOracleChallenger:         common.Address{}, // tbd
 
-		SystemConfigOwner: addresses.SysCfgOwner,
+		FinalSystemOwner: addresses.SysCfgOwner,
 
 		L1BlockTime:                 2,
 		L1GenesisBlockNonce:         4660,
@@ -89,8 +89,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2GenesisBlockGasUsed:       0,
 		L2GenesisBlockParentHash:    common.Hash{},
 		L2GenesisBlockBaseFeePerGas: uint642big(7),
-
-		L2CrossDomainMessengerOwner: common.Address{0: 0x52, 19: 0xf3}, // tbd
 
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,

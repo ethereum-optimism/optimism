@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/migration-data",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "[Optimism] Data collection scripts for Bedrock migration",
   "main": "dist/index",
   "types": "dist/index",
@@ -33,9 +33,9 @@
   },
   "devDependencies": {
     "commander": "^9.0.0",
-    "@eth-optimism/contracts": "0.5.38",
+    "@eth-optimism/contracts": "0.5.39",
     "@eth-optimism/old-contracts": "npm:@eth-optimism/contracts@0.4.10",
     "ethers": "^5.7.0",
-    "ts-node": "^10.0.0"
+    "ts-node": "^10.9.1"
   }
 }

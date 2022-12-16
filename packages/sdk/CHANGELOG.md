@@ -1,5 +1,28 @@
 # @eth-optimism/sdk
 
+## 1.8.0
+
+### Minor Changes
+
+- c975c9620: Add suppory for finalizing legacy withdrawals after the Bedrock migration
+
+### Patch Changes
+
+- 767585b07: Removes an unused variable from the SDK
+- 136ea1785: Refactors the L2OutputOracle to key the l2Outputs mapping by index instead of by L2 block number.
+- Updated dependencies [43f33f39f]
+- Updated dependencies [237a351f1]
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [c975c9620]
+- Updated dependencies [1594678e0]
+- Updated dependencies [1d3c749a2]
+- Updated dependencies [136ea1785]
+- Updated dependencies [4d13f0afe]
+- Updated dependencies [7300a7ca7]
+  - @eth-optimism/contracts-bedrock@0.11.0
+  - @eth-optimism/contracts@0.5.39
+  - @eth-optimism/core-utils@0.12.0
+
 ## 1.7.0
 
 ### Minor Changes
