@@ -81,11 +81,11 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		uint642Big(config.GasPriceOracleOverhead),
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
-		config.P2PSequencerAddress,
 		gasLimit,
+		config.P2PSequencerAddress,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for SystemConfig: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -107,7 +107,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for L2OutputOracle: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -125,7 +125,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = portalABI.Pack("initialize")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -145,7 +145,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		config.FinalSystemOwner,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for L1CrossDomainMessenger: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -398,6 +398,10 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		} else {
 			err = fmt.Errorf("unknown contract %s", deployment.Name)
 		}
+	}
+
+	if err != nil {
+		err = fmt.Errorf("cannot deploy %s: %w", deployment.Name, err)
 	}
 
 	return tx, err
