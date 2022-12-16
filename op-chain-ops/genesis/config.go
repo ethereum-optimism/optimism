@@ -90,8 +90,16 @@ type DeployConfig struct {
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
 	// SYSCOIN output oracle proxy on L2
 	L2OutputOracleProxy common.Address `json:"l2OutputOracleProxy"`
+	// The initial value of the gas overhead
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
-	GasPriceOracleScalar   uint64 `json:"gasPriceOracleScalar"`
+	// The initial value of the gas scalar
+	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	// The ERC20 symbol of the GovernanceToken
+	GovernanceTokenSymbol string `json:"governanceTokenSymbol"`
+	// The ERC20 name of the GovernanceToken
+	GovernanceTokenName string `json:"governanceTokenName"`
+	// The owner of the GovernanceToken
+	GovernanceTokenOwner common.Address `json:"governanceTokenOwner"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
@@ -196,6 +204,15 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
+	}
+	if d.GovernanceTokenName == "" {
+		return fmt.Errorf("%w: GovernanceToken.name cannot be empty", ErrInvalidDeployConfig)
+	}
+	if d.GovernanceTokenSymbol == "" {
+		return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
+	}
+	if d.GovernanceTokenOwner == (common.Address{}) {
+		return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -425,8 +442,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"decimals": 18,
 	}
 	storage["GovernanceToken"] = state.StorageValues{
-		"_name":   "Optimism",
-		"_symbol": "OP",
+		"_name":   config.GovernanceTokenName,
+		"_symbol": config.GovernanceTokenSymbol,
+		"_owner":  config.GovernanceTokenOwner,
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,
