@@ -1,4 +1,4 @@
-cryticArgs: ["--hardhat-ignore-compile"]
+cryticArgs: ["--hardhat-ignore-compile", "--compile-force-framework", "hardhat"]
 format: text
 
 # Set the timeout to 3 minutes to keep CI from getting too long.
