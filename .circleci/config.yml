@@ -284,10 +284,6 @@ jobs:
           name: Compile with metadata hash
           command: yarn clean && yarn build:with-metadata
           working_directory: packages/contracts-bedrock
-      - run:
-          name: Check slither
-          command: slither . --print echidna
-          working_directory: packages/contracts-bedrock
       - persist_to_workspace:
           root: .
           paths:
@@ -313,8 +309,16 @@ jobs:
       # - check-changed:
       #     patterns: contracts-bedrock,contracts
       - run:
+          name: Check slither
+          command: |
+              slither --version
+              slither . --print echidna
+          working_directory: packages/contracts-bedrock
+      - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
-          command: yarn echidna:<<parameters.echidna_target>>
+          command: |
+            echidna-test --version
+            yarn echidna:<<parameters.echidna_target>>
           working_directory: packages/contracts-bedrock
           no_output_timeout: 15m
 
