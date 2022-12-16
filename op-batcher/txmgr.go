@@ -2,7 +2,6 @@ package op_batcher
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"time"
@@ -11,12 +10,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
+
+type SignerFn func(rawTx types.TxData) (*types.Transaction, error)
 
 // TransactionManager wraps the simple txmgr package to make it easy to send & wait for transactions
 type TransactionManager struct {
@@ -27,18 +27,14 @@ type TransactionManager struct {
 	// Outside world
 	txMgr    txmgr.TxManager
 	l1Client *ethclient.Client
-	signerFn func(types.TxData) (*types.Transaction, error)
+	signerFn SignerFn
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, privKey *ecdsa.PrivateKey, l1Client *ethclient.Client) *TransactionManager {
-	signerFn := func(rawTx types.TxData) (*types.Transaction, error) {
-		return types.SignNewTx(privKey, types.LatestSignerForChainID(chainID), rawTx)
-	}
-
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
-		senderAddress:     crypto.PubkeyToAddress(privKey.PublicKey),
+		senderAddress:     senderAddress,
 		chainID:           chainID,
 		txMgr:             txmgr.NewSimpleTxManager("batcher", txMgrConfg, l1Client),
 		l1Client:          l1Client,

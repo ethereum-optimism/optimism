@@ -25,19 +25,12 @@ const PUBLIC_DEPLOYMENTS: DeploymentInfo[] = [
     l2Explorer: 'https://optimistic.etherscan.io',
   },
   {
-    folder: 'kovan',
-    name: 'Optimism Kovan (public testnet)',
-    chainid: 69,
-    rpc: 'https://kovan.optimism.io',
-    l1Explorer: 'https://kovan.etherscan.io',
-    l2Explorer: 'https://kovan-optimistic.etherscan.io',
-  },
-  {
     folder: 'goerli',
-    name: 'Optimism Goerli (internal devnet)',
+    name: 'Optimism Goerli (public testnet)',
     chainid: 420,
-    notice: `Optimism Goerli is an internal Optimism development network. You're probably looking for [Optimism Kovan](../kovan#readme), the public Optimism testnet.`,
+    rpc: 'https://goerli.optimism.io',
     l1Explorer: 'https://goerli.etherscan.io',
+    l2Explorer: 'https://goerli-optimism.etherscan.io/',
   },
 ]
 

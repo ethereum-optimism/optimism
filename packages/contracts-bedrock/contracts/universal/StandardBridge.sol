@@ -6,7 +6,7 @@ import { ERC165Checker } from "@openzeppelin/contracts/utils/introspection/ERC16
 import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
-import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./SupportedInterfaces.sol";
+import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./IOptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
 
