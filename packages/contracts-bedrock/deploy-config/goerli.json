@@ -26,6 +26,10 @@
 
   "l2CrossDomainMessengerOwner": "DUMMY",
 
+  "governanceTokenName": "Optimism",
+  "governanceTokenSymbol": "OP",
+  "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",
+
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
   "eip1559Denominator": 50,
