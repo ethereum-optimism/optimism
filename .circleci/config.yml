@@ -284,6 +284,10 @@ jobs:
           name: Compile with metadata hash
           command: yarn clean && yarn build:with-metadata
           working_directory: packages/contracts-bedrock
+      - run:
+          name: Check slither
+          command: slither . --print echidna
+          working_directory: packages/contracts-bedrock
       - persist_to_workspace:
           root: .
           paths:
