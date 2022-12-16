@@ -106,7 +106,7 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.expectEmit(true, true, true, true);
         emit ConfigUpdate(
             0,
-            SystemConfig.UpdateType.UNSAFE_BLOCK_KEY,
+            SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER,
             abi.encode(newUnsafeSigner)
         );
 

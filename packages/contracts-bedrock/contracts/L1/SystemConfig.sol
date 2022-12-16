@@ -26,7 +26,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_KEY
+        UNSAFE_BLOCK_SIGNER
     }
 
     /**
@@ -155,7 +155,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         unsafeBlockSigner = _unsafeBlockSigner;
 
         bytes memory data = abi.encode(_unsafeBlockSigner);
-        emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_KEY, data);
+        emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
     }
 
     /**
