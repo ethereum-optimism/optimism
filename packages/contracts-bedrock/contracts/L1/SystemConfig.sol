@@ -52,16 +52,17 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint256 public scalar;
 
     /**
+     * @notice Address corresponding to the key that can propagate unsafe blocks
+     *         across the p2p network. This value should not be tightly packed
+     *         into a storage slot with another value to make state proofs more simple.
+     */
+    address public unsafeBlockSigner;
+
+    /**
      * @notice Identifier for the batcher. For version 1 of this configuration, this is represented
      *         as an address left-padded with zeros to 32 bytes.
      */
     bytes32 public batcherHash;
-
-    /**
-     * @notice Address corresponding to the key that can propagate unsafe blocks
-     *         across the p2p network.
-     */
-    address public unsafeBlockSigner;
 
     /**
      * @notice L2 gas limit.
