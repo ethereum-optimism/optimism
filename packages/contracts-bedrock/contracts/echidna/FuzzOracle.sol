@@ -15,14 +15,16 @@ contract ModL2OutputOracle is L2OutputOracle {
         uint256 _startingTimestamp,
         address _proposer,
         address _challenger
-    ) L2OutputOracle(
-        _submissionInterval,
-        _l2BlockTime,
-        _startingBlockNumber,
-        _startingTimestamp,
-        _proposer,
-        _challenger
-    ) {
+    )
+        L2OutputOracle(
+            _submissionInterval,
+            _l2BlockTime,
+            _startingBlockNumber,
+            _startingTimestamp,
+            _proposer,
+            _challenger
+        )
+    {
         // ...
     }
 
@@ -33,10 +35,7 @@ contract ModL2OutputOracle is L2OutputOracle {
      * Because the purpose of this test is to check that the block number of the
      * proposed outputs must monotonically increase, these checks are safe to remove.
      */
-    function proposeLessChecks(
-        bytes32 _outputRoot,
-        uint256 _l2BlockNumber
-    ) external {
+    function proposeLessChecks(bytes32 _outputRoot, uint256 _l2BlockNumber) external {
         require(
             _l2BlockNumber == nextBlockNumber(),
             "L2OutputOracle: block number must be equal to next expected block number"
@@ -56,10 +55,10 @@ contract ModL2OutputOracle is L2OutputOracle {
 
 contract EchidnaFuzzL2OutputOracle {
     // ENV
-    uint256 internal immutable submissionInterval = 1800;
-    uint256 internal immutable l2BlockTime = 2;
-    uint256 internal immutable startingBlockNumber = 200;
-    uint256 internal immutable startingTimestamp = 1000;
+    uint256 internal constant submissionInterval = 1800;
+    uint256 internal constant l2BlockTime = 2;
+    uint256 internal constant startingBlockNumber = 200;
+    uint256 internal constant startingTimestamp = 1000;
     ModL2OutputOracle public immutable oracle;
 
     // STATE
@@ -81,10 +80,7 @@ contract EchidnaFuzzL2OutputOracle {
      * @dev Propose an l2 output root using `ModL2OutputOracle`'s less restrictive
      * `proposeLessChecks` function.
      */
-    function propose(
-        bytes32 _outputRoot,
-        uint256 _l2BlockNumber
-    ) external {
+    function propose(bytes32 _outputRoot, uint256 _l2BlockNumber) external {
         // Grab the previous latest block number
         uint256 previousLatestBlock = oracle.latestBlockNumber();
 
