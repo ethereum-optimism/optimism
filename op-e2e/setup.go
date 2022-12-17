@@ -267,6 +267,21 @@ func (cfg SystemConfig) Start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
+	for addr, amount := range cfg.Premine {
+		if existing, ok := l2Genesis.Alloc[addr]; ok {
+			l2Genesis.Alloc[addr] = core.GenesisAccount{
+				Code:    existing.Code,
+				Storage: existing.Storage,
+				Balance: amount,
+				Nonce:   existing.Nonce,
+			}
+		} else {
+			l2Genesis.Alloc[addr] = core.GenesisAccount{
+				Balance: amount,
+				Nonce:   0,
+			}
+		}
+	}
 
 	makeRollupConfig := func() rollup.Config {
 		return rollup.Config{
