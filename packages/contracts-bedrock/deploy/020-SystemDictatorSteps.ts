@@ -527,7 +527,10 @@ const deployFn: DeployFunction = async (hre) => {
       await assertContractVariable(
         SystemConfigProxy,
         'batcherHash',
-        ethers.utils.hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
+        ethers.utils.hexZeroPad(
+          hre.deployConfig.batchSenderAddress.toLowerCase(),
+          32
+        )
       )
 
       await assertContractVariable(
