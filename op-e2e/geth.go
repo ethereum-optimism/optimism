@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/cmd/utils"
+	"github.com/ethereum/go-ethereum/miner"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -72,7 +73,7 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 	}
 }
 
-func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethereum, error) {
+func initL1Geth(cfg *SystemConfig, genesis *core.Genesis, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: cfg.DeployConfig.L1ChainID,
 		Genesis:   genesis,
@@ -87,7 +88,7 @@ func initL1Geth(cfg *SystemConfig, genesis *core.Genesis) (*node.Node, *eth.Ethe
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 	}
 
-	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner})
+	l1Node, l1Eth, err := createGethNode(false, nodeConfig, ethConfig, []*ecdsa.PrivateKey{cfg.Secrets.CliqueSigner}, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -158,11 +159,25 @@ func defaultNodeConfig(name string, jwtPath string) *node.Config {
 	}
 }
 
+type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
+
 // init a geth node.
-func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string) (*node.Node, *eth.Ethereum, error) {
+func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: l2ChainID.Uint64(),
 		Genesis:   genesis,
+		Miner: miner.Config{
+			Etherbase:         common.Address{},
+			Notify:            nil,
+			NotifyFull:        false,
+			ExtraData:         nil,
+			GasFloor:          0,
+			GasCeil:           0,
+			GasPrice:          nil,
+			Recommit:          0,
+			Noverify:          false,
+			NewPayloadTimeout: 0,
+		},
 	}
 	nodeConfig := &node.Config{
 		Name:        fmt.Sprintf("l2-geth-%v", name),
@@ -176,14 +191,19 @@ func initL2Geth(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath 
 		HTTPModules: []string{"debug", "admin", "eth", "txpool", "net", "rpc", "web3", "personal", "engine"},
 		JWTSecret:   jwtPath,
 	}
-	return createGethNode(true, nodeConfig, ethConfig, nil)
+	return createGethNode(true, nodeConfig, ethConfig, nil, opts...)
 }
 
 // createGethNode creates an in-memory geth node based on the configuration.
 // The private keys are added to the keystore and are unlocked.
 // If the node is l2, catalyst is enabled.
 // The node should be started and then closed when done.
-func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey) (*node.Node, *eth.Ethereum, error) {
+func createGethNode(l2 bool, nodeCfg *node.Config, ethCfg *ethconfig.Config, privateKeys []*ecdsa.PrivateKey, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+	for i, opt := range opts {
+		if err := opt(ethCfg, nodeCfg); err != nil {
+			return nil, nil, fmt.Errorf("failed to apply geth option %d: %w", i, err)
+		}
+	}
 	ethCfg.NoPruning = true // force everything to be an archive node
 	n, err := node.New(nodeCfg)
 	if err != nil {

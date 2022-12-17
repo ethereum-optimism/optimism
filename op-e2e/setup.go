@@ -144,6 +144,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
+		GethOptions:           map[string][]GethOption{},
 		P2PTopology:           nil, // no P2P connectivity by default
 		NonFinalizedProposals: false,
 	}
@@ -175,6 +176,7 @@ type SystemConfig struct {
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers        map[string]log.Logger
+	GethOptions    map[string][]GethOption
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
 
@@ -296,7 +298,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis)
+	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +306,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	sys.Backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
-		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
 			return nil, err
 		}
