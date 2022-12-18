@@ -103,7 +103,7 @@ const deployFn: DeployFunction = async (hre) => {
     systemConfigConfig: {
       owner: hre.deployConfig.finalSystemOwner,
       overhead: hre.deployConfig.gasPriceOracleOverhead,
-      scalar: hre.deployConfig.gasPriceOracleDecimals,
+      scalar: hre.deployConfig.gasPriceOracleScalar,
       batcherHash: hre.ethers.utils.hexZeroPad(
         hre.deployConfig.batchSenderAddress,
         32
