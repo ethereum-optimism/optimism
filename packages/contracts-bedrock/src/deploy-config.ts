@@ -155,7 +155,6 @@ interface OptionalL2DeployConfig {
   l2GenesisBlockBaseFeePerGas: string
   gasPriceOracleOverhead: number
   gasPriceOracleScalar: number
-  gasPriceOracleDecimals: number
 }
 
 /**
@@ -325,10 +324,6 @@ export const deployConfigSpec: {
   gasPriceOracleScalar: {
     type: 'number',
     default: 1_000_000,
-  },
-  gasPriceOracleDecimals: {
-    type: 'number',
-    default: 6,
   },
   governanceTokenSymbol: {
     type: 'string',
