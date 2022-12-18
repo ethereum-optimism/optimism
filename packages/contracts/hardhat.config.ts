@@ -52,6 +52,9 @@ const config: HardhatUserConfig = {
       url: 'http://127.0.0.1:8545',
       accounts: [privateKey],
     },
+    goerli: {
+      chainId: 5700,
+    },
     kovan: {
       chainId: 42,
       url: process.env.CONTRACTS_RPC_URL || '',
