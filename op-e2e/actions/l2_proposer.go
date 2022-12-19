@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
+	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
@@ -24,7 +24,7 @@ type ProposerCfg struct {
 type L2Proposer struct {
 	log     log.Logger
 	l1      *ethclient.Client
-	driver  *l2output.Driver
+	driver  *proposer.Driver
 	address common.Address
 	lastTx  common.Hash
 }
@@ -32,7 +32,7 @@ type L2Proposer struct {
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	chainID, err := l1.ChainID(t.Ctx())
 	require.NoError(t, err)
-	dr, err := l2output.NewDriver(l2output.Config{
+	dr, err := proposer.NewDriver(proposer.DriverConfig{
 		Log:               log,
 		Name:              "proposer",
 		L1Client:          l1,
