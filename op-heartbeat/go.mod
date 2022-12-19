@@ -6,6 +6,7 @@ require (
 	github.com/ethereum-optimism/optimism/op-node v0.10.1
 	github.com/ethereum-optimism/optimism/op-service v0.10.1
 	github.com/ethereum/go-ethereum v1.10.26
+	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/prometheus/client_golang v1.14.0
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli v1.22.10
