@@ -41,7 +41,6 @@ func randConfig() *Config {
 		ChannelTimeout:         123,
 		L1ChainID:              big.NewInt(900),
 		L2ChainID:              big.NewInt(901),
-		P2PSequencerAddress:    randAddr(),
 		BatchInboxAddress:      randAddr(),
 		DepositContractAddress: randAddr(),
 		L1SystemConfigAddress:  randAddr(),

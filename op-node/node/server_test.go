@@ -104,7 +104,7 @@ func TestOutputAtBlock(t *testing.T) {
 		SequenceNumber: 0,
 	}
 	l2Client.ExpectInfoByHash(common.HexToHash("0x8512bee03061475e4b069171f7b406097184f16b22c3f5c97c0abfc49591c524"), info, nil)
-	l2Client.ExpectGetProof(predeploys.L2ToL1MessagePasserAddr, "0x8512bee03061475e4b069171f7b406097184f16b22c3f5c97c0abfc49591c524", &result, nil)
+	l2Client.ExpectGetProof(predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, "0x8512bee03061475e4b069171f7b406097184f16b22c3f5c97c0abfc49591c524", &result, nil)
 
 	drClient := &mockDriverClient{}
 	status := randomSyncStatus(rand.New(rand.NewSource(123)))
