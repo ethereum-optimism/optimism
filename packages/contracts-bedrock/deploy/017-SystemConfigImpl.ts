@@ -17,6 +17,7 @@ const deployFn: DeployFunction = async (hre) => {
       hre.deployConfig.gasPriceOracleScalar,
       batcherHash,
       hre.deployConfig.l2GenesisBlockGasLimit,
+      hre.deployConfig.p2pSequencerAddress,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -35,6 +36,11 @@ const deployFn: DeployFunction = async (hre) => {
         hre.deployConfig.gasPriceOracleScalar
       )
       await assertContractVariable(contract, 'batcherHash', batcherHash)
+      await assertContractVariable(
+        contract,
+        'unsafeBlockSigner',
+        hre.deployConfig.p2pSequencerAddress
+      )
     },
   })
 }

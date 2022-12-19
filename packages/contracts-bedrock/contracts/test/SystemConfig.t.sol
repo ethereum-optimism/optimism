@@ -13,7 +13,8 @@ contract SystemConfig_Init is CommonTest {
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 9_000_000
+            _gasLimit: 9_000_000,
+            _unsafeBlockSigner: address(1)
         });
     }
 }
@@ -29,7 +30,8 @@ contract SystemConfig_Initialize_TestFail is CommonTest {
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(hex""),
-            _gasLimit: MINIMUM_GAS_LIMIT - 1
+            _gasLimit: MINIMUM_GAS_LIMIT - 1,
+            _unsafeBlockSigner: address(1)
         });
     }
 }
@@ -48,6 +50,11 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setGasLimit_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setGasLimit(0);
+    }
+
+    function test_setUnsafeBlockSigner_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        sysConf.setUnsafeBlockSigner(address(0x20));
     }
 }
 
@@ -93,5 +100,18 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
         vm.prank(sysConf.owner());
         sysConf.setGasLimit(newGasLimit);
         assertEq(sysConf.gasLimit(), newGasLimit);
+    }
+
+    function testFuzz_setUnsafeBlockSigner_succeeds(address newUnsafeSigner) external {
+        vm.expectEmit(true, true, true, true);
+        emit ConfigUpdate(
+            0,
+            SystemConfig.UpdateType.UNSAFE_BLOCK_SIGNER,
+            abi.encode(newUnsafeSigner)
+        );
+
+        vm.prank(sysConf.owner());
+        sysConf.setUnsafeBlockSigner(newUnsafeSigner);
+        assertEq(sysConf.unsafeBlockSigner(), newUnsafeSigner);
     }
 }
