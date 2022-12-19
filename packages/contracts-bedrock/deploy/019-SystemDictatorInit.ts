@@ -109,6 +109,7 @@ const deployFn: DeployFunction = async (hre) => {
         32
       ),
       gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
+      unsafeBlockSigner: hre.deployConfig.p2pSequencerAddress,
     },
   }
 
