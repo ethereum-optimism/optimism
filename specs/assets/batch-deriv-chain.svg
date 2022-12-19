@@ -1,3 +1,726 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="10662px" height="6124px" viewBox="-0.5 -0.5 10662 6124"><defs><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-75acff-1-ff66b3-1-e-0"><stop offset="0%" style="stop-color: rgb(117, 172, 255); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(255, 102, 179); stop-opacity: 1;"/></linearGradient><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-ffe563-1-8cffb6-1-e-0"><stop offset="0%" style="stop-color: rgb(255, 229, 99); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(140, 255, 182); stop-opacity: 1;"/></linearGradient><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-75acff-1-c683d2-1-e-0"><stop offset="0%" style="stop-color: rgb(117, 172, 255); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(198, 131, 210); stop-opacity: 1;"/></linearGradient><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-ffe563-1-d8ea7c-1-e-0"><stop offset="0%" style="stop-color: rgb(255, 229, 99); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(216, 234, 124); stop-opacity: 1;"/></linearGradient><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-d8ea7c-1-b0f79c-1-e-0"><stop offset="0%" style="stop-color: rgb(216, 234, 124); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(176, 247, 156); stop-opacity: 1;"/></linearGradient><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-c683d2-1-ff66b3-1-e-0"><stop offset="0%" style="stop-color: rgb(198, 131, 210); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(255, 102, 179); stop-opacity: 1;"/></linearGradient><linearGradient x1="0%" y1="0%" x2="100%" y2="0%" id="mx-gradient-b0f79c-1-8cffb6-1-e-0"><stop offset="0%" style="stop-color: rgb(176, 247, 156); stop-opacity: 1;"/><stop offset="100%" style="stop-color: rgb(140, 255, 182); stop-opacity: 1;"/></linearGradient></defs><g><path d="M 3900 20 L 4300 20 L 4380 100 L 4380 500 L 3980 500 L 3900 420 L 3900 20 Z" fill="#ff0080" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 3900 20 L 4300 20 L 4380 100 L 3980 100 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 3900 20 L 3980 100 L 3980 500 L 3900 420 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 3980 500 L 3980 100 L 3900 20 M 3980 100 L 4380 100" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 111px; margin-left: 1006px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">100</div></div></div></foreignObject><text x="1082" y="111" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">100</text></switch></g><path d="M 7420 20 L 7820 20 L 7900 100 L 7900 500 L 7500 500 L 7420 420 L 7420 20 Z" fill="#ccffff" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 7420 20 L 7820 20 L 7900 100 L 7500 100 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 7420 20 L 7500 100 L 7500 500 L 7420 420 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 7500 500 L 7500 100 L 7420 20 M 7500 100 L 7900 100" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 111px; margin-left: 1886px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">102</div></div></div></foreignObject><text x="1962" y="111" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">102</text></switch></g><path d="M 5540 20 L 5940 20 L 6020 100 L 6020 500 L 5620 500 L 5540 420 L 5540 20 Z" fill="#ffff66" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 5540 20 L 5940 20 L 6020 100 L 5620 100 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 5540 20 L 5620 100 L 5620 500 L 5540 420 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 5620 500 L 5620 100 L 5540 20 M 5620 100 L 6020 100" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 111px; margin-left: 1416px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">101</div></div></div></foreignObject><text x="1492" y="111" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">101</text></switch></g><path d="M 3600 4420 L 4000 4420 L 4080 4500 L 4080 4900 L 3680 4900 L 3600 4820 L 3600 4420 Z" fill="#ccccff" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 3600 4420 L 4000 4420 L 4080 4500 L 3680 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 3600 4420 L 3680 4500 L 3680 4900 L 3600 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 3680 4900 L 3680 4500 L 3600 4420 M 3680 4500 L 4080 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 931px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">3</div></div></div></foreignObject><text x="1007" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">3</text></switch></g><path d="M 4240 4420 L 4640 4420 L 4720 4500 L 4720 4900 L 4320 4900 L 4240 4820 L 4240 4420 Z" fill="#75acff" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 4240 4420 L 4640 4420 L 4720 4500 L 4320 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 4240 4420 L 4320 4500 L 4320 4900 L 4240 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 4320 4900 L 4320 4500 L 4240 4420 M 4320 4500 L 4720 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 1091px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">4</div></div></div></foreignObject><text x="1167" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">4</text></switch></g><path d="M 4880 4420 L 5280 4420 L 5360 4500 L 5360 4900 L 4960 4900 L 4880 4820 L 4880 4420 Z" fill="#c882d1" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 4880 4420 L 5280 4420 L 5360 4500 L 4960 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 4880 4420 L 4960 4500 L 4960 4900 L 4880 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 4960 4900 L 4960 4500 L 4880 4420 M 4960 4500 L 5360 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 1251px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">5</div></div></div></foreignObject><text x="1327" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">5</text></switch></g><path d="M 5520 4420 L 5920 4420 L 6000 4500 L 6000 4900 L 5600 4900 L 5520 4820 L 5520 4420 Z" fill="#ff66b3" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 5520 4420 L 5920 4420 L 6000 4500 L 5600 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 5520 4420 L 5600 4500 L 5600 4900 L 5520 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 5600 4900 L 5600 4500 L 5520 4420 M 5600 4500 L 6000 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 1411px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">6</div></div></div></foreignObject><text x="1487" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">6</text></switch></g><path d="M 6160 4420 L 6560 4420 L 6640 4500 L 6640 4900 L 6240 4900 L 6160 4820 L 6160 4420 Z" fill="#ffae52" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 6160 4420 L 6560 4420 L 6640 4500 L 6240 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 6160 4420 L 6240 4500 L 6240 4900 L 6160 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 6240 4900 L 6240 4500 L 6160 4420 M 6240 4500 L 6640 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 1571px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">7</div></div></div></foreignObject><text x="1647" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">7</text></switch></g><path d="M 6800 4420 L 7200 4420 L 7280 4500 L 7280 4900 L 6880 4900 L 6800 4820 L 6800 4420 Z" fill="#ffffa1" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 6800 4420 L 7200 4420 L 7280 4500 L 6880 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 6800 4420 L 6880 4500 L 6880 4900 L 6800 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 6880 4900 L 6880 4500 L 6800 4420 M 6880 4500 L 7280 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 1731px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">8</div></div></div></foreignObject><text x="1807" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">8</text></switch></g><rect x="3600" y="3940" width="480" height="240" rx="36" ry="36" fill="#ccccff" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="4240" y="3940" width="480" height="240" rx="36" ry="36" fill="#75acff" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="4880" y="3940" width="480" height="240" rx="36" ry="36" fill="#c882d1" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="5520" y="3940" width="480" height="240" rx="36" ry="36" fill="#ff66b3" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="6160" y="3940" width="480" height="240" rx="36" ry="36" fill="#ffae52" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="6800" y="3940" width="480" height="240" rx="36" ry="36" fill="#ffffa1" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="3600" y="3500" width="2400" height="240" fill="url(#mx-gradient-75acff-1-ff66b3-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 598px; height: 1px; padding-top: 905px; margin-left: 901px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 25px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-style: italic; white-space: normal; overflow-wrap: normal;">Compressed &amp; encoded batch data</div></div></div></foreignObject><text x="1200" y="912" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="25px" text-anchor="middle" font-style="italic">Compressed &amp; encoded batch data</text></switch></g><rect x="6080" y="3500" width="3040" height="240" fill="url(#mx-gradient-ffe563-1-8cffb6-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="3600" y="3060" width="1440" height="240" fill="url(#mx-gradient-75acff-1-c683d2-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 332px; height: 1px; padding-top: 815px; margin-left: 907px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">A0</div></div></div></foreignObject><text x="1239" y="815" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">A0</text></switch></g><rect x="6080" y="3060" width="480" height="240" fill="url(#mx-gradient-ffe563-1-d8ea7c-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 92px; height: 1px; padding-top: 815px; margin-left: 1527px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">B0</div></div></div></foreignObject><text x="1619" y="815" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">B0</text></switch></g><rect x="6640" y="3060" width="1440" height="240" fill="url(#mx-gradient-d8ea7c-1-b0f79c-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 332px; height: 1px; padding-top: 815px; margin-left: 1667px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">B1</div></div></div></foreignObject><text x="1999" y="815" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">B1</text></switch></g><rect x="9280" y="3060" width="320" height="240" fill="rgb(255, 255, 255)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><path d="M 7440 4420 L 7840 4420 L 7920 4500 L 7920 4900 L 7520 4900 L 7440 4820 L 7440 4420 Z" fill="#c3ffa1" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 7440 4420 L 7840 4420 L 7920 4500 L 7520 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 7440 4420 L 7520 4500 L 7520 4900 L 7440 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 7520 4900 L 7520 4500 L 7440 4420 M 7520 4500 L 7920 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 1891px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">9</div></div></div></foreignObject><text x="1967" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">9</text></switch></g><path d="M 8080 4420 L 8480 4420 L 8560 4500 L 8560 4900 L 8160 4900 L 8080 4820 L 8080 4420 Z" fill="#97ff63" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 8080 4420 L 8480 4420 L 8560 4500 L 8160 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 8080 4420 L 8160 4500 L 8160 4900 L 8080 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 8160 4900 L 8160 4500 L 8080 4420 M 8160 4500 L 8560 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 2051px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">10</div></div></div></foreignObject><text x="2127" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">10</text></switch></g><path d="M 8720 4420 L 9120 4420 L 9200 4500 L 9200 4900 L 8800 4900 L 8720 4820 L 8720 4420 Z" fill="#8cffb6" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 8720 4420 L 9120 4420 L 9200 4500 L 8800 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 8720 4420 L 8800 4500 L 8800 4900 L 8720 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 8800 4900 L 8800 4500 L 8720 4420 M 8800 4500 L 9200 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 1211px; margin-left: 2211px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">11</div></div></div></foreignObject><text x="2287" y="1211" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">11</text></switch></g><path d="M 9360 4420 L 9760 4420 L 9840 4500 L 9840 4900 L 9440 4900 L 9360 4820 L 9360 4420 Z" fill="rgb(255, 255, 255)" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 9360 4420 L 9760 4420 L 9840 4500 L 9440 4500 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 9360 4420 L 9440 4500 L 9440 4900 L 9360 4820 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 9440 4900 L 9440 4500 L 9360 4420 M 9440 4500 L 9840 4500" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><rect x="7440" y="3940" width="480" height="240" rx="36" ry="36" fill="#c3ffa1" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="8080" y="3940" width="480" height="240" rx="36" ry="36" fill="#97ff63" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="8720" y="3940" width="480" height="240" rx="36" ry="36" fill="#8cffb6" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="9360" y="3940" width="480" height="240" rx="36" ry="36" fill="rgb(255, 255, 255)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="5120" y="3060" width="960" height="240" fill="url(#mx-gradient-c683d2-1-ff66b3-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 212px; height: 1px; padding-top: 815px; margin-left: 1287px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">A1</div></div></div></foreignObject><text x="1499" y="815" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">A1</text></switch></g><rect x="8160" y="3060" width="1120" height="240" fill="url(#mx-gradient-b0f79c-1-8cffb6-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 252px; height: 1px; padding-top: 815px; margin-left: 2047px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">B2</div></div></div></foreignObject><text x="2299" y="815" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">B2</text></switch></g><rect x="9200" y="3500" width="760" height="240" fill="rgb(255, 255, 255)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="9840" y="3140" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10010" y="3140" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10170" y="3140" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10090" y="3580" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10260" y="3580" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10420" y="3580" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10010" y="4020" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10180" y="4020" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10340" y="4020" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="9960" y="4620" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10130" y="4620" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="10290" y="4620" width="60" height="80" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="2600" y="3060" width="760" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 795px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">L1 Transactions,<br /> ~128 KB each</div></div></div></foreignObject><text x="838" y="801" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">L1 Transactions,...</text></switch></g><rect x="2760" y="3500" width="600" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 905px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Channels,<br />with timeout</div></div></div></foreignObject><text x="838" y="911" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">Channels,...</text></switch></g><rect x="2240" y="3940" width="1120" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 1015px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Batches,<br />1 batch = 1 L2 block tx list</div></div></div></foreignObject><text x="838" y="1021" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">Batches,...</text></switch></g><rect x="2240" y="4520" width="1120" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 1160px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">L2 Blocks<br />(a.k.a. execution payloads)</div></div></div></foreignObject><text x="838" y="1166" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">L2 Blocks...</text></switch></g><rect x="3920" y="2860" width="800" height="120" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 730px; margin-left: 1080px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Channel A, Frame 0</div></div></div></foreignObject><text x="1080" y="736" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="middle">Channel A, Frame 0</text></switch></g><rect x="5140" y="2860" width="800" height="120" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 730px; margin-left: 1385px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Channel A, Frame 1</div></div></div></foreignObject><text x="1385" y="736" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="middle">Channel A, Frame 1</text></switch></g><rect x="6100" y="2740" width="480" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 715px; margin-left: 1585px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Channel B,<br /> Frame 0</div></div></div></foreignObject><text x="1585" y="721" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="middle">Channel B,...</text></switch></g><rect x="6960" y="2860" width="800" height="120" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 730px; margin-left: 1840px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Channel B, Frame 1</div></div></div></foreignObject><text x="1840" y="736" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="middle">Channel B, Frame 1</text></switch></g><rect x="8300" y="2860" width="800" height="120" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 730px; margin-left: 2175px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Channel B, Frame 2</div></div></div></foreignObject><text x="2175" y="736" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="middle">Channel B, Frame 2</text></switch></g><rect x="9410" y="2860" width="680" height="120" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 1px; height: 1px; padding-top: 730px; margin-left: 2438px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Channel C, etc...</div></div></div></foreignObject><text x="2438" y="736" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="middle">Channel C, etc...</text></switch></g><rect x="8700" y="40" width="880" height="440" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-start; width: 1px; height: 1px; padding-top: 65px; margin-left: 2177px;"><div style="box-sizing: border-box; font-size: 0px; text-align: left;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">L1 Blocks,<br />These may not be as<br />frequent/consistent<br /> as L2 blocks.</div></div></div></foreignObject><text x="2177" y="71" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" font-weight="bold">L1 Blocks,...</text></switch></g><rect x="8700" y="660" width="1000" height="320" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-start; width: 1px; height: 1px; padding-top: 205px; margin-left: 2177px;"><div style="box-sizing: border-box; font-size: 0px; text-align: left;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Actual inclusion on L1:<br />channels are valid<br />within a timeout</div></div></div></foreignObject><text x="2177" y="211" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" font-weight="bold">Actual inclusion on L1:...</text></switch></g><rect x="8700" y="1180" width="1600" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-start; width: 1px; height: 1px; padding-top: 325px; margin-left: 2177px;"><div style="box-sizing: border-box; font-size: 0px; text-align: left;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Channel B was seen first,<br />and will be decoded into batches first.</div></div></div></foreignObject><text x="2177" y="331" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" font-weight="bold">Channel B was seen first,...</text></switch></g><rect x="3600" y="2020" width="480" height="240" rx="36" ry="36" fill="#ffae52" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="4240" y="2020" width="480" height="240" rx="36" ry="36" fill="#ffffa1" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="4880" y="2020" width="480" height="240" rx="36" ry="36" fill="#c3ffa1" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="5520" y="2020" width="480" height="240" rx="36" ry="36" fill="#97ff63" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="6160" y="2020" width="480" height="240" rx="36" ry="36" fill="#8cffb6" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="6800" y="2020" width="480" height="240" rx="36" ry="36" fill="#ccccff" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="7440" y="2020" width="480" height="240" rx="36" ry="36" fill="#75acff" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="8080" y="2020" width="480" height="240" rx="36" ry="36" fill="#c882d1" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="8720" y="2020" width="480" height="240" rx="36" ry="36" fill="#ff66b3" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="1920" y="1980" width="1440" height="440" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 550px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Batches can be buffered<br />for up to a full sequencing window<br />worth of L1 blocks<br />to get the L2 ordering back.</div></div></div></foreignObject><text x="838" y="556" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">Batches can be buffered...</text></switch></g><rect x="9220" y="5660" width="520" height="280" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 1450px; margin-left: 2433px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 50px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Time</div></div></div></foreignObject><text x="2433" y="1465" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="50px" text-anchor="end" font-weight="bold">Time</text></switch></g><path d="M 9842 5800 L 9842 5760 L 10490 5760 L 10490 5648.91 L 10638 5780 L 10490 5911.09 L 10490 5800 Z" fill="#000000" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><rect x="3540" y="700" width="1440" height="240" fill="#bfbfbf" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 358px; height: 1px; padding-top: 205px; margin-left: 886px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-style: italic; white-space: normal; overflow-wrap: normal;">older L2 data</div></div></div></foreignObject><text x="1065" y="214" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="middle" font-style="italic">older L2 data</text></switch></g><rect x="5260" y="700" width="1440" height="240" fill="url(#mx-gradient-d8ea7c-1-b0f79c-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 332px; height: 1px; padding-top: 225px; margin-left: 1322px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">B1</div></div></div></foreignObject><text x="1654" y="225" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">B1</text></switch></g><rect x="6220" y="1060" width="480" height="240" fill="url(#mx-gradient-ffe563-1-d8ea7c-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 92px; height: 1px; padding-top: 315px; margin-left: 1562px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">B0</div></div></div></foreignObject><text x="1654" y="315" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">B0</text></switch></g><rect x="5260" y="1060" width="960" height="240" fill="url(#mx-gradient-c683d2-1-ff66b3-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 212px; height: 1px; padding-top: 315px; margin-left: 1322px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">A1</div></div></div></foreignObject><text x="1534" y="315" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">A1</text></switch></g><rect x="8060" y="700" width="320" height="240" fill="rgb(255, 255, 255)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><rect x="6940" y="700" width="1120" height="240" fill="url(#mx-gradient-b0f79c-1-8cffb6-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 252px; height: 1px; padding-top: 225px; margin-left: 1742px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">B2</div></div></div></foreignObject><text x="1994" y="225" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">B2</text></switch></g><rect x="6940" y="1060" width="1440" height="240" fill="url(#mx-gradient-75acff-1-c683d2-1-e-0)" stroke="rgb(0, 0, 0)" stroke-width="4" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 332px; height: 1px; padding-top: 315px; margin-left: 1742px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">A0</div></div></div></foreignObject><text x="2074" y="315" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="end">A0</text></switch></g><path d="M 6160 5420 L 6240 5180 L 6640 5180 L 6560 5420 Z" fill="#ff0080" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 1551px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">100-0</div></div></div></foreignObject><text x="1647" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">100-0</text></switch></g><path d="M 6800 5420 L 6880 5180 L 7280 5180 L 7200 5420 Z" fill="#ff0080" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 1711px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">100-1</div></div></div></foreignObject><text x="1807" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">100-1</text></switch></g><path d="M 7440 5420 L 7520 5180 L 7920 5180 L 7840 5420 Z" fill="#ff0080" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 1871px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">100-2</div></div></div></foreignObject><text x="1967" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">100-2</text></switch></g><path d="M 8080 5420 L 8160 5180 L 8560 5180 L 8480 5420 Z" fill="#ff0080" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 2031px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">100-3</div></div></div></foreignObject><text x="2127" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">100-3</text></switch></g><path d="M 8720 5420 L 8800 5180 L 9200 5180 L 9120 5420 Z" fill="#ff0080" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 2191px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">100-2</div></div></div></foreignObject><text x="2287" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">100-2</text></switch></g><path d="M 9360 5420 L 9440 5180 L 9840 5180 L 9760 5420 Z" fill="#ffff66" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 2351px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">101-0</div></div></div></foreignObject><text x="2447" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">101-0</text></switch></g><path d="M 5520 5420 L 5600 5180 L 6000 5180 L 5920 5420 Z" fill="#e0e0e0" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 1391px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">99-5</div></div></div></foreignObject><text x="1487" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">99-5</text></switch></g><path d="M 4880 5420 L 4960 5180 L 5360 5180 L 5280 5420 Z" fill="#e0e0e0" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 1231px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">99-4</div></div></div></foreignObject><text x="1327" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">99-4</text></switch></g><path d="M 4240 5420 L 4320 5180 L 4720 5180 L 4640 5420 Z" fill="#e0e0e0" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 1071px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">99-3</div></div></div></foreignObject><text x="1167" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">99-3</text></switch></g><path d="M 3600 5420 L 3680 5180 L 4080 5180 L 4000 5420 Z" fill="#e0e0e0" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 96px; height: 1px; padding-top: 1341px; margin-left: 911px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">99-2</div></div></div></foreignObject><text x="1007" y="1341" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">99-2</text></switch></g><path d="M 2400 40 L 2800 40 L 2880 120 L 2880 520 L 2480 520 L 2400 440 L 2400 40 Z" fill="#e0e0e0" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><path d="M 2400 40 L 2800 40 L 2880 120 L 2480 120 Z" fill-opacity="0.05" fill="#000000" stroke="none" pointer-events="all"/><path d="M 2400 40 L 2480 120 L 2480 520 L 2400 440 Z" fill-opacity="0.1" fill="#000000" stroke="none" pointer-events="all"/><path d="M 2480 520 L 2480 120 L 2400 40 M 2480 120 L 2880 120" fill="none" stroke="rgb(0, 0, 0)" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe flex-end; justify-content: unsafe flex-end; width: 76px; height: 1px; padding-top: 116px; margin-left: 631px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: #000000; "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">99</div></div></div></foreignObject><text x="707" y="116" fill="#000000" font-family="Helvetica" font-size="30px" text-anchor="end">99</text></switch></g><rect x="2040" y="5180" width="1320" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 1325px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Each L2 block has a tx with info<br />about the "origin" L1 block</div></div></div></foreignObject><text x="838" y="1331" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">Each L2 block has a tx with info...</text></switch></g><rect x="2040" y="5580" width="1320" height="320" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 1435px; margin-left: 838px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">The "sequence number" <br />helps differentiate between <br />L2 blocks with the same origin.</div></div></div></foreignObject><text x="838" y="1441" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">The "sequence number"...</text></switch></g><path d="M 3900 1100 Q 4080 1172 4260 1100 Q 4440 1028 4620 1100 L 4620 1300 Q 4440 1228 4260 1300 Q 4080 1372 3900 1300 L 3900 1100 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 178px; height: 1px; padding-top: 300px; margin-left: 976px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">deposit</div></div></div></foreignObject><text x="1065" y="309" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="middle">deposit</text></switch></g><path d="M 3920 1380 Q 4100 1452 4280 1380 Q 4460 1308 4640 1380 L 4640 1580 Q 4460 1508 4280 1580 Q 4100 1652 3920 1580 L 3920 1380 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 178px; height: 1px; padding-top: 370px; margin-left: 981px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">deposit</div></div></div></foreignObject><text x="1070" y="379" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="middle">deposit</text></switch></g><rect x="2180" y="1180" width="1160" height="240" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 325px; margin-left: 833px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Deposits are L1 log events,<br />parsed from EVM receipts</div></div></div></foreignObject><text x="833" y="331" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">Deposits are L1 log events,...</text></switch></g><path d="M 6100 5560 Q 6280 5632 6460 5560 Q 6640 5488 6820 5560 L 6820 5760 Q 6640 5688 6460 5760 Q 6280 5832 6100 5760 L 6100 5560 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 178px; height: 1px; padding-top: 1415px; margin-left: 1526px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">deposit</div></div></div></foreignObject><text x="1615" y="1424" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="middle">deposit</text></switch></g><path d="M 6120 5840 Q 6300 5912 6480 5840 Q 6660 5768 6840 5840 L 6840 6040 Q 6660 5968 6480 6040 Q 6300 6112 6120 6040 L 6120 5840 Z" fill="#fff2cc" stroke="#d6b656" stroke-width="4" stroke-miterlimit="10" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe center; width: 178px; height: 1px; padding-top: 1485px; margin-left: 1531px;"><div style="box-sizing: border-box; font-size: 0px; text-align: center;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: normal; overflow-wrap: normal;">deposit</div></div></div></foreignObject><text x="1620" y="1494" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px" text-anchor="middle">deposit</text></switch></g><rect x="4980" y="5660" width="1000" height="440" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-end; width: 1px; height: 1px; padding-top: 1470px; margin-left: 1493px;"><div style="box-sizing: border-box; font-size: 0px; text-align: right;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 21px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; font-weight: bold; white-space: nowrap;">Deposits get included<br />the first L2 block that<br />adopts the L1 origin the<br />deposits were made in.</div></div></div></foreignObject><text x="1493" y="1476" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="21px" text-anchor="end" font-weight="bold">Deposits get included...</text></switch></g><rect x="20" y="2300" width="2560" height="640" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-start; width: 1px; height: 1px; padding-top: 655px; margin-left: 7px;"><div style="box-sizing: border-box; font-size: 0px; text-align: left;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Security types on L2:<br />- "unsafe": not submitted on L1<br />- "safe": is confirmed on L1<br />- "finalized": fully derived from finalized L1 data</div></div></div></foreignObject><text x="7" y="664" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px">Security types on L2:...</text></switch></g><rect x="60" y="3140" width="2000" height="640" fill="none" stroke="none" pointer-events="all"/><g transform="translate(-0.5 -0.5)scale(4)"><switch><foreignObject style="overflow: visible; text-align: left;" pointer-events="none" width="100%" height="100%" requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"><div xmlns="http://www.w3.org/1999/xhtml" style="display: flex; align-items: unsafe center; justify-content: unsafe flex-start; width: 1px; height: 1px; padding-top: 865px; margin-left: 17px;"><div style="box-sizing: border-box; font-size: 0px; text-align: left;" data-drawio-colors="color: rgb(0, 0, 0); "><div style="display: inline-block; font-size: 30px; font-family: Helvetica; color: rgb(0, 0, 0); line-height: 1.2; pointer-events: all; white-space: nowrap;">Security types on L1:<br />- "unsafe": very new<br />- "safe": decent attestation ratio<br />- "finalized": with FFG finality gadget</div></div></div></foreignObject><text x="17" y="874" fill="rgb(0, 0, 0)" font-family="Helvetica" font-size="30px">Security types on L1:...</text></switch></g></g><switch><g requiredFeatures="http://www.w3.org/TR/SVG11/feature#Extensibility"/><a transform="translate(0,-5)" xlink:href="https://www.diagrams.net/doc/faq/svg-export-text-problems" target="_blank"><text text-anchor="middle" font-size="10px" x="50%" y="100%">Text is not SVG - cannot display</text></a></switch></svg>
+<svg version="1.2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 5331 3062" width="5331" height="3062">
+	<title>batch-deriv-chain-svg</title>
+	<defs>
+		<image  width="5331" height="3062" id="img1" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAFNMAAAv2AQMAAABqgMOsAAAAAXNSR0IB2cksfwAAAANQTFRF////p8QbyAAAB9RJREFUeJztwQEBAAAAgiD/r25IQAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArwY3uQABEP0VtwAAAABJRU5ErkJggg=="/>
+		<linearGradient id="g1" x1="1800.5" y1="1750.5" x2="1441800.5" y2="1750.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#75acff"/>
+			<stop offset="1" stop-color="#ff66b3"/>
+		</linearGradient>
+		<linearGradient id="g2" x1="3040.5" y1="1750.5" x2="2313440.5" y2="1750.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#ffe563"/>
+			<stop offset="1" stop-color="#8cffb6"/>
+		</linearGradient>
+		<linearGradient id="g3" x1="1800.5" y1="1530.5" x2="520200.5" y2="1530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#75acff"/>
+			<stop offset="1" stop-color="#c683d2"/>
+		</linearGradient>
+		<linearGradient id="g4" x1="3040.5" y1="1530.5" x2="60640.5" y2="1530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#ffe563"/>
+			<stop offset="1" stop-color="#d8ea7c"/>
+		</linearGradient>
+		<linearGradient id="g5" x1="3320.5" y1="1530.5" x2="521720.5" y2="1530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#d8ea7c"/>
+			<stop offset="1" stop-color="#b0f79c"/>
+		</linearGradient>
+		<linearGradient id="g6" x1="2560.5" y1="1530.5" x2="232960.5" y2="1530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#c683d2"/>
+			<stop offset="1" stop-color="#ff66b3"/>
+		</linearGradient>
+		<linearGradient id="g7" x1="4080.5" y1="1530.5" x2="317680.5" y2="1530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#b0f79c"/>
+			<stop offset="1" stop-color="#8cffb6"/>
+		</linearGradient>
+		<linearGradient id="g8" x1="2630.5" y1="350.5" x2="521030.5" y2="350.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#d8ea7c"/>
+			<stop offset="1" stop-color="#b0f79c"/>
+		</linearGradient>
+		<linearGradient id="g9" x1="3110.5" y1="530.5" x2="60710.5" y2="530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#ffe563"/>
+			<stop offset="1" stop-color="#d8ea7c"/>
+		</linearGradient>
+		<linearGradient id="g10" x1="2630.5" y1="530.5" x2="233030.5" y2="530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#c683d2"/>
+			<stop offset="1" stop-color="#ff66b3"/>
+		</linearGradient>
+		<linearGradient id="g11" x1="3470.5" y1="350.5" x2="317070.5" y2="350.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#b0f79c"/>
+			<stop offset="1" stop-color="#8cffb6"/>
+		</linearGradient>
+		<linearGradient id="g12" x1="3470.5" y1="530.5" x2="521870.5" y2="530.5" gradientUnits="userSpaceOnUse">
+			<stop offset="0" stop-color="#75acff"/>
+			<stop offset="1" stop-color="#c683d2"/>
+		</linearGradient>
+	</defs>
+	<style>
+		tspan { white-space:pre } 
+		.s0 { fill: #ff0080;stroke: #000000;stroke-width: 2 } 
+		.s1 { opacity: .1;fill: #000000 } 
+		.s2 { fill: none;stroke: #000000;stroke-width: 2 } 
+		.t3 { font-size: 30px;fill: #000000;font-family: "Helvetica" } 
+		.s4 { fill: #ccffff;stroke: #000000;stroke-width: 2 } 
+		.s5 { fill: #ffff66;stroke: #000000;stroke-width: 2 } 
+		.s6 { fill: #ccccff;stroke: #000000;stroke-width: 2 } 
+		.s7 { fill: #75acff;stroke: #000000;stroke-width: 2 } 
+		.s8 { fill: #c882d1;stroke: #000000;stroke-width: 2 } 
+		.s9 { fill: #ff66b3;stroke: #000000;stroke-width: 2 } 
+		.s10 { fill: #ffae52;stroke: #000000;stroke-width: 2 } 
+		.s11 { fill: #ffffa1;stroke: #000000;stroke-width: 2 } 
+		.s12 { fill: url(#g1);stroke: #000000;stroke-width: 2 } 
+		.t13 { font-size: 25px;fill: #000000;font-family: "Helvetica" } 
+		.s14 { fill: url(#g2);stroke: #000000;stroke-width: 2 } 
+		.s15 { fill: url(#g3);stroke: #000000;stroke-width: 2 } 
+		.s16 { fill: url(#g4);stroke: #000000;stroke-width: 2 } 
+		.s17 { fill: url(#g5);stroke: #000000;stroke-width: 2 } 
+		.s18 { fill: #ffffff;stroke: #000000;stroke-width: 2 } 
+		.s19 { fill: #c3ffa1;stroke: #000000;stroke-width: 2 } 
+		.s20 { fill: #97ff63;stroke: #000000;stroke-width: 2 } 
+		.s21 { fill: #8cffb6;stroke: #000000;stroke-width: 2 } 
+		.s22 { fill: url(#g6);stroke: #000000;stroke-width: 2 } 
+		.s23 { fill: url(#g7);stroke: #000000;stroke-width: 2 } 
+		.s24 { fill: #000000;stroke: #000000;stroke-width: 2 } 
+		.s25 { fill: none } 
+		.t26 { font-size: 21px;fill: #000000;font-family: "Helvetica" } 
+		.t27 { font-size: 50px;fill: #000000;font-family: "Helvetica" } 
+		.s28 { fill: #bfbfbf;stroke: #000000;stroke-width: 2 } 
+		.s29 { fill: url(#g8);stroke: #000000;stroke-width: 2 } 
+		.s30 { fill: url(#g9);stroke: #000000;stroke-width: 2 } 
+		.s31 { fill: url(#g10);stroke: #000000;stroke-width: 2 } 
+		.s32 { fill: url(#g11);stroke: #000000;stroke-width: 2 } 
+		.s33 { fill: url(#g12);stroke: #000000;stroke-width: 2 } 
+		.s34 { fill: #e0e0e0;stroke: #000000;stroke-width: 2 } 
+		.s35 { fill: #fff2cc;stroke: #d6b656;stroke-width: 2 } 
+		.t36 { font-size: 10px;fill: #000000;font-weight: 400;font-family: "LiberationSans", "Liberation Sans" } 
+	</style>
+	<g id="Layer">
+		<use id="Layer 1" href="#img1" x="0" y="0"/>
+		<path id="Layer" class="s0" d="m1950.5 10.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m1950.5 10.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m1950.5 10.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m1950.5 10.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="100" style="transform: matrix(2,0,0,2,2164.25,222.25)" >
+					<tspan x="-57.3" y="0" class="t3">100
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s4" d="m3710.5 10.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m3710.5 10.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m3710.5 10.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m3710.5 10.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="102" style="transform: matrix(2,0,0,2,3924.25,222.25)" >
+					<tspan x="-57.3" y="0" class="t3">102
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s5" d="m2770.5 10.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m2770.5 10.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m2770.5 10.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m2770.5 10.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="101" style="transform: matrix(2,0,0,2,2984.25,222.25)" >
+					<tspan x="-57.3" y="0" class="t3">101
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s6" d="m1800.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m1800.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m1800.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m1800.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="3" style="transform: matrix(2,0,0,2,2014.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">3
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s7" d="m2120.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m2120.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m2120.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m2120.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="4" style="transform: matrix(2,0,0,2,2334.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">4
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s8" d="m2440.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m2440.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m2440.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m2440.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="5" style="transform: matrix(2,0,0,2,2654.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">5
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s9" d="m2760.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m2760.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m2760.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m2760.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="6" style="transform: matrix(2,0,0,2,2974.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">6
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s10" d="m3080.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m3080.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m3080.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m3080.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="7" style="transform: matrix(2,0,0,2,3294.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">7
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s11" d="m3400.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m3400.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m3400.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m3400.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="8" style="transform: matrix(2,0,0,2,3614.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">8
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s6" d="m1800.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s7" d="m2120.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s8" d="m2440.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s9" d="m2760.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s10" d="m3080.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s11" d="m3400.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s12" d="m1800.5 1750.5h1200v120h-1200z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Compressed &amp; encoded batch data" style="transform: matrix(2,0,0,2,2400.25,1824.25)" >
+					<tspan x="-220.5" y="0" class="t13">Compressed &amp; encoded batch data
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s14" d="m3040.5 1750.5h1520v120h-1520z"/>
+		<path id="Layer" class="s15" d="m1800.5 1530.5h720v120h-720z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="A0" style="transform: matrix(2,0,0,2,2478.25,1630.25)" >
+					<tspan x="-39.6" y="0" class="t3">A0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s16" d="m3040.5 1530.5h240v120h-240z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="B0" style="transform: matrix(2,0,0,2,3238.25,1630.25)" >
+					<tspan x="-39.7" y="0" class="t3">B0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s17" d="m3320.5 1530.5h720v120h-720z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="B1" style="transform: matrix(2,0,0,2,3998.25,1630.25)" >
+					<tspan x="-39.7" y="0" class="t3">B1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s18" d="m4640.5 1530.5h160v120h-160z"/>
+		<path id="Layer" class="s19" d="m3720.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m3720.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m3720.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m3720.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="9" style="transform: matrix(2,0,0,2,3934.25,2422.25)" >
+					<tspan x="-19.1" y="0" class="t3">9
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s20" d="m4040.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m4040.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m4040.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m4040.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="10" style="transform: matrix(2,0,0,2,4254.25,2422.25)" >
+					<tspan x="-38.2" y="0" class="t3">10
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s21" d="m4360.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m4360.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m4360.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m4360.5 2210.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="11" style="transform: matrix(2,0,0,2,4574.25,2422.25)" >
+					<tspan x="-38.2" y="0" class="t3">11
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s18" d="m4680.5 2210.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m4680.5 2210.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m4680.5 2210.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m4680.5 2210.5l40 40v200m0-200h200"/>
+		<path id="Layer" class="s19" d="m3720.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s20" d="m4040.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s21" d="m4360.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s18" d="m4680.5 1988.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s22" d="m2560.5 1530.5h480v120h-480z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="A1" style="transform: matrix(2,0,0,2,2998.25,1630.25)" >
+					<tspan x="-39.6" y="0" class="t3">A1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s23" d="m4080.5 1530.5h560v120h-560z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="B2" style="transform: matrix(2,0,0,2,4598.25,1630.25)" >
+					<tspan x="-39.7" y="0" class="t3">B2
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s18" d="m4600.5 1750.5h380v120h-380z"/>
+		<path id="Layer" class="s24" d="m4920.5 1570.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5005.5 1570.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5085.5 1570.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5045.5 1790.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5130.5 1790.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5210.5 1790.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5005.5 2010.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5090.5 2010.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5170.5 2010.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m4980.5 2310.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5065.5 2310.5h30v40h-30z"/>
+		<path id="Layer" class="s24" d="m5145.5 2310.5h30v40h-30z"/>
+		<path id="Layer" class="s25" d="m1300.5 1530.5h380v120h-380z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="L1 Transactions,..." style="transform: matrix(2,0,0,2,1676.25,1602.25)" >
+					<tspan x="-189.5" y="0" class="t26">L1 Transactions,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1380.5 1750.5h300v120h-300z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channels,..." style="transform: matrix(2,0,0,2,1676.25,1822.25)" >
+					<tspan x="-123.9" y="0" class="t26">Channels,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1120.5 1970.5h560v120h-560z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Batches,..." style="transform: matrix(2,0,0,2,1676.25,2042.25)" >
+					<tspan x="-110.9" y="0" class="t26">Batches,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1120.5 2260.5h560v120h-560z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="L2 Blocks..." style="transform: matrix(2,0,0,2,1676.25,2332.25)" >
+					<tspan x="-119.5" y="0" class="t26">L2 Blocks...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1960.5 1430.5h400v60h-400z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel A, Frame 0" style="transform: matrix(2,0,0,2,2160.25,1472.25)" >
+					<tspan x="-103" y="0" class="t26">Channel A, Frame 0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m2570.5 1430.5h400v60h-400z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel A, Frame 1" style="transform: matrix(2,0,0,2,2770.25,1472.25)" >
+					<tspan x="-103" y="0" class="t26">Channel A, Frame 1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m3050.5 1370.5h240v120h-240z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel B,..." style="transform: matrix(2,0,0,2,3170.25,1442.25)" >
+					<tspan x="-67" y="0" class="t26">Channel B,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m3480.5 1430.5h400v60h-400z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel B, Frame 1" style="transform: matrix(2,0,0,2,3680.25,1472.25)" >
+					<tspan x="-103.1" y="0" class="t26">Channel B, Frame 1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m4150.5 1430.5h400v60h-400z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel B, Frame 2" style="transform: matrix(2,0,0,2,4350.25,1472.25)" >
+					<tspan x="-103.1" y="0" class="t26">Channel B, Frame 2
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m4705.5 1430.5h340v60h-340z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel C, etc..." style="transform: matrix(2,0,0,2,4876.25,1472.25)" >
+					<tspan x="-86.8" y="0" class="t26">Channel C, etc...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m4350.5 20.5h440v220h-440z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="L1 Blocks,..." style="transform: matrix(2,0,0,2,4354.25,142.25)" >
+					<tspan x="0" y="0" class="t26">L1 Blocks,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m4350.5 330.5h500v160h-500z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Actual inclusion on L1:..." style="transform: matrix(2,0,0,2,4354.25,422.25)" >
+					<tspan x="0" y="0" class="t26">Actual inclusion on L1:...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m4350.5 590.5h800v120h-800z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Channel B was seen first,..." style="transform: matrix(2,0,0,2,4354.25,662.25)" >
+					<tspan x="0" y="0" class="t26">Channel B was seen first,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s10" d="m1800.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s11" d="m2120.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s19" d="m2440.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s20" d="m2760.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s21" d="m3080.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s6" d="m3400.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s7" d="m3720.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s8" d="m4040.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s9" d="m4360.5 1028.5c0-9.9 8.1-18 18-18h204c9.9 0 18 8.1 18 18v84c0 9.9-8.1 18-18 18h-204c-9.9 0-18-8.1-18-18z"/>
+		<path id="Layer" class="s25" d="m960.5 990.5h720v220h-720z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Batches can be buffered..." style="transform: matrix(2,0,0,2,1676.25,1112.25)" >
+					<tspan x="-276.7" y="0" class="t26">Batches can be buffered...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m4610.5 2830.5h260v140h-260z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Time" style="transform: matrix(2,0,0,2,4866.25,2930.25)" >
+					<tspan x="-122.4" y="0" class="t27">Time
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s24" d="m4921.5 2900.5v-20h324v-55.5l74 65.5-74 65.5v-55.5z"/>
+		<path id="Layer" class="s28" d="m1770.5 350.5h720v120h-720z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="older L2 data" style="transform: matrix(2,0,0,2,2130.25,428.25)" >
+					<tspan x="-99.5" y="0" class="t3">older L2 data
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s29" d="m2630.5 350.5h720v120h-720z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="B1" style="transform: matrix(2,0,0,2,3308.25,450.25)" >
+					<tspan x="-39.7" y="0" class="t3">B1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s30" d="m3110.5 530.5h240v120h-240z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="B0" style="transform: matrix(2,0,0,2,3308.25,630.25)" >
+					<tspan x="-39.7" y="0" class="t3">B0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s31" d="m2630.5 530.5h480v120h-480z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="A1" style="transform: matrix(2,0,0,2,3068.25,630.25)" >
+					<tspan x="-39.6" y="0" class="t3">A1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s18" d="m4030.5 350.5h160v120h-160z"/>
+		<path id="Layer" class="s32" d="m3470.5 350.5h560v120h-560z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="B2" style="transform: matrix(2,0,0,2,3988.25,450.25)" >
+					<tspan x="-39.7" y="0" class="t3">B2
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s33" d="m3470.5 530.5h720v120h-720z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="A0" style="transform: matrix(2,0,0,2,4148.25,630.25)" >
+					<tspan x="-39.6" y="0" class="t3">A0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s0" d="m3080.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="100-0" style="transform: matrix(2,0,0,2,3294.25,2682.25)" >
+					<tspan x="-87.2" y="0" class="t3">100-0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s0" d="m3400.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="100-1" style="transform: matrix(2,0,0,2,3614.25,2682.25)" >
+					<tspan x="-87.2" y="0" class="t3">100-1
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s0" d="m3720.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="100-2" style="transform: matrix(2,0,0,2,3934.25,2682.25)" >
+					<tspan x="-87.2" y="0" class="t3">100-2
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s0" d="m4040.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="100-3" style="transform: matrix(2,0,0,2,4254.25,2682.25)" >
+					<tspan x="-87.2" y="0" class="t3">100-3
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s0" d="m4360.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="100-2" style="transform: matrix(2,0,0,2,4574.25,2682.25)" >
+					<tspan x="-87.2" y="0" class="t3">100-2
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s5" d="m4680.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="101-0" style="transform: matrix(2,0,0,2,4894.25,2682.25)" >
+					<tspan x="-87.2" y="0" class="t3">101-0
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s34" d="m2760.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="99-5" style="transform: matrix(2,0,0,2,2974.25,2682.25)" >
+					<tspan x="-68.1" y="0" class="t3">99-5
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s34" d="m2440.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="99-4" style="transform: matrix(2,0,0,2,2654.25,2682.25)" >
+					<tspan x="-68.1" y="0" class="t3">99-4
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s34" d="m2120.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="99-3" style="transform: matrix(2,0,0,2,2334.25,2682.25)" >
+					<tspan x="-68.1" y="0" class="t3">99-3
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s34" d="m1800.5 2710.5l40-120h200l-40 120z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="99-2" style="transform: matrix(2,0,0,2,2014.25,2682.25)" >
+					<tspan x="-68.1" y="0" class="t3">99-2
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s34" d="m1200.5 20.5h200l40 40v200h-200l-40-40z"/>
+		<path id="Layer" class="s1" d="m1200.5 20.5h200l40 40h-200z"/>
+		<path id="Layer" class="s1" d="m1200.5 20.5l40 40v200l-40-40z"/>
+		<path id="Layer" class="s2" d="m1200.5 20.5l40 40v200m0-200h200"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="99" style="transform: matrix(2,0,0,2,1414.25,232.25)" >
+					<tspan x="-38.2" y="0" class="t3">99
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1020.5 2590.5h660v120h-660z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Each L2 block has a tx with info..." style="transform: matrix(2,0,0,2,1676.25,2662.25)" >
+					<tspan x="-352.7" y="0" class="t26">Each L2 block has a tx with info...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1020.5 2790.5h660v160h-660z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="The &quot;sequence number&quot;..." style="transform: matrix(2,0,0,2,1676.25,2882.25)" >
+					<tspan x="-274.9" y="0" class="t26">The &quot;sequence number&quot;...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s35" d="m1950.5 550.5q90 36 180 0 90-36 180 0v100q-90-36-180 0-90 36-180 0z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="deposit" style="transform: matrix(2,0,0,2,2130.25,618.25)" >
+					<tspan x="-55.3" y="0" class="t3">deposit
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s35" d="m1960.5 690.5q90 36 180 0 90-36 180 0v100q-90-36-180 0-90 36-180 0z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="deposit" style="transform: matrix(2,0,0,2,2140.25,758.25)" >
+					<tspan x="-55.3" y="0" class="t3">deposit
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m1090.5 590.5h580v120h-580z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Deposits are L1 log events,..." style="transform: matrix(2,0,0,2,1666.25,662.25)" >
+					<tspan x="-306.4" y="0" class="t26">Deposits are L1 log events,...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s35" d="m3050.5 2780.5q90 36 180 0 90-36 180 0v100q-90-36-180 0-90 36-180 0z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="deposit" style="transform: matrix(2,0,0,2,3230.25,2848.25)" >
+					<tspan x="-55.3" y="0" class="t3">deposit
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s35" d="m3060.5 2920.5q90 36 180 0 90-36 180 0v100q-90-36-180 0-90 36-180 0z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="deposit" style="transform: matrix(2,0,0,2,3240.25,2988.25)" >
+					<tspan x="-55.3" y="0" class="t3">deposit
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m2490.5 2830.5h500v220h-500z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Deposits get included..." style="transform: matrix(2,0,0,2,2986.25,2952.25)" >
+					<tspan x="-248.5" y="0" class="t26">Deposits get included...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m10.5 1150.5h1280v320h-1280z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Security types on L2:..." style="transform: matrix(2,0,0,2,14.25,1328.25)" >
+					<tspan x="0" y="0" class="t3">Security types on L2:...
+</tspan>
+				</text>
+			</g>
+		</g>
+		<path id="Layer" class="s25" d="m30.5 1570.5h1000v320h-1000z"/>
+		<g id="Layer">
+			<g id="Layer">
+				<text id="Security types on L1:..." style="transform: matrix(2,0,0,2,34.25,1748.25)" >
+					<tspan x="0" y="0" class="t3">Security types on L1:...
+</tspan>
+				</text>
+			</g>
+		</g>
+	</g>
+	<g id="Layer">
+		<g id="Layer">
+		</g>
+		<g id="Layer">
+			<text id="Text is not SVG - cannot display" style="transform: matrix(.5,0,0,.5,25.5,48)" >
+				<tspan x="-70.9" y="0" class="t36">Text is not SVG - cannot display
+</tspan>
+			</text>
+		</g>
+	</g>
+</svg>
