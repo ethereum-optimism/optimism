@@ -73,6 +73,7 @@ func (ibc *IterativeBatchCall[K, V, O]) Reset() {
 		scheduled <- r
 	}
 
+	atomic.StoreUint32(&ibc.completed, 0)
 	ibc.requestsValues = requestsValues
 	ibc.scheduled = scheduled
 	if len(ibc.requestsKeys) == 0 {
