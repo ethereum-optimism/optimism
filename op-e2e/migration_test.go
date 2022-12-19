@@ -19,6 +19,12 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration_action"
@@ -31,11 +37,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 type migrationTestConfig struct {
@@ -296,7 +297,6 @@ func TestMigration(t *testing.T) {
 			ChannelTimeout:         deployCfg.ChannelTimeout,
 			L1ChainID:              new(big.Int).SetUint64(deployCfg.L1ChainID),
 			L2ChainID:              new(big.Int).SetUint64(deployCfg.L2ChainID),
-			P2PSequencerAddress:    deployCfg.P2PSequencerAddress,
 			BatchInboxAddress:      deployCfg.BatchInboxAddress,
 			DepositContractAddress: portal.Address,
 			L1SystemConfigAddress:  sysConfig.Address,

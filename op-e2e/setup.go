@@ -286,7 +286,6 @@ func (cfg SystemConfig) Start() (*System, error) {
 			ChannelTimeout:         cfg.DeployConfig.ChannelTimeout,
 			L1ChainID:              cfg.L1ChainIDBig(),
 			L2ChainID:              cfg.L2ChainIDBig(),
-			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
