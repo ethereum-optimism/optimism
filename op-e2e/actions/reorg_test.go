@@ -437,12 +437,14 @@ func TestDeepReorg(gt *testing.T) {
 	// -- slightly modified logic from TestReorgFlipFlop. Logic below is likely incorrect. --
 	// Now sync the verifier. Some of the batches should be ignored.
 	// The safe head should have an origin at block B240 (?)
-	verifier.ActL1HeadSignal(t)
-	verifier.ActL2PipelineFull(t)
+	// verifier.ActL1HeadSignal(t)
+	// verifier.ActL2PipelineFull(t)
+	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
+	sequencer.ActBuildToL1Head(t)
 	// require.Equal(t, blockB240.ID(), verifier.L2Safe().L1Origin, "expected to be back at genesis origin after losing A0 and A1")
 
-	require.Equal(t, uint64(242), verifier.L2Unsafe().L1Origin.Number)
+	require.Equal(t, uint64(242), sequencer.L2Unsafe().L1Origin.Number)
 	require.NotZero(t, verifier.L2Safe().Number, "still preserving old L2 blocks that did not reference reorged L1 chain (assuming more than one L2 block per L1 block)")
 	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "head is at safe block after L1 reorg")
 	checkVerifEngine()
