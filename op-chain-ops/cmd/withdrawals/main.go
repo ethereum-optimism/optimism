@@ -14,7 +14,6 @@ import (
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli/v2"
 
-	"github.com/ethereum-optimism/optimism/l2geth/common/hexutil"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
@@ -46,6 +46,8 @@ type callFrame struct {
 	Calls   []callFrame `json:"calls,omitempty"`
 }
 
+// findWithdrawalCall will find the call frame for the call that
+// represents the user's intent.
 func findWithdrawalCall(trace *callFrame, wd *crossdomain.LegacyWithdrawal, l1xdm common.Address) *callFrame {
 	isCall := trace.Type == "CALL"
 	isTarget := common.HexToAddress(trace.To) == *wd.Target
@@ -61,6 +63,8 @@ func findWithdrawalCall(trace *callFrame, wd *crossdomain.LegacyWithdrawal, l1xd
 	return nil
 }
 
+// createOutput will create the data required to send a withdrawal
+// transaction.
 func createOutput(
 	withdrawal *crossdomain.Withdrawal,
 	oracle *bindings.L2OutputOracle,
@@ -68,15 +72,18 @@ func createOutput(
 	l2Client bind.ContractBackend,
 	l2GethClient *gethclient.Client,
 ) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
+	// compute the storage slot that the withdrawal is stored in
 	slot, err := withdrawal.StorageSlot()
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
 	}
 
+	// find the output index that the withdrawal was commited to in
 	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, blockNumber)
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
 	}
+	// fetch the output the commits to the withdrawal using the index
 	l2Output, err := oracle.GetL2Output(&bind.CallOpts{}, l2OutputIndex)
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
@@ -90,11 +97,13 @@ func createOutput(
 		"timestamp", l2Output.Timestamp,
 	)
 
+	// get the block header committed to in the output
 	header, err := l2Client.HeaderByNumber(context.Background(), l2Output.L2BlockNumber)
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
 	}
 
+	// get the storage proof for the withdrawal's storage slot
 	proof, err := l2GethClient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, blockNumber)
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
@@ -107,6 +116,7 @@ func createOutput(
 		trieNodes[i] = common.FromHex(s)
 	}
 
+	// create an output root proof
 	outputRootProof := bindings.TypesOutputRootProof{
 		Version:                  [32]byte{},
 		StateRoot:                header.Root,
@@ -114,6 +124,7 @@ func createOutput(
 		LatestBlockhash:          header.Hash(),
 	}
 
+	// compute a storage root hash locally
 	localOutputRootHash := crypto.Keccak256Hash(
 		outputRootProof.Version[:],
 		outputRootProof.StateRoot[:],
@@ -121,6 +132,7 @@ func createOutput(
 		outputRootProof.LatestBlockhash[:],
 	)
 
+	// ensure that the locally computed hash matches
 	if l2Output.OutputRoot != localOutputRootHash {
 		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("mismatch in output root hashes", "got", localOutputRootHash, "expect", l2Output.OutputRoot)
 	}
@@ -187,6 +199,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
+			// set up the rpc clients
 			l1RpcURL := ctx.String("l1-rpc-url")
 			l1Client, err := ethclient.Dial(l1RpcURL)
 			if err != nil {
@@ -219,8 +232,11 @@ func main() {
 			if err != nil {
 				return err
 			}
+			// this script requires geth's rpcs
 			gclient := gethclient.New(l2RpcClient)
 
+			// get the evm and ovm messages witness files used as part of
+			// migration
 			ovmMsgs := ctx.String("ovm-messages")
 			evmMsgs := ctx.String("evm-messages")
 
@@ -245,6 +261,7 @@ func main() {
 				EvmMessages: evmMessages,
 			}
 
+			// create the set of withdrawals
 			wds, err := migrationData.ToWithdrawals()
 			if err != nil {
 				return err
@@ -311,19 +328,21 @@ func main() {
 
 			badWithdrawals := make([]badWithdrawal, 0)
 
+			// iterate over all of the withdrawals and submit them
 			for i, wd := range wds {
 				log.Info("Processing withdrawal", "index", i)
-
+				// migrate the withdrawal
 				withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr)
 				if err != nil {
 					return err
 				}
-
+				// compute the withdrawal hash
 				hash, err := withdrawal.Hash()
 				if err != nil {
 					return err
 				}
-
+				// check to see if the withdrawal has already been successfully
+				// relayed or received
 				isSuccess, err := l1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, hash)
 				if err != nil {
 					return err
@@ -332,7 +351,7 @@ func main() {
 				if err != nil {
 					return err
 				}
-
+				// compute the storage slot
 				slot, err := withdrawal.StorageSlot()
 				if err != nil {
 					return err
@@ -340,11 +359,14 @@ func main() {
 
 				log.Info("cross domain messenger status", "hash", hash.Hex(), "success", isSuccess, "received", isReceived, "slot", slot.Hex())
 
+				// successful messages can be skipped, received messages failed
+				// their execution and should be replayed
 				if isSuccess {
 					log.Info("Message already relayed", "index", i, "hash", hash, "slot", slot)
 					continue
 				}
 
+				// create the values required for submitting a proof
 				l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, oracle, transitionBlockNumber, l2Client, gclient)
 				if err != nil {
 					return err
@@ -355,6 +377,7 @@ func main() {
 					return err
 				}
 
+				// check to see if its already been proven
 				proven, err := portal.ProvenWithdrawals(&bind.CallOpts{}, hash)
 				if err != nil {
 					return err
@@ -410,6 +433,7 @@ func main() {
 					log.Info("Withdrawal already proven to OptimismPortal")
 				}
 
+				// check to see if the withdrawal has been finalized already
 				isFinalized, err := portal.FinalizedWithdrawals(&bind.CallOpts{}, hash)
 				if err != nil {
 					return err
@@ -493,29 +517,30 @@ func main() {
 
 						switch method.Name {
 						case "finalizeERC20Withdrawal":
+							// Handle logic for ERC20 withdrawals
 							l1Token, ok := args[0].(common.Address)
 							if !ok {
-								return fmt.Errorf("")
+								return fmt.Errorf("invalid abi")
 							}
 							l2Token, ok := args[1].(common.Address)
 							if !ok {
-								return fmt.Errorf("")
+								return fmt.Errorf("invalid abi")
 							}
 							from, ok := args[2].(common.Address)
 							if !ok {
-								return fmt.Errorf("")
+								return fmt.Errorf("invalid abi")
 							}
 							to, ok := args[3].(common.Address)
 							if !ok {
-								return fmt.Errorf("")
+								return fmt.Errorf("invalid abi")
 							}
 							amount, ok := args[4].(*big.Int)
 							if !ok {
-								return fmt.Errorf("")
+								return fmt.Errorf("invalid abi")
 							}
 							extraData, ok := args[5].([]byte)
 							if !ok {
-								return fmt.Errorf("")
+								return fmt.Errorf("invalid abi")
 							}
 
 							log.Info(
@@ -533,14 +558,13 @@ func main() {
 								topic := l.Topics[0]
 								if topic == transferEvent.ID {
 									a, _ := transferEvent.Inputs.Unpack(l.Data)
-									// TODO: add a check here for balance diff as
-									// expected
+									// TODO: add a check here for balance diff
 									log.Info("EVENT FOUND", "args", a)
 								}
 								log.Info("receipt topic", "hex", topic.Hex())
 							}
-
 						case "finalizeETHWithdrawal":
+							// handle logic for ETH withdrawals
 							from, ok := args[0].(common.Address)
 							if !ok {
 								return fmt.Errorf("invalid type: from")
@@ -589,7 +613,7 @@ func main() {
 						})
 
 					}
-
+					// check that the user's intents are actually executed
 					if common.HexToAddress(callFrame.To) != *wd.Target {
 						badWithdrawals = append(badWithdrawals, badWithdrawal{
 							Withdrawal: withdrawal,
