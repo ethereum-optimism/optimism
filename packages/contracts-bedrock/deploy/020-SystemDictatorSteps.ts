@@ -328,6 +328,10 @@ const deployFn: DeployFunction = async (hre) => {
     },
   })
 
+  if (isLiveDeployer) {
+    process.exit(0)
+  }
+
   // Step 3 clears out some state from the AddressManager.
   await doStep({
     step: 3,
