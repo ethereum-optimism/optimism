@@ -22,6 +22,9 @@
   "finalizationPeriodSeconds": 2,
 
   "proxyAdminOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
+  "baseFeeVaultRecipient": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
+  "l1FeeVaultRecipient": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
+  "sequencerFeeVaultRecipient": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
 
   "governanceTokenName": "Optimism",
   "governanceTokenSymbol": "OP",
