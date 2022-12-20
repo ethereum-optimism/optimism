@@ -49,20 +49,12 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
 
         // Expect a token creation event.
         vm.expectEmit(true, true, true, true);
-        emit OptimismMintableERC721Created(
-            predicted,
-            address(1234),
-            alice
-        );
+        emit OptimismMintableERC721Created(predicted, address(1234), alice);
 
         // Create the token.
         vm.prank(alice);
         OptimismMintableERC721 created = OptimismMintableERC721(
-            factory.createOptimismMintableERC721(
-                address(1234),
-                "L2Token",
-                "L2T"
-            )
+            factory.createOptimismMintableERC721(address(1234), "L2Token", "L2T")
         );
 
         // Token address should be correct.
@@ -82,10 +74,6 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
     function test_createOptimismMintableERC721_zeroRemoteToken_reverst() external {
         // Try to create a token with a zero remote token address.
         vm.expectRevert("OptimismMintableERC721Factory: L1 token address cannot be address(0)");
-        factory.createOptimismMintableERC721(
-            address(0),
-            "L2Token",
-            "L2T"
-        );
+        factory.createOptimismMintableERC721(address(0), "L2Token", "L2T");
     }
 }
