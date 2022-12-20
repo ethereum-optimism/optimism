@@ -83,11 +83,13 @@ interface RequiredDeployConfig {
 
   /**
    * Starting block number for the output oracle.
+   * Must be greater than or equal to the first Bedrock block.
    */
   l2OutputOracleStartingBlockNumber?: number
 
   /**
    * Starting timestamp for the output oracle.
+   * MUST be the same as the timestamp of the L2OO start block.
    */
   l2OutputOracleStartingTimestamp?: number
 
