@@ -237,13 +237,16 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
 	// Create a mapping of all of their storage slots
 	knownSlots := make(map[common.Hash]bool)
+	slotsWds := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
 	for _, wd := range withdrawals {
 		slot, err := wd.StorageSlot()
 		if err != nil {
 			return fmt.Errorf("cannot check withdrawals: %w", err)
 		}
 		knownSlots[slot] = true
+		slotsWds[slot] = wd
 	}
+
 	// Build a map of all the slots in the LegacyMessagePasser
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
@@ -270,6 +273,15 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		_, ok := slots[slot]
 		//nolint:staticcheck
 		if !ok {
+			wd := slotsWds[slot]
+			log.Warn(
+				"unknown input message",
+				"slot", slot,
+				"nonce", wd.Nonce,
+				"target", wd.Target,
+				"sender", wd.Sender,
+				"data", wd.Data,
+			)
 			return fmt.Errorf("Unknown input message: %s", slot)
 		}
 	}
