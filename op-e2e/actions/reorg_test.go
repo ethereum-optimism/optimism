@@ -331,7 +331,7 @@ func TestDeepReorg(gt *testing.T) {
 	// Start building chain A
 	miner.ActL1SetFeeRecipient(common.Address{0x0A, 0x00})
 
-	require.Equal(t, sequencer.L2Safe().L1Origin.Number, uint64(0))
+	require.Equal(t, uint64(0), sequencer.L2Safe().L1Origin.Number)
 
 	// Create a var for the second to last block ref of the first sequencing window
 	var blockA119 eth.L1BlockRef
@@ -362,9 +362,9 @@ func TestDeepReorg(gt *testing.T) {
 
 	// Check that the safe head's L1 origin is block #121 before batch submission
 	// Question: Shouldn't the safe head be @ #120?
-	require.Equal(t, sequencer.L2Safe().L1Origin.Number, uint64(121))
+	require.Equal(t, uint64(121), sequencer.L2Safe().L1Origin.Number)
 	// Check that the unsafe head's L1 origin is block #240
-	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockA240.ID())
+	require.Equal(t, blockA240.ID(), sequencer.L2Unsafe().L1Origin)
 
 	// Batch and submit all new L2 blocks that were built above to L1
 	batcher.ActSubmitAll(t)
@@ -385,7 +385,7 @@ func TestDeepReorg(gt *testing.T) {
 	// We check that the L2 safe L1 origin is block A240, or the last block
 	// within the second sequencing window. This is the block directly before
 	// the block that included the batch on chain A.
-	require.Equal(t, verifier.L2Safe().L1Origin, blockA240.ID())
+	require.Equal(t, blockA240.ID(), verifier.L2Safe().L1Origin)
 	checkVerifEngine()
 
 	// Perform a deep reorg the size of one sequencing window.
@@ -397,10 +397,10 @@ func TestDeepReorg(gt *testing.T) {
 	// sequencing window.
 	headAfterReorg, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	require.Equal(t, headAfterReorg.ID(), blockA119.ID())
+	require.Equal(t, blockA119.ID(), headAfterReorg.ID())
 
 	// Ensure that the safe L2 chain has not been altered yet.
-	require.Equal(t, verifier.L2Safe().L1Origin, blockA240.ID())
+	require.Equal(t, blockA240.ID(), verifier.L2Safe().L1Origin)
 
 	// --------- [ CHAIN B ] ---------
 
@@ -416,7 +416,7 @@ func TestDeepReorg(gt *testing.T) {
 	blockB240, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	// Ensure blockB240 is #240 on chain B
-	require.Equal(t, blockB240.Number, uint64(240))
+	require.Equal(t, uint64(240), blockB240.Number)
 
 	// Re-include the batch that included two sequence windows worth of transactions
 	// that was built on chain A
@@ -442,7 +442,7 @@ func TestDeepReorg(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	// require.Equal(t, blockB240.ID(), verifier.L2Safe().L1Origin, "expected to be back at genesis origin after losing A0 and A1")
 
-	require.Equal(t, verifier.L2Unsafe().L1Origin.Number, uint64(242))
+	require.Equal(t, uint64(242), verifier.L2Unsafe().L1Origin.Number)
 	require.NotZero(t, verifier.L2Safe().Number, "still preserving old L2 blocks that did not reference reorged L1 chain (assuming more than one L2 block per L1 block)")
 	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "head is at safe block after L1 reorg")
 	checkVerifEngine()
