@@ -96,12 +96,23 @@ The exact number is yet to be determined, and will depend on the design of the f
 
 The L2 Output Oracle contract implements the following interface:
 
-```js
+```solidity
+/**
+ * @notice The number of the first L2 block recorded in this contract.
+ */
+uint256 public startingBlockNumber;
+
+/**
+ * @notice The timestamp of the first L2 block recorded in this contract.
+ */
+uint256 public startingTimestamp;
+
 /**
  * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
  * timestamp must be equal to the current value returned by `nextTimestamp()` in order to be
  * accepted.
  * This function may only be called by the Proposer.
+ *
  * @param _l2Output      The L2 output of the checkpoint block.
  * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
  * @param _l1Blockhash   A block hash which must be included in the current chain.
@@ -115,17 +126,25 @@ The L2 Output Oracle contract implements the following interface:
   )
 
 /**
- * @notice Deletes the most recent output.
- * @param _l2Output The value of the most recent output. Used to prevent erroneously deleting
- *  the wrong root
+ * @notice Deletes all output proposals after and including the proposal that corresponds to
+ *         the given output index. Only the challenger address can delete outputs.
+ *
+ * @param _l2OutputIndex Index of the first L2 output to be deleted. All outputs after this
+ *                       output will also be deleted.
  */
-function deleteL2Output(bytes32 _l2Output) external
+function deleteL2Outputs(uint256 _l2OutputIndex) external
 
 /**
  * @notice Computes the block number of the next L2 block that needs to be checkpointed.
  */
-function getNextBlockNumber() public view returns (uint256) {
+function getNextBlockNumber() public view returns (uint256)
 ```
+
+### Configuration
+
+The `startingBlockNumber` corresponds to the first block with an output recorded in the L2 Output Oracle, which must be
+at least the number of the first Bedrock block.
+The `startingTimestamp` MUST be the same as the timestamp of the start block.
 
 ## Security Considerations
 
