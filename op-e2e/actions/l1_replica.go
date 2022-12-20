@@ -63,6 +63,7 @@ func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 			NoDiscovery: true,
 			NoDial:      true,
 		},
+		Logger: log.New("role", "geth"),
 	}
 	n, err := node.New(nodeCfg)
 	require.NoError(t, err)
