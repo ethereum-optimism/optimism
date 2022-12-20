@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -31,6 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+var abiTrue = common.Hash{31: 0x01}
+
 // callFrame represents the response returned from geth's
 // `debug_traceTransaction` callTracer
 type callFrame struct {
@@ -44,6 +47,20 @@ type callFrame struct {
 	Output  string      `json:"output,omitempty"`
 	Error   string      `json:"error,omitempty"`
 	Calls   []callFrame `json:"calls,omitempty"`
+}
+
+func (c *callFrame) BigValue() *big.Int {
+	v := strings.TrimPrefix(c.Value, "0x")
+	b, _ := new(big.Int).SetString(v, 16)
+	return b
+}
+
+type suspiciousWithdrawal struct {
+	Withdrawal *crossdomain.Withdrawal       `json:"withdrawal"`
+	Legacy     *crossdomain.LegacyWithdrawal `json:"legacy"`
+	Trace      callFrame                     `json:"trace"`
+	Index      int                           `json:"index"`
+	Reason     string                        `json:"reason"`
 }
 
 // findWithdrawalCall will find the call frame for the call that
@@ -69,8 +86,7 @@ func createOutput(
 	withdrawal *crossdomain.Withdrawal,
 	oracle *bindings.L2OutputOracle,
 	blockNumber *big.Int,
-	l2Client bind.ContractBackend,
-	l2GethClient *gethclient.Client,
+	clients *clients,
 ) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
 	// compute the storage slot that the withdrawal is stored in
 	slot, err := withdrawal.StorageSlot()
@@ -78,7 +94,7 @@ func createOutput(
 		return nil, bindings.TypesOutputRootProof{}, nil, err
 	}
 
-	// find the output index that the withdrawal was commited to in
+	// find the output index that the withdrawal was committed to in
 	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, blockNumber)
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
@@ -98,13 +114,14 @@ func createOutput(
 	)
 
 	// get the block header committed to in the output
-	header, err := l2Client.HeaderByNumber(context.Background(), l2Output.L2BlockNumber)
+	header, err := clients.L2Client.HeaderByNumber(context.Background(), l2Output.L2BlockNumber)
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
 	}
 
 	// get the storage proof for the withdrawal's storage slot
-	proof, err := l2GethClient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, blockNumber)
+	proof, err := clients.L2GethClient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, blockNumber)
+
 	if err != nil {
 		return nil, bindings.TypesOutputRootProof{}, nil, err
 	}
@@ -124,7 +141,6 @@ func createOutput(
 		LatestBlockhash:          header.Hash(),
 	}
 
-	// compute a storage root hash locally
 	localOutputRootHash := crypto.Keccak256Hash(
 		outputRootProof.Version[:],
 		outputRootProof.StateRoot[:],
@@ -134,7 +150,7 @@ func createOutput(
 
 	// ensure that the locally computed hash matches
 	if l2Output.OutputRoot != localOutputRootHash {
-		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("mismatch in output root hashes", "got", localOutputRootHash, "expect", l2Output.OutputRoot)
+		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("mismatch in output root hashes, got 0x%x expected 0x%x", localOutputRootHash, l2Output.OutputRoot)
 	}
 	log.Info(
 		"output root proof",
@@ -142,6 +158,7 @@ func createOutput(
 		"state-root", common.Hash(outputRootProof.StateRoot),
 		"storage-root", common.Hash(outputRootProof.MessagePasserStorageRoot),
 		"block-hash", common.Hash(outputRootProof.LatestBlockhash),
+		"trie-node-count", len(trieNodes),
 	)
 
 	return l2OutputIndex, outputRootProof, trieNodes, nil
@@ -184,10 +201,6 @@ func main() {
 				Name:  "evm-messages",
 				Usage: "Path to evm-messages.json",
 			},
-			&cli.Uint64Flag{
-				Name:  "bedrock-transition-block-number",
-				Usage: "The blocknumber of the bedrock transition block",
-			},
 			&cli.StringFlag{
 				Name:  "private-key",
 				Usage: "Key to sign transactions with",
@@ -199,303 +212,212 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			// set up the rpc clients
-			l1RpcURL := ctx.String("l1-rpc-url")
-			l1Client, err := ethclient.Dial(l1RpcURL)
-			if err != nil {
-				return err
-			}
-			l1ChainID, err := l1Client.ChainID(context.Background())
+			clients, err := newClients(ctx)
 			if err != nil {
 				return err
 			}
 
-			log.Info("Set up L1 RPC Client", "chain-id", l1ChainID)
-
-			l2RpcURL := ctx.String("l2-rpc-url")
-			l2Client, err := ethclient.Dial(l2RpcURL)
+			// initialize the contract bindings
+			contracts, err := newContracts(ctx, clients.L1Client, clients.L2Client)
 			if err != nil {
 				return err
 			}
-			l2ChainID, err := l2Client.ChainID(context.Background())
+			l1xdmAddr := common.HexToAddress(ctx.String("l1-crossdomain-messenger-address"))
+
+			l1ChainID, err := clients.L1Client.ChainID(context.Background())
 			if err != nil {
 				return err
-			}
-			log.Info("Set up L2 RPC Client", "chain-id", l2ChainID)
-
-			l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
-			if err != nil {
-				return err
-			}
-
-			l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
-			if err != nil {
-				return err
-			}
-			// this script requires geth's rpcs
-			gclient := gethclient.New(l2RpcClient)
-
-			// get the evm and ovm messages witness files used as part of
-			// migration
-			ovmMsgs := ctx.String("ovm-messages")
-			evmMsgs := ctx.String("evm-messages")
-
-			log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs)
-			ovmMessages, err := migration.NewSentMessage(ovmMsgs)
-			if err != nil {
-				return err
-			}
-			evmMessages, err := migration.NewSentMessage(evmMsgs)
-			if err != nil {
-				return err
-			}
-
-			optimismPortalAddress := ctx.String("optimism-portal-address")
-			if len(optimismPortalAddress) == 0 {
-				return errors.New("OptimismPortal address not configured")
-			}
-			optimismPortalAddr := common.HexToAddress(optimismPortalAddress)
-
-			migrationData := migration.MigrationData{
-				OvmMessages: ovmMessages,
-				EvmMessages: evmMessages,
 			}
 
 			// create the set of withdrawals
-			wds, err := migrationData.ToWithdrawals()
-			if err != nil {
-				return err
-			}
-			if len(wds) == 0 {
-				return errors.New("no withdrawals")
-			}
-			log.Info("Converted migration data to withdrawals successfully", "count", len(wds))
-
-			l1xdmAddress := ctx.String("l1-crossdomain-messenger-address")
-			if l1xdmAddress == "" {
-				return errors.New("Must pass in --l1-crossdomain-messenger-address")
-			}
-			l1xdmAddr := common.HexToAddress(l1xdmAddress)
-
-			l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessenger(l1xdmAddr, l1Client)
+			wds, err := newWithdrawals(ctx, l1ChainID)
 			if err != nil {
 				return err
 			}
 
-			portal, err := bindings.NewOptimismPortal(optimismPortalAddr, l1Client)
+			period, err := contracts.OptimismPortal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 			if err != nil {
 				return err
 			}
 
-			l2OracleAddr, err := portal.L2ORACLE(&bind.CallOpts{})
-			if err != nil {
-				return err
-			}
-			oracle, err := bindings.NewL2OutputOracle(l2OracleAddr, l1Client)
-			if err != nil {
-				return nil
-			}
-
-			log.Info(
-				"Addresses",
-				"l1-crossdomain-messenger", l1xdmAddr,
-				"optimism-portal", optimismPortalAddr,
-				"output-oracle", l2OracleAddr,
-			)
-
-			period, err := portal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+			bedrockStartingBlockNumber, err := contracts.L2OutputOracle.StartingBlockNumber(&bind.CallOpts{})
 			if err != nil {
 				return err
 			}
 
-			transitionBlockNumber := new(big.Int).SetUint64(ctx.Uint64("bedrock-transition-block-number"))
-			log.Info("Withdrawal config", "finalization-period", period, "bedrock-transition-block-number", transitionBlockNumber)
+			bedrockStartingBlock, err := clients.L2Client.BlockByNumber(context.Background(), bedrockStartingBlockNumber)
 
-			if ctx.String("private-key") == "" {
-				return errors.New("No private key to transact with")
+			log.Info("Withdrawal config", "finalization-period", period, "bedrock-starting-block-number", bedrockStartingBlockNumber, "bedrock-starting-block-hash", bedrockStartingBlock.Hash().Hex())
+
+			if !bytes.Equal(bedrockStartingBlock.Extra(), genesis.BedrockTransitionBlockExtraData) {
+				return errors.New("genesis block mismatch")
 			}
-			privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(ctx.String("private-key"), "0x"))
+
+			outfile := ctx.String("bad-withdrawals-out")
+			f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o755)
 			if err != nil {
 				return err
 			}
 
-			type badWithdrawal struct {
-				Withdrawal *crossdomain.Withdrawal       `json:"withdrawal"`
-				Legacy     *crossdomain.LegacyWithdrawal `json:"legacy"`
-				Trace      callFrame                     `json:"trace"`
-				Index      int                           `json"index"`
+			// create a transactor
+			opts, err := newTransactor(ctx)
+			if err != nil {
+				return err
 			}
 
-			badWithdrawals := make([]badWithdrawal, 0)
+			// Need this to compare in event parsing
+			l1StandardBridgeAddress := common.HexToAddress(ctx.String("l1-standard-bridge-address"))
 
 			// iterate over all of the withdrawals and submit them
 			for i, wd := range wds {
 				log.Info("Processing withdrawal", "index", i)
+
 				// migrate the withdrawal
 				withdrawal, err := crossdomain.MigrateWithdrawal(wd, &l1xdmAddr)
 				if err != nil {
 					return err
 				}
-				// compute the withdrawal hash
+
+				// Pass to Portal
 				hash, err := withdrawal.Hash()
 				if err != nil {
 					return err
 				}
+
+				lcdm := wd.CrossDomainMessage()
+				legacyXdmHash, err := lcdm.Hash()
+				if err != nil {
+					return err
+				}
+
 				// check to see if the withdrawal has already been successfully
 				// relayed or received
-				isSuccess, err := l1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, hash)
+				isSuccess, err := contracts.L1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, legacyXdmHash)
 				if err != nil {
 					return err
 				}
-				isReceived, err := l1CrossDomainMessenger.ReceivedMessages(&bind.CallOpts{}, hash)
+				isFailed, err := contracts.L1CrossDomainMessenger.FailedMessages(&bind.CallOpts{}, legacyXdmHash)
 				if err != nil {
 					return err
 				}
+
+				// This is just wrong
+				xdmHash := crypto.Keccak256Hash(withdrawal.Data)
+				if err != nil {
+					return err
+				}
+
+				isSuccessNew, err := contracts.L1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, xdmHash)
+				if err != nil {
+					return err
+				}
+				isFailedNew, err := contracts.L1CrossDomainMessenger.FailedMessages(&bind.CallOpts{}, xdmHash)
+				if err != nil {
+					return err
+				}
+
+				log.Info("cross domain messenger status", "hash", legacyXdmHash.Hex(), "success", isSuccess, "failed", isFailed, "is-success-new", isSuccessNew, "is-failed-new", isFailedNew)
+
 				// compute the storage slot
 				slot, err := withdrawal.StorageSlot()
 				if err != nil {
 					return err
 				}
-
-				log.Info("cross domain messenger status", "hash", hash.Hex(), "success", isSuccess, "received", isReceived, "slot", slot.Hex())
-
 				// successful messages can be skipped, received messages failed
 				// their execution and should be replayed
-				if isSuccess {
+				if isSuccessNew {
 					log.Info("Message already relayed", "index", i, "hash", hash, "slot", slot)
 					continue
 				}
 
-				// create the values required for submitting a proof
-				l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, oracle, transitionBlockNumber, l2Client, gclient)
+				// check the storage value of the slot to ensure that it is in
+				// the L2 storage. Without this check, the proof will fail
+				storageValue, err := clients.L2Client.StorageAt(context.Background(), predeploys.L2ToL1MessagePasserAddr, slot, nil)
 				if err != nil {
 					return err
+				}
+				log.Debug("L2ToL1MessagePasser status", "value", common.Bytes2Hex(storageValue))
+
+				// the value should be set to a boolean in storage
+				if !bytes.Equal(storageValue, abiTrue.Bytes()) {
+					return fmt.Errorf("storage slot %x not found in state", slot)
 				}
 
-				opts, err := bind.NewKeyedTransactorWithChainID(privateKey, l1ChainID)
+				legacySlot, err := wd.StorageSlot()
 				if err != nil {
 					return err
 				}
+				legacyStorageValue, err := clients.L2Client.StorageAt(context.Background(), predeploys.LegacyMessagePasserAddr, legacySlot, nil)
+				if err != nil {
+					return err
+				}
+				log.Debug("LegacyMessagePasser status", "value", common.Bytes2Hex(legacyStorageValue))
 
 				// check to see if its already been proven
-				proven, err := portal.ProvenWithdrawals(&bind.CallOpts{}, hash)
+				proven, err := contracts.OptimismPortal.ProvenWithdrawals(&bind.CallOpts{}, hash)
 				if err != nil {
 					return err
 				}
 
-				wdTx := withdrawal.WithdrawalTransaction()
-
-				// check to see if its been proven
 				// if it has not been proven, then prove it
 				if proven.Timestamp.Cmp(common.Big0) == 0 {
 					log.Info("Proving withdrawal to OptimismPortal")
-
-					tx, err := portal.ProveWithdrawalTransaction(
-						opts,
-						wdTx,
-						l2OutputIndex,
-						outputRootProof,
-						trieNodes,
-					)
-
-					if err != nil {
+					if err := proveWithdrawalTransaction(contracts, clients, opts, withdrawal, bedrockStartingBlockNumber, period); err != nil {
 						return err
-					}
-
-					receipt, err := bind.WaitMined(context.Background(), l1Client, tx)
-					if err != nil {
-						return err
-					}
-					if receipt.Status != types.ReceiptStatusSuccessful {
-						return errors.New("withdrawal proof unsuccessful")
-					}
-
-					log.Info("withdrawal proved", "tx-hash", tx.Hash(), "withdrawal-hash", hash)
-
-					block, err := l1Client.BlockByHash(context.Background(), receipt.BlockHash)
-					if err != nil {
-						return err
-					}
-					initialTime := block.Time()
-					for {
-						log.Info("waiting for finalization")
-						if block.Time() >= initialTime+period.Uint64() {
-							log.Info("can be finalized")
-							break
-						}
-						time.Sleep(1 * time.Second)
-						block, err = l1Client.BlockByNumber(context.Background(), nil)
-						if err != nil {
-							return err
-						}
 					}
 				} else {
 					log.Info("Withdrawal already proven to OptimismPortal")
 				}
 
 				// check to see if the withdrawal has been finalized already
-				isFinalized, err := portal.FinalizedWithdrawals(&bind.CallOpts{}, hash)
+				isFinalized, err := contracts.OptimismPortal.FinalizedWithdrawals(&bind.CallOpts{}, hash)
 				if err != nil {
 					return err
 				}
 
 				if !isFinalized {
-					log.Info("Finalizing withdrawal")
-
 					// Get the ETH balance of the withdrawal target *before* the finalization
-					targetBalBefore, err := l1Client.BalanceAt(context.Background(), common.BytesToAddress(wd.Target.Bytes()), nil)
+					targetBalBefore, err := clients.L1Client.BalanceAt(context.Background(), *wd.Target, nil)
+					if err != nil {
+						return err
+					}
+					log.Debug("Balance before finalization", "balance", targetBalBefore, "account", *wd.Target)
+
+					log.Info("Finalizing withdrawal")
+					receipt, err := finalizeWithdrawalTransaction(contracts, clients, opts, wd, withdrawal)
+					log.Info("withdrawal finalized", "tx-hash", receipt.TxHash, "withdrawal-hash", hash)
+
+					finalizationTrace, err := callTrace(clients, receipt)
+					if err != nil {
+						return nil
+					}
+
+					isSuccessNewPost, err := contracts.L1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, xdmHash)
 					if err != nil {
 						return err
 					}
 
-					log.Debug(fmt.Sprintf("Target balance before finalization: %v", targetBalBefore))
-
-					// Finalize withdrawal
-					tx, err := portal.FinalizeWithdrawalTransaction(
-						opts,
-						wdTx,
-					)
-					if err != nil {
-						return err
-					}
-
-					receipt, err := bind.WaitMined(context.Background(), l1Client, tx)
-					if err != nil {
-						return err
-					}
-					if receipt.Status != types.ReceiptStatusSuccessful {
-						return errors.New("withdrawal finalize unsuccessful")
-					}
-
-					log.Info("withdrawal finalized", "tx-hash", tx.Hash(), "withdrawal-hash", hash)
-
-					// fetch the call trace
-					var finalizationTrace callFrame
-					tracer := "callTracer"
-					traceConfig := tracers.TraceConfig{
-						Tracer: &tracer,
-					}
-					err = l1RpcClient.Call(&finalizationTrace, "debug_traceTransaction", receipt.TxHash, traceConfig)
-					if err != nil {
-						return err
+					// This would indicate that there is a replayability problem
+					if isSuccess && isSuccessNewPost {
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "should revert"); err != nil {
+							return err
+						}
+						panic("THIS SHOULD REVERT")
 					}
 
 					callFrame := findWithdrawalCall(&finalizationTrace, wd, l1xdmAddr)
 					if callFrame == nil {
-						return errors.New("cannot find callframe")
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "cannot find callframe"); err != nil {
+							return err
+						}
+						continue
 					}
 
 					traceJson, err := json.MarshalIndent(callFrame, "", "    ")
 					if err != nil {
 						return err
 					}
-					log.Info(fmt.Sprintf("%v", string(traceJson)))
-
-					erc20Abi, err := bindings.ERC20MetaData.GetAbi()
-					if err != nil {
-						return err
-					}
-					transferEvent := erc20Abi.Events["Transfer"]
+					log.Debug(fmt.Sprintf("%v", string(traceJson)))
 
 					abi, err := bindings.L1StandardBridgeMetaData.GetAbi()
 					if err != nil {
@@ -517,79 +439,13 @@ func main() {
 
 						switch method.Name {
 						case "finalizeERC20Withdrawal":
-							// Handle logic for ERC20 withdrawals
-							l1Token, ok := args[0].(common.Address)
-							if !ok {
-								return fmt.Errorf("invalid abi")
-							}
-							l2Token, ok := args[1].(common.Address)
-							if !ok {
-								return fmt.Errorf("invalid abi")
-							}
-							from, ok := args[2].(common.Address)
-							if !ok {
-								return fmt.Errorf("invalid abi")
-							}
-							to, ok := args[3].(common.Address)
-							if !ok {
-								return fmt.Errorf("invalid abi")
-							}
-							amount, ok := args[4].(*big.Int)
-							if !ok {
-								return fmt.Errorf("invalid abi")
-							}
-							extraData, ok := args[5].([]byte)
-							if !ok {
-								return fmt.Errorf("invalid abi")
-							}
-
-							log.Info(
-								"decoded calldata",
-								"l1Token", l1Token,
-								"l2Token", l2Token,
-								"from", from,
-								"to", to,
-								"amount", amount,
-								"extraData", extraData,
-							)
-
-							// Look for the ERC20 token transfer topic
-							for _, l := range receipt.Logs {
-								topic := l.Topics[0]
-								if topic == transferEvent.ID {
-									a, _ := transferEvent.Inputs.Unpack(l.Data)
-									// TODO: add a check here for balance diff
-									log.Info("EVENT FOUND", "args", a)
-								}
-								log.Info("receipt topic", "hex", topic.Hex())
+							if err := handleFinalizeERC20Withdrawal(args, receipt, l1StandardBridgeAddress); err != nil {
+								return err
 							}
 						case "finalizeETHWithdrawal":
-							// handle logic for ETH withdrawals
-							from, ok := args[0].(common.Address)
-							if !ok {
-								return fmt.Errorf("invalid type: from")
+							if err := handleFinalizeETHWithdrawal(args); err != nil {
+								return err
 							}
-							to, ok := args[1].(common.Address)
-							if !ok {
-								return fmt.Errorf("invalid type: to")
-							}
-							amount, ok := args[2].(*big.Int)
-							if !ok {
-								return fmt.Errorf("invalid type: amount")
-							}
-							extraData, ok := args[3].([]byte)
-							if !ok {
-								return fmt.Errorf("invalid type: extraData")
-							}
-
-							log.Info(
-								"decoded calldata",
-								"from", from,
-								"to", to,
-								"amount", amount,
-								"extraData", extraData,
-							)
-
 						default:
 							log.Info("Unhandled method", "name", method.Name)
 						}
@@ -604,55 +460,41 @@ func main() {
 						log.Info("withdrawal action", "function", method.Name, "value", wdValue)
 					} else {
 						log.Info("unknown method", "to", wd.Target, "data", hexutil.Encode(wd.Data))
-
-						badWithdrawals = append(badWithdrawals, badWithdrawal{
-							Withdrawal: withdrawal,
-							Legacy:     wd,
-							Trace:      finalizationTrace,
-							Index:      i,
-						})
-
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "unknown method"); err != nil {
+							return err
+						}
 					}
+
 					// check that the user's intents are actually executed
 					if common.HexToAddress(callFrame.To) != *wd.Target {
-						badWithdrawals = append(badWithdrawals, badWithdrawal{
-							Withdrawal: withdrawal,
-							Legacy:     wd,
-							Trace:      finalizationTrace,
-							Index:      i,
-						})
-
 						log.Info("target mismatch", "index", i)
 
-						continue
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "target mismatch"); err != nil {
+							return err
+						}
+						panic("target mismatch")
+						//continue
 					}
 					if !bytes.Equal(hexutil.MustDecode(callFrame.Input), wd.Data) {
-						badWithdrawals = append(badWithdrawals, badWithdrawal{
-							Withdrawal: withdrawal,
-							Legacy:     wd,
-							Trace:      finalizationTrace,
-							Index:      i,
-						})
-
 						log.Info("calldata mismatch", "index", i)
 
-						continue
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "calldata mismatch"); err != nil {
+							return err
+						}
+						panic("calldata mismatch")
+						//continue
 					}
-					if callFrame.Value != "0x"+wdValue.Text(16) {
-						badWithdrawals = append(badWithdrawals, badWithdrawal{
-							Withdrawal: withdrawal,
-							Legacy:     wd,
-							Trace:      finalizationTrace,
-							Index:      i,
-						})
-
+					if callFrame.BigValue().Cmp(wdValue) != 0 {
 						log.Info("value mismatch", "index", i)
-
-						continue
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "value mismatch"); err != nil {
+							return err
+						}
+						panic("value mismatch")
+						//continue
 					}
 
 					// Get the ETH balance of the withdrawal target *after* the finalization
-					targetBalAfter, err := l1Client.BalanceAt(context.Background(), *wd.Target, nil)
+					targetBalAfter, err := clients.L1Client.BalanceAt(context.Background(), *wd.Target, nil)
 					if err != nil {
 						return err
 					}
@@ -660,26 +502,23 @@ func main() {
 					diff := new(big.Int).Sub(targetBalAfter, targetBalBefore)
 					log.Debug("balances", "before", targetBalBefore, "after", targetBalAfter, "diff", diff)
 
-					if diff.Cmp(wdValue) != 0 {
-						badWithdrawals = append(badWithdrawals, badWithdrawal{
-							Withdrawal: withdrawal,
-							Legacy:     wd,
-							Trace:      finalizationTrace,
-							Index:      i,
-						})
-
-						log.Info("native eth balance diff mismatch", "index", i)
-
-						continue
+					isSuccessNewPost, err = contracts.L1CrossDomainMessenger.SuccessfulMessages(&bind.CallOpts{}, xdmHash)
+					if err != nil {
+						return err
 					}
+
+					if diff.Cmp(wdValue) != 0 && isSuccessNewPost && isSuccess {
+						log.Info("native eth balance diff mismatch", "index", i, "diff", diff, "val", wdValue)
+						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "balance mismatch"); err != nil {
+							return err
+						}
+						panic("balance mismatch")
+						//continue
+					}
+				} else {
+					log.Info("Already finalized")
 				}
 			}
-
-			// Write the stuff to disk
-			if err := writeJSON(ctx.String("bad-withdrawals-out"), badWithdrawals); err != nil {
-				return err
-			}
-
 			return nil
 		},
 	}
@@ -689,14 +528,415 @@ func main() {
 	}
 }
 
-func writeJSON(outfile string, input interface{}) error {
-	f, err := os.OpenFile(outfile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o755)
+func callTrace(c *clients, receipt *types.Receipt) (callFrame, error) {
+	var finalizationTrace callFrame
+	tracer := "callTracer"
+	traceConfig := tracers.TraceConfig{
+		Tracer: &tracer,
+	}
+	err := c.L1RpcClient.Call(&finalizationTrace, "debug_traceTransaction", receipt.TxHash, traceConfig)
+	if err != nil {
+		return finalizationTrace, err
+	}
+	return finalizationTrace, err
+}
+
+func handleFinalizeETHWithdrawal(args []any) error {
+	from, ok := args[0].(common.Address)
+	if !ok {
+		return fmt.Errorf("invalid type: from")
+	}
+	to, ok := args[1].(common.Address)
+	if !ok {
+		return fmt.Errorf("invalid type: to")
+	}
+	amount, ok := args[2].(*big.Int)
+	if !ok {
+		return fmt.Errorf("invalid type: amount")
+	}
+	extraData, ok := args[3].([]byte)
+	if !ok {
+		return fmt.Errorf("invalid type: extraData")
+	}
+
+	log.Info(
+		"decoded calldata",
+		"from", from,
+		"to", to,
+		"amount", amount,
+		"extraData", extraData,
+	)
+
+	return nil
+}
+
+func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1StandardBridgeAddress common.Address) error {
+	erc20Abi, err := bindings.ERC20MetaData.GetAbi()
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	transferEvent := erc20Abi.Events["Transfer"]
 
-	enc := json.NewEncoder(f)
-	enc.SetIndent("", "  ")
-	return enc.Encode(input)
+	// Handle logic for ERC20 withdrawals
+	l1Token, ok := args[0].(common.Address)
+	if !ok {
+		return fmt.Errorf("invalid abi")
+	}
+	l2Token, ok := args[1].(common.Address)
+	if !ok {
+		return fmt.Errorf("invalid abi")
+	}
+	from, ok := args[2].(common.Address)
+	if !ok {
+		return fmt.Errorf("invalid abi")
+	}
+	to, ok := args[3].(common.Address)
+	if !ok {
+		return fmt.Errorf("invalid abi")
+	}
+	amount, ok := args[4].(*big.Int)
+	if !ok {
+		return fmt.Errorf("invalid abi")
+	}
+	extraData, ok := args[5].([]byte)
+	if !ok {
+		return fmt.Errorf("invalid abi")
+	}
+
+	log.Info(
+		"decoded calldata",
+		"l1Token", l1Token,
+		"l2Token", l2Token,
+		"from", from,
+		"to", to,
+		"amount", amount,
+		"extraData", extraData,
+	)
+
+	// Look for the ERC20 token transfer topic
+	for _, l := range receipt.Logs {
+		topic := l.Topics[0]
+		if topic == transferEvent.ID {
+			if l.Address == l1Token {
+				a, _ := transferEvent.Inputs.Unpack(l.Data)
+				if len(l.Topics) < 3 {
+					return fmt.Errorf("")
+				}
+
+				fmt.Printf("%#v\n", l.Topics)
+
+				_from := common.BytesToAddress(l.Topics[1].Bytes())
+				_to := common.BytesToAddress(l.Topics[2].Bytes())
+
+				// from the L1StandardBridge
+				if _from != l1StandardBridgeAddress {
+					return fmt.Errorf("from mismatch: %x - %x", _from, l1StandardBridgeAddress)
+				}
+				if to != _to {
+					return fmt.Errorf("to mismatch: %x - %x", to, _to)
+				}
+				_amount, ok := a[0].(*big.Int)
+				if !ok {
+					return fmt.Errorf("invalid abi in transfer event")
+				}
+				if amount.Cmp(_amount) != 0 {
+					return fmt.Errorf("amount mismatch: %d - %d", amount, _amount)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
+	l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, c.L2OutputOracle, bn, cl)
+	if err != nil {
+		return err
+	}
+
+	hash, err := withdrawal.Hash()
+	if err != nil {
+		return err
+	}
+	wdTx := withdrawal.WithdrawalTransaction()
+
+	tx, err := c.OptimismPortal.ProveWithdrawalTransaction(
+		opts,
+		wdTx,
+		l2OutputIndex,
+		outputRootProof,
+		trieNodes,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	receipt, err := bind.WaitMined(context.Background(), cl.L1Client, tx)
+	if err != nil {
+		return err
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return errors.New("withdrawal proof unsuccessful")
+	}
+
+	log.Info("withdrawal proved", "tx-hash", tx.Hash(), "withdrawal-hash", hash)
+
+	block, err := cl.L1Client.BlockByHash(context.Background(), receipt.BlockHash)
+	if err != nil {
+		return err
+	}
+	initialTime := block.Time()
+	for {
+		log.Info("waiting for finalization")
+		if block.Time() >= initialTime+finalizationPeriod.Uint64() {
+			log.Info("can be finalized")
+			break
+		}
+		time.Sleep(1 * time.Second)
+		block, err = cl.L1Client.BlockByNumber(context.Background(), nil)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func finalizeWithdrawalTransaction(
+	c *contracts,
+	cl *clients,
+	opts *bind.TransactOpts,
+	wd *crossdomain.LegacyWithdrawal,
+	withdrawal *crossdomain.Withdrawal,
+) (*types.Receipt, error) {
+	if wd.Target == nil {
+		return nil, errors.New("withdrawal target is nil, should never happen")
+	}
+
+	wdTx := withdrawal.WithdrawalTransaction()
+
+	// Finalize withdrawal
+	tx, err := c.OptimismPortal.FinalizeWithdrawalTransaction(
+		opts,
+		wdTx,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	receipt, err := bind.WaitMined(context.Background(), cl.L1Client, tx)
+	if err != nil {
+		return nil, err
+	}
+	if receipt.Status != types.ReceiptStatusSuccessful {
+		return nil, errors.New("withdrawal finalize unsuccessful")
+	}
+	return receipt, nil
+}
+
+// contracts represents a set of bound contracts
+type contracts struct {
+	OptimismPortal         *bindings.OptimismPortal
+	L1CrossDomainMessenger *bindings.L1CrossDomainMessenger
+	L2OutputOracle         *bindings.L2OutputOracle
+}
+
+// newContracts will create a contracts struct with the contract bindings
+// preconfigured
+func newContracts(ctx *cli.Context, l1Backend, l2Backend bind.ContractBackend) (*contracts, error) {
+	optimismPortalAddress := ctx.String("optimism-portal-address")
+	if len(optimismPortalAddress) == 0 {
+		return nil, errors.New("OptimismPortal address not configured")
+	}
+	optimismPortalAddr := common.HexToAddress(optimismPortalAddress)
+
+	portal, err := bindings.NewOptimismPortal(optimismPortalAddr, l1Backend)
+	if err != nil {
+		return nil, err
+	}
+
+	l1xdmAddress := ctx.String("l1-crossdomain-messenger-address")
+	if l1xdmAddress == "" {
+		return nil, errors.New("L1CrossDomainMessenger address not configured")
+	}
+	l1xdmAddr := common.HexToAddress(l1xdmAddress)
+
+	l1CrossDomainMessenger, err := bindings.NewL1CrossDomainMessenger(l1xdmAddr, l1Backend)
+	if err != nil {
+		return nil, err
+	}
+
+	l2OracleAddr, err := portal.L2ORACLE(&bind.CallOpts{})
+	if err != nil {
+		return nil, err
+	}
+	oracle, err := bindings.NewL2OutputOracle(l2OracleAddr, l1Backend)
+	if err != nil {
+		return nil, err
+	}
+
+	log.Info(
+		"Addresses",
+		"l1-crossdomain-messenger", l1xdmAddr,
+		"optimism-portal", optimismPortalAddr,
+		"l2-output-oracle", l2OracleAddr,
+	)
+
+	return &contracts{
+		OptimismPortal:         portal,
+		L1CrossDomainMessenger: l1CrossDomainMessenger,
+		L2OutputOracle:         oracle,
+	}, nil
+}
+
+// clients represents a set of initialized RPC clients
+type clients struct {
+	L1Client     *ethclient.Client
+	L2Client     *ethclient.Client
+	L1RpcClient  *rpc.Client
+	L2RpcClient  *rpc.Client
+	L1GethClient *gethclient.Client
+	L2GethClient *gethclient.Client
+}
+
+// newClients will create new RPC clients
+func newClients(ctx *cli.Context) (*clients, error) {
+	l1RpcURL := ctx.String("l1-rpc-url")
+	l1Client, err := ethclient.Dial(l1RpcURL)
+	if err != nil {
+		return nil, err
+	}
+	l1ChainID, err := l1Client.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	l2RpcURL := ctx.String("l2-rpc-url")
+	l2Client, err := ethclient.Dial(l2RpcURL)
+	if err != nil {
+		return nil, err
+	}
+	l2ChainID, err := l2Client.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
+	if err != nil {
+		return nil, err
+	}
+
+	l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
+	if err != nil {
+		return nil, err
+	}
+
+	l1GethClient := gethclient.New(l1RpcClient)
+	l2GethClient := gethclient.New(l2RpcClient)
+
+	log.Info(
+		"Set up RPC clients",
+		"l1-chain-id", l1ChainID,
+		"l2-chain-id", l2ChainID,
+	)
+
+	return &clients{
+		L1Client:     l1Client,
+		L2Client:     l2Client,
+		L1RpcClient:  l1RpcClient,
+		L2RpcClient:  l2RpcClient,
+		L1GethClient: l1GethClient,
+		L2GethClient: l2GethClient,
+	}, nil
+}
+
+// newWithdrawals will create a set of legacy withdrawals
+func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.LegacyWithdrawal, error) {
+	ovmMsgs := ctx.String("ovm-messages")
+	evmMsgs := ctx.String("evm-messages")
+
+	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs)
+	ovmMessages, err := migration.NewSentMessage(ovmMsgs)
+	if err != nil {
+		return nil, err
+	}
+
+	// use empty ovmMessages if its not mainnet
+	if l1ChainID.Cmp(common.Big1) != 0 {
+		log.Info("not using ovm messages because its not mainnet")
+		ovmMessages = []*migration.SentMessage{}
+	}
+
+	evmMessages, err := migration.NewSentMessage(evmMsgs)
+	if err != nil {
+		return nil, err
+	}
+
+	migrationData := migration.MigrationData{
+		OvmMessages: ovmMessages,
+		EvmMessages: evmMessages,
+	}
+
+	wds, err := migrationData.ToWithdrawals()
+	if err != nil {
+		return nil, err
+	}
+	if len(wds) == 0 {
+		return nil, errors.New("no withdrawals")
+	}
+	log.Info("Converted migration data to withdrawals successfully", "count", len(wds))
+
+	return wds, nil
+}
+
+// newTransactor creates a new transact context given a cli context
+func newTransactor(ctx *cli.Context) (*bind.TransactOpts, error) {
+	if ctx.String("private-key") == "" {
+		return nil, errors.New("No private key to transact with")
+	}
+	privateKey, err := crypto.HexToECDSA(strings.TrimPrefix(ctx.String("private-key"), "0x"))
+	if err != nil {
+		return nil, err
+	}
+
+	l1RpcURL := ctx.String("l1-rpc-url")
+	l1Client, err := ethclient.Dial(l1RpcURL)
+	if err != nil {
+		return nil, err
+	}
+	l1ChainID, err := l1Client.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	opts, err := bind.NewKeyedTransactorWithChainID(privateKey, l1ChainID)
+	if err != nil {
+		return nil, err
+	}
+	return opts, nil
+}
+
+func writeSuspicious(
+	f *os.File,
+	withdrawal *crossdomain.Withdrawal,
+	wd *crossdomain.LegacyWithdrawal,
+	finalizationTrace callFrame,
+	i int,
+	reason string,
+) error {
+	bad := suspiciousWithdrawal{
+		Withdrawal: withdrawal,
+		Legacy:     wd,
+		Trace:      finalizationTrace,
+		Index:      i,
+		Reason:     reason,
+	}
+
+	data, err := json.Marshal(bad)
+	if err != nil {
+		return err
+	}
+	_, err = f.WriteString(string(data) + "\n")
+	return err
 }
