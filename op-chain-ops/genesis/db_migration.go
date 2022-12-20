@@ -268,6 +268,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		}
 	}
 	// Check that all of the input messages are legit
+	var fail bool
 	for slot := range knownSlots {
 		//nolint:staticcheck
 		_, ok := slots[slot]
@@ -282,8 +283,12 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 				"sender", wd.Sender,
 				"data", wd.Data,
 			)
-			return fmt.Errorf("Unknown input message: %s", slot)
+			fail = true
 		}
+	}
+
+	if fail {
+		return fmt.Errorf("Unknown input messages found")
 	}
 
 	return nil
