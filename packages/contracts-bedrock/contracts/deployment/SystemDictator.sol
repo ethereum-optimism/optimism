@@ -78,6 +78,7 @@ contract SystemDictator is OwnableUpgradeable {
         uint256 scalar;
         bytes32 batcherHash;
         uint64 gasLimit;
+        address unsafeBlockSigner;
     }
 
     /**
@@ -353,7 +354,8 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.overhead,
                     config.systemConfigConfig.scalar,
                     config.systemConfigConfig.batcherHash,
-                    config.systemConfigConfig.gasLimit
+                    config.systemConfigConfig.gasLimit,
+                    config.systemConfigConfig.unsafeBlockSigner
                 )
             )
         );
