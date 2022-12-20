@@ -1,4 +1,4 @@
-package op_proposer
+package proposer
 
 import (
 	"time"
