@@ -276,3 +276,12 @@ export const getDeploymentAddress = async (
   const deployment = await hre.deployments.get(name)
   return deployment.address
 }
+
+export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
+  return JSON.stringify({
+    to: tx.to,
+    data: tx.data,
+    value: tx.value,
+    chainId: tx.chainId,
+  }, null, 2)
+}
