@@ -2,6 +2,7 @@ package genesis
 
 import (
 	"bytes"
+	"encoding/hex"
 	"fmt"
 	"math/big"
 
@@ -281,7 +282,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 				"nonce", wd.Nonce,
 				"target", wd.Target,
 				"sender", wd.Sender,
-				"data", wd.Data,
+				"data", hex.EncodeToString(wd.Data),
 			)
 			fail = true
 		}
