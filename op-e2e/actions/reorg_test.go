@@ -21,8 +21,16 @@ import (
 
 func setupReorgTest(t Testing) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+
+	// -- DEBUG: Overwrite config values for `TestDeepReorg` --
+	// TODO: Fix so that this doesn't affect the config for other tests.
+	dp.DeployConfig.SequencerWindowSize = 20
+	dp.DeployConfig.L1BlockTime = 4
+	// -- snip --
+
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
+
 	return setupReorgTestActors(t, dp, sd, log)
 }
 
@@ -278,36 +286,36 @@ func TestReorgFlipFlop(gt *testing.T) {
 // 7. ...
 //
 // Chain A
-// - 241 blocks total
-//   - 240 blank
-//   - 241 includes batch with blocks [1, 240]
+// - 41 blocks total
+//   - 40 empty blocks
+//   - 41 includes batch with blocks [1, 240]
 //
 // Verifier
-// - Prior to batch submission, safe head origin is block 120
-// - After batch, safe head origin is block 240
-// - Unsafe head origin is 241
+// - Prior to batch submission, safe head origin is block 20
+// - After batch, safe head origin is block 40
+// - Unsafe head origin is 41
 //
-// Reorg L1 (start: block #240, depth: 122 blocks)
+// Reorg L1 (start: block #41, depth: 22 blocks)
 // - Rewind depth: Batch submission block + SeqWindowSize+1 blocks
-// - Wind back to block #119 on chain A
+// - Wind back to block #19 on chain A
 //
 // Before building L2 to L1 head:
 // Verifier
-// - Unsafe head L1 origin is 119
+// - Unsafe head L1 origin is 19
 // - Safe head L1 origin is at genesis (?)
-//   - Actual: Safe head is at block #123
+//   - Actual: Safe head is at block #23 (?)
 //
 // Build Chain B
-// - 242 blocks total
-//   - 119 blocks left over from chain A
-//   - 121 empty blocks
-//   - batch block (241)
-//   - longer block (242)
+// - 42 blocks total
+//   - 19 empty blocks left over from chain A
+//   - 21 empty blocks
+//   - batch block (41)
+//   - empty block (42)
 //
 // After building L2 to L1 head:
 // Verifier (?)
-// - Unsafe head is 242 (?)
-// - Safe head is 240 (?)
+// - Unsafe head is 42 (?)
+// - Safe head is 40 (?)
 func TestDeepReorg(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 
@@ -322,18 +330,19 @@ func TestDeepReorg(gt *testing.T) {
 	}
 
 	// Run one iteration of the L2 derivation pipeline
+	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
 	verifier.ActL2PipelineFull(t)
 
 	// TODO: Remove, just for sanity checking
-	require.Equal(t, sd.RollupCfg.SeqWindowSize, uint64(120))
+	require.Equal(t, sd.RollupCfg.SeqWindowSize, uint64(20))
 	require.Equal(t, uint64(0), verifier.L2Safe().L1Origin.Number)
 
 	// Start building chain A
 	miner.ActL1SetFeeRecipient(common.Address{0x0A, 0x00})
 
 	// Create a var for the second to last block ref of the first sequencing window
-	var blockA119 eth.L1BlockRef
+	var blockA19 eth.L1BlockRef
 
 	// Mine enough empty blocks on L1 to reach two sequence windows.
 	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize*2; i++ {
@@ -345,25 +354,25 @@ func TestDeepReorg(gt *testing.T) {
 		// sequence windows worth of transactions)
 		if i == sd.RollupCfg.SeqWindowSize-2 {
 			var err error
-			blockA119, err = minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+			blockA19, err = minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 			require.NoError(t, err)
 		}
 	}
 
 	// Get the last empty block built in the loop above.
 	// This will be the last block in the second sequencing window.
-	blockA240, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	blockA40, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 
 	// Create L2 blocks and reference the L1 head as the origin
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActBuildToL1Head(t)
 
-	// Check that the safe head's L1 origin is block #121 before batch submission
-	// Question: Shouldn't the safe head be @ #120?
-	require.Equal(t, uint64(121), sequencer.L2Safe().L1Origin.Number)
-	// Check that the unsafe head's L1 origin is block #240
-	require.Equal(t, blockA240.ID(), sequencer.L2Unsafe().L1Origin)
+	// Check that the safe head's L1 origin is block #21 before batch submission
+	// Question: Shouldn't the safe head be @ #20?
+	require.Equal(t, uint64(21), sequencer.L2Safe().L1Origin.Number)
+	// Check that the unsafe head's L1 origin is block #40
+	require.Equal(t, blockA40.ID(), sequencer.L2Unsafe().L1Origin)
 
 	// Batch and submit all new L2 blocks that were built above to L1
 	batcher.ActSubmitAll(t)
@@ -384,7 +393,7 @@ func TestDeepReorg(gt *testing.T) {
 	// We check that the L2 safe L1 origin is block A240, or the last block
 	// within the second sequencing window. This is the block directly before
 	// the block that included the batch on chain A.
-	require.Equal(t, blockA240.ID(), verifier.L2Safe().L1Origin)
+	require.Equal(t, blockA40.ID(), verifier.L2Safe().L1Origin)
 	checkVerifEngine()
 
 	// Perform a deep reorg the size of one sequencing window.
@@ -396,11 +405,11 @@ func TestDeepReorg(gt *testing.T) {
 	// sequencing window.
 	headAfterReorg, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	require.Equal(t, blockA119.ID(), headAfterReorg.ID())
+	require.Equal(t, blockA19.ID(), headAfterReorg.ID())
 
 	// Ensure that the safe L2 chain has not been altered yet- we have not issued
 	// a head signal.
-	require.Equal(t, blockA240.ID(), verifier.L2Safe().L1Origin)
+	require.Equal(t, blockA40.ID(), verifier.L2Safe().L1Origin)
 
 	// --------- [ CHAIN B ] ---------
 
@@ -413,10 +422,10 @@ func TestDeepReorg(gt *testing.T) {
 	}
 
 	// Get the last unsafe block on chain B after creating SeqWindowSize+1 empty blocks
-	blockB240, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	blockB40, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
-	// Ensure blockB240 is #240 on chain B
-	require.Equal(t, uint64(240), blockB240.Number)
+	// Ensure blockB40 is #40 on chain B
+	require.Equal(t, uint64(40), blockB40.Number)
 
 	// Re-include the batch that included two sequence windows worth of transactions
 	// that was built on chain A. This batch will be invalid on chain B.
@@ -427,10 +436,10 @@ func TestDeepReorg(gt *testing.T) {
 	miner.ActL1EndBlock(t)
 
 	// make B2, the reorg is picked up when we have a new, longer chain.
-	// This will be block #242 on chain B.
+	// This will be block #42 on chain B.
 	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x02})
 	miner.ActEmptyBlock(t)
-	blockB242, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	blockB42, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 
 	// -- slightly modified logic from TestReorgFlipFlop. Logic below is likely incorrect. --
@@ -439,9 +448,9 @@ func TestDeepReorg(gt *testing.T) {
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActBuildToL1Head(t)
-	// require.Equal(t, blockB240.ID(), verifier.L2Safe().L1Origin, "expected to be back at genesis origin after losing A0 and A1")
+	// require.Equal(t, blockB40.ID(), verifier.L2Safe().L1Origin, "expected to be back at genesis origin after losing A0 and A1")
 
-	require.Equal(t, uint64(242), sequencer.L2Unsafe().L1Origin.Number)
+	require.Equal(t, uint64(42), sequencer.L2Unsafe().L1Origin.Number)
 	require.NotZero(t, verifier.L2Safe().Number, "still preserving old L2 blocks that did not reference reorged L1 chain (assuming more than one L2 block per L1 block)")
 	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "head is at safe block after L1 reorg")
 	checkVerifEngine()
@@ -450,7 +459,7 @@ func TestDeepReorg(gt *testing.T) {
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActBuildToL1Head(t)
-	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB242.ID(), "B2 is the unsafe L1 origin of sequencer now")
+	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB42.ID(), "B42 is the unsafe L1 origin of sequencer now")
 	// -- snip --
 }
 
