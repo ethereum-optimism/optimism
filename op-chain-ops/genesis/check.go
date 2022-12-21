@@ -72,6 +72,10 @@ func CheckPredeploys(db *state.StateDB) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
+		if UntouchableProxyAddresses[addr] {
+			continue
+		}
+
 		// There must be an admin
 		admin := db.GetState(addr, AdminSlot)
 		adminAddr := common.BytesToAddress(admin.Bytes())
