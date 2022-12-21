@@ -125,19 +125,30 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		return err
 	}
 	for _, wd := range wds {
+		legacySlot, err := wd.StorageSlot()
+		if err != nil {
+			return fmt.Errorf("cannot compute legacy storage slot: %w", err)
+		}
+
+		legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
+		if legacyValue != abiTrue {
+			log.Warn("legacy value is not ABI true", "legacySlot", legacySlot, "legacyValue", legacyValue)
+			//return fmt.Errorf("legacy value is not ABI true: %s", legacyValue)
+		}
+
 		withdrawal, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
 		if err != nil {
 			return err
 		}
 
-		slot, err := withdrawal.StorageSlot()
+		migratedSlot, err := withdrawal.StorageSlot()
 		if err != nil {
 			return fmt.Errorf("cannot compute withdrawal storage slot: %w", err)
 		}
 
-		value := db.GetState(predeploys.L2ToL1MessagePasserAddr, slot)
+		value := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
 		if value != abiTrue {
-			log.Warn("withdrawal not set to ABI true", "slot", slot, "value", value)
+			log.Warn("withdrawal not set to ABI true", "slot", migratedSlot, "value", value)
 			//return fmt.Errorf("withdrawal %s not set to ABI true", withdrawal.Nonce)
 		}
 	}
