@@ -118,11 +118,6 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 	log.Info("Completed withdrawal migration")
 
-	//_, err = db.Commit(true)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot commit state: %w", err)
-	//}
-
 	//log.Info("Starting to migrate ERC20 ETH")
 	//addrs := migrationData.Addresses()
 	//err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
