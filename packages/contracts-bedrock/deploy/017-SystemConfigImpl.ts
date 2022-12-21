@@ -45,6 +45,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['SystemConfigImpl']
+deployFn.tags = ['SystemConfigImpl', 'setup']
 
 export default deployFn
