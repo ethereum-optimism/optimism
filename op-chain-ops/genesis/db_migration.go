@@ -91,6 +91,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		log.Info("Skipping checking withdrawals")
 	}
 
+	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
+	if err != nil {
+		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
+	}
+	log.Info("Completed withdrawal migration")
+
 	// Now start the migration
 	log.Info("Setting the Proxies")
 	if err := SetL2Proxies(db); err != nil {
@@ -120,13 +127,6 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	//if err != nil {
 	//	return nil, fmt.Errorf("cannot commit state: %w", err)
 	//}
-
-	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
-	if err != nil {
-		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
-	}
-	log.Info("Completed withdrawal migration")
 
 	//log.Info("Starting to migrate ERC20 ETH")
 	//addrs := migrationData.Addresses()
