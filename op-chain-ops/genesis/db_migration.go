@@ -258,8 +258,8 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		slotsWds[slot] = wd
 	}
 
-	if db.GetState(common.Address{0: 0x42}, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
-		log.Info("it worked now")
+	if db.GetCommittedState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
+		return errors.New("it worked now")
 	} else {
 		return errors.New("it didn't work")
 	}
