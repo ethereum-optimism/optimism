@@ -46,11 +46,11 @@ indicates when the predeploy was introduced. The possible values are `Legacy`
 or `Bedrock`. Deprecated contracts should not be used.
 
 | Name                          | Address                                    | Introduced | Deprecated | Proxied |
-| ----------------------------- | ------------------------------------------ | ---------- | ---------- | ------- |
+| ----------------------------- | ------------------------------------------ | ---------- | ---------- |---------|
 | LegacyMessagePasser           | 0x4200000000000000000000000000000000000000 | Legacy     | Yes        | Yes     |
 | DeployerWhitelist             | 0x4200000000000000000000000000000000000002 | Legacy     | Yes        | Yes     |
 | LegacyERC20ETH                | 0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000 | Legacy     | Yes        | No      |
-| WETH9                         | 0x4200000000000000000000000000000000000006 | Legacy     | No         | Yes     |
+| WETH9                         | 0x4200000000000000000000000000000000000006 | Legacy     | No         | No      |
 | L2CrossDomainMessenger        | 0x4200000000000000000000000000000000000007 | Legacy     | No         | Yes     |
 | L2StandardBridge              | 0x4200000000000000000000000000000000000010 | Legacy     | No         | Yes     |
 | SequencerFeeVault             | 0x4200000000000000000000000000000000000011 | Legacy     | No         | Yes     |
