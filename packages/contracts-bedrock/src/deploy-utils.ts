@@ -278,10 +278,14 @@ export const getDeploymentAddress = async (
 }
 
 export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
-  return JSON.stringify({
-    to: tx.to,
-    data: tx.data,
-    value: tx.value,
-    chainId: tx.chainId,
-  }, null, 2)
+  return JSON.stringify(
+    {
+      to: tx.to,
+      data: tx.data,
+      value: tx.value,
+      chainId: tx.chainId,
+    },
+    null,
+    2
+  )
 }
