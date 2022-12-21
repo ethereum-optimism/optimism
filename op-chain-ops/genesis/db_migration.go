@@ -3,6 +3,7 @@ package genesis
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -260,7 +261,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 	if db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
 		log.Info("it worked now")
 	} else {
-		log.Warn("it didn't happen")
+		return errors.New("it didn't work")
 	}
 
 	// Build a map of all the slots in the LegacyMessagePasser
