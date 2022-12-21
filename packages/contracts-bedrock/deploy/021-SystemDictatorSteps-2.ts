@@ -10,8 +10,9 @@ import '@nomiclabs/hardhat-ethers'
 import {
   assertContractVariable,
   getContractsFromArtifacts,
-  getDeploymentAddress,
   jsonifyTransaction,
+  isStep,
+  doStep,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -24,13 +25,10 @@ const deployFn: DeployFunction = async (hre) => {
     AddressManager,
     L1CrossDomainMessenger,
     L1StandardBridgeProxy,
-    L1StandardBridgeProxyWithSigner,
     L1StandardBridge,
     L2OutputOracle,
     OptimismPortal,
     OptimismMintableERC20Factory,
-    L1ERC721BridgeProxy,
-    L1ERC721BridgeProxyWithSigner,
     L1ERC721Bridge,
     SystemConfigProxy,
   ] = await getContractsFromArtifacts(hre, [
@@ -57,10 +55,6 @@ const deployFn: DeployFunction = async (hre) => {
     },
     {
       name: 'Proxy__OVM_L1StandardBridge',
-      signerOrProvider: deployer,
-    },
-    {
-      name: 'Proxy__OVM_L1StandardBridge',
       iface: 'L1StandardBridge',
       signerOrProvider: deployer,
     },
@@ -81,13 +75,6 @@ const deployFn: DeployFunction = async (hre) => {
     },
     {
       name: 'L1ERC721BridgeProxy',
-    },
-    {
-      name: 'L1ERC721BridgeProxy',
-      signerOrProvider: deployer,
-    },
-    {
-      name: 'L1ERC721BridgeProxy',
       iface: 'L1ERC721Bridge',
       signerOrProvider: deployer,
     },
@@ -102,266 +89,10 @@ const deployFn: DeployFunction = async (hre) => {
   const isLiveDeployer =
     deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
 
-  // Transfer ownership of the ProxyAdmin to the SystemDictator.
-  if ((await ProxyAdmin.owner()) !== SystemDictator.address) {
-    console.log(`Setting ProxyAdmin owner to MSD`)
-    await ProxyAdmin.transferOwnership(SystemDictator.address)
-  } else {
-    console.log(`Proxy admin already owned by MSD`)
-  }
-
-  // We don't need to transfer proxy addresses if we're already beyond the proxy transfer step.
-  const needsProxyTransfer =
-    (await SystemDictator.currentStep()) <=
-    (await SystemDictator.PROXY_TRANSFER_STEP())
-
-  // Transfer ownership of the AddressManager to SystemDictator.
-  if (
-    needsProxyTransfer &&
-    (await AddressManager.owner()) !== SystemDictator.address
-  ) {
-    if (isLiveDeployer) {
-      console.log(`Setting AddressManager owner to MSD`)
-      await AddressManager.transferOwnership(SystemDictator.address)
-    } else {
-      const tx = await AddressManager.populateTransaction.transferOwnership(
-        SystemDictator.address
-      )
-      console.log(`Please transfer AddressManager owner to MSD`)
-      console.log(`AddressManager address: ${AddressManager.address}`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-    }
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await AddressManager.owner()
-        return owner === SystemDictator.address
-      },
-      30000,
-      1000
-    )
-  } else {
-    console.log(`AddressManager already owned by the SystemDictator`)
-  }
-
-  // Transfer ownership of the L1CrossDomainMessenger to SystemDictator.
-  if (
-    needsProxyTransfer &&
-    (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) !==
-      ethers.constants.AddressZero &&
-    (await L1CrossDomainMessenger.owner()) !== SystemDictator.address
-  ) {
-    if (isLiveDeployer) {
-      console.log(`Setting L1CrossDomainMessenger owner to MSD`)
-      await L1CrossDomainMessenger.transferOwnership(SystemDictator.address)
-    } else {
-      const tx =
-        await L1CrossDomainMessenger.populateTransaction.transferOwnership(
-          SystemDictator.address
-        )
-      console.log(`Please transfer L1CrossDomainMessenger owner to MSD`)
-      console.log(`L1XDM address: ${L1CrossDomainMessenger.address}`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-    }
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await L1CrossDomainMessenger.owner()
-        return owner === SystemDictator.address
-      },
-      30000,
-      1000
-    )
-  } else {
-    console.log(`L1CrossDomainMessenger already owned by MSD`)
-  }
-
-  // Transfer ownership of the L1StandardBridge (proxy) to SystemDictator.
-  if (
-    needsProxyTransfer &&
-    (await L1StandardBridgeProxy.callStatic.getOwner({
-      from: ethers.constants.AddressZero,
-    })) !== SystemDictator.address
-  ) {
-    if (isLiveDeployer) {
-      console.log(`Setting L1StandardBridge owner to MSD`)
-      await L1StandardBridgeProxyWithSigner.setOwner(SystemDictator.address)
-    } else {
-      const tx = await L1StandardBridgeProxy.populateTransaction.setOwner(
-        SystemDictator.address
-      )
-      console.log(`Please transfer L1StandardBridge (proxy) owner to MSD`)
-      console.log(
-        `L1StandardBridgeProxy address: ${L1StandardBridgeProxy.address}`
-      )
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-    }
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await L1StandardBridgeProxy.callStatic.getOwner({
-          from: ethers.constants.AddressZero,
-        })
-        return owner === SystemDictator.address
-      },
-      30000,
-      1000
-    )
-  } else {
-    console.log(`L1StandardBridge already owned by MSD`)
-  }
-
-  // Transfer ownership of the L1ERC721Bridge (proxy) to SystemDictator.
-  if (
-    needsProxyTransfer &&
-    (await L1ERC721BridgeProxy.callStatic.admin({
-      from: ethers.constants.AddressZero,
-    })) !== SystemDictator.address
-  ) {
-    if (isLiveDeployer) {
-      console.log(`Setting L1ERC721Bridge owner to MSD`)
-      await L1ERC721BridgeProxyWithSigner.changeAdmin(SystemDictator.address)
-    } else {
-      const tx = await L1ERC721BridgeProxy.populateTransaction.changeAdmin(
-        SystemDictator.address
-      )
-      console.log(`Please transfer L1ERC721Bridge (proxy) owner to MSD`)
-      console.log(`L1ERC721BridgeProxy address: ${L1ERC721BridgeProxy.address}`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-    }
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await L1ERC721BridgeProxy.callStatic.admin({
-          from: ethers.constants.AddressZero,
-        })
-        return owner === SystemDictator.address
-      },
-      30000,
-      1000
-    )
-  } else {
-    console.log(`L1ERC721Bridge already owned by MSD`)
-  }
-
-  /**
-   * Mini helper for checking if the current step is a target step.
-   *
-   * @param step Target step.
-   * @returns True if the current step is the target step.
-   */
-  const isStep = async (step: number): Promise<boolean> => {
-    return (await SystemDictator.currentStep()) === step
-  }
-
-  /**
-   * Mini helper for executing a given step.
-   *
-   * @param opts Options for executing the step.
-   * @param opts.step Step to execute.
-   * @param opts.message Message to print before executing the step.
-   * @param opts.checks Checks to perform after executing the step.
-   */
-  const doStep = async (opts: {
-    step: number
-    message: string
-    checks: () => Promise<void>
-  }): Promise<void> => {
-    if (!(await isStep(opts.step))) {
-      console.log(`Step already completed: ${opts.step}`)
-      return
-    }
-
-    // Extra message to help the user understand what's going on.
-    console.log(opts.message)
-
-    // Either automatically or manually execute the step.
-    if (isLiveDeployer) {
-      console.log(`Executing step ${opts.step}...`)
-      await SystemDictator[`step${opts.step}`]()
-    } else {
-      const tx = await SystemDictator.populateTransaction[`step${opts.step}`]()
-      console.log(`Please execute step ${opts.step}...`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-    }
-
-    // Wait for the step to complete.
-    await awaitCondition(
-      async () => {
-        return (await SystemDictator.currentStep()) === opts.step + 1
-      },
-      30000,
-      1000
-    )
-
-    // Perform post-step checks.
-    await opts.checks()
-  }
-
-  // Step 1 is a freebie, it doesn't impact the system.
-  await doStep({
-    step: 1,
-    message: `
-      Step 1 will configure the ProxyAdmin contract, you can safely execute this step at any time
-      without impacting the functionality of the rest of the system.
-    `,
-    checks: async () => {
-      await assertContractVariable(
-        ProxyAdmin,
-        'addressManager',
-        AddressManager.address
-      )
-      assert(
-        (await ProxyAdmin.implementationName(
-          getDeploymentAddress(hre, 'Proxy__OVM_L1CrossDomainMessenger')
-        )) === 'OVM_L1CrossDomainMessenger'
-      )
-      assert(
-        (await ProxyAdmin.proxyType(
-          getDeploymentAddress(hre, 'Proxy__OVM_L1CrossDomainMessenger')
-        )) === 2
-      )
-      assert(
-        (await ProxyAdmin.proxyType(
-          getDeploymentAddress(hre, 'Proxy__OVM_L1StandardBridge')
-        )) === 1
-      )
-    },
-  })
-
-  // Step 2 shuts down the system.
-  await doStep({
-    step: 2,
-    message: `
-      Step 2 will stop deposits and withdrawals via the L1CrossDomainMessenger and will stop the
-      DTL from syncing new deposits via the CTC, effectively shutting down the legacy system. Once
-      this step has been executed, you should immediately begin the L2 migration process. If you
-      need to restart the system, run exit1() followed by finalize().
-    `,
-    checks: async () => {
-      assert(
-        (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
-          ethers.constants.AddressZero
-      )
-    },
-  })
-
   // Step 3 clears out some state from the AddressManager.
   await doStep({
+    isLiveDeployer,
+    SystemDictator,
     step: 3,
     message: `
       Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
@@ -399,6 +130,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Step 4 transfers ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
   await doStep({
+    isLiveDeployer,
+    SystemDictator,
     step: 4,
     message: `
       Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
@@ -415,7 +148,10 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   // Make sure the dynamic system configuration has been set.
-  if ((await isStep(5)) && !(await SystemDictator.dynamicConfigSet())) {
+  if (
+    (await isStep(SystemDictator, 5)) &&
+    !(await SystemDictator.dynamicConfigSet())
+  ) {
     console.log(`
       You must now set the dynamic L2OutputOracle configuration by calling the function
       updateL2OutputOracleDynamicConfig. You will need to provide the
@@ -461,6 +197,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Step 5 initializes all contracts and pauses the new L1CrossDomainMessenger.
   await doStep({
+    isLiveDeployer,
+    SystemDictator,
     step: 5,
     message: `
       Step 5 will initialize all Bedrock contracts but will leave the new L1CrossDomainMessenger
@@ -575,6 +313,8 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Step 6 unpauses the new L1CrossDomainMessenger.
   await doStep({
+    isLiveDeployer,
+    SystemDictator,
     step: 6,
     message: `
       Step 6 will unpause the new L1CrossDomainMessenger. After this step is executed, users will
@@ -587,7 +327,7 @@ const deployFn: DeployFunction = async (hre) => {
   })
 
   // At the end we finalize the upgrade.
-  if (await isStep(7)) {
+  if (await isStep(SystemDictator, 7)) {
     console.log(`
       You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
       transfer ownership of the ProxyAdmin and the L1CrossDomainMessenger to the final system owner
@@ -626,6 +366,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['SystemDictatorSteps']
+deployFn.tags = ['SystemDictatorSteps', 'phase2']
 
 export default deployFn
