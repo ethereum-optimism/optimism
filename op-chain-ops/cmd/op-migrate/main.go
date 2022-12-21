@@ -195,7 +195,7 @@ func main() {
 				return err
 			}
 
-			if err := genesis.CheckMigratedDB(postLDB, migrationData, &config.L1CrossDomainMessengerProxy); err != nil {
+			if err := genesis.PostCheckMigratedDB(postLDB, migrationData, &config.L1CrossDomainMessengerProxy); err != nil {
 				return err
 			}
 

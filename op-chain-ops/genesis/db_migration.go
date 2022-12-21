@@ -2,10 +2,10 @@ package genesis
 
 import (
 	"bytes"
-	"encoding/hex"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -83,7 +83,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	if !noCheck {
 		log.Info("Checking withdrawals...")
-		if err := CheckWithdrawals(db, withdrawals); err != nil {
+		if err := CheckWithdrawals(db, withdrawals, int(config.L1ChainID)); err != nil {
 			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 		}
 		log.Info("Withdrawals accounted for!")
@@ -116,19 +116,19 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, int(config.L1ChainID), noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
 	log.Info("Completed withdrawal migration")
 
-	//log.Info("Starting to migrate ERC20 ETH")
-	//addrs := migrationData.Addresses()
-	//err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
-	//}
-	//log.Info("Completed ERC20 ETH migration")
+	log.Info("Starting to migrate ERC20 ETH")
+	addrs := migrationData.Addresses()
+	err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
+	if err != nil {
+		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
+	}
+	log.Info("Completed ERC20 ETH migration")
 
 	newRoot, err := db.Commit(true)
 	if err != nil {
@@ -236,17 +236,21 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 // CheckWithdrawals will ensure that the entire list of withdrawals is being
 // operated on during the database migration.
-func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
+func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal, l1ChainID int) error {
 	// Create a mapping of all of their storage slots
 	knownSlots := make(map[common.Hash]bool)
-	slotsWds := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
 	for _, wd := range withdrawals {
 		slot, err := wd.StorageSlot()
 		if err != nil {
 			return fmt.Errorf("cannot check withdrawals: %w", err)
 		}
+
+		if migration.ParamsByChainID[l1ChainID].IgnoredWithdrawalSlots[slot] {
+			log.Info("ignoring slot", "slot", slot)
+			continue
+		}
+
 		knownSlots[slot] = true
-		slotsWds[slot] = wd
 	}
 
 	// Build a map of all the slots in the LegacyMessagePasser
@@ -280,15 +284,7 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		_, ok := slots[slot]
 		//nolint:staticcheck
 		if !ok {
-			wd := slotsWds[slot]
-			log.Warn(
-				"unknown input message",
-				"slot", slot.String(),
-				"nonce", wd.Nonce,
-				"target", wd.Target,
-				"sender", wd.Sender,
-				"data", hex.EncodeToString(wd.Data),
-			)
+			return fmt.Errorf("unknown storage slot in input: %s", slot)
 		}
 	}
 

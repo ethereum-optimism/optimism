@@ -24,16 +24,17 @@ import (
 const MaxSlotChecks = 5000
 
 var LegacyETHCheckSlots = map[common.Hash]common.Hash{
-	// Total Supply
-	common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"): {},
-	// Name
-	common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"): common.HexToHash("0x4f7074696d69736d000000000000000000000000000000000000000000000010"),
+	common.Hash{31: 0x06}: {31: 0x10},
 	// Symbol
-	common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"): common.HexToHash("0x4f50000000000000000000000000000000000000000000000000000000000004"),
+	common.Hash{31: 0x04}: common.HexToHash("0x4554480000000000000000000000000000000000000000000000000000000006"),
+	// Name
+	common.Hash{31: 0x03}: common.HexToHash("0x457468657200000000000000000000000000000000000000000000000000000a"),
+	// Total supply
+	common.Hash{31: 0x02}: {},
 }
 
-// CheckMigratedDB will check that the migration was performed correctly
-func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
+// PostCheckMigratedDB will check that the migration was performed correctly
+func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
 	log.Info("Validating database migration")
 
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -58,17 +59,17 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	if err := CheckUntouchables(underlyingDB, db, prevHeader.Root); err != nil {
+	if err := PostCheckUntouchables(underlyingDB, db, prevHeader.Root); err != nil {
 		return err
 	}
 	log.Info("checked untouchables")
 
-	if err := CheckPredeploys(db); err != nil {
+	if err := PostCheckPredeploys(db); err != nil {
 		return err
 	}
 	log.Info("checked predeploys")
 
-	if err := CheckLegacyETH(db); err != nil {
+	if err := PostCheckLegacyETH(db); err != nil {
 		return err
 	}
 	log.Info("checked legacy eth")
@@ -81,9 +82,9 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 	return nil
 }
 
-// CheckUntouchables will check that the untouchable contracts have
+// PostCheckUntouchables will check that the untouchable contracts have
 // not been modified by the migration process.
-func CheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot common.Hash) error {
+func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot common.Hash) error {
 	prevDB, err := state.New(prevRoot, udb, nil)
 	if err != nil {
 		return fmt.Errorf("cannot open StateDB: %w", err)
@@ -122,9 +123,9 @@ func CheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot commo
 	return nil
 }
 
-// CheckPredeploys will check that there is code at each predeploy
+// PostCheckPredeploys will check that there is code at each predeploy
 // address
-func CheckPredeploys(db *state.StateDB) error {
+func PostCheckPredeploys(db *state.StateDB) error {
 	for i := uint64(0); i <= 2048; i++ {
 		// Compute the predeploy address
 		bigAddr := new(big.Int).Or(bigL2PredeployNamespace, new(big.Int).SetUint64(i))
@@ -189,9 +190,9 @@ func CheckPredeploys(db *state.StateDB) error {
 	return nil
 }
 
-// CheckLegacyETH checks that the legacy eth migration was successful.
+// PostCheckLegacyETH checks that the legacy eth migration was successful.
 // It currently only checks that the total supply was set to 0.
-func CheckLegacyETH(db vm.StateDB) error {
+func PostCheckLegacyETH(db vm.StateDB) error {
 	for slot, expValue := range LegacyETHCheckSlots {
 		actValue := db.GetState(predeploys.LegacyERC20ETHAddr, slot)
 		if actValue != expValue {
@@ -202,8 +203,6 @@ func CheckLegacyETH(db vm.StateDB) error {
 	return nil
 }
 
-// add another check to make sure that the withdrawals are set to ABI true
-// for the hash
 func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
 	wds, err := data.ToWithdrawals()
 	if err != nil {

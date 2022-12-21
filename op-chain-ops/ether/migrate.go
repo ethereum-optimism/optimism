@@ -39,7 +39,7 @@ func MigrateLegacyETH(db ethdb.Database, stateDB *state.StateDB, addresses []com
 	// Set of storage slots that we expect to see in the OVM ETH contract.
 	storageSlotsToMigrate := make(map[common.Hash]int)
 	// Chain params to use for integrity checking.
-	params := ParamsByChainID[chainID]
+	params := migration.ParamsByChainID[chainID]
 	if params == nil {
 		return fmt.Errorf("no chain params for %d", chainID)
 	}
