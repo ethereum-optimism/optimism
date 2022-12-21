@@ -163,7 +163,8 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 		if e.l2ForceEmpty {
-			t.InvalidAction("cannot include any sequencer txs")
+			e.log.Info("Skipping including a transaction because e.L2ForceEmpty is true")
+			// t.InvalidAction("cannot include any sequencer txs")
 			return
 		}
 
