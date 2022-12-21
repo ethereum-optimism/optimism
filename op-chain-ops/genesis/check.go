@@ -238,8 +238,12 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 
 	var innerErr error
 	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
+		if key == ImplementationSlot {
+			return true
+		}
+
 		if value != abiTrue {
-			innerErr = fmt.Errorf("non-true value found in legacy message passer: %s", value)
+			innerErr = fmt.Errorf("non-true value found in legacy message passer. key: %s, value: %s", key, value)
 			return false
 		}
 
