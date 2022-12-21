@@ -60,7 +60,7 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 
 // CheckPredeploys will check that there is code at each predeploy
 // address
-func CheckPredeploys(db vm.StateDB) error {
+func CheckPredeploys(db *state.StateDB) error {
 	for i := uint64(0); i <= 2048; i++ {
 		// Compute the predeploy address
 		bigAddr := new(big.Int).Or(bigL2PredeployNamespace, new(big.Int).SetUint64(i))
@@ -83,22 +83,34 @@ func CheckPredeploys(db vm.StateDB) error {
 	// For each predeploy, check that we've set the implementation correctly when
 	// necessary and that there's code at the implementation.
 	for _, proxyAddr := range predeploys.Predeploys {
-		implAddr, special, err := mapImplementationAddress(proxyAddr)
-		if err != nil {
-			return err
+		if UntouchableProxyAddresses[*proxyAddr] {
+			continue
 		}
 
-		if !special {
-			impl := db.GetState(*proxyAddr, ImplementationSlot)
-			implAddr := common.BytesToAddress(impl.Bytes())
-			if implAddr == (common.Address{}) {
-				return fmt.Errorf("no implementation for %s", *proxyAddr)
+		var expImplAddr common.Address
+		var err error
+		if *proxyAddr == predeploys.ProxyAdminAddr {
+			expImplAddr = predeploys.ProxyAdminAddr
+		} else {
+			expImplAddr, err = AddressToCodeNamespace(*proxyAddr)
+			if err != nil {
+				return fmt.Errorf("error converting to code namespace: %w", err)
 			}
 		}
 
-		implCode := db.GetCode(implAddr)
+		implCode := db.GetCode(expImplAddr)
 		if len(implCode) == 0 {
 			return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
+		}
+
+		if expImplAddr == predeploys.ProxyAdminAddr {
+			continue
+		}
+
+		impl := db.GetState(*proxyAddr, ImplementationSlot)
+		actImplAddr := common.BytesToAddress(impl.Bytes())
+		if expImplAddr != actImplAddr {
+			return fmt.Errorf("no implementation for %s", *proxyAddr)
 		}
 	}
 
