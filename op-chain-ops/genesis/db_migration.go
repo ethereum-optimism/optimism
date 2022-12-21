@@ -91,23 +91,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		log.Info("Skipping checking withdrawals")
 	}
 
-	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
-	if err != nil {
-		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
-	}
-	log.Info("Completed withdrawal migration")
-
 	// Now start the migration
 	log.Info("Setting the Proxies")
 	if err := SetL2Proxies(db); err != nil {
 		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
-
-	//_, err = db.Commit(true)
-	//if err != nil {
-	//	return nil, fmt.Errorf("cannot commit state: %w", err)
-	//}
 
 	storage, err := NewL2StorageConfig(config, l1Block)
 	if err != nil {
@@ -122,6 +110,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	if err := SetImplementations(db, storage, immutable); err != nil {
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
+
+	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
+	if err != nil {
+		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
+	}
+	log.Info("Completed withdrawal migration")
 
 	//_, err = db.Commit(true)
 	//if err != nil {
