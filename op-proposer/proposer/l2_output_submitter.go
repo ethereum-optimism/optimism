@@ -1,4 +1,4 @@
-package op_proposer
+package proposer
 
 import (
 	"context"
@@ -25,7 +25,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-proposer/drivers/l2output"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -210,7 +209,7 @@ func NewL2OutputSubmitterWithSigner(
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 	}
 
-	l2OutputDriver, err := l2output.NewDriver(l2output.Config{
+	l2OutputDriver, err := NewDriver(DriverConfig{
 		Log:               l,
 		Name:              "L2Output Submitter",
 		L1Client:          l1Client,

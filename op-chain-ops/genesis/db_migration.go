@@ -226,6 +226,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		"height", bedrockHeader.Number,
 		"root", bedrockHeader.Root.String(),
 		"hash", bedrockHeader.Hash().String(),
+		"timestamp", bedrockHeader.Time,
 	)
 
 	return res, nil

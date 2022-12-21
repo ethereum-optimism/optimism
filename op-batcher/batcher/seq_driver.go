@@ -1,4 +1,4 @@
-package sequencer
+package batcher
 
 import (
 	"math/big"
@@ -11,7 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-type Config struct {
+type DriverConfig struct {
 	Log  log.Logger
 	Name string
 
