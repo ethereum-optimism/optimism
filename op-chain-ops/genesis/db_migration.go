@@ -69,6 +69,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
+		Cache:     1024,
 	})
 
 	db, err := state.New(header.Root, underlyingDB, nil)
