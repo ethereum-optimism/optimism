@@ -442,8 +442,7 @@ func TestDeepReorg(gt *testing.T) {
 	blockB42, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 
-	// -- slightly modified logic from TestReorgFlipFlop. Logic below is likely incorrect. --
-	// Now sync the verifier. Some of the batches should be ignored.
+	// Now sync the verifier. The batch from chain A is invalid, so it should be ignored.
 	// The safe head should have an origin at block B240 (?)
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
@@ -460,7 +459,18 @@ func TestDeepReorg(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActBuildToL1Head(t)
 	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB42.ID(), "B42 is the unsafe L1 origin of sequencer now")
-	// -- snip --
+
+	// Submit all new L2 blocks for chain B, and include the batch in a new block on chain B
+	batcher.ActSubmitAll(t)
+	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x03})
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+
+	// Run an iteration of the derivation pipeline and ensure that the L2 safe L1 origin is block B42
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, verifier.L2Safe().L1Origin, blockB42.ID(), "B42 is the safe L1 origin of the verifier now")
 }
 
 type rpcWrapper struct {
