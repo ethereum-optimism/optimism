@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"encoding/hex"
 	"fmt"
-	"math/big"
-	"os"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
@@ -18,6 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	"math/big"
+	"os"
 )
 
 var (
@@ -259,6 +258,7 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 
 	code := db.GetCode(predeploys.LegacyMessagePasserAddr)
 	log.Warn("code len", "len", len(code))
+	log.Info("state not hashed", db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")))
 	os.Exit(0)
 
 	// Build a map of all the slots in the LegacyMessagePasser
