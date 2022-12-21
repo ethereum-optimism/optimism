@@ -18,18 +18,23 @@
     "tx": "yarn run build && forta-agent run --tx",
     "block": "yarn run build && forta-agent run --block",
     "range": "yarn run build && forta-agent run --range",
-    "test": "source .env.test && jest"
+    "test": ". .env.test && ts-mocha src/*.spec.ts",
+    "test:coverage": "echo 'todo: configure test coverage' && yarn test",
+    "lint:check": "eslint . --max-warnings=0",
+    "lint:fix": "yarn lint:check --fix",
+    "lint": "yarn lint:fix && yarn lint:check"
   },
   "dependencies": {
     "ethers": "^5.7.2",
     "forta-agent": "^0.1.1"
   },
   "devDependencies": {
-    "@types/jest": "^26.0.23",
+    "@types/chai": "^4.2.18",
+    "@types/mocha": "^8.2.2",
     "@types/nodemon": "^1.19.0",
-    "jest": "^27.0.6",
+    "chai": "^4.3.4",
     "nodemon": "^2.0.8",
-    "ts-jest": "^27.0.3",
+    "ts-mocha": "^10.0.0",
     "typescript": "^4.3.4"
   }
 }
