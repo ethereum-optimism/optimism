@@ -256,8 +256,8 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		slotsWds[slot] = wd
 	}
 
-	code := db.GetCode(predeploys.LegacyMessagePasserAddr)
-	log.Warn("code len", "len", len(code))
+	//code := db.GetCode(predeploys.LegacyMessagePasserAddr)
+	//log.Warn("code len", "len", len(code))
 	log.Info("state not hashed", "val", db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")))
 
 	if db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
