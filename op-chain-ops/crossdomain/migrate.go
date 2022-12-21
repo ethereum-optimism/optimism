@@ -29,7 +29,7 @@ func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossD
 		if !noCheck {
 			legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
 			if legacyValue != abiTrue {
-				return errLegacyStorageSlotNotFound
+				return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacySlot)
 			}
 		}
 
@@ -44,7 +44,7 @@ func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossD
 		}
 
 		db.SetState(predeploys.L2ToL1MessagePasserAddr, slot, abiTrue)
-		log.Info("Migrated withdrawal", "number", i, "slot", slot.String(), "legacy_slot", legacySlot.String())
+		log.Info("Migrated withdrawal", "number", i, "slot", slot)
 	}
 	return nil
 }

@@ -279,7 +279,7 @@ func PreCheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWit
 		_, ok := slots[slot]
 		//nolint:staticcheck
 		if !ok {
-			return fmt.Errorf("unknown storage slot in input: %s", slot)
+			return fmt.Errorf("Unknown input message: %s", slot)
 		}
 	}
 

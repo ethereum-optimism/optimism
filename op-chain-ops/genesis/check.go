@@ -24,7 +24,8 @@ import (
 const MaxSlotChecks = 5000
 
 var LegacyETHCheckSlots = map[common.Hash]common.Hash{
-	common.Hash{31: 0x06}: {31: 0x10},
+	// Bridge
+	common.Hash{31: 0x06}: common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
 	// Symbol
 	common.Hash{31: 0x04}: common.HexToHash("0x4554480000000000000000000000000000000000000000000000000000000006"),
 	// Name
@@ -196,8 +197,7 @@ func PostCheckLegacyETH(db vm.StateDB) error {
 	for slot, expValue := range LegacyETHCheckSlots {
 		actValue := db.GetState(predeploys.LegacyERC20ETHAddr, slot)
 		if actValue != expValue {
-			log.Warn("legacy eth slot mismatch", "slot", slot, "expected", expValue, "actual", actValue)
-			//return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
+			return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
 		}
 	}
 	return nil
