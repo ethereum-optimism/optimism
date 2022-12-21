@@ -1,15 +1,29 @@
 import fs from 'fs'
 
-const BASE_INVARIANTS_DIR = `${__dirname}/../contracts/test/invariants`
-const BASE_DOCS_DIR = `${__dirname}/../invariant-docs`
-const BASE_GH_URL =
-  'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/invariant-docs/'
+// ---------------------------------------------------------------
+// TODO:
+// - [x] Support forge invariant tests
+// - [x] Support echidna tests
+// - [ ] Support multi-line headers within invariant doc comments. (Separate header / desc by blank line)
+// ---------------------------------------------------------------
 
+const BASE_INVARIANTS_DIR = `${__dirname}/../contracts/test/invariants`
+const BASE_ECHIDNA_DIR = `${__dirname}/../contracts/echidna`
+const BASE_DOCS_DIR = `${__dirname}/../invariant-docs`
+const BASE_ECHIDNA_GH_URL =
+  'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/echidna/'
+const BASE_INVARIANT_GH_URL =
+  'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/test/invariants/'
+
+// Represents an invariant test contract
 type Contract = {
   name: string
+  fileName: string
+  isEchidna: boolean
   docs: InvariantDoc[]
 }
 
+// Represents the documentation of an invariant
 type InvariantDoc = {
   header?: string
   desc?: string
@@ -20,25 +34,26 @@ type InvariantDoc = {
  * Lazy-parses all test files in the `contracts/test/invariants` directory to generate documentation
  * on all invariant tests.
  */
-const docGen = (): void => {
+const docGen = (dir: string): void => {
   // Grab all files within the invariants test dir
-  const files = fs.readdirSync(BASE_INVARIANTS_DIR)
+  const files = fs.readdirSync(dir)
 
   // Array to store all found invariant documentation comments.
   const docs: Contract[] = []
 
-  // TODO: Handle multiple contracts per file (?)
-  for (const file of files) {
+  for (const fileName of files) {
     // Read the contents of the invariant test file.
     const fileContents = fs
-      .readFileSync(`${BASE_INVARIANTS_DIR}/${file}`)
+      .readFileSync(`${dir}/${fileName}`)
       .toString()
 
     // Split the file into individual lines and trim whitespace.
     const lines = fileContents.split('\n').map((line: string) => line.trim())
 
     // Create an object to store all invariant test docs for the current contract
-    const contract: Contract = { name: file.replace('.t.sol', ''), docs: [] }
+    const isEchidna = fileName.startsWith('Fuzz')
+    const name = isEchidna ? fileName.replace('Fuzz', '').replace('.sol', '') : fileName.replace('.t.sol', '')
+    const contract: Contract = { name, fileName, isEchidna, docs: [] }
 
     let currentDoc: InvariantDoc
 
@@ -47,7 +62,7 @@ const docGen = (): void => {
       let line = lines[i]
 
       if (line.startsWith('/**')) {
-        // We are at the beginning of a new doc comment. Reset the currentDoc array.
+        // We are at the beginning of a new doc comment. Reset the `currentDoc`.
         currentDoc = {}
 
         // Move on to the next line
@@ -66,9 +81,9 @@ const docGen = (): void => {
           while ((line = lines[++i]).startsWith('*')) {
             line = line.replace(/\*(\/)?/, '').trim()
 
-            if (line.length > 0) {
-              currentDoc.desc += `${line}\n`
-            }
+            // If the line has any contents, insert it into the desc.
+            // Otherwise, consider it a linebreak.
+            currentDoc.desc += line.length > 0 ? `${line} ` : '\n'
           }
 
           // Set the line number of the test
@@ -92,8 +107,7 @@ const docGen = (): void => {
   }
 
   console.log(
-    `Generated invariant test documentation for:\n - ${
-      docs.length
+    `Generated invariant test documentation for:\n - ${docs.length
     } contracts\n - ${docs.reduce(
       (acc: number, contract: Contract) => acc + contract.docs.length,
       0
@@ -105,15 +119,34 @@ const docGen = (): void => {
  * Render a `Contract` object into valid markdown.
  */
 const renderContractDoc = (contract: Contract): string => {
-  const header = `# ${contract.name} Invariants`
+  const header = `# \`${contract.name}\` Invariants`
   const docs = contract.docs
     .map((doc: InvariantDoc) => {
-      return `## ${doc.header}\n**Test:** [\`L${doc.lineNo}\`](${BASE_GH_URL}${contract.name}.t.sol)\n\n${doc.desc}`
+      const line = `L${doc.lineNo}`
+      return `## ${doc.header}\n**Test:** [\`${line}\`](${getGithubBase(contract)}${contract.fileName}#${line})\n${doc.desc}`
     })
     .join('\n\n')
 
   return `${header}\n\n${docs}`
 }
 
+/**
+  * Get the base URL for the test contract
+  */
+const getGithubBase = ({ isEchidna }: Contract): string =>
+  isEchidna ?
+    BASE_ECHIDNA_GH_URL :
+    BASE_INVARIANT_GH_URL
+
 // Generate the docs
-docGen()
+
+// Forge
+console.log('Generating docs for forge invariants...')
+docGen(BASE_INVARIANTS_DIR)
+
+// New line
+console.log()
+
+// Echidna
+console.log('Generating docs for echidna invariants...')
+docGen(BASE_ECHIDNA_DIR)
