@@ -256,7 +256,6 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		if value != abiTrue {
 			return false
 		}
-		log.Info("iterating", "key", key, "value", value)
 		slots[key] = true
 		return true
 	})
