@@ -14,9 +14,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// UntouchableProxyAddresses are addresses in the predeploy namespace
+// UntouchablePredeploys are addresses in the predeploy namespace
 // that should not be touched by the migration process.
-var UntouchableProxyAddresses = map[common.Address]bool{
+var UntouchablePredeploys = map[common.Address]bool{
 	predeploys.LegacyMessagePasserAddr: true,
 	predeploys.DeployerWhitelistAddr:   true,
 	predeploys.GovernanceTokenAddr:     true,
@@ -60,7 +60,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
-		if UntouchableProxyAddresses[addr] || addr == predeploys.ProxyAdminAddr {
+		if UntouchablePredeploys[addr] || addr == predeploys.ProxyAdminAddr {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}
@@ -86,7 +86,7 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	}
 
 	for name, address := range predeploys.Predeploys {
-		if UntouchableProxyAddresses[*address] {
+		if UntouchablePredeploys[*address] {
 			continue
 		}
 

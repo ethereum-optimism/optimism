@@ -72,7 +72,7 @@ func CheckPredeploys(db *state.StateDB) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
-		if UntouchableProxyAddresses[addr] {
+		if UntouchablePredeploys[addr] {
 			continue
 		}
 
@@ -87,7 +87,7 @@ func CheckPredeploys(db *state.StateDB) error {
 	// For each predeploy, check that we've set the implementation correctly when
 	// necessary and that there's code at the implementation.
 	for _, proxyAddr := range predeploys.Predeploys {
-		if UntouchableProxyAddresses[*proxyAddr] {
+		if UntouchablePredeploys[*proxyAddr] {
 			continue
 		}
 
