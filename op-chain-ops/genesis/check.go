@@ -18,7 +18,11 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-var ExpCodeHashes = map[common.Address]common.Hash{}
+// MaxSlotChecks is the maximum number of storage slots to check
+// when validating the untouched predeploys. This limit is in place
+// to bound execution time of the migration. We can parallelize this
+// in the future.
+const MaxSlotChecks = 5000
 
 // CheckMigratedDB will check that the migration was performed correctly
 func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
@@ -34,6 +38,9 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 	header := rawdb.ReadHeader(ldb, hash, *num)
 	log.Info("Read header from database", "number", *num)
 
+	prevHeader := rawdb.ReadHeader(ldb, header.ParentHash, *num-1)
+	log.Info("Read previous header from database", "number", *num-1)
+
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
 	})
@@ -43,7 +50,7 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	if err := CheckUntouchables(db); err != nil {
+	if err := CheckUntouchables(underlyingDB, db, prevHeader.Root); err != nil {
 		return err
 	}
 	log.Info("checked untouchables")
@@ -68,13 +75,41 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 
 // CheckUntouchables will check that the untouchable contracts have
 // not been modified by the migration process.
-func CheckUntouchables(db *state.StateDB) error {
+func CheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot common.Hash) error {
+	prevDB, err := state.New(prevRoot, udb, nil)
+	if err != nil {
+		return fmt.Errorf("cannot open StateDB: %w", err)
+	}
+
 	for addr := range UntouchablePredeploys {
-		code := db.GetCode(addr)
+		// Check that the code is the same.
+		code := currDB.GetCode(addr)
 		hash := crypto.Keccak256Hash(code)
 		if hash != UntouchableCodeHashes[addr] {
 			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, UntouchableCodeHashes[addr], hash)
 		}
+		log.Info("checked code hash", "address", addr, "hash", hash)
+
+		// Sample storage slots to ensure that they are not modified.
+		var count int
+		expSlots := make(map[common.Hash]common.Hash)
+		err := prevDB.ForEachStorage(addr, func(key, value common.Hash) bool {
+			count++
+			expSlots[key] = value
+			return count < MaxSlotChecks
+		})
+		if err != nil {
+			return fmt.Errorf("error iterating over storage: %w", err)
+		}
+
+		for expKey, expValue := range expSlots {
+			actValue := currDB.GetState(addr, expKey)
+			if actValue != expValue {
+				return fmt.Errorf("expected slot %s on %s to be %s, but got %s", expKey, addr, expValue, actValue)
+			}
+		}
+
+		log.Info("checked storage", "address", addr, "count", count)
 	}
 	return nil
 }
