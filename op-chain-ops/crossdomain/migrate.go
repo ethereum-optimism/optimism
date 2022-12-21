@@ -3,7 +3,6 @@ package crossdomain
 import (
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -20,16 +19,11 @@ var (
 )
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger *common.Address, l1ChainID int, noCheck bool) error {
+func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
 	for i, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
 			return err
-		}
-
-		if migration.ParamsByChainID[l1ChainID].IgnoredWithdrawalSlots[legacySlot] {
-			log.Info("Skipping reverted message", "slot", legacySlot)
-			continue
 		}
 
 		if !noCheck {

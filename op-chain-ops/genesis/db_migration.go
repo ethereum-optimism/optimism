@@ -76,14 +76,14 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	// Convert all of the messages into legacy withdrawals
-	withdrawals, err := migrationData.ToWithdrawals()
+	withdrawals, err := migrationData.ToWithdrawals(int(config.L1ChainID))
 	if err != nil {
 		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
 
 	if !noCheck {
 		log.Info("Checking withdrawals...")
-		if err := PreCheckWithdrawals(db, withdrawals, int(config.L1ChainID)); err != nil {
+		if err := PreCheckWithdrawals(db, withdrawals); err != nil {
 			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 		}
 		log.Info("Withdrawals accounted for!")
@@ -116,7 +116,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, int(config.L1ChainID), noCheck)
+	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
@@ -236,18 +236,13 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 // PreCheckWithdrawals will ensure that the entire list of withdrawals is being
 // operated on during the database migration.
-func PreCheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal, l1ChainID int) error {
+func PreCheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
 	// Create a mapping of all of their storage slots
 	knownSlots := make(map[common.Hash]bool)
 	for _, wd := range withdrawals {
 		slot, err := wd.StorageSlot()
 		if err != nil {
 			return fmt.Errorf("cannot check withdrawals: %w", err)
-		}
-
-		if migration.ParamsByChainID[l1ChainID].IgnoredWithdrawalSlots[slot] {
-			log.Info("ignoring slot", "slot", slot)
-			continue
 		}
 
 		knownSlots[slot] = true

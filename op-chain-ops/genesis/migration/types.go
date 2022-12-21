@@ -117,7 +117,7 @@ type MigrationData struct {
 	EvmMessages []*SentMessage
 }
 
-func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error) {
+func (m *MigrationData) ToWithdrawals(l1ChainID int) ([]*crossdomain.LegacyWithdrawal, error) {
 	messages := make([]*crossdomain.LegacyWithdrawal, 0)
 	for _, msg := range m.OvmMessages {
 		wd, err := msg.ToLegacyWithdrawal()
@@ -134,6 +134,16 @@ func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error)
 		if err != nil {
 			return nil, err
 		}
+
+		slot, err := wd.StorageSlot()
+		if err != nil {
+			return nil, err
+		}
+
+		if ParamsByChainID[l1ChainID].IgnoredWithdrawalSlots[slot] {
+			continue
+		}
+
 		messages = append(messages, wd)
 	}
 	return messages, nil

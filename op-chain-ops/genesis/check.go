@@ -34,7 +34,7 @@ var LegacyETHCheckSlots = map[common.Hash]common.Hash{
 }
 
 // PostCheckMigratedDB will check that the migration was performed correctly
-func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
+func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID int) error {
 	log.Info("Validating database migration")
 
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -74,7 +74,7 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 	}
 	log.Info("checked legacy eth")
 
-	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM); err != nil {
+	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM, l1ChainID); err != nil {
 		return err
 	}
 	log.Info("checked withdrawals")
@@ -203,8 +203,8 @@ func PostCheckLegacyETH(db vm.StateDB) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
-	wds, err := data.ToWithdrawals()
+func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address, l1ChainID int) error {
+	wds, err := data.ToWithdrawals(l1ChainID)
 	if err != nil {
 		return err
 	}
