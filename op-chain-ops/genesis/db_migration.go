@@ -3,9 +3,9 @@ package genesis
 import (
 	"bytes"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math/big"
+	"os"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -257,21 +257,13 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		slotsWds[slot] = wd
 	}
 
-	t := db.StorageTrie(predeploys.L2ToL1MessagePasserAddr)
-	val, err := t.TryGet(common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e").Bytes())
-	if err != nil {
-		return fmt.Errorf("cannot check withdrawals: %w", err)
-	}
-	if common.BytesToHash(val) != abiTrue {
-		return errors.New("it worked now")
-	} else {
-		log.Warn("err", "val", hex.EncodeToString(val))
-		return errors.New("it didn't work")
-	}
+	code := db.GetCode(predeploys.LegacyMessagePasserAddr)
+	log.Warn("code len", len(code))
+	os.Exit(0)
 
 	// Build a map of all the slots in the LegacyMessagePasser
 	slots := make(map[common.Hash]bool)
-	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
+	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
 			log.Warn("value is not abiTrue", "key", key.String(), "value", value.String())
 			return false
