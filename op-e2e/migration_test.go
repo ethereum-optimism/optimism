@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/docker/docker/api/types"

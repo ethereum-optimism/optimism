@@ -2,6 +2,10 @@ module github.com/ethereum-optimism/optimism/op-e2e
 
 go 1.18
 
+replace github.com/ethereum-optimism/optimism/op-batcher v0.10.4 => ./../op-batcher
+
+replace github.com/ethereum-optimism/optimism/op-proposer v0.10.4 => ./../op-proposer
+
 require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/docker/go-connections v0.4.0
