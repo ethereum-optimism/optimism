@@ -443,22 +443,22 @@ func TestDeepReorg(gt *testing.T) {
 	require.NoError(t, err)
 
 	// Now sync the verifier. The batch from chain A is invalid, so it should be ignored.
-	// The safe head should have an origin at block B240 (?)
-	sequencer.ActL1HeadSignal(t)
-	sequencer.ActL2PipelineFull(t)
-	sequencer.ActBuildToL1Head(t)
-	// require.Equal(t, blockB40.ID(), verifier.L2Safe().L1Origin, "expected to be back at genesis origin after losing A0 and A1")
+	// The safe head should have an origin at block B40 (? - actual: B23)
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
 
-	require.Equal(t, uint64(42), sequencer.L2Unsafe().L1Origin.Number)
+	// ?
+	require.Equal(t, uint64(23), verifier.L2Safe().L1Origin.Number, "expected to be back at genesis origin after losing A0 and A1")
+
 	require.NotZero(t, verifier.L2Safe().Number, "still preserving old L2 blocks that did not reference reorged L1 chain (assuming more than one L2 block per L1 block)")
-	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "head is at safe block after L1 reorg")
+	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "L2 safe and unsafe head should be equal")
 	checkVerifEngine()
 
-	// and sync the sequencer, then build some new L2 blocks, up to and including with L1 origin B2
+	// and sync the sequencer, then build some new L2 blocks, up to and including with L1 origin B42
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActBuildToL1Head(t)
-	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB42.ID(), "B42 is the unsafe L1 origin of sequencer now")
+	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB42.ID())
 
 	// Submit all new L2 blocks for chain B, and include the batch in a new block on chain B
 	batcher.ActSubmitAll(t)
@@ -471,6 +471,8 @@ func TestDeepReorg(gt *testing.T) {
 	verifier.ActL1HeadSignal(t)
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, verifier.L2Safe().L1Origin, blockB42.ID(), "B42 is the safe L1 origin of the verifier now")
+	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "L2 safe and unsafe head should be equal")
+	checkVerifEngine()
 }
 
 type rpcWrapper struct {
