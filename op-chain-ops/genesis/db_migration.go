@@ -271,7 +271,7 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 
 	// Build a map of all the slots in the LegacyMessagePasser
 	slots := make(map[common.Hash]bool)
-	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
+	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
 			log.Warn("value is not abiTrue", "key", key.String(), "value", value.String())
 			return false
