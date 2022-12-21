@@ -23,6 +23,7 @@ var UntouchableProxyAddresses = map[common.Address]bool{
 	predeploys.WETH9Addr:               true,
 	predeploys.L1BlockNumberAddr:       true,
 	predeploys.WETH9Addr:               true,
+	predeploys.LegacyERC20ETHAddr:      true,
 }
 
 // FundDevAccounts will fund each of the development accounts.
