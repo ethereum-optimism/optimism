@@ -1,10 +1,12 @@
 package actions
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -32,6 +34,7 @@ type L2Proposer struct {
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
 	chainID, err := l1.ChainID(t.Ctx())
 	require.NoError(t, err)
+	signer := opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID)
 	dr, err := proposer.NewDriver(proposer.DriverConfig{
 		Log:               log,
 		Name:              "proposer",
@@ -40,7 +43,9 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		AllowNonFinalized: cfg.AllowNonFinalized,
 		L2OOAddr:          cfg.OutputOracleAddr,
 		From:              crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey),
-		SignerFn:          opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID),
+		SignerFn: func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return signer(addr, tx)
+		},
 	})
 	require.NoError(t, err)
 	return &L2Proposer{
