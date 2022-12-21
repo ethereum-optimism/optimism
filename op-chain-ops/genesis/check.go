@@ -216,8 +216,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 
 		legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
 		if legacyValue != abiTrue {
-			log.Warn("legacy value is not ABI true", "legacySlot", legacySlot, "legacyValue", legacyValue)
-			//return fmt.Errorf("legacy value is not ABI true: %s", legacyValue)
+			return fmt.Errorf("legacy value is not ABI true: %s", legacyValue)
 		}
 
 		withdrawal, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
@@ -232,8 +231,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 
 		value := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
 		if value != abiTrue {
-			log.Warn("withdrawal not set to ABI true", "slot", migratedSlot, "value", value)
-			//return fmt.Errorf("withdrawal %s not set to ABI true", withdrawal.Nonce)
+			return fmt.Errorf("withdrawal %s not set to ABI true", withdrawal.Nonce)
 		}
 	}
 	return nil
