@@ -29,7 +29,7 @@ func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossD
 		if !noCheck {
 			legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
 			if legacyValue != abiTrue {
-				return fmt.Errorf("%w: %s", errLegacyStorageSlotNotFound, legacySlot)
+				log.Warn("skipping unknown withdrawal", "slot", legacySlot)
 			}
 		}
 
