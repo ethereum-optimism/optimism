@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -245,7 +244,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 // CheckWithdrawals will ensure that the entire list of withdrawals is being
 // operated on during the database migration.
-func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
+func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
 	// Create a mapping of all of their storage slots
 	knownSlots := make(map[common.Hash]bool)
 	slotsWds := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
@@ -258,9 +257,15 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		slotsWds[slot] = wd
 	}
 
-	if db.GetCommittedState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
+	t := db.StorageTrie(predeploys.L2ToL1MessagePasserAddr)
+	val, err := t.TryGet(common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e").Bytes())
+	if err != nil {
+		return fmt.Errorf("cannot check withdrawals: %w", err)
+	}
+	if common.BytesToHash(val) != abiTrue {
 		return errors.New("it worked now")
 	} else {
+		log.Warn("err", "val", hex.EncodeToString(val))
 		return errors.New("it didn't work")
 	}
 
