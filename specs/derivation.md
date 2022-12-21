@@ -687,7 +687,7 @@ represented by an [expanded version][expanded-payload] of the [`PayloadAttribute
 which includes the additional `transactions` and `noTxPool` fields.
 
 [expanded-payload]: exec-engine.md#extended-payloadattributesv1
-[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#payloadattributesv1
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#payloadattributesv1
 
 ## Deriving the Transaction List
 
@@ -861,7 +861,7 @@ The following JSON-RPC methods are part of the [execution engine API][exec-engin
 
 The execution payload is an object of type [`ExecutionPayloadV1`][eth-payload].
 
-[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#executionpayloadv1
+[eth-payload]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#executionpayloadv1
 
 ------------------------------------------------------------------------------------------------------------------------
 

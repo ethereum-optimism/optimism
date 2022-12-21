@@ -1,4 +1,4 @@
-package l2output
+package proposer
 
 import (
 	"context"
@@ -22,7 +22,7 @@ import (
 var bigOne = big.NewInt(1)
 var supportedL2OutputVersion = eth.Bytes32{}
 
-type Config struct {
+type DriverConfig struct {
 	Log  log.Logger
 	Name string
 
@@ -48,14 +48,14 @@ type Config struct {
 }
 
 type Driver struct {
-	cfg             Config
+	cfg             DriverConfig
 	l2ooContract    *bindings.L2OutputOracle
 	rawL2ooContract *bind.BoundContract
 	walletAddr      common.Address
 	l               log.Logger
 }
 
-func NewDriver(cfg Config) (*Driver, error) {
+func NewDriver(cfg DriverConfig) (*Driver, error) {
 	l2ooContract, err := bindings.NewL2OutputOracle(cfg.L2OOAddr, cfg.L1Client)
 	if err != nil {
 		return nil, err
