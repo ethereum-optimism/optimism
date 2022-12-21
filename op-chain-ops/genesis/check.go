@@ -216,31 +216,52 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 	if err != nil {
 		return err
 	}
+
+	oldToNew := make(map[common.Hash]common.Hash)
 	for _, wd := range wds {
-		legacySlot, err := wd.StorageSlot()
-		if err != nil {
-			return fmt.Errorf("cannot compute legacy storage slot: %w", err)
-		}
-
-		legacyValue := db.GetState(predeploys.LegacyMessagePasserAddr, legacySlot)
-		if legacyValue != abiTrue {
-			return fmt.Errorf("legacy value is not ABI true: %s", legacyValue)
-		}
-
-		withdrawal, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
+		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
 		if err != nil {
 			return err
 		}
 
-		migratedSlot, err := withdrawal.StorageSlot()
+		legacySlot, err := wd.StorageSlot()
 		if err != nil {
-			return fmt.Errorf("cannot compute withdrawal storage slot: %w", err)
+			return fmt.Errorf("cannot compute legacy storage slot: %w", err)
+		}
+		migratedSlot, err := migrated.StorageSlot()
+		if err != nil {
+			return fmt.Errorf("cannot compute migrated storage slot: %w", err)
 		}
 
-		value := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
+		oldToNew[legacySlot] = migratedSlot
+	}
+
+	var innerErr error
+	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
-			return fmt.Errorf("withdrawal %s not set to ABI true", withdrawal.Nonce)
+			innerErr = errors.New("non-true value found in legacy message passer")
+			return false
 		}
+
+		migratedSlot := oldToNew[key]
+		if migratedSlot == (common.Hash{}) {
+			innerErr = fmt.Errorf("no migrated slot found for legacy slot %s", key)
+			return false
+		}
+
+		migratedValue := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
+		if migratedValue != abiTrue {
+			innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
+			return false
+		}
+
+		return true
+	})
+	if err != nil {
+		return fmt.Errorf("error iterating storage slots: %w", err)
+	}
+	if innerErr != nil {
+		return fmt.Errorf("error checking storage slots: %w", innerErr)
 	}
 	return nil
 }
