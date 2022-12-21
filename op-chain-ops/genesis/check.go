@@ -238,7 +238,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 
 	var innerErr error
 	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
-		if key == ImplementationSlot {
+		if key == ImplementationSlot || key == AdminSlot {
 			return true
 		}
 
