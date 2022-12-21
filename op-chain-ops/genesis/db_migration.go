@@ -268,8 +268,11 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		return true
 	})
 
-	if db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
-		log.Info("not true?")
+	val := db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e"))
+	if val == abiTrue {
+		log.Info("true")
+	} else {
+		log.Info("not true")
 	}
 
 	os.Exit(0)
