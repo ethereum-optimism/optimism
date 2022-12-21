@@ -258,7 +258,7 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 
 	code := db.GetCode(predeploys.LegacyMessagePasserAddr)
 	log.Warn("code len", "len", len(code))
-	log.Info("state not hashed", db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")))
+	log.Info("state not hashed", "val", db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")))
 	os.Exit(0)
 
 	// Build a map of all the slots in the LegacyMessagePasser
