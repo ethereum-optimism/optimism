@@ -16,6 +16,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1ERC721BridgeProxy']
+deployFn.tags = ['L1ERC721BridgeProxy', 'setup']
 
 export default deployFn
