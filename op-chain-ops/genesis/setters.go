@@ -20,10 +20,20 @@ var UntouchablePredeploys = map[common.Address]bool{
 	predeploys.LegacyMessagePasserAddr: true,
 	predeploys.DeployerWhitelistAddr:   true,
 	predeploys.GovernanceTokenAddr:     true,
-	predeploys.WETH9Addr:               true,
 	predeploys.L1BlockNumberAddr:       true,
-	predeploys.WETH9Addr:               true,
 	predeploys.LegacyERC20ETHAddr:      true,
+	predeploys.WETH9Addr:               true,
+}
+
+// UntouchableCodeHashes contains code hashes of all the contracts
+// that should not be touched by the migration process.
+var UntouchableCodeHashes = map[common.Address]common.Hash{
+	predeploys.LegacyMessagePasserAddr: common.HexToHash("0xc89b4b2237442578842fd73dfe24a34f3d19a8db05719dd7938f04574b4e89e6"),
+	predeploys.DeployerWhitelistAddr:   common.HexToHash("0x76cbd4bfafd893280d1490c285ae1919ca2bdbed81b6a1eea7404207ede7d02e"),
+	predeploys.GovernanceTokenAddr:     common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
+	predeploys.L1BlockNumberAddr:       common.HexToHash("0xfab90d3a32b245623bee66d280f816968575ddcdef1f69452a0beeba519b190b"),
+	predeploys.LegacyERC20ETHAddr:      common.HexToHash("0x6fbc5dc39e5b41afbeb5797d57c564ea5e36363ea642d424579f007ff03ed852"),
+	predeploys.WETH9Addr:               common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
 }
 
 // FundDevAccounts will fund each of the development accounts.

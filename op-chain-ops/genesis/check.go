@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -16,6 +17,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 )
+
+var ExpCodeHashes = map[common.Address]common.Hash{}
 
 // CheckMigratedDB will check that the migration was performed correctly
 func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
@@ -40,6 +43,11 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
+	if err := CheckUntouchables(db); err != nil {
+		return err
+	}
+	log.Info("checked untouchables")
+
 	if err := CheckPredeploys(db); err != nil {
 		return err
 	}
@@ -55,6 +63,19 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 	}
 	log.Info("checked withdrawals")
 
+	return nil
+}
+
+// CheckUntouchables will check that the untouchable contracts have
+// not been modified by the migration process.
+func CheckUntouchables(db *state.StateDB) error {
+	for addr := range UntouchablePredeploys {
+		code := db.GetCode(addr)
+		hash := crypto.Keccak256Hash(code)
+		if hash != UntouchableCodeHashes[addr] {
+			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, UntouchableCodeHashes[addr], hash)
+		}
+	}
 	return nil
 }
 
@@ -80,7 +101,7 @@ func CheckPredeploys(db *state.StateDB) error {
 		admin := db.GetState(addr, AdminSlot)
 		adminAddr := common.BytesToAddress(admin.Bytes())
 		if addr != predeploys.ProxyAdminAddr && addr != predeploys.GovernanceTokenAddr && adminAddr != predeploys.ProxyAdminAddr {
-			return fmt.Errorf("admin is %s when it should be %s for %s", adminAddr, predeploys.ProxyAdminAddr, addr)
+			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
 		}
 	}
 
