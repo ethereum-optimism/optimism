@@ -22,26 +22,25 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block) (*
 	}
 	SetPrecompileBalances(db)
 
-	return BuildL2Genesis(db, config, l1StartBlock)
-}
+	storage, err := NewL2StorageConfig(config, l1StartBlock)
+	if err != nil {
+		return nil, err
+	}
 
-// BuildL2Genesis will build the L2 Optimism Genesis Block
-func BuildL2Genesis(db *state.MemoryStateDB, config *DeployConfig, l1Block *types.Block) (*core.Genesis, error) {
+	immutable, err := NewL2ImmutableConfig(config, l1StartBlock)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := SetL2Proxies(db); err != nil {
 		return nil, err
 	}
 
-	storage, err := NewL2StorageConfig(config, l1Block)
-	if err != nil {
-		return nil, err
-	}
-
-	immutable, err := NewL2ImmutableConfig(config, l1Block)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := SetImplementations(db, storage, immutable); err != nil {
+		return nil, err
+	}
+
+	if err := SetDevOnlyL2Implementations(db, storage, immutable); err != nil {
 		return nil, err
 	}
 
