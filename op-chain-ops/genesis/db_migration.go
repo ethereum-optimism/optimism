@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"math/big"
+	"os"
 )
 
 var (
@@ -255,15 +256,20 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		slotsWds[slot] = wd
 	}
 
+	db.CreateAccount(predeploys.LegacyMessagePasserAddr)
+
 	// Build a map of all the slots in the LegacyMessagePasser
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
 			return false
 		}
+		log.Info("iterating", "key", key, "value", value)
 		slots[key] = true
 		return true
 	})
+
+	os.Exit(0)
 
 	if err != nil {
 		return fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)

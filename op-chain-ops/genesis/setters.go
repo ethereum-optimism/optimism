@@ -51,7 +51,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		// There is no proxy at the governance token address or
 		// the proxy admin address. LegacyERC20ETH lives in the
 		// 0xDead namespace so it can be ignored here
-		if addr == predeploys.GovernanceTokenAddr || addr == predeploys.ProxyAdminAddr {
+		if addr == predeploys.GovernanceTokenAddr || addr == predeploys.ProxyAdminAddr || addr == predeploys.LegacyMessagePasserAddr || addr == predeploys.DeployerWhitelistAddr {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}
@@ -142,6 +142,12 @@ func mapImplementationAddress(addrP *common.Address) (common.Address, bool, erro
 		special = true
 	case predeploys.ProxyAdminAddr:
 		addr = predeploys.ProxyAdminAddr
+		special = true
+	case predeploys.LegacyMessagePasserAddr:
+		addr = predeploys.LegacyMessagePasserAddr
+		special = true
+	case predeploys.DeployerWhitelistAddr:
+		addr = predeploys.DeployerWhitelistAddr
 		special = true
 	default:
 		addr, err = AddressToCodeNamespace(*addrP)
