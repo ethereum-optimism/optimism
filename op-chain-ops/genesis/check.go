@@ -114,7 +114,7 @@ func CheckPredeploys(db *state.StateDB) error {
 		impl := db.GetState(*proxyAddr, ImplementationSlot)
 		actImplAddr := common.BytesToAddress(impl.Bytes())
 		if expImplAddr != actImplAddr {
-			return fmt.Errorf("no implementation for %s", *proxyAddr)
+			return fmt.Errorf("expected implementation for %s to be at %s, but got %s", *proxyAddr, expImplAddr, actImplAddr)
 		}
 	}
 
