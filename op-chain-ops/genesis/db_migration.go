@@ -256,6 +256,12 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		slotsWds[slot] = wd
 	}
 
+	if db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
+		log.Info("it worked now")
+	} else {
+		log.Warn("it didn't happen")
+	}
+
 	// Build a map of all the slots in the LegacyMessagePasser
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
@@ -269,7 +275,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 	})
 
 	if db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
-		log.Crit("oh no")
+		log.Info("did not happen here")
 	} else {
 		log.Warn("shoulda happened")
 	}
