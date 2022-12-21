@@ -258,7 +258,7 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 	}
 
 	code := db.GetCode(predeploys.LegacyMessagePasserAddr)
-	log.Warn("code len", len(code))
+	log.Warn("code len", "len", len(code))
 	os.Exit(0)
 
 	// Build a map of all the slots in the LegacyMessagePasser
