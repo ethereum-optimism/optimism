@@ -289,7 +289,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 	}
 
 	if fail {
-		return fmt.Errorf("Unknown input messages found")
+		//return fmt.Errorf("Unknown input messages found")
 	}
 
 	return nil
