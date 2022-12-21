@@ -327,11 +327,10 @@ func TestDeepReorg(gt *testing.T) {
 
 	// TODO: Remove, just for sanity checking
 	require.Equal(t, sd.RollupCfg.SeqWindowSize, uint64(120))
+	require.Equal(t, uint64(0), verifier.L2Safe().L1Origin.Number)
 
 	// Start building chain A
 	miner.ActL1SetFeeRecipient(common.Address{0x0A, 0x00})
-
-	require.Equal(t, uint64(0), sequencer.L2Safe().L1Origin.Number)
 
 	// Create a var for the second to last block ref of the first sequencing window
 	var blockA119 eth.L1BlockRef
@@ -399,7 +398,8 @@ func TestDeepReorg(gt *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, blockA119.ID(), headAfterReorg.ID())
 
-	// Ensure that the safe L2 chain has not been altered yet.
+	// Ensure that the safe L2 chain has not been altered yet- we have not issued
+	// a head signal.
 	require.Equal(t, blockA240.ID(), verifier.L2Safe().L1Origin)
 
 	// --------- [ CHAIN B ] ---------
@@ -419,8 +419,7 @@ func TestDeepReorg(gt *testing.T) {
 	require.Equal(t, uint64(240), blockB240.Number)
 
 	// Re-include the batch that included two sequence windows worth of transactions
-	// that was built on chain A
-	// TODO: This batch should be invalid (?) - Josh
+	// that was built on chain A. This batch will be invalid on chain B.
 	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x01})
 	miner.ActL1StartBlock(12)(t)
 	require.NoError(t, miner.eth.TxPool().AddLocal(batchTxA))
@@ -431,14 +430,12 @@ func TestDeepReorg(gt *testing.T) {
 	// This will be block #242 on chain B.
 	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x02})
 	miner.ActEmptyBlock(t)
-	blockB2, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	blockB242, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 
 	// -- slightly modified logic from TestReorgFlipFlop. Logic below is likely incorrect. --
 	// Now sync the verifier. Some of the batches should be ignored.
 	// The safe head should have an origin at block B240 (?)
-	// verifier.ActL1HeadSignal(t)
-	// verifier.ActL2PipelineFull(t)
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActBuildToL1Head(t)
@@ -453,7 +450,7 @@ func TestDeepReorg(gt *testing.T) {
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
 	sequencer.ActBuildToL1Head(t)
-	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB2.ID(), "B2 is the unsafe L1 origin of sequencer now")
+	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB242.ID(), "B2 is the unsafe L1 origin of sequencer now")
 	// -- snip --
 }
 
