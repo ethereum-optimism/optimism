@@ -1,4 +1,4 @@
-package op_proposer
+package proposer
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// Driver is an interface for creating and submitting transactions for a
+// DriverInterface is an interface for creating and submitting transactions for a
 // specific contract.
-type Driver interface {
+type DriverInterface interface {
 	// Name is an identifier used to prefix logs for a particular service.
 	Name() string
 
@@ -53,7 +53,7 @@ type Driver interface {
 type ServiceConfig struct {
 	Log             log.Logger
 	Context         context.Context
-	Driver          Driver
+	Driver          DriverInterface
 	PollInterval    time.Duration
 	L1Client        *ethclient.Client
 	TxManagerConfig txmgr.Config
