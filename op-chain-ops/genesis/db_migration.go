@@ -259,6 +259,11 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 		slots[key] = true
 		return true
 	})
+
+	if db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e")) != abiTrue {
+		log.Crit("oh no")
+	}
+
 	if err != nil {
 		return fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)
 	}
@@ -280,7 +285,7 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 			wd := slotsWds[slot]
 			log.Warn(
 				"unknown input message",
-				"slot", slot,
+				"slot", slot.String(),
 				"nonce", wd.Nonce,
 				"target", wd.Target,
 				"sender", wd.Sender,
