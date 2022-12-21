@@ -155,6 +155,10 @@ func CheckPredeploys(db *state.StateDB) error {
 			continue
 		}
 
+		if *proxyAddr == predeploys.LegacyERC20ETHAddr {
+			continue
+		}
+
 		var expImplAddr common.Address
 		var err error
 		if *proxyAddr == predeploys.ProxyAdminAddr {
