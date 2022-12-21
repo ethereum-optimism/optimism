@@ -15,8 +15,8 @@ import (
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -161,13 +161,16 @@ func NewL2OutputSubmitter(
 		}
 	}
 
-	signer := func(chainID *big.Int) bind.SignerFn {
-		return opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID)
+	signer := func(chainID *big.Int) SignerFn {
+		s := opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID)
+		return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return s(addr, tx)
+		}
 	}
 	return NewL2OutputSubmitterWithSigner(cfg, crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey), signer, gitVersion, l)
 }
 
-type SignerFactory func(chainID *big.Int) bind.SignerFn
+type SignerFactory func(chainID *big.Int) SignerFn
 
 func NewL2OutputSubmitterWithSigner(
 	cfg Config,
