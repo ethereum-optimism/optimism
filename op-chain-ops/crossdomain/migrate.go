@@ -44,7 +44,7 @@ func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossD
 		}
 
 		db.SetState(predeploys.L2ToL1MessagePasserAddr, slot, abiTrue)
-		log.Info("Migrated withdrawal", "number", i, "slot", slot)
+		log.Info("Migrated withdrawal", "number", i, "slot", slot.String(), "legacy_slot", legacySlot.String())
 	}
 	return nil
 }

@@ -49,12 +49,12 @@ func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, 
 	if err := CheckLegacyETH(db); err != nil {
 		return err
 	}
+	log.Info("checked legacy eth")
 
 	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM); err != nil {
 		return err
 	}
-
-	log.Info("checked legacy eth")
+	log.Info("checked withdrawals")
 
 	return nil
 }
