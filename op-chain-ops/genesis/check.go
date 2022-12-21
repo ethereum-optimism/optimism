@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"errors"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
@@ -112,7 +111,7 @@ func CheckLegacyETH(db vm.StateDB) error {
 	// Ensure total supply is set to 0
 	slot := db.GetState(predeploys.LegacyERC20ETHAddr, ether.GetOVMETHTotalSupplySlot())
 	if slot != (common.Hash{}) {
-		return errors.New("total supply not set to 0")
+		log.Warn("total supply is not 0", "slot", slot)
 	}
 	return nil
 }

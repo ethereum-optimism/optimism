@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
-
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
@@ -121,19 +119,19 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
-	log.Info("Starting to migrate ERC20 ETH")
-	addrs := migrationData.Addresses()
-	err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
-	if err != nil {
-		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
-	}
-	log.Info("Completed ERC20 ETH migration")
+	//log.Info("Starting to migrate ERC20 ETH")
+	//addrs := migrationData.Addresses()
+	//err = ether.MigrateLegacyETH(ldb, db, addrs, migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
+	//if err != nil {
+	//	return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
+	//}
+	//log.Info("Completed ERC20 ETH migration")
 
 	newRoot, err := db.Commit(true)
 	if err != nil {
 		return nil, err
 	}
-	log.Info("committing state DB", "root", newRoot)
+	log.Info("committed state DB", "root", newRoot)
 
 	// Set the amount of gas used so that EIP 1559 starts off stable
 	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
