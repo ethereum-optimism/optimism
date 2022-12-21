@@ -17,7 +17,8 @@
     "tx": "yarn run build && forta-agent run --tx",
     "block": "yarn run build && forta-agent run --block",
     "range": "yarn run build && forta-agent run --range",
-    "test": "source .env.test && ts-mocha src/*.spec.ts"
+    "test": "source .env.test && ts-mocha src/*.spec.ts",
+    "test:coverage": "echo 'todo: configure test coverage' && yarn test"
   },
   "dependencies": {
     "ethers": "^5.7.2",
