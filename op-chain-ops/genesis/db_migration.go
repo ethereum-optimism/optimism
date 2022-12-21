@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"math/big"
-	"os"
 )
 
 var (
@@ -98,10 +97,10 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
-	_, err = db.Commit(true)
-	if err != nil {
-		return nil, fmt.Errorf("cannot commit state: %w", err)
-	}
+	//_, err = db.Commit(true)
+	//if err != nil {
+	//	return nil, fmt.Errorf("cannot commit state: %w", err)
+	//}
 
 	storage, err := NewL2StorageConfig(config, l1Block)
 	if err != nil {
@@ -117,10 +116,10 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
-	_, err = db.Commit(true)
-	if err != nil {
-		return nil, fmt.Errorf("cannot commit state: %w", err)
-	}
+	//_, err = db.Commit(true)
+	//if err != nil {
+	//	return nil, fmt.Errorf("cannot commit state: %w", err)
+	//}
 
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
 	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
@@ -260,22 +259,11 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
-			log.Warn("value is not abiTrue", "key", key.String(), "value", value.String())
 			return false
 		}
-		log.Trace("iterating", "key", key.String(), "value", value.String())
 		slots[key] = true
 		return true
 	})
-
-	val := db.GetState(predeploys.LegacyMessagePasserAddr, common.HexToHash("0x8b9698d2cab539b1a0ca087d5bd6de090abda6ab35d4cd4d7d42e0aba676524e"))
-	if val == abiTrue {
-		log.Info("true")
-	} else {
-		log.Info("not true")
-	}
-
-	os.Exit(0)
 
 	if err != nil {
 		return fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)
@@ -289,7 +277,6 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 		}
 	}
 	// Check that all of the input messages are legit
-	var fail bool
 	for slot := range knownSlots {
 		//nolint:staticcheck
 		_, ok := slots[slot]
@@ -304,12 +291,7 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 				"sender", wd.Sender,
 				"data", hex.EncodeToString(wd.Data),
 			)
-			fail = true
 		}
-	}
-
-	if fail {
-		//return fmt.Errorf("Unknown input messages found")
 	}
 
 	return nil
