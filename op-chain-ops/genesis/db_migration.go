@@ -111,6 +111,10 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
+	if err := SetLegacyETH(db, storage, immutable); err != nil {
+		return nil, fmt.Errorf("cannot set legacy ETH: %w", err)
+	}
+
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
 	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
 	if err != nil {

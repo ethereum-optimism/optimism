@@ -8,7 +8,6 @@ import (
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -23,6 +22,15 @@ import (
 // to bound execution time of the migration. We can parallelize this
 // in the future.
 const MaxSlotChecks = 5000
+
+var LegacyETHCheckSlots = map[common.Hash]common.Hash{
+	// Total Supply
+	common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000002"): {},
+	// Name
+	common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000003"): common.HexToHash("0x4f7074696d69736d000000000000000000000000000000000000000000000010"),
+	// Symbol
+	common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000004"): common.HexToHash("0x4f50000000000000000000000000000000000000000000000000000000000004"),
+}
 
 // CheckMigratedDB will check that the migration was performed correctly
 func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
@@ -180,10 +188,12 @@ func CheckPredeploys(db *state.StateDB) error {
 // CheckLegacyETH checks that the legacy eth migration was successful.
 // It currently only checks that the total supply was set to 0.
 func CheckLegacyETH(db vm.StateDB) error {
-	// Ensure total supply is set to 0
-	slot := db.GetState(predeploys.LegacyERC20ETHAddr, ether.GetOVMETHTotalSupplySlot())
-	if slot != (common.Hash{}) {
-		log.Warn("total supply is not 0", "slot", slot)
+	for slot, expValue := range LegacyETHCheckSlots {
+		actValue := db.GetState(predeploys.LegacyERC20ETHAddr, slot)
+		if actValue != expValue {
+			log.Warn("legacy eth slot mismatch", "slot", slot, "expected", expValue, "actual", actValue)
+			//return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
+		}
 	}
 	return nil
 }
