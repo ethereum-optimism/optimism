@@ -3,6 +3,7 @@ package p2p
 import (
 	"context"
 	"crypto/rand"
+	"fmt"
 	"math/big"
 	"net"
 	"testing"
@@ -19,6 +20,7 @@ import (
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/log"
@@ -345,7 +347,14 @@ func TestDiscovery(t *testing.T) {
 			firstPeersOfB = append(firstPeersOfB, c.RemotePeer())
 		}
 	}
+
 	// B should be connected to the bootnode it used (it's a valid optimism node to connect to here)
+	if !assert.Contains(t, firstPeersOfB, hostA.ID()) {
+		fmt.Println(firstPeersOfB)
+		fmt.Println(hostA.ID())
+		fmt.Println(hostC.ID())
+		t.FailNow()
+	}
 	require.Contains(t, firstPeersOfB, hostA.ID())
 	// C should be connected, although this one might take more time to discover
 	require.Contains(t, firstPeersOfB, hostC.ID())
