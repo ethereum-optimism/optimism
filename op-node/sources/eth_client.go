@@ -67,7 +67,7 @@ func (c *EthClientConfig) Check() error {
 	if c.MaxRequestsPerBatch < 1 {
 		return fmt.Errorf("expected at least 1 request per batch, but max is: %d", c.MaxRequestsPerBatch)
 	}
-	if _, ok := RPCKinds[c.RPCProviderKind]; !ok {
+	if !ValidRPCProviderKind(c.RPCProviderKind) {
 		return fmt.Errorf("unknown rpc provider kind: %s", c.RPCProviderKind)
 	}
 	return nil

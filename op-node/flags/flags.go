@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 
 	"github.com/urfave/cli"
 )
@@ -63,11 +64,15 @@ var (
 		Usage:  "Trust the L1 RPC, sync faster at risk of malicious/buggy RPC providing bad or inconsistent L1 data",
 		EnvVar: prefixEnvVar("L1_TRUST_RPC"),
 	}
-	L1RPCProviderKind = cli.StringFlag{
-		Name:   "l1.rpckind",
-		Usage:  "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: alchemy, quicknode, infura, parity, nethermind, debug_geth, erigon, basic, any.",
+	L1RPCProviderKind = cli.GenericFlag{
+		Name: "l1.rpckind",
+		Usage: "The kind of RPC provider, used to inform optimal transactions receipts fetching, and thus reduce costs. Valid options: " +
+			EnumString[sources.RPCProviderKind](sources.RPCProviderKinds),
 		EnvVar: prefixEnvVar("L1_RPC_KIND"),
-		Value:  "basic",
+		Value: func() *sources.RPCProviderKind {
+			out := sources.RPCKindBasic
+			return &out
+		}(),
 	}
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",

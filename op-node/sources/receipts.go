@@ -119,20 +119,37 @@ const (
 	RPCKindAny        RPCProviderKind = "any"   // try any method available
 )
 
+var RPCProviderKinds = []RPCProviderKind{
+	RPCKindAlchemy,
+	RPCKindQuickNode,
+	RPCKindInfura,
+	RPCKindParity,
+	RPCKindNethermind,
+	RPCKindDebugGeth,
+	RPCKindErigon,
+	RPCKindBasic,
+	RPCKindAny,
+}
+
 func (kind RPCProviderKind) String() string {
 	return string(kind)
 }
 
-var RPCKinds = map[RPCProviderKind]struct{}{
-	RPCKindAlchemy:    {},
-	RPCKindQuickNode:  {},
-	RPCKindInfura:     {},
-	RPCKindParity:     {},
-	RPCKindNethermind: {},
-	RPCKindDebugGeth:  {},
-	RPCKindErigon:     {},
-	RPCKindBasic:      {},
-	RPCKindAny:        {},
+func (kind *RPCProviderKind) Set(value string) error {
+	if !ValidRPCProviderKind(RPCProviderKind(value)) {
+		return fmt.Errorf("unknown rpc kind: %q", value)
+	}
+	*kind = RPCProviderKind(value)
+	return nil
+}
+
+func ValidRPCProviderKind(value RPCProviderKind) bool {
+	for _, k := range RPCProviderKinds {
+		if k == value {
+			return true
+		}
+	}
+	return false
 }
 
 // ReceiptsFetchingMethod is a bitfield with 1 bit for each receipts fetching type.
@@ -141,31 +158,22 @@ type ReceiptsFetchingMethod uint64
 
 func (r ReceiptsFetchingMethod) String() string {
 	out := ""
-	x := ReceiptsFetchingMethod(1)
-	for r != 0 && x != 0 {
-		switch r & x {
-		case EthGetTransactionReceiptBatch:
-			out += "eth_getTransactionReceipt (batched)"
-		case AlchemyGetTransactionReceipts:
-			out += "alchemy_getTransactionReceipts"
-		case DebugGetRawReceipts:
-			out += "debug_getRawReceipts"
-		case ParityGetBlockReceipts:
-			out += "parity_getBlockReceipts"
-		case EthGetBlockReceipts:
-			out += "eth_getBlockReceipts"
-		case 0:
-			x <<= 1
-			continue
-		default:
-			out += "unknown"
+	x := r
+	addMaybe := func(m ReceiptsFetchingMethod, v string) {
+		if x&m != 0 {
+			out += v
+			x ^= x & m
 		}
-		r ^= x
-		if r != 0 { // if this is not the last entry, add a separator
+		if x != 0 { // add separator if there are entries left
 			out += ", "
 		}
-		x <<= 1
 	}
+	addMaybe(EthGetTransactionReceiptBatch, "eth_getTransactionReceipt (batched)")
+	addMaybe(AlchemyGetTransactionReceipts, "alchemy_getTransactionReceipts")
+	addMaybe(DebugGetRawReceipts, "debug_getRawReceipts")
+	addMaybe(ParityGetBlockReceipts, "parity_getBlockReceipts")
+	addMaybe(EthGetBlockReceipts, "eth_getBlockReceipts")
+	addMaybe(^ReceiptsFetchingMethod(0), "unknown") // if anything is left, describe it as unknown
 	return out
 }
 
@@ -239,7 +247,6 @@ const (
 )
 
 // AvailableReceiptsFetchingMethods selects receipt fetching methods based on the RPC provider kind.
-// The results are ordered in priority. If any fetching types error frequently, other types may be attempted.
 func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMethod {
 	switch kind {
 	case RPCKindAlchemy:
@@ -264,7 +271,7 @@ func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMeth
 		return AlchemyGetTransactionReceipts | EthGetBlockReceipts |
 			DebugGetRawReceipts | ParityGetBlockReceipts | EthGetTransactionReceiptBatch
 	default:
-		panic("unknown rpc kind: " + string(kind))
+		return EthGetTransactionReceiptBatch
 	}
 }
 
@@ -355,7 +362,7 @@ type ReceiptsRequester interface {
 // and starting this work if necessary.
 func (job *receiptsFetchingJob) runFetcher(ctx context.Context) error {
 	if job.fetcher == nil {
-		// continue existing work
+		// start new work
 		job.fetcher = NewIterativeBatchCall[common.Hash, *types.Receipt](
 			job.txHashes,
 			makeReceiptRequest,
