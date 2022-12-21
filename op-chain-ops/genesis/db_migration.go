@@ -252,8 +252,10 @@ func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
+			log.Warn("value is not abiTrue", "key", key.String(), "value", value.String())
 			return false
 		}
+		log.Trace("iterating", "key", key.String(), "value", value.String())
 		slots[key] = true
 		return true
 	})
