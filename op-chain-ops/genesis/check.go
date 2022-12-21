@@ -3,6 +3,8 @@ package genesis
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
@@ -17,7 +19,7 @@ import (
 )
 
 // CheckMigratedDB will check that the migration was performed correctly
-func CheckMigratedDB(ldb ethdb.Database) error {
+func CheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address) error {
 	log.Info("Validating database migration")
 
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -47,6 +49,11 @@ func CheckMigratedDB(ldb ethdb.Database) error {
 	if err := CheckLegacyETH(db); err != nil {
 		return err
 	}
+
+	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM); err != nil {
+		return err
+	}
+
 	log.Info("checked legacy eth")
 
 	return nil
@@ -106,6 +113,32 @@ func CheckLegacyETH(db vm.StateDB) error {
 	slot := db.GetState(predeploys.LegacyERC20ETHAddr, ether.GetOVMETHTotalSupplySlot())
 	if slot != (common.Hash{}) {
 		return errors.New("total supply not set to 0")
+	}
+	return nil
+}
+
+// add another check to make sure that the withdrawals are set to ABI true
+// for the hash
+func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
+	wds, err := data.ToWithdrawals()
+	if err != nil {
+		return err
+	}
+	for _, wd := range wds {
+		withdrawal, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
+		if err != nil {
+			return err
+		}
+
+		slot, err := withdrawal.StorageSlot()
+		if err != nil {
+			return fmt.Errorf("cannot compute withdrawal storage slot: %w", err)
+		}
+
+		value := db.GetState(predeploys.L2ToL1MessagePasserAddr, slot)
+		if value != abiTrue {
+			return fmt.Errorf("withdrawal %s not set to ABI true", withdrawal.Nonce)
+		}
 	}
 	return nil
 }
