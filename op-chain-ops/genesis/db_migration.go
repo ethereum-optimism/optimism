@@ -251,18 +251,22 @@ func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdr
 	}
 
 	// Build a map of all the slots in the LegacyMessagePasser
+	var count int
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
 			return false
 		}
 		slots[key] = true
+		count++
 		return true
 	})
 
 	if err != nil {
 		return fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)
 	}
+
+	log.Info("iterated legacy messages", "count", count)
 
 	// Check that all of the slots from storage correspond to a known message
 	for slot := range slots {
