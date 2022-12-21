@@ -83,7 +83,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	if !noCheck {
 		log.Info("Checking withdrawals...")
-		if err := CheckWithdrawals(db, withdrawals, int(config.L1ChainID)); err != nil {
+		if err := PreCheckWithdrawals(db, withdrawals, int(config.L1ChainID)); err != nil {
 			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 		}
 		log.Info("Withdrawals accounted for!")
@@ -234,9 +234,9 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	return res, nil
 }
 
-// CheckWithdrawals will ensure that the entire list of withdrawals is being
+// PreCheckWithdrawals will ensure that the entire list of withdrawals is being
 // operated on during the database migration.
-func CheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal, l1ChainID int) error {
+func PreCheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal, l1ChainID int) error {
 	// Create a mapping of all of their storage slots
 	knownSlots := make(map[common.Hash]bool)
 	for _, wd := range withdrawals {
