@@ -47,6 +47,7 @@ COPY packages/message-relayer/package.json ./packages/message-relayer/package.js
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
+COPY packages/balance-monitor/package.json ./packages/balance-monitor/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
 RUN yarn install --frozen-lockfile && yarn cache clean
@@ -81,7 +82,6 @@ WORKDIR /opt/optimism/packages/data-transport-layer
 COPY ./ops/scripts/dtl.sh .
 CMD ["node", "dist/src/services/run.js"]
 
-
 FROM base as integration-tests
 WORKDIR /opt/optimism/integration-tests
 COPY ./ops/scripts/integration-tests.sh ./
@@ -107,3 +107,7 @@ ENTRYPOINT ["npm", "run", "start"]
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/drippie-mon
 ENTRYPOINT ["npm", "run", "start"]
+
+FROM base as drippie-mon
+WORKDIR /opt/optimism/packages/balance-monitor
+ENTRYPOINT ["yarn", "run", "start:prod"]
