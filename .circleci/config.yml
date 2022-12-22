@@ -548,7 +548,6 @@ jobs:
   devnet:
     machine:
       image: ubuntu-2204:2022.10.2
-      docker_layer_caching: true
     parameters:
       deploy:
         description: Deploy contracts
