@@ -1,10 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -13,6 +18,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
+	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 )
@@ -132,34 +139,34 @@ func main() {
 				return err
 			}
 
-			//l1RpcURL := ctx.String("l1-rpc-url")
-			//l1Client, err := ethclient.Dial(l1RpcURL)
-			//if err != nil {
-			//	return err
-			//}
+			l1RpcURL := ctx.String("l1-rpc-url")
+			l1Client, err := ethclient.Dial(l1RpcURL)
+			if err != nil {
+				return err
+			}
 
-			//var block *types.Block
-			//tag := config.L1StartingBlockTag
-			//if tag.BlockNumber != nil {
-			//	block, err = l1Client.BlockByNumber(context.Background(), big.NewInt(tag.BlockNumber.Int64()))
-			//} else if tag.BlockHash != nil {
-			//	block, err = l1Client.BlockByHash(context.Background(), *tag.BlockHash)
-			//} else {
-			//	return fmt.Errorf("invalid l1StartingBlockTag in deploy config: %v", tag)
-			//}
-			//if err != nil {
-			//	return err
-			//}
+			var block *types.Block
+			tag := config.L1StartingBlockTag
+			if tag.BlockNumber != nil {
+				block, err = l1Client.BlockByNumber(context.Background(), big.NewInt(tag.BlockNumber.Int64()))
+			} else if tag.BlockHash != nil {
+				block, err = l1Client.BlockByHash(context.Background(), *tag.BlockHash)
+			} else {
+				return fmt.Errorf("invalid l1StartingBlockTag in deploy config: %v", tag)
+			}
+			if err != nil {
+				return err
+			}
 
 			dbCache := ctx.Int("db-cache")
 			dbHandles := ctx.Int("db-handles")
 
 			chaindataPath := filepath.Join(ctx.String("db-path"), "geth", "chaindata")
 			ancientPath := filepath.Join(chaindataPath, "ancient")
-			//ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
-			//if err != nil {
-			//	return err
-			//}
+			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
+			if err != nil {
+				return err
+			}
 
 			// Read the required deployment addresses from disk if required
 			if err := config.GetDeployedAddresses(hh); err != nil {
@@ -170,25 +177,25 @@ func main() {
 				return err
 			}
 
-			//dryRun := ctx.Bool("dry-run")
-			//noCheck := ctx.Bool("no-check")
-			//// Perform the migration
-			//res, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
-			//if err != nil {
-			//	return err
-			//}
+			dryRun := ctx.Bool("dry-run")
+			noCheck := ctx.Bool("no-check")
+			// Perform the migration
+			res, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
+			if err != nil {
+				return err
+			}
 
 			// Close the database handle
-			//if err := ldb.Close(); err != nil {
-			//	return err
-			//}
+			if err := ldb.Close(); err != nil {
+				return err
+			}
 
 			postLDB, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
 			if err != nil {
 				return err
 			}
 
-			if err := genesis.PostCheckMigratedDB(postLDB, migrationData, &config.L1CrossDomainMessengerProxy, int(config.L1ChainID)); err != nil {
+			if err := genesis.PostCheckMigratedDB(postLDB, migrationData, &config.L1CrossDomainMessengerProxy, config.L1ChainID); err != nil {
 				return err
 			}
 
@@ -196,14 +203,14 @@ func main() {
 				return err
 			}
 
-			//opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash, res.TransitionHeight)
-			//if err != nil {
-			//	return err
-			//}
-			//
-			//if err := writeJSON(ctx.String("rollup-config-out"), opNodeConfig); err != nil {
-			//	return err
-			//}
+			opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash, res.TransitionHeight)
+			if err != nil {
+				return err
+			}
+
+			if err := writeJSON(ctx.String("rollup-config-out"), opNodeConfig); err != nil {
+				return err
+			}
 
 			return nil
 		},

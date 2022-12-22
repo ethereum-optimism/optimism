@@ -24,7 +24,7 @@ import (
 // when validating the untouched predeploys. This limit is in place
 // to bound execution time of the migration. We can parallelize this
 // in the future.
-const MaxSlotChecks = 5000
+const MaxSlotChecks = 1000
 
 var LegacyETHCheckSlots = map[common.Hash]common.Hash{
 	// Bridge
@@ -38,7 +38,7 @@ var LegacyETHCheckSlots = map[common.Hash]common.Hash{
 }
 
 // PostCheckMigratedDB will check that the migration was performed correctly
-func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID int) error {
+func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID uint64) error {
 	log.Info("Validating database migration")
 
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -67,7 +67,7 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	if err := PostCheckUntouchables(underlyingDB, db, prevHeader.Root); err != nil {
+	if err := PostCheckUntouchables(underlyingDB, db, prevHeader.Root, l1ChainID); err != nil {
 		return err
 	}
 	log.Info("checked untouchables")
@@ -92,7 +92,7 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 
 // PostCheckUntouchables will check that the untouchable contracts have
 // not been modified by the migration process.
-func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot common.Hash) error {
+func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot common.Hash, l1ChainID uint64) error {
 	prevDB, err := state.New(prevRoot, udb, nil)
 	if err != nil {
 		return fmt.Errorf("cannot open StateDB: %w", err)
@@ -102,10 +102,19 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 		// Check that the code is the same.
 		code := currDB.GetCode(addr)
 		hash := crypto.Keccak256Hash(code)
-		if hash != UntouchableCodeHashes[addr] {
-			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, UntouchableCodeHashes[addr], hash)
+		expHash := UntouchableCodeHashes[addr][l1ChainID]
+		if hash != expHash {
+			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, expHash, hash)
 		}
 		log.Info("checked code hash", "address", addr, "hash", hash)
+
+		// Ensure that the current/previous roots match
+		prevRoot := prevDB.StorageTrie(addr).Hash()
+		currRoot := currDB.StorageTrie(addr).Hash()
+		if prevRoot != currRoot {
+			return fmt.Errorf("expected storage root for %s to be %s, but got %s", addr, prevRoot, currRoot)
+		}
+		log.Info("checked account roots", "address", addr, "curr_root", currRoot, "prev_root", prevRoot)
 
 		// Sample storage slots to ensure that they are not modified.
 		var count int
@@ -217,6 +226,9 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		return err
 	}
 
+	// First, make a mapping between old withdrawal slots and new ones.
+	// This list can be a superset of what was actually migrated, since
+	// some witness data may references withdrawals that reverted.
 	oldToNew := make(map[common.Hash]common.Hash)
 	for _, wd := range wds {
 		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
@@ -236,23 +248,31 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		oldToNew[legacySlot] = migratedSlot
 	}
 
+	// Now, iterate over each legacy withdrawal and check if there is a corresponding
+	// migrated withdrawal.
 	var innerErr error
 	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
+		// The legacy message passer becomes a proxy during the migration,
+		// so we need to ignore the implementation/admin slots.
 		if key == ImplementationSlot || key == AdminSlot {
 			return true
 		}
 
+		// All other values should be abiTrue, since the only other state
+		// in the message passer is the mapping of messages to boolean true.
 		if value != abiTrue {
 			innerErr = fmt.Errorf("non-true value found in legacy message passer. key: %s, value: %s", key, value)
 			return false
 		}
 
+		// Grab the migrated slot.
 		migratedSlot := oldToNew[key]
 		if migratedSlot == (common.Hash{}) {
 			innerErr = fmt.Errorf("no migrated slot found for legacy slot %s", key)
 			return false
 		}
 
+		// Look up the migrated slot in the DB, and make sure it is abiTrue.
 		migratedValue := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
 		if migratedValue != abiTrue {
 			innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)

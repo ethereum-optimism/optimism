@@ -23,9 +23,17 @@ var UntouchablePredeploys = map[common.Address]bool{
 
 // UntouchableCodeHashes contains code hashes of all the contracts
 // that should not be touched by the migration process.
-var UntouchableCodeHashes = map[common.Address]common.Hash{
-	predeploys.GovernanceTokenAddr: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
-	predeploys.WETH9Addr:           common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+type ChainHashMap map[uint64]common.Hash
+
+var UntouchableCodeHashes = map[common.Address]ChainHashMap{
+	predeploys.GovernanceTokenAddr: {
+		1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
+		5: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
+	},
+	predeploys.WETH9Addr: {
+		1: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+		5: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+	},
 }
 
 // FundDevAccounts will fund each of the development accounts.
