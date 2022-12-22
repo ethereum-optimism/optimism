@@ -176,7 +176,7 @@ func main() {
 			dryRun := ctx.Bool("dry-run")
 			noCheck := ctx.Bool("no-check")
 			// Perform the migration
-			res, err := genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
+			_, err = genesis.MigrateDB(ldb, config, block, &migrationData, !dryRun, noCheck)
 			if err != nil {
 				return err
 			}
@@ -199,14 +199,14 @@ func main() {
 				return err
 			}
 
-			opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash, res.TransitionHeight)
-			if err != nil {
-				return err
-			}
-
-			if err := writeJSON(ctx.String("rollup-config-out"), opNodeConfig); err != nil {
-				return err
-			}
+			//opNodeConfig, err := config.RollupConfig(block, res.TransitionBlockHash, res.TransitionHeight)
+			//if err != nil {
+			//	return err
+			//}
+			//
+			//if err := writeJSON(ctx.String("rollup-config-out"), opNodeConfig); err != nil {
+			//	return err
+			//}
 
 			return nil
 		},

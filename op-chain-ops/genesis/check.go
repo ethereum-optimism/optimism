@@ -307,7 +307,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	testTrie.Hash()
 	actRoot := db.StorageTrie(predeploys.L2ToL1MessagePasserAddr).Hash()
 	if expRoot != actRoot {
-		log.Warn("expected migrated message passer storage root to be %s, but got %s", expRoot, actRoot)
+		log.Warn("expected migrated message passer storage root", "exp", expRoot, "act", actRoot)
 	}
 
 	return nil
