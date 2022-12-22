@@ -93,18 +93,20 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         L2Messenger.xDomainMessageSender();
     }
 
-    function test_relayMessage_v0_reverts() external {
+    function test_relayMessage_v2_reverts() external {
         address target = address(0xabcd);
         address sender = address(L1Messenger);
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
-        vm.prank(caller);
-
+        // Expect a revert.
         vm.expectRevert(
-            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
         );
+
+        // Try to relay a v2 message.
+        vm.prank(caller);
         L2Messenger.relayMessage(
-            0, // nonce
+            Encoding.encodeVersionedNonce(0, 2), // nonce
             sender,
             target,
             0, // value

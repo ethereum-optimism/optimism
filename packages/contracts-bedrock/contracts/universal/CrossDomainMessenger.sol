@@ -263,15 +263,23 @@ abstract contract CrossDomainMessenger is
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-
-        // Block any messages that aren't version 1. All version 0 messages have been guaranteed to
-        // be relayed OR have been migrated to version 1 messages. Version 0 messages do not commit
-        // to the value or minGasLimit fields, which can create unexpected issues for end-users.
         require(
-            version == 1,
-            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+            version < 2,
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
         );
 
+        // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
+        // to check that the legacy version of the message has not already been relayed.
+        if (version == 0) {
+            bytes32 oldHash = Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _nonce);
+            require(
+                successfulMessages[oldHash] == false,
+                "CrossDomainMessenger: legacy withdrawal already relayed"
+            );
+        }
+
+        // We use the v1 message hash as the unique identifier for the message because it commits
+        // to the value and minimum gas limit of the message.
         bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
             _nonce,
             _sender,
