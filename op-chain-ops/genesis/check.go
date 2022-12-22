@@ -287,7 +287,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 		// Look up the migrated slot in the DB, and make sure it is abiTrue.
 		migratedValue := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
 		if migratedValue != abiTrue {
-			innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
+			innerErr = fmt.Errorf("expected migrated value at slot %s to be true, but got %s", migratedSlot, migratedValue)
 			return false
 		}
 
