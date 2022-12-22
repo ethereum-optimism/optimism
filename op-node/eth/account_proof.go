@@ -13,6 +13,12 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
+type StorageProofEntry struct {
+	Key   common.Hash     `json:"key"`
+	Value hexutil.Bytes   `json:"value"`
+	Proof []hexutil.Bytes `json:"proof"`
+}
+
 type AccountResult struct {
 	AccountProof []hexutil.Bytes `json:"accountProof"`
 
@@ -21,40 +27,57 @@ type AccountResult struct {
 	CodeHash    common.Hash    `json:"codeHash"`
 	Nonce       hexutil.Uint64 `json:"nonce"`
 	StorageHash common.Hash    `json:"storageHash"`
-	// storageProof field is ignored, we only need to proof the account contents,
-	// we do not access any individual storage values.
+
+	// Optional
+	StorageProof []StorageProofEntry `json:"storageProof,omitempty"`
 }
 
-// Verify an account proof from the getProof RPC. See https://eips.ethereum.org/EIPS/eip-1186
+// Verify an account (and optionally storage) proof from the getProof RPC. See https://eips.ethereum.org/EIPS/eip-1186
 func (res *AccountResult) Verify(stateRoot common.Hash) error {
+	// verify storage proof values, if any, against the storage trie root hash of the account
+	for i, entry := range res.StorageProof {
+		// load all MPT nodes into a DB
+		db := memorydb.New()
+		for j, encodedNode := range entry.Proof {
+			nodeKey := encodedNode
+			if len(encodedNode) >= 32 { // small MPT nodes are not hashed
+				nodeKey = crypto.Keccak256(encodedNode)
+			}
+			if err := db.Put(nodeKey, encodedNode); err != nil {
+				return fmt.Errorf("failed to load storage proof node %d of storage value %d into mem db: %w", j, i, err)
+			}
+		}
+		path := crypto.Keccak256(entry.Key[:])
+		val, err := trie.VerifyProof(res.StorageHash, path, db)
+		if err != nil {
+			return fmt.Errorf("failed to verify storage value %d with key %s (path %x) in storage trie %s: %w", i, entry.Key, path, res.StorageHash, err)
+		}
+		if !bytes.Equal(val, val) {
+			return fmt.Errorf("value %d in storage proof does not match proven value at key %s (path %x)", i, entry.Key, path)
+		}
+	}
+
 	accountClaimed := []any{uint64(res.Nonce), (*big.Int)(res.Balance).Bytes(), res.StorageHash, res.CodeHash}
 	accountClaimedValue, err := rlp.EncodeToBytes(accountClaimed)
 	if err != nil {
 		return fmt.Errorf("failed to encode account from retrieved values: %w", err)
 	}
 
-	// create a db with all trie nodes
+	// create a db with all account trie nodes
 	db := memorydb.New()
 	for i, encodedNode := range res.AccountProof {
-		nodeKey := crypto.Keccak256(encodedNode)
+		nodeKey := encodedNode
+		if len(encodedNode) >= 32 { // small MPT nodes are not hashed
+			nodeKey = crypto.Keccak256(encodedNode)
+		}
 		if err := db.Put(nodeKey, encodedNode); err != nil {
-			return fmt.Errorf("failed to load proof value %d into mem db: %w", i, err)
+			return fmt.Errorf("failed to load account proof node %d into mem db: %w", i, err)
 		}
 	}
-
-	key := crypto.Keccak256Hash(res.Address[:])
-	trieDB := trie.NewDatabase(db)
-
-	// wrap our DB of trie nodes with a Trie interface, and anchor it at the trusted state root
-	proofTrie, err := trie.New(trie.StateTrieID(stateRoot), trieDB)
+	path := crypto.Keccak256(res.Address[:])
+	accountProofValue, err := trie.VerifyProof(stateRoot, path, db)
 	if err != nil {
-		return fmt.Errorf("failed to load db wrapper around kv store")
-	}
-
-	// now get the full value from the account proof, and check that it matches the JSON contents
-	accountProofValue, err := proofTrie.TryGet(key[:])
-	if err != nil {
-		return fmt.Errorf("failed to retrieve account value: %w", err)
+		return fmt.Errorf("failed to verify account value with key %s (path %x) in account trie %s: %w", res.Address, path, stateRoot, err)
 	}
 
 	if !bytes.Equal(accountClaimedValue, accountProofValue) {

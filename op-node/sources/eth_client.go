@@ -265,13 +265,58 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 
-func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
+// GetProof returns an account proof result, with any optional requested storage proofs.
+// The retrieval does sanity-check that storage proofs for the expected keys are present in the response,
+// but does not verify the result. Call accountResult.Verify(stateRoot) to verify the result.
+func (s *EthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
 	var getProofResponse *eth.AccountResult
-	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, []common.Hash{}, blockTag)
-	if err == nil && getProofResponse == nil {
-		err = ethereum.NotFound
+	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, storage, blockTag)
+	if err != nil {
+		return nil, err
 	}
-	return getProofResponse, err
+	if getProofResponse == nil {
+		return nil, ethereum.NotFound
+	}
+	if len(getProofResponse.StorageProof) != len(storage) {
+		return nil, fmt.Errorf("missing storage proof data, got %d proof entries but requested %d storage keys", len(getProofResponse.StorageProof), len(storage))
+	}
+	for i, key := range storage {
+		if key != getProofResponse.StorageProof[i].Key {
+			return nil, fmt.Errorf("unexpected storage proof key difference for entry %d: got %s but requested %s", i, getProofResponse.StorageProof[i].Key, key)
+		}
+	}
+	return getProofResponse, nil
+}
+
+// GetStorageAt returns the storage value at the given address and storage slot, **without verifying the correctness of the result**.
+// This should only ever be used as alternative to GetProof when the user opts in.
+// E.g. Erigon L1 node users may have to use this, since Erigon does not support eth_getProof, see https://github.com/ledgerwatch/erigon/issues/1349
+func (s *EthClient) GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error) {
+	var out common.Hash
+	err := s.client.CallContext(ctx, &out, "eth_getStorageAt", address, storageSlot, blockTag)
+	return out, err
+}
+
+// ReadStorageAt is a convenience method to read a single storage value at the given slot in the given account.
+// The storage slot value is verified against the state-root of the given block if we do not trust the RPC provider, or directly retrieved without proof if we do trust the RPC.
+func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error) {
+	if s.trustRPC {
+		return s.GetStorageAt(ctx, address, storageSlot, blockHash.String())
+	}
+	block, err := s.InfoByHash(ctx, blockHash)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to retrieve state root of block %s: %w", blockHash, err)
+	}
+
+	result, err := s.GetProof(ctx, address, []common.Hash{storageSlot}, blockHash.String())
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch proof of storage slot %s at block %s: %w", storageSlot, blockHash, err)
+	}
+
+	if err := result.Verify(block.Root()); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to verify retrieved proof against state root: %w", err)
+	}
+	return common.BytesToHash(result.StorageProof[0].Value), nil
 }
 
 func (s *EthClient) Close() {

@@ -15,9 +15,10 @@ import (
 )
 
 var (
-	SystemConfigUpdateBatcher   = common.Hash{31: 0}
-	SystemConfigUpdateGasConfig = common.Hash{31: 1}
-	SystemConfigUpdateGasLimit  = common.Hash{31: 2}
+	SystemConfigUpdateBatcher           = common.Hash{31: 0}
+	SystemConfigUpdateGasConfig         = common.Hash{31: 1}
+	SystemConfigUpdateGasLimit          = common.Hash{31: 2}
+	SystemConfigUpdateUnsafeBlockSigner = common.Hash{31: 3}
 )
 
 var (
@@ -112,6 +113,9 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return fmt.Errorf("expected zero padding for gaslimit, but got %x", ev.Data)
 		}
 		destSysCfg.GasLimit = binary.BigEndian.Uint64(ev.Data[64+24:])
+		return nil
+	case SystemConfigUpdateUnsafeBlockSigner:
+		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
 		return nil
 	default:
 		return fmt.Errorf("unrecognized L1 sysCfg update type: %s", updateType)
