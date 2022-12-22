@@ -228,7 +228,10 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	}
 
 	memdb := memorydb.New()
-	testTrie := trie.NewEmpty(trie.NewDatabase(memdb))
+	testTrie, err := trie.NewStateTrie(trie.TrieID(common.Hash{}), trie.NewDatabase(memdb))
+	if err != nil {
+		return err
+	}
 
 	// First, make a mapping between old withdrawal slots and new ones.
 	// This list can be a superset of what was actually migrated, since
@@ -252,13 +255,15 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 		oldToNew[legacySlot] = migratedSlot
 	}
 
-	nonceSlot := common.Hash{31: 0x01}
 	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, ImplementationSlot).Bytes())
 	testTrie.Update(AdminSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, AdminSlot).Bytes())
-	log.Info("nonce slot", "value", db.GetState(predeploys.L2ToL1MessagePasserAddr, nonceSlot))
 
+	inStore := make(map[common.Hash]bool)
+	inStore[ImplementationSlot] = true
+	inStore[AdminSlot] = true
 	db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
 		log.Info("found passer slot", "key", key, "value", value)
+		inStore[key] = true
 		return true
 	})
 
@@ -286,6 +291,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 			return false
 		}
 
+		delete(inStore, migratedSlot)
 		testTrie.Update(migratedSlot.Bytes(), abiTrue.Bytes())
 
 		// Look up the migrated slot in the DB, and make sure it is abiTrue.
@@ -302,6 +308,10 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	}
 	if innerErr != nil {
 		return fmt.Errorf("error checking storage slots: %w", innerErr)
+	}
+
+	for _, is := range inStore {
+		log.Warn("missed", "slot", is)
 	}
 
 	expRoot, _, err := testTrie.Commit(true)
