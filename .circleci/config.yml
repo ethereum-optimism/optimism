@@ -595,11 +595,11 @@ jobs:
                 working_directory: packages/contracts-bedrock
             - run:
                 name: Deposit ERC20 through the bridge
-                command: timeout 5m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
                 name: Deposit ETH through the bridge
-                command: timeout 5m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
                 name: Check the status
