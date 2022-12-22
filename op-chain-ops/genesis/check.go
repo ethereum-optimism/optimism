@@ -258,12 +258,12 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, ImplementationSlot).Bytes())
 	testTrie.Update(AdminSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, AdminSlot).Bytes())
 
-	inStore := make(map[common.Hash]bool)
-	inStore[ImplementationSlot] = true
-	inStore[AdminSlot] = true
+	inStore := make(map[common.Hash]common.Hash)
+	inStore[ImplementationSlot] = common.Hash{}
+	inStore[AdminSlot] = common.Hash{}
 	db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
 		log.Info("found passer slot", "key", key, "value", value)
-		inStore[key] = true
+		inStore[key] = value
 		return true
 	})
 
@@ -310,8 +310,8 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 		return fmt.Errorf("error checking storage slots: %w", innerErr)
 	}
 
-	for _, is := range inStore {
-		log.Warn("missed", "slot", is)
+	for k, v := range inStore {
+		log.Warn("missed", "k", k, "v", v)
 	}
 
 	expRoot, _, err := testTrie.Commit(true)
