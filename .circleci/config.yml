@@ -548,7 +548,6 @@ jobs:
   devnet:
     machine:
       image: ubuntu-2204:2022.10.2
-      docker_layer_caching: true
     parameters:
       deploy:
         description: Deploy contracts
@@ -595,16 +594,41 @@ jobs:
                 working_directory: packages/contracts-bedrock
             - run:
                 name: Deposit ERC20 through the bridge
-                command: timeout 5m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
                 name: Deposit ETH through the bridge
-                command: timeout 5m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: Dump op-node logs
+                command: |
+                  docker logs ops-bedrock-op-node-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-geth logs
+                command: |
+                  docker logs ops-bedrock-l2-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump l1 logs
+                command: |
+                  docker logs ops-bedrock-l1-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-batcher logs
+                command: |
+                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-proposer logs
+                command: |
+                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+                when: on_fail
       - when:
           condition:
             and:
