@@ -252,8 +252,11 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 		oldToNew[legacySlot] = migratedSlot
 	}
 
+	nonceSlot := common.Hash{31: 0x01}
 	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, ImplementationSlot).Bytes())
 	testTrie.Update(AdminSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, AdminSlot).Bytes())
+	testTrie.Update(nonceSlot.Bytes(), common.Hash{}.Bytes())
+	log.Info("nonce slot", db.GetState(predeploys.L2ToL1MessagePasserAddr, nonceSlot))
 
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
 	// migrated withdrawal.
