@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -220,11 +221,14 @@ func PostCheckLegacyETH(db vm.StateDB) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
+func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
 	wds, err := data.ToWithdrawals()
 	if err != nil {
 		return err
 	}
+
+	memdb := memorydb.New()
+	testTrie := trie.NewEmpty(trie.NewDatabase(memdb))
 
 	// First, make a mapping between old withdrawal slots and new ones.
 	// This list can be a superset of what was actually migrated, since
@@ -247,6 +251,9 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 
 		oldToNew[legacySlot] = migratedSlot
 	}
+
+	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, ImplementationSlot).Bytes())
+	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, AdminSlot).Bytes())
 
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
 	// migrated withdrawal.
@@ -272,6 +279,8 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 			return false
 		}
 
+		testTrie.Update(migratedSlot.Bytes(), abiTrue.Bytes())
+
 		// Look up the migrated slot in the DB, and make sure it is abiTrue.
 		migratedValue := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
 		if migratedValue != abiTrue {
@@ -287,5 +296,15 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 	if innerErr != nil {
 		return fmt.Errorf("error checking storage slots: %w", innerErr)
 	}
+
+	expRoot, _, err := testTrie.Commit(true)
+	if err != nil {
+		return fmt.Errorf("error calculating expected root: %w", err)
+	}
+	actRoot := db.StorageTrie(predeploys.L2ToL1MessagePasserAddr).Hash()
+	if expRoot != actRoot {
+		return fmt.Errorf("expected migrated message passer storage root to be %s, but got %s", expRoot, actRoot)
+	}
+
 	return nil
 }
