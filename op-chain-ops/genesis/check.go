@@ -229,13 +229,14 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	}
 
 	memdb := memorydb.New()
-	testTrie, err := trie.NewStateTrie(
-		trie.StorageTrieID(header.Root, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), common.Hash{}),
-		trie.NewDatabase(memdb),
-	)
-	if err != nil {
-		return err
-	}
+	//testTrie, err := trie.NewStateTrie(
+	//	trie.StorageTrieID(header.Root, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), common.Hash{}),
+	//	trie.NewDatabase(memdb),
+	//)
+	//if err != nil {
+	//	return err
+	//}
+	testTrie := trie.NewEmpty(trie.NewDatabase(memdb))
 
 	// First, make a mapping between old withdrawal slots and new ones.
 	// This list can be a superset of what was actually migrated, since
