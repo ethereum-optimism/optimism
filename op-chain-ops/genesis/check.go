@@ -24,7 +24,7 @@ import (
 // when validating the untouched predeploys. This limit is in place
 // to bound execution time of the migration. We can parallelize this
 // in the future.
-const MaxSlotChecks = 5000
+const MaxSlotChecks = 1000
 
 var LegacyETHCheckSlots = map[common.Hash]common.Hash{
 	// Bridge
@@ -107,6 +107,14 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 			return fmt.Errorf("expected code hash for %s to be %s, but got %s", addr, expHash, hash)
 		}
 		log.Info("checked code hash", "address", addr, "hash", hash)
+
+		// Ensure that the current/previous roots match
+		prevRoot := prevDB.StorageTrie(addr).Hash()
+		currRoot := currDB.StorageTrie(addr).Hash()
+		if prevRoot != currRoot {
+			return fmt.Errorf("expected storage root for %s to be %s, but got %s", addr, prevRoot, currRoot)
+		}
+		log.Info("checked account roots", "address", addr, "curr_root", currRoot, "prev_root", prevRoot)
 
 		// Sample storage slots to ensure that they are not modified.
 		var count int
