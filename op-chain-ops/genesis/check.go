@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"math/big"
 
@@ -83,7 +84,7 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 	}
 	log.Info("checked legacy eth")
 
-	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM); err != nil {
+	if err := CheckWithdrawalsAfter(db, migrationData, l1XDM, header); err != nil {
 		return err
 	}
 	log.Info("checked withdrawals")
@@ -221,14 +222,17 @@ func PostCheckLegacyETH(db vm.StateDB) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
+func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address, header *types.Header) error {
 	wds, err := data.ToWithdrawals()
 	if err != nil {
 		return err
 	}
 
 	memdb := memorydb.New()
-	testTrie, err := trie.NewStateTrie(trie.TrieID(common.Hash{}), trie.NewDatabase(memdb))
+	testTrie, err := trie.NewStateTrie(
+		trie.StorageTrieID(header.Root, db.GetCodeHash(predeploys.L2ToL1MessagePasserAddr), common.Hash{}),
+		trie.NewDatabase(memdb),
+	)
 	if err != nil {
 		return err
 	}
@@ -262,7 +266,6 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	inStore[ImplementationSlot] = common.Hash{}
 	inStore[AdminSlot] = common.Hash{}
 	db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
-		log.Info("found passer slot", "key", key, "value", value)
 		inStore[key] = value
 		return true
 	})
