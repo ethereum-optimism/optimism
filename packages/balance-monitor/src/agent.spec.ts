@@ -1,9 +1,8 @@
 import { HandleBlock, createBlockEvent } from 'forta-agent'
 import { BigNumber } from 'ethers'
 import { expect } from 'chai'
-import * as ethers from 'ethers'
 
-import agent, { accounts } from './agent'
+import agent from './agent'
 
 describe('minimum balance agent', async () => {
   let handleBlock: HandleBlock
