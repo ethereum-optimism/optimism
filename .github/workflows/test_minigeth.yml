@@ -14,7 +14,7 @@ jobs:
     - name: Install Toolchain
       run: |
         sudo apt-get update
-        sudo apt-get -y --no-install-recommends install golang-1.16 make cmake pkg-config
+        sudo apt-get -y --no-install-recommends install golang-1.17 make cmake pkg-config
     - name: Build minigeth
       run: make minigeth_prefetch
     - name: Test Minigeth
