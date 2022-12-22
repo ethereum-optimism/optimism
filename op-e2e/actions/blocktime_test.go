@@ -156,3 +156,150 @@ func TestLargeL1Gaps(gt *testing.T) {
 	verifyChainStateOnVerifier(12, 40, 9, 40, 9)
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Safe())
 }
+
+// TestLargeL1GapsVarationOne tests the case that there is a gap between two L1 blocks which
+// is larger than the sequencer drift.
+// This test has the following parameters:
+// L1 Block time: 4s. L2 Block time: 2s. Sequencer Drift: 32s
+//
+// It generates 8 L1 blocks & 16 L2 blocks.
+// Then generates an L1 block that has a time delta of 48s.
+// It then generates the 24 L2 blocks.
+// Then it generates 3 more L1 blocks.
+// At this point it can verify that the batches where properly generated.
+// Note: It batches submits when possible.
+func TestLargeL1GapsVarationOne(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L1BlockTime = 4
+	dp.DeployConfig.L2BlockTime = 2
+	dp.DeployConfig.SequencerWindowSize = 4
+	dp.DeployConfig.MaxSequencerDrift = 32
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+
+	sd, miner, sequencer, sequencerEngine, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
+
+	signer := types.LatestSigner(sd.L2Cfg.Config)
+	cl := sequencerEngine.EthClient()
+	aliceTx := func() {
+		n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+		require.NoError(t, err)
+		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+			ChainID:   sd.L2Cfg.Config.ChainID,
+			Nonce:     n,
+			GasTipCap: big.NewInt(2 * params.GWei),
+			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee(), big.NewInt(2*params.GWei)),
+			Gas:       params.TxGas,
+			To:        &dp.Addresses.Bob,
+			Value:     e2eutils.Ether(2),
+		})
+		require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+	}
+	makeL2BlockWithAliceTx := func() {
+		aliceTx()
+		sequencer.ActL2StartBlock(t)
+		sequencerEngine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
+		sequencer.ActL2EndBlock(t)
+	}
+
+	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
+		require.Equal(t, l1Number, miner.l1Chain.CurrentHeader().Number.Uint64())
+		require.Equal(t, unsafeHead, sequencer.L2Unsafe().Number)
+		require.Equal(t, unsafeHeadOrigin, sequencer.L2Unsafe().L1Origin.Number)
+		require.Equal(t, safeHead, sequencer.L2Safe().Number)
+		require.Equal(t, safeHeadOrigin, sequencer.L2Safe().L1Origin.Number)
+	}
+
+	verifyChainStateOnVerifier := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
+		require.Equal(t, l1Number, miner.l1Chain.CurrentHeader().Number.Uint64())
+		require.Equal(t, unsafeHead, verifier.L2Unsafe().Number)
+		require.Equal(t, unsafeHeadOrigin, verifier.L2Unsafe().L1Origin.Number)
+		require.Equal(t, safeHead, verifier.L2Safe().Number)
+		require.Equal(t, safeHeadOrigin, verifier.L2Safe().L1Origin.Number)
+	}
+
+	// Make 8 L1 blocks & 16 L2 blocks.
+	miner.ActL1StartBlock(4)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	makeL2BlockWithAliceTx()
+	makeL2BlockWithAliceTx()
+
+	for i := 0; i < 7; i++ {
+		batcher.ActSubmitAll(t)
+		miner.ActL1StartBlock(4)(t)
+		miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+		miner.ActL1EndBlock(t)
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2PipelineFull(t)
+		makeL2BlockWithAliceTx()
+		makeL2BlockWithAliceTx()
+	}
+
+	verifyChainStateOnSequencer(8, 16, 8, 14, 7)
+
+	// Make the really long L1 block. Do include previous batches
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(32)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+
+	verifyChainStateOnSequencer(9, 16, 8, 16, 8)
+
+	// Make the L2 blocks corresponding to the long L1 block
+	// Add two extra blocks
+	for i := 0; i < 18; i++ {
+		makeL2BlockWithAliceTx()
+	}
+	verifyChainStateOnSequencer(9, 34, 9, 16, 8)
+
+	// Check how many transactions from alice got included on L2
+	// We created one transaction for every L2 block. So we should have created 34 transactions.
+	// The first 16 L2 block where included without issue.
+	// Then over the long block, 32s seq drift / 2s block time => 16 blocks with transactions
+	// That leaves 0 blocks without transactions. So we should have 16+16 = 32 transactions on chain.
+	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+	require.NoError(t, err)
+	require.Equal(t, uint64(34), n)
+
+	n, err = cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(32), n)
+
+	// Make more L1 blocks to get past the sequence window for the large range.
+	// Do batch submit the previous L2 blocks.
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(4)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+
+	// We are not able to do eager batch derivation for these L2 blocks because
+	// we reject batches with a greater timestamp than the drift.
+	verifyChainStateOnSequencer(10, 34, 9, 16, 8)
+
+	for i := 0; i < 2; i++ {
+		miner.ActL1StartBlock(4)(t)
+		miner.ActL1EndBlock(t)
+	}
+
+	// Run the pipeline against the batches + to be auto-generated batches.
+	// Expect a reorg to pull it back to 32 blocks
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	verifyChainStateOnSequencer(12, 32, 9, 40, 9)
+
+	// Recheck nonce. Will fail if no batches where submitted
+	n, err = cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(32), n) // 16 valid blocks with txns. Get seq drift non-empty (32/2 => 16) & 8 forced empty
+
+	// Check that the verifier got the same result
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	verifyChainStateOnVerifier(12, 32, 9, 40, 9)
+	require.Equal(t, verifier.L2Safe(), sequencer.L2Safe())
+}
