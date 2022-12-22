@@ -253,7 +253,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	}
 
 	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, ImplementationSlot).Bytes())
-	testTrie.Update(ImplementationSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, AdminSlot).Bytes())
+	testTrie.Update(AdminSlot.Bytes(), db.GetState(predeploys.L2ToL1MessagePasserAddr, AdminSlot).Bytes())
 
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
 	// migrated withdrawal.
