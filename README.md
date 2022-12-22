@@ -37,29 +37,6 @@ make build
 make test # verify everything works correctly
 ```
 
-## Usage
-
-The following commands should be run from the root directory unless otherwise specified:
-
-```
-# compute the transition from 13284469 -> 13284470 on PC
-TRANSITION_BLOCK=13284469
-mkdir -p /tmp/cannon
-minigeth/go-ethereum $TRANSITION_BLOCK
-
-# write out the golden MIPS minigeth start state
-mipsevm/mipsevm
-
-# if you run into "digital envelope routines::unsupported", rerun after this:
-# export NODE_OPTIONS=--openssl-legacy-provider
-
-# generate MIPS checkpoints
-mipsevm/mipsevm $TRANSITION_BLOCK
-
-# deploy the MIPS and challenge contracts
-npx hardhat run scripts/deploy.js
-```
-
 ## Examples
 
 The script files [`demo/challenge_simple.sh`](demo/challenge_simple.sh) and
