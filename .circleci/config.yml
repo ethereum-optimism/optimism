@@ -1011,6 +1011,20 @@ workflows:
             - gcr
           requires:
             - op-heartbeat-docker-build
+      - docker-build:
+          name: balance-monitor-docker-build
+          docker_file: packages/balance-monitor/Dockerfile
+          docker_name: balance-monitor
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: balance-monitor-docker-publish
+          docker_name: balance-monitor
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - gcr
+          requires:
+            - balance-monitor-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
