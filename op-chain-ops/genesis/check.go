@@ -28,6 +28,8 @@ import (
 // in the future.
 const MaxSlotChecks = 1000
 
+var EmptyRoot = common.HexToHash("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421")
+
 var LegacyETHCheckSlots = map[common.Hash]common.Hash{
 	// Bridge
 	common.Hash{31: 0x06}: common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
@@ -230,8 +232,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 
 	memdb := memorydb.New()
 	testTrie, err := trie.NewStateTrie(
-		//trie.StorageTrieID(header.Root, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), common.Hash{}),
-		trie.StorageTrieID(common.Hash{}, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), common.Hash{}),
+		trie.StorageTrieID(header.Root, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), EmptyRoot),
 		trie.NewDatabase(memdb),
 	)
 	if err != nil {
