@@ -22,6 +22,8 @@ import (
 var bigOne = big.NewInt(1)
 var supportedL2OutputVersion = eth.Bytes32{}
 
+type SignerFn func(context.Context, common.Address, *types.Transaction) (*types.Transaction, error)
+
 type DriverConfig struct {
 	Log  log.Logger
 	Name string
@@ -44,7 +46,7 @@ type DriverConfig struct {
 	From common.Address
 
 	// SignerFn is the function used to sign transactions
-	SignerFn bind.SignerFn
+	SignerFn SignerFn
 }
 
 type Driver struct {
@@ -182,8 +184,10 @@ func (d *Driver) CraftTx(ctx context.Context, start, end, nonce *big.Int) (*type
 	}
 
 	opts := &bind.TransactOpts{
-		From:    d.cfg.From,
-		Signer:  d.cfg.SignerFn,
+		From: d.cfg.From,
+		Signer: func(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return d.cfg.SignerFn(ctx, addr, tx)
+		},
 		Context: ctx,
 		Nonce:   nonce,
 		NoSend:  true,
@@ -225,8 +229,10 @@ func (d *Driver) CraftTx(ctx context.Context, start, end, nonce *big.Int) (*type
 // NOTE: This method SHOULD NOT publish the resulting transaction.
 func (d *Driver) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
 	opts := &bind.TransactOpts{
-		From:    d.cfg.From,
-		Signer:  d.cfg.SignerFn,
+		From: d.cfg.From,
+		Signer: func(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return d.cfg.SignerFn(ctx, addr, tx)
+		},
 		Context: ctx,
 		Nonce:   new(big.Int).SetUint64(tx.Nonce()),
 		NoSend:  true,
