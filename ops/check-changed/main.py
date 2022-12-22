@@ -58,8 +58,8 @@ def main():
     pr_urls = os.getenv('CIRCLE_PULL_REQUESTS', None)
     pr_urls = pr_urls.split(',') if pr_urls else []
     if len(pr_urls) == 0:
-        log.info('Not a PR build, skipping build')
-        exit_nobuild()
+        log.info('Not a PR build, triggering build')
+        exit_build()
     if len(pr_urls) > 1:
         log.warning('Multiple PR URLs found, choosing the first one. PRs found:')
         for url in pr_urls:

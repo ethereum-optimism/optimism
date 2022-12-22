@@ -11,6 +11,7 @@ import {
   assertContractVariable,
   getContractsFromArtifacts,
   getDeploymentAddress,
+  jsonifyTransaction,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -123,8 +124,14 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Setting AddressManager owner to MSD`)
       await AddressManager.transferOwnership(SystemDictator.address)
     } else {
+      const tx = await AddressManager.populateTransaction.transferOwnership(
+        SystemDictator.address
+      )
       console.log(`Please transfer AddressManager owner to MSD`)
+      console.log(`AddressManager address: ${AddressManager.address}`)
       console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -151,8 +158,15 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Setting L1CrossDomainMessenger owner to MSD`)
       await L1CrossDomainMessenger.transferOwnership(SystemDictator.address)
     } else {
+      const tx =
+        await L1CrossDomainMessenger.populateTransaction.transferOwnership(
+          SystemDictator.address
+        )
       console.log(`Please transfer L1CrossDomainMessenger owner to MSD`)
+      console.log(`L1XDM address: ${L1CrossDomainMessenger.address}`)
       console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -179,8 +193,16 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Setting L1StandardBridge owner to MSD`)
       await L1StandardBridgeProxyWithSigner.setOwner(SystemDictator.address)
     } else {
+      const tx = await L1StandardBridgeProxy.populateTransaction.setOwner(
+        SystemDictator.address
+      )
       console.log(`Please transfer L1StandardBridge (proxy) owner to MSD`)
+      console.log(
+        `L1StandardBridgeProxy address: ${L1StandardBridgeProxy.address}`
+      )
       console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -209,8 +231,14 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Setting L1ERC721Bridge owner to MSD`)
       await L1ERC721BridgeProxyWithSigner.changeAdmin(SystemDictator.address)
     } else {
+      const tx = await L1ERC721BridgeProxy.populateTransaction.changeAdmin(
+        SystemDictator.address
+      )
       console.log(`Please transfer L1ERC721Bridge (proxy) owner to MSD`)
+      console.log(`L1ERC721BridgeProxy address: ${L1ERC721BridgeProxy.address}`)
       console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -264,7 +292,11 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Executing step ${opts.step}...`)
       await SystemDictator[`step${opts.step}`]()
     } else {
+      const tx = await SystemDictator.populateTransaction[`step${opts.step}`]()
       console.log(`Please execute step ${opts.step}...`)
+      console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     // Wait for the step to complete.
@@ -566,7 +598,11 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Finalizing deployment...`)
       await SystemDictator.finalize()
     } else {
+      const tx = await SystemDictator.populateTransaction.finalize()
       console.log(`Please finalize deployment...`)
+      console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     await awaitCondition(

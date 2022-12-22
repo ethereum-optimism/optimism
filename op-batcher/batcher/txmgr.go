@@ -16,7 +16,7 @@ import (
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
 
-type SignerFn func(rawTx types.TxData) (*types.Transaction, error)
+type SignerFn func(ctx context.Context, rawTx types.TxData) (*types.Transaction, error)
 
 // TransactionManager wraps the simple txmgr package to make it easy to send & wait for transactions
 type TransactionManager struct {
@@ -121,7 +121,7 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	}
 	rawTx.Gas = gas
 
-	return t.signerFn(rawTx)
+	return t.signerFn(ctx, rawTx)
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with
@@ -146,5 +146,5 @@ func (t *TransactionManager) UpdateGasPrice(ctx context.Context, tx *types.Trans
 	// Only log the new tip/fee cap because the updateGasPrice closure reuses the same initial transaction
 	t.log.Trace("updating gas price", "tip_cap", gasTipCap, "fee_cap", gasFeeCap)
 
-	return t.signerFn(rawTx)
+	return t.signerFn(ctx, rawTx)
 }
