@@ -258,10 +258,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 	log.Info("nonce slot", "value", db.GetState(predeploys.L2ToL1MessagePasserAddr, nonceSlot))
 
 	db.ForEachStorage(predeploys.L2ToL1MessagePasserAddr, func(key, value common.Hash) bool {
-		if key.Big().Cmp(big.NewInt(100)) == -1 {
-			log.Info("found low slot", "key", key, "value", value)
-		}
-
+		log.Info("found passer slot", "key", key, "value", value)
 		return true
 	})
 
