@@ -44,16 +44,13 @@ const provideHandleBlock = (
         ).toString()
       )
       if (accountBalance.gte(account.thresholds.warning)) {
+        // todo: add to the findings array when balances are below the threshold
         // return if this is the last account
         if (idx === accounts.length - 1) {
           return findings
-        } else {
-          continue
         }
       }
     }
-
-    // todo: Add to the findings array when balances are below the threshold
 
     return findings
   }
