@@ -232,6 +232,9 @@ batchLoop:
 	// Fill with empty L2 blocks of the same epoch until we meet the time of the next L1 origin,
 	// to preserve that L2 time >= L1 time
 	if nextTimestamp < nextEpoch.Time {
+		if forceNextEpoch {
+			fmt.Println("XKCD: creating empty batch which is for the same epoch")
+		}
 		return &BatchData{
 			BatchV1{
 				ParentHash:   l2SafeHead.Hash,
@@ -241,10 +244,17 @@ batchLoop:
 				Transactions: nil,
 			},
 		}, nil
+	} /*else if forceNextEpoch {
+		return nil, io.EOF
 	}
+	*/
 	// As we move the safe head origin forward, we also drop the old L1 block reference
 	bq.l1Blocks = bq.l1Blocks[1:]
+	if forceNextEpoch {
+		fmt.Println("XKCD: creating empty batch which is for the next epoch")
+	}
 	return &BatchData{
+
 		BatchV1{
 			ParentHash:   l2SafeHead.Hash,
 			EpochNum:     rollup.Epoch(nextEpoch.Number),
