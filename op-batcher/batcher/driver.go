@@ -315,7 +315,7 @@ func (l *BatchSubmitter) loop() {
 						l.state.TxFailed(id)
 					} else {
 						l.log.Info("Transaction confirmed", "tx_hash", nreceipt.TxHash, "status", nreceipt.Status, "block_hash", nreceipt.BlockHash, "block_number", nreceipt.BlockNumber)
-						l.state.TxConfirmed(id, eth.BlockID{Number: nreceipt.BlockNumber.Uint64(), Hash: recenreceiptipt.BlockHash})
+						l.state.TxConfirmed(id, eth.BlockID{Number: nreceipt.BlockNumber.Uint64(), Hash: nreceipt.BlockHash})
 					}
 				}
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
