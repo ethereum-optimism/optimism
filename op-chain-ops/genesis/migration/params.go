@@ -1,4 +1,4 @@
-package ether
+package migration
 
 import (
 	"math/big"

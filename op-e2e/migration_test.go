@@ -12,6 +12,7 @@ import (
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
@@ -268,6 +269,7 @@ func TestMigration(t *testing.T) {
 		L1: &node.L1EndpointConfig{
 			L1NodeAddr: forkedL1URL,
 			L1TrustRPC: false,
+			L1RPCKind:  sources.RPCKindBasic,
 		},
 		L2: &node.L2EndpointConfig{
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),

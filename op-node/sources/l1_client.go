@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type L1ClientConfig struct {
@@ -20,7 +21,7 @@ type L1ClientConfig struct {
 	L1BlockRefsCacheSize int
 }
 
-func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L1ClientConfig {
+func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProviderKind) *L1ClientConfig {
 	// Cache 3/2 worth of sequencing window of receipts and txs
 	span := int(config.SeqWindowSize) * 3 / 2
 	if span > 1000 { // sanity cap. If a large sequencing window is configured, do not make the cache too large
@@ -37,6 +38,7 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool) *L1ClientConfig
 			MaxConcurrentRequests: 10,
 			TrustRPC:              trustRPC,
 			MustBePostMerge:       false,
+			RPCProviderKind:       kind,
 		},
 		L1BlockRefsCacheSize: span,
 	}

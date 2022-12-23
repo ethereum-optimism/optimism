@@ -3,7 +3,6 @@ package sources
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -44,6 +43,9 @@ type EthClientConfig struct {
 	// If this is not checked, disabled header fields like the nonce or difficulty
 	// may be used to get a different block-hash.
 	MustBePostMerge bool
+
+	// RPCProviderKind is a hint at what type of RPC provider we are dealing with
+	RPCProviderKind RPCProviderKind
 }
 
 func (c *EthClientConfig) Check() error {
@@ -65,6 +67,9 @@ func (c *EthClientConfig) Check() error {
 	if c.MaxRequestsPerBatch < 1 {
 		return fmt.Errorf("expected at least 1 request per batch, but max is: %d", c.MaxRequestsPerBatch)
 	}
+	if !ValidRPCProviderKind(c.RPCProviderKind) {
+		return fmt.Errorf("unknown rpc provider kind: %s", c.RPCProviderKind)
+	}
 	return nil
 }
 
@@ -78,11 +83,13 @@ type EthClient struct {
 
 	mustBePostMerge bool
 
+	provKind RPCProviderKind
+
 	log log.Logger
 
 	// cache receipts in bundles per block hash
-	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
-	// common.Hash -> eth.ReceiptsFetcher
+	// We cache the receipts fetching job to not lose progress when we have to retry the `Fetch` call
+	// common.Hash -> *receiptsFetchingJob
 	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
@@ -96,6 +103,27 @@ type EthClient struct {
 	// cache payloads by hash
 	// common.Hash -> *eth.ExecutionPayload
 	payloadsCache *caching.LRUCache
+
+	// availableReceiptMethods tracks which receipt methods can be used for fetching receipts
+	// This may be modified concurrently, but we don't lock since it's a single
+	// uint64 that's not critical (fine to miss or mix up a modification)
+	availableReceiptMethods ReceiptsFetchingMethod
+}
+
+func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
+	return PickBestReceiptsFetchingMethod(s.provKind, s.availableReceiptMethods, txCount)
+}
+
+func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
+	if unusableMethod(err) {
+		// clear the bit of the method that errored
+		s.availableReceiptMethods &^= m
+		s.log.Warn("failed to use selected RPC method for receipt fetching, falling back to alternatives",
+			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods, "err", err)
+	} else {
+		s.log.Debug("failed to use selected RPC method for receipt fetching, but method does appear to be available, so we continue to use it",
+			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods&^m, "err", err)
+	}
 }
 
 // NewEthClient wraps a RPC with bindings to fetch ethereum data,
@@ -106,14 +134,17 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 	}
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 	return &EthClient{
-		client:            client,
-		maxBatchSize:      config.MaxRequestsPerBatch,
-		trustRPC:          config.TrustRPC,
-		log:               log,
-		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
-		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
-		headersCache:      caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
-		payloadsCache:     caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
+		client:                  client,
+		maxBatchSize:            config.MaxRequestsPerBatch,
+		trustRPC:                config.TrustRPC,
+		mustBePostMerge:         config.MustBePostMerge,
+		provKind:                config.RPCProviderKind,
+		log:                     log,
+		receiptsCache:           caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
+		transactionsCache:       caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
+		headersCache:            caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
+		payloadsCache:           caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
+		availableReceiptMethods: AvailableReceiptsFetchingMethods(config.RPCProviderKind),
 	}, nil
 }
 
@@ -238,26 +269,18 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	// Try to reuse the receipts fetcher because is caches the results of intermediate calls. This means
 	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
 	// The underlying fetcher uses the receipts hash to verify receipt integrity.
-	var fetcher eth.ReceiptsFetcher
+	var job *receiptsFetchingJob
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		fetcher = v.(eth.ReceiptsFetcher)
+		job = v.(*receiptsFetchingJob)
 	} else {
 		txHashes := make([]common.Hash, len(txs))
 		for i := 0; i < len(txs); i++ {
 			txHashes[i] = txs[i].Hash()
 		}
-		fetcher = NewReceiptsFetcher(eth.ToBlockID(info), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-		s.receiptsCache.Add(blockHash, fetcher)
+		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
+		s.receiptsCache.Add(blockHash, job)
 	}
-	// Fetch all receipts
-	for {
-		if err := fetcher.Fetch(ctx); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, nil, err
-		}
-	}
-	receipts, err := fetcher.Result()
+	receipts, err := job.Fetch(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
