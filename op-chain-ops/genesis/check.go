@@ -232,7 +232,7 @@ func CheckWithdrawalsAfter(db *state.StateDB, data migration.MigrationData, l1Cr
 
 	memdb := memorydb.New()
 	testTrie, err := trie.NewStateTrie(
-		trie.StorageTrieID(header.Root, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), EmptyRoot),
+		trie.StorageTrieID(common.Hash{}, crypto.Keccak256Hash(predeploys.L2ToL1MessagePasserAddr[:]), EmptyRoot),
 		trie.NewDatabase(memdb),
 	)
 	if err != nil {
