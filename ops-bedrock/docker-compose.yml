@@ -81,6 +81,10 @@ services:
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
       - "${PWD}/../.devnet/rollup.json:/rollup.json"
       - op_log:/op_log
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+      - 192.168.9.45
 
   op-proposer:
     depends_on:
