@@ -43,11 +43,14 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 		return BatchUndecided
 	}
 	epoch := l1Blocks[0]
-	if epoch.Hash != l2SafeHead.L1Origin.Hash {
-		log.Warn("safe L2 head L1 origin does not match batch first l1 block (current epoch)",
-			"safe_l2", l2SafeHead, "safe_origin", l2SafeHead.L1Origin, "epoch", epoch)
-		return BatchUndecided
-	}
+	// Note: `BatchUndecided` is in the specs, but the above & below check are not specified
+	// In addition, the below check is making an assumption that does not need to hold & in fact
+	// caused problems because surrounding code was made incorrect to fit this assumption.
+	// if epoch.Hash != l2SafeHead.L1Origin.Hash {
+	// 	log.Warn("safe L2 head L1 origin does not match batch first l1 block (current epoch)",
+	// 		"safe_l2", l2SafeHead, "safe_origin", l2SafeHead.L1Origin, "epoch", epoch)
+	// 	return BatchUndecided
+	// }
 
 	nextTimestamp := l2SafeHead.Time + cfg.BlockTime
 	if batch.Batch.Timestamp > nextTimestamp {

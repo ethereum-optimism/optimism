@@ -152,7 +152,10 @@ func (bq *BatchQueue) deriveNextBatch(ctx context.Context, outOfData bool, l2Saf
 	}
 	epoch := bq.l1Blocks[0]
 
-	if l2SafeHead.L1Origin != epoch.ID() {
+	// TODO: epoch origin can now be one block ahead of the L2 Safe Head
+	// This is in the case where we auto generate all batches in an epoch & advance the epoch
+	// but don't advance the L2 Safe Head's epoch
+	if l2SafeHead.L1Origin != epoch.ID() && l2SafeHead.L1Origin.Number != epoch.Number-1 {
 		return nil, NewResetError(fmt.Errorf("buffered L1 chain epoch %s in batch queue does not match safe head origin %s", epoch, l2SafeHead.L1Origin))
 	}
 
@@ -212,13 +215,11 @@ batchLoop:
 	}
 
 	// If the current epoch is too old compared to the L1 block we are at,
-	// i.e. if the sequence window expired, we create empty batches
+	// i.e. if the sequence window expired, we create empty batches for the current epoch
 	expiryEpoch := epoch.Number + bq.config.SeqWindowSize
-	forceNextEpoch :=
-		(expiryEpoch == bq.origin.Number && outOfData) ||
-			expiryEpoch < bq.origin.Number
+	forceEmptyBatches := (expiryEpoch == bq.origin.Number && outOfData) || expiryEpoch < bq.origin.Number
 
-	if !forceNextEpoch {
+	if !forceEmptyBatches {
 		// sequence window did not expire yet, still room to receive batches for the current epoch,
 		// no need to force-create empty batch(es) towards the next epoch yet.
 		return nil, io.EOF
@@ -242,15 +243,9 @@ batchLoop:
 			},
 		}, nil
 	}
-	// As we move the safe head origin forward, we also drop the old L1 block reference
+
+	// At this point we have auto generated every batch for the current epoch
+	// that we can, so we can advance to the next epoch.
 	bq.l1Blocks = bq.l1Blocks[1:]
-	return &BatchData{
-		BatchV1{
-			ParentHash:   l2SafeHead.Hash,
-			EpochNum:     rollup.Epoch(nextEpoch.Number),
-			EpochHash:    nextEpoch.Hash,
-			Timestamp:    nextTimestamp,
-			Transactions: nil,
-		},
-	}, nil
+	return nil, io.EOF
 }
