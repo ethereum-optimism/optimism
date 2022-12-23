@@ -233,7 +233,8 @@ batchLoop:
 	// to preserve that L2 time >= L1 time
 	if nextTimestamp < nextEpoch.Time {
 		if forceNextEpoch {
-			fmt.Println("XKCD: creating empty batch which is for the same epoch")
+			fmt.Println("XKCD: creating empty batch which is for the same epoch", epoch.Number, bq.origin.Number, l2SafeHead.Number, l2SafeHead.L1Origin.Number)
+			fmt.Println(nextTimestamp, nextEpoch.Time, l2SafeHead.Time)
 		}
 		return &BatchData{
 			BatchV1{
@@ -244,10 +245,10 @@ batchLoop:
 				Transactions: nil,
 			},
 		}, nil
-	} /*else if forceNextEpoch {
+	} else if forceNextEpoch {
 		return nil, io.EOF
 	}
-	*/
+
 	// As we move the safe head origin forward, we also drop the old L1 block reference
 	bq.l1Blocks = bq.l1Blocks[1:]
 	if forceNextEpoch {
