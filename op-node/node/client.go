@@ -6,6 +6,8 @@ import (
 	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+
 	"github.com/ethereum/go-ethereum/log"
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -19,7 +21,9 @@ type L2EndpointSetup interface {
 
 type L1EndpointSetup interface {
 	// Setup a RPC client to a L1 node to pull rollup input-data from.
-	Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, err error)
+	// The results of the RPC client may be trusted for faster processing, or strictly validated.
+	// The kind of the RPC may be non-basic, to optimize RPC usage.
+	Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, kind sources.RPCProviderKind, err error)
 }
 
 type L2EndpointConfig struct {
@@ -78,26 +82,31 @@ type L1EndpointConfig struct {
 	// against block hashes, or cached transaction sender addresses.
 	// Thus we can sync faster at the risk of the source RPC being wrong.
 	L1TrustRPC bool
+
+	// L1RPCKind identifies the RPC provider kind that serves the RPC,
+	// to inform the optimal usage of the RPC for transaction receipts fetching.
+	L1RPCKind sources.RPCProviderKind
 }
 
 var _ L1EndpointSetup = (*L1EndpointConfig)(nil)
 
-func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, err error) {
+func (cfg *L1EndpointConfig) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, kind sources.RPCProviderKind, err error) {
 	l1Node, err := client.NewRPC(ctx, log, cfg.L1NodeAddr)
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
+		return nil, false, sources.RPCKindBasic, fmt.Errorf("failed to dial L1 address (%s): %w", cfg.L1NodeAddr, err)
 	}
-	return l1Node, cfg.L1TrustRPC, nil
+	return l1Node, cfg.L1TrustRPC, cfg.L1RPCKind, nil
 }
 
 // PreparedL1Endpoint enables testing with an in-process pre-setup RPC connection to L1
 type PreparedL1Endpoint struct {
-	Client   client.RPC
-	TrustRPC bool
+	Client          client.RPC
+	TrustRPC        bool
+	RPCProviderKind sources.RPCProviderKind
 }
 
 var _ L1EndpointSetup = (*PreparedL1Endpoint)(nil)
 
-func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, err error) {
-	return p.Client, p.TrustRPC, nil
+func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, kind sources.RPCProviderKind, err error) {
+	return p.Client, p.TrustRPC, p.RPCProviderKind, nil
 }
