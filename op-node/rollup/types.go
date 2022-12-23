@@ -44,9 +44,6 @@ type Config struct {
 	// Required to identify the L2 network and create p2p signatures unique for this chain.
 	L2ChainID *big.Int `json:"l2_chain_id"`
 
-	// Address of the key the sequencer uses to sign blocks on the P2P layer
-	P2PSequencerAddress common.Address `json:"p2p_sequencer_address"`
-
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 

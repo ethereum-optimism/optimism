@@ -41,7 +41,11 @@ const checkPredeploys = async (hre: HardhatRuntimeEnvironment) => {
       throw new Error(`no code found at ${addr}`)
     }
 
-    if (addr === predeploys.GovernanceToken || addr === predeploys.ProxyAdmin) {
+    if (
+      addr === predeploys.GovernanceToken ||
+      addr === predeploys.ProxyAdmin ||
+      addr === predeploys.WETH9
+    ) {
       continue
     }
 
@@ -370,7 +374,6 @@ const check = {
   // - check name
   // - check symbol
   // - check decimals
-  // - is behind a proxy
   WETH9: async (hre: HardhatRuntimeEnvironment) => {
     const WETH9 = await hre.ethers.getContractAt('WETH9', predeploys.WETH9)
 
@@ -385,9 +388,6 @@ const check = {
     const decimals = await WETH9.decimals()
     assert(decimals === 18)
     console.log(`  - decimals: ${decimals}`)
-
-    await checkProxy(hre, 'WETH9')
-    await assertProxy(hre, 'WETH9')
   },
   // GovernanceToken
   // - not behind a proxy

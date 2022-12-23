@@ -77,8 +77,8 @@ github.com/envoyproxy/go-control-plane v0.9.1-0.20191026205805-5f8ba28d4473/go.m
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468 h1:7KgjBYDji5AKi42eRYI+n8Gs+ZJVilSASL3WBu82c3M=
 github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468/go.mod h1:p0Yox74PhYlq1HvijrCBCD9A3cI7rXco7hT6KrQr+rY=
-github.com/ethereum-optimism/optimism/op-bindings v0.10.4 h1:CFn4+t0FUrBG5DmkKyYrLbGmzHWLdLv8QdUnlklvozc=
-github.com/ethereum-optimism/optimism/op-bindings v0.10.4/go.mod h1:philKV8erP02ggjk2mRIdvJd2ZjMzpmqu0+zwwzKmNw=
+github.com/ethereum-optimism/optimism/op-bindings v0.10.5 h1:CcVHlC1QW3z6X/GYhwRfx7gz3WWho6hnVObzuNDLUS4=
+github.com/ethereum-optimism/optimism/op-bindings v0.10.5/go.mod h1:9ZSUq/rjlzp3uYyBN4sZmhTc3oZgDVqJ4wrUja7vj6c=
 github.com/ethereum-optimism/optimism/op-node v0.10.1 h1:kVBaOEOYLV22XEHRhB7dfdmoXepO0kx/RsZQK+Bpk1Y=
 github.com/ethereum-optimism/optimism/op-node v0.10.1/go.mod h1:pup7wiiUs9g8cZKwXeB5tEGCqwUUwFVmej9MmSIm6S8=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=

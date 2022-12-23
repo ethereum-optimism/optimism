@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,6 +37,7 @@ type OpNode struct {
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
+	runCfg    *RuntimeConfig        // runtime configurables
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -78,6 +80,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initL1(ctx, cfg); err != nil {
 		return err
 	}
+	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
+		return err
+	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
 		return err
 	}
@@ -107,14 +112,14 @@ func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
-	l1Node, trustRPC, err := cfg.L1.Setup(ctx, n.log)
+	l1Node, trustRPC, rpcProvKind, err := cfg.L1.Setup(ctx, n.log)
 	if err != nil {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
 	n.l1Source, err = sources.NewL1Client(
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
-		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
+		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC, rpcProvKind))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
@@ -141,6 +146,33 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	n.l1FinalizedSub = eth.PollBlockChanges(n.resourcesCtx, n.log, n.l1Source, n.OnNewL1Finalized, eth.Finalized,
 		cfg.L1EpochPollInterval, time.Second*10)
 	return nil
+}
+
+func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
+	// attempt to load runtime config, repeat N times
+	n.runCfg = NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
+
+	for i := 0; i < 5; i++ {
+		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second*10)
+		l1Head, err := n.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
+		fetchCancel()
+		if err != nil {
+			n.log.Error("failed to fetch L1 head for runtime config initialization", "err", err)
+			continue
+		}
+
+		fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
+		err = n.runCfg.Load(fetchCtx, l1Head)
+		fetchCancel()
+		if err != nil {
+			n.log.Error("failed to fetch runtime config data", "err", err)
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.New("failed to load runtime configuration repeatedly")
 }
 
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
@@ -197,7 +229,7 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if cfg.P2P != nil {
-		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.metrics)
+		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.runCfg, n.metrics)
 		if err != nil || p2pNode == nil {
 			return err
 		}

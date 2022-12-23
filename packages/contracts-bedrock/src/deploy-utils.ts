@@ -3,7 +3,7 @@ import assert from 'assert'
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
-import { sleep } from '@eth-optimism/core-utils'
+import { awaitCondition, sleep } from '@eth-optimism/core-utils'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { Deployment, DeployResult } from 'hardhat-deploy/dist/types'
 import 'hardhat-deploy'
@@ -276,6 +276,12 @@ export const getDeploymentAddress = async (
   return deployment.address
 }
 
+/**
+ * JSON-ifies an ethers transaction object.
+ *
+ * @param tx Ethers transaction object.
+ * @returns JSON-ified transaction object.
+ */
 export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
   return JSON.stringify(
     {
@@ -287,4 +293,64 @@ export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
     null,
     2
   )
+}
+
+/**
+ * Mini helper for checking if the current step is a target step.
+ *
+ * @param dictator SystemDictator contract.
+ * @param step Target step.
+ * @returns True if the current step is the target step.
+ */
+export const isStep = async (
+  dictator: ethers.Contract,
+  step: number
+): Promise<boolean> => {
+  return (await dictator.currentStep()) === step
+}
+
+/**
+ * Mini helper for executing a given step.
+ *
+ * @param opts Options for executing the step.
+ * @param opts.isLiveDeployer True if the deployer is live.
+ * @param opts.SystemDictator SystemDictator contract.
+ * @param opts.step Step to execute.
+ * @param opts.message Message to print before executing the step.
+ * @param opts.checks Checks to perform after executing the step.
+ */
+export const doStep = async (opts: {
+  isLiveDeployer?: boolean
+  SystemDictator: ethers.Contract
+  step: number
+  message: string
+  checks: () => Promise<void>
+}): Promise<void> => {
+  if (!(await isStep(opts.SystemDictator, opts.step))) {
+    console.log(`Step already completed: ${opts.step}`)
+    return
+  }
+
+  // Extra message to help the user understand what's going on.
+  console.log(opts.message)
+
+  // Either automatically or manually execute the step.
+  if (opts.isLiveDeployer) {
+    console.log(`Executing step ${opts.step}...`)
+    await opts.SystemDictator[`step${opts.step}`]()
+  } else {
+    console.log(`Please execute step ${opts.step}...`)
+  }
+
+  // Wait for the step to complete.
+  await awaitCondition(
+    async () => {
+      return isStep(opts.SystemDictator, opts.step + 1)
+    },
+    30000,
+    1000
+  )
+
+  // Perform post-step checks.
+  await opts.checks()
 }
