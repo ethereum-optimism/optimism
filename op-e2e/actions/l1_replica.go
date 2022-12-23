@@ -169,7 +169,7 @@ func (s *L1Replica) RPCClient() client.RPC {
 }
 
 func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
-	l1F, err := sources.NewL1Client(s.RPCClient(), s.log, nil, sources.L1ClientDefaultConfig(cfg, false))
+	l1F, err := sources.NewL1Client(s.RPCClient(), s.log, nil, sources.L1ClientDefaultConfig(cfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 	return l1F
 }

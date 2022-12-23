@@ -2,9 +2,7 @@ package eth
 
 import (
 	"bytes"
-	"context"
 	"fmt"
-	"io"
 	"math/big"
 	"reflect"
 
@@ -280,42 +278,6 @@ type ForkchoiceUpdatedResult struct {
 	// the payload id if requested
 	PayloadID *PayloadID `json:"payloadId"`
 }
-
-// ReceiptsFetcher fetches receipts of a block,
-// and enables the caller to parallelize fetching and backoff on fetching errors as needed.
-type ReceiptsFetcher interface {
-	// Reset clears the previously fetched results for a fresh re-attempt.
-	Reset()
-	// Fetch retrieves receipts in batches, until it returns io.EOF to indicate completion.
-	Fetch(ctx context.Context) error
-	// Complete indicates when all data has been fetched.
-	Complete() bool
-	// Result returns the receipts, or an error if the Fetch-ing is not Complete,
-	// or an error if the results are invalid.
-	// If an error is returned, the fetcher is Reset automatically.
-	Result() (types.Receipts, error)
-}
-
-// FetchedReceipts is a simple util to implement the ReceiptsFetcher with readily available receipts.
-type FetchedReceipts types.Receipts
-
-func (f FetchedReceipts) Reset() {
-	// nothing to reset
-}
-
-func (f FetchedReceipts) Fetch(ctx context.Context) error {
-	return io.EOF
-}
-
-func (f FetchedReceipts) Complete() bool {
-	return true
-}
-
-func (f FetchedReceipts) Result() (types.Receipts, error) {
-	return types.Receipts(f), nil
-}
-
-var _ ReceiptsFetcher = (FetchedReceipts)(nil)
 
 // SystemConfig represents the rollup system configuration that carries over in every L2 block,
 // and may be changed through L1 system config events.
