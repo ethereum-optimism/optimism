@@ -87,7 +87,7 @@ func TestBatchQueueAutoGeneration(gt *testing.T) {
 	// Make 3 more L1 + 6 L2 blocks
 	// If we batch submit these we get a different result than if we don't
 	// If we don't submit
-	n := 2
+	n := 4
 	for i := 0; i < 3; i++ {
 		miner.ActL1StartBlock(4)(t)
 		if i == n {
@@ -101,14 +101,14 @@ func TestBatchQueueAutoGeneration(gt *testing.T) {
 	}
 
 	// What should happen if we don't submit anything
-	// verifyChainStateOnSequencer(11, 22, 11, 14, 7)
+	verifyChainStateOnSequencer(11, 22, 11, 14, 7)
 
 	// What does happen if we don't submit anything. Reorg!!!
 	// This is because we auto generated an empty batch
 	// verifyChainStateOnSequencer(11, 18, 9, 16, 8)
 
 	// If we batch submit the middle 2 batches in L1 block 11 we get them included
-	verifyChainStateOnSequencer(11, 22, 11, 16, 8)
+	// verifyChainStateOnSequencer(11, 22, 11, 16, 8)
 }
 
 // TestLargeL1Gaps tests the case that there is a gap between two L1 blocks which

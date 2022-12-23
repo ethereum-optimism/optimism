@@ -244,10 +244,10 @@ batchLoop:
 				Transactions: nil,
 			},
 		}, nil
-	} /*else if forceNextEpoch {
+	} else if forceNextEpoch {
 		return nil, io.EOF
 	}
-	*/
+
 	// As we move the safe head origin forward, we also drop the old L1 block reference
 	bq.l1Blocks = bq.l1Blocks[1:]
 	if forceNextEpoch {
