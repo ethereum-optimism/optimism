@@ -101,14 +101,14 @@ func TestBatchQueueAutoGeneration(gt *testing.T) {
 	}
 
 	// What should happen if we don't submit anything
-	// verifyChainStateOnSequencer(11, 22, 11, 14, 7)
+	verifyChainStateOnSequencer(11, 22, 11, 14, 7)
 
 	// What does happen if we don't submit anything. Reorg!!!
 	// This is because we auto generated an empty batch
 	// verifyChainStateOnSequencer(11, 18, 9, 16, 8)
 
 	// If we batch submit the middle 2 batches in L1 block 11 we get them included
-	verifyChainStateOnSequencer(11, 22, 11, 16, 8)
+	// verifyChainStateOnSequencer(11, 22, 11, 16, 8)
 }
 
 // TestLargeL1Gaps tests the case that there is a gap between two L1 blocks which
