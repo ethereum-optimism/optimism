@@ -12,6 +12,98 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestBatchQueueAutoGeneration(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.SequencerWindowSize = 4
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+
+	sd, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
+
+	signer := types.LatestSigner(sd.L2Cfg.Config)
+	cl := sequencerEngine.EthClient()
+	aliceTx := func() {
+		n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+		require.NoError(t, err)
+		tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+			ChainID:   sd.L2Cfg.Config.ChainID,
+			Nonce:     n,
+			GasTipCap: big.NewInt(2 * params.GWei),
+			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee(), big.NewInt(2*params.GWei)),
+			Gas:       params.TxGas,
+			To:        &dp.Addresses.Bob,
+			Value:     e2eutils.Ether(2),
+		})
+		require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+	}
+	makeL2BlockWithAliceTx := func() {
+		aliceTx()
+		sequencer.ActL2StartBlock(t)
+		sequencerEngine.ActL2IncludeTx(dp.Addresses.Alice)(t) // include a test tx from alice
+		sequencer.ActL2EndBlock(t)
+	}
+	verifyChainStateOnSequencer := func(l1Number, unsafeHead, unsafeHeadOrigin, safeHead, safeHeadOrigin uint64) {
+		require.Equal(t, l1Number, miner.l1Chain.CurrentHeader().Number.Uint64())
+		require.Equal(t, unsafeHead, sequencer.L2Unsafe().Number)
+		require.Equal(t, unsafeHeadOrigin, sequencer.L2Unsafe().L1Origin.Number)
+		require.Equal(t, safeHead, sequencer.L2Safe().Number)
+		require.Equal(t, safeHeadOrigin, sequencer.L2Safe().L1Origin.Number)
+	}
+
+	// Make 8 L1 blocks & 17 L2 blocks.
+	miner.ActL1StartBlock(4)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	makeL2BlockWithAliceTx()
+	makeL2BlockWithAliceTx()
+	makeL2BlockWithAliceTx()
+
+	for i := 0; i < 7; i++ {
+		batcher.ActSubmitAll(t)
+		miner.ActL1StartBlock(4)(t)
+		miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+		miner.ActL1EndBlock(t)
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2PipelineFull(t)
+		makeL2BlockWithAliceTx()
+		makeL2BlockWithAliceTx()
+	}
+
+	verifyChainStateOnSequencer(8, 17, 8, 15, 7)
+
+	// Create the batch for L2 blocks 16 & 17
+	batcher.ActSubmitAll(t)
+
+	// L1 Block 8 contains the batch for L2 blocks 14 & 15
+	// Then we create L1 blocks 9, 10, 11
+	// The L1 origin of L2 block 16 is L1 block 8
+	// At a seq window of 4, should be possible to include the batch for L2 block 16 & 17 at L1 block 12
+
+	// Make 3 more L1 + 6 L2 blocks
+	for i := 0; i < 3; i++ {
+		miner.ActL1StartBlock(4)(t)
+		miner.ActL1EndBlock(t)
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2PipelineFull(t)
+		makeL2BlockWithAliceTx()
+		makeL2BlockWithAliceTx()
+	}
+
+	// At this point verify that we have not started auto generating blocks
+	verifyChainStateOnSequencer(11, 23, 11, 15, 7)
+
+	// Check that the batch can go in on the last block of the sequence window
+	miner.ActL1StartBlock(4)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+
+	verifyChainStateOnSequencer(12, 23, 11, 17, 8)
+}
+
 // TestLargeL1Gaps tests the case that there is a gap between two L1 blocks which
 // is larger than the sequencer drift.
 // This test has the following parameters:
