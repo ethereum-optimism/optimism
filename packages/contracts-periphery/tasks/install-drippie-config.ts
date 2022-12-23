@@ -1,6 +1,8 @@
 import { task } from 'hardhat/config'
 import { LedgerSigner } from '@ethersproject/hardware-wallets'
 import { PopulatedTransaction } from 'ethers'
+import '@nomiclabs/hardhat-ethers'
+import 'hardhat-deploy'
 
 import { isSameConfig, getDrippieConfig } from '../src'
 

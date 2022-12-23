@@ -1,0 +1,75 @@
+{
+  "address": "0x5c741a38cb11424711231777D71689C458eE835D",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "name": "check",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "pure",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xeacb73acd8f3d741e1a4a136e95cec43d21aef36b95611cdaa86c87066bfd087",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x9C6373dE60c2D3297b18A8f964618ac46E011B58",
+    "contractAddress": null,
+    "transactionIndex": 81,
+    "gasUsed": "139230",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0x396e72234d59683880032c4c9e6fd61a46b839b61c644c7bd180e02d565c3b14",
+    "transactionHash": "0xeacb73acd8f3d741e1a4a136e95cec43d21aef36b95611cdaa86c87066bfd087",
+    "logs": [],
+    "blockNumber": 8182671,
+    "cumulativeGasUsed": "17047212",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "2373b7ba869baea4fec58e6e7f7b8988",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.16+commit.07a7930e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"name\":\"check\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"pure\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"check(bytes)\":{\"params\":{\"_params\":\"Encoded parameters for the drip check.\"},\"returns\":{\"_0\":\"Whether the drip should be executed.\"}}},\"title\":\"CheckTrue\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"check(bytes)\":{\"notice\":\"Checks whether a drip should be executable.\"}},\"notice\":\"DripCheck that always returns true.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie/dripchecks/CheckTrue.sol\":\"CheckTrue\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"contracts/universal/drippie/IDripCheck.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\ninterface IDripCheck {\\n    // DripCheck contracts that want to take parameters as inputs MUST expose a struct called\\n    // Params and an event _EventForExposingParamsStructInABI(Params params). This makes it\\n    // possible to easily encode parameters on the client side. Solidity does not support generics\\n    // so it's not possible to do this with explicit typing.\\n\\n    /**\\n     * @notice Checks whether a drip should be executable.\\n     *\\n     * @param _params Encoded parameters for the drip check.\\n     *\\n     * @return Whether the drip should be executed.\\n     */\\n    function check(bytes memory _params) external view returns (bool);\\n}\\n\",\"keccak256\":\"0xb52c89360566b2963dfd82cb2cc23f0c3ce4503a69e8563878e8aa80b6c60b3f\",\"license\":\"MIT\"},\"contracts/universal/drippie/dripchecks/CheckTrue.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.16;\\n\\nimport { IDripCheck } from \\\"../IDripCheck.sol\\\";\\n\\n/**\\n * @title CheckTrue\\n * @notice DripCheck that always returns true.\\n */\\ncontract CheckTrue is IDripCheck {\\n    /**\\n     * @inheritdoc IDripCheck\\n     */\\n    function check(bytes memory) external pure returns (bool) {\\n        return true;\\n    }\\n}\\n\",\"keccak256\":\"0xf2f5474f12983c30ca4fe9d19e7f88e6d2262e4a6f779e86b4a2117498fdbea5\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x608060405234801561001057600080fd5b5061018c806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004461003e366004610087565b50600190565b604051901515815260200160405180910390f35b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561009957600080fd5b813567ffffffffffffffff808211156100b157600080fd5b818401915084601f8301126100c557600080fd5b8135818111156100d7576100d7610058565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561011d5761011d610058565b8160405282815287602084870101111561013657600080fd5b82602086016020830137600092810160200192909252509594505050505056fea26469706673582212200bb899cb0e5f9dce180ebe72a1dfade46ffc5ec3cab398d1f2af09e8b9ce76d164736f6c63430008100033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b506004361061002b5760003560e01c8063c64b3bb514610030575b600080fd5b61004461003e366004610087565b50600190565b604051901515815260200160405180910390f35b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b60006020828403121561009957600080fd5b813567ffffffffffffffff808211156100b157600080fd5b818401915084601f8301126100c557600080fd5b8135818111156100d7576100d7610058565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0908116603f0116810190838211818310171561011d5761011d610058565b8160405282815287602084870101111561013657600080fd5b82602086016020830137600092810160200192909252509594505050505056fea26469706673582212200bb899cb0e5f9dce180ebe72a1dfade46ffc5ec3cab398d1f2af09e8b9ce76d164736f6c63430008100033",
+  "devdoc": {
+    "kind": "dev",
+    "methods": {
+      "check(bytes)": {
+        "params": {
+          "_params": "Encoded parameters for the drip check."
+        },
+        "returns": {
+          "_0": "Whether the drip should be executed."
+        }
+      }
+    },
+    "title": "CheckTrue",
+    "version": 1
+  },
+  "userdoc": {
+    "kind": "user",
+    "methods": {
+      "check(bytes)": {
+        "notice": "Checks whether a drip should be executable."
+      }
+    },
+    "notice": "DripCheck that always returns true.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [],
+    "types": null
+  }
+}
