@@ -72,7 +72,8 @@ func TestBatcher(gt *testing.T) {
 	log.Info("bl", "txs", len(bl.Transactions()))
 
 	// Now make enough L1 blocks that the verifier will have to derive a L2 block
-	for i := uint64(1); i < sd.RollupCfg.SeqWindowSize; i++ {
+	// It will also eagerly derive the block from the batcher
+	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize; i++ {
 		miner.ActL1StartBlock(12)(t)
 		miner.ActL1EndBlock(t)
 	}
