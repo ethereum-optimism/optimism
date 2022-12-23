@@ -4,9 +4,9 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.4
-	github.com/ethereum-optimism/optimism/op-node v0.10.4
-	github.com/ethereum-optimism/optimism/op-service v0.10.4
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.5
+	github.com/ethereum-optimism/optimism/op-node v0.10.5
+	github.com/ethereum-optimism/optimism/op-service v0.10.5
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
