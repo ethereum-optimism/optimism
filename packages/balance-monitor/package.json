@@ -18,7 +18,7 @@
     "tx": "yarn run build && forta-agent run --tx",
     "block": "yarn run build && forta-agent run --block",
     "range": "yarn run build && forta-agent run --range",
-    "test": "/bin/sh . .env.example && yarn ts-mocha src/*.spec.ts",
+    "test": "./scripts/test.sh",
     "test:coverage": "echo 'todo: configure test coverage' && yarn test",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
