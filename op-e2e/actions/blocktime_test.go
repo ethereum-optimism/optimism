@@ -51,11 +51,12 @@ func TestBatchQueueAutoGeneration(gt *testing.T) {
 		require.Equal(t, safeHeadOrigin, sequencer.L2Safe().L1Origin.Number)
 	}
 
-	// Make 8 L1 blocks & 16 L2 blocks.
+	// Make 8 L1 blocks & 17 L2 blocks.
 	miner.ActL1StartBlock(4)(t)
 	miner.ActL1EndBlock(t)
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
+	makeL2BlockWithAliceTx()
 	makeL2BlockWithAliceTx()
 	makeL2BlockWithAliceTx()
 
@@ -70,29 +71,19 @@ func TestBatchQueueAutoGeneration(gt *testing.T) {
 		makeL2BlockWithAliceTx()
 	}
 
-	verifyChainStateOnSequencer(8, 16, 8, 14, 7)
+	verifyChainStateOnSequencer(8, 17, 8, 15, 7)
 
-	// Create the batch for L2 blocks 15/16
+	// Create the batch for L2 blocks 16 & 17
 	batcher.ActSubmitAll(t)
 
-	/*
-
-		L1 Block 8 contains the batch for L2 blocks 13 & 14
-		Then we create L1 blocks 9, 10, 11
-		The L1 origin of L2 block 15 is L1 block 8
-		At a seq window of 4, should be possible to include the batch for L2 block 15/16 at L1 block 12
-
-	*/
+	// L1 Block 8 contains the batch for L2 blocks 14 & 15
+	// Then we create L1 blocks 9, 10, 11
+	// The L1 origin of L2 block 16 is L1 block 8
+	// At a seq window of 4, should be possible to include the batch for L2 block 16 & 17 at L1 block 12
 
 	// Make 3 more L1 + 6 L2 blocks
-	// If we batch submit these we get a different result than if we don't
-	// If we don't submit
-	n := 2
 	for i := 0; i < 3; i++ {
 		miner.ActL1StartBlock(4)(t)
-		if i == n {
-			miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
-		}
 		miner.ActL1EndBlock(t)
 		sequencer.ActL1HeadSignal(t)
 		sequencer.ActL2PipelineFull(t)
@@ -100,15 +91,17 @@ func TestBatchQueueAutoGeneration(gt *testing.T) {
 		makeL2BlockWithAliceTx()
 	}
 
-	// What should happen if we don't submit anything
-	// verifyChainStateOnSequencer(11, 22, 11, 14, 7)
+	// At this point verify that we have not started auto generating blocks
+	verifyChainStateOnSequencer(11, 23, 11, 15, 7)
 
-	// What does happen if we don't submit anything. Reorg!!!
-	// This is because we auto generated an empty batch
-	// verifyChainStateOnSequencer(11, 18, 9, 16, 8)
+	// Check that the batch can go in on the last block of the sequence window
+	miner.ActL1StartBlock(4)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
 
-	// If we batch submit the middle 2 batches in L1 block 11 we get them included
-	verifyChainStateOnSequencer(11, 22, 11, 16, 8)
+	verifyChainStateOnSequencer(12, 23, 11, 17, 8)
 }
 
 // TestLargeL1Gaps tests the case that there is a gap between two L1 blocks which
