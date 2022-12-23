@@ -1,5 +1,13 @@
-import { BlockEvent, Finding, HandleBlock } from 'forta-agent'
+import {
+  BlockEvent,
+  Finding,
+  HandleBlock,
+  FindingSeverity,
+  FindingType,
+} from 'forta-agent'
 import { BigNumber, providers } from 'ethers'
+
+import { describeFinding } from './utils'
 
 type AccountAlert = {
   name: string
@@ -37,21 +45,50 @@ const provideHandleBlock = (
     const findings: Finding[] = []
 
     // iterate over accounts with the index
-    for (const [idx, account] of accounts.entries()) {
+    for (const [ , account] of accounts.entries()) {
       const accountBalance = BigNumber.from(
         (
           await provider.getBalance(account.address, blockEvent.blockNumber)
         ).toString()
       )
-      if (accountBalance.gte(account.thresholds.warning)) {
-        // todo: add to the findings array when balances are below the threshold
-        // return if this is the last account
-        if (idx === accounts.length - 1) {
-          return findings
-        }
+      if (accountBalance.lte(account.thresholds.warning)) {
+        findings.push(
+          Finding.fromObject({
+            name: 'Low Account Balance',
+            description: describeFinding(
+              account.address,
+              accountBalance,
+              account.thresholds.warning
+            ),
+            alertId: `OPTIMISM-BALANCE-WARNING-${account.name}`,
+            severity: FindingSeverity.Info,
+            type: FindingType.Info,
+            metadata: {
+              balance: accountBalance.toString(),
+            },
+          })
+        )
+      }
+
+      if (accountBalance.lte(account.thresholds.danger)) {
+        findings.push(
+          Finding.fromObject({
+            name: 'Minimum Account Balance',
+            description: describeFinding(
+              account.address,
+              accountBalance,
+              account.thresholds.danger
+            ),
+            alertId: `OPTIMISM-BALANCE-DANGER-${account.name}`,
+            severity: FindingSeverity.High,
+            type: FindingType.Info,
+            metadata: {
+              balance: accountBalance.toString(),
+            },
+          })
+        )
       }
     }
-
     return findings
   }
 }
