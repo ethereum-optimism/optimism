@@ -92,9 +92,6 @@ func (cfg *Config) Check() error {
 	if cfg.Genesis.SystemConfig.GasLimit == 0 {
 		return errors.New("missing genesis system config gas limit")
 	}
-	if cfg.P2PSequencerAddress == (common.Address{}) {
-		return errors.New("missing p2p sequencer address")
-	}
 	// SYSCOIN
 	if cfg.BatchInboxAddress == (common.Address{}) {
 		return errors.New("missing batch inbox address")
