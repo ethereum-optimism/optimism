@@ -309,13 +309,13 @@ func (l *BatchSubmitter) loop() {
 					// we avoid changing Receipt object and just reuse TxHash for VH
 					calldata := append(sig, receipt.TxHash.Bytes()...)
 
-					receipt, err = l.txMgr.SendTransaction(l.ctx, calldata, 7500)
+					nreceipt, err := l.txMgr.SendTransaction(l.ctx, calldata, 7500)
 					if err != nil {
 						l.log.Error("Failed to send transaction", "err", err)
 						l.state.TxFailed(id)
 					} else {
-						l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-						l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
+						l.log.Info("Transaction confirmed", "tx_hash", nreceipt.TxHash, "status", nreceipt.Status, "block_hash", nreceipt.BlockHash, "block_number", nreceipt.BlockNumber)
+						l.state.TxConfirmed(id, eth.BlockID{Number: nreceipt.BlockNumber.Uint64(), Hash: recenreceiptipt.BlockHash})
 					}
 				}
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending

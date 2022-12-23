@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 
@@ -143,9 +144,9 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 					return nil
 				}
 				// check data is valid locally
-				vhData := common.BytesToHash(data)
+				vhData := crypto.Keccak256Hash(data)
 				if vh != vhData {
-					log.Warn("DataFromEVMTransactions", "blob data hash mismatch", "want", vh, "have", vhData)
+					log.Warn("DataFromEVMTransactions", "blob data hash mismatch want", vh, "have", vhData)
 					return nil
 				}
 				log.Warn("GetBlobFromCloud", "len", len(data), "vh", vh)
