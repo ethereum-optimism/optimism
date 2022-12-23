@@ -93,6 +93,10 @@ func TestLargeL1Gaps(gt *testing.T) {
 		makeL2BlockWithAliceTx()
 	}
 
+	n, err := cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(16), n) // 16 valid blocks with txns.
+
 	verifyChainStateOnSequencer(8, 16, 8, 14, 7)
 
 	// Make the really long L1 block. Do include previous batches
@@ -115,14 +119,15 @@ func TestLargeL1Gaps(gt *testing.T) {
 	// We created one transaction for every L2 block. So we should have created 40 transactions.
 	// The first 16 L2 block where included without issue.
 	// Then over the long block, 32s seq drift / 2s block time => 16 blocks with transactions
-	// That leaves 8 blocks without transactions. So we should have 16+16 = 32 transactions on chain.
-	n, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+	// Then at the last L2 block we reached the next origin, and accept txs again => 17 blocks with transactions
+	// That leaves 7 L2 blocks without transactions. So we should have 16+17 = 33 transactions on chain.
+	n, err = cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 	require.NoError(t, err)
 	require.Equal(t, uint64(40), n)
 
 	n, err = cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
 	require.NoError(t, err)
-	require.Equal(t, uint64(32), n)
+	require.Equal(t, uint64(33), n)
 
 	// Make more L1 blocks to get past the sequence window for the large range.
 	// Do batch submit the previous L2 blocks.
@@ -148,7 +153,7 @@ func TestLargeL1Gaps(gt *testing.T) {
 	// Recheck nonce. Will fail if no batches where submitted
 	n, err = cl.NonceAt(t.Ctx(), dp.Addresses.Alice, nil)
 	require.NoError(t, err)
-	require.Equal(t, uint64(32), n) // 16 valid blocks with txns. Get seq drift non-empty (32/2 => 16) & 8 forced empty
+	require.Equal(t, uint64(33), n) // 16 valid blocks with txns. Get seq drift non-empty (32/2 => 16) & 7 forced empty
 
 	// Check that the verifier got the same result
 	verifier.ActL1HeadSignal(t)
