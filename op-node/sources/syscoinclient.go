@@ -338,10 +338,14 @@ func (s *SyscoinClient) GetBlobFromCloud(vh common.Hash) ([]byte, error) {
 		}
 		res, err = client.Get(url)
 		if err != nil {
-			return nil, err
+			continue
 		} else {
+			err = nil
 			break
 		}
+	}
+	if err != nil {
+		return nil, err
 	}
 	defer res.Body.Close() // we need to close the connection
     body, err := ioutil.ReadAll(res.Body)
