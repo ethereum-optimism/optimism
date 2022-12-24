@@ -13,7 +13,6 @@ type AccountAlert = {
   name: string
   address: string
   thresholds: {
-    warning: BigNumber
     danger: BigNumber
   }
 }
@@ -23,7 +22,6 @@ export const accounts: AccountAlert[] = [
     name: 'Sequencer',
     address: process.env.SEQUENCER_ADDRESS,
     thresholds: {
-      warning: BigNumber.from(process.env.SEQUENCER_WARNING_THRESHOLD),
       danger: BigNumber.from(process.env.SEQUENCER_DANGER_THRESHOLD),
     },
   },
@@ -31,7 +29,6 @@ export const accounts: AccountAlert[] = [
     name: 'Proposer',
     address: process.env.PROPOSER_ADDRESS,
     thresholds: {
-      warning: BigNumber.from(process.env.PROPOSER_WARNING_THRESHOLD),
       danger: BigNumber.from(process.env.PROPOSER_DANGER_THRESHOLD),
     },
   },
@@ -51,24 +48,6 @@ const provideHandleBlock = (
           await provider.getBalance(account.address, blockEvent.blockNumber)
         ).toString()
       )
-      if (accountBalance.lte(account.thresholds.warning)) {
-        findings.push(
-          Finding.fromObject({
-            name: 'Low Account Balance',
-            description: describeFinding(
-              account.address,
-              accountBalance,
-              account.thresholds.warning
-            ),
-            alertId: `OPTIMISM-BALANCE-WARNING-${account.name}`,
-            severity: FindingSeverity.Info,
-            type: FindingType.Info,
-            metadata: {
-              balance: accountBalance.toString(),
-            },
-          })
-        )
-      }
 
       if (accountBalance.lte(account.thresholds.danger)) {
         findings.push(
