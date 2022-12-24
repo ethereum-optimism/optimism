@@ -13,7 +13,6 @@ export const describeFinding = (
   )} eth) below threshold (${ethers.utils.formatEther(threshold)} eth)`
 }
 
-
 // Create an alert in ops-genie. The alias will be used an unique identifier for the alert.
 // There can only be one open alert per alias. If this is called with an alias which already
 // has an alert, it will not be reopened.
@@ -35,6 +34,23 @@ export const createAlert = async (alertOpts: {
       Authorization: `GenieKey ${process.env.OPS_GENIE_KEY}`,
     },
   })
+  if (!response.ok) {
+    console.log(`Error creating alert: ${JSON.stringify(response.body)}`)
+  }
+}
+
+// Send this with every block. If Ops Genie doesn't get this ping for 10 minutes,
+// it will trigger a P3 alert.
+export const heartBeat = async () => {
+  const response = await fetch(
+    `https://api.opsgenie.com/v2/heartbeats/${process.env.OPS_GENIE_HEARTBEAT_NAME}/ping`,
+    {
+      method: 'get',
+      headers: {
+        Authorization: `GenieKey ${process.env.OPS_GENIE_KEY}`,
+      },
+    }
+  )
   if (!response.ok) {
     console.log(`Error creating alert: ${JSON.stringify(response.body)}`)
   }

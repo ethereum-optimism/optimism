@@ -7,7 +7,7 @@ import {
 } from 'forta-agent'
 import { BigNumber, providers, utils } from 'ethers'
 
-import { createAlert, describeFinding } from './utils'
+import { createAlert, heartBeat, describeFinding } from './utils'
 
 type AccountAlert = {
   name: string
@@ -77,9 +77,11 @@ const provideHandleBlock = (
             },
           })
         )
-
       }
     }
+
+    // Let ops-genie know that we're still alive.
+    await heartBeat()
     return findings
   }
 }
