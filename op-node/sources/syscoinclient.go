@@ -329,9 +329,19 @@ func (s *SyscoinClient) GetBlobFromRPC(vh common.Hash) ([]byte, error) {
 
 func (s *SyscoinClient) GetBlobFromCloud(vh common.Hash) ([]byte, error) {
 	url := "http://poda.tanenbaum.io/vh/" + vh.String()[2:]
-    res, err := http.Get(url)
-    if err != nil {
-		return nil, err
+	var res *http.Response
+	var err error
+	// try 4 times incase of timeout or reset/hanging socket with 5+i second expiry each attempt
+	for i := 0; i < 4; i++ {
+		client := http.Client{
+			Timeout: (5 + time.Duration(i)) * time.Second,
+		}
+		res, err = client.Get(url)
+		if err != nil {
+			return nil, err
+		} else {
+			break
+		}
 	}
 	defer res.Body.Close() // we need to close the connection
     body, err := ioutil.ReadAll(res.Body)
