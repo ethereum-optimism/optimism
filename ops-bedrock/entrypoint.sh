@@ -82,4 +82,6 @@ exec geth \
 	--authrpc.vhosts="*" \
 	--authrpc.jwtsecret=/config/jwt-secret.txt \
 	--gcmode=archive \
+	--override.bedrock=0 \
+	--override.optimism=0 \
 	"$@"
