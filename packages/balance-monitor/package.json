@@ -14,7 +14,7 @@
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "start": "yarn run start:dev",
     "start:dev": "nodemon --watch src --watch forta.config.json -e js,ts,json  --exec 'yarn run build && forta-agent run'",
-    "start:prod": "forta-agent run --prod",
+    "start:prod": "forta-agent run",
     "tx": "yarn run build && forta-agent run --tx",
     "block": "yarn run build && forta-agent run --block",
     "range": "yarn run build && forta-agent run --range",
@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "ethers": "^5.7.2",
+    "node-fetch": "^2.6.1",
     "forta-agent": "^0.1.1"
   },
   "devDependencies": {

@@ -7,7 +7,7 @@ import {
 } from 'forta-agent'
 import { BigNumber, providers, utils } from 'ethers'
 
-import { describeFinding } from './utils'
+import { createAlert, describeFinding } from './utils'
 
 type AccountAlert = {
   name: string
@@ -42,7 +42,7 @@ const provideHandleBlock = (
     const findings: Finding[] = []
 
     // iterate over accounts with the index
-    for (const [ , account] of accounts.entries()) {
+    for (const [, account] of accounts.entries()) {
       const accountBalance = BigNumber.from(
         (
           await provider.getBalance(account.address, blockEvent.blockNumber)
@@ -50,15 +50,26 @@ const provideHandleBlock = (
       )
 
       if (accountBalance.lte(account.thresholds.danger)) {
+        const alertId = `OPTIMISM-BALANCE-DANGER-${account.name}`
+        const description = describeFinding(
+          account.address,
+          accountBalance,
+          account.thresholds.danger
+        )
+        // If an alert is already open with the same alertId, this will have no effect.
+        // Alerts must be disabled manually in opsgenie. We don't provide a method here
+        // for closing when the balance is above the threshold again.
+        if (process.env.OPS_GENIE_KEY !== undefined) {
+          await createAlert({ alias: alertId, message: description })
+        }
+
+        // Add to the findings array. This will only be meaningful when running on
+        // public forta nodes.
         findings.push(
           Finding.fromObject({
             name: 'Minimum Account Balance',
-            description: describeFinding(
-              account.address,
-              accountBalance,
-              account.thresholds.danger
-            ),
-            alertId: `OPTIMISM-BALANCE-DANGER-${account.name}`,
+            description,
+            alertId,
             severity: FindingSeverity.High,
             type: FindingType.Info,
             metadata: {
@@ -66,6 +77,7 @@ const provideHandleBlock = (
             },
           })
         )
+
       }
     }
     return findings
