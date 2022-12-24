@@ -5,7 +5,7 @@ import {
   FindingSeverity,
   FindingType,
 } from 'forta-agent'
-import { BigNumber, providers } from 'ethers'
+import { BigNumber, providers, utils } from 'ethers'
 
 import { describeFinding } from './utils'
 
@@ -22,14 +22,14 @@ export const accounts: AccountAlert[] = [
     name: 'Sequencer',
     address: process.env.SEQUENCER_ADDRESS,
     thresholds: {
-      danger: BigNumber.from(process.env.SEQUENCER_DANGER_THRESHOLD),
+      danger: utils.parseEther(process.env.SEQUENCER_DANGER_THRESHOLD),
     },
   },
   {
     name: 'Proposer',
     address: process.env.PROPOSER_ADDRESS,
     thresholds: {
-      danger: BigNumber.from(process.env.PROPOSER_DANGER_THRESHOLD),
+      danger: utils.parseEther(process.env.PROPOSER_DANGER_THRESHOLD),
     },
   },
 ]

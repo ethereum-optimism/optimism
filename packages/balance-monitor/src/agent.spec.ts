@@ -26,7 +26,7 @@ describe('minimum balance agent', () => {
         return {
           getBalance: async (addr: string): Promise<BigNumber> => {
             if (addr === '0xabba') {
-              return utils.parseEther('1001')
+              return utils.parseEther('101')
             }
             if (addr === '0xacdc') {
               return utils.parseEther('2001')
