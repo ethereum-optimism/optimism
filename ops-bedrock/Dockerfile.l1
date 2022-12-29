@@ -34,7 +34,6 @@ RUN echo $'exec syscoind --testnet --addnode=52.38.76.82 --datadir=${SYSCOIN_DAT
 	--rpcbind=0.0.0.0 \
 	--rpcport="$SYSRPC_PORT" \
 	--changetype=bech32 \
-	--gethcommandline=--datadir="$GETH_DATA_DIR" \
 	--gethcommandline=--verbosity="$VERBOSITY" \
 	--gethcommandline=--http \
 	--gethcommandline=--http.corsdomain="*" \
