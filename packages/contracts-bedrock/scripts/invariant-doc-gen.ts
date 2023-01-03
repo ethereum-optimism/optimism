@@ -1,12 +1,5 @@
 import fs from 'fs'
 
-// ---------------------------------------------------------------
-// TODO:
-// - [x] Support forge invariant tests
-// - [x] Support echidna tests
-// - [ ] Support multi-line headers within invariant doc comments. (Separate header / desc by blank line)
-// ---------------------------------------------------------------
-
 const BASE_INVARIANTS_DIR = `${__dirname}/../contracts/test/invariants`
 const BASE_ECHIDNA_DIR = `${__dirname}/../contracts/echidna`
 const BASE_DOCS_DIR = `${__dirname}/../invariant-docs`
@@ -15,7 +8,8 @@ const BASE_ECHIDNA_GH_URL =
 const BASE_INVARIANT_GH_URL =
   'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
-const BLOCK_COMMENT_REGEX = /\*(\/)?/
+const BLOCK_COMMENT_PREFIX_REGEX = /\*(\/)?/
+const BLOCK_COMMENT_HEADER_REGEX = /\*\s(\w)+/
 
 // Represents an invariant test contract
 type Contract = {
@@ -45,16 +39,16 @@ const docGen = (dir: string): void => {
 
   for (const fileName of files) {
     // Read the contents of the invariant test file.
-    const fileContents = fs
-      .readFileSync(`${dir}/${fileName}`)
-      .toString()
+    const fileContents = fs.readFileSync(`${dir}/${fileName}`).toString()
 
     // Split the file into individual lines and trim whitespace.
     const lines = fileContents.split('\n').map((line: string) => line.trim())
 
     // Create an object to store all invariant test docs for the current contract
     const isEchidna = fileName.startsWith('Fuzz')
-    const name = isEchidna ? fileName.replace('Fuzz', '').replace('.sol', '') : fileName.replace('.t.sol', '')
+    const name = isEchidna
+      ? fileName.replace('Fuzz', '').replace('.sol', '')
+      : fileName.replace('.t.sol', '')
     const contract: Contract = { name, fileName, isEchidna, docs: [] }
 
     let currentDoc: InvariantDoc
@@ -80,9 +74,16 @@ const docGen = (dir: string): void => {
             desc: '',
           }
 
+          // If the header is multi-line, continue appending to the `currentDoc`'s header.
+          while (BLOCK_COMMENT_HEADER_REGEX.test((line = lines[++i]))) {
+            currentDoc.header += ` ${line
+              .replace(BLOCK_COMMENT_PREFIX_REGEX, '')
+              .trim()}`
+          }
+
           // Process the description
           while ((line = lines[++i]).startsWith('*')) {
-            line = line.replace(BLOCK_COMMENT_REGEX, '').trim()
+            line = line.replace(BLOCK_COMMENT_PREFIX_REGEX, '').trim()
 
             // If the line has any contents, insert it into the desc.
             // Otherwise, consider it a linebreak.
@@ -110,7 +111,8 @@ const docGen = (dir: string): void => {
   }
 
   console.log(
-    `Generated invariant test documentation for:\n - ${docs.length
+    `Generated invariant test documentation for:\n - ${
+      docs.length
     } contracts\n - ${docs.reduce(
       (acc: number, contract: Contract) => acc + contract.docs.length,
       0
@@ -126,7 +128,9 @@ const renderContractDoc = (contract: Contract): string => {
   const docs = contract.docs
     .map((doc: InvariantDoc) => {
       const line = `L${doc.lineNo}`
-      return `## ${doc.header}\n**Test:** [\`${line}\`](${getGithubBase(contract)}${contract.fileName}#${line})\n${doc.desc}`
+      return `## ${doc.header}\n**Test:** [\`${line}\`](${getGithubBase(
+        contract
+      )}${contract.fileName}#${line})\n\n${doc.desc}`
     })
     .join('\n\n')
 
@@ -134,12 +138,10 @@ const renderContractDoc = (contract: Contract): string => {
 }
 
 /**
-  * Get the base URL for the test contract
-  */
+ * Get the base URL for the test contract
+ */
 const getGithubBase = ({ isEchidna }: Contract): string =>
-  isEchidna ?
-    BASE_ECHIDNA_GH_URL :
-    BASE_INVARIANT_GH_URL
+  isEchidna ? BASE_ECHIDNA_GH_URL : BASE_INVARIANT_GH_URL
 
 // Generate the docs
 
