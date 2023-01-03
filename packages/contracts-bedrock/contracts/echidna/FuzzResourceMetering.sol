@@ -129,7 +129,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) {}
 
     /**
-     * INVARIANT: The base fee should increase if the last block used more than the target amount of gas
+     * @custom:invariant The base fee should increase if the last block used more than the target amount of gas
      *
      * If the last block used more than the target amount of gas (and there were no
      * empty blocks in between), ensure this block's baseFee increased, but not by
@@ -140,7 +140,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     /**
-     * INVARIANT: The base fee should decrease if the last block used less than the target amount of gas
+     * @custom:invariant The base fee should decrease if the last block used less than the target amount of gas
      *
      * If the previous block used less than the target amount of gas, the base fee should decrease,
      * but not more than the max amount.
@@ -150,7 +150,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     /**
-     * INVARIANT: A block's base fee should never be below `MINIMUM_BASE_FEE`
+     * @custom:invariant A block's base fee should never be below `MINIMUM_BASE_FEE`
      *
      * This test asserts that a block's base fee can never drop below the `MINIMUM_BASE_FEE` threshold.
      */
@@ -159,7 +159,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     /**
-     * INVARIANT: A block can never consume more than `MAX_RESOURCE_LIMIT` gas.
+     * @custom:invariant A block can never consume more than `MAX_RESOURCE_LIMIT` gas.
      *
      * This test asserts that a block can never consume more than the `MAX_RESOURCE_LIMIT` gas threshold.
      */
@@ -168,7 +168,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     /**
-     * INVARIANT: The base fee can never be raised more than the max base fee change.
+     * @custom:invariant The base fee can never be raised more than the max base fee change.
      *
      * After a block consumes more gas than the target gas, the base fee cannot be raised more than the maximum
      * amount allowed. The max base fee change (per-block) is derived as follows:
@@ -179,7 +179,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     /**
-     * INVARIANT: The base fee can never be lowered more than the max base fee change.
+     * @custom:invariant The base fee can never be lowered more than the max base fee change.
      *
      * After a block consumes less than the target gas, the base fee cannot be lowered more than the maximum
      * amount allowed. The max base fee change (per-block) is derived as follows:
@@ -190,7 +190,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     /**
-     * INVARIANT: The `maxBaseFeeChange` calculation over multiple blocks can never underflow.
+     * @custom:invariant The `maxBaseFeeChange` calculation over multiple blocks can never underflow.
      *
      * When calculating the `maxBaseFeeChange` after multiple empty blocks, the calculation
      * should never be allowed to underflow.

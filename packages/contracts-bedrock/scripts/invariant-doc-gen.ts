@@ -14,6 +14,8 @@ const BASE_ECHIDNA_GH_URL =
   'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/echidna/'
 const BASE_INVARIANT_GH_URL =
   'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/test/invariants/'
+const NATSPEC_INV = '@custom:invariant'
+const BLOCK_COMMENT_REGEX = /\*(\/)?/
 
 // Represents an invariant test contract
 type Contract = {
@@ -69,17 +71,18 @@ const docGen = (dir: string): void => {
         line = lines[++i]
 
         // We have an invariant doc
-        if (line.startsWith('* INVARIANT:')) {
-          // TODO: Handle ambiguous case for `INVARIANT: ` prefix.
+        if (line.startsWith(`* ${NATSPEC_INV}`)) {
           // Assign the header of the invariant doc.
+          // TODO: Handle ambiguous case for `INVARIANT: ` prefix.
+          // TODO: Handle multi-line headers.
           currentDoc = {
-            header: line.replace('* INVARIANT:', '').trim(),
+            header: line.replace(`* ${NATSPEC_INV}`, '').trim(),
             desc: '',
           }
 
           // Process the description
           while ((line = lines[++i]).startsWith('*')) {
-            line = line.replace(/\*(\/)?/, '').trim()
+            line = line.replace(BLOCK_COMMENT_REGEX, '').trim()
 
             // If the line has any contents, insert it into the desc.
             // Otherwise, consider it a linebreak.

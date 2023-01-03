@@ -20,7 +20,7 @@ All tests within `forge` invariant files should follow the convention:
 
 ```solidity
 /**
- * INVARIANT: <title>
+ * @custom:invariant <title>
  *
  * <longDescription>
  */
@@ -37,7 +37,7 @@ All `echidna` invariant tests must exist within the `contracts/echidna` folder, 
 All property tests within `echidna` invariant files should follow the convention:
 ```solidity
 /**
- * INVARIANT: <title>
+ * @custom:invariant <title>
  *
  * <longDescription>
  */

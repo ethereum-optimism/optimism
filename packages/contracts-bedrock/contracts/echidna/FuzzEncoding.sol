@@ -49,7 +49,7 @@ contract EchidnaFuzzEncoding {
     }
 
     /**
-     * INVARIANT: `testRoundTripAToB` never fails.
+     * @custom:invariant `testRoundTripAToB` never fails.
      *
      * Asserts that a raw versioned nonce can be encoded / decoded to reach the same raw value.
      */
@@ -59,7 +59,7 @@ contract EchidnaFuzzEncoding {
     }
 
     /**
-     * INVARIANT: `testRoundTripBToA` never fails.
+     * @custom:invariant `testRoundTripBToA` never fails.
      *
      * Asserts that an encoded versioned nonce can always be decoded / re-encoded to reach
      * the same encoded value.

@@ -24,7 +24,7 @@ contract EchidnaFuzzAddressAliasing {
     }
 
     /**
-     * INVARIANT: Address aliases are always able to be undone.
+     * @custom:inviariant Address aliases are always able to be undone.
      *
      * Asserts that an address that has been aliased with `applyL1ToL2Alias` can always
      * be unaliased with `undoL1ToL2Alias`.

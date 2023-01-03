@@ -28,7 +28,7 @@ contract EchidnaFuzzOptimismPortal {
     }
 
     /**
-     * INVARIANT: Deposits of any value should always succeed unless `_to` = `address(0)` or `_isCreation` = `true`.
+     * @custom:invariant Deposits of any value should always succeed unless `_to` = `address(0)` or `_isCreation` = `true`.
      *
      * All deposits, barring creation transactions and transactions sent to `address(0)`, should always succeed.
      */

@@ -113,7 +113,7 @@ contract EchidnaFuzzHashing {
     }
 
     /**
-     * INVARIANT: `hashCrossDomainMessage` reverts if `version` is > `1`.
+     * @custom:invariant `hashCrossDomainMessage` reverts if `version` is > `1`.
      *
      * The `hashCrossDomainMessage` function should always revert if the `version` passed is > `1`.
      */
@@ -123,7 +123,7 @@ contract EchidnaFuzzHashing {
     }
 
     /**
-     * INVARIANT: `version` = `0`: `hashCrossDomainMessage` and `hashCrossDomainMessageV0` are equivalent.
+     * @custom:invariant `version` = `0`: `hashCrossDomainMessage` and `hashCrossDomainMessageV0` are equivalent.
      *
      * If the version passed is 0, `hashCrossDomainMessage` and `hashCrossDomainMessageV0` should be
      * equivalent.
@@ -135,7 +135,7 @@ contract EchidnaFuzzHashing {
     }
 
     /**
-     * INVARIANT: `version` = `1`: `hashCrossDomainMessage` and `hashCrossDomainMessageV1` are equivalent.
+     * @custom:invariant `version` = `1`: `hashCrossDomainMessage` and `hashCrossDomainMessageV1` are equivalent.
      *
      * If the version passed is 1, `hashCrossDomainMessage` and `hashCrossDomainMessageV1` should be
      * equivalent.
