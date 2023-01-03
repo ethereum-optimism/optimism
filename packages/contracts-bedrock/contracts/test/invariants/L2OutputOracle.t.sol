@@ -32,8 +32,8 @@ contract L2OutputOracle_Invariants is Test {
     }
 
     function setUp() public virtual {
-        // By default the first block has timestamp and number zero, which will cause underflows in the
-        // tests, so we'll move forward to these block values.
+        // By default the first block has timestamp and number zero, which will cause underflows
+        // in the tests, so we'll move forward to these block values.
         initL1Time = startingTimestamp + 1;
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
