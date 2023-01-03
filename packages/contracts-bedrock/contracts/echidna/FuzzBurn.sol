@@ -27,7 +27,7 @@ contract EchidnaFuzzBurnEth is StdUtils {
     }
 
     /**
-     * INVARIANT: `eth(uint256)` always burns the exact amount of eth passed.
+     * @custom:invariant `eth(uint256)` always burns the exact amount of eth passed.
      *
      * Asserts that when `Burn.eth(uint256)` is called, it always burns the exact amount
      * of ETH passed to the function.
@@ -69,7 +69,7 @@ contract EchidnaFuzzBurnGas is StdUtils {
     }
 
     /**
-     * INVARIANT: `gas(uint256)` always burns at least the amount of gas passed.
+     * @custom:invariant `gas(uint256)` always burns at least the amount of gas passed.
      *
      * Asserts that when `Burn.gas(uint256)` is called, it always burns at least the amount
      * of gas passed to the function.
