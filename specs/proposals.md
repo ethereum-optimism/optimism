@@ -12,6 +12,7 @@
 - [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
 - [L2 Output Commitment Construction](#l2-output-commitment-construction)
 - [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
+  - [Configuration](#configuration)
 - [Security Considerations](#security-considerations)
   - [L1 Reorgs](#l1-reorgs)
 - [Summary of Definitions](#summary-of-definitions)
@@ -42,10 +43,11 @@ described [below](#l2-output-commitment-construction).
 
 If there is no newly finalized output, the service continues querying until it receives one. It then submits this
 output, and the appropriate timestamp, to the [L2 Output Root](#l2-output-root-smart-contract) contract's
-`proposeL2Output()` function. The timestamp MUST be the next multiple of the `SUBMISSION_INTERVAL` value.
+`proposeL2Output()` function. The timestamp block number must correspond to the `startingBlockNumber` plus the next
+multiple of the `SUBMISSION_INTERVAL` value.
 
-The proposer may also delete the most recent output root by calling the `deleteL2Output()` function.
-The function can be called repeatedly if it is necessary to roll back the state further.
+The proposer may also delete multiple output roots by calling the `deleteL2Outputs()` function and specifying the
+index of the first output to delete, this will also delete all subsequent outputs.
 
 > **Note regarding future work:** In the initial version of the system, the proposer will be the same entity as the
 > sequencer, which is a trusted role. In the future proposers will need to submit a bond in order to post L2 output
@@ -96,12 +98,23 @@ The exact number is yet to be determined, and will depend on the design of the f
 
 The L2 Output Oracle contract implements the following interface:
 
-```js
+```solidity
+/**
+ * @notice The number of the first L2 block recorded in this contract.
+ */
+uint256 public startingBlockNumber;
+
+/**
+ * @notice The timestamp of the first L2 block recorded in this contract.
+ */
+uint256 public startingTimestamp;
+
 /**
  * @notice Accepts an L2 outputRoot and the timestamp of the corresponding L2 block. The
  * timestamp must be equal to the current value returned by `nextTimestamp()` in order to be
  * accepted.
  * This function may only be called by the Proposer.
+ *
  * @param _l2Output      The L2 output of the checkpoint block.
  * @param _l2BlockNumber The L2 block number that resulted in _l2Output.
  * @param _l1Blockhash   A block hash which must be included in the current chain.
@@ -115,17 +128,26 @@ The L2 Output Oracle contract implements the following interface:
   )
 
 /**
- * @notice Deletes the most recent output.
- * @param _l2Output The value of the most recent output. Used to prevent erroneously deleting
- *  the wrong root
+ * @notice Deletes all output proposals after and including the proposal that corresponds to
+ *         the given output index. Only the challenger address can delete outputs.
+ *
+ * @param _l2OutputIndex Index of the first L2 output to be deleted. All outputs after this
+ *                       output will also be deleted.
  */
-function deleteL2Output(bytes32 _l2Output) external
+function deleteL2Outputs(uint256 _l2OutputIndex) external
 
 /**
  * @notice Computes the block number of the next L2 block that needs to be checkpointed.
  */
-function getNextBlockNumber() public view returns (uint256) {
+function getNextBlockNumber() public view returns (uint256)
 ```
+
+### Configuration
+
+The `startingBlockNumber` must be at least the number of the first Bedrock block.
+The `startingTimestamp` MUST be the same as the timestamp of the start block.
+
+The first `outputRoot` proposed will thus be at height `startingBlockNumber + SUBMISSION_INTERVAL`
 
 ## Security Considerations
 
@@ -140,7 +162,7 @@ will not match that of the block with that number and the call will revert.
 
 ### Constants
 
-| Name                  | Value  | Unit    |
-| --------------------- | ------ | ------- |
-| `SUBMISSION_INTERVAL` | `1800` | seconds |
-| `L2_BLOCK_TIME`       | `2`    | seconds |
+| Name                  | Value | Unit    |
+| --------------------- | ----- | ------- |
+| `SUBMISSION_INTERVAL` | TBD   | blocks  |
+| `L2_BLOCK_TIME`       | `2`   | seconds |

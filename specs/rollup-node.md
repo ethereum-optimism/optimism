@@ -64,7 +64,7 @@ a 32 byte hash corresponding to the [L2 output root](./proposals.md#l2-output-co
 
 The input and return types here are as defined by the [engine API specs][engine-structures]).
 
-[engine-structures]: https://github.com/ethereum/execution-apis/blob/main/src/engine/specification.md#structures
+[engine-structures]: https://github.com/ethereum/execution-apis/blob/main/src/engine/paris.md#structures
 
 - method: `optimism_outputAtBlock`
 - params:

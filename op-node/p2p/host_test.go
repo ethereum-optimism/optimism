@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	lconf "github.com/libp2p/go-libp2p/config"
@@ -27,6 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 func TestingConfig(t *testing.T) *Config {
@@ -131,8 +133,11 @@ func TestP2PFull(t *testing.T) {
 	confB.Store = sync.MutexWrap(ds.NewMapDatastore())
 	// TODO: maybe swap the order of sec/mux preferences, to test that negotiation works
 
+	runCfgA := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
+	runCfgB := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
+
 	logA := testlog.Logger(t, log.LvlError).New("host", "A")
-	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, nil)
+	nodeA, err := NewNodeP2P(context.Background(), &rollup.Config{}, logA, &confA, &mockGossipIn{}, runCfgA, nil)
 	require.NoError(t, err)
 	defer nodeA.Close()
 
@@ -155,7 +160,7 @@ func TestP2PFull(t *testing.T) {
 
 	logB := testlog.Logger(t, log.LvlError).New("host", "B")
 
-	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, nil)
+	nodeB, err := NewNodeP2P(context.Background(), &rollup.Config{}, logB, &confB, &mockGossipIn{}, runCfgB, nil)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -286,10 +291,14 @@ func TestDiscovery(t *testing.T) {
 	confB.Store = sync.MutexWrap(ds.NewMapDatastore())
 	confB.DiscoveryDB = discDBB
 
+	runCfgA := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
+	runCfgB := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
+	runCfgC := &testutils.MockRuntimeConfig{P2PSeqAddress: common.Address{0x42}}
+
 	resourcesCtx, resourcesCancel := context.WithCancel(context.Background())
 	defer resourcesCancel()
 
-	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, nil)
+	nodeA, err := NewNodeP2P(context.Background(), rollupCfg, logA, &confA, &mockGossipIn{}, runCfgA, nil)
 	require.NoError(t, err)
 	defer nodeA.Close()
 	hostA := nodeA.Host()
@@ -304,7 +313,7 @@ func TestDiscovery(t *testing.T) {
 	confB.DiscoveryDB = discDBC
 
 	// Start B
-	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, nil)
+	nodeB, err := NewNodeP2P(context.Background(), rollupCfg, logB, &confB, &mockGossipIn{}, runCfgB, nil)
 	require.NoError(t, err)
 	defer nodeB.Close()
 	hostB := nodeB.Host()
@@ -319,7 +328,7 @@ func TestDiscovery(t *testing.T) {
 		}})
 
 	// Start C
-	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, nil)
+	nodeC, err := NewNodeP2P(context.Background(), rollupCfg, logC, &confC, &mockGossipIn{}, runCfgC, nil)
 	require.NoError(t, err)
 	defer nodeC.Close()
 	hostC := nodeC.Host()

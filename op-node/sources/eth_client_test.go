@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type mockRPC struct {
@@ -51,6 +52,7 @@ var testEthClientConfig = &EthClientConfig{
 	MaxConcurrentRequests: 10,
 	TrustRPC:              false,
 	MustBePostMerge:       false,
+	RPCProviderKind:       RPCKindBasic,
 }
 
 func randHash() (out common.Hash) {
@@ -131,7 +133,7 @@ func TestEthClient_InfoByNumber(t *testing.T) {
 		"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
-	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindBasic))
 	require.NoError(t, err)
 	info, err := s.InfoByNumber(ctx, uint64(n))
 	require.NoError(t, err)

@@ -105,10 +105,26 @@ func (m *MockEthClient) ExpectFetchReceipts(hash common.Hash, info eth.BlockInfo
 	m.Mock.On("FetchReceipts", hash).Once().Return(&info, receipts, &err)
 }
 
-func (m *MockEthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
-	return m.Mock.MethodCalled("GetProof", address, blockTag).Get(0).(*eth.AccountResult), nil
+func (m *MockEthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
+	return m.Mock.MethodCalled("GetProof", address, storage, blockTag).Get(0).(*eth.AccountResult), nil
 }
 
-func (m *MockEthClient) ExpectGetProof(address common.Address, blockTag string, result *eth.AccountResult, err error) {
-	m.Mock.On("GetProof", address, blockTag).Once().Return(result, &err)
+func (m *MockEthClient) ExpectGetProof(address common.Address, storage []common.Hash, blockTag string, result *eth.AccountResult, err error) {
+	m.Mock.On("GetProof", address, storage, blockTag).Once().Return(result, &err)
+}
+
+func (m *MockEthClient) GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error) {
+	return m.Mock.MethodCalled("GetStorageAt", address, storageSlot, blockTag).Get(0).(common.Hash), nil
+}
+
+func (m *MockEthClient) ExpectGetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string, result common.Hash, err error) {
+	m.Mock.On("GetStorageAt", address, storageSlot, blockTag).Once().Return(result, &err)
+}
+
+func (m *MockEthClient) ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error) {
+	return m.Mock.MethodCalled("ReadStorageAt", address, storageSlot, blockHash).Get(0).(common.Hash), nil
+}
+
+func (m *MockEthClient) ExpectReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash, result common.Hash, err error) {
+	m.Mock.On("ReadStorageAt", address, storageSlot, blockHash).Once().Return(result, &err)
 }

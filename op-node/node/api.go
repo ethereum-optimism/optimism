@@ -18,7 +18,8 @@ import (
 type l2EthClient interface {
 	InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error)
 	// GetProof returns a proof of the account, it may return a nil result without error if the address was not found.
-	GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error)
+	// Optionally keys of the account storage trie can be specified to include with corresponding values in the proof.
+	GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error)
 }
 
 type driverClient interface {
@@ -84,10 +85,8 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	if head == nil {
 		return nil, ethereum.NotFound
 	}
-
-	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, ref.Hash.String())
+	proof, err := n.client.GetProof(ctx, predeploys.L2ToL1MessagePasserAddr, []common.Hash{}, ref.Hash.String())
 	n.log.Info("MMDBG GetProof for", "block", number, "err", err, "proof", proof)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get contract proof at block %s: %w", ref, err)
 	}

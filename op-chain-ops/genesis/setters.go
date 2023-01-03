@@ -14,6 +14,28 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+// UntouchablePredeploys are addresses in the predeploy namespace
+// that should not be touched by the migration process.
+var UntouchablePredeploys = map[common.Address]bool{
+	predeploys.GovernanceTokenAddr: true,
+	predeploys.WETH9Addr:           true,
+}
+
+// UntouchableCodeHashes contains code hashes of all the contracts
+// that should not be touched by the migration process.
+type ChainHashMap map[uint64]common.Hash
+
+var UntouchableCodeHashes = map[common.Address]ChainHashMap{
+	predeploys.GovernanceTokenAddr: {
+		1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
+		5: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
+	},
+	predeploys.WETH9Addr: {
+		1: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+		5: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+	},
+}
+
 // FundDevAccounts will fund each of the development accounts.
 func FundDevAccounts(db vm.StateDB) {
 	for _, account := range DevAccounts {
@@ -48,15 +70,15 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
-		// There is no proxy at the governance token address or
-		// the proxy admin address. LegacyERC20ETH lives in the
-		// 0xDead namespace so it can be ignored here
-		if addr == predeploys.GovernanceTokenAddr || addr == predeploys.ProxyAdminAddr {
+		if UntouchablePredeploys[addr] || addr == predeploys.ProxyAdminAddr {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}
 
-		db.CreateAccount(addr)
+		if !db.Exist(addr) {
+			db.CreateAccount(addr)
+		}
+
 		db.SetCode(addr, depBytecode)
 		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
 		log.Trace("Set proxy", "address", addr, "admin", proxyAdminAddr)
@@ -64,7 +86,16 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 	return nil
 }
 
-// SetImplementations will set the implmentations of the contracts in the state
+func SetLegacyETH(db vm.StateDB, storage state.StorageConfig, immutable immutables.ImmutableConfig) error {
+	deployResults, err := immutables.BuildOptimism(immutable)
+	if err != nil {
+		return err
+	}
+
+	return setupPredeploy(db, deployResults, storage, "LegacyERC20ETH", predeploys.LegacyERC20ETHAddr, predeploys.LegacyERC20ETHAddr)
+}
+
+// SetImplementations will set the implementations of the contracts in the state
 // and configure the proxies to point to the implementations. It also sets
 // the appropriate storage values for each contract at the proxy address.
 func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable immutables.ImmutableConfig) error {
@@ -74,48 +105,73 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 	}
 
 	for name, address := range predeploys.Predeploys {
-		// Convert the address to the code address unless it is
-		// designed to not be behind a proxy
-		addr, special, err := mapImplementationAddress(address)
+		if UntouchablePredeploys[*address] {
+			continue
+		}
+
+		if *address == predeploys.LegacyERC20ETHAddr {
+			continue
+		}
+
+		codeAddr, err := AddressToCodeNamespace(*address)
 		if err != nil {
+			return fmt.Errorf("error converting to code namespace: %w", err)
+		}
+
+		// Proxy admin is a special case - it needs an impl set, but at its own address
+		if *address == predeploys.ProxyAdminAddr {
+			codeAddr = *address
+		}
+
+		if !db.Exist(codeAddr) {
+			db.CreateAccount(codeAddr)
+		}
+
+		if *address != predeploys.ProxyAdminAddr {
+			db.SetState(*address, ImplementationSlot, codeAddr.Hash())
+		}
+
+		if err := setupPredeploy(db, deployResults, storage, name, *address, codeAddr); err != nil {
 			return err
 		}
 		log.Info("MMDBG SetImplementations", "name", name, "addr", addr, "special", special)
 
-		if !special {
-			db.SetState(*address, ImplementationSlot, addr.Hash())
-		}
-
-		// Create the account
-		db.CreateAccount(addr)
-
-		// Use the genrated bytecode when there are immutables
-		// otherwise use the artifact deployed bytecode
-		if bytecode, ok := deployResults[name]; ok {
-			log.Info("Setting deployed bytecode with immutables", "name", name, "address", addr)
-			db.SetCode(addr, bytecode)
-		} else {
-			depBytecode, err := bindings.GetDeployedBytecode(name)
-			if err != nil {
-				return err
-			}
-			log.Info("Setting deployed bytecode from solc compiler output", "name", name, "address", addr)
-			db.SetCode(addr, depBytecode)
-		}
-
-		// Set the storage values
-		if storageConfig, ok := storage[name]; ok {
-			log.Info("Setting storage", "name", name, "address", *address)
-			if err := state.SetStorage(name, *address, storageConfig, db); err != nil {
-				return err
-			}
-		}
-
-		code := db.GetCode(addr)
+		code := db.GetCode(codeAddr)
 		if len(code) == 0 {
 			return fmt.Errorf("code not set for %s", name)
 		}
 	}
+	return nil
+}
+
+func SetDevOnlyL2Implementations(db vm.StateDB, storage state.StorageConfig, immutable immutables.ImmutableConfig) error {
+	deployResults, err := immutables.BuildOptimism(immutable)
+	if err != nil {
+		return err
+	}
+
+	for name, address := range predeploys.Predeploys {
+		if !UntouchablePredeploys[*address] {
+			continue
+		}
+
+		db.CreateAccount(*address)
+
+		if err := setupPredeploy(db, deployResults, storage, name, *address, *address); err != nil {
+			return err
+		}
+
+		code := db.GetCode(*address)
+		if len(code) == 0 {
+			return fmt.Errorf("code not set for %s", name)
+		}
+	}
+
+	db.CreateAccount(predeploys.LegacyERC20ETHAddr)
+	if err := setupPredeploy(db, deployResults, storage, "LegacyERC20ETH", predeploys.LegacyERC20ETHAddr, predeploys.LegacyERC20ETHAddr); err != nil {
+		return fmt.Errorf("error setting up legacy eth: %w", err)
+	}
+
 	return nil
 }
 
@@ -130,22 +186,28 @@ func SetPrecompileBalances(db vm.StateDB) {
 	}
 }
 
-func mapImplementationAddress(addrP *common.Address) (common.Address, bool, error) {
-	var addr common.Address
-	var err error
-	var special bool
-	switch *addrP {
-	case predeploys.GovernanceTokenAddr:
-		addr = predeploys.GovernanceTokenAddr
-		special = true
-	case predeploys.LegacyERC20ETHAddr:
-		addr = predeploys.LegacyERC20ETHAddr
-		special = true
-	case predeploys.ProxyAdminAddr:
-		addr = predeploys.ProxyAdminAddr
-		special = true
-	default:
-		addr, err = AddressToCodeNamespace(*addrP)
+func setupPredeploy(db vm.StateDB, deployResults immutables.DeploymentResults, storage state.StorageConfig, name string, proxyAddr common.Address, implAddr common.Address) error {
+	// Use the generated bytecode when there are immutables
+	// otherwise use the artifact deployed bytecode
+	if bytecode, ok := deployResults[name]; ok {
+		log.Info("Setting deployed bytecode with immutables", "name", name, "address", implAddr)
+		db.SetCode(implAddr, bytecode)
+	} else {
+		depBytecode, err := bindings.GetDeployedBytecode(name)
+		if err != nil {
+			return err
+		}
+		log.Info("Setting deployed bytecode from solc compiler output", "name", name, "address", implAddr)
+		db.SetCode(implAddr, depBytecode)
 	}
-	return addr, special, err
+
+	// Set the storage values
+	if storageConfig, ok := storage[name]; ok {
+		log.Info("Setting storage", "name", name, "address", proxyAddr)
+		if err := state.SetStorage(name, proxyAddr, storageConfig, db); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

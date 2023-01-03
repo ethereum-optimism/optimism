@@ -11,14 +11,21 @@ import (
 	"testing"
 	"time"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/stretchr/testify/require"
+
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration_action"
@@ -31,11 +38,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/stretchr/testify/require"
 )
 
 type migrationTestConfig struct {
@@ -267,6 +269,7 @@ func TestMigration(t *testing.T) {
 		L1: &node.L1EndpointConfig{
 			L1NodeAddr: forkedL1URL,
 			L1TrustRPC: false,
+			L1RPCKind:  sources.RPCKindBasic,
 		},
 		L2: &node.L2EndpointConfig{
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),
@@ -296,7 +299,6 @@ func TestMigration(t *testing.T) {
 			ChannelTimeout:         deployCfg.ChannelTimeout,
 			L1ChainID:              new(big.Int).SetUint64(deployCfg.L1ChainID),
 			L2ChainID:              new(big.Int).SetUint64(deployCfg.L2ChainID),
-			P2PSequencerAddress:    deployCfg.P2PSequencerAddress,
 			BatchInboxAddress:      deployCfg.BatchInboxAddress,
 			DepositContractAddress: portal.Address,
 			L1SystemConfigAddress:  sysConfig.Address,

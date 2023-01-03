@@ -85,9 +85,10 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		uint642Big(config.GasPriceOracleScalar),
 		config.BatchSenderAddress.Hash(),
 		gasLimit,
+		config.P2PSequencerAddress,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for SystemConfig: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -109,7 +110,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for L2OutputOracle: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -127,7 +128,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 	data, err = portalABI.Pack("initialize")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -147,7 +148,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		config.FinalSystemOwner,
 	)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot abi encode initialize for L1CrossDomainMessenger: %w", err)
 	}
 	if _, err := upgradeProxy(
 		backend,
@@ -297,6 +298,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				uint642Big(config.GasPriceOracleScalar),
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
 				gasLimit,
+				config.P2PSequencerAddress,
 			},
 		},
 		{
@@ -362,6 +364,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[2].(*big.Int),
 			deployment.Args[3].(common.Hash),
 			deployment.Args[4].(uint64),
+			deployment.Args[5].(common.Address),
 		)
 	case "L2OutputOracle":
 		_, tx, _, err = bindings.DeployL2OutputOracle(
@@ -436,6 +439,10 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 		} else {
 			err = fmt.Errorf("unknown contract %s", deployment.Name)
 		}
+	}
+
+	if err != nil {
+		err = fmt.Errorf("cannot deploy %s: %w", deployment.Name, err)
 	}
 
 	return tx, err

@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum/go-ethereum/common"
 )
 
 var Beta1 = rollup.Config{
@@ -33,7 +34,6 @@ var Beta1 = rollup.Config{
 	ChannelTimeout:         30,
 	L1ChainID:              big.NewInt(5),
 	L2ChainID:              big.NewInt(902),
-	P2PSequencerAddress:    common.HexToAddress("0x42415b1258908bb27f34585133368900ba668dce"),
 	BatchInboxAddress:      common.HexToAddress("0xFb3aECf08940785D4fB3Ad87cDC6e1Ceb20e9aac"),
 	DepositContractAddress: common.HexToAddress("0xf91795564662DcC9a17de67463ec5BA9C6DC207b"),
 	L1SystemConfigAddress:  common.HexToAddress("0x686df068eaa71af78dadc1c427e35600e0fadac5"),

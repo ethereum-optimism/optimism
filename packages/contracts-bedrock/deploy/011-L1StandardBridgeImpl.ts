@@ -32,6 +32,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1StandardBridgeImpl']
+deployFn.tags = ['L1StandardBridgeImpl', 'setup']
 
 export default deployFn

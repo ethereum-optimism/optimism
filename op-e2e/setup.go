@@ -22,7 +22,7 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -32,8 +32,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -267,6 +268,21 @@ func (cfg SystemConfig) Start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
+	for addr, amount := range cfg.Premine {
+		if existing, ok := l2Genesis.Alloc[addr]; ok {
+			l2Genesis.Alloc[addr] = core.GenesisAccount{
+				Code:    existing.Code,
+				Storage: existing.Storage,
+				Balance: amount,
+				Nonce:   existing.Nonce,
+			}
+		} else {
+			l2Genesis.Alloc[addr] = core.GenesisAccount{
+				Balance: amount,
+				Nonce:   0,
+			}
+		}
+	}
 
 	makeRollupConfig := func() rollup.Config {
 		return rollup.Config{
@@ -288,7 +304,6 @@ func (cfg SystemConfig) Start() (*System, error) {
 			ChannelTimeout:         cfg.DeployConfig.ChannelTimeout,
 			L1ChainID:              cfg.L1ChainIDBig(),
 			L2ChainID:              cfg.L2ChainIDBig(),
-			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
@@ -354,6 +369,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
 			L1NodeAddr: l1EndpointConfig,
 			L1TrustRPC: false,
+			L1RPCKind:  sources.RPCKindBasic,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
 			L2EngineAddr:      l2EndpointConfig,

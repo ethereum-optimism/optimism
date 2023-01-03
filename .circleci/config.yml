@@ -44,6 +44,19 @@ commands:
             gcloud auth login --brief --cred-file "<< parameters.gcp_cred_config_file_path >>"
             # Configure ADC
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
+  check-changed:
+    description: "Conditionally halts a step if certain modules change"
+    parameters:
+      patterns:
+        type: string
+        description: "Comma-separated list of dependencies"
+    steps:
+      - run:
+          name: "Check for changes"
+          command: |
+            cd ops/check-changed
+            pip3 install -r requirements.txt
+            python3 main.py "<<parameters.patterns>>"
 jobs:
   yarn-monorepo:
     docker:
@@ -51,14 +64,8 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(op-bindings|op-chain-ops|packages/)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - check-changed:
+          patterns: op-bindings,op-chain-ops,packages/
       - run:
           name: Install dependencies
           command: yarn --frozen-lockfile
@@ -211,15 +218,9 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|hardhat-deploy-config)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: lint
           command: yarn lint:check
@@ -268,15 +269,9 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock/contracts)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: contracts-bedrock,contracts
       - run:
           name: Compile with metadata hash
           command: yarn clean && yarn build:with-metadata
@@ -301,15 +296,9 @@ jobs:
     resource_class: <<parameters.size>>
     steps:
       - checkout
-      - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock/contracts)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: contracts-bedrock,contracts
       - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: yarn echidna:<<parameters.echidna_target>>
@@ -322,15 +311,9 @@ jobs:
     resource_class: medium
     steps:
       - checkout
-      - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(contracts-bedrock|op-bindings)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: contracts-bedrock,op-bindings
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -353,15 +336,9 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(packages/<<parameters.package_name>>|packages/<<parameters.dependencies>>)" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: <<parameters.package_name>>,<<parameters.dependencies>>
       - run:
           name: Lint
           command: yarn lint && git diff --exit-code
@@ -379,6 +356,8 @@ jobs:
       image: ubuntu-2204:2022.07.1
     steps:
       - checkout
+      - check-changed:
+          patterns: specs/(.*)\.md$
       - run:
           name: yarn dev deps  # todo: what's the best way to pull in the dependencies for linting? yarn install above is using production env without dev dependencies
           command: yarn install --production=false
@@ -398,14 +377,8 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "op-node" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - check-changed:
+          patterns: op-node
       - run:
           name: Fuzz
           command: make fuzz
@@ -416,15 +389,9 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: {at: "."}
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "packages/" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: packages
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
       - run:
@@ -501,10 +468,12 @@ jobs:
         description: If the op-e2e package should use HTTP clients
         type: string
     docker:
-      - image: cimg/go:1.19
+      - image: ethereumoptimism/ci-builder:latest
     resource_class: xlarge
     steps:
       - checkout
+      - check-changed:
+          patterns: op-(.+),contracts-bedrock,contracts
       - run:
           name: prep results dir
           command: mkdir -p /tmp/test-results
@@ -513,8 +482,9 @@ jobs:
           command: |
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
-            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml ./...
+            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
+            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
+            -- -timeout=20m
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -540,15 +510,8 @@ jobs:
       - image: cimg/postgres:14.1
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "(<<parameters.working_directory>>|<<parameters.dependencies>>)" || echo "TRUE")
-            echo $CHANGED
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - check-changed:
+          patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
       - run:
           name: Lint
           command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
@@ -575,14 +538,8 @@ jobs:
       - image: ethereumoptimism/ci-builder:latest
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(check-changed "l2geth" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - check-changed:
+          patterns: l2geth
       - run:
           name: Test
           command: make test
@@ -591,7 +548,6 @@ jobs:
   devnet:
     machine:
       image: ubuntu-2204:2022.10.2
-      docker_layer_caching: true
     parameters:
       deploy:
         description: Deploy contracts
@@ -601,6 +557,8 @@ jobs:
       DOCKER_BUILDKIT: 1
     steps:
       - checkout
+      - check-changed:
+          patterns: op-(.+),packages,integration-tests
       - run:
           name: Install latest golang
           command: |
@@ -636,16 +594,41 @@ jobs:
                 working_directory: packages/contracts-bedrock
             - run:
                 name: Deposit ERC20 through the bridge
-                command: timeout 5m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                command: timeout 8m npx hardhat deposit-erc20 --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
                 name: Deposit ETH through the bridge
-                command: timeout 5m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
+                command: timeout 8m npx hardhat deposit-eth --network devnetL1 --l1-contracts-json-path ../../.devnet/sdk-addresses.json
                 working_directory: packages/sdk
             - run:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: Dump op-node logs
+                command: |
+                  docker logs ops-bedrock-op-node-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-geth logs
+                command: |
+                  docker logs ops-bedrock-l2-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump l1 logs
+                command: |
+                  docker logs ops-bedrock-l1-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-batcher logs
+                command: |
+                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-proposer logs
+                command: |
+                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+                when: on_fail
       - when:
           condition:
             and:
@@ -680,14 +663,8 @@ jobs:
     parallelism: 3
     steps:
       - checkout
-      - run:
-          name: Check if we should run
-          command: |
-            shopt -s inherit_errexit
-            CHANGED=$(bash ./ops/docker/ci-builder/check-changed.sh "(l2geth|common-ts|contracts|core-utils|message-relayer|data-transport-layer|replica-healthcheck|sdk|batch-submitter|gas-oracle|bss-core|integration-tests)/" || echo "TRUE")
-            if [[ "$CHANGED" = "FALSE" ]]; then
-              circleci step halt
-            fi
+      - check-changed:
+          patterns: l2geth,common-ts,contracts,core-utils,message-relayer,data-transport-layer,replica-healthcheck,sdk,batch-submitter,gas-oracle,bss-core,integration-tests
       - run:
           name: Bring up the stack
           command: |
@@ -780,7 +757,7 @@ jobs:
       - go/load-cache
       - go/mod-download
       - go/save-cache
-      - run: {command: "go build ."}
+      - run: { command: "go build ." }
       - run:
           command: |
             ./hive \
@@ -830,45 +807,6 @@ workflows:
       - contracts-bedrock-tests:
           requires:
             - yarn-monorepo
-      - bedrock-echidna-build:
-          requires:
-            - yarn-monorepo
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Alias Test
-          echidna_target: aliasing
-          requires:
-            - bedrock-echidna-build
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Eth Burn Test
-          echidna_target: "burn:eth"
-          requires:
-            - bedrock-echidna-build
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Gas Burn Test
-          echidna_target: "burn:gas"
-          size: 2xlarge
-          requires:
-            - bedrock-echidna-build
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Encoding Test
-          echidna_target: encoding
-          requires:
-            - bedrock-echidna-build
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Metering Test
-          echidna_target: metering
-          requires:
-            - bedrock-echidna-build
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Hashing Test
-          echidna_target: hashing
-          requires:
-            - bedrock-echidna-build
-      - bedrock-echidna-run:
-          name: Bedrock Echidna Portal Test
-          echidna_target: portal
-          requires:
-            - bedrock-echidna-build
       - op-bindings-build:
           requires:
             - yarn-monorepo
@@ -926,6 +864,12 @@ workflows:
           coverage_flag: sdk-tests
           package_name: sdk
           dependencies: "(contracts|core-utils)"
+          requires:
+            - yarn-monorepo
+      - js-lint-test:
+          name: balance-monitor-tests
+          coverage_flag: balance-monitor-tests
+          package_name: balance-monitor
           requires:
             - yarn-monorepo
       - depcheck:

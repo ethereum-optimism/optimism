@@ -1,6 +1,5 @@
 queue_rules:
   - name: default
-    speculative_checks: 3
     conditions: []
 
 pull_request_rules:
@@ -11,6 +10,7 @@ pull_request_rules:
         - "#approved-reviews-by>=1"
         - "#changes-requested-reviews-by=0"
         - "label!=do-not-merge"
+        - "label!=multiple-reviewers"
         - "label!=mergify-ignore"
         - "base=develop"
         - or:

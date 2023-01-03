@@ -20,6 +20,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['OptimismPortalProxy']
+deployFn.tags = ['OptimismPortalProxy', 'setup']
 
 export default deployFn

@@ -3,7 +3,6 @@ package sources
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -44,6 +43,9 @@ type EthClientConfig struct {
 	// If this is not checked, disabled header fields like the nonce or difficulty
 	// may be used to get a different block-hash.
 	MustBePostMerge bool
+
+	// RPCProviderKind is a hint at what type of RPC provider we are dealing with
+	RPCProviderKind RPCProviderKind
 }
 
 func (c *EthClientConfig) Check() error {
@@ -65,6 +67,9 @@ func (c *EthClientConfig) Check() error {
 	if c.MaxRequestsPerBatch < 1 {
 		return fmt.Errorf("expected at least 1 request per batch, but max is: %d", c.MaxRequestsPerBatch)
 	}
+	if !ValidRPCProviderKind(c.RPCProviderKind) {
+		return fmt.Errorf("unknown rpc provider kind: %s", c.RPCProviderKind)
+	}
 	return nil
 }
 
@@ -78,11 +83,13 @@ type EthClient struct {
 
 	mustBePostMerge bool
 
+	provKind RPCProviderKind
+
 	log log.Logger
 
 	// cache receipts in bundles per block hash
-	// We cache the receipts fetcher to not lose progress when we have to retry the `Fetch` call
-	// common.Hash -> eth.ReceiptsFetcher
+	// We cache the receipts fetching job to not lose progress when we have to retry the `Fetch` call
+	// common.Hash -> *receiptsFetchingJob
 	receiptsCache *caching.LRUCache
 
 	// cache transactions in bundles per block hash
@@ -96,6 +103,27 @@ type EthClient struct {
 	// cache payloads by hash
 	// common.Hash -> *eth.ExecutionPayload
 	payloadsCache *caching.LRUCache
+
+	// availableReceiptMethods tracks which receipt methods can be used for fetching receipts
+	// This may be modified concurrently, but we don't lock since it's a single
+	// uint64 that's not critical (fine to miss or mix up a modification)
+	availableReceiptMethods ReceiptsFetchingMethod
+}
+
+func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
+	return PickBestReceiptsFetchingMethod(s.provKind, s.availableReceiptMethods, txCount)
+}
+
+func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
+	if unusableMethod(err) {
+		// clear the bit of the method that errored
+		s.availableReceiptMethods &^= m
+		s.log.Warn("failed to use selected RPC method for receipt fetching, falling back to alternatives",
+			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods, "err", err)
+	} else {
+		s.log.Debug("failed to use selected RPC method for receipt fetching, but method does appear to be available, so we continue to use it",
+			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods&^m, "err", err)
+	}
 }
 
 // NewEthClient wraps a RPC with bindings to fetch ethereum data,
@@ -106,14 +134,17 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 	}
 	client = LimitRPC(client, config.MaxConcurrentRequests)
 	return &EthClient{
-		client:            client,
-		maxBatchSize:      config.MaxRequestsPerBatch,
-		trustRPC:          config.TrustRPC,
-		log:               log,
-		receiptsCache:     caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
-		transactionsCache: caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
-		headersCache:      caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
-		payloadsCache:     caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
+		client:                  client,
+		maxBatchSize:            config.MaxRequestsPerBatch,
+		trustRPC:                config.TrustRPC,
+		mustBePostMerge:         config.MustBePostMerge,
+		provKind:                config.RPCProviderKind,
+		log:                     log,
+		receiptsCache:           caching.NewLRUCache(metrics, "receipts", config.ReceiptsCacheSize),
+		transactionsCache:       caching.NewLRUCache(metrics, "txs", config.TransactionsCacheSize),
+		headersCache:            caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
+		payloadsCache:           caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
+		availableReceiptMethods: AvailableReceiptsFetchingMethods(config.RPCProviderKind),
 	}, nil
 }
 
@@ -238,26 +269,18 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	// Try to reuse the receipts fetcher because is caches the results of intermediate calls. This means
 	// that if just one of many calls fail, we only retry the failed call rather than all of the calls.
 	// The underlying fetcher uses the receipts hash to verify receipt integrity.
-	var fetcher eth.ReceiptsFetcher
+	var job *receiptsFetchingJob
 	if v, ok := s.receiptsCache.Get(blockHash); ok {
-		fetcher = v.(eth.ReceiptsFetcher)
+		job = v.(*receiptsFetchingJob)
 	} else {
 		txHashes := make([]common.Hash, len(txs))
 		for i := 0; i < len(txs); i++ {
 			txHashes[i] = txs[i].Hash()
 		}
-		fetcher = NewReceiptsFetcher(eth.ToBlockID(info), info.ReceiptHash(), txHashes, s.client.BatchCallContext, s.maxBatchSize)
-		s.receiptsCache.Add(blockHash, fetcher)
+		job = NewReceiptsFetchingJob(s, s.client, s.maxBatchSize, eth.ToBlockID(info), info.ReceiptHash(), txHashes)
+		s.receiptsCache.Add(blockHash, job)
 	}
-	// Fetch all receipts
-	for {
-		if err := fetcher.Fetch(ctx); err == io.EOF {
-			break
-		} else if err != nil {
-			return nil, nil, err
-		}
-	}
-	receipts, err := fetcher.Result()
+	receipts, err := job.Fetch(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -265,14 +288,59 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 	return info, receipts, nil
 }
 
-func (s *EthClient) GetProof(ctx context.Context, address common.Address, blockTag string) (*eth.AccountResult, error) {
+// GetProof returns an account proof result, with any optional requested storage proofs.
+// The retrieval does sanity-check that storage proofs for the expected keys are present in the response,
+// but does not verify the result. Call accountResult.Verify(stateRoot) to verify the result.
+func (s *EthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
 	var getProofResponse *eth.AccountResult
-	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, []common.Hash{}, blockTag)
+	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, storage, blockTag)
 	s.log.Info("MMDBG eth_client GetProof", "err", err, "address", address, "blockTag", blockTag, "Response", getProofResponse)
-	if err == nil && getProofResponse == nil {
-		err = ethereum.NotFound
+	if err != nil {
+		return nil, err
 	}
-	return getProofResponse, err
+	if getProofResponse == nil {
+		return nil, ethereum.NotFound
+	}
+	if len(getProofResponse.StorageProof) != len(storage) {
+		return nil, fmt.Errorf("missing storage proof data, got %d proof entries but requested %d storage keys", len(getProofResponse.StorageProof), len(storage))
+	}
+	for i, key := range storage {
+		if key != getProofResponse.StorageProof[i].Key {
+			return nil, fmt.Errorf("unexpected storage proof key difference for entry %d: got %s but requested %s", i, getProofResponse.StorageProof[i].Key, key)
+		}
+	}
+	return getProofResponse, nil
+}
+
+// GetStorageAt returns the storage value at the given address and storage slot, **without verifying the correctness of the result**.
+// This should only ever be used as alternative to GetProof when the user opts in.
+// E.g. Erigon L1 node users may have to use this, since Erigon does not support eth_getProof, see https://github.com/ledgerwatch/erigon/issues/1349
+func (s *EthClient) GetStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockTag string) (common.Hash, error) {
+	var out common.Hash
+	err := s.client.CallContext(ctx, &out, "eth_getStorageAt", address, storageSlot, blockTag)
+	return out, err
+}
+
+// ReadStorageAt is a convenience method to read a single storage value at the given slot in the given account.
+// The storage slot value is verified against the state-root of the given block if we do not trust the RPC provider, or directly retrieved without proof if we do trust the RPC.
+func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, storageSlot common.Hash, blockHash common.Hash) (common.Hash, error) {
+	if s.trustRPC {
+		return s.GetStorageAt(ctx, address, storageSlot, blockHash.String())
+	}
+	block, err := s.InfoByHash(ctx, blockHash)
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to retrieve state root of block %s: %w", blockHash, err)
+	}
+
+	result, err := s.GetProof(ctx, address, []common.Hash{storageSlot}, blockHash.String())
+	if err != nil {
+		return common.Hash{}, fmt.Errorf("failed to fetch proof of storage slot %s at block %s: %w", storageSlot, blockHash, err)
+	}
+
+	if err := result.Verify(block.Root()); err != nil {
+		return common.Hash{}, fmt.Errorf("failed to verify retrieved proof against state root: %w", err)
+	}
+	return common.BytesToHash(result.StorageProof[0].Value), nil
 }
 
 func (s *EthClient) Close() {
