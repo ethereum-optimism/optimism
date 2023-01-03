@@ -63,7 +63,9 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		return nil, err
 	}
 
-	// Migrated withdrawals are specified as version 0
+	// Migrated withdrawals are specified as version 0. Both the
+	// L2ToL1MessagePasser and the CrossDomainMessenger use the same
+	// versioning scheme. Both should be set to version 0
 	versionedNonce := EncodeVersionedNonce(withdrawal.Nonce, new(big.Int))
 	// Encode the call to `relayMessage` on the `CrossDomainMessenger`.
 	// The minGasLimit can safely be 0 here.
@@ -84,7 +86,7 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 	gasLimit := uint64(len(data)*16 + 200_000)
 
 	w := NewWithdrawal(
-		withdrawal.Nonce,
+		versionedNonce,
 		&predeploys.L2CrossDomainMessengerAddr,
 		l1CrossDomainMessenger,
 		value,
