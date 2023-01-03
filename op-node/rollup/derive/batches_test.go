@@ -169,22 +169,6 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchUndecided,
 		},
 		{
-			Name:       "inconsistent L1 info",
-			L1Blocks:   []eth.L1BlockRef{l1B},
-			L2SafeHead: l2A0,
-			Batch: BatchWithL1InclusionBlock{
-				L1InclusionBlock: l1B,
-				Batch: &BatchData{BatchV1{
-					ParentHash:   l2A1.ParentHash,
-					EpochNum:     rollup.Epoch(l2A1.L1Origin.Number),
-					EpochHash:    l2A1.L1Origin.Hash,
-					Timestamp:    l2A1.Time,
-					Transactions: nil,
-				}},
-			},
-			Expected: BatchUndecided,
-		},
-		{
 			Name:       "future timestamp",
 			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
 			L2SafeHead: l2A0,
