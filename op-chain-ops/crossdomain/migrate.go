@@ -63,7 +63,8 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		return nil, err
 	}
 
-	versionedNonce := EncodeVersionedNonce(withdrawal.Nonce, common.Big1)
+	// Migrated withdrawals are specified as version 0
+	versionedNonce := EncodeVersionedNonce(withdrawal.Nonce, new(big.Int))
 	// Encode the call to `relayMessage` on the `CrossDomainMessenger`.
 	// The minGasLimit can safely be 0 here.
 	data, err := abi.Pack(
