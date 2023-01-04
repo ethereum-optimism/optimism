@@ -108,6 +108,9 @@ type DeployConfig struct {
 
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
+	if d.L1StartingBlockTag == nil {
+		return fmt.Errorf("%w: L2StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
+	}
 	if d.L1ChainID == 0 {
 		return fmt.Errorf("%w: L1ChainID cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -327,7 +330,7 @@ func NewDeployConfig(path string) (*DeployConfig, error) {
 
 	var config DeployConfig
 	if err := json.Unmarshal(file, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot unmarshal deploy config: %w", err)
 	}
 
 	return &config, nil
