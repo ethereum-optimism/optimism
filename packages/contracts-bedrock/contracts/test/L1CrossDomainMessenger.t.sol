@@ -140,19 +140,22 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // TODO: might need a test contract
     // function test_xDomainSenderSetCorrectly() external {}
 
-    function test_relayMessage_v0_reverts() external {
+    function test_relayMessage_v2_reverts() external {
         address target = address(0xabcd);
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
-        // set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
-        vm.prank(address(op));
 
+        // Expect a revert.
         vm.expectRevert(
-            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
         );
-        L1Messenger.relayMessage(
-            0, // nonce
+
+        // Try to relay a v2 message.
+        vm.prank(address(op));
+        L2Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 2), // nonce
             sender,
             target,
             0, // value
@@ -383,5 +386,308 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         assertEq(L1Messenger.successfulMessages(hash), false);
         assertEq(L1Messenger.receivedMessages(hash), true);
+    }
+
+    function test_relayMessage_legacy_succeeds() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        // Compute the message hash.
+        bytes32 hash = Hashing.hashCrossDomainMessageV1(
+            // Using a legacy nonce with version 0.
+            Encoding.encodeVersionedNonce(0, 0),
+            sender,
+            target,
+            0,
+            0,
+            hex"1111"
+        );
+
+        // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+
+        // Target should be called with expected data.
+        vm.expectCall(target, hex"1111");
+
+        // Expect RelayedMessage event to be emitted.
+        vm.expectEmit(true, true, true, true);
+        emit RelayedMessage(hash);
+
+        // Relay the message.
+        vm.prank(address(op));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            hex"1111"
+        );
+
+        // Message was successfully relayed.
+        assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), false);
+    }
+
+    function test_relayMessage_legacyOldReplay_reverts() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+
+        // Compute the message hash.
+        bytes32 hash = Hashing.hashCrossDomainMessageV1(
+            // Using a legacy nonce with version 0.
+            Encoding.encodeVersionedNonce(0, 0),
+            sender,
+            target,
+            0,
+            0,
+            hex"1111"
+        );
+
+        // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+
+        // Mark legacy message as already relayed.
+        uint256 successfulMessagesSlot = 203;
+        bytes32 oldHash = Hashing.hashCrossDomainMessageV0(target, sender, hex"1111", 0);
+        bytes32 slot = keccak256(abi.encode(oldHash, successfulMessagesSlot));
+        vm.store(address(L1Messenger), slot, bytes32(uint256(1)));
+
+        // Expect revert.
+        vm.expectRevert("CrossDomainMessenger: legacy withdrawal already relayed");
+
+        // Relay the message.
+        vm.prank(address(op));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            0, // value
+            0,
+            hex"1111"
+        );
+
+        // Message was not relayed.
+        assertEq(L1Messenger.successfulMessages(hash), false);
+        assertEq(L1Messenger.receivedMessages(hash), false);
+    }
+
+    function test_relayMessage_legacyRetryAfterFailure_succeeds() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        uint256 value = 100;
+
+        // Compute the message hash.
+        bytes32 hash = Hashing.hashCrossDomainMessageV1(
+            // Using a legacy nonce with version 0.
+            Encoding.encodeVersionedNonce(0, 0),
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+
+        // Turn the target into a Reverter.
+        vm.etch(target, address(new Reverter()).code);
+
+        // Target should be called with expected data.
+        vm.expectCall(target, hex"1111");
+
+        // Expect FailedRelayedMessage event to be emitted.
+        vm.expectEmit(true, true, true, true);
+        emit FailedRelayedMessage(hash);
+
+        // Relay the message.
+        vm.deal(address(op), value);
+        vm.prank(address(op));
+        L1Messenger.relayMessage{ value: value }(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Message failed.
+        assertEq(address(L1Messenger).balance, value);
+        assertEq(address(target).balance, 0);
+        assertEq(L1Messenger.successfulMessages(hash), false);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+
+        // Make the target not revert anymore.
+        vm.etch(target, address(0).code);
+
+        // Target should be called with expected data.
+        vm.expectCall(target, hex"1111");
+
+        // Expect RelayedMessage event to be emitted.
+        vm.expectEmit(true, true, true, true);
+        emit RelayedMessage(hash);
+
+        // Retry the message.
+        vm.prank(address(sender));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Message was successfully relayed.
+        assertEq(address(L1Messenger).balance, 0);
+        assertEq(address(target).balance, value);
+        assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+    }
+
+    function test_relayMessage_legacyRetryAfterSuccess_reverts() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        uint256 value = 100;
+
+        // Compute the message hash.
+        bytes32 hash = Hashing.hashCrossDomainMessageV1(
+            // Using a legacy nonce with version 0.
+            Encoding.encodeVersionedNonce(0, 0),
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+
+        // Target should be called with expected data.
+        vm.expectCall(target, hex"1111");
+
+        // Expect RelayedMessage event to be emitted.
+        vm.expectEmit(true, true, true, true);
+        emit RelayedMessage(hash);
+
+        // Relay the message.
+        vm.deal(address(op), value);
+        vm.prank(address(op));
+        L1Messenger.relayMessage{ value: value }(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Message was successfully relayed.
+        assertEq(address(L1Messenger).balance, 0);
+        assertEq(address(target).balance, value);
+        assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), false);
+
+        // Expect a revert.
+        vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
+
+        // Retry the message.
+        vm.prank(address(sender));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+    }
+
+    function test_relayMessage_legacyRetryAfterFailureThenSuccess_reverts() external {
+        address target = address(0xabcd);
+        address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
+        uint256 value = 100;
+
+        // Compute the message hash.
+        bytes32 hash = Hashing.hashCrossDomainMessageV1(
+            // Using a legacy nonce with version 0.
+            Encoding.encodeVersionedNonce(0, 0),
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Set the value of op.l2Sender() to be the L2 Cross Domain Messenger.
+        vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
+
+        // Turn the target into a Reverter.
+        vm.etch(target, address(new Reverter()).code);
+
+        // Target should be called with expected data.
+        vm.expectCall(target, hex"1111");
+
+        // Relay the message.
+        vm.deal(address(op), value);
+        vm.prank(address(op));
+        L1Messenger.relayMessage{ value: value }(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Message failed.
+        assertEq(address(L1Messenger).balance, value);
+        assertEq(address(target).balance, 0);
+        assertEq(L1Messenger.successfulMessages(hash), false);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+
+        // Make the target not revert anymore.
+        vm.etch(target, address(0).code);
+
+        // Target should be called with expected data.
+        vm.expectCall(target, hex"1111");
+
+        // Expect RelayedMessage event to be emitted.
+        vm.expectEmit(true, true, true, true);
+        emit RelayedMessage(hash);
+
+        // Retry the message
+        vm.prank(address(sender));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
+
+        // Message was successfully relayed.
+        assertEq(address(L1Messenger).balance, 0);
+        assertEq(address(target).balance, value);
+        assertEq(L1Messenger.successfulMessages(hash), true);
+        assertEq(L1Messenger.receivedMessages(hash), true);
+
+        // Expect a revert.
+        vm.expectRevert("CrossDomainMessenger: message has already been relayed");
+
+        // Retry the message again.
+        vm.prank(address(sender));
+        L1Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 0), // nonce
+            sender,
+            target,
+            value,
+            0,
+            hex"1111"
+        );
     }
 }
