@@ -74,6 +74,11 @@ contract GasPriceOracle_Test is CommonTest {
         assertEq(gasOracle.overhead(), l1FeeOverhead);
     }
 
+    function test_decimals_succeeds() external {
+        assertEq(gasOracle.decimals(), 6);
+        assertEq(gasOracle.DECIMALS(), 6);
+    }
+
     // Removed in bedrock
     function test_setGasPrice_doesNotExist_reverts() external {
         (bool success, bytes memory returndata) = address(gasOracle).call(
