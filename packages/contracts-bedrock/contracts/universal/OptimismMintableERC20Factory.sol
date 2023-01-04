@@ -52,16 +52,6 @@ contract OptimismMintableERC20Factory is Semver {
 
     /**
      * @custom:legacy
-     * @notice Legacy getter for StandardBridge address.
-     *
-     * @return Address of the StandardBridge on this chain.
-     */
-    function bridge() external view returns (address) {
-        return BRIDGE;
-    }
-
-    /**
-     * @custom:legacy
      * @notice Creates an instance of the OptimismMintableERC20 contract. Legacy version of the
      *         newer createOptimismMintableERC20 function, which has a more intuitive name.
      *
