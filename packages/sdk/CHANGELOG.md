@@ -1,5 +1,26 @@
 # @eth-optimism/sdk
 
+## 1.9.0
+
+### Minor Changes
+
+- d1f9098f9: Removes support for Kovan
+
+### Patch Changes
+
+- ba8b94a60: Don't pass 0 gasLimit for migrated withdrawals
+- Updated dependencies [fe80a9488]
+- Updated dependencies [827fc7b04]
+- Updated dependencies [a2166dcad]
+- Updated dependencies [ff09ec22d]
+- Updated dependencies [85dfa9fe2]
+- Updated dependencies [d1f9098f9]
+- Updated dependencies [0f8fc58ad]
+- Updated dependencies [89f70c591]
+- Updated dependencies [03940c3cb]
+  - @eth-optimism/contracts-bedrock@0.11.1
+  - @eth-optimism/contracts@0.5.40
+
 ## 1.8.0
 
 ### Minor Changes

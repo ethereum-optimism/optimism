@@ -1,5 +1,37 @@
 # @eth-optimism/drippie-mon
 
+## 0.4.0
+
+### Minor Changes
+
+- 9b2891852: Refactors BaseServiceV2 slightly, merges standard options with regular options
+
+### Patch Changes
+
+- ab8ec365c: Updates BaseServiceV2 so that options are secret by default. Services will have to explicitly mark options as "public" for those options to be logged and included in the metadata metric.
+- Updated dependencies [fe8f2afd0]
+- Updated dependencies [e23f60f63]
+- Updated dependencies [886fec5bb]
+- Updated dependencies [596d51852]
+- Updated dependencies [ab8ec365c]
+- Updated dependencies [c12aeb2f9]
+- Updated dependencies [a610b4f3b]
+- Updated dependencies [55515ba14]
+- Updated dependencies [ba8b94a60]
+- Updated dependencies [9b2891852]
+- Updated dependencies [d1f9098f9]
+- Updated dependencies [c6c9c7dbf]
+- Updated dependencies [bf5f9febd]
+- Updated dependencies [ffcee1013]
+- Updated dependencies [9a996a13c]
+- Updated dependencies [09924e8ed]
+- Updated dependencies [746ce5545]
+- Updated dependencies [eceb0de1d]
+- Updated dependencies [0e0546a11]
+  - @eth-optimism/contracts-periphery@1.0.5
+  - @eth-optimism/common-ts@0.7.0
+  - @eth-optimism/sdk@1.9.0
+
 ## 0.3.24
 
 ### Patch Changes
