@@ -9,7 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/stages"
 )
 
 type Metrics interface {
@@ -34,12 +34,12 @@ type Metrics interface {
 }
 
 type L1Chain interface {
-	derive.L1Fetcher
+	stages.L1Fetcher
 	L1BlockRefByLabel(context.Context, eth.BlockLabel) (eth.L1BlockRef, error)
 }
 
 type L2Chain interface {
-	derive.Engine
+	stages.Engine
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
 	L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error)
@@ -88,7 +88,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 	l1State := NewL1State(log, metrics)
 	findL1Origin := NewL1OriginSelector(log, cfg, l1, driverCfg.SequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
-	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
+	derivationPipeline := stages.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
 	sequencer := NewSequencer(log, cfg, l1, l2, derivationPipeline, metrics)
 
 	return &Driver{

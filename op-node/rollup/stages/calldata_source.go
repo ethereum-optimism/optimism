@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 type DataIter interface {
@@ -87,9 +88,9 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 			ds.open = true
 			ds.data = DataFromEVMTransactions(ds.cfg, ds.batcherAddr, txs, log.New("origin", ds.id))
 		} else if errors.Is(err, ethereum.NotFound) {
-			return nil, NewResetError(fmt.Errorf("failed to open calldata source: %w", err))
+			return nil, derive.NewResetError(fmt.Errorf("failed to open calldata source: %w", err))
 		} else {
-			return nil, NewTemporaryError(fmt.Errorf("failed to open calldata source: %w", err))
+			return nil, derive.NewTemporaryError(fmt.Errorf("failed to open calldata source: %w", err))
 		}
 	}
 	if len(ds.data) == 0 {

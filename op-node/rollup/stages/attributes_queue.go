@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 // The attributes queue sits in between the batch queue and the engine queue
@@ -26,13 +27,13 @@ import (
 type AttributesQueue struct {
 	log    log.Logger
 	config *rollup.Config
-	dl     L1ReceiptsFetcher
-	eng    SystemConfigL2Fetcher
+	dl     derive.L1ReceiptsFetcher
+	eng    derive.SystemConfigL2Fetcher
 	prev   *BatchQueue
-	batch  *BatchData
+	batch  *derive.BatchData
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, eng SystemConfigL2Fetcher, prev *BatchQueue) *AttributesQueue {
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher derive.L1ReceiptsFetcher, eng derive.SystemConfigL2Fetcher, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
 		log:    log,
 		config: cfg,
@@ -69,14 +70,14 @@ func (aq *AttributesQueue) NextAttributes(ctx context.Context, l2SafeHead eth.L2
 
 // createNextAttributes transforms a batch into a payload attributes. This sets `NoTxPool` and appends the batched transactions
 // to the attributes transaction list
-func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *BatchData, l2SafeHead eth.L2BlockRef) (*eth.PayloadAttributes, error) {
+func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *derive.BatchData, l2SafeHead eth.L2BlockRef) (*eth.PayloadAttributes, error) {
 	// sanity check parent hash
 	if batch.ParentHash != l2SafeHead.Hash {
-		return nil, NewResetError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, l2SafeHead.Hash))
+		return nil, derive.NewResetError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, l2SafeHead.Hash))
 	}
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.eng, l2SafeHead, batch.Timestamp, batch.Epoch())
+	attrs, err := derive.PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.eng, l2SafeHead, batch.Timestamp, batch.Epoch())
 	if err != nil {
 		return nil, err
 	}

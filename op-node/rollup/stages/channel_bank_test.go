@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/log"
@@ -19,7 +20,7 @@ import (
 type fakeChannelBankInput struct {
 	origin eth.L1BlockRef
 	data   []struct {
-		frame Frame
+		frame derive.Frame
 		err   error
 	}
 }
@@ -28,15 +29,15 @@ func (f *fakeChannelBankInput) Origin() eth.L1BlockRef {
 	return f.origin
 }
 
-func (f *fakeChannelBankInput) NextFrame(_ context.Context) (Frame, error) {
+func (f *fakeChannelBankInput) NextFrame(_ context.Context) (derive.Frame, error) {
 	out := f.data[0]
 	f.data = f.data[1:]
 	return out.frame, out.err
 }
 
-func (f *fakeChannelBankInput) AddFrame(frame Frame, err error) {
+func (f *fakeChannelBankInput) AddFrame(frame derive.Frame, err error) {
 	f.data = append(f.data, struct {
-		frame Frame
+		frame derive.Frame
 		err   error
 	}{frame: frame, err: err})
 }
@@ -55,9 +56,9 @@ var _ NextFrameProvider = (*fakeChannelBankInput)(nil)
 // example: "abc:0:helloworld!"
 type testFrame string
 
-func (tf testFrame) ChannelID() ChannelID {
+func (tf testFrame) ChannelID() derive.ChannelID {
 	parts := strings.Split(string(tf), ":")
-	var chID ChannelID
+	var chID derive.ChannelID
 	copy(chID[:], parts[0])
 	return chID
 }
@@ -81,8 +82,8 @@ func (tf testFrame) Content() []byte {
 	return []byte(strings.TrimSuffix(parts[2], "!"))
 }
 
-func (tf testFrame) ToFrame() Frame {
-	return Frame{
+func (tf testFrame) ToFrame() derive.Frame {
+	return derive.Frame{
 		ID:          tf.ChannelID(),
 		FrameNumber: uint16(tf.FrameNumber()),
 		Data:        tf.Content(),
@@ -97,7 +98,7 @@ func TestChannelBankSimple(t *testing.T) {
 	input := &fakeChannelBankInput{origin: a}
 	input.AddFrames("a:0:first", "a:2:third!")
 	input.AddFrames("a:1:second")
-	input.AddFrame(Frame{}, io.EOF)
+	input.AddFrame(derive.Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
@@ -105,17 +106,17 @@ func TestChannelBankSimple(t *testing.T) {
 
 	// Load the first frame
 	out, err := cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the third frame
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the second frame
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Pull out the channel data
@@ -137,7 +138,7 @@ func TestChannelBankDuplicates(t *testing.T) {
 	input.AddFrames("a:0:first", "a:2:third!")
 	input.AddFrames("a:0:altfirst", "a:2:altthird!")
 	input.AddFrames("a:1:second")
-	input.AddFrame(Frame{}, io.EOF)
+	input.AddFrame(derive.Frame{}, io.EOF)
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
@@ -145,25 +146,25 @@ func TestChannelBankDuplicates(t *testing.T) {
 
 	// Load the first frame
 	out, err := cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the third frame
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the duplicate frames
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Load the second frame
 	out, err = cb.NextData(context.Background())
-	require.ErrorIs(t, err, NotEnoughData)
+	require.ErrorIs(t, err, derive.NotEnoughData)
 	require.Equal(t, []byte(nil), out)
 
 	// Pull out the channel data. Expect to see the original set & not the duplicates

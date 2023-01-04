@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -14,13 +14,14 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
 
 type fakeBatchQueueInput struct {
 	i       int
-	batches []*BatchData
+	batches []*derive.BatchData
 	errors  []error
 	origin  eth.L1BlockRef
 }
@@ -29,7 +30,7 @@ func (f *fakeBatchQueueInput) Origin() eth.L1BlockRef {
 	return f.origin
 }
 
-func (f *fakeBatchQueueInput) NextBatch(ctx context.Context) (*BatchData, error) {
+func (f *fakeBatchQueueInput) NextBatch(ctx context.Context) (*derive.BatchData, error) {
 	if f.i >= len(f.batches) {
 		return nil, io.EOF
 	}
@@ -45,10 +46,10 @@ func mockHash(time uint64, layer uint8) common.Hash {
 	return hash
 }
 
-func b(timestamp uint64, epoch eth.L1BlockRef) *BatchData {
+func b(timestamp uint64, epoch eth.L1BlockRef) *derive.BatchData {
 	rng := rand.New(rand.NewSource(int64(timestamp)))
 	data := testutils.RandomData(rng, 20)
-	return &BatchData{BatchV1{
+	return &derive.BatchData{BatchV1: derive.BatchV1{
 		ParentHash:   mockHash(timestamp-2, 2),
 		Timestamp:    timestamp,
 		EpochNum:     rollup.Epoch(epoch.Number),
@@ -97,7 +98,7 @@ func TestBatchQueueNewOrigin(t *testing.T) {
 	}
 
 	input := &fakeBatchQueueInput{
-		batches: []*BatchData{nil},
+		batches: []*derive.BatchData{nil},
 		errors:  []error{io.EOF},
 		origin:  l1[0],
 	}
@@ -155,7 +156,7 @@ func TestBatchQueueEager(t *testing.T) {
 		SeqWindowSize:     30,
 	}
 
-	batches := []*BatchData{b(12, l1[0]), b(14, l1[0]), b(16, l1[0]), b(18, l1[0]), b(20, l1[0]), b(22, l1[0]), b(24, l1[1]), nil}
+	batches := []*derive.BatchData{b(12, l1[0]), b(14, l1[0]), b(16, l1[0]), b(18, l1[0]), b(20, l1[0]), b(22, l1[0]), b(24, l1[1]), nil}
 	errors := []error{nil, nil, nil, nil, nil, nil, nil, io.EOF}
 
 	input := &fakeBatchQueueInput{
@@ -206,7 +207,7 @@ func TestBatchQueueMissing(t *testing.T) {
 	// The batches at 18 and 20 are skipped to stop 22 from being eagerly processed.
 	// This test checks that batch timestamp 12 & 14 are created, 16 is used, and 18 is advancing the epoch.
 	// Due to the large sequencer time drift 16 is perfectly valid to have epoch 0 as origin.
-	batches := []*BatchData{b(16, l1[0]), b(22, l1[1])}
+	batches := []*derive.BatchData{b(16, l1[0]), b(22, l1[1])}
 	errors := []error{nil, nil}
 
 	input := &fakeBatchQueueInput{
@@ -220,7 +221,7 @@ func TestBatchQueueMissing(t *testing.T) {
 
 	for i := 0; i < len(batches); i++ {
 		b, e := bq.NextBatch(context.Background(), safeHead)
-		require.ErrorIs(t, e, NotEnoughData)
+		require.ErrorIs(t, e, derive.NotEnoughData)
 		require.Nil(t, b)
 	}
 

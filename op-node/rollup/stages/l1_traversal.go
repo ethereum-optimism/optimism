@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 // L1 Traversal fetches the next L1 block and exposes it through the progress API
@@ -64,20 +65,20 @@ func (l1t *L1Traversal) AdvanceL1Block(ctx context.Context) error {
 		l1t.log.Debug("can't find next L1 block info (yet)", "number", origin.Number+1, "origin", origin)
 		return io.EOF
 	} else if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find L1 block info by number, at origin %s next %d: %w", origin, origin.Number+1, err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to find L1 block info by number, at origin %s next %d: %w", origin, origin.Number+1, err))
 	}
 	if l1t.block.Hash != nextL1Origin.ParentHash {
-		return NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.block, nextL1Origin, nextL1Origin.ParentID()))
+		return derive.NewResetError(fmt.Errorf("detected L1 reorg from %s to %s with conflicting parent %s", l1t.block, nextL1Origin, nextL1Origin.ParentID()))
 	}
 
 	// Parse L1 receipts of the given block and update the L1 system configuration
 	_, receipts, err := l1t.l1Blocks.FetchReceipts(ctx, nextL1Origin.Hash)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s for L1 sysCfg update: %w", origin, err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to fetch receipts of L1 block %s for L1 sysCfg update: %w", origin, err))
 	}
-	if err := UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg); err != nil {
+	if err := derive.UpdateSystemConfigWithL1Receipts(&l1t.sysCfg, receipts, l1t.cfg); err != nil {
 		// the sysCfg changes should always be formatted correctly.
-		return NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %w", origin, err))
+		return derive.NewCriticalError(fmt.Errorf("failed to update L1 sysCfg with receipts from block %s: %w", origin, err))
 	}
 
 	l1t.block = nextL1Origin

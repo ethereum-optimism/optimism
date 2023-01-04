@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -9,10 +9,11 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 type NextFrameProvider interface {
-	NextFrame(ctx context.Context) (Frame, error)
+	NextFrame(ctx context.Context) (derive.Frame, error)
 	Origin() eth.L1BlockRef
 }
 
@@ -32,8 +33,8 @@ type ChannelBank struct {
 	log log.Logger
 	cfg *rollup.Config
 
-	channels     map[ChannelID]*Channel // channels by ID
-	channelQueue []ChannelID            // channels in FIFO order
+	channels     map[derive.ChannelID]*derive.Channel // channels by ID
+	channelQueue []derive.ChannelID                   // channels in FIFO order
 
 	prev    NextFrameProvider
 	fetcher L1Fetcher
@@ -46,8 +47,8 @@ func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, 
 	return &ChannelBank{
 		log:          log,
 		cfg:          cfg,
-		channels:     make(map[ChannelID]*Channel),
-		channelQueue: make([]ChannelID, 0, 10),
+		channels:     make(map[derive.ChannelID]*derive.Channel),
+		channelQueue: make([]derive.ChannelID, 0, 10),
 		prev:         prev,
 		fetcher:      fetcher,
 	}
@@ -61,21 +62,21 @@ func (cb *ChannelBank) prune() {
 	// check total size
 	totalSize := uint64(0)
 	for _, ch := range cb.channels {
-		totalSize += ch.size
+		totalSize += ch.Size()
 	}
 	// prune until it is reasonable again. The high-priority channel failed to be read, so we start pruning there.
-	for totalSize > MaxChannelBankSize {
+	for totalSize > derive.MaxChannelBankSize {
 		id := cb.channelQueue[0]
 		ch := cb.channels[id]
 		cb.channelQueue = cb.channelQueue[1:]
 		delete(cb.channels, id)
-		totalSize -= ch.size
+		totalSize -= ch.Size()
 	}
 }
 
 // IngestData adds new L1 data to the channel bank.
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
-func (cb *ChannelBank) IngestFrame(f Frame) {
+func (cb *ChannelBank) IngestFrame(f derive.Frame) {
 	origin := cb.Origin()
 	log := log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber)
 	log.Debug("channel bank got new data")
@@ -83,7 +84,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 	currentCh, ok := cb.channels[f.ID]
 	if !ok {
 		// create new channel if it doesn't exist yet
-		currentCh = NewChannel(f.ID, origin)
+		currentCh = derive.NewChannel(f.ID, origin)
 		cb.channels[f.ID] = currentCh
 		cb.channelQueue = append(cb.channelQueue, f.ID)
 	}
@@ -114,7 +115,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	ch := cb.channels[first]
 	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
 	if timedOut {
-		cb.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
+		cb.log.Debug("channel timed out", "channel", first)
 		delete(cb.channels, first)
 		cb.channelQueue = cb.channelQueue[1:]
 		return nil, io.EOF
@@ -155,13 +156,13 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 		return nil, err
 	} else {
 		cb.IngestFrame(frame)
-		return nil, NotEnoughData
+		return nil, derive.NotEnoughData
 	}
 }
 
 func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
-	cb.channels = make(map[ChannelID]*Channel)
-	cb.channelQueue = make([]ChannelID, 0, 10)
+	cb.channels = make(map[derive.ChannelID]*derive.Channel)
+	cb.channelQueue = make([]derive.ChannelID, 0, 10)
 	return io.EOF
 }
 

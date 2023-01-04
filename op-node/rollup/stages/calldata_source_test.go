@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"crypto/ecdsa"
