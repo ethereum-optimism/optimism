@@ -1,5 +1,5 @@
 ---
-'minimum-balance-agent': patch
+'@eth-optimism/balance-monitor': patch
 ---
 
 Created the Balance Monitoring package
