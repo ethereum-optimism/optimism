@@ -9,7 +9,7 @@ const BASE_INVARIANT_GH_URL =
   'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
 const BLOCK_COMMENT_PREFIX_REGEX = /\*(\/)?/
-const BLOCK_COMMENT_HEADER_REGEX = /\*\s(\w)+/
+const BLOCK_COMMENT_HEADER_REGEX = /\*\s(.)+/
 
 // Represents an invariant test contract
 type Contract = {
@@ -25,6 +25,8 @@ type InvariantDoc = {
   desc?: string
   lineNo?: number
 }
+
+const writtenFiles = []
 
 /**
  * Lazy-parses all test files in the `contracts/test/invariants` directory to generate documentation
@@ -104,10 +106,22 @@ const docGen = (dir: string): void => {
   }
 
   for (const contract of docs) {
+    const fileName = `${BASE_DOCS_DIR}/${contract.name}.md`
+    const alreadyWritten = writtenFiles.includes(fileName)
+
+    // If the file has already been written, append the extra docs to the end.
+    // Otherwise, write the file from scratch.
     fs.writeFileSync(
-      `${BASE_DOCS_DIR}/${contract.name}.md`,
-      renderContractDoc(contract)
+      fileName,
+      alreadyWritten
+        ? `${fs.readFileSync(fileName)}\n${renderContractDoc(contract, false)}`
+        : renderContractDoc(contract, true)
     )
+
+    // If the file has not already been written, add it to the list of written files.
+    if (!alreadyWritten) {
+      writtenFiles.push(fileName)
+    }
   }
 
   console.log(
@@ -123,8 +137,8 @@ const docGen = (dir: string): void => {
 /**
  * Render a `Contract` object into valid markdown.
  */
-const renderContractDoc = (contract: Contract): string => {
-  const header = `# \`${contract.name}\` Invariants`
+const renderContractDoc = (contract: Contract, header: boolean): string => {
+  const _header = header ? `# \`${contract.name}\` Invariants\n` : ''
   const docs = contract.docs
     .map((doc: InvariantDoc) => {
       const line = `L${doc.lineNo}`
@@ -134,7 +148,7 @@ const renderContractDoc = (contract: Contract): string => {
     })
     .join('\n\n')
 
-  return `${header}\n\n${docs}`
+  return `${_header}\n${docs}`
 }
 
 /**
