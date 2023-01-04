@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/stages"
 )
 
 type Downloader interface {
@@ -38,7 +39,7 @@ type Sequencer struct {
 	config *rollup.Config
 
 	l1          Downloader
-	l2          derive.Engine
+	l2          stages.Engine
 	engineState EngineState
 
 	buildingOnto      eth.L2BlockRef
@@ -48,7 +49,7 @@ type Sequencer struct {
 	metrics SequencerMetrics
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, l1 Downloader, l2 derive.Engine, engineState EngineState, metrics SequencerMetrics) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, l1 Downloader, l2 stages.Engine, engineState EngineState, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
 		log:         log,
 		config:      cfg,
@@ -98,7 +99,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l1Origin eth.L1Block
 		FinalizedBlockHash: d.engineState.Finalized().Hash,
 	}
 	// Start a payload building process.
-	id, errTyp, err := derive.StartPayload(ctx, d.l2, fc, attrs)
+	id, errTyp, err := stages.StartPayload(ctx, d.l2, fc, attrs)
 	if err != nil {
 		return fmt.Errorf("failed to start building on top of L2 chain %s, error (%d): %w", l2Head, errTyp, err)
 	}
@@ -127,7 +128,7 @@ func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPa
 	}
 
 	// Actually execute the block and add it to the head of the chain.
-	payload, errTyp, err := derive.ConfirmPayload(ctx, d.log, d.l2, fc, d.buildingID, false)
+	payload, errTyp, err := stages.ConfirmPayload(ctx, d.log, d.l2, fc, d.buildingID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", d.buildingOnto, d.buildingID, errTyp, err)
 	}

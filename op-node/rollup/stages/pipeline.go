@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 type Metrics interface {
@@ -21,7 +22,7 @@ type L1Fetcher interface {
 	L1BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L1BlockRef, error)
 	L1BlockRefByNumberFetcher
 	L1BlockRefByHashFetcher
-	L1ReceiptsFetcher
+	derive.L1ReceiptsFetcher
 	L1TransactionFetcher
 }
 

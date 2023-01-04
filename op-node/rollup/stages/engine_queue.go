@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/sync"
 )
 
@@ -30,7 +31,7 @@ type Engine interface {
 	PayloadByNumber(context.Context, uint64) (*eth.ExecutionPayload, error)
 	L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error)
 	L2BlockRefByHash(ctx context.Context, l2Hash common.Hash) (eth.L2BlockRef, error)
-	SystemConfigL2Fetcher
+	derive.SystemConfigL2Fetcher
 }
 
 // Max memory used for buffering unsafe payloads
@@ -200,7 +201,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 			return err
 		} else {
 			eq.safeAttributes = append(eq.safeAttributes, next)
-			return NotEnoughData
+			return derive.NotEnoughData
 		}
 	}
 	if eq.unsafePayloads.Len() > 0 {
@@ -279,12 +280,12 @@ func (eq *EngineQueue) tryUpdateEngine(ctx context.Context) error {
 		if errors.As(err, &inputErr) {
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
-				return NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+				return derive.NewResetError(fmt.Errorf("forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
 			default:
-				return NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
 		} else {
-			return NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to sync forkchoice with engine: %w", err))
 		}
 	}
 	eq.needForkchoiceUpdate = false
@@ -310,7 +311,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		return io.EOF // time to go to next stage if we cannot process the first unsafe payload
 	}
 
-	ref, err := PayloadToBlockRef(first, &eq.cfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(first, &eq.cfg.Genesis)
 	if err != nil {
 		eq.log.Error("failed to decode L2 block ref from payload", "err", err)
 		eq.unsafePayloads.Pop()
@@ -319,11 +320,11 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 
 	status, err := eq.engine.NewPayload(ctx, first)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to update insert payload: %w", err))
 	}
 	if status.Status != eth.ExecutionValid {
 		eq.unsafePayloads.Pop()
-		return NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
+		return derive.NewTemporaryError(fmt.Errorf("cannot process unsafe payload: new - %v; parent: %v; err: %w",
 			first.ID(), first.ParentID(), eth.NewPayloadErr(first, status)))
 	}
 
@@ -339,17 +340,17 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 		if errors.As(err, &inputErr) {
 			switch inputErr.Code {
 			case eth.InvalidForkchoiceState:
-				return NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
+				return derive.NewResetError(fmt.Errorf("pre-unsafe-block forkchoice update was inconsistent with engine, need reset to resolve: %w", inputErr.Unwrap()))
 			default:
-				return NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
+				return derive.NewTemporaryError(fmt.Errorf("unexpected error code in forkchoice-updated response: %w", err))
 			}
 		} else {
-			return NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("failed to update forkchoice to prepare for new unsafe payload: %w", err))
 		}
 	}
 	if fcRes.PayloadStatus.Status != eth.ExecutionValid {
 		eq.unsafePayloads.Pop()
-		return NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
+		return derive.NewTemporaryError(fmt.Errorf("cannot prepare unsafe chain for new payload: new - %v; parent: %v; err: %w",
 			first.ID(), first.ParentID(), eth.ForkchoiceUpdateErr(fcRes.PayloadStatus)))
 	}
 
@@ -387,18 +388,18 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	if err != nil {
 		if errors.Is(err, ethereum.NotFound) {
 			// engine may have restarted, or inconsistent safe head. We need to reset
-			return NewResetError(fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err))
+			return derive.NewResetError(fmt.Errorf("expected engine was synced and had unsafe block to reconcile, but cannot find the block: %w", err))
 		}
-		return NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
 	}
 	if err := AttributesMatchBlock(eq.safeAttributes[0], eq.safeHead.Hash, payload); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err)
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
 		return eq.forceNextSafeAttributes(ctx)
 	}
-	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
-		return NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
+		return derive.NewResetError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
 	eq.safeHead = ref
 	eq.needForkchoiceUpdate = true
@@ -427,9 +428,9 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		switch errType {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
-			return NewTemporaryError(fmt.Errorf("temporarily cannot insert new safe block: %w", err))
+			return derive.NewTemporaryError(fmt.Errorf("temporarily cannot insert new safe block: %w", err))
 		case BlockInsertPrestateErr:
-			return NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
+			return derive.NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
 		case BlockInsertPayloadErr:
 			eq.log.Warn("could not process payload derived from L1 data, dropping batch", "err", err)
 			// Count the number of deposits to see if the tx list is deposit only.
@@ -444,7 +445,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			// TODO: Can this be triggered by an empty batch with invalid data (like parent hash or gas limit?)
 			if len(attrs.Transactions) == depositCount {
 				eq.log.Error("deposit only block was invalid", "parent", eq.safeHead, "err", err)
-				return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
+				return derive.NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
 			}
 			// drop the payload without inserting it
 			eq.safeAttributes = eq.safeAttributes[1:]
@@ -454,12 +455,12 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			return nil
 
 		default:
-			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
+			return derive.NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
 	}
-	ref, err := PayloadToBlockRef(payload, &eq.cfg.Genesis)
+	ref, err := derive.PayloadToBlockRef(payload, &eq.cfg.Genesis)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to decode L2 block ref from payload: %w", err))
 	}
 	eq.safeHead = ref
 	eq.unsafeHead = ref
@@ -477,15 +478,15 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	result, err := sync.FindL2Heads(ctx, eq.cfg, eq.l1Fetcher, eq.engine, eq.log)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to find the L2 Heads to start from: %w", err))
 	}
 	finalized, safe, unsafe := result.Finalized, result.Safe, result.Unsafe
 	l1Origin, err := eq.l1Fetcher.L1BlockRefByHash(ctx, safe.L1Origin.Hash)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %v; err: %w", safe.L1Origin, err))
 	}
 	if safe.Time < l1Origin.Time {
-		return NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
+		return derive.NewResetError(fmt.Errorf("cannot reset block derivation to start at L2 block %s with time %d older than its L1 origin %s with time %d, time invariant is broken",
 			safe, safe.Time, l1Origin, l1Origin.Time))
 	}
 
@@ -498,7 +499,7 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 		if afterL2Genesis && afterL1Genesis && afterChannelTimeout {
 			parent, err := eq.engine.L2BlockRefByHash(ctx, pipelineL2.ParentHash)
 			if err != nil {
-				return NewResetError(fmt.Errorf("failed to fetch L2 parent block %s", pipelineL2.ParentID()))
+				return derive.NewResetError(fmt.Errorf("failed to fetch L2 parent block %s", pipelineL2.ParentID()))
 			}
 			pipelineL2 = parent
 		} else {
@@ -507,11 +508,11 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	}
 	pipelineOrigin, err := eq.l1Fetcher.L1BlockRefByHash(ctx, pipelineL2.L1Origin.Hash)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %s; err: %w", pipelineL2.L1Origin, err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to fetch the new L1 progress: origin: %s; err: %w", pipelineL2.L1Origin, err))
 	}
 	l1Cfg, err := eq.engine.SystemConfigByL2Hash(ctx, pipelineL2.Hash)
 	if err != nil {
-		return NewTemporaryError(fmt.Errorf("failed to fetch L1 config of L2 block %s: %w", pipelineL2.ID(), err))
+		return derive.NewTemporaryError(fmt.Errorf("failed to fetch L1 config of L2 block %s: %w", pipelineL2.ID(), err))
 	}
 	eq.log.Debug("Reset engine queue", "safeHead", safe, "unsafe", unsafe, "safe_timestamp", safe.Time, "unsafe_timestamp", unsafe.Time, "l1Origin", l1Origin)
 	eq.unsafeHead = unsafe

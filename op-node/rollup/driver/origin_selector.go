@@ -7,12 +7,12 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/stages"
 )
 
 type L1Blocks interface {
-	derive.L1BlockRefByHashFetcher
-	derive.L1BlockRefByNumberFetcher
+	stages.L1BlockRefByHashFetcher
+	stages.L1BlockRefByNumberFetcher
 }
 
 type L1OriginSelector struct {

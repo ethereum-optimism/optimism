@@ -1,10 +1,11 @@
-package derive
+package stages
 
 import (
 	"context"
 	"io"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -17,7 +18,7 @@ type NextDataProvider interface {
 
 type FrameQueue struct {
 	log    log.Logger
-	frames []Frame
+	frames []derive.Frame
 	prev   NextDataProvider
 }
 
@@ -32,13 +33,13 @@ func (fq *FrameQueue) Origin() eth.L1BlockRef {
 	return fq.prev.Origin()
 }
 
-func (fq *FrameQueue) NextFrame(ctx context.Context) (Frame, error) {
+func (fq *FrameQueue) NextFrame(ctx context.Context) (derive.Frame, error) {
 	// Find more frames if we need to
 	if len(fq.frames) == 0 {
 		if data, err := fq.prev.NextData(ctx); err != nil {
-			return Frame{}, err
+			return derive.Frame{}, err
 		} else {
-			if new, err := ParseFrames(data); err == nil {
+			if new, err := derive.ParseFrames(data); err == nil {
 				fq.frames = append(fq.frames, new...)
 			} else {
 				fq.log.Warn("Failed to parse frames", "origin", fq.prev.Origin(), "err", err)
@@ -47,7 +48,7 @@ func (fq *FrameQueue) NextFrame(ctx context.Context) (Frame, error) {
 	}
 	// If we did not add more frames but still have more data, retry this function.
 	if len(fq.frames) == 0 {
-		return Frame{}, NotEnoughData
+		return derive.Frame{}, derive.NotEnoughData
 	}
 
 	ret := fq.frames[0]

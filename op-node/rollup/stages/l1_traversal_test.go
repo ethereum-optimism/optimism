@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
@@ -94,7 +95,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 			startBlock:  a,
 			nextBlock:   x,
 			fetcherErr:  nil,
-			expectedErr: ErrReset,
+			expectedErr: derive.ErrReset,
 		},
 		{
 			name:        "not found",
@@ -108,7 +109,7 @@ func TestL1TraversalAdvance(t *testing.T) {
 			startBlock:  a,
 			nextBlock:   eth.L1BlockRef{},
 			fetcherErr:  errors.New("interrupted connection"),
-			expectedErr: ErrTemporary,
+			expectedErr: derive.ErrTemporary,
 		},
 		// TODO: add tests that cover the receipts to config data updates
 	}

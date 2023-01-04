@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
@@ -41,7 +42,7 @@ func TestAttributesQueue(t *testing.T) {
 	safeHead := testutils.RandomL2BlockRef(rng)
 	safeHead.L1Origin = l1Info.ID()
 
-	batch := &BatchData{BatchV1{
+	batch := &derive.BatchData{BatchV1: derive.BatchV1{
 		ParentHash:   safeHead.Hash,
 		EpochNum:     rollup.Epoch(l1Info.InfoNum),
 		EpochHash:    l1Info.InfoHash,
@@ -65,7 +66,7 @@ func TestAttributesQueue(t *testing.T) {
 	l2Fetcher := &testutils.MockL2Client{}
 	l2Fetcher.ExpectSystemConfigByL2Hash(safeHead.Hash, parentL1Cfg, nil)
 
-	l1InfoTx, err := L1InfoDepositBytes(safeHead.SequenceNumber+1, l1Info, expectedL1Cfg)
+	l1InfoTx, err := derive.L1InfoDepositBytes(safeHead.SequenceNumber+1, l1Info, expectedL1Cfg)
 	require.NoError(t, err)
 	attrs := eth.PayloadAttributes{
 		Timestamp:             eth.Uint64Quantity(safeHead.Time + cfg.BlockTime),

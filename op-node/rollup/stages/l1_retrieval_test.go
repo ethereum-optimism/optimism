@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
@@ -137,8 +138,8 @@ func TestL1RetrievalNextData(t *testing.T) {
 			prevErr:      nil,
 			openErr:      nil,
 			datas:        []eth.Data{nil},
-			datasErrs:    []error{NewCriticalError(ethereum.NotFound)},
-			expectedErrs: []error{ErrCritical},
+			datasErrs:    []error{derive.NewCriticalError(ethereum.NotFound)},
+			expectedErrs: []error{derive.ErrCritical},
 		},
 	}
 

@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/stages"
 	"github.com/ethereum/go-ethereum"
 )
 
@@ -14,12 +14,12 @@ import (
 // At 0 depth the l1 head is completely ignored.
 type confDepth struct {
 	// everything fetched by hash is trusted already, so we implement those by embedding the fetcher
-	derive.L1Fetcher
+	stages.L1Fetcher
 	l1Head func() eth.L1BlockRef
 	depth  uint64
 }
 
-func NewConfDepth(depth uint64, l1Head func() eth.L1BlockRef, fetcher derive.L1Fetcher) *confDepth {
+func NewConfDepth(depth uint64, l1Head func() eth.L1BlockRef, fetcher stages.L1Fetcher) *confDepth {
 	return &confDepth{L1Fetcher: fetcher, l1Head: l1Head, depth: depth}
 }
 
@@ -41,4 +41,4 @@ func (c *confDepth) L1BlockRefByNumber(ctx context.Context, num uint64) (eth.L1B
 	return eth.L1BlockRef{}, ethereum.NotFound
 }
 
-var _ derive.L1Fetcher = (*confDepth)(nil)
+var _ stages.L1Fetcher = (*confDepth)(nil)

@@ -1,4 +1,4 @@
-package derive
+package stages
 
 import (
 	"bytes"
@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 // Channel In Reader reads a batch from the channel
@@ -18,7 +19,7 @@ import (
 type ChannelInReader struct {
 	log log.Logger
 
-	nextBatchFn func() (BatchWithL1InclusionBlock, error)
+	nextBatchFn func() (derive.BatchWithL1InclusionBlock, error)
 
 	prev *ChannelBank
 }
@@ -39,7 +40,7 @@ func (cr *ChannelInReader) Origin() eth.L1BlockRef {
 
 // TODO: Take full channel for better logging
 func (cr *ChannelInReader) WriteChannel(data []byte) error {
-	if f, err := BatchReader(bytes.NewBuffer(data), cr.Origin()); err == nil {
+	if f, err := derive.BatchReader(bytes.NewBuffer(data), cr.Origin()); err == nil {
 		cr.nextBatchFn = f
 		return nil
 	} else {
@@ -57,7 +58,7 @@ func (cr *ChannelInReader) NextChannel() {
 // NextBatch pulls out the next batch from the channel if it has it.
 // It returns io.EOF when it cannot make any more progress.
 // It will return a temporary error if it needs to be called again to advance some internal state.
-func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
+func (cr *ChannelInReader) NextBatch(ctx context.Context) (*derive.BatchData, error) {
 	if cr.nextBatchFn == nil {
 		if data, err := cr.prev.NextData(ctx); err == io.EOF {
 			return nil, io.EOF
@@ -65,7 +66,7 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
 			return nil, err
 		} else {
 			if err := cr.WriteChannel(data); err != nil {
-				return nil, NewTemporaryError(err)
+				return nil, derive.NewTemporaryError(err)
 			}
 		}
 	}
@@ -75,11 +76,11 @@ func (cr *ChannelInReader) NextBatch(ctx context.Context) (*BatchData, error) {
 	batch, err := cr.nextBatchFn()
 	if err == io.EOF {
 		cr.NextChannel()
-		return nil, NotEnoughData
+		return nil, derive.NotEnoughData
 	} else if err != nil {
 		cr.log.Warn("failed to read batch from channel reader, skipping to next channel now", "err", err)
 		cr.NextChannel()
-		return nil, NotEnoughData
+		return nil, derive.NotEnoughData
 	}
 	return batch.Batch, nil
 }
