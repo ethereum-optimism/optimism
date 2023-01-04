@@ -2,7 +2,7 @@
   "finalSystemOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
   "controller": "0x2d30335B0b807bBa1682C487BaAFD2Ad6da5D675",
 
-  "l1StartingBlockTag": "0xd6c12c35c13923ac36efd578d38bb96e18cce2a6d3b597da48bb87dff4b1ed47",
+  "l1StartingBlockTag": "0x50d53436b8e936afe37d0d77afa05304c5802e1b138e6be704685d01d20096f0",
   "l1ChainID": 5,
   "l2ChainID": 420,
   "l2BlockTime": 2,
@@ -15,7 +15,7 @@
   "batchInboxAddress": "0xff00000000000000000000000000000000000420",
   "batchSenderAddress": "0x3a2baA0160275024A50C1be1FC677375E7DB4Bd7",
   "l2OutputOracleSubmissionInterval": 20,
-  "l2OutputOracleStartingTimestamp": 1672810660,
+  "l2OutputOracleStartingTimestamp": 1672811088,
   "l2OutputOracleStartingBlockNumber": 3855343,
   "l2OutputOracleProposer": "0x88BCa4Af3d950625752867f826E073E337076581",
   "l2OutputOracleChallenger": "0x88BCa4Af3d950625752867f826E073E337076581",
