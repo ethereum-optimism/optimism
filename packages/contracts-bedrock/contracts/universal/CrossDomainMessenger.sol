@@ -383,8 +383,8 @@ abstract contract CrossDomainMessenger is
      */
     function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
         // We peform the following math on uint64s to avoid overflow errors. Multiplying the
-        //  by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _mingasLimit to
-        // approximately 4.2 MM.
+        // by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _minGasLimit to
+        // type(uint32).max / MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR ~= 4.2m.
         return
             // Dynamic overhead
             ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
