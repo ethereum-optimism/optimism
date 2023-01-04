@@ -15,7 +15,7 @@ import (
 // IterativeBatchCall is an util to create a job to fetch many RPC requests in batches,
 // and enable the caller to parallelize easily and safely, handle and re-try errors,
 // and pick a batch size all by simply calling Fetch again and again until it returns io.EOF.
-type IterativeBatchCall[K any, V any, O any] struct {
+type IterativeBatchCall[K any, V any] struct {
 	completed uint32       // tracks how far to completing all requests we are
 	resetLock sync.RWMutex // ensures we do not concurrently read (incl. fetch) / reset
 
@@ -23,23 +23,19 @@ type IterativeBatchCall[K any, V any, O any] struct {
 	batchSize    int
 
 	makeRequest func(K) (V, rpc.BatchElem)
-	makeResults func([]K, []V) (O, error)
 	getBatch    BatchCallContextFn
 
 	requestsValues []V
 	scheduled      chan rpc.BatchElem
-
-	results *O
 }
 
 // NewIterativeBatchCall constructs a batch call, fetching the values with the given keys,
 // and transforms them into a verified final result.
-func NewIterativeBatchCall[K any, V any, O any](
+func NewIterativeBatchCall[K any, V any](
 	requestsKeys []K,
 	makeRequest func(K) (V, rpc.BatchElem),
-	makeResults func([]K, []V) (O, error),
 	getBatch BatchCallContextFn,
-	batchSize int) *IterativeBatchCall[K, V, O] {
+	batchSize int) *IterativeBatchCall[K, V] {
 
 	if len(requestsKeys) < batchSize {
 		batchSize = len(requestsKeys)
@@ -48,20 +44,19 @@ func NewIterativeBatchCall[K any, V any, O any](
 		batchSize = 1
 	}
 
-	out := &IterativeBatchCall[K, V, O]{
+	out := &IterativeBatchCall[K, V]{
 		completed:    0,
 		getBatch:     getBatch,
 		requestsKeys: requestsKeys,
 		batchSize:    batchSize,
 		makeRequest:  makeRequest,
-		makeResults:  makeResults,
 	}
 	out.Reset()
 	return out
 }
 
 // Reset will clear the batch call, to start fetching all contents from scratch.
-func (ibc *IterativeBatchCall[K, V, O]) Reset() {
+func (ibc *IterativeBatchCall[K, V]) Reset() {
 	ibc.resetLock.Lock()
 	defer ibc.resetLock.Unlock()
 
@@ -73,6 +68,7 @@ func (ibc *IterativeBatchCall[K, V, O]) Reset() {
 		scheduled <- r
 	}
 
+	atomic.StoreUint32(&ibc.completed, 0)
 	ibc.requestsValues = requestsValues
 	ibc.scheduled = scheduled
 	if len(ibc.requestsKeys) == 0 {
@@ -84,7 +80,7 @@ func (ibc *IterativeBatchCall[K, V, O]) Reset() {
 // This method is safe to call concurrently: it will parallelize the fetching work.
 // If no work is available, but the fetching is not done yet,
 // then Fetch will block until the next thing can be fetched, or until the context expires.
-func (ibc *IterativeBatchCall[K, V, O]) Fetch(ctx context.Context) error {
+func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 	ibc.resetLock.RLock()
 	defer ibc.resetLock.RUnlock()
 
@@ -149,7 +145,7 @@ func (ibc *IterativeBatchCall[K, V, O]) Fetch(ctx context.Context) error {
 }
 
 // Complete indicates if the batch call is done.
-func (ibc *IterativeBatchCall[K, V, O]) Complete() bool {
+func (ibc *IterativeBatchCall[K, V]) Complete() bool {
 	ibc.resetLock.RLock()
 	defer ibc.resetLock.RUnlock()
 	return atomic.LoadUint32(&ibc.completed) >= uint32(len(ibc.requestsKeys))
@@ -157,27 +153,12 @@ func (ibc *IterativeBatchCall[K, V, O]) Complete() bool {
 
 // Result returns the fetched values, checked and transformed to the final output type, if available.
 // If the check fails, the IterativeBatchCall will Reset itself, to be ready for a re-attempt in fetching new data.
-func (ibc *IterativeBatchCall[K, V, O]) Result() (O, error) {
+func (ibc *IterativeBatchCall[K, V]) Result() ([]V, error) {
 	ibc.resetLock.RLock()
 	if atomic.LoadUint32(&ibc.completed) < uint32(len(ibc.requestsKeys)) {
 		ibc.resetLock.RUnlock()
-		return *new(O), fmt.Errorf("results not available yet, Fetch more first")
+		return nil, fmt.Errorf("results not available yet, Fetch more first")
 	}
-	if ibc.results != nil {
-		ibc.resetLock.RUnlock()
-		return *ibc.results, nil
-	}
-	out, err := ibc.makeResults(ibc.requestsKeys, ibc.requestsValues)
 	ibc.resetLock.RUnlock()
-	if err != nil {
-		// start over
-		ibc.Reset()
-	} else {
-		// cache the valid results
-		ibc.resetLock.Lock()
-		ibc.results = &out
-		ibc.resetLock.Unlock()
-	}
-
-	return out, err
+	return ibc.requestsValues, nil
 }

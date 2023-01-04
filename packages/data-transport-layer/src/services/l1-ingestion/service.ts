@@ -1,6 +1,6 @@
 /* Imports: External */
 import { fromHexString, getChainId, sleep } from '@eth-optimism/core-utils'
-import { BaseService, Metrics } from '@eth-optimism/common-ts'
+import { BaseService, LegacyMetrics } from '@eth-optimism/common-ts'
 import { TypedEvent } from '@eth-optimism/contracts/dist/types/common'
 import { BaseProvider, StaticJsonRpcProvider } from '@ethersproject/providers'
 import { LevelUp } from 'levelup'
@@ -31,7 +31,7 @@ interface L1IngestionMetrics {
 const registerMetrics = ({
   client,
   registry,
-}: Metrics): L1IngestionMetrics => ({
+}: LegacyMetrics): L1IngestionMetrics => ({
   highestSyncedL1Block: new client.Gauge({
     name: 'data_transport_layer_highest_synced_l1_block',
     help: 'Highest Synced L1 Block Number',
@@ -52,7 +52,7 @@ const registerMetrics = ({
 export interface L1IngestionServiceOptions
   extends L1DataTransportServiceOptions {
   db: LevelUp
-  metrics: Metrics
+  metrics: LegacyMetrics
 }
 
 const optionSettings = {

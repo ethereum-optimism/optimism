@@ -11,7 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-var SendInterval = 10 * time.Minute
+// SendInterval determines the delay between requests. This must be larger than the MinHeartbeatInterval in the server.
+const SendInterval = 10 * time.Minute
 
 type Payload struct {
 	Version string `json:"version"`

@@ -64,7 +64,7 @@ func (cfg CLIConfig) Check() error {
 func NewLogger(cfg CLIConfig) log.Logger {
 	handler := log.StreamHandler(os.Stdout, Format(cfg.Format, cfg.Color))
 	handler = log.SyncHandler(handler)
-	log.LvlFilterHandler(Level(cfg.Level), handler)
+	handler = log.LvlFilterHandler(Level(cfg.Level), handler)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger

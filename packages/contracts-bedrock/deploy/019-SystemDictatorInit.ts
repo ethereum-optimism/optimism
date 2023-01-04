@@ -93,12 +93,13 @@ const deployFn: DeployFunction = async (hre) => {
     systemConfigConfig: {
       owner: hre.deployConfig.finalSystemOwner,
       overhead: hre.deployConfig.gasPriceOracleOverhead,
-      scalar: hre.deployConfig.gasPriceOracleDecimals,
+      scalar: hre.deployConfig.gasPriceOracleScalar,
       batcherHash: hre.ethers.utils.hexZeroPad(
         hre.deployConfig.batchSenderAddress,
         32
       ),
       gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
+      unsafeBlockSigner: hre.deployConfig.p2pSequencerAddress,
     },
   }
 
@@ -187,6 +188,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['SystemDictatorImpl']
+deployFn.tags = ['SystemDictatorImpl', 'setup']
 
 export default deployFn

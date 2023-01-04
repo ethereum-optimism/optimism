@@ -1,8 +1,13 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    "rootDir": "./src",
     "outDir": "./dist"
   },
-  "include": ["src/**/*"]
+  "include": [
+    "src/**/*",
+    "deploy-config/**/*",
+    "deploy-config/**/*.json",
+    "tasks/**/*",
+    "scripts/**/*"
+  ]
 }

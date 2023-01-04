@@ -15,9 +15,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/stretchr/testify/require"
@@ -286,6 +288,67 @@ func TestConfirmationDepth(t *testing.T) {
 	verInfo, err := derive.L1InfoDepositTxData(l2VerHead.Transactions()[0].Data())
 	require.NoError(t, err)
 	require.LessOrEqual(t, verInfo.Number+verConfDepth, l1Head.NumberU64(), "the ver L2 head block should have an origin older than the L1 head block by at least the verifier conf depth")
+}
+
+// TestPendingGasLimit tests the configuration of the gas limit of the pending block,
+// and if it does not conflict with the regular gas limit on the verifier or sequencer.
+func TestPendingGasLimit(t *testing.T) {
+	parallel(t)
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := DefaultSystemConfig(t)
+
+	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
+	cfg.DeployConfig.L2GenesisBlockGasLimit = 20_000_000
+	cfg.GethOptions["sequencer"] = []GethOption{
+		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+			ethCfg.Miner.GasCeil = 10_000_000
+			return nil
+		},
+	}
+	cfg.GethOptions["verifier"] = []GethOption{
+		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
+			ethCfg.Miner.GasCeil = 9_000_000
+			return nil
+		},
+	}
+
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	log := testlog.Logger(t, log.LvlInfo)
+	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
+
+	l2Verif := sys.Clients["verifier"]
+	l2Seq := sys.Clients["sequencer"]
+
+	checkGasLimit := func(client *ethclient.Client, number *big.Int, expected uint64) *types.Header {
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		header, err := client.HeaderByNumber(ctx, number)
+		cancel()
+		require.NoError(t, err)
+		require.Equal(t, expected, header.GasLimit)
+		return header
+	}
+
+	// check if the gaslimits are matching the expected values,
+	// and that the verifier/sequencer can use their locally configured gas limit for the pending block.
+	for {
+		checkGasLimit(l2Seq, big.NewInt(-1), 10_000_000)
+		checkGasLimit(l2Verif, big.NewInt(-1), 9_000_000)
+		checkGasLimit(l2Seq, nil, 20_000_000)
+		latestVerifHeader := checkGasLimit(l2Verif, nil, 20_000_000)
+
+		// Stop once the verifier passes genesis:
+		// this implies we checked a new block from the sequencer, on both sequencer and verifier nodes.
+		if latestVerifHeader.Number.Uint64() > 0 {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
 }
 
 // TestFinalize tests if L2 finalizes after sufficient time after L1 finalizes
@@ -577,7 +640,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
-	require.Equal(t, received, published[:len(received)])
+	require.ElementsMatch(t, received, published[:len(received)])
 
 	// Verify that the tx was received via p2p
 	require.Contains(t, received, receiptVerif.BlockHash)

@@ -1,0 +1,1054 @@
+{
+  "address": "0x44b3A2a040057eBafC601A78647e805fd58B1f50",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_owner",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "string",
+          "name": "nameref",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "reentrant",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "interval",
+              "type": "uint256"
+            },
+            {
+              "internalType": "contract IDripCheck",
+              "name": "dripcheck",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "checkparams",
+              "type": "bytes"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address payable",
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct Drippie.DripAction[]",
+              "name": "actions",
+              "type": "tuple[]"
+            }
+          ],
+          "indexed": false,
+          "internalType": "struct Drippie.DripConfig",
+          "name": "config",
+          "type": "tuple"
+        }
+      ],
+      "name": "DripCreated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "string",
+          "name": "nameref",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "executor",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "timestamp",
+          "type": "uint256"
+        }
+      ],
+      "name": "DripExecuted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "string",
+          "name": "nameref",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum Drippie.DripStatus",
+          "name": "status",
+          "type": "uint8"
+        }
+      ],
+      "name": "DripStatusUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "user",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "OwnerUpdated",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "ReceivedETH",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "withdrawer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrewERC20",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "withdrawer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "asset",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrewERC721",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "withdrawer",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "WithdrewETH",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "CALL",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_target",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_data",
+          "type": "bytes"
+        }
+      ],
+      "name": "DELEGATECALL",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        },
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "payable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "reentrant",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "interval",
+              "type": "uint256"
+            },
+            {
+              "internalType": "contract IDripCheck",
+              "name": "dripcheck",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "checkparams",
+              "type": "bytes"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address payable",
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct Drippie.DripAction[]",
+              "name": "actions",
+              "type": "tuple[]"
+            }
+          ],
+          "internalType": "struct Drippie.DripConfig",
+          "name": "_config",
+          "type": "tuple"
+        }
+      ],
+      "name": "create",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        }
+      ],
+      "name": "drip",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "name": "drips",
+      "outputs": [
+        {
+          "internalType": "enum Drippie.DripStatus",
+          "name": "status",
+          "type": "uint8"
+        },
+        {
+          "components": [
+            {
+              "internalType": "bool",
+              "name": "reentrant",
+              "type": "bool"
+            },
+            {
+              "internalType": "uint256",
+              "name": "interval",
+              "type": "uint256"
+            },
+            {
+              "internalType": "contract IDripCheck",
+              "name": "dripcheck",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes",
+              "name": "checkparams",
+              "type": "bytes"
+            },
+            {
+              "components": [
+                {
+                  "internalType": "address payable",
+                  "name": "target",
+                  "type": "address"
+                },
+                {
+                  "internalType": "bytes",
+                  "name": "data",
+                  "type": "bytes"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "value",
+                  "type": "uint256"
+                }
+              ],
+              "internalType": "struct Drippie.DripAction[]",
+              "name": "actions",
+              "type": "tuple[]"
+            }
+          ],
+          "internalType": "struct Drippie.DripConfig",
+          "name": "config",
+          "type": "tuple"
+        },
+        {
+          "internalType": "uint256",
+          "name": "last",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "count",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        }
+      ],
+      "name": "executable",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "newOwner",
+          "type": "address"
+        }
+      ],
+      "name": "setOwner",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "_name",
+          "type": "string"
+        },
+        {
+          "internalType": "enum Drippie.DripStatus",
+          "name": "_status",
+          "type": "uint8"
+        }
+      ],
+      "name": "status",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ERC20",
+          "name": "_asset",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawERC20",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ERC20",
+          "name": "_asset",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        }
+      ],
+      "name": "withdrawERC20",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "contract ERC721",
+          "name": "_asset",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_id",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawERC721",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "withdrawETH",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address payable",
+          "name": "_to",
+          "type": "address"
+        }
+      ],
+      "name": "withdrawETH",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "stateMutability": "payable",
+      "type": "receive"
+    }
+  ],
+  "transactionHash": "0x4bd4a6ab9e90105104d13049891298914961a4379c1cd25b636037d7f54e85b2",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x9C6373dE60c2D3297b18A8f964618ac46E011B58",
+    "contractAddress": null,
+    "transactionIndex": 102,
+    "gasUsed": "2419585",
+    "logsBloom": "0x00000000000000000001000000000000000000000000000000000000000000000000100000000000000000000000080000000000000000000000000000000004000000000200000000000000000000000000000000000000000000000000000000000000020000000000000000000800000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000400000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000020000000000000000000000000000000000000000000000",
+    "blockHash": "0x59e68f7aa73c5c9e2c0c6bcf2eb9fdcc473be33538564b57202ef0fe89bfb61a",
+    "transactionHash": "0x4bd4a6ab9e90105104d13049891298914961a4379c1cd25b636037d7f54e85b2",
+    "logs": [
+      {
+        "transactionIndex": 102,
+        "blockNumber": 8182665,
+        "transactionHash": "0x4bd4a6ab9e90105104d13049891298914961a4379c1cd25b636037d7f54e85b2",
+        "address": "0x44b3A2a040057eBafC601A78647e805fd58B1f50",
+        "topics": [
+          "0x8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d76",
+          "0x0000000000000000000000000000000000000000000000000000000000000000",
+          "0x0000000000000000000000009c6373de60c2d3297b18a8f964618ac46e011b58"
+        ],
+        "data": "0x",
+        "logIndex": 274,
+        "blockHash": "0x59e68f7aa73c5c9e2c0c6bcf2eb9fdcc473be33538564b57202ef0fe89bfb61a"
+      }
+    ],
+    "blockNumber": 8182665,
+    "cumulativeGasUsed": "25052149",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x9C6373dE60c2D3297b18A8f964618ac46E011B58"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "2373b7ba869baea4fec58e6e7f7b8988",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.16+commit.07a7930e\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_owner\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"nameref\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"reentrant\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"interval\",\"type\":\"uint256\"},{\"internalType\":\"contract IDripCheck\",\"name\":\"dripcheck\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"checkparams\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"address payable\",\"name\":\"target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"internalType\":\"struct Drippie.DripAction[]\",\"name\":\"actions\",\"type\":\"tuple[]\"}],\"indexed\":false,\"internalType\":\"struct Drippie.DripConfig\",\"name\":\"config\",\"type\":\"tuple\"}],\"name\":\"DripCreated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"nameref\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"executor\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"timestamp\",\"type\":\"uint256\"}],\"name\":\"DripExecuted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"string\",\"name\":\"nameref\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"string\",\"name\":\"name\",\"type\":\"string\"},{\"indexed\":false,\"internalType\":\"enum Drippie.DripStatus\",\"name\":\"status\",\"type\":\"uint8\"}],\"name\":\"DripStatusUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"user\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"OwnerUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"ReceivedETH\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"asset\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrewERC20\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"asset\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"id\",\"type\":\"uint256\"}],\"name\":\"WithdrewERC721\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"withdrawer\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipient\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"WithdrewETH\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"_value\",\"type\":\"uint256\"}],\"name\":\"CALL\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_data\",\"type\":\"bytes\"}],\"name\":\"DELEGATECALL\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"},{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"reentrant\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"interval\",\"type\":\"uint256\"},{\"internalType\":\"contract IDripCheck\",\"name\":\"dripcheck\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"checkparams\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"address payable\",\"name\":\"target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"internalType\":\"struct Drippie.DripAction[]\",\"name\":\"actions\",\"type\":\"tuple[]\"}],\"internalType\":\"struct Drippie.DripConfig\",\"name\":\"_config\",\"type\":\"tuple\"}],\"name\":\"create\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"}],\"name\":\"drip\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"name\":\"drips\",\"outputs\":[{\"internalType\":\"enum Drippie.DripStatus\",\"name\":\"status\",\"type\":\"uint8\"},{\"components\":[{\"internalType\":\"bool\",\"name\":\"reentrant\",\"type\":\"bool\"},{\"internalType\":\"uint256\",\"name\":\"interval\",\"type\":\"uint256\"},{\"internalType\":\"contract IDripCheck\",\"name\":\"dripcheck\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"checkparams\",\"type\":\"bytes\"},{\"components\":[{\"internalType\":\"address payable\",\"name\":\"target\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"data\",\"type\":\"bytes\"},{\"internalType\":\"uint256\",\"name\":\"value\",\"type\":\"uint256\"}],\"internalType\":\"struct Drippie.DripAction[]\",\"name\":\"actions\",\"type\":\"tuple[]\"}],\"internalType\":\"struct Drippie.DripConfig\",\"name\":\"config\",\"type\":\"tuple\"},{\"internalType\":\"uint256\",\"name\":\"last\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"count\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"}],\"name\":\"executable\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"owner\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"newOwner\",\"type\":\"address\"}],\"name\":\"setOwner\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"string\",\"name\":\"_name\",\"type\":\"string\"},{\"internalType\":\"enum Drippie.DripStatus\",\"name\":\"_status\",\"type\":\"uint8\"}],\"name\":\"status\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contract ERC20\",\"name\":\"_asset\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"}],\"name\":\"withdrawERC20\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contract ERC20\",\"name\":\"_asset\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"}],\"name\":\"withdrawERC20\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"contract ERC721\",\"name\":\"_asset\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"}],\"name\":\"withdrawERC721\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_amount\",\"type\":\"uint256\"}],\"name\":\"withdrawETH\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address payable\",\"name\":\"_to\",\"type\":\"address\"}],\"name\":\"withdrawETH\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}],\"devdoc\":{\"events\":{\"DripCreated(string,string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))\":{\"params\":{\"config\":\"Config for the created drip.\",\"name\":\"Unindexed name parameter (unhashed).\",\"nameref\":\"Indexed name parameter (hashed).\"}},\"DripExecuted(string,string,address,uint256)\":{\"params\":{\"executor\":\"Address that executed the drip.\",\"name\":\"Unindexed name parameter (unhashed).\",\"nameref\":\"Indexed name parameter (hashed).\",\"timestamp\":\"Time when the drip was executed.\"}},\"DripStatusUpdated(string,string,uint8)\":{\"params\":{\"name\":\"Unindexed name parameter (unhashed).\",\"nameref\":\"Indexed name parameter (hashed).\",\"status\":\"New drip status.\"}}},\"kind\":\"dev\",\"methods\":{\"CALL(address,bytes,uint256)\":{\"params\":{\"_data\":\"Data to send with the call.\",\"_target\":\"Address to call.\",\"_value\":\"ETH value to send with the call.\"},\"returns\":{\"_0\":\"Boolean success value.\",\"_1\":\"Bytes data returned by the call.\"}},\"DELEGATECALL(address,bytes)\":{\"params\":{\"_data\":\"Data to send with the call.\",\"_target\":\"Address to call.\"},\"returns\":{\"_0\":\"Boolean success value.\",\"_1\":\"Bytes data returned by the call.\"}},\"constructor\":{\"params\":{\"_owner\":\"Initial contract owner.\"}},\"create(string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))\":{\"params\":{\"_config\":\"Configuration for the drip.\",\"_name\":\"Name of the drip.\"}},\"drip(string)\":{\"params\":{\"_name\":\"Name of the drip to trigger.\"}},\"executable(string)\":{\"params\":{\"_name\":\"Drip to check.\"},\"returns\":{\"_0\":\"True if the drip is executable, reverts otherwise.\"}},\"status(string,uint8)\":{\"params\":{\"_name\":\"Name of the drip to update.\",\"_status\":\"New drip status.\"}},\"withdrawERC20(address,address)\":{\"params\":{\"_asset\":\"ERC20 token to withdraw.\",\"_to\":\"Address to receive the ERC20 balance.\"}},\"withdrawERC20(address,address,uint256)\":{\"params\":{\"_amount\":\"Amount of ERC20 to withdraw.\",\"_asset\":\"ERC20 token to withdraw.\",\"_to\":\"Address to receive the ERC20 balance.\"}},\"withdrawERC721(address,address,uint256)\":{\"params\":{\"_asset\":\"ERC721 token to withdraw.\",\"_id\":\"Token ID of the ERC721 token to withdraw.\",\"_to\":\"Address to receive the ERC721 token.\"}},\"withdrawETH(address)\":{\"params\":{\"_to\":\"Address to receive the ETH balance.\"}},\"withdrawETH(address,uint256)\":{\"params\":{\"_amount\":\"Amount of ETH to withdraw.\",\"_to\":\"Address to receive the ETH balance.\"}}},\"title\":\"Drippie\",\"version\":1},\"userdoc\":{\"events\":{\"DripCreated(string,string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))\":{\"notice\":\"Emitted when a new drip is created.\"},\"DripExecuted(string,string,address,uint256)\":{\"notice\":\"Emitted when a drip is executed.\"},\"DripStatusUpdated(string,string,uint8)\":{\"notice\":\"Emitted when a drip status is updated.\"},\"ReceivedETH(address,uint256)\":{\"notice\":\"Emitted when ETH is received by this address.\"},\"WithdrewERC20(address,address,address,uint256)\":{\"notice\":\"Emitted when ERC20 tokens are withdrawn from this address.\"},\"WithdrewERC721(address,address,address,uint256)\":{\"notice\":\"Emitted when ERC20 tokens are withdrawn from this address.\"},\"WithdrewETH(address,address,uint256)\":{\"notice\":\"Emitted when ETH is withdrawn from this address.\"}},\"kind\":\"user\",\"methods\":{\"CALL(address,bytes,uint256)\":{\"notice\":\"Sends a CALL to a target address.\"},\"DELEGATECALL(address,bytes)\":{\"notice\":\"Sends a DELEGATECALL to a target address.\"},\"create(string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))\":{\"notice\":\"Creates a new drip with the given name and configuration. Once created, drips cannot         be modified in any way (this is a security measure). If you want to update a drip,         simply pause (and potentially archive) the existing drip and create a new one.\"},\"drip(string)\":{\"notice\":\"Triggers a drip. This function is deliberately left as a public function because the         assumption being made here is that setting the drip to ACTIVE is an affirmative         signal that the drip should be executable according to the drip parameters, drip         check, and drip interval. Note that drip parameters are read entirely from the state         and are not supplied as user input, so there should not be any way for a         non-authorized user to influence the behavior of the drip. Note that the drip check         is executed only **once** at the beginning of the call to the drip function and will         not be executed again between the drip actions within this call.\"},\"drips(string)\":{\"notice\":\"Maps from drip names to drip states.\"},\"executable(string)\":{\"notice\":\"Checks if a given drip is executable.\"},\"status(string,uint8)\":{\"notice\":\"Sets the status for a given drip. The behavior of this function depends on the         status that the user is trying to set. A drip can always move between ACTIVE and         PAUSED, but it can never move back to NONE and once ARCHIVED, it can never move back         to ACTIVE or PAUSED.\"},\"withdrawERC20(address,address)\":{\"notice\":\"Withdraws full ERC20 balance to the recipient.\"},\"withdrawERC20(address,address,uint256)\":{\"notice\":\"Withdraws partial ERC20 balance to the recipient.\"},\"withdrawERC721(address,address,uint256)\":{\"notice\":\"Withdraws ERC721 token to the recipient.\"},\"withdrawETH(address)\":{\"notice\":\"Withdraws full ETH balance to the recipient.\"},\"withdrawETH(address,uint256)\":{\"notice\":\"Withdraws partial ETH balance to the recipient.\"}},\"notice\":\"Drippie is a system for managing automated contract interactions. A specific interaction         is called a \\\"drip\\\" and can be executed according to some condition (called a dripcheck)         and an execution interval. Drips cannot be executed faster than the execution interval.         Drips can trigger arbitrary contract calls where the calling contract is this contract         address. Drips can also send ETH value, which makes them ideal for keeping addresses         sufficiently funded with ETH. Drippie is designed to be connected with smart contract         automation services so that drips can be executed automatically. However, Drippie is         specifically designed to be separated from these services so that trust assumptions are         better compartmentalized.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/drippie/Drippie.sol\":\"Drippie\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@rari-capital/solmate/src/auth/Owned.sol\":{\"content\":\"// SPDX-License-Identifier: AGPL-3.0-only\\npragma solidity >=0.8.0;\\n\\n/// @notice Simple single owner authorization mixin.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/auth/Owned.sol)\\nabstract contract Owned {\\n    /*//////////////////////////////////////////////////////////////\\n                                 EVENTS\\n    //////////////////////////////////////////////////////////////*/\\n\\n    event OwnerUpdated(address indexed user, address indexed newOwner);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                            OWNERSHIP STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    address public owner;\\n\\n    modifier onlyOwner() virtual {\\n        require(msg.sender == owner, \\\"UNAUTHORIZED\\\");\\n\\n        _;\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               CONSTRUCTOR\\n    //////////////////////////////////////////////////////////////*/\\n\\n    constructor(address _owner) {\\n        owner = _owner;\\n\\n        emit OwnerUpdated(address(0), _owner);\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                             OWNERSHIP LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function setOwner(address newOwner) public virtual onlyOwner {\\n        owner = newOwner;\\n\\n        emit OwnerUpdated(msg.sender, newOwner);\\n    }\\n}\\n\",\"keccak256\":\"0x7e91c80b0dd1a14a19cb9e661b99924043adab6d9d893bbfcf3a6a3dc23a6743\",\"license\":\"AGPL-3.0-only\"},\"@rari-capital/solmate/src/tokens/ERC20.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.0;\\n\\n/// @notice Modern and gas efficient ERC20 + EIP-2612 implementation.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC20.sol)\\n/// @author Modified from Uniswap (https://github.com/Uniswap/uniswap-v2-core/blob/master/contracts/UniswapV2ERC20.sol)\\n/// @dev Do not manually set balances without updating totalSupply, as the sum of all user balances must not exceed it.\\nabstract contract ERC20 {\\n    /*//////////////////////////////////////////////////////////////\\n                                 EVENTS\\n    //////////////////////////////////////////////////////////////*/\\n\\n    event Transfer(address indexed from, address indexed to, uint256 amount);\\n\\n    event Approval(address indexed owner, address indexed spender, uint256 amount);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                            METADATA STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    string public name;\\n\\n    string public symbol;\\n\\n    uint8 public immutable decimals;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                              ERC20 STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    uint256 public totalSupply;\\n\\n    mapping(address => uint256) public balanceOf;\\n\\n    mapping(address => mapping(address => uint256)) public allowance;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                            EIP-2612 STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    uint256 internal immutable INITIAL_CHAIN_ID;\\n\\n    bytes32 internal immutable INITIAL_DOMAIN_SEPARATOR;\\n\\n    mapping(address => uint256) public nonces;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               CONSTRUCTOR\\n    //////////////////////////////////////////////////////////////*/\\n\\n    constructor(\\n        string memory _name,\\n        string memory _symbol,\\n        uint8 _decimals\\n    ) {\\n        name = _name;\\n        symbol = _symbol;\\n        decimals = _decimals;\\n\\n        INITIAL_CHAIN_ID = block.chainid;\\n        INITIAL_DOMAIN_SEPARATOR = computeDomainSeparator();\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               ERC20 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function approve(address spender, uint256 amount) public virtual returns (bool) {\\n        allowance[msg.sender][spender] = amount;\\n\\n        emit Approval(msg.sender, spender, amount);\\n\\n        return true;\\n    }\\n\\n    function transfer(address to, uint256 amount) public virtual returns (bool) {\\n        balanceOf[msg.sender] -= amount;\\n\\n        // Cannot overflow because the sum of all user\\n        // balances can't exceed the max uint256 value.\\n        unchecked {\\n            balanceOf[to] += amount;\\n        }\\n\\n        emit Transfer(msg.sender, to, amount);\\n\\n        return true;\\n    }\\n\\n    function transferFrom(\\n        address from,\\n        address to,\\n        uint256 amount\\n    ) public virtual returns (bool) {\\n        uint256 allowed = allowance[from][msg.sender]; // Saves gas for limited approvals.\\n\\n        if (allowed != type(uint256).max) allowance[from][msg.sender] = allowed - amount;\\n\\n        balanceOf[from] -= amount;\\n\\n        // Cannot overflow because the sum of all user\\n        // balances can't exceed the max uint256 value.\\n        unchecked {\\n            balanceOf[to] += amount;\\n        }\\n\\n        emit Transfer(from, to, amount);\\n\\n        return true;\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                             EIP-2612 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function permit(\\n        address owner,\\n        address spender,\\n        uint256 value,\\n        uint256 deadline,\\n        uint8 v,\\n        bytes32 r,\\n        bytes32 s\\n    ) public virtual {\\n        require(deadline >= block.timestamp, \\\"PERMIT_DEADLINE_EXPIRED\\\");\\n\\n        // Unchecked because the only math done is incrementing\\n        // the owner's nonce which cannot realistically overflow.\\n        unchecked {\\n            address recoveredAddress = ecrecover(\\n                keccak256(\\n                    abi.encodePacked(\\n                        \\\"\\\\x19\\\\x01\\\",\\n                        DOMAIN_SEPARATOR(),\\n                        keccak256(\\n                            abi.encode(\\n                                keccak256(\\n                                    \\\"Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)\\\"\\n                                ),\\n                                owner,\\n                                spender,\\n                                value,\\n                                nonces[owner]++,\\n                                deadline\\n                            )\\n                        )\\n                    )\\n                ),\\n                v,\\n                r,\\n                s\\n            );\\n\\n            require(recoveredAddress != address(0) && recoveredAddress == owner, \\\"INVALID_SIGNER\\\");\\n\\n            allowance[recoveredAddress][spender] = value;\\n        }\\n\\n        emit Approval(owner, spender, value);\\n    }\\n\\n    function DOMAIN_SEPARATOR() public view virtual returns (bytes32) {\\n        return block.chainid == INITIAL_CHAIN_ID ? INITIAL_DOMAIN_SEPARATOR : computeDomainSeparator();\\n    }\\n\\n    function computeDomainSeparator() internal view virtual returns (bytes32) {\\n        return\\n            keccak256(\\n                abi.encode(\\n                    keccak256(\\\"EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)\\\"),\\n                    keccak256(bytes(name)),\\n                    keccak256(\\\"1\\\"),\\n                    block.chainid,\\n                    address(this)\\n                )\\n            );\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                        INTERNAL MINT/BURN LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function _mint(address to, uint256 amount) internal virtual {\\n        totalSupply += amount;\\n\\n        // Cannot overflow because the sum of all user\\n        // balances can't exceed the max uint256 value.\\n        unchecked {\\n            balanceOf[to] += amount;\\n        }\\n\\n        emit Transfer(address(0), to, amount);\\n    }\\n\\n    function _burn(address from, uint256 amount) internal virtual {\\n        balanceOf[from] -= amount;\\n\\n        // Cannot underflow because a user's balance\\n        // will never be larger than the total supply.\\n        unchecked {\\n            totalSupply -= amount;\\n        }\\n\\n        emit Transfer(from, address(0), amount);\\n    }\\n}\\n\",\"keccak256\":\"0x43aa1509bb753f053143530705d9c4eee415691d26a4779769bf028a74e6ac69\",\"license\":\"MIT\"},\"@rari-capital/solmate/src/tokens/ERC721.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity >=0.8.0;\\n\\n/// @notice Modern, minimalist, and gas efficient ERC-721 implementation.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC721.sol)\\nabstract contract ERC721 {\\n    /*//////////////////////////////////////////////////////////////\\n                                 EVENTS\\n    //////////////////////////////////////////////////////////////*/\\n\\n    event Transfer(address indexed from, address indexed to, uint256 indexed id);\\n\\n    event Approval(address indexed owner, address indexed spender, uint256 indexed id);\\n\\n    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                         METADATA STORAGE/LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    string public name;\\n\\n    string public symbol;\\n\\n    function tokenURI(uint256 id) public view virtual returns (string memory);\\n\\n    /*//////////////////////////////////////////////////////////////\\n                      ERC721 BALANCE/OWNER STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    mapping(uint256 => address) internal _ownerOf;\\n\\n    mapping(address => uint256) internal _balanceOf;\\n\\n    function ownerOf(uint256 id) public view virtual returns (address owner) {\\n        require((owner = _ownerOf[id]) != address(0), \\\"NOT_MINTED\\\");\\n    }\\n\\n    function balanceOf(address owner) public view virtual returns (uint256) {\\n        require(owner != address(0), \\\"ZERO_ADDRESS\\\");\\n\\n        return _balanceOf[owner];\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                         ERC721 APPROVAL STORAGE\\n    //////////////////////////////////////////////////////////////*/\\n\\n    mapping(uint256 => address) public getApproved;\\n\\n    mapping(address => mapping(address => bool)) public isApprovedForAll;\\n\\n    /*//////////////////////////////////////////////////////////////\\n                               CONSTRUCTOR\\n    //////////////////////////////////////////////////////////////*/\\n\\n    constructor(string memory _name, string memory _symbol) {\\n        name = _name;\\n        symbol = _symbol;\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                              ERC721 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function approve(address spender, uint256 id) public virtual {\\n        address owner = _ownerOf[id];\\n\\n        require(msg.sender == owner || isApprovedForAll[owner][msg.sender], \\\"NOT_AUTHORIZED\\\");\\n\\n        getApproved[id] = spender;\\n\\n        emit Approval(owner, spender, id);\\n    }\\n\\n    function setApprovalForAll(address operator, bool approved) public virtual {\\n        isApprovedForAll[msg.sender][operator] = approved;\\n\\n        emit ApprovalForAll(msg.sender, operator, approved);\\n    }\\n\\n    function transferFrom(\\n        address from,\\n        address to,\\n        uint256 id\\n    ) public virtual {\\n        require(from == _ownerOf[id], \\\"WRONG_FROM\\\");\\n\\n        require(to != address(0), \\\"INVALID_RECIPIENT\\\");\\n\\n        require(\\n            msg.sender == from || isApprovedForAll[from][msg.sender] || msg.sender == getApproved[id],\\n            \\\"NOT_AUTHORIZED\\\"\\n        );\\n\\n        // Underflow of the sender's balance is impossible because we check for\\n        // ownership above and the recipient's balance can't realistically overflow.\\n        unchecked {\\n            _balanceOf[from]--;\\n\\n            _balanceOf[to]++;\\n        }\\n\\n        _ownerOf[id] = to;\\n\\n        delete getApproved[id];\\n\\n        emit Transfer(from, to, id);\\n    }\\n\\n    function safeTransferFrom(\\n        address from,\\n        address to,\\n        uint256 id\\n    ) public virtual {\\n        transferFrom(from, to, id);\\n\\n        if (to.code.length != 0)\\n            require(\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, from, id, \\\"\\\") ==\\n                    ERC721TokenReceiver.onERC721Received.selector,\\n                \\\"UNSAFE_RECIPIENT\\\"\\n            );\\n    }\\n\\n    function safeTransferFrom(\\n        address from,\\n        address to,\\n        uint256 id,\\n        bytes calldata data\\n    ) public virtual {\\n        transferFrom(from, to, id);\\n\\n        if (to.code.length != 0)\\n            require(\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, from, id, data) ==\\n                    ERC721TokenReceiver.onERC721Received.selector,\\n                \\\"UNSAFE_RECIPIENT\\\"\\n            );\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                              ERC165 LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function supportsInterface(bytes4 interfaceId) public view virtual returns (bool) {\\n        return\\n            interfaceId == 0x01ffc9a7 || // ERC165 Interface ID for ERC165\\n            interfaceId == 0x80ac58cd || // ERC165 Interface ID for ERC721\\n            interfaceId == 0x5b5e139f; // ERC165 Interface ID for ERC721Metadata\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                        INTERNAL MINT/BURN LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function _mint(address to, uint256 id) internal virtual {\\n        require(to != address(0), \\\"INVALID_RECIPIENT\\\");\\n\\n        require(_ownerOf[id] == address(0), \\\"ALREADY_MINTED\\\");\\n\\n        // Counter overflow is incredibly unrealistic.\\n        unchecked {\\n            _balanceOf[to]++;\\n        }\\n\\n        _ownerOf[id] = to;\\n\\n        emit Transfer(address(0), to, id);\\n    }\\n\\n    function _burn(uint256 id) internal virtual {\\n        address owner = _ownerOf[id];\\n\\n        require(owner != address(0), \\\"NOT_MINTED\\\");\\n\\n        // Ownership check above ensures no underflow.\\n        unchecked {\\n            _balanceOf[owner]--;\\n        }\\n\\n        delete _ownerOf[id];\\n\\n        delete getApproved[id];\\n\\n        emit Transfer(owner, address(0), id);\\n    }\\n\\n    /*//////////////////////////////////////////////////////////////\\n                        INTERNAL SAFE MINT LOGIC\\n    //////////////////////////////////////////////////////////////*/\\n\\n    function _safeMint(address to, uint256 id) internal virtual {\\n        _mint(to, id);\\n\\n        if (to.code.length != 0)\\n            require(\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, address(0), id, \\\"\\\") ==\\n                    ERC721TokenReceiver.onERC721Received.selector,\\n                \\\"UNSAFE_RECIPIENT\\\"\\n            );\\n    }\\n\\n    function _safeMint(\\n        address to,\\n        uint256 id,\\n        bytes memory data\\n    ) internal virtual {\\n        _mint(to, id);\\n\\n        if (to.code.length != 0)\\n            require(\\n                ERC721TokenReceiver(to).onERC721Received(msg.sender, address(0), id, data) ==\\n                    ERC721TokenReceiver.onERC721Received.selector,\\n                \\\"UNSAFE_RECIPIENT\\\"\\n            );\\n    }\\n}\\n\\n/// @notice A generic interface for a contract which properly accepts ERC721 tokens.\\n/// @author Solmate (https://github.com/Rari-Capital/solmate/blob/main/src/tokens/ERC721.sol)\\nabstract contract ERC721TokenReceiver {\\n    function onERC721Received(\\n        address,\\n        address,\\n        uint256,\\n        bytes calldata\\n    ) external virtual returns (bytes4) {\\n        return ERC721TokenReceiver.onERC721Received.selector;\\n    }\\n}\\n\",\"keccak256\":\"0xdac91feb466e74905737338d80cac5303eb7aedcbe76eda11c45eaa728451075\",\"license\":\"MIT\"},\"contracts/universal/AssetReceiver.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\nimport { ERC20 } from \\\"@rari-capital/solmate/src/tokens/ERC20.sol\\\";\\nimport { ERC721 } from \\\"@rari-capital/solmate/src/tokens/ERC721.sol\\\";\\nimport { Transactor } from \\\"./Transactor.sol\\\";\\n\\n/**\\n * @title AssetReceiver\\n * @notice AssetReceiver is a minimal contract for receiving funds assets in the form of either\\n * ETH, ERC20 tokens, or ERC721 tokens. Only the contract owner may withdraw the assets.\\n */\\ncontract AssetReceiver is Transactor {\\n    /**\\n     * @notice Emitted when ETH is received by this address.\\n     *\\n     * @param from   Address that sent ETH to this contract.\\n     * @param amount Amount of ETH received.\\n     */\\n    event ReceivedETH(address indexed from, uint256 amount);\\n\\n    /**\\n     * @notice Emitted when ETH is withdrawn from this address.\\n     *\\n     * @param withdrawer Address that triggered the withdrawal.\\n     * @param recipient  Address that received the withdrawal.\\n     * @param amount     ETH amount withdrawn.\\n     */\\n    event WithdrewETH(address indexed withdrawer, address indexed recipient, uint256 amount);\\n\\n    /**\\n     * @notice Emitted when ERC20 tokens are withdrawn from this address.\\n     *\\n     * @param withdrawer Address that triggered the withdrawal.\\n     * @param recipient  Address that received the withdrawal.\\n     * @param asset      Address of the token being withdrawn.\\n     * @param amount     ERC20 amount withdrawn.\\n     */\\n    event WithdrewERC20(\\n        address indexed withdrawer,\\n        address indexed recipient,\\n        address indexed asset,\\n        uint256 amount\\n    );\\n\\n    /**\\n     * @notice Emitted when ERC20 tokens are withdrawn from this address.\\n     *\\n     * @param withdrawer Address that triggered the withdrawal.\\n     * @param recipient  Address that received the withdrawal.\\n     * @param asset      Address of the token being withdrawn.\\n     * @param id         Token ID being withdrawn.\\n     */\\n    event WithdrewERC721(\\n        address indexed withdrawer,\\n        address indexed recipient,\\n        address indexed asset,\\n        uint256 id\\n    );\\n\\n    /**\\n     * @param _owner Initial contract owner.\\n     */\\n    constructor(address _owner) Transactor(_owner) {}\\n\\n    /**\\n     * @notice Make sure we can receive ETH.\\n     */\\n    receive() external payable {\\n        emit ReceivedETH(msg.sender, msg.value);\\n    }\\n\\n    /**\\n     * @notice Withdraws full ETH balance to the recipient.\\n     *\\n     * @param _to Address to receive the ETH balance.\\n     */\\n    function withdrawETH(address payable _to) external onlyOwner {\\n        withdrawETH(_to, address(this).balance);\\n    }\\n\\n    /**\\n     * @notice Withdraws partial ETH balance to the recipient.\\n     *\\n     * @param _to     Address to receive the ETH balance.\\n     * @param _amount Amount of ETH to withdraw.\\n     */\\n    function withdrawETH(address payable _to, uint256 _amount) public onlyOwner {\\n        // slither-disable-next-line reentrancy-unlimited-gas\\n        (bool success, ) = _to.call{ value: _amount }(\\\"\\\");\\n        emit WithdrewETH(msg.sender, _to, _amount);\\n    }\\n\\n    /**\\n     * @notice Withdraws full ERC20 balance to the recipient.\\n     *\\n     * @param _asset ERC20 token to withdraw.\\n     * @param _to    Address to receive the ERC20 balance.\\n     */\\n    function withdrawERC20(ERC20 _asset, address _to) external onlyOwner {\\n        withdrawERC20(_asset, _to, _asset.balanceOf(address(this)));\\n    }\\n\\n    /**\\n     * @notice Withdraws partial ERC20 balance to the recipient.\\n     *\\n     * @param _asset  ERC20 token to withdraw.\\n     * @param _to     Address to receive the ERC20 balance.\\n     * @param _amount Amount of ERC20 to withdraw.\\n     */\\n    function withdrawERC20(\\n        ERC20 _asset,\\n        address _to,\\n        uint256 _amount\\n    ) public onlyOwner {\\n        // slither-disable-next-line unchecked-transfer\\n        _asset.transfer(_to, _amount);\\n        // slither-disable-next-line reentrancy-events\\n        emit WithdrewERC20(msg.sender, _to, address(_asset), _amount);\\n    }\\n\\n    /**\\n     * @notice Withdraws ERC721 token to the recipient.\\n     *\\n     * @param _asset ERC721 token to withdraw.\\n     * @param _to    Address to receive the ERC721 token.\\n     * @param _id    Token ID of the ERC721 token to withdraw.\\n     */\\n    function withdrawERC721(\\n        ERC721 _asset,\\n        address _to,\\n        uint256 _id\\n    ) external onlyOwner {\\n        _asset.transferFrom(address(this), _to, _id);\\n        // slither-disable-next-line reentrancy-events\\n        emit WithdrewERC721(msg.sender, _to, address(_asset), _id);\\n    }\\n}\\n\",\"keccak256\":\"0x7e9bcbf8e23cb5f48e4eca605da6b7d96f88b9499e91a92cbf74d82e9e91cdf1\",\"license\":\"MIT\"},\"contracts/universal/Transactor.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\nimport { Owned } from \\\"@rari-capital/solmate/src/auth/Owned.sol\\\";\\n\\n/**\\n * @title Transactor\\n * @notice Transactor is a minimal contract that can send transactions.\\n */\\ncontract Transactor is Owned {\\n    /**\\n     * @param _owner Initial contract owner.\\n     */\\n    constructor(address _owner) Owned(_owner) {}\\n\\n    /**\\n     * Sends a CALL to a target address.\\n     *\\n     * @param _target Address to call.\\n     * @param _data   Data to send with the call.\\n     * @param _value  ETH value to send with the call.\\n     *\\n     * @return Boolean success value.\\n     * @return Bytes data returned by the call.\\n     */\\n    function CALL(\\n        address _target,\\n        bytes memory _data,\\n        uint256 _value\\n    ) external payable onlyOwner returns (bool, bytes memory) {\\n        return _target.call{ value: _value }(_data);\\n    }\\n\\n    /**\\n     * Sends a DELEGATECALL to a target address.\\n     *\\n     * @param _target Address to call.\\n     * @param _data   Data to send with the call.\\n     *\\n     * @return Boolean success value.\\n     * @return Bytes data returned by the call.\\n     */\\n    function DELEGATECALL(address _target, bytes memory _data)\\n        external\\n        payable\\n        onlyOwner\\n        returns (bool, bytes memory)\\n    {\\n        // slither-disable-next-line controlled-delegatecall\\n        return _target.delegatecall(_data);\\n    }\\n}\\n\",\"keccak256\":\"0x6a9e687b2f333bcc8ade530325005cb67ab7f78fd31407d4f2274324e71fc0fb\",\"license\":\"MIT\"},\"contracts/universal/drippie/Drippie.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.16;\\n\\nimport { AssetReceiver } from \\\"../AssetReceiver.sol\\\";\\nimport { IDripCheck } from \\\"./IDripCheck.sol\\\";\\n\\n/**\\n * @title Drippie\\n * @notice Drippie is a system for managing automated contract interactions. A specific interaction\\n *         is called a \\\"drip\\\" and can be executed according to some condition (called a dripcheck)\\n *         and an execution interval. Drips cannot be executed faster than the execution interval.\\n *         Drips can trigger arbitrary contract calls where the calling contract is this contract\\n *         address. Drips can also send ETH value, which makes them ideal for keeping addresses\\n *         sufficiently funded with ETH. Drippie is designed to be connected with smart contract\\n *         automation services so that drips can be executed automatically. However, Drippie is\\n *         specifically designed to be separated from these services so that trust assumptions are\\n *         better compartmentalized.\\n */\\ncontract Drippie is AssetReceiver {\\n    /**\\n     * @notice Enum representing different status options for a given drip.\\n     *\\n     * @custom:value NONE     Drip does not exist.\\n     * @custom:value PAUSED   Drip is paused and cannot be executed until reactivated.\\n     * @custom:value ACTIVE   Drip is active and can be executed.\\n     * @custom:value ARCHIVED Drip is archived and can no longer be executed or reactivated.\\n     */\\n    enum DripStatus {\\n        NONE,\\n        PAUSED,\\n        ACTIVE,\\n        ARCHIVED\\n    }\\n\\n    /**\\n     * @notice Represents a drip action.\\n     */\\n    struct DripAction {\\n        address payable target;\\n        bytes data;\\n        uint256 value;\\n    }\\n\\n    /**\\n     * @notice Represents the configuration for a given drip.\\n     */\\n    struct DripConfig {\\n        bool reentrant;\\n        uint256 interval;\\n        IDripCheck dripcheck;\\n        bytes checkparams;\\n        DripAction[] actions;\\n    }\\n\\n    /**\\n     * @notice Represents the state of an active drip.\\n     */\\n    struct DripState {\\n        DripStatus status;\\n        DripConfig config;\\n        uint256 last;\\n        uint256 count;\\n    }\\n\\n    /**\\n     * @notice Emitted when a new drip is created.\\n     *\\n     * @param nameref Indexed name parameter (hashed).\\n     * @param name    Unindexed name parameter (unhashed).\\n     * @param config  Config for the created drip.\\n     */\\n    event DripCreated(\\n        // Emit name twice because indexed version is hashed.\\n        string indexed nameref,\\n        string name,\\n        DripConfig config\\n    );\\n\\n    /**\\n     * @notice Emitted when a drip status is updated.\\n     *\\n     * @param nameref Indexed name parameter (hashed).\\n     * @param name    Unindexed name parameter (unhashed).\\n     * @param status  New drip status.\\n     */\\n    event DripStatusUpdated(\\n        // Emit name twice because indexed version is hashed.\\n        string indexed nameref,\\n        string name,\\n        DripStatus status\\n    );\\n\\n    /**\\n     * @notice Emitted when a drip is executed.\\n     *\\n     * @param nameref   Indexed name parameter (hashed).\\n     * @param name      Unindexed name parameter (unhashed).\\n     * @param executor  Address that executed the drip.\\n     * @param timestamp Time when the drip was executed.\\n     */\\n    event DripExecuted(\\n        // Emit name twice because indexed version is hashed.\\n        string indexed nameref,\\n        string name,\\n        address executor,\\n        uint256 timestamp\\n    );\\n\\n    /**\\n     * @notice Maps from drip names to drip states.\\n     */\\n    mapping(string => DripState) public drips;\\n\\n    /**\\n     * @param _owner Initial contract owner.\\n     */\\n    constructor(address _owner) AssetReceiver(_owner) {}\\n\\n    /**\\n     * @notice Creates a new drip with the given name and configuration. Once created, drips cannot\\n     *         be modified in any way (this is a security measure). If you want to update a drip,\\n     *         simply pause (and potentially archive) the existing drip and create a new one.\\n     *\\n     * @param _name   Name of the drip.\\n     * @param _config Configuration for the drip.\\n     */\\n    function create(string calldata _name, DripConfig calldata _config) external onlyOwner {\\n        // Make sure this drip doesn't already exist. We *must* guarantee that no other function\\n        // will ever set the status of a drip back to NONE after it's been created. This is why\\n        // archival is a separate status.\\n        require(\\n            drips[_name].status == DripStatus.NONE,\\n            \\\"Drippie: drip with that name already exists\\\"\\n        );\\n\\n        // Validate the drip interval, only allowing an interval of zero if the drip has explicitly\\n        // been marked as reentrant. Prevents client-side bugs making a drip infinitely executable\\n        // within the same block (of course, restricted by gas limits).\\n        if (_config.reentrant) {\\n            require(\\n                _config.interval == 0,\\n                \\\"Drippie: if allowing reentrant drip, must set interval to zero\\\"\\n            );\\n        } else {\\n            require(\\n                _config.interval > 0,\\n                \\\"Drippie: interval must be greater than zero if drip is not reentrant\\\"\\n            );\\n        }\\n\\n        // We initialize this way because Solidity won't let us copy arrays into storage yet.\\n        DripState storage state = drips[_name];\\n        state.status = DripStatus.PAUSED;\\n        state.config.reentrant = _config.reentrant;\\n        state.config.interval = _config.interval;\\n        state.config.dripcheck = _config.dripcheck;\\n        state.config.checkparams = _config.checkparams;\\n\\n        // Solidity doesn't let us copy arrays into storage, so we push each array one by one.\\n        for (uint256 i = 0; i < _config.actions.length; i++) {\\n            state.config.actions.push(_config.actions[i]);\\n        }\\n\\n        // Tell the world!\\n        emit DripCreated(_name, _name, _config);\\n    }\\n\\n    /**\\n     * @notice Sets the status for a given drip. The behavior of this function depends on the\\n     *         status that the user is trying to set. A drip can always move between ACTIVE and\\n     *         PAUSED, but it can never move back to NONE and once ARCHIVED, it can never move back\\n     *         to ACTIVE or PAUSED.\\n     *\\n     * @param _name   Name of the drip to update.\\n     * @param _status New drip status.\\n     */\\n    function status(string calldata _name, DripStatus _status) external onlyOwner {\\n        // Make sure we can never set drip status back to NONE. A simple security measure to\\n        // prevent accidental overwrites if this code is ever updated down the line.\\n        require(\\n            _status != DripStatus.NONE,\\n            \\\"Drippie: drip status can never be set back to NONE after creation\\\"\\n        );\\n\\n        // Load the drip status once to avoid unnecessary SLOADs.\\n        DripStatus curr = drips[_name].status;\\n\\n        // Make sure the drip in question actually exists. Not strictly necessary but there doesn't\\n        // seem to be any clear reason why you would want to do this, and it may save some gas in\\n        // the case of a front-end bug.\\n        require(\\n            curr != DripStatus.NONE,\\n            \\\"Drippie: drip with that name does not exist and cannot be updated\\\"\\n        );\\n\\n        // Once a drip has been archived, it cannot be un-archived. This is, after all, the entire\\n        // point of archiving a drip.\\n        require(\\n            curr != DripStatus.ARCHIVED,\\n            \\\"Drippie: drip with that name has been archived and cannot be updated\\\"\\n        );\\n\\n        // Although not strictly necessary, we make sure that the status here is actually changing.\\n        // This may save the client some gas if there's a front-end bug and the user accidentally\\n        // tries to \\\"change\\\" the status to the same value as before.\\n        require(\\n            curr != _status,\\n            \\\"Drippie: cannot set drip status to the same status as its current status\\\"\\n        );\\n\\n        // If the user is trying to archive this drip, make sure the drip has been paused. We do\\n        // not allow users to archive active drips so that the effects of this action are more\\n        // abundantly clear.\\n        if (_status == DripStatus.ARCHIVED) {\\n            require(\\n                curr == DripStatus.PAUSED,\\n                \\\"Drippie: drip must first be paused before being archived\\\"\\n            );\\n        }\\n\\n        // If we made it here then we can safely update the status.\\n        drips[_name].status = _status;\\n        emit DripStatusUpdated(_name, _name, _status);\\n    }\\n\\n    /**\\n     * @notice Checks if a given drip is executable.\\n     *\\n     * @param _name Drip to check.\\n     *\\n     * @return True if the drip is executable, reverts otherwise.\\n     */\\n    function executable(string calldata _name) public view returns (bool) {\\n        DripState storage state = drips[_name];\\n\\n        // Only allow active drips to be executed, an obvious security measure.\\n        require(\\n            state.status == DripStatus.ACTIVE,\\n            \\\"Drippie: selected drip does not exist or is not currently active\\\"\\n        );\\n\\n        // Don't drip if the drip interval has not yet elapsed since the last time we dripped. This\\n        // is a safety measure that prevents a malicious recipient from, e.g., spending all of\\n        // their funds and repeatedly requesting new drips. Limits the potential impact of a\\n        // compromised recipient to just a single drip interval, after which the drip can be paused\\n        // by the owner address.\\n        require(\\n            state.last + state.config.interval <= block.timestamp,\\n            \\\"Drippie: drip interval has not elapsed since last drip\\\"\\n        );\\n\\n        // Make sure we're allowed to execute this drip.\\n        require(\\n            state.config.dripcheck.check(state.config.checkparams),\\n            \\\"Drippie: dripcheck failed so drip is not yet ready to be triggered\\\"\\n        );\\n\\n        // Alright, we're good to execute.\\n        return true;\\n    }\\n\\n    /**\\n     * @notice Triggers a drip. This function is deliberately left as a public function because the\\n     *         assumption being made here is that setting the drip to ACTIVE is an affirmative\\n     *         signal that the drip should be executable according to the drip parameters, drip\\n     *         check, and drip interval. Note that drip parameters are read entirely from the state\\n     *         and are not supplied as user input, so there should not be any way for a\\n     *         non-authorized user to influence the behavior of the drip. Note that the drip check\\n     *         is executed only **once** at the beginning of the call to the drip function and will\\n     *         not be executed again between the drip actions within this call.\\n     *\\n     * @param _name Name of the drip to trigger.\\n     */\\n    function drip(string calldata _name) external {\\n        DripState storage state = drips[_name];\\n\\n        // Make sure the drip can be executed. Since executable reverts if the drip is not ready to\\n        // be executed, we don't need to do an assertion that the returned value is true.\\n        executable(_name);\\n\\n        // Update the last execution time for this drip before the call. Note that it's entirely\\n        // possible for a drip to be executed multiple times per block or even multiple times\\n        // within the same transaction (via re-entrancy) if the drip interval is set to zero. Users\\n        // should set a drip interval of 1 if they'd like the drip to be executed only once per\\n        // block (since this will then prevent re-entrancy).\\n        state.last = block.timestamp;\\n\\n        // Update the number of times this drip has been executed. Although this increases the cost\\n        // of using Drippie, it slightly simplifies the client-side by not having to worry about\\n        // counting drips via events. Useful for monitoring the rate of drip execution.\\n        state.count++;\\n\\n        // Execute each action in the drip. We allow drips to have multiple actions because there\\n        // are scenarios in which a contract must do multiple things atomically. For example, the\\n        // contract may need to withdraw ETH from one account and then deposit that ETH into\\n        // another account within the same transaction.\\n        uint256 len = state.config.actions.length;\\n        for (uint256 i = 0; i < len; i++) {\\n            // Must be marked as \\\"storage\\\" because copying structs into memory is not yet supported\\n            // by Solidity. Won't significantly reduce gas costs but at least makes it easier to\\n            // read what the rest of this section is doing.\\n            DripAction storage action = state.config.actions[i];\\n\\n            // Actually execute the action. We could use ExcessivelySafeCall here but not strictly\\n            // necessary (worst case, a drip gets bricked IFF the target is malicious, doubt this\\n            // will ever happen in practice). Could save a marginal amount of gas to ignore the\\n            // returndata.\\n            // slither-disable-next-line calls-loop\\n            (bool success, ) = action.target.call{ value: action.value }(action.data);\\n\\n            // Generally should not happen, but could if there's a misconfiguration (e.g., passing\\n            // the wrong data to the target contract), the recipient is not payable, or\\n            // insufficient gas was supplied to this transaction. We revert so the drip can be\\n            // fixed and triggered again later. Means we cannot emit an event to alert of the\\n            // failure, but can reasonably be detected by off-chain services even without an event.\\n            // Note that this forces the drip executor to supply sufficient gas to the call\\n            // (assuming there is some sufficient gas limit that exists, otherwise the drip will\\n            // not execute).\\n            require(\\n                success,\\n                \\\"Drippie: drip was unsuccessful, please check your configuration for mistakes\\\"\\n            );\\n        }\\n\\n        emit DripExecuted(_name, _name, msg.sender, block.timestamp);\\n    }\\n}\\n\",\"keccak256\":\"0x60aac1f170b36ddd9523a48eccae75ad408ecbad6b32bcf5567e7f680ab10c94\",\"license\":\"MIT\"},\"contracts/universal/drippie/IDripCheck.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.0;\\n\\ninterface IDripCheck {\\n    // DripCheck contracts that want to take parameters as inputs MUST expose a struct called\\n    // Params and an event _EventForExposingParamsStructInABI(Params params). This makes it\\n    // possible to easily encode parameters on the client side. Solidity does not support generics\\n    // so it's not possible to do this with explicit typing.\\n\\n    /**\\n     * @notice Checks whether a drip should be executable.\\n     *\\n     * @param _params Encoded parameters for the drip check.\\n     *\\n     * @return Whether the drip should be executed.\\n     */\\n    function check(bytes memory _params) external view returns (bool);\\n}\\n\",\"keccak256\":\"0xb52c89360566b2963dfd82cb2cc23f0c3ce4503a69e8563878e8aa80b6c60b3f\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x60806040523480156200001157600080fd5b5060405162002b3138038062002b3183398101604081905262000034916200008c565b600080546001600160a01b0319166001600160a01b03831690811782556040518392839283929091907f8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d76908290a350505050620000be565b6000602082840312156200009f57600080fd5b81516001600160a01b0381168114620000b757600080fd5b9392505050565b612a6380620000ce6000396000f3fe6080604052600436106100e15760003560e01c80636e2d44ae1161007f5780639bc94d01116100595780639bc94d01146102b0578063e551cdaa146102d0578063edee6239146102f0578063fc3e3eba1461030357600080fd5b80636e2d44ae1461021d5780638da5cb5b1461023e5780639456fbcc1461029057600080fd5b80634782f779116100bb5780634782f779146101845780634d7fba6e146101a457806367148cd2146101dd578063690d8320146101fd57600080fd5b806313af4035146101225780634025feb21461014457806344004cc11461016457600080fd5b3661011d5760405134815233907f4103257eaac983ca79a70d28f90dfc4fa16b619bb0c17ee7cab0d4034c2796249060200160405180910390a2005b600080fd5b34801561012e57600080fd5b5061014261013d366004611af9565b610333565b005b34801561015057600080fd5b5061014261015f366004611b1d565b61040f565b34801561017057600080fd5b5061014261017f366004611b1d565b610587565b34801561019057600080fd5b5061014261019f366004611b5e565b6106fe565b3480156101b057600080fd5b506101c46101bf366004611c2f565b610834565b6040516101d49493929190611d3a565b60405180910390f35b3480156101e957600080fd5b506101426101f8366004611e94565b610a66565b34801561020957600080fd5b50610142610218366004611af9565b610c6f565b61023061022b366004611ef6565b610ce3565b6040516101d4929190611f4f565b34801561024a57600080fd5b5060005461026b9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016101d4565b34801561029c57600080fd5b506101426102ab366004611f6a565b610dc3565b3480156102bc57600080fd5b506101426102cb366004611fa3565b610ec4565b3480156102dc57600080fd5b506101426102eb366004611ffe565b611363565b6102306102fe366004612063565b61177f565b34801561030f57600080fd5b5061032361031e366004611e94565b61185c565b60405190151581526020016101d4565b60005473ffffffffffffffffffffffffffffffffffffffff16331461039f5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064015b60405180910390fd5b600080547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff83169081178255604051909133917f8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d769190a350565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104765760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6040517f23b872dd00000000000000000000000000000000000000000000000000000000815230600482015273ffffffffffffffffffffffffffffffffffffffff8381166024830152604482018390528416906323b872dd90606401600060405180830381600087803b1580156104ec57600080fd5b505af1158015610500573d6000803e3d6000fd5b505050508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f30b478a5e196e55886228aa87ba74a7dfeba655e0a4d7ba275eabfc22aabb7a88460405161057a91815260200190565b60405180910390a4505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146105ee5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6040517fa9059cbb00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff83811660048301526024820183905284169063a9059cbb906044016020604051808303816000875af1158015610663573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061068791906120c1565b508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f6b00f1c7883f053ba83e907fd1965b22fffe3c4111383e725f04638a566cdbfa8460405161057a91815260200190565b60005473ffffffffffffffffffffffffffffffffffffffff1633146107655760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b60008273ffffffffffffffffffffffffffffffffffffffff168260405160006040518083038185875af1925050503d80600081146107bf576040519150601f19603f3d011682016040523d82523d6000602084013e6107c4565b606091505b505090508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f1f12aa8b6d492dd9b98e2b00b0b20830c2a7ded65afac13b60d169a034ae90bc8460405161082791815260200190565b60405180910390a3505050565b805160208183018101805160018083529383019483019490942093905282546040805160a081018252938501805460ff90811615158652600287015494860194909452600386015473ffffffffffffffffffffffffffffffffffffffff169185019190915260048501805493909216949392909160608401916108b6906120de565b80601f01602080910402602001604051908101604052809291908181526020018280546108e2906120de565b801561092f5780601f106109045761010080835404028352916020019161092f565b820191906000526020600020905b81548152906001019060200180831161091257829003601f168201915b5050505050815260200160048201805480602002602001604051908101604052809291908181526020016000905b82821015610a4e576000848152602090819020604080516060810190915260038502909101805473ffffffffffffffffffffffffffffffffffffffff16825260018101805492939192918401916109b3906120de565b80601f01602080910402602001604051908101604052809291908181526020018280546109df906120de565b8015610a2c5780601f10610a0157610100808354040283529160200191610a2c565b820191906000526020600020905b815481529060010190602001808311610a0f57829003601f168201915b505050505081526020016002820154815250508152602001906001019061095d565b50505091525050600682015460079092015490919084565b600060018383604051610a7a929190612131565b90815260200160405180910390209050610a94838361185c565b50426006820155600781018054906000610aad83612170565b9091555050600581015460005b81811015610c13576000836001016004018281548110610adc57610adc6121a8565b6000918252602082206003909102018054600282015460405192945073ffffffffffffffffffffffffffffffffffffffff90911691610b1f9060018601906121d7565b60006040518083038185875af1925050503d8060008114610b5c576040519150601f19603f3d011682016040523d82523d6000602084013e610b61565b606091505b5050905080610bfe5760405162461bcd60e51b815260206004820152604c60248201527f447269707069653a20647269702077617320756e7375636365737366756c2c2060448201527f706c6561736520636865636b20796f757220636f6e66696775726174696f6e2060648201527f666f72206d697374616b65730000000000000000000000000000000000000000608482015260a401610396565b50508080610c0b90612170565b915050610aba565b508383604051610c24929190612131565b60405180910390207fea21435419aad9c54a9d90e2522b6f60bd566401f36fcef661f5f5a28cc0d2c685853342604051610c619493929190612296565b60405180910390a250505050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610cd65760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b610ce081476106fe565b50565b6000805460609073ffffffffffffffffffffffffffffffffffffffff163314610d4e5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b8473ffffffffffffffffffffffffffffffffffffffff168385604051610d7491906122d3565b60006040518083038185875af1925050503d8060008114610db1576040519150601f19603f3d011682016040523d82523d6000602084013e610db6565b606091505b5091509150935093915050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610e2a5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6040517f70a08231000000000000000000000000000000000000000000000000000000008152306004820152610ec0908390839073ffffffffffffffffffffffffffffffffffffffff8316906370a0823190602401602060405180830381865afa158015610e9c573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061017f91906122ef565b5050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610f2b5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6000816003811115610f3f57610f3f611c80565b03610fd85760405162461bcd60e51b815260206004820152604160248201527f447269707069653a2064726970207374617475732063616e206e65766572206260448201527f6520736574206261636b20746f204e4f4e45206166746572206372656174696f60648201527f6e00000000000000000000000000000000000000000000000000000000000000608482015260a401610396565b600060018484604051610fec929190612131565b9081526040519081900360200190205460ff169050600081600381111561101557611015611c80565b036110ae5760405162461bcd60e51b815260206004820152604160248201527f447269707069653a206472697020776974682074686174206e616d6520646f6560448201527f73206e6f7420657869737420616e642063616e6e6f742062652075706461746560648201527f6400000000000000000000000000000000000000000000000000000000000000608482015260a401610396565b60038160038111156110c2576110c2611c80565b0361115c5760405162461bcd60e51b8152602060048201526044602482018190527f447269707069653a206472697020776974682074686174206e616d6520686173908201527f206265656e20617263686976656420616e642063616e6e6f742062652075706460648201527f6174656400000000000000000000000000000000000000000000000000000000608482015260a401610396565b81600381111561116e5761116e611c80565b81600381111561118057611180611c80565b036112195760405162461bcd60e51b815260206004820152604860248201527f447269707069653a2063616e6e6f74207365742064726970207374617475732060448201527f746f207468652073616d6520737461747573206173206974732063757272656e60648201527f7420737461747573000000000000000000000000000000000000000000000000608482015260a401610396565b600382600381111561122d5761122d611c80565b036112b957600181600381111561124657611246611c80565b146112b95760405162461bcd60e51b815260206004820152603860248201527f447269707069653a2064726970206d757374206669727374206265207061757360448201527f6564206265666f7265206265696e6720617263686976656400000000000000006064820152608401610396565b81600185856040516112cc929190612131565b90815260405190819003602001902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600183600381111561131357611313611c80565b02179055508383604051611328929190612131565b60405180910390207f407cb3ad05e60ec498fb39417c7a4f6b82d5ba80f82fe512a37b02c93181a2a1858585604051610c6193929190612308565b60005473ffffffffffffffffffffffffffffffffffffffff1633146113ca5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6000600184846040516113de929190612131565b9081526040519081900360200190205460ff16600381111561140257611402611c80565b146114755760405162461bcd60e51b815260206004820152602b60248201527f447269707069653a206472697020776974682074686174206e616d6520616c7260448201527f65616479206578697374730000000000000000000000000000000000000000006064820152608401610396565b611482602082018261232b565b15611504576020810135156114ff5760405162461bcd60e51b815260206004820152603e60248201527f447269707069653a20696620616c6c6f77696e67207265656e7472616e74206460448201527f7269702c206d7573742073657420696e74657276616c20746f207a65726f00006064820152608401610396565b6115a5565b60008160200135116115a55760405162461bcd60e51b8152602060048201526044602482018190527f447269707069653a20696e74657276616c206d75737420626520677265617465908201527f72207468616e207a65726f2069662064726970206973206e6f74207265656e7460648201527f72616e7400000000000000000000000000000000000000000000000000000000608482015260a401610396565b6000600184846040516115b9929190612131565b9081526040516020918190038201902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117815591506116009083018361232b565b6001820180547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169115159190911790556020820135600282015561164b6060830160408401611af9565b6003820180547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff9290921691909117905561169f6060830183612348565b60048301916116af9190836123fc565b5060005b6116c060808401846124f9565b905081101561173357600582016116da60808501856124f9565b838181106116ea576116ea6121a8565b90506020028101906116fc9190612561565b81546001810183556000928352602090922090916003020161171e8282612595565b5050808061172b90612170565b9150506116b3565b508383604051611744929190612131565b60405180910390207fe38d8d98e6cc66f6f520d483c6c5a89289681f897799c4c29d767cf57e76d9a6858585604051610c619392919061286a565b6000805460609073ffffffffffffffffffffffffffffffffffffffff1633146117ea5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b8373ffffffffffffffffffffffffffffffffffffffff168360405161180f91906122d3565b600060405180830381855af49150503d806000811461184a576040519150601f19603f3d011682016040523d82523d6000602084013e61184f565b606091505b50915091505b9250929050565b60008060018484604051611871929190612131565b90815260405190819003602001902090506002815460ff16600381111561189a5761189a611c80565b1461190f576040805162461bcd60e51b81526020600482015260248101919091527f447269707069653a2073656c6563746564206472697020646f6573206e6f742060448201527f6578697374206f72206973206e6f742063757272656e746c79206163746976656064820152608401610396565b60028101546006820154429161192491612971565b11156119985760405162461bcd60e51b815260206004820152603660248201527f447269707069653a206472697020696e74657276616c20686173206e6f74206560448201527f6c61707365642073696e6365206c6173742064726970000000000000000000006064820152608401610396565b60038101546040517fc64b3bb500000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff9091169063c64b3bb5906119f29060048086019101612984565b602060405180830381865afa158015611a0f573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190611a3391906120c1565b611acb5760405162461bcd60e51b815260206004820152604260248201527f447269707069653a2064726970636865636b206661696c656420736f2064726960448201527f70206973206e6f742079657420726561647920746f206265207472696767657260648201527f6564000000000000000000000000000000000000000000000000000000000000608482015260a401610396565b60019150505b92915050565b73ffffffffffffffffffffffffffffffffffffffff81168114610ce057600080fd5b600060208284031215611b0b57600080fd5b8135611b1681611ad7565b9392505050565b600080600060608486031215611b3257600080fd5b8335611b3d81611ad7565b92506020840135611b4d81611ad7565b929592945050506040919091013590565b60008060408385031215611b7157600080fd5b8235611b7c81611ad7565b946020939093013593505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600067ffffffffffffffff80841115611bd457611bd4611b8a565b604051601f8501601f19908116603f01168101908282118183101715611bfc57611bfc611b8a565b81604052809350858152868686011115611c1557600080fd5b858560208301376000602087830101525050509392505050565b600060208284031215611c4157600080fd5b813567ffffffffffffffff811115611c5857600080fd5b8201601f81018413611c6957600080fd5b611c7884823560208401611bb9565b949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b60048110611ce6577f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b9052565b60005b83811015611d05578181015183820152602001611ced565b50506000910152565b60008151808452611d26816020860160208601611cea565b601f01601f19169290920160200192915050565b611d448186611caf565b600060206080818401528551151560808401528086015160a084015260408087015173ffffffffffffffffffffffffffffffffffffffff80821660c0870152606091508189015160a060e0880152611da0610120880182611d0e565b60808b01518882037fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80016101008a0152805180835291925086019086830190600581901b8401880160005b82811015611e3657601f1986830301845284518781511683528a810151898c850152611e198a850182611d0e565b918b0151938b0193909352948a0194938a01939150600101611deb565b50968a019b909b52505050509093019390935250949350505050565b60008083601f840112611e6457600080fd5b50813567ffffffffffffffff811115611e7c57600080fd5b60208301915083602082850101111561185557600080fd5b60008060208385031215611ea757600080fd5b823567ffffffffffffffff811115611ebe57600080fd5b611eca85828601611e52565b90969095509350505050565b600082601f830112611ee757600080fd5b611b1683833560208501611bb9565b600080600060608486031215611f0b57600080fd5b8335611f1681611ad7565b9250602084013567ffffffffffffffff811115611f3257600080fd5b611f3e86828701611ed6565b925050604084013590509250925092565b8215158152604060208201526000611c786040830184611d0e565b60008060408385031215611f7d57600080fd5b8235611f8881611ad7565b91506020830135611f9881611ad7565b809150509250929050565b600080600060408486031215611fb857600080fd5b833567ffffffffffffffff811115611fcf57600080fd5b611fdb86828701611e52565b909450925050602084013560048110611ff357600080fd5b809150509250925092565b60008060006040848603121561201357600080fd5b833567ffffffffffffffff8082111561202b57600080fd5b61203787838801611e52565b9095509350602086013591508082111561205057600080fd5b50840160a08187031215611ff357600080fd5b6000806040838503121561207657600080fd5b823561208181611ad7565b9150602083013567ffffffffffffffff81111561209d57600080fd5b6120a985828601611ed6565b9150509250929050565b8015158114610ce057600080fd5b6000602082840312156120d357600080fd5b8151611b16816120b3565b600181811c908216806120f257607f821691505b60208210810361212b577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b8183823760009101908152919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036121a1576121a1612141565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60008083546121e5816120de565b600182811680156121fd57600181146122305761225f565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff008416875282151583028701945061225f565b8760005260208060002060005b858110156122565781548a82015290840190820161223d565b50505082870194505b50929695505050505050565b818352818160208501375060006020828401015260006020601f19601f840116840101905092915050565b6060815260006122aa60608301868861226b565b73ffffffffffffffffffffffffffffffffffffffff949094166020830152506040015292915050565b600082516122e5818460208701611cea565b9190910192915050565b60006020828403121561230157600080fd5b5051919050565b60408152600061231c60408301858761226b565b9050611c786020830184611caf565b60006020828403121561233d57600080fd5b8135611b16816120b3565b60008083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe184360301811261237d57600080fd5b83018035915067ffffffffffffffff82111561239857600080fd5b60200191503681900382131561185557600080fd5b601f8211156123f757600081815260208120601f850160051c810160208610156123d45750805b601f850160051c820191505b818110156123f3578281556001016123e0565b5050505b505050565b67ffffffffffffffff83111561241457612414611b8a565b6124288361242283546120de565b836123ad565b6000601f84116001811461247a57600085156124445750838201355b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600387901b1c1916600186901b1783556124f2565b600083815260209020601f19861690835b828110156124ab578685013582556020948501946001909201910161248b565b50868210156124e6577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60f88860031b161c19848701351681555b505060018560011b0183555b5050505050565b60008083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe184360301811261252e57600080fd5b83018035915067ffffffffffffffff82111561254957600080fd5b6020019150600581901b360382131561185557600080fd5b600082357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa18336030181126122e557600080fd5b81356125a081611ad7565b73ffffffffffffffffffffffffffffffffffffffff81167fffffffffffffffffffffffff00000000000000000000000000000000000000008354161782555060018082016020808501357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe186360301811261261a57600080fd5b8501803567ffffffffffffffff81111561263357600080fd5b803603838301131561264457600080fd5b6126588161265286546120de565b866123ad565b6000601f8211600181146126ac576000831561267657508382018501355b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600385901b1c1916600184901b178655612723565b600086815260209020601f19841690835b828110156126dc578685018801358255938701939089019087016126bd565b5084821015612719577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60f88660031b161c198785880101351681555b50508683881b0186555b50505050505050604082013560028201555050565b60008083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe184360301811261276d57600080fd5b830160208101925035905067ffffffffffffffff81111561278d57600080fd5b80360382131561185557600080fd5b81835260006020808501808196508560051b81019150846000805b8881101561285c578385038a5282357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa18936030181126127f5578283fd5b88016060813561280481611ad7565b73ffffffffffffffffffffffffffffffffffffffff16875261282882890183612738565b828a8a015261283a838a01828461226b565b60409485013599909401989098525050998601999450918501916001016127b7565b509298975050505050505050565b60408152600061287e60408301858761226b565b82810360208401528335612891816120b3565b151581526020848101359082015260408401356128ad81611ad7565b73ffffffffffffffffffffffffffffffffffffffff1660408201526128d56060850185612738565b60a060608401526128ea60a08401828461226b565b91505060808501357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe186360301811261292257600080fd5b850160208101903567ffffffffffffffff81111561293f57600080fd5b8060051b360382131561295157600080fd5b838303608085015261296483828461279c565b9998505050505050505050565b80820180821115611ad157611ad1612141565b6000602080835260008454612998816120de565b808487015260406001808416600081146129b957600181146129f157612a1f565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff008516838a01528284151560051b8a01019550612a1f565b896000528660002060005b85811015612a175781548b82018601529083019088016129fc565b8a0184019650505b50939897505050505050505056fea26469706673582212208d60ccb026b0dcc2e3511887db1b30dfd98f123af2a2a96714cbeca8ed21494464736f6c63430008100033",
+  "deployedBytecode": "0x6080604052600436106100e15760003560e01c80636e2d44ae1161007f5780639bc94d01116100595780639bc94d01146102b0578063e551cdaa146102d0578063edee6239146102f0578063fc3e3eba1461030357600080fd5b80636e2d44ae1461021d5780638da5cb5b1461023e5780639456fbcc1461029057600080fd5b80634782f779116100bb5780634782f779146101845780634d7fba6e146101a457806367148cd2146101dd578063690d8320146101fd57600080fd5b806313af4035146101225780634025feb21461014457806344004cc11461016457600080fd5b3661011d5760405134815233907f4103257eaac983ca79a70d28f90dfc4fa16b619bb0c17ee7cab0d4034c2796249060200160405180910390a2005b600080fd5b34801561012e57600080fd5b5061014261013d366004611af9565b610333565b005b34801561015057600080fd5b5061014261015f366004611b1d565b61040f565b34801561017057600080fd5b5061014261017f366004611b1d565b610587565b34801561019057600080fd5b5061014261019f366004611b5e565b6106fe565b3480156101b057600080fd5b506101c46101bf366004611c2f565b610834565b6040516101d49493929190611d3a565b60405180910390f35b3480156101e957600080fd5b506101426101f8366004611e94565b610a66565b34801561020957600080fd5b50610142610218366004611af9565b610c6f565b61023061022b366004611ef6565b610ce3565b6040516101d4929190611f4f565b34801561024a57600080fd5b5060005461026b9073ffffffffffffffffffffffffffffffffffffffff1681565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016101d4565b34801561029c57600080fd5b506101426102ab366004611f6a565b610dc3565b3480156102bc57600080fd5b506101426102cb366004611fa3565b610ec4565b3480156102dc57600080fd5b506101426102eb366004611ffe565b611363565b6102306102fe366004612063565b61177f565b34801561030f57600080fd5b5061032361031e366004611e94565b61185c565b60405190151581526020016101d4565b60005473ffffffffffffffffffffffffffffffffffffffff16331461039f5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a4544000000000000000000000000000000000000000060448201526064015b60405180910390fd5b600080547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff83169081178255604051909133917f8292fce18fa69edf4db7b94ea2e58241df0ae57f97e0a6c9b29067028bf92d769190a350565b60005473ffffffffffffffffffffffffffffffffffffffff1633146104765760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6040517f23b872dd00000000000000000000000000000000000000000000000000000000815230600482015273ffffffffffffffffffffffffffffffffffffffff8381166024830152604482018390528416906323b872dd90606401600060405180830381600087803b1580156104ec57600080fd5b505af1158015610500573d6000803e3d6000fd5b505050508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f30b478a5e196e55886228aa87ba74a7dfeba655e0a4d7ba275eabfc22aabb7a88460405161057a91815260200190565b60405180910390a4505050565b60005473ffffffffffffffffffffffffffffffffffffffff1633146105ee5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6040517fa9059cbb00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff83811660048301526024820183905284169063a9059cbb906044016020604051808303816000875af1158015610663573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061068791906120c1565b508273ffffffffffffffffffffffffffffffffffffffff168273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f6b00f1c7883f053ba83e907fd1965b22fffe3c4111383e725f04638a566cdbfa8460405161057a91815260200190565b60005473ffffffffffffffffffffffffffffffffffffffff1633146107655760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b60008273ffffffffffffffffffffffffffffffffffffffff168260405160006040518083038185875af1925050503d80600081146107bf576040519150601f19603f3d011682016040523d82523d6000602084013e6107c4565b606091505b505090508273ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f1f12aa8b6d492dd9b98e2b00b0b20830c2a7ded65afac13b60d169a034ae90bc8460405161082791815260200190565b60405180910390a3505050565b805160208183018101805160018083529383019483019490942093905282546040805160a081018252938501805460ff90811615158652600287015494860194909452600386015473ffffffffffffffffffffffffffffffffffffffff169185019190915260048501805493909216949392909160608401916108b6906120de565b80601f01602080910402602001604051908101604052809291908181526020018280546108e2906120de565b801561092f5780601f106109045761010080835404028352916020019161092f565b820191906000526020600020905b81548152906001019060200180831161091257829003601f168201915b5050505050815260200160048201805480602002602001604051908101604052809291908181526020016000905b82821015610a4e576000848152602090819020604080516060810190915260038502909101805473ffffffffffffffffffffffffffffffffffffffff16825260018101805492939192918401916109b3906120de565b80601f01602080910402602001604051908101604052809291908181526020018280546109df906120de565b8015610a2c5780601f10610a0157610100808354040283529160200191610a2c565b820191906000526020600020905b815481529060010190602001808311610a0f57829003601f168201915b505050505081526020016002820154815250508152602001906001019061095d565b50505091525050600682015460079092015490919084565b600060018383604051610a7a929190612131565b90815260200160405180910390209050610a94838361185c565b50426006820155600781018054906000610aad83612170565b9091555050600581015460005b81811015610c13576000836001016004018281548110610adc57610adc6121a8565b6000918252602082206003909102018054600282015460405192945073ffffffffffffffffffffffffffffffffffffffff90911691610b1f9060018601906121d7565b60006040518083038185875af1925050503d8060008114610b5c576040519150601f19603f3d011682016040523d82523d6000602084013e610b61565b606091505b5050905080610bfe5760405162461bcd60e51b815260206004820152604c60248201527f447269707069653a20647269702077617320756e7375636365737366756c2c2060448201527f706c6561736520636865636b20796f757220636f6e66696775726174696f6e2060648201527f666f72206d697374616b65730000000000000000000000000000000000000000608482015260a401610396565b50508080610c0b90612170565b915050610aba565b508383604051610c24929190612131565b60405180910390207fea21435419aad9c54a9d90e2522b6f60bd566401f36fcef661f5f5a28cc0d2c685853342604051610c619493929190612296565b60405180910390a250505050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610cd65760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b610ce081476106fe565b50565b6000805460609073ffffffffffffffffffffffffffffffffffffffff163314610d4e5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b8473ffffffffffffffffffffffffffffffffffffffff168385604051610d7491906122d3565b60006040518083038185875af1925050503d8060008114610db1576040519150601f19603f3d011682016040523d82523d6000602084013e610db6565b606091505b5091509150935093915050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610e2a5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6040517f70a08231000000000000000000000000000000000000000000000000000000008152306004820152610ec0908390839073ffffffffffffffffffffffffffffffffffffffff8316906370a0823190602401602060405180830381865afa158015610e9c573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061017f91906122ef565b5050565b60005473ffffffffffffffffffffffffffffffffffffffff163314610f2b5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6000816003811115610f3f57610f3f611c80565b03610fd85760405162461bcd60e51b815260206004820152604160248201527f447269707069653a2064726970207374617475732063616e206e65766572206260448201527f6520736574206261636b20746f204e4f4e45206166746572206372656174696f60648201527f6e00000000000000000000000000000000000000000000000000000000000000608482015260a401610396565b600060018484604051610fec929190612131565b9081526040519081900360200190205460ff169050600081600381111561101557611015611c80565b036110ae5760405162461bcd60e51b815260206004820152604160248201527f447269707069653a206472697020776974682074686174206e616d6520646f6560448201527f73206e6f7420657869737420616e642063616e6e6f742062652075706461746560648201527f6400000000000000000000000000000000000000000000000000000000000000608482015260a401610396565b60038160038111156110c2576110c2611c80565b0361115c5760405162461bcd60e51b8152602060048201526044602482018190527f447269707069653a206472697020776974682074686174206e616d6520686173908201527f206265656e20617263686976656420616e642063616e6e6f742062652075706460648201527f6174656400000000000000000000000000000000000000000000000000000000608482015260a401610396565b81600381111561116e5761116e611c80565b81600381111561118057611180611c80565b036112195760405162461bcd60e51b815260206004820152604860248201527f447269707069653a2063616e6e6f74207365742064726970207374617475732060448201527f746f207468652073616d6520737461747573206173206974732063757272656e60648201527f7420737461747573000000000000000000000000000000000000000000000000608482015260a401610396565b600382600381111561122d5761122d611c80565b036112b957600181600381111561124657611246611c80565b146112b95760405162461bcd60e51b815260206004820152603860248201527f447269707069653a2064726970206d757374206669727374206265207061757360448201527f6564206265666f7265206265696e6720617263686976656400000000000000006064820152608401610396565b81600185856040516112cc929190612131565b90815260405190819003602001902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600183600381111561131357611313611c80565b02179055508383604051611328929190612131565b60405180910390207f407cb3ad05e60ec498fb39417c7a4f6b82d5ba80f82fe512a37b02c93181a2a1858585604051610c6193929190612308565b60005473ffffffffffffffffffffffffffffffffffffffff1633146113ca5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b6000600184846040516113de929190612131565b9081526040519081900360200190205460ff16600381111561140257611402611c80565b146114755760405162461bcd60e51b815260206004820152602b60248201527f447269707069653a206472697020776974682074686174206e616d6520616c7260448201527f65616479206578697374730000000000000000000000000000000000000000006064820152608401610396565b611482602082018261232b565b15611504576020810135156114ff5760405162461bcd60e51b815260206004820152603e60248201527f447269707069653a20696620616c6c6f77696e67207265656e7472616e74206460448201527f7269702c206d7573742073657420696e74657276616c20746f207a65726f00006064820152608401610396565b6115a5565b60008160200135116115a55760405162461bcd60e51b8152602060048201526044602482018190527f447269707069653a20696e74657276616c206d75737420626520677265617465908201527f72207468616e207a65726f2069662064726970206973206e6f74207265656e7460648201527f72616e7400000000000000000000000000000000000000000000000000000000608482015260a401610396565b6000600184846040516115b9929190612131565b9081526040516020918190038201902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117815591506116009083018361232b565b6001820180547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169115159190911790556020820135600282015561164b6060830160408401611af9565b6003820180547fffffffffffffffffffffffff00000000000000000000000000000000000000001673ffffffffffffffffffffffffffffffffffffffff9290921691909117905561169f6060830183612348565b60048301916116af9190836123fc565b5060005b6116c060808401846124f9565b905081101561173357600582016116da60808501856124f9565b838181106116ea576116ea6121a8565b90506020028101906116fc9190612561565b81546001810183556000928352602090922090916003020161171e8282612595565b5050808061172b90612170565b9150506116b3565b508383604051611744929190612131565b60405180910390207fe38d8d98e6cc66f6f520d483c6c5a89289681f897799c4c29d767cf57e76d9a6858585604051610c619392919061286a565b6000805460609073ffffffffffffffffffffffffffffffffffffffff1633146117ea5760405162461bcd60e51b815260206004820152600c60248201527f554e415554484f52495a454400000000000000000000000000000000000000006044820152606401610396565b8373ffffffffffffffffffffffffffffffffffffffff168360405161180f91906122d3565b600060405180830381855af49150503d806000811461184a576040519150601f19603f3d011682016040523d82523d6000602084013e61184f565b606091505b50915091505b9250929050565b60008060018484604051611871929190612131565b90815260405190819003602001902090506002815460ff16600381111561189a5761189a611c80565b1461190f576040805162461bcd60e51b81526020600482015260248101919091527f447269707069653a2073656c6563746564206472697020646f6573206e6f742060448201527f6578697374206f72206973206e6f742063757272656e746c79206163746976656064820152608401610396565b60028101546006820154429161192491612971565b11156119985760405162461bcd60e51b815260206004820152603660248201527f447269707069653a206472697020696e74657276616c20686173206e6f74206560448201527f6c61707365642073696e6365206c6173742064726970000000000000000000006064820152608401610396565b60038101546040517fc64b3bb500000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff9091169063c64b3bb5906119f29060048086019101612984565b602060405180830381865afa158015611a0f573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190611a3391906120c1565b611acb5760405162461bcd60e51b815260206004820152604260248201527f447269707069653a2064726970636865636b206661696c656420736f2064726960448201527f70206973206e6f742079657420726561647920746f206265207472696767657260648201527f6564000000000000000000000000000000000000000000000000000000000000608482015260a401610396565b60019150505b92915050565b73ffffffffffffffffffffffffffffffffffffffff81168114610ce057600080fd5b600060208284031215611b0b57600080fd5b8135611b1681611ad7565b9392505050565b600080600060608486031215611b3257600080fd5b8335611b3d81611ad7565b92506020840135611b4d81611ad7565b929592945050506040919091013590565b60008060408385031215611b7157600080fd5b8235611b7c81611ad7565b946020939093013593505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b600067ffffffffffffffff80841115611bd457611bd4611b8a565b604051601f8501601f19908116603f01168101908282118183101715611bfc57611bfc611b8a565b81604052809350858152868686011115611c1557600080fd5b858560208301376000602087830101525050509392505050565b600060208284031215611c4157600080fd5b813567ffffffffffffffff811115611c5857600080fd5b8201601f81018413611c6957600080fd5b611c7884823560208401611bb9565b949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b60048110611ce6577f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b9052565b60005b83811015611d05578181015183820152602001611ced565b50506000910152565b60008151808452611d26816020860160208601611cea565b601f01601f19169290920160200192915050565b611d448186611caf565b600060206080818401528551151560808401528086015160a084015260408087015173ffffffffffffffffffffffffffffffffffffffff80821660c0870152606091508189015160a060e0880152611da0610120880182611d0e565b60808b01518882037fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff80016101008a0152805180835291925086019086830190600581901b8401880160005b82811015611e3657601f1986830301845284518781511683528a810151898c850152611e198a850182611d0e565b918b0151938b0193909352948a0194938a01939150600101611deb565b50968a019b909b52505050509093019390935250949350505050565b60008083601f840112611e6457600080fd5b50813567ffffffffffffffff811115611e7c57600080fd5b60208301915083602082850101111561185557600080fd5b60008060208385031215611ea757600080fd5b823567ffffffffffffffff811115611ebe57600080fd5b611eca85828601611e52565b90969095509350505050565b600082601f830112611ee757600080fd5b611b1683833560208501611bb9565b600080600060608486031215611f0b57600080fd5b8335611f1681611ad7565b9250602084013567ffffffffffffffff811115611f3257600080fd5b611f3e86828701611ed6565b925050604084013590509250925092565b8215158152604060208201526000611c786040830184611d0e565b60008060408385031215611f7d57600080fd5b8235611f8881611ad7565b91506020830135611f9881611ad7565b809150509250929050565b600080600060408486031215611fb857600080fd5b833567ffffffffffffffff811115611fcf57600080fd5b611fdb86828701611e52565b909450925050602084013560048110611ff357600080fd5b809150509250925092565b60008060006040848603121561201357600080fd5b833567ffffffffffffffff8082111561202b57600080fd5b61203787838801611e52565b9095509350602086013591508082111561205057600080fd5b50840160a08187031215611ff357600080fd5b6000806040838503121561207657600080fd5b823561208181611ad7565b9150602083013567ffffffffffffffff81111561209d57600080fd5b6120a985828601611ed6565b9150509250929050565b8015158114610ce057600080fd5b6000602082840312156120d357600080fd5b8151611b16816120b3565b600181811c908216806120f257607f821691505b60208210810361212b577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b8183823760009101908152919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036121a1576121a1612141565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b60008083546121e5816120de565b600182811680156121fd57600181146122305761225f565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff008416875282151583028701945061225f565b8760005260208060002060005b858110156122565781548a82015290840190820161223d565b50505082870194505b50929695505050505050565b818352818160208501375060006020828401015260006020601f19601f840116840101905092915050565b6060815260006122aa60608301868861226b565b73ffffffffffffffffffffffffffffffffffffffff949094166020830152506040015292915050565b600082516122e5818460208701611cea565b9190910192915050565b60006020828403121561230157600080fd5b5051919050565b60408152600061231c60408301858761226b565b9050611c786020830184611caf565b60006020828403121561233d57600080fd5b8135611b16816120b3565b60008083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe184360301811261237d57600080fd5b83018035915067ffffffffffffffff82111561239857600080fd5b60200191503681900382131561185557600080fd5b601f8211156123f757600081815260208120601f850160051c810160208610156123d45750805b601f850160051c820191505b818110156123f3578281556001016123e0565b5050505b505050565b67ffffffffffffffff83111561241457612414611b8a565b6124288361242283546120de565b836123ad565b6000601f84116001811461247a57600085156124445750838201355b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600387901b1c1916600186901b1783556124f2565b600083815260209020601f19861690835b828110156124ab578685013582556020948501946001909201910161248b565b50868210156124e6577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60f88860031b161c19848701351681555b505060018560011b0183555b5050505050565b60008083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe184360301811261252e57600080fd5b83018035915067ffffffffffffffff82111561254957600080fd5b6020019150600581901b360382131561185557600080fd5b600082357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa18336030181126122e557600080fd5b81356125a081611ad7565b73ffffffffffffffffffffffffffffffffffffffff81167fffffffffffffffffffffffff00000000000000000000000000000000000000008354161782555060018082016020808501357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe186360301811261261a57600080fd5b8501803567ffffffffffffffff81111561263357600080fd5b803603838301131561264457600080fd5b6126588161265286546120de565b866123ad565b6000601f8211600181146126ac576000831561267657508382018501355b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600385901b1c1916600184901b178655612723565b600086815260209020601f19841690835b828110156126dc578685018801358255938701939089019087016126bd565b5084821015612719577fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff60f88660031b161c198785880101351681555b50508683881b0186555b50505050505050604082013560028201555050565b60008083357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe184360301811261276d57600080fd5b830160208101925035905067ffffffffffffffff81111561278d57600080fd5b80360382131561185557600080fd5b81835260006020808501808196508560051b81019150846000805b8881101561285c578385038a5282357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffa18936030181126127f5578283fd5b88016060813561280481611ad7565b73ffffffffffffffffffffffffffffffffffffffff16875261282882890183612738565b828a8a015261283a838a01828461226b565b60409485013599909401989098525050998601999450918501916001016127b7565b509298975050505050505050565b60408152600061287e60408301858761226b565b82810360208401528335612891816120b3565b151581526020848101359082015260408401356128ad81611ad7565b73ffffffffffffffffffffffffffffffffffffffff1660408201526128d56060850185612738565b60a060608401526128ea60a08401828461226b565b91505060808501357fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe186360301811261292257600080fd5b850160208101903567ffffffffffffffff81111561293f57600080fd5b8060051b360382131561295157600080fd5b838303608085015261296483828461279c565b9998505050505050505050565b80820180821115611ad157611ad1612141565b6000602080835260008454612998816120de565b808487015260406001808416600081146129b957600181146129f157612a1f565b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff008516838a01528284151560051b8a01019550612a1f565b896000528660002060005b85811015612a175781548b82018601529083019088016129fc565b8a0184019650505b50939897505050505050505056fea26469706673582212208d60ccb026b0dcc2e3511887db1b30dfd98f123af2a2a96714cbeca8ed21494464736f6c63430008100033",
+  "devdoc": {
+    "events": {
+      "DripCreated(string,string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))": {
+        "params": {
+          "config": "Config for the created drip.",
+          "name": "Unindexed name parameter (unhashed).",
+          "nameref": "Indexed name parameter (hashed)."
+        }
+      },
+      "DripExecuted(string,string,address,uint256)": {
+        "params": {
+          "executor": "Address that executed the drip.",
+          "name": "Unindexed name parameter (unhashed).",
+          "nameref": "Indexed name parameter (hashed).",
+          "timestamp": "Time when the drip was executed."
+        }
+      },
+      "DripStatusUpdated(string,string,uint8)": {
+        "params": {
+          "name": "Unindexed name parameter (unhashed).",
+          "nameref": "Indexed name parameter (hashed).",
+          "status": "New drip status."
+        }
+      }
+    },
+    "kind": "dev",
+    "methods": {
+      "CALL(address,bytes,uint256)": {
+        "params": {
+          "_data": "Data to send with the call.",
+          "_target": "Address to call.",
+          "_value": "ETH value to send with the call."
+        },
+        "returns": {
+          "_0": "Boolean success value.",
+          "_1": "Bytes data returned by the call."
+        }
+      },
+      "DELEGATECALL(address,bytes)": {
+        "params": {
+          "_data": "Data to send with the call.",
+          "_target": "Address to call."
+        },
+        "returns": {
+          "_0": "Boolean success value.",
+          "_1": "Bytes data returned by the call."
+        }
+      },
+      "constructor": {
+        "params": {
+          "_owner": "Initial contract owner."
+        }
+      },
+      "create(string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))": {
+        "params": {
+          "_config": "Configuration for the drip.",
+          "_name": "Name of the drip."
+        }
+      },
+      "drip(string)": {
+        "params": {
+          "_name": "Name of the drip to trigger."
+        }
+      },
+      "executable(string)": {
+        "params": {
+          "_name": "Drip to check."
+        },
+        "returns": {
+          "_0": "True if the drip is executable, reverts otherwise."
+        }
+      },
+      "status(string,uint8)": {
+        "params": {
+          "_name": "Name of the drip to update.",
+          "_status": "New drip status."
+        }
+      },
+      "withdrawERC20(address,address)": {
+        "params": {
+          "_asset": "ERC20 token to withdraw.",
+          "_to": "Address to receive the ERC20 balance."
+        }
+      },
+      "withdrawERC20(address,address,uint256)": {
+        "params": {
+          "_amount": "Amount of ERC20 to withdraw.",
+          "_asset": "ERC20 token to withdraw.",
+          "_to": "Address to receive the ERC20 balance."
+        }
+      },
+      "withdrawERC721(address,address,uint256)": {
+        "params": {
+          "_asset": "ERC721 token to withdraw.",
+          "_id": "Token ID of the ERC721 token to withdraw.",
+          "_to": "Address to receive the ERC721 token."
+        }
+      },
+      "withdrawETH(address)": {
+        "params": {
+          "_to": "Address to receive the ETH balance."
+        }
+      },
+      "withdrawETH(address,uint256)": {
+        "params": {
+          "_amount": "Amount of ETH to withdraw.",
+          "_to": "Address to receive the ETH balance."
+        }
+      }
+    },
+    "title": "Drippie",
+    "version": 1
+  },
+  "userdoc": {
+    "events": {
+      "DripCreated(string,string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))": {
+        "notice": "Emitted when a new drip is created."
+      },
+      "DripExecuted(string,string,address,uint256)": {
+        "notice": "Emitted when a drip is executed."
+      },
+      "DripStatusUpdated(string,string,uint8)": {
+        "notice": "Emitted when a drip status is updated."
+      },
+      "ReceivedETH(address,uint256)": {
+        "notice": "Emitted when ETH is received by this address."
+      },
+      "WithdrewERC20(address,address,address,uint256)": {
+        "notice": "Emitted when ERC20 tokens are withdrawn from this address."
+      },
+      "WithdrewERC721(address,address,address,uint256)": {
+        "notice": "Emitted when ERC20 tokens are withdrawn from this address."
+      },
+      "WithdrewETH(address,address,uint256)": {
+        "notice": "Emitted when ETH is withdrawn from this address."
+      }
+    },
+    "kind": "user",
+    "methods": {
+      "CALL(address,bytes,uint256)": {
+        "notice": "Sends a CALL to a target address."
+      },
+      "DELEGATECALL(address,bytes)": {
+        "notice": "Sends a DELEGATECALL to a target address."
+      },
+      "create(string,(bool,uint256,address,bytes,(address,bytes,uint256)[]))": {
+        "notice": "Creates a new drip with the given name and configuration. Once created, drips cannot         be modified in any way (this is a security measure). If you want to update a drip,         simply pause (and potentially archive) the existing drip and create a new one."
+      },
+      "drip(string)": {
+        "notice": "Triggers a drip. This function is deliberately left as a public function because the         assumption being made here is that setting the drip to ACTIVE is an affirmative         signal that the drip should be executable according to the drip parameters, drip         check, and drip interval. Note that drip parameters are read entirely from the state         and are not supplied as user input, so there should not be any way for a         non-authorized user to influence the behavior of the drip. Note that the drip check         is executed only **once** at the beginning of the call to the drip function and will         not be executed again between the drip actions within this call."
+      },
+      "drips(string)": {
+        "notice": "Maps from drip names to drip states."
+      },
+      "executable(string)": {
+        "notice": "Checks if a given drip is executable."
+      },
+      "status(string,uint8)": {
+        "notice": "Sets the status for a given drip. The behavior of this function depends on the         status that the user is trying to set. A drip can always move between ACTIVE and         PAUSED, but it can never move back to NONE and once ARCHIVED, it can never move back         to ACTIVE or PAUSED."
+      },
+      "withdrawERC20(address,address)": {
+        "notice": "Withdraws full ERC20 balance to the recipient."
+      },
+      "withdrawERC20(address,address,uint256)": {
+        "notice": "Withdraws partial ERC20 balance to the recipient."
+      },
+      "withdrawERC721(address,address,uint256)": {
+        "notice": "Withdraws ERC721 token to the recipient."
+      },
+      "withdrawETH(address)": {
+        "notice": "Withdraws full ETH balance to the recipient."
+      },
+      "withdrawETH(address,uint256)": {
+        "notice": "Withdraws partial ETH balance to the recipient."
+      }
+    },
+    "notice": "Drippie is a system for managing automated contract interactions. A specific interaction         is called a \"drip\" and can be executed according to some condition (called a dripcheck)         and an execution interval. Drips cannot be executed faster than the execution interval.         Drips can trigger arbitrary contract calls where the calling contract is this contract         address. Drips can also send ETH value, which makes them ideal for keeping addresses         sufficiently funded with ETH. Drippie is designed to be connected with smart contract         automation services so that drips can be executed automatically. However, Drippie is         specifically designed to be separated from these services so that trust assumptions are         better compartmentalized.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 10,
+        "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+        "label": "owner",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_address"
+      },
+      {
+        "astId": 1431,
+        "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+        "label": "drips",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_mapping(t_string_memory_ptr,t_struct(DripState)1394_storage)"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_address_payable": {
+        "encoding": "inplace",
+        "label": "address payable",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_struct(DripAction)1369_storage)dyn_storage": {
+        "base": "t_struct(DripAction)1369_storage",
+        "encoding": "dynamic_array",
+        "label": "struct Drippie.DripAction[]",
+        "numberOfBytes": "32"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_bytes_storage": {
+        "encoding": "bytes",
+        "label": "bytes",
+        "numberOfBytes": "32"
+      },
+      "t_contract(IDripCheck)1794": {
+        "encoding": "inplace",
+        "label": "contract IDripCheck",
+        "numberOfBytes": "20"
+      },
+      "t_enum(DripStatus)1362": {
+        "encoding": "inplace",
+        "label": "enum Drippie.DripStatus",
+        "numberOfBytes": "1"
+      },
+      "t_mapping(t_string_memory_ptr,t_struct(DripState)1394_storage)": {
+        "encoding": "mapping",
+        "key": "t_string_memory_ptr",
+        "label": "mapping(string => struct Drippie.DripState)",
+        "numberOfBytes": "32",
+        "value": "t_struct(DripState)1394_storage"
+      },
+      "t_string_memory_ptr": {
+        "encoding": "bytes",
+        "label": "string",
+        "numberOfBytes": "32"
+      },
+      "t_struct(DripAction)1369_storage": {
+        "encoding": "inplace",
+        "label": "struct Drippie.DripAction",
+        "members": [
+          {
+            "astId": 1364,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "target",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_address_payable"
+          },
+          {
+            "astId": 1366,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "data",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_bytes_storage"
+          },
+          {
+            "astId": 1368,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "value",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_uint256"
+          }
+        ],
+        "numberOfBytes": "96"
+      },
+      "t_struct(DripConfig)1383_storage": {
+        "encoding": "inplace",
+        "label": "struct Drippie.DripConfig",
+        "members": [
+          {
+            "astId": 1371,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "reentrant",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_bool"
+          },
+          {
+            "astId": 1373,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "interval",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_uint256"
+          },
+          {
+            "astId": 1376,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "dripcheck",
+            "offset": 0,
+            "slot": "2",
+            "type": "t_contract(IDripCheck)1794"
+          },
+          {
+            "astId": 1378,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "checkparams",
+            "offset": 0,
+            "slot": "3",
+            "type": "t_bytes_storage"
+          },
+          {
+            "astId": 1382,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "actions",
+            "offset": 0,
+            "slot": "4",
+            "type": "t_array(t_struct(DripAction)1369_storage)dyn_storage"
+          }
+        ],
+        "numberOfBytes": "160"
+      },
+      "t_struct(DripState)1394_storage": {
+        "encoding": "inplace",
+        "label": "struct Drippie.DripState",
+        "members": [
+          {
+            "astId": 1386,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "status",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_enum(DripStatus)1362"
+          },
+          {
+            "astId": 1389,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "config",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_struct(DripConfig)1383_storage"
+          },
+          {
+            "astId": 1391,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "last",
+            "offset": 0,
+            "slot": "6",
+            "type": "t_uint256"
+          },
+          {
+            "astId": 1393,
+            "contract": "contracts/universal/drippie/Drippie.sol:Drippie",
+            "label": "count",
+            "offset": 0,
+            "slot": "7",
+            "type": "t_uint256"
+          }
+        ],
+        "numberOfBytes": "256"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

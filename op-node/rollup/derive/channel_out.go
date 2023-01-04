@@ -164,7 +164,7 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
 
 // blockToBatch transforms a block into a batch object that can easily be RLP encoded.
 func blockToBatch(block *types.Block) (*BatchData, error) {
-	var opaqueTxs []hexutil.Bytes
+	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
 		if tx.Type() == types.DepositTxType {
 			continue

@@ -21,10 +21,13 @@
   "finalizationPeriodSeconds": 2,
 
   "l2GenesisBlockGasLimit": "0x17D7840",
-  "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
 
   "l2CrossDomainMessengerOwner": "DUMMY",
+
+  "governanceTokenName": "Optimism",
+  "governanceTokenSymbol": "OP",
+  "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",
 
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,

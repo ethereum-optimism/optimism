@@ -63,7 +63,7 @@
     "hardhat": "^2.9.6",
     "mocha": "^8.4.0",
     "pino-pretty": "^4.7.1",
-    "prettier": "^2.3.1",
+    "prettier": "^2.8.0",
     "prom-client": "^13.1.0",
     "rimraf": "^3.0.2",
     "ts-node": "^10.9.1"

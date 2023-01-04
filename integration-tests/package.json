@@ -30,6 +30,7 @@
   "devDependencies": {
     "@babel/eslint-parser": "^7.5.4",
     "@eth-optimism/contracts": "^0.5.39",
+    "@eth-optimism/contracts-bedrock": "0.11.0",
     "@eth-optimism/contracts-periphery": "^1.0.4",
     "@eth-optimism/core-utils": "0.12.0",
     "@eth-optimism/sdk": "1.8.0",
@@ -43,8 +44,8 @@
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^8.2.2",
     "@types/rimraf": "^3.0.0",
-    "@typescript-eslint/eslint-plugin": "^4.26.0",
-    "@typescript-eslint/parser": "^4.26.0",
+    "@typescript-eslint/eslint-plugin": "^5.45.1",
+    "@typescript-eslint/parser": "^5.45.1",
     "@uniswap/v3-core": "1.0.0",
     "@uniswap/v3-periphery": "^1.0.1",
     "@uniswap/v3-sdk": "^3.6.2",

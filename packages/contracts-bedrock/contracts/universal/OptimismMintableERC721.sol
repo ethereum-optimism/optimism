@@ -7,7 +7,7 @@ import {
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IOptimismMintableERC721 } from "./SupportedInterfaces.sol";
+import { IOptimismMintableERC721 } from "./IOptimismMintableERC721.sol";
 
 /**
  * @title OptimismMintableERC721

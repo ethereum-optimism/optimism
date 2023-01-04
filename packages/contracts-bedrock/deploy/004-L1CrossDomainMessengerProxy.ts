@@ -13,6 +13,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1CrossDomainMessengerProxy']
+deployFn.tags = ['L1CrossDomainMessengerProxy', 'setup']
 
 export default deployFn

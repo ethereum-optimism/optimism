@@ -27,6 +27,9 @@ library RLPReader {
 
     /**
      * @notice Struct representing an RLP item.
+     *
+     * @custom:field length Length of the RLP item.
+     * @custom:field ptr    Pointer to the RLP item in memory.
      */
     struct RLPItem {
         uint256 length;

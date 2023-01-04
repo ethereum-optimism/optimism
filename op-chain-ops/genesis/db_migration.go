@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -69,6 +68,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	underlyingDB := state.NewDatabaseWithConfig(ldb, &trie.Config{
 		Preimages: true,
+		Cache:     1024,
 	})
 
 	db, err := state.New(header.Root, underlyingDB, nil)
@@ -77,19 +77,22 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	// Convert all of the messages into legacy withdrawals
-	withdrawals, err := migrationData.ToWithdrawals()
+	unfilteredWithdrawals, err := migrationData.ToWithdrawals()
 	if err != nil {
 		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
 
+	var filteredWithdrawals []*crossdomain.LegacyWithdrawal
 	if !noCheck {
 		log.Info("Checking withdrawals...")
-		if err := CheckWithdrawals(db, withdrawals); err != nil {
+		filteredWithdrawals, err = PreCheckWithdrawals(db, unfilteredWithdrawals)
+		if err != nil {
 			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 		}
 		log.Info("Withdrawals accounted for!")
 	} else {
 		log.Info("Skipping checking withdrawals")
+		filteredWithdrawals = unfilteredWithdrawals
 	}
 
 	// Now start the migration
@@ -112,8 +115,12 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
 	}
 
+	if err := SetLegacyETH(db, storage, immutable); err != nil {
+		return nil, fmt.Errorf("cannot set legacy ETH: %w", err)
+	}
+
 	log.Info("Starting to migrate withdrawals", "no-check", noCheck)
-	err = crossdomain.MigrateWithdrawals(withdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
+	err = crossdomain.MigrateWithdrawals(filteredWithdrawals, db, &config.L1CrossDomainMessengerProxy, noCheck)
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate withdrawals: %w", err)
 	}
@@ -131,7 +138,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	if err != nil {
 		return nil, err
 	}
-	log.Info("committing state DB", "root", newRoot)
+	log.Info("committed state DB", "root", newRoot)
 
 	// Set the amount of gas used so that EIP 1559 starts off stable
 	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
@@ -140,7 +147,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	bedrockHeader := &types.Header{
 		ParentHash:  header.Hash(),
 		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    config.L2GenesisBlockCoinbase,
+		Coinbase:    predeploys.SequencerFeeVaultAddr,
 		Root:        newRoot,
 		TxHash:      types.EmptyRootHash,
 		ReceiptHash: types.EmptyRootHash,
@@ -225,52 +232,66 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		"height", bedrockHeader.Number,
 		"root", bedrockHeader.Root.String(),
 		"hash", bedrockHeader.Hash().String(),
+		"timestamp", bedrockHeader.Time,
 	)
 
 	return res, nil
 }
 
-// CheckWithdrawals will ensure that the entire list of withdrawals is being
+// PreCheckWithdrawals will ensure that the entire list of withdrawals is being
 // operated on during the database migration.
-func CheckWithdrawals(db vm.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) error {
+func PreCheckWithdrawals(db *state.StateDB, withdrawals []*crossdomain.LegacyWithdrawal) ([]*crossdomain.LegacyWithdrawal, error) {
 	// Create a mapping of all of their storage slots
-	knownSlots := make(map[common.Hash]bool)
+	slotsWds := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
 	for _, wd := range withdrawals {
 		slot, err := wd.StorageSlot()
 		if err != nil {
-			return fmt.Errorf("cannot check withdrawals: %w", err)
+			return nil, fmt.Errorf("cannot check withdrawals: %w", err)
 		}
-		knownSlots[slot] = true
+
+		slotsWds[slot] = wd
 	}
+
 	// Build a map of all the slots in the LegacyMessagePasser
+	var count int
 	slots := make(map[common.Hash]bool)
 	err := db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
 		if value != abiTrue {
 			return false
 		}
 		slots[key] = true
+		count++
 		return true
 	})
+
 	if err != nil {
-		return fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)
+		return nil, fmt.Errorf("cannot iterate over LegacyMessagePasser: %w", err)
 	}
+
+	log.Info("iterated legacy messages", "count", count)
 
 	// Check that all of the slots from storage correspond to a known message
 	for slot := range slots {
-		_, ok := knownSlots[slot]
+		_, ok := slotsWds[slot]
 		if !ok {
-			return fmt.Errorf("Unknown storage slot in state: %s", slot)
+			return nil, fmt.Errorf("Unknown storage slot in state: %s", slot)
 		}
 	}
+
+	filtered := make([]*crossdomain.LegacyWithdrawal, 0)
+
 	// Check that all of the input messages are legit
-	for slot := range knownSlots {
+	for slot := range slotsWds {
 		//nolint:staticcheck
 		_, ok := slots[slot]
 		//nolint:staticcheck
 		if !ok {
-			return fmt.Errorf("Unknown input message: %s", slot)
+			log.Info("filtering out unknown input message", "slot", slot.String())
+			continue
 		}
+
+		filtered = append(filtered, slotsWds[slot])
 	}
 
-	return nil
+	return filtered, nil
 }

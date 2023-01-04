@@ -15,7 +15,10 @@ optimizer_runs = 200
 remappings = [
 	'@rari-capital/solmate/=node_modules/@rari-capital/solmate',
 	'forge-std/=node_modules/forge-std/src',
-	'ds-test/=node_modules/ds-test/src'
+	'ds-test/=node_modules/ds-test/src',
+  '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
+  '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
+  '@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock',
 ]
 # The metadata hash can be removed from the bytecode by setting "none"
 bytecode_hash = "none"

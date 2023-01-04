@@ -7,19 +7,19 @@ interface RequiredDeployConfig {
   /**
    * Number of confirmations to wait when deploying contracts.
    */
-  numDeployConfirmations: number
+  numDeployConfirmations?: number
 
   /**
    * Address that will own the entire system on L1 when the deploy is complete.
    */
-  finalSystemOwner: string
+  finalSystemOwner?: string
 
   /**
    * Address that will own the entire system on L1 during the deployment process. This address will
    * not own the system after the deployment is complete, ownership will be transferred to the
    * final system owner.
    */
-  controller: string
+  controller?: string
 
   /**
    * The L2 genesis script uses this to fill the storage of the L1Block info predeploy. The rollup
@@ -83,13 +83,16 @@ interface RequiredDeployConfig {
 
   /**
    * Starting block number for the output oracle.
+   * Must be greater than or equal to the first Bedrock block. The first L2 output will correspond
+   * to this value plus the submission interval.
    */
-  l2OutputOracleStartingBlockNumber: number
+  l2OutputOracleStartingBlockNumber?: number
 
   /**
    * Starting timestamp for the output oracle.
+   * MUST be the same as the timestamp of the L2OO start block.
    */
-  l2OutputOracleStartingTimestamp: number
+  l2OutputOracleStartingTimestamp?: number
 
   /**
    * Address of the L2 output oracle proposer.
@@ -100,6 +103,21 @@ interface RequiredDeployConfig {
    * Address of the L2 output oracle challenger.
    */
   l2OutputOracleChallenger: string
+
+  /**
+   * ERC20 symbol used for the L2 GovernanceToken.
+   */
+  governanceTokenSymbol: string
+
+  /**
+   * ERC20 name used for the L2 GovernanceToken.
+   */
+  governanceTokenName: string
+
+  /**
+   * Owner of the L2 GovernanceToken. Has mint/burn capability.
+   */
+  governanceTokenOwner: string
 
   /**
    * Output finalization period in seconds.
@@ -133,14 +151,12 @@ interface OptionalL2DeployConfig {
   l2GenesisBlockGasLimit: string
   l2GenesisBlockDifficulty: string
   l2GenesisBlockMixHash: string
-  l2GenesisBlockCoinbase: string
   l2GenesisBlockNumber: string
   l2GenesisBlockGasUsed: string
   l2GenesisBlockParentHash: string
   l2GenesisBlockBaseFeePerGas: string
   gasPriceOracleOverhead: number
   gasPriceOracleScalar: number
-  gasPriceOracleDecimals: number
 }
 
 /**
@@ -283,10 +299,6 @@ export const deployConfigSpec: {
     type: 'string', // bytes32
     default: ethers.constants.HashZero,
   },
-  l2GenesisBlockCoinbase: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
-  },
   l2GenesisBlockNumber: {
     type: 'string', // uint64
     default: '0x0',
@@ -311,8 +323,15 @@ export const deployConfigSpec: {
     type: 'number',
     default: 1_000_000,
   },
-  gasPriceOracleDecimals: {
-    type: 'number',
-    default: 6,
+  governanceTokenSymbol: {
+    type: 'string',
+    default: 'OP',
+  },
+  governanceTokenName: {
+    type: 'string',
+    default: 'Optimism',
+  },
+  governanceTokenOwner: {
+    type: 'string',
   },
 }

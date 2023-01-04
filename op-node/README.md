@@ -77,13 +77,9 @@ Example usage:
 
 ```bash
 $ op-node genesis devnet-l2 \
-   --artifacts $CONTRACTS_BEDROCK/artifacts,$CONTRACTS_GOVERNANCE/artifacts \
+   --artifacts $CONTRACTS_BEDROCK/artifacts \
    --network $NETWORK \
    --deployments $CONTRACTS_BEDROCK/deployments \
    --deploy-config $CONTRACTS_BEDROCK/deploy-config \
    --rpc-url http://localhost:8545 \
 ```
-
-Note that both `contracts-bedrock` and `contracts-governance` are required
-as the `GovernanceToken` is also a predeploy and it lives in
-`contracts-governance`.

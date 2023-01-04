@@ -18,9 +18,9 @@ var httpRegex = regexp.MustCompile("^http(s)?://")
 
 type RPC interface {
 	Close()
-	CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error
+	CallContext(ctx context.Context, result any, method string, args ...any) error
 	BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
-	EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error)
+	EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error)
 }
 
 // NewRPC returns the correct client.RPC instance for a given RPC url.
@@ -74,7 +74,7 @@ func (b *BaseRPCClient) Close() {
 	b.c.Close()
 }
 
-func (b *BaseRPCClient) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (b *BaseRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	return b.c.CallContext(ctx, result, method, args...)
 }
 
@@ -82,7 +82,7 @@ func (b *BaseRPCClient) BatchCallContext(ctx context.Context, batch []rpc.BatchE
 	return b.c.BatchCallContext(ctx, batch)
 }
 
-func (b *BaseRPCClient) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (b *BaseRPCClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	return b.c.EthSubscribe(ctx, channel, args...)
 }
 
@@ -105,7 +105,7 @@ func (ic *InstrumentedRPCClient) Close() {
 	ic.c.Close()
 }
 
-func (ic *InstrumentedRPCClient) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (ic *InstrumentedRPCClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	return instrument1(ic.m, method, func() error {
 		return ic.c.CallContext(ctx, result, method, args...)
 	})
@@ -117,7 +117,7 @@ func (ic *InstrumentedRPCClient) BatchCallContext(ctx context.Context, b []rpc.B
 	}, b)
 }
 
-func (ic *InstrumentedRPCClient) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (ic *InstrumentedRPCClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	return ic.c.EthSubscribe(ctx, channel, args...)
 }
 

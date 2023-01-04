@@ -1,10 +1,12 @@
 package actions
 
 import (
+	"math/rand"
 	"path"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -21,6 +23,10 @@ func setupReorgTest(t Testing) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
+	return setupReorgTestActors(t, dp, sd, log)
+}
+
+func setupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.SetupData, log log.Logger) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
@@ -279,7 +285,7 @@ func TestRestartOpGeth(gt *testing.T) {
 	jwtPath := e2eutils.WriteDefaultJWT(t)
 	// L1
 	miner := NewL1Miner(t, log, sd.L1Cfg)
-	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false))
+	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 	// Sequencer
 	seqEng := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath, dbOption)
@@ -356,4 +362,116 @@ func TestRestartOpGeth(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	require.Equal(t, statusBeforeRestart.UnsafeL2, sequencer.L2Unsafe(), "expecting to keep same unsafe head upon restart")
 	require.Equal(t, statusBeforeRestart.SafeL2, sequencer.L2Safe(), "expecting the safe block to catch up to what it was before shutdown after syncing from L1, and not be stuck at the finalized block")
+}
+
+// TestConflictingL2Blocks tests that a second copy of the sequencer stack cannot introduce an alternative
+// L2 block (compared to something already secured by the first sequencer):
+// the alt block is not synced by the verifier, in unsafe and safe sync modes.
+func TestConflictingL2Blocks(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+
+	sd, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
+
+	// Extra setup: a full alternative sequencer, sequencer engine, and batcher
+	jwtPath := e2eutils.WriteDefaultJWT(t)
+	altSeqEng := NewL2Engine(t, log, sd.L2Cfg, sd.RollupCfg.Genesis.L1, jwtPath)
+	altSeqEngCl, err := sources.NewEngineClient(altSeqEng.RPCClient(), log, nil, sources.EngineClientDefaultConfig(sd.RollupCfg))
+	require.NoError(t, err)
+	l1F, err := sources.NewL1Client(miner.RPCClient(), log, nil, sources.L1ClientDefaultConfig(sd.RollupCfg, false, sources.RPCKindBasic))
+	require.NoError(t, err)
+	altSequencer := NewL2Sequencer(t, log, l1F, altSeqEngCl, sd.RollupCfg, 0)
+	altBatcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, altSequencer.RollupClient(), miner.EthClient(), altSeqEng.EthClient())
+
+	// And set up user Alice, using the alternative sequencer endpoint
+	l2Cl := altSeqEng.EthClient()
+	addresses := e2eutils.CollectAddresses(sd, dp)
+	l2UserEnv := &BasicUserEnv[*L2Bindings]{
+		EthCl:          l2Cl,
+		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		AddressCorpora: addresses,
+		Bindings:       NewL2Bindings(t, l2Cl, altSeqEng.GethClient()),
+	}
+	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
+	alice.L2.SetUserEnv(l2UserEnv)
+
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+	altSequencer.ActL2PipelineFull(t)
+
+	// build empty L1 block
+	miner.ActEmptyBlock(t)
+
+	// Create L2 blocks, and reference the L1 head as origin
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+
+	// submit all new L2 blocks
+	batcher.ActSubmitAll(t)
+
+	// new L1 block with L2 batch
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+
+	// verifier picks up the L2 chain that was submitted
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	verifierHead := verifier.L2Unsafe()
+	require.Equal(t, verifier.L2Safe(), sequencer.L2Unsafe(), "verifier syncs from sequencer via L1")
+	require.Equal(t, verifier.L2Safe(), verifierHead, "verifier head is the same as that what was derived from L1")
+	require.NotEqual(t, sequencer.L2Safe(), sequencer.L2Unsafe(), "sequencer has not processed L1 yet")
+
+	require.Less(t, altSequencer.L2Unsafe().L1Origin.Number, sequencer.L2Unsafe().L1Origin.Number, "alt-sequencer is behind")
+
+	// produce a conflicting L2 block with the alt sequencer:
+	// a new unsafe block that should not replace the existing safe block at the same height
+	altSequencer.ActL2StartBlock(t)
+	// include tx to force the L2 block to really be different than the previous empty block
+	alice.L2.ActResetTxOpts(t)
+	alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
+	alice.L2.ActMakeTx(t)
+	altSeqEng.ActL2IncludeTx(alice.Address())(t)
+	altSequencer.ActL2EndBlock(t)
+
+	conflictBlock := seqEng.l2Chain.GetBlockByNumber(altSequencer.L2Unsafe().Number)
+	require.NotEqual(t, conflictBlock.Hash(), altSequencer.L2Unsafe().Hash, "alt sequencer has built a conflicting block")
+
+	// give the unsafe block to the verifier, and see if it reorgs because of any unsafe inputs
+	head, err := altSeqEngCl.PayloadByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	verifier.ActL2UnsafeGossipReceive(head)
+
+	// make sure verifier has processed everything
+	verifier.ActL2PipelineFull(t)
+
+	// check if verifier is still following safe chain
+	require.Equal(t, verifier.L2Unsafe(), verifierHead, "verifier must not accept the unsafe payload that orphans the safe payload")
+
+	// now submit it to L1, and see if the verifier respects the inclusion order and preserves the original block
+	altBatcher.ActSubmitAll(t)
+	// include it in L1
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+	l1Number := miner.l1Chain.CurrentHeader().Number.Uint64()
+
+	// show latest L1 block with new batch data to verifier, and make it sync.
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, verifier.SyncStatus().CurrentL1.Number, l1Number, "verifier has synced all new L1 blocks")
+	require.Equal(t, verifier.L2Unsafe(), verifierHead, "verifier sticks to first included L2 block")
+
+	// Now make the alt sequencer aware of the L1 chain and derive the L2 chain like the verifier;
+	// it should reorg out its conflicting blocks to get back in harmony with the verifier.
+	altSequencer.ActL1HeadSignal(t)
+	altSequencer.ActL2PipelineFull(t)
+	require.Equal(t, verifier.L2Unsafe(), altSequencer.L2Unsafe(), "alt-sequencer gets back in harmony with verifier by reorging out its conflicting data")
+	require.Equal(t, sequencer.L2Unsafe(), altSequencer.L2Unsafe(), "and gets back in harmony with original sequencer")
 }

@@ -10,10 +10,8 @@ import (
 const envPrefix = "OP_HEARTBEAT"
 
 const (
-	HTTPAddrFlagName        = "http.addr"
-	HTTPPortFlagName        = "http.port"
-	HTTPMaxBodySizeFlagName = "http.max-body-size"
-	AllowedChainIDsFlagName = "allowed-chain-ids"
+	HTTPAddrFlagName = "http.addr"
+	HTTPPortFlagName = "http.port"
 )
 
 var (

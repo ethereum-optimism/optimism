@@ -3,60 +3,36 @@ import { Server } from 'net'
 import Config from 'bcfg'
 import * as dotenv from 'dotenv'
 import { Command, Option } from 'commander'
-import { ValidatorSpec, Spec, cleanEnv } from 'envalid'
+import { cleanEnv } from 'envalid'
 import snakeCase from 'lodash/snakeCase'
-import express, { Router } from 'express'
+import express from 'express'
 import prometheus, { Registry } from 'prom-client'
 import promBundle from 'express-prom-bundle'
 import bodyParser from 'body-parser'
 import morgan from 'morgan'
 
+import { ExpressRouter } from './router'
 import { Logger } from '../common/logger'
-import { Metric, Gauge, Counter } from './metrics'
-import { validators } from './validators'
-
-export type Options = {
-  [key: string]: any
-}
-
-export type StandardOptions = {
-  loopIntervalMs?: number
-  port?: number
-  hostname?: string
-}
-
-export type OptionsSpec<TOptions extends Options> = {
-  [P in keyof Required<TOptions>]: {
-    validator: (spec?: Spec<TOptions[P]>) => ValidatorSpec<TOptions[P]>
-    desc: string
-    default?: TOptions[P]
-    secret?: boolean
-  }
-}
-
-export type MetricsV2 = Record<any, Metric>
-
-export type StandardMetrics = {
-  metadata: Gauge
-  unhandledErrors: Counter
-}
-
-export type MetricsSpec<TMetrics extends MetricsV2> = {
-  [P in keyof Required<TMetrics>]: {
-    type: new (configuration: any) => TMetrics[P]
-    desc: string
-    labels?: string[]
-  }
-}
-
-export type ExpressRouter = Router
+import {
+  Metrics,
+  MetricsSpec,
+  StandardMetrics,
+  makeStdMetricsSpec,
+} from './metrics'
+import {
+  Options,
+  OptionsSpec,
+  StandardOptions,
+  stdOptionsSpec,
+  getPublicOptions,
+} from './options'
 
 /**
  * BaseServiceV2 is an advanced but simple base class for long-running TypeScript services.
  */
 export abstract class BaseServiceV2<
   TOptions extends Options,
-  TMetrics extends MetricsV2,
+  TMetrics extends Metrics,
   TServiceState
 > {
   /**
@@ -132,17 +108,13 @@ export abstract class BaseServiceV2<
 
   /**
    * @param params Options for the construction of the service.
-   * @param params.name Name for the service. This name will determine the prefix used for logging,
-   * metrics, and loading environment variables.
-   * @param params.optionsSpec Settings for input options. You must specify at least a
-   * description for each option.
-   * @param params.metricsSpec Settings that define which metrics are collected. All metrics that
-   * you plan to collect must be defined within this object.
+   * @param params.name Name for the service.
+   * @param params.optionsSpec Settings for input options.
+   * @param params.metricsSpec Settings that define which metrics are collected.
    * @param params.options Options to pass to the service.
    * @param params.loops Whether or not the service should loop. Defaults to true.
-   * @param params.loopIntervalMs Loop interval in milliseconds. Defaults to zero.
-   * @param params.port Port for the app server. Defaults to 7300.
-   * @param params.hostname Hostname for the app server. Defaults to 0.0.0.0.
+   * @param params.useEnv Whether or not to load options from the environment. Defaults to true.
+   * @param params.useArgv Whether or not to load options from the command line. Defaults to true.
    */
   constructor(
     private readonly params: {
@@ -150,63 +122,23 @@ export abstract class BaseServiceV2<
       version: string
       optionsSpec: OptionsSpec<TOptions>
       metricsSpec: MetricsSpec<TMetrics>
-      options?: Partial<TOptions>
+      options?: Partial<TOptions & StandardOptions>
       loop?: boolean
-      loopIntervalMs?: number
-      port?: number
-      hostname?: string
     }
   ) {
     this.loop = params.loop !== undefined ? params.loop : true
     this.state = {} as TServiceState
 
-    const stdOptionsSpec: OptionsSpec<StandardOptions> = {
-      loopIntervalMs: {
-        validator: validators.num,
-        desc: 'Loop interval in milliseconds',
-        default: params.loopIntervalMs || 0,
-      },
-      port: {
-        validator: validators.num,
-        desc: 'Port for the app server',
-        default: params.port || 7300,
-      },
-      hostname: {
-        validator: validators.str,
-        desc: 'Hostname for the app server',
-        default: params.hostname || '0.0.0.0',
-      },
-    }
-
-    // Add default options to options spec.
+    // Add standard options spec to user options spec.
     ;(params.optionsSpec as any) = {
-      ...(params.optionsSpec || {}),
+      ...params.optionsSpec,
       ...stdOptionsSpec,
     }
 
-    // List of options that can safely be logged.
-    const publicOptionNames = Object.entries(params.optionsSpec)
-      .filter(([, spec]) => {
-        return spec.secret !== true
-      })
-      .map(([key]) => {
-        return key
-      })
-
     // Add default metrics to metrics spec.
     ;(params.metricsSpec as any) = {
-      ...(params.metricsSpec || {}),
-
-      // Users cannot set these options.
-      metadata: {
-        type: Gauge,
-        desc: 'Service metadata',
-        labels: ['name', 'version'].concat(publicOptionNames),
-      },
-      unhandledErrors: {
-        type: Counter,
-        desc: 'Unhandled errors',
-      },
+      ...params.metricsSpec,
+      ...makeStdMetricsSpec(params.optionsSpec),
     }
 
     /**
@@ -226,6 +158,11 @@ export abstract class BaseServiceV2<
     // commander for anything besides the ability to run `ts-node ./service.ts --help`.
     const program = new Command()
     for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
+      // Skip options that are not meant to be used by the user.
+      if (['useEnv', 'useArgv'].includes(optionName)) {
+        continue
+      }
+
       program.addOption(
         new Option(`--${optionName.toLowerCase()}`, `${optionSpec.desc}`).env(
           `${opSnakeCase(
@@ -265,8 +202,8 @@ export abstract class BaseServiceV2<
     dotenv.config()
     const config = new Config(params.name)
     config.load({
-      env: true,
-      argv: true,
+      env: params.options?.useEnv ?? true,
+      argv: params.options?.useEnv ?? true,
     })
 
     // Clean configuration values using the options spec.
@@ -274,16 +211,12 @@ export abstract class BaseServiceV2<
     // names into lower case for the validation step. We'll turn the names back into their original
     // names when we're done.
     const cleaned = cleanEnv<TOptions>(
-      { ...config.env, ...config.args },
+      { ...config.env, ...config.args, ...(params.options || {}) },
       Object.entries(params.optionsSpec || {}).reduce((acc, [key, val]) => {
         acc[key.toLowerCase()] = val.validator({
           desc: val.desc,
           default: val.default,
         })
-        return acc
-      }, {}) as any,
-      Object.entries(params.options || {}).reduce((acc, [key, val]) => {
-        acc[key.toLowerCase()] = val
         return acc
       }, {}) as any
     )
@@ -321,9 +254,12 @@ export abstract class BaseServiceV2<
     this.hostname = this.options.hostname
 
     // Set up everything else.
-    this.loopIntervalMs = this.options.loopIntervalMs
-    this.logger = new Logger({ name: params.name })
     this.healthy = true
+    this.loopIntervalMs = this.options.loopIntervalMs
+    this.logger = new Logger({
+      name: params.name,
+      level: this.options.logLevel,
+    })
 
     // Gracefully handle stop signals.
     const maxSignalCount = 3
@@ -354,7 +290,7 @@ export abstract class BaseServiceV2<
       {
         name: params.name,
         version: params.version,
-        ...publicOptionNames.reduce((acc, key) => {
+        ...getPublicOptions(params.optionsSpec).reduce((acc, key) => {
           if (key in stdOptionsSpec) {
             acc[key] = this.options[key].toString()
           } else {

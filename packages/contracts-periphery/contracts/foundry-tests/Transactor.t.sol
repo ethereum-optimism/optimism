@@ -50,7 +50,7 @@ contract TransactorTest is Transactor_Initializer {
         // Run CALL
         vm.prank(alice);
         vm.expectCall(address(callRecorded), data);
-        transactor.CALL(address(callRecorded), data, 200_000 wei, 420);
+        transactor.CALL(address(callRecorded), data, 200_000 wei);
     }
 
     // It should revert if called by non-owner
@@ -59,7 +59,7 @@ contract TransactorTest is Transactor_Initializer {
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
         // Run CALL
         vm.prank(bob);
-        transactor.CALL(address(callRecorded), data, 200_000 wei, 420);
+        transactor.CALL(address(callRecorded), data, 200_000 wei);
         vm.expectRevert("UNAUTHORIZED");
     }
 
@@ -69,7 +69,7 @@ contract TransactorTest is Transactor_Initializer {
         // Run CALL
         vm.prank(alice);
         vm.expectCall(address(reverter), data);
-        transactor.DELEGATECALL(address(reverter), data, 200_000 wei);
+        transactor.DELEGATECALL(address(reverter), data);
     }
 
     // It should revert if called by non-owner
@@ -78,7 +78,7 @@ contract TransactorTest is Transactor_Initializer {
         bytes memory data = abi.encodeWithSelector(reverter.doRevert.selector);
         // Run CALL
         vm.prank(bob);
-        transactor.DELEGATECALL(address(reverter), data, 200_000 wei);
+        transactor.DELEGATECALL(address(reverter), data);
         vm.expectRevert("UNAUTHORIZED");
     }
 }

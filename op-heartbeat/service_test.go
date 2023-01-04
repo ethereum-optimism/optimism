@@ -5,24 +5,29 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/stretchr/testify/require"
 	"io"
+	"net"
 	"net/http"
 	"testing"
+	"time"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
+
+	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
+	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 )
 
 func TestService(t *testing.T) {
+	httpPort := freePort(t)
+	metricsPort := freePort(t)
 	cfg := Config{
-		HTTPAddr:        "127.0.0.1",
-		HTTPPort:        8080,
-		HTTPMaxBodySize: 1024 * 1024,
+		HTTPAddr: "127.0.0.1",
+		HTTPPort: httpPort,
 		Metrics: opmetrics.CLIConfig{
 			Enabled:    true,
 			ListenAddr: "127.0.0.1",
-			ListenPort: 7300,
+			ListenPort: metricsPort,
 		},
 	}
 
@@ -32,68 +37,111 @@ func TestService(t *testing.T) {
 		exitC <- Start(ctx, log.New(), cfg, "foobar")
 	}()
 
+	// Make sure that the service properly starts
+	select {
+	case <-time.NewTimer(100 * time.Millisecond).C:
+		// pass
+	case err := <-exitC:
+		t.Fatalf("unexpected error on startup: %v", err)
+	}
+
 	tests := []struct {
-		name        string
-		hb          heartbeat.Payload
-		metricName  string
-		metricValue int
+		name   string
+		hbs    []heartbeat.Payload
+		metric string
+		ip     string
 	}{
 		{
 			"no whitelisted version",
-			heartbeat.Payload{
+			[]heartbeat.Payload{{
 				Version: "not_whitelisted",
 				Meta:    "whatever",
 				Moniker: "whatever",
 				PeerID:  "1X2398ug",
 				ChainID: 10,
-			},
-			`op_heartbeat_heartbeats{chain_id="10",version="unknown"}`,
-			1,
+			}},
+			`op_heartbeat_heartbeats{chain_id="10",version="unknown"} 1`,
+			"1.2.3.100",
 		},
 		{
 			"no whitelisted chain",
-			heartbeat.Payload{
+			[]heartbeat.Payload{{
 				Version: "v0.1.0-beta.1",
 				Meta:    "whatever",
 				Moniker: "whatever",
 				PeerID:  "1X2398ug",
 				ChainID: 999,
-			},
-			`op_heartbeat_heartbeats{chain_id="unknown",version="v0.1.0-beta.1"}`,
-			1,
+			}},
+			`op_heartbeat_heartbeats{chain_id="unknown",version="v0.1.0-beta.1"} 1`,
+			"1.2.3.101",
 		},
 		{
 			"both whitelisted",
-			heartbeat.Payload{
+			[]heartbeat.Payload{{
 				Version: "v0.1.0-beta.1",
 				Meta:    "whatever",
 				Moniker: "whatever",
 				PeerID:  "1X2398ug",
 				ChainID: 10,
+			}},
+			`op_heartbeat_heartbeats{chain_id="10",version="v0.1.0-beta.1"} 1`,
+			"1.2.3.102",
+		},
+		{
+			"spamming",
+			[]heartbeat.Payload{
+				{
+					Version: "v0.1.0-goerli-rehearsal.1",
+					Meta:    "whatever",
+					Moniker: "alice",
+					PeerID:  "1X2398ug",
+					ChainID: 10,
+				},
+				{
+					Version: "v0.1.0-goerli-rehearsal.1",
+					Meta:    "whatever",
+					Moniker: "bob",
+					PeerID:  "1X2398ug",
+					ChainID: 10,
+				},
 			},
-			`op_heartbeat_heartbeats{chain_id="10",version="v0.1.0-beta.1"}`,
-			1,
+			`op_heartbeat_heartbeat_same_ip_bucket{chain_id="10",version="v0.1.0-goerli-rehearsal.1",le="32"} 1`,
+			"1.2.3.103",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			data, err := json.Marshal(tt.hb)
-			require.NoError(t, err)
-			req, err := http.NewRequestWithContext(ctx, "POST", "http://127.0.0.1:8080", bytes.NewReader(data))
-			require.NoError(t, err)
-			res, err := http.DefaultClient.Do(req)
-			require.NoError(t, err)
-			require.Equal(t, res.StatusCode, 204)
+			for _, hb := range tt.hbs {
+				data, err := json.Marshal(hb)
+				require.NoError(t, err)
+				req, err := http.NewRequestWithContext(ctx, "POST", fmt.Sprintf("http://127.0.0.1:%d", httpPort), bytes.NewReader(data))
+				require.NoError(t, err)
+				req.Header.Set("X-Forwarded-For", tt.ip)
+				res, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+				res.Body.Close()
+				require.Equal(t, res.StatusCode, 204)
+			}
 
-			metricsRes, err := http.Get("http://127.0.0.1:7300")
+			metricsRes, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d", metricsPort))
+			require.NoError(t, err)
 			defer metricsRes.Body.Close()
 			require.NoError(t, err)
 			metricsBody, err := io.ReadAll(metricsRes.Body)
 			require.NoError(t, err)
-			require.Contains(t, string(metricsBody), fmt.Sprintf("%s %d", tt.metricName, tt.metricValue))
+			require.Contains(t, string(metricsBody), tt.metric)
 		})
 	}
 
 	cancel()
 	require.NoError(t, <-exitC)
+}
+
+func freePort(t *testing.T) int {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	require.NoError(t, err)
+	l, err := net.ListenTCP("tcp", addr)
+	require.NoError(t, err)
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port
 }

@@ -2,7 +2,7 @@
 pragma solidity ^0.8.9;
 
 import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { OptimismMintableERC721 } from "@eth-optimism/contracts-periphery/contracts/universal/op-erc721/OptimismMintableERC721.sol";
+import { OptimismMintableERC721 } from "@eth-optimism/contracts-bedrock/contracts/universal/OptimismMintableERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 contract FakeOptimismMintableERC721 is OptimismMintableERC721 {

@@ -4,6 +4,7 @@ comment:
   require_changes: true    # only post the comment if coverage changes
 ignore:
   - "l2geth"
+  - "op-e2e"
   - "**/*.t.sol"
   - "op-bindings/bindings/*.go"
   - "packages/contracts-bedrock/contracts/vendor/WETH9.sol"
@@ -30,7 +31,6 @@ flag_management:
     - name: contracts-tests
     - name: core-utils-tests
     - name: actor-tests-tests
-    - name: contracts-governance-tests
     - name: contracts-periphery-tests
     - name: dtl-tests
     - name: drippie-mon-tests

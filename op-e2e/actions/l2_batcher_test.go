@@ -72,7 +72,8 @@ func TestBatcher(gt *testing.T) {
 	log.Info("bl", "txs", len(bl.Transactions()))
 
 	// Now make enough L1 blocks that the verifier will have to derive a L2 block
-	for i := uint64(1); i < sd.RollupCfg.SeqWindowSize; i++ {
+	// It will also eagerly derive the block from the batcher
+	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize; i++ {
 		miner.ActL1StartBlock(12)(t)
 		miner.ActL1EndBlock(t)
 	}
@@ -193,4 +194,49 @@ func TestL2Finalization(gt *testing.T) {
 	sequencer.ActL2PipelineFull(t)
 	require.Equal(t, uint64(3), sequencer.SyncStatus().FinalizedL1.Number)
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
+}
+
+func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	p := &e2eutils.TestParams{
+		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
+		SequencerWindowSize: 24,
+		ChannelTimeout:      20,
+	}
+	dp := e2eutils.MakeDeployParams(t, p)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlError)
+	miner, engine, sequencer := setupSequencerTest(t, sd, log)
+
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
+
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	// make a long L1 chain, up to just one block left for L2 blocks to be included.
+	for i := uint64(0); i < p.SequencerWindowSize-1; i++ {
+		miner.ActEmptyBlock(t)
+	}
+
+	// Now build a L2 chain that references all of these L1 blocks
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+
+	// Now submit all the L2 blocks in the very last L1 block within sequencer window range
+	batcher.ActSubmitAll(t)
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+
+	// Now sync the verifier, and see if the L2 chain of the sequencer is safe
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "all L2 blocks should have been included just in time")
+	sequencer.ActL2PipelineFull(t)
+	require.Equal(t, sequencer.L2Unsafe(), sequencer.L2Safe(), "same for sequencer")
 }

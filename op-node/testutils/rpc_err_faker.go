@@ -22,7 +22,7 @@ func (r RPCErrFaker) Close() {
 	r.RPC.Close()
 }
 
-func (r RPCErrFaker) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (r RPCErrFaker) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	if r.ErrFn != nil {
 		if err := r.ErrFn(); err != nil {
 			return err
@@ -40,7 +40,7 @@ func (r RPCErrFaker) BatchCallContext(ctx context.Context, b []rpc.BatchElem) er
 	return r.RPC.BatchCallContext(ctx, b)
 }
 
-func (r RPCErrFaker) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (r RPCErrFaker) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	if r.ErrFn != nil {
 		if err := r.ErrFn(); err != nil {
 			return nil, err

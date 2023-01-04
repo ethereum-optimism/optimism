@@ -6,14 +6,14 @@ import (
 
 	"github.com/urfave/cli"
 
-	proposer "github.com/ethereum-optimism/optimism/op-proposer"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
+	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 var (
-	Version   = ""
+	Version   = "v0.10.6"
 	GitCommit = ""
 	GitDate   = ""
 )
@@ -26,8 +26,7 @@ func main() {
 	app.Version = fmt.Sprintf("%s-%s-%s", Version, GitCommit, GitDate)
 	app.Name = "op-proposer"
 	app.Usage = "L2Output Submitter"
-	app.Description = "Service for generating and submitting L2 Output " +
-		"checkpoints to the L2OutputOracle contract"
+	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"
 
 	app.Action = proposer.Main(Version)
 	err := app.Run(os.Args)

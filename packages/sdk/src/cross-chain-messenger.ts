@@ -18,6 +18,7 @@ import {
   sleep,
   remove0x,
   toHexString,
+  fromHexString,
   toRpcHexString,
   hashCrossDomainMessage,
   encodeCrossDomainMessageV0,
@@ -351,10 +352,12 @@ export class CrossChainMessenger {
       }
     }
 
+    const minGasLimit = fromHexString(resolved.message).length * 16 + 200_000
+
     return {
       ...resolved,
       value,
-      minGasLimit: BigNumber.from(0),
+      minGasLimit: BigNumber.from(minGasLimit),
       messageNonce: encodeVersionedNonce(
         BigNumber.from(1),
         resolved.messageNonce

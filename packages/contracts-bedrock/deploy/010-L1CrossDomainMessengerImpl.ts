@@ -32,6 +32,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L1CrossDomainMessengerImpl']
+deployFn.tags = ['L1CrossDomainMessengerImpl', 'setup']
 
 export default deployFn

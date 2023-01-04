@@ -1,0 +1,237 @@
+{
+  "address": "0x1BEb19F1685ddF2F774884902119Fa2FA5d8f509",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "creator",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "about",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "key",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "val",
+          "type": "bytes"
+        }
+      ],
+      "name": "AttestationCreated",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "address",
+              "name": "about",
+              "type": "address"
+            },
+            {
+              "internalType": "bytes32",
+              "name": "key",
+              "type": "bytes32"
+            },
+            {
+              "internalType": "bytes",
+              "name": "val",
+              "type": "bytes"
+            }
+          ],
+          "internalType": "struct AttestationStation.AttestationData[]",
+          "name": "_attestations",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "attest",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "name": "attestations",
+      "outputs": [
+        {
+          "internalType": "bytes",
+          "name": "",
+          "type": "bytes"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x84a56c4b4090faef9131650fbbcf38e128e9d98ce77a06ca2e7485c8a137b9a6",
+  "receipt": {
+    "to": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "from": "0x9C6373dE60c2D3297b18A8f964618ac46E011B58",
+    "contractAddress": null,
+    "transactionIndex": 0,
+    "gasUsed": "645110",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xe588af2eaf9e982580a846beb0f8030a896400431219ce0deca38524defc6324",
+    "transactionHash": "0x84a56c4b4090faef9131650fbbcf38e128e9d98ce77a06ca2e7485c8a137b9a6",
+    "logs": [],
+    "blockNumber": 49669933,
+    "cumulativeGasUsed": "645110",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "45837d34ff24b9cb2ae34232b60ea874",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"creator\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"about\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"val\",\"type\":\"bytes\"}],\"name\":\"AttestationCreated\",\"type\":\"event\"},{\"inputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"about\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"key\",\"type\":\"bytes32\"},{\"internalType\":\"bytes\",\"name\":\"val\",\"type\":\"bytes\"}],\"internalType\":\"struct AttestationStation.AttestationData[]\",\"name\":\"_attestations\",\"type\":\"tuple[]\"}],\"name\":\"attest\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"name\":\"attestations\",\"outputs\":[{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"author\":\"Optimism CollectiveGitcoin\",\"events\":{\"AttestationCreated(address,address,bytes32,bytes)\":{\"params\":{\"about\":\"Address attestation is about.\",\"creator\":\"Address that made the attestation.\",\"key\":\"Key of the attestation.\",\"val\":\"Value of the attestation.\"}}},\"kind\":\"dev\",\"methods\":{\"attest((address,bytes32,bytes)[])\":{\"params\":{\"_attestations\":\"An array of attestation data.\"}},\"constructor\":{\"custom:semver\":\"1.0.0\"},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"title\":\"AttestationStation\",\"version\":1},\"userdoc\":{\"events\":{\"AttestationCreated(address,address,bytes32,bytes)\":{\"notice\":\"Emitted when Attestation is created.\"}},\"kind\":\"user\",\"methods\":{\"attest((address,bytes32,bytes)[])\":{\"notice\":\"Allows anyone to create attestations.\"},\"attestations(address,address,bytes32)\":{\"notice\":\"Maps addresses to attestations. Creator => About => Key => Value.\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"Where attestations live.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/universal/op-nft/AttestationStation.sol\":\"AttestationStation\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"ipfs\",\"useLiteralContent\":true},\"optimizer\":{\"enabled\":true,\"runs\":10000},\"remappings\":[]},\"sources\":{\"@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity ^0.8.15;\\n\\nimport { Strings } from \\\"@openzeppelin/contracts/utils/Strings.sol\\\";\\n\\n/**\\n * @title Semver\\n * @notice Semver is a simple contract for managing contract versions.\\n */\\ncontract Semver {\\n    /**\\n     * @notice Contract version number (major).\\n     */\\n    uint256 private immutable MAJOR_VERSION;\\n\\n    /**\\n     * @notice Contract version number (minor).\\n     */\\n    uint256 private immutable MINOR_VERSION;\\n\\n    /**\\n     * @notice Contract version number (patch).\\n     */\\n    uint256 private immutable PATCH_VERSION;\\n\\n    /**\\n     * @param _major Version number (major).\\n     * @param _minor Version number (minor).\\n     * @param _patch Version number (patch).\\n     */\\n    constructor(\\n        uint256 _major,\\n        uint256 _minor,\\n        uint256 _patch\\n    ) {\\n        MAJOR_VERSION = _major;\\n        MINOR_VERSION = _minor;\\n        PATCH_VERSION = _patch;\\n    }\\n\\n    /**\\n     * @notice Returns the full semver contract version.\\n     *\\n     * @return Semver contract version as a string.\\n     */\\n    function version() public view returns (string memory) {\\n        return\\n            string(\\n                abi.encodePacked(\\n                    Strings.toString(MAJOR_VERSION),\\n                    \\\".\\\",\\n                    Strings.toString(MINOR_VERSION),\\n                    \\\".\\\",\\n                    Strings.toString(PATCH_VERSION)\\n                )\\n            );\\n    }\\n}\\n\",\"keccak256\":\"0x979b13465de4996a1105850abbf48abe7f71d5e18a8d4af318597ee14c165fdf\",\"license\":\"MIT\"},\"@openzeppelin/contracts/utils/Strings.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\n// OpenZeppelin Contracts (last updated v4.7.0) (utils/Strings.sol)\\n\\npragma solidity ^0.8.0;\\n\\n/**\\n * @dev String operations.\\n */\\nlibrary Strings {\\n    bytes16 private constant _HEX_SYMBOLS = \\\"0123456789abcdef\\\";\\n    uint8 private constant _ADDRESS_LENGTH = 20;\\n\\n    /**\\n     * @dev Converts a `uint256` to its ASCII `string` decimal representation.\\n     */\\n    function toString(uint256 value) internal pure returns (string memory) {\\n        // Inspired by OraclizeAPI's implementation - MIT licence\\n        // https://github.com/oraclize/ethereum-api/blob/b42146b063c7d6ee1358846c198246239e9360e8/oraclizeAPI_0.4.25.sol\\n\\n        if (value == 0) {\\n            return \\\"0\\\";\\n        }\\n        uint256 temp = value;\\n        uint256 digits;\\n        while (temp != 0) {\\n            digits++;\\n            temp /= 10;\\n        }\\n        bytes memory buffer = new bytes(digits);\\n        while (value != 0) {\\n            digits -= 1;\\n            buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));\\n            value /= 10;\\n        }\\n        return string(buffer);\\n    }\\n\\n    /**\\n     * @dev Converts a `uint256` to its ASCII `string` hexadecimal representation.\\n     */\\n    function toHexString(uint256 value) internal pure returns (string memory) {\\n        if (value == 0) {\\n            return \\\"0x00\\\";\\n        }\\n        uint256 temp = value;\\n        uint256 length = 0;\\n        while (temp != 0) {\\n            length++;\\n            temp >>= 8;\\n        }\\n        return toHexString(value, length);\\n    }\\n\\n    /**\\n     * @dev Converts a `uint256` to its ASCII `string` hexadecimal representation with fixed length.\\n     */\\n    function toHexString(uint256 value, uint256 length) internal pure returns (string memory) {\\n        bytes memory buffer = new bytes(2 * length + 2);\\n        buffer[0] = \\\"0\\\";\\n        buffer[1] = \\\"x\\\";\\n        for (uint256 i = 2 * length + 1; i > 1; --i) {\\n            buffer[i] = _HEX_SYMBOLS[value & 0xf];\\n            value >>= 4;\\n        }\\n        require(value == 0, \\\"Strings: hex length insufficient\\\");\\n        return string(buffer);\\n    }\\n\\n    /**\\n     * @dev Converts an `address` with fixed length of 20 bytes to its not checksummed ASCII `string` hexadecimal representation.\\n     */\\n    function toHexString(address addr) internal pure returns (string memory) {\\n        return toHexString(uint256(uint160(addr)), _ADDRESS_LENGTH);\\n    }\\n}\\n\",\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\"},\"contracts/universal/op-nft/AttestationStation.sol\":{\"content\":\"// SPDX-License-Identifier: MIT\\npragma solidity 0.8.15;\\n\\nimport { Semver } from \\\"@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol\\\";\\n\\n/**\\n * @title AttestationStation\\n * @author Optimism Collective\\n * @author Gitcoin\\n * @notice Where attestations live.\\n */\\ncontract AttestationStation is Semver {\\n    /**\\n     * @notice Struct representing data that is being attested.\\n     *\\n     * @custom:field about Address for which the attestation is about.\\n     * @custom:field key   A bytes32 key for the attestation.\\n     * @custom:field val   The attestation as arbitrary bytes.\\n     */\\n    struct AttestationData {\\n        address about;\\n        bytes32 key;\\n        bytes val;\\n    }\\n\\n    /**\\n     * @notice Maps addresses to attestations. Creator => About => Key => Value.\\n     */\\n    mapping(address => mapping(address => mapping(bytes32 => bytes))) public attestations;\\n\\n    /**\\n     * @notice Emitted when Attestation is created.\\n     *\\n     * @param creator Address that made the attestation.\\n     * @param about   Address attestation is about.\\n     * @param key     Key of the attestation.\\n     * @param val     Value of the attestation.\\n     */\\n    event AttestationCreated(\\n        address indexed creator,\\n        address indexed about,\\n        bytes32 indexed key,\\n        bytes val\\n    );\\n\\n    /**\\n     * @custom:semver 1.0.0\\n     */\\n    constructor() Semver(1, 0, 0) {}\\n\\n    /**\\n     * @notice Allows anyone to create attestations.\\n     *\\n     * @param _attestations An array of attestation data.\\n     */\\n    function attest(AttestationData[] memory _attestations) public {\\n        uint256 length = _attestations.length;\\n        for (uint256 i = 0; i < length; ) {\\n            AttestationData memory attestation = _attestations[i];\\n            attestations[msg.sender][attestation.about][attestation.key] = attestation.val;\\n\\n            emit AttestationCreated(\\n                msg.sender,\\n                attestation.about,\\n                attestation.key,\\n                attestation.val\\n            );\\n\\n            unchecked {\\n                ++i;\\n            }\\n        }\\n    }\\n}\\n\",\"keccak256\":\"0x670fde721c291828c3f6343a40bb315dbbcc5e4411125158892ffe54459d69b7\",\"license\":\"MIT\"}},\"version\":1}",
+  "bytecode": "0x60e060405234801561001057600080fd5b5060016080819052600060a081905260c081905280610aba61004a8239600061018f015260006101660152600061013d0152610aba6000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c806329b42cb51461004657806354fd4d501461006f5780635eb5ea1014610077575b600080fd5b610059610054366004610437565b61008c565b60405161006691906104ed565b60405180910390f35b610059610136565b61008a6100853660046105ae565b6101d9565b005b60006020818152938152604080822085529281528281209093528252902080546100b590610737565b80601f01602080910402602001604051908101604052809291908181526020018280546100e190610737565b801561012e5780601f106101035761010080835404028352916020019161012e565b820191906000526020600020905b81548152906001019060200180831161011157829003601f168201915b505050505081565b60606101617f00000000000000000000000000000000000000000000000000000000000000006102d1565b61018a7f00000000000000000000000000000000000000000000000000000000000000006102d1565b6101b37f00000000000000000000000000000000000000000000000000000000000000006102d1565b6040516020016101c59392919061078a565b604051602081830303815290604052905090565b805160005b818110156102cc5760008382815181106101fa576101fa610800565b602090810291909101810151604080820151336000908152808552828120845173ffffffffffffffffffffffffffffffffffffffff1682528552828120848601518252909452922090925090610250908261087d565b508060200151816000015173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d8584604001516040516102bb91906104ed565b60405180910390a4506001016101de565b505050565b60608160000361031457505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561033e5780610328816109c6565b91506103379050600a83610a2d565b9150610318565b60008167ffffffffffffffff81111561035957610359610507565b6040519080825280601f01601f191660200182016040528015610383576020820181803683370190505b5090505b841561040657610398600183610a41565b91506103a5600a86610a58565b6103b0906030610a6c565b60f81b8183815181106103c5576103c5610800565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506103ff600a86610a2d565b9450610387565b949350505050565b803573ffffffffffffffffffffffffffffffffffffffff8116811461043257600080fd5b919050565b60008060006060848603121561044c57600080fd5b6104558461040e565b92506104636020850161040e565b9150604084013590509250925092565b60005b8381101561048e578181015183820152602001610476565b8381111561049d576000848401525b50505050565b600081518084526104bb816020860160208601610473565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061050060208301846104a3565b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6040516060810167ffffffffffffffff8111828210171561055957610559610507565b60405290565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016810167ffffffffffffffff811182821017156105a6576105a6610507565b604052919050565b600060208083850312156105c157600080fd5b823567ffffffffffffffff808211156105d957600080fd5b818501915085601f8301126105ed57600080fd5b8135818111156105ff576105ff610507565b8060051b61060e85820161055f565b918252838101850191858101908984111561062857600080fd5b86860192505b8383101561072a578235858111156106465760008081fd5b860160607fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0828d03810182131561067d5760008081fd5b610685610536565b6106908b850161040e565b81526040848101358c8301529284013592898411156106af5760008081fd5b83850194508e603f8601126106c657600093508384fd5b8b8501359350898411156106dc576106dc610507565b6106ec8c84601f8701160161055f565b92508383528e818587010111156107035760008081fd5b838186018d85013760009383018c019390935291820152835250918601919086019061062e565b9998505050505050505050565b600181811c9082168061074b57607f821691505b602082108103610784577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b6000845161079c818460208901610473565b80830190507f2e0000000000000000000000000000000000000000000000000000000000000080825285516107d8816001850160208a01610473565b600192019182015283516107f3816002840160208801610473565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b601f8211156102cc57600081815260208120601f850160051c810160208610156108565750805b601f850160051c820191505b8181101561087557828155600101610862565b505050505050565b815167ffffffffffffffff81111561089757610897610507565b6108ab816108a58454610737565b8461082f565b602080601f8311600181146108fe57600084156108c85750858301515b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600386901b1c1916600185901b178555610875565b6000858152602081207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08616915b8281101561094b5788860151825594840194600190910190840161092c565b508582101561098757878501517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600388901b60f8161c191681555b5050505050600190811b01905550565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036109f7576109f7610997565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610a3c57610a3c6109fe565b500490565b600082821015610a5357610a53610997565b500390565b600082610a6757610a676109fe565b500690565b60008219821115610a7f57610a7f610997565b50019056fea26469706673582212204abcd56633387050a41a0ae027bbf9077ae2fb5080fa84124e2aa381adb3f98964736f6c634300080f0033",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100415760003560e01c806329b42cb51461004657806354fd4d501461006f5780635eb5ea1014610077575b600080fd5b610059610054366004610437565b61008c565b60405161006691906104ed565b60405180910390f35b610059610136565b61008a6100853660046105ae565b6101d9565b005b60006020818152938152604080822085529281528281209093528252902080546100b590610737565b80601f01602080910402602001604051908101604052809291908181526020018280546100e190610737565b801561012e5780601f106101035761010080835404028352916020019161012e565b820191906000526020600020905b81548152906001019060200180831161011157829003601f168201915b505050505081565b60606101617f00000000000000000000000000000000000000000000000000000000000000006102d1565b61018a7f00000000000000000000000000000000000000000000000000000000000000006102d1565b6101b37f00000000000000000000000000000000000000000000000000000000000000006102d1565b6040516020016101c59392919061078a565b604051602081830303815290604052905090565b805160005b818110156102cc5760008382815181106101fa576101fa610800565b602090810291909101810151604080820151336000908152808552828120845173ffffffffffffffffffffffffffffffffffffffff1682528552828120848601518252909452922090925090610250908261087d565b508060200151816000015173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff167f28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d8584604001516040516102bb91906104ed565b60405180910390a4506001016101de565b505050565b60608160000361031457505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b811561033e5780610328816109c6565b91506103379050600a83610a2d565b9150610318565b60008167ffffffffffffffff81111561035957610359610507565b6040519080825280601f01601f191660200182016040528015610383576020820181803683370190505b5090505b841561040657610398600183610a41565b91506103a5600a86610a58565b6103b0906030610a6c565b60f81b8183815181106103c5576103c5610800565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506103ff600a86610a2d565b9450610387565b949350505050565b803573ffffffffffffffffffffffffffffffffffffffff8116811461043257600080fd5b919050565b60008060006060848603121561044c57600080fd5b6104558461040e565b92506104636020850161040e565b9150604084013590509250925092565b60005b8381101561048e578181015183820152602001610476565b8381111561049d576000848401525b50505050565b600081518084526104bb816020860160208601610473565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b60208152600061050060208301846104a3565b9392505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6040516060810167ffffffffffffffff8111828210171561055957610559610507565b60405290565b604051601f82017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe016810167ffffffffffffffff811182821017156105a6576105a6610507565b604052919050565b600060208083850312156105c157600080fd5b823567ffffffffffffffff808211156105d957600080fd5b818501915085601f8301126105ed57600080fd5b8135818111156105ff576105ff610507565b8060051b61060e85820161055f565b918252838101850191858101908984111561062857600080fd5b86860192505b8383101561072a578235858111156106465760008081fd5b860160607fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0828d03810182131561067d5760008081fd5b610685610536565b6106908b850161040e565b81526040848101358c8301529284013592898411156106af5760008081fd5b83850194508e603f8601126106c657600093508384fd5b8b8501359350898411156106dc576106dc610507565b6106ec8c84601f8701160161055f565b92508383528e818587010111156107035760008081fd5b838186018d85013760009383018c019390935291820152835250918601919086019061062e565b9998505050505050505050565b600181811c9082168061074b57607f821691505b602082108103610784577f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b50919050565b6000845161079c818460208901610473565b80830190507f2e0000000000000000000000000000000000000000000000000000000000000080825285516107d8816001850160208a01610473565b600192019182015283516107f3816002840160208801610473565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b601f8211156102cc57600081815260208120601f850160051c810160208610156108565750805b601f850160051c820191505b8181101561087557828155600101610862565b505050505050565b815167ffffffffffffffff81111561089757610897610507565b6108ab816108a58454610737565b8461082f565b602080601f8311600181146108fe57600084156108c85750858301515b7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600386901b1c1916600185901b178555610875565b6000858152602081207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe08616915b8281101561094b5788860151825594840194600190910190840161092c565b508582101561098757878501517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff600388901b60f8161c191681555b5050505050600190811b01905550565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036109f7576109f7610997565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610a3c57610a3c6109fe565b500490565b600082821015610a5357610a53610997565b500390565b600082610a6757610a676109fe565b500690565b60008219821115610a7f57610a7f610997565b50019056fea26469706673582212204abcd56633387050a41a0ae027bbf9077ae2fb5080fa84124e2aa381adb3f98964736f6c634300080f0033",
+  "devdoc": {
+    "author": "Optimism CollectiveGitcoin",
+    "events": {
+      "AttestationCreated(address,address,bytes32,bytes)": {
+        "params": {
+          "about": "Address attestation is about.",
+          "creator": "Address that made the attestation.",
+          "key": "Key of the attestation.",
+          "val": "Value of the attestation."
+        }
+      }
+    },
+    "kind": "dev",
+    "methods": {
+      "attest((address,bytes32,bytes)[])": {
+        "params": {
+          "_attestations": "An array of attestation data."
+        }
+      },
+      "constructor": {
+        "custom:semver": "1.0.0"
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "title": "AttestationStation",
+    "version": 1
+  },
+  "userdoc": {
+    "events": {
+      "AttestationCreated(address,address,bytes32,bytes)": {
+        "notice": "Emitted when Attestation is created."
+      }
+    },
+    "kind": "user",
+    "methods": {
+      "attest((address,bytes32,bytes)[])": {
+        "notice": "Allows anyone to create attestations."
+      },
+      "attestations(address,address,bytes32)": {
+        "notice": "Maps addresses to attestations. Creator => About => Key => Value."
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "notice": "Where attestations live.",
+    "version": 1
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 8191,
+        "contract": "contracts/universal/op-nft/AttestationStation.sol:AttestationStation",
+        "label": "attestations",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_mapping(t_bytes32,t_bytes_storage)))"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_bytes_storage": {
+        "encoding": "bytes",
+        "label": "bytes",
+        "numberOfBytes": "32"
+      },
+      "t_mapping(t_address,t_mapping(t_address,t_mapping(t_bytes32,t_bytes_storage)))": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => mapping(address => mapping(bytes32 => bytes)))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_address,t_mapping(t_bytes32,t_bytes_storage))"
+      },
+      "t_mapping(t_address,t_mapping(t_bytes32,t_bytes_storage))": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => mapping(bytes32 => bytes))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_bytes32,t_bytes_storage)"
+      },
+      "t_mapping(t_bytes32,t_bytes_storage)": {
+        "encoding": "mapping",
+        "key": "t_bytes32",
+        "label": "mapping(bytes32 => bytes)",
+        "numberOfBytes": "32",
+        "value": "t_bytes_storage"
+      }
+    }
+  }
+}

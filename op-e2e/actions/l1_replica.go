@@ -42,7 +42,7 @@ type L1Replica struct {
 	l1Cfg      *core.Genesis
 	l1Signer   types.Signer
 
-	failL1RPC error // mock error
+	failL1RPC func() error // mock error
 }
 
 // NewL1Replica constructs a L1Replica starting at the given genesis.
@@ -145,10 +145,18 @@ func (s *L1Replica) CanonL1Chain() func(num uint64) *types.Block {
 
 // ActL1RPCFail makes the next L1 RPC request to this node fail
 func (s *L1Replica) ActL1RPCFail(t Testing) {
-	if s.failL1RPC != nil { // already set to fail?
-		t.InvalidAction("already have a mock l1 rpc fail set")
+	failed := false
+	s.failL1RPC = func() error {
+		if failed {
+			return nil
+		}
+		failed = true
+		return errors.New("mock L1 RPC error")
 	}
-	s.failL1RPC = errors.New("mock L1 RPC error")
+}
+
+func (s *L1Replica) MockL1RPCErrors(fn func() error) {
+	s.failL1RPC = fn
 }
 
 func (s *L1Replica) EthClient() *ethclient.Client {
@@ -161,15 +169,17 @@ func (s *L1Replica) RPCClient() client.RPC {
 	return testutils.RPCErrFaker{
 		RPC: client.NewBaseRPCClient(cl),
 		ErrFn: func() error {
-			err := s.failL1RPC
-			s.failL1RPC = nil // reset back, only error once.
-			return err
+			if s.failL1RPC != nil {
+				return s.failL1RPC()
+			} else {
+				return nil
+			}
 		},
 	}
 }
 
 func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
-	l1F, err := sources.NewL1Client(s.RPCClient(), s.log, nil, sources.L1ClientDefaultConfig(cfg, false))
+	l1F, err := sources.NewL1Client(s.RPCClient(), s.log, nil, sources.L1ClientDefaultConfig(cfg, false, sources.RPCKindBasic))
 	require.NoError(t, err)
 	return l1F
 }

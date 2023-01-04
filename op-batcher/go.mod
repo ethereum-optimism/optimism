@@ -4,9 +4,9 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-node v0.10.3
-	github.com/ethereum-optimism/optimism/op-proposer v0.10.3
-	github.com/ethereum-optimism/optimism/op-service v0.10.3
+	github.com/ethereum-optimism/optimism/op-node v0.10.6
+	github.com/ethereum-optimism/optimism/op-proposer v0.10.6
+	github.com/ethereum-optimism/optimism/op-service v0.10.6
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/urfave/cli v1.22.9
 )
@@ -23,7 +23,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.3 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.6 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
@@ -93,4 +93,4 @@ require (
 	lukechampine.com/blake3 v1.1.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221205191237-0678a130d790
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468

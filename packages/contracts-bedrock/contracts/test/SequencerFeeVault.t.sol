@@ -46,11 +46,16 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
     }
 
     function test_withdraw_succeeds() external {
-        vm.deal(address(vault), vault.MIN_WITHDRAWAL_AMOUNT() + 1);
+        uint256 amount = vault.MIN_WITHDRAWAL_AMOUNT() + 1;
+        vm.deal(address(vault), amount);
+
+        // No ether has been withdrawn yet
+        assertEq(vault.totalProcessed(), 0);
 
         vm.expectEmit(true, true, true, true);
         emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
 
+        // The entire vault's balance is withdrawn
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,
             address(vault).balance,
@@ -63,5 +68,8 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         );
 
         vault.withdraw();
+
+        // The withdrawal was successful
+        assertEq(vault.totalProcessed(), amount);
     }
 }

@@ -4,48 +4,80 @@ package driver
 import (
 	"context"
 	"errors"
+	"math/big"
 	"math/rand"
 	"testing"
+	"time"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/require"
 )
 
 type TestDummyOutputImpl struct {
 	willError bool
-	SequencerIface
+
+	cfg *rollup.Config
+
+	l1Origin eth.L1BlockRef
+	l2Head   eth.L2BlockRef
 }
 
-func (d TestDummyOutputImpl) CreateNewBlock(ctx context.Context, l2Head eth.L2BlockRef, l2SafeHead eth.BlockID, l2Finalized eth.BlockID, l1Origin eth.L1BlockRef) (eth.L2BlockRef, *eth.ExecutionPayload, error) {
+func (d *TestDummyOutputImpl) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID) {
+	return 0, d.l1Origin != (eth.L1BlockRef{}), d.l2Head.ParentID()
+}
+
+func (d *TestDummyOutputImpl) StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error {
+	d.l1Origin = l1Origin
+	return nil
+}
+
+func (d *TestDummyOutputImpl) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error) {
 	// If we're meant to error, return one
 	if d.willError {
-		return l2Head, nil, errors.New("the TestDummyOutputImpl.createNewBlock operation failed")
+		return nil, errors.New("the TestDummyOutputImpl.createNewBlock operation failed")
 	}
-
+	info := &testutils.MockBlockInfo{
+		InfoHash:        d.l1Origin.Hash,
+		InfoParentHash:  d.l1Origin.ParentHash,
+		InfoCoinbase:    common.Address{},
+		InfoRoot:        common.Hash{},
+		InfoNum:         d.l1Origin.Number,
+		InfoTime:        d.l1Origin.Time,
+		InfoMixDigest:   [32]byte{},
+		InfoBaseFee:     big.NewInt(123),
+		InfoReceiptRoot: common.Hash{},
+	}
+	infoTx, err := derive.L1InfoDepositBytes(d.l2Head.SequenceNumber, info, eth.SystemConfig{})
+	if err != nil {
+		panic(err)
+	}
 	payload := eth.ExecutionPayload{
-		ParentHash:    common.Hash{},
+		ParentHash:    d.l2Head.Hash,
 		FeeRecipient:  common.Address{},
 		StateRoot:     eth.Bytes32{},
 		ReceiptsRoot:  eth.Bytes32{},
 		LogsBloom:     eth.Bytes256{},
 		PrevRandao:    eth.Bytes32{},
-		BlockNumber:   0,
+		BlockNumber:   eth.Uint64Quantity(d.l2Head.Number + 1),
 		GasLimit:      0,
 		GasUsed:       0,
-		Timestamp:     0,
+		Timestamp:     eth.Uint64Quantity(d.l2Head.Time + d.cfg.BlockTime),
 		ExtraData:     nil,
 		BaseFeePerGas: eth.Uint256Quantity{},
-		BlockHash:     common.Hash{},
-		Transactions:  []eth.Data{},
+		BlockHash:     common.Hash{123},
+		Transactions:  []eth.Data{infoTx},
 	}
-	return l2Head, &payload, nil
+	return &payload, nil
 }
+
+var _ SequencerIface = (*TestDummyOutputImpl)(nil)
 
 type TestDummyDerivationPipeline struct {
 	DerivationPipeline
@@ -104,27 +136,30 @@ func TestRejectCreateBlockBadTimestamp(t *testing.T) {
 	l2HeadRef.Time = l2l1OriginBlock.Time - (cfg.BlockTime * 2)
 
 	// Create our outputter
-	outputProvider := TestDummyOutputImpl{willError: false}
+	outputProvider := &TestDummyOutputImpl{cfg: &cfg, l2Head: l2HeadRef, willError: false}
 
 	// Create our state
 	s := Driver{
 		l1State: &L1State{
 			l1Head:  l1HeadRef,
 			log:     log.New(),
-			metrics: &metrics.Metrics{TransactionsSequencedTotal: prometheus.NewCounter(prometheus.CounterOpts{})},
+			metrics: metrics.NoopMetrics,
 		},
 		log:              log.New(),
 		l1OriginSelector: TestDummyL1OriginSelector{retval: l1HeadRef},
 		config:           &cfg,
 		sequencer:        outputProvider,
 		derivation:       TestDummyDerivationPipeline{},
-		metrics:          &metrics.Metrics{TransactionsSequencedTotal: prometheus.NewCounter(prometheus.CounterOpts{})},
+		metrics:          metrics.NoopMetrics,
 	}
 
 	// Create a new block
 	// - L2Head's L1Origin, its timestamp should be greater than L1 genesis.
 	// - L2Head timestamp + BlockTime should be greater than or equal to the L1 Time.
-	err := s.createNewL2Block(ctx)
+	err := s.startNewL2Block(ctx)
+	if err == nil {
+		err = s.completeNewBlock(ctx)
+	}
 
 	// Verify the L1Origin's block number is greater than L1 genesis in our config.
 	if l2l1OriginBlock.Number < s.config.Genesis.L1.Number {
@@ -187,27 +222,30 @@ func FuzzRejectCreateBlockBadTimestamp(f *testing.F) {
 		l2HeadRef.Time = currentL2HeadTime
 
 		// Create our outputter
-		outputProvider := TestDummyOutputImpl{willError: forceOutputFail}
+		outputProvider := &TestDummyOutputImpl{cfg: &cfg, l2Head: l2HeadRef, willError: forceOutputFail}
 
 		// Create our state
 		s := Driver{
 			l1State: &L1State{
 				l1Head:  l1HeadRef,
 				log:     log.New(),
-				metrics: &metrics.Metrics{TransactionsSequencedTotal: prometheus.NewCounter(prometheus.CounterOpts{})},
+				metrics: metrics.NoopMetrics,
 			},
 			log:              log.New(),
 			l1OriginSelector: TestDummyL1OriginSelector{retval: l1HeadRef},
 			config:           &cfg,
 			sequencer:        outputProvider,
 			derivation:       TestDummyDerivationPipeline{},
-			metrics:          &metrics.Metrics{TransactionsSequencedTotal: prometheus.NewCounter(prometheus.CounterOpts{})},
+			metrics:          metrics.NoopMetrics,
 		}
 
 		// Create a new block
 		// - L2Head's L1Origin, its timestamp should be greater than L1 genesis.
 		// - L2Head timestamp + BlockTime should be greater than or equal to the L1 Time.
-		err := s.createNewL2Block(ctx)
+		err := s.startNewL2Block(ctx)
+		if err == nil {
+			err = s.completeNewBlock(ctx)
+		}
 
 		// Verify the L1Origin's timestamp is greater than L1 genesis in our config.
 		if l2l1OriginBlock.Number < s.config.Genesis.L1.Number {

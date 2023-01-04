@@ -22,7 +22,7 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -32,8 +32,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -84,7 +85,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2GenesisBlockGasLimit:      8_000_000,
 		L2GenesisBlockDifficulty:    uint642big(1),
 		L2GenesisBlockMixHash:       common.Hash{},
-		L2GenesisBlockCoinbase:      common.Address{0: 0x12},
 		L2GenesisBlockNumber:        0,
 		L2GenesisBlockGasUsed:       0,
 		L2GenesisBlockParentHash:    common.Hash{},
@@ -144,6 +144,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 			"batcher":   testlog.Logger(t, log.LvlInfo).New("role", "batcher"),
 			"proposer":  testlog.Logger(t, log.LvlCrit).New("role", "proposer"),
 		},
+		GethOptions:           map[string][]GethOption{},
 		P2PTopology:           nil, // no P2P connectivity by default
 		NonFinalizedProposals: false,
 	}
@@ -175,6 +176,7 @@ type SystemConfig struct {
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
 	Loggers        map[string]log.Logger
+	GethOptions    map[string][]GethOption
 	ProposerLogger log.Logger
 	BatcherLogger  log.Logger
 
@@ -265,6 +267,21 @@ func (cfg SystemConfig) Start() (*System, error) {
 	if err != nil {
 		return nil, err
 	}
+	for addr, amount := range cfg.Premine {
+		if existing, ok := l2Genesis.Alloc[addr]; ok {
+			l2Genesis.Alloc[addr] = core.GenesisAccount{
+				Code:    existing.Code,
+				Storage: existing.Storage,
+				Balance: amount,
+				Nonce:   existing.Nonce,
+			}
+		} else {
+			l2Genesis.Alloc[addr] = core.GenesisAccount{
+				Balance: amount,
+				Nonce:   0,
+			}
+		}
+	}
 
 	makeRollupConfig := func() rollup.Config {
 		return rollup.Config{
@@ -286,7 +303,6 @@ func (cfg SystemConfig) Start() (*System, error) {
 			ChannelTimeout:         cfg.DeployConfig.ChannelTimeout,
 			L1ChainID:              cfg.L1ChainIDBig(),
 			L2ChainID:              cfg.L2ChainIDBig(),
-			P2PSequencerAddress:    cfg.DeployConfig.P2PSequencerAddress,
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
@@ -296,7 +312,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis)
+	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +320,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	sys.Backends["l1"] = l1Backend
 
 	for name := range cfg.Nodes {
-		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
 			return nil, err
 		}
@@ -352,6 +368,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
 			L1NodeAddr: l1EndpointConfig,
 			L1TrustRPC: false,
+			L1RPCKind:  sources.RPCKindBasic,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
 			L2EngineAddr:      l2EndpointConfig,

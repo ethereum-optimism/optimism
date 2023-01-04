@@ -10,19 +10,25 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/urfave/cli"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/heartbeat"
 	"github.com/ethereum-optimism/optimism/op-service/httputil"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli"
 )
 
-const HTTPMaxBodySize = 1024 * 1024
+const (
+	HTTPMaxHeaderSize = 10 * 1024
+	HTTPMaxBodySize   = 1024 * 1024
+)
 
 func Main(version string) func(ctx *cli.Context) error {
 	return func(cliCtx *cli.Context) error {
@@ -79,13 +85,15 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) error 
 
 	metrics := NewMetrics(registry)
 	metrics.RecordVersion(version)
-	handler := Handler(l, metrics)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", HealthzHandler)
+	mux.Handle("/", Handler(l, metrics))
 	recorder := opmetrics.NewPromHTTPRecorder(registry, MetricsNamespace)
-	mw := opmetrics.NewHTTPRecordingMiddleware(recorder, handler)
+	mw := opmetrics.NewHTTPRecordingMiddleware(recorder, mux)
 
 	server := &http.Server{
 		Addr:           net.JoinHostPort(cfg.HTTPAddr, strconv.Itoa(cfg.HTTPPort)),
-		MaxHeaderBytes: HTTPMaxBodySize,
+		MaxHeaderBytes: HTTPMaxHeaderSize,
 		Handler:        mw,
 		WriteTimeout:   30 * time.Second,
 		IdleTimeout:    time.Minute,
@@ -97,8 +105,14 @@ func Start(ctx context.Context, l log.Logger, cfg Config, version string) error 
 
 func Handler(l log.Logger, metrics Metrics) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ipStr := r.Header.Get("X-Forwarded-For")
+		// XFF can be a comma-separated list. Left-most is the original client.
+		if i := strings.Index(ipStr, ","); i >= 0 {
+			ipStr = ipStr[:i]
+		}
+
 		innerL := l.New(
-			"xff", r.Header.Get("X-Forwarded-For"),
+			"ip", ipStr,
 			"user_agent", r.Header.Get("User-Agent"),
 			"remote_addr", r.RemoteAddr,
 		)
@@ -120,8 +134,12 @@ func Handler(l log.Logger, metrics Metrics) http.HandlerFunc {
 			"chain_id", payload.ChainID,
 		)
 
-		metrics.RecordHeartbeat(payload)
+		metrics.RecordHeartbeat(payload, ipStr)
 
 		w.WriteHeader(204)
 	}
+}
+
+func HealthzHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(204)
 }

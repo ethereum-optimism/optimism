@@ -62,7 +62,6 @@ type DeployConfig struct {
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
 	L2GenesisBlockDifficulty    *hexutil.Big   `json:"l2GenesisBlockDifficulty"`
 	L2GenesisBlockMixHash       common.Hash    `json:"l2GenesisBlockMixHash"`
-	L2GenesisBlockCoinbase      common.Address `json:"l2GenesisBlockCoinbase"`
 	L2GenesisBlockNumber        hexutil.Uint64 `json:"l2GenesisBlockNumber"`
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
@@ -88,9 +87,16 @@ type DeployConfig struct {
 	SystemConfigProxy common.Address `json:"systemConfigProxy"`
 	// OptimismPortal proxy address on L1
 	OptimismPortalProxy common.Address `json:"optimismPortalProxy"`
-
+	// The initial value of the gas overhead
 	GasPriceOracleOverhead uint64 `json:"gasPriceOracleOverhead"`
-	GasPriceOracleScalar   uint64 `json:"gasPriceOracleScalar"`
+	// The initial value of the gas scalar
+	GasPriceOracleScalar uint64 `json:"gasPriceOracleScalar"`
+	// The ERC20 symbol of the GovernanceToken
+	GovernanceTokenSymbol string `json:"governanceTokenSymbol"`
+	// The ERC20 name of the GovernanceToken
+	GovernanceTokenName string `json:"governanceTokenName"`
+	// The owner of the GovernanceToken
+	GovernanceTokenOwner common.Address `json:"governanceTokenOwner"`
 
 	DeploymentWaitConfirmations int `json:"deploymentWaitConfirmations"`
 
@@ -102,6 +108,9 @@ type DeployConfig struct {
 
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
+	if d.L1StartingBlockTag == nil {
+		return fmt.Errorf("%w: L2StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
+	}
 	if d.L1ChainID == 0 {
 		return fmt.Errorf("%w: L1ChainID cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -151,19 +160,19 @@ func (d *DeployConfig) Check() error {
 		return fmt.Errorf("%w: ProxyAdminOwner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.BaseFeeVaultRecipient == (common.Address{}) {
-		log.Warn("BaseFeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: BaseFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.L1FeeVaultRecipient == (common.Address{}) {
-		log.Warn("L1FeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: L1FeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.SequencerFeeVaultRecipient == (common.Address{}) {
-		log.Warn("SequencerFeeVaultRecipient is address(0)")
+		return fmt.Errorf("%w: SequencerFeeVaultRecipient cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.GasPriceOracleOverhead == 0 {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
 	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is address(0)")
+		return fmt.Errorf("%w: GasPriceOracleScalar cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
@@ -191,6 +200,15 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.L2GenesisBlockBaseFeePerGas == nil {
 		return fmt.Errorf("%w: L2 genesis block base fee per gas cannot be nil", ErrInvalidDeployConfig)
+	}
+	if d.GovernanceTokenName == "" {
+		return fmt.Errorf("%w: GovernanceToken.name cannot be empty", ErrInvalidDeployConfig)
+	}
+	if d.GovernanceTokenSymbol == "" {
+		return fmt.Errorf("%w: GovernanceToken.symbol cannot be empty", ErrInvalidDeployConfig)
+	}
+	if d.GovernanceTokenOwner == (common.Address{}) {
+		return fmt.Errorf("%w: GovernanceToken owner cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	return nil
 }
@@ -297,7 +315,6 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		ChannelTimeout:         d.ChannelTimeout,
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
-		P2PSequencerAddress:    d.P2PSequencerAddress,
 		BatchInboxAddress:      d.BatchInboxAddress,
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
@@ -313,7 +330,7 @@ func NewDeployConfig(path string) (*DeployConfig, error) {
 
 	var config DeployConfig
 	if err := json.Unmarshal(file, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot unmarshal deploy config: %w", err)
 	}
 
 	return &config, nil
@@ -408,8 +425,9 @@ func NewL2StorageConfig(config *DeployConfig, block *types.Block) (state.Storage
 		"decimals": 18,
 	}
 	storage["GovernanceToken"] = state.StorageValues{
-		"_name":   "Optimism",
-		"_symbol": "OP",
+		"_name":   config.GovernanceTokenName,
+		"_symbol": config.GovernanceTokenSymbol,
+		"_owner":  config.GovernanceTokenOwner,
 	}
 	storage["ProxyAdmin"] = state.StorageValues{
 		"_owner": config.ProxyAdminOwner,

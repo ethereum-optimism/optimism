@@ -13,6 +13,7 @@ import {
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @custom:legacy
@@ -79,13 +80,6 @@ abstract contract CrossDomainMessenger is
      * @notice Amount of gas held in reserve to guarantee that relay execution completes.
      */
     uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
-
-    /**
-     * @notice Initial value for the xDomainMsgSender variable. We set this to a non-zero value
-     *         because performing an SSTORE on a non-zero value is significantly cheaper than on a
-     *         zero value.
-     */
-    address internal constant DEFAULT_XDOMAIN_SENDER = 0x000000000000000000000000000000000000dEaD;
 
     /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
@@ -269,15 +263,23 @@ abstract contract CrossDomainMessenger is
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-
-        // Block any messages that aren't version 1. All version 0 messages have been guaranteed to
-        // be relayed OR have been migrated to version 1 messages. Version 0 messages do not commit
-        // to the value or minGasLimit fields, which can create unexpected issues for end-users.
         require(
-            version == 1,
-            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+            version < 2,
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
         );
 
+        // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
+        // to check that the legacy version of the message has not already been relayed.
+        if (version == 0) {
+            bytes32 oldHash = Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _nonce);
+            require(
+                successfulMessages[oldHash] == false,
+                "CrossDomainMessenger: legacy withdrawal already relayed"
+            );
+        }
+
+        // We use the v1 message hash as the unique identifier for the message because it commits
+        // to the value and minimum gas limit of the message.
         bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
             _nonce,
             _sender,
@@ -321,7 +323,7 @@ abstract contract CrossDomainMessenger is
 
         xDomainMsgSender = _sender;
         bool success = SafeCall.call(_target, gasleft() - RELAY_GAS_BUFFER, _value, _message);
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
 
         if (success == true) {
             successfulMessages[versionedHash] = true;
@@ -329,6 +331,15 @@ abstract contract CrossDomainMessenger is
         } else {
             receivedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
+
+            // Revert in this case if the transaction was triggered by the estimation address. This
+            // should only be possible during gas estimation or we have bigger problems. Reverting
+            // here will make the behavior of gas estimation change such that the gas limit
+            // computed will be the amount required to relay the message, even if that amount is
+            // greater than the minimum gas limit specified by the user.
+            if (tx.origin == Constants.ESTIMATION_ADDRESS) {
+                revert("CrossDomainMessenger: failed to relay message");
+            }
         }
     }
 
@@ -341,7 +352,7 @@ abstract contract CrossDomainMessenger is
      */
     function xDomainMessageSender() external view returns (address) {
         require(
-            xDomainMsgSender != DEFAULT_XDOMAIN_SENDER,
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER,
             "CrossDomainMessenger: xDomainMessageSender is not set"
         );
 
@@ -389,7 +400,7 @@ abstract contract CrossDomainMessenger is
      */
     // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init() internal onlyInitializing {
-        xDomainMsgSender = DEFAULT_XDOMAIN_SENDER;
+        xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();

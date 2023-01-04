@@ -1,8 +1,10 @@
 import {
   BaseServiceV2,
+  StandardOptions,
   ExpressRouter,
   Gauge,
   validators,
+  waitForProvider,
 } from '@eth-optimism/common-ts'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
@@ -39,28 +41,29 @@ type State = {
 }
 
 export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
-  constructor(options?: Partial<Options>) {
+  constructor(options?: Partial<Options & StandardOptions>) {
     super({
       version,
       name: 'fault-detector',
       loop: true,
-      loopIntervalMs: 1000,
-      options,
+      options: {
+        loopIntervalMs: 1000,
+        ...options,
+      },
       optionsSpec: {
         l1RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L1',
-          secret: true,
         },
         l2RpcProvider: {
           validator: validators.provider,
           desc: 'Provider for interacting with L2',
-          secret: true,
         },
         startBatchIndex: {
           validator: validators.num,
           default: -1,
           desc: 'Batch index to start checking from',
+          public: true,
         },
       },
       metricsSpec: {
@@ -83,6 +86,18 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   }
 
   async init(): Promise<void> {
+    // Connect to L1.
+    await waitForProvider(this.options.l1RpcProvider, {
+      logger: this.logger,
+      name: 'L1',
+    })
+
+    // Connect to L2.
+    await waitForProvider(this.options.l2RpcProvider, {
+      logger: this.logger,
+      name: 'L2',
+    })
+
     this.state.messenger = new CrossChainMessenger({
       l1SignerOrProvider: this.options.l1RpcProvider,
       l2SignerOrProvider: this.options.l2RpcProvider,

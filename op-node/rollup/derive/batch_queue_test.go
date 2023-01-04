@@ -185,7 +185,7 @@ func TestBatchQueueEager(t *testing.T) {
 
 func TestBatchQueueMissing(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	l1 := L1Chain([]uint64{10, 15, 20})
+	l1 := L1Chain([]uint64{10, 15, 20, 25})
 	safeHead := eth.L2BlockRef{
 		Hash:           mockHash(10, 2),
 		Number:         0,
@@ -239,6 +239,7 @@ func TestBatchQueueMissing(t *testing.T) {
 	require.Nil(t, e)
 	require.Equal(t, b.Timestamp, uint64(12))
 	require.Empty(t, b.BatchV1.Transactions)
+	require.Equal(t, rollup.Epoch(0), b.EpochNum)
 	safeHead.Number += 1
 	safeHead.Time += 2
 	safeHead.Hash = mockHash(b.Timestamp, 2)
@@ -248,6 +249,7 @@ func TestBatchQueueMissing(t *testing.T) {
 	require.Nil(t, e)
 	require.Equal(t, b.Timestamp, uint64(14))
 	require.Empty(t, b.BatchV1.Transactions)
+	require.Equal(t, rollup.Epoch(0), b.EpochNum)
 	safeHead.Number += 1
 	safeHead.Time += 2
 	safeHead.Hash = mockHash(b.Timestamp, 2)
@@ -256,11 +258,19 @@ func TestBatchQueueMissing(t *testing.T) {
 	b, e = bq.NextBatch(context.Background(), safeHead)
 	require.Nil(t, e)
 	require.Equal(t, b, batches[0])
+	require.Equal(t, rollup.Epoch(0), b.EpochNum)
 	safeHead.Number += 1
 	safeHead.Time += 2
 	safeHead.Hash = mockHash(b.Timestamp, 2)
 
+	// Advance the origin. At this point the batch with timestamp 18 will be created
+	input.origin = l1[3]
+
 	// Check for the generated batch at t = 18. This batch advances the epoch
+	// Note: We need one io.EOF returned from the bq that advances the internal L1 Blocks view
+	// before the batch will be auto generated
+	_, e = bq.NextBatch(context.Background(), safeHead)
+	require.Equal(t, e, io.EOF)
 	b, e = bq.NextBatch(context.Background(), safeHead)
 	require.Nil(t, e)
 	require.Equal(t, b.Timestamp, uint64(18))

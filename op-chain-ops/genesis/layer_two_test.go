@@ -56,7 +56,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, ok, true)
 		require.Greater(t, len(account.Code), 0)
 
-		if name == "GovernanceToken" || name == "LegacyERC20ETH" || name == "ProxyAdmin" {
+		if name == "GovernanceToken" || name == "LegacyERC20ETH" || name == "ProxyAdmin" || name == "WETH9" {
 			continue
 		}
 
@@ -65,7 +65,7 @@ func TestBuildL2DeveloperGenesis(t *testing.T) {
 		require.Equal(t, adminSlot, predeploys.ProxyAdminAddr.Hash())
 		require.Equal(t, account.Code, depB)
 	}
-	require.Equal(t, 2343, len(gen.Alloc))
+	require.Equal(t, 2342, len(gen.Alloc))
 
 	if writeFile {
 		file, _ := json.MarshalIndent(gen, "", " ")
@@ -92,5 +92,5 @@ func TestBuildL2DeveloperGenesisDevAccountsFunding(t *testing.T) {
 
 	gen, err := genesis.BuildL2DeveloperGenesis(config, block)
 	require.NoError(t, err)
-	require.Equal(t, 2321, len(gen.Alloc))
+	require.Equal(t, 2320, len(gen.Alloc))
 }

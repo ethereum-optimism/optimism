@@ -43,6 +43,10 @@ const (
 var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
+type GossipRuntimeConfig interface {
+	P2PSequencerAddress() common.Address
+}
+
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
 }
@@ -155,13 +159,25 @@ func validationResultString(v pubsub.ValidationResult) string {
 func logValidationResult(self peer.ID, msg string, log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
 	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
 		res := fn(ctx, id, message)
-		var src interface{}
+		var src any
 		src = id
 		if id == self {
 			src = "self"
 		}
 		log.Debug(msg, "result", validationResultString(res), "from", src)
 		return res
+	}
+}
+
+func guardGossipValidator(log log.Logger, fn pubsub.ValidatorEx) pubsub.ValidatorEx {
+	return func(ctx context.Context, id peer.ID, message *pubsub.Message) (result pubsub.ValidationResult) {
+		defer func() {
+			if err := recover(); err != nil {
+				log.Error("gossip validation panic", "err", err, "peer", id)
+				result = pubsub.ValidationReject
+			}
+		}()
+		return fn(ctx, id, message)
 	}
 }
 
@@ -189,7 +205,7 @@ func (sb *seenBlocks) markSeen(h common.Hash) {
 	sb.blockHashes = append(sb.blockHashes, h)
 }
 
-func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx {
+func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig) pubsub.ValidatorEx {
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
@@ -240,9 +256,16 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config) pubsub.ValidatorEx
 		}
 		addr := crypto.PubkeyToAddress(*pub)
 
-		// TODO: in the future we can support multiple valid p2p addresses.
-		if addr != cfg.P2PSequencerAddress {
-			log.Warn("unexpected block author", "err", err, "peer", id)
+		// In the future we may load & validate block metadata before checking the signature.
+		// And then check the signer based on the metadata, to support e.g. multiple p2p signers at the same time.
+		// For now we only have one signer at a time and thus check the address directly.
+		// This means we may drop old payloads upon key rotation,
+		// but this can be recovered from like any other missed unsafe payload.
+		if expected := runCfg.P2PSequencerAddress(); expected == (common.Address{}) {
+			log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
+			return pubsub.ValidationIgnore
+		} else if addr != expected {
+			log.Warn("unexpected block author", "err", err, "peer", id, "addr", addr, "expected", expected)
 			return pubsub.ValidationReject
 		}
 
@@ -318,6 +341,7 @@ type publisher struct {
 	log         log.Logger
 	cfg         *rollup.Config
 	blocksTopic *pubsub.Topic
+	runCfg      GossipRuntimeConfig
 }
 
 var _ GossipOut = (*publisher)(nil)
@@ -357,8 +381,8 @@ func (p *publisher) Close() error {
 	return p.blocksTopic.Close()
 }
 
-func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, gossipIn GossipIn) (GossipOut, error) {
-	val := logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg))
+func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg, runCfg)))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
 		val,
@@ -391,14 +415,14 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 	subscriber := MakeSubscriber(log, BlocksHandler(gossipIn.OnUnsafeL2Payload))
 	go subscriber(p2pCtx, subscription)
 
-	return &publisher{log: log, cfg: cfg, blocksTopic: blocksTopic}, nil
+	return &publisher{log: log, cfg: cfg, blocksTopic: blocksTopic, runCfg: runCfg}, nil
 }
 
 type TopicSubscriber func(ctx context.Context, sub *pubsub.Subscription)
-type MessageHandler func(ctx context.Context, from peer.ID, msg interface{}) error
+type MessageHandler func(ctx context.Context, from peer.ID, msg any) error
 
 func BlocksHandler(onBlock func(ctx context.Context, from peer.ID, msg *eth.ExecutionPayload) error) MessageHandler {
-	return func(ctx context.Context, from peer.ID, msg interface{}) error {
+	return func(ctx context.Context, from peer.ID, msg any) error {
 		payload, ok := msg.(*eth.ExecutionPayload)
 		if !ok {
 			return fmt.Errorf("expected topic validator to parse and validate data into execution payload, but got %T", msg)

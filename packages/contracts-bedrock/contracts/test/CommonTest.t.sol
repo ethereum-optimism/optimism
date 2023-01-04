@@ -420,31 +420,26 @@ contract Bridge_Initializer is Messenger_Initializer {
 contract ERC721Bridge_Initializer is Messenger_Initializer {
     L1ERC721Bridge L1Bridge;
     L2ERC721Bridge L2Bridge;
-    OptimismMintableERC721Factory factory;
 
     function setUp() public virtual override {
         super.setUp();
 
+        // Deploy the L1ERC721Bridge.
         L1Bridge = new L1ERC721Bridge(address(L1Messenger), Predeploys.L2_ERC721_BRIDGE);
 
-        L2ERC721Bridge l2b = new L2ERC721Bridge(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            address(L1Bridge)
+        // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
+        vm.etch(
+            Predeploys.L2_ERC721_BRIDGE,
+            address(new L2ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(L1Bridge)))
+                .code
         );
 
-        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(l2b).code);
+        // Set up a reference to the L2ERC721Bridge.
         L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);
 
-        OptimismMintableERC721Factory f = new OptimismMintableERC721Factory(
-            Predeploys.L2_ERC721_BRIDGE,
-            block.chainid
-        );
-        vm.etch(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, address(f).code);
-        factory = OptimismMintableERC721Factory(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY);
-
+        // Label the L1 and L2 bridges.
         vm.label(address(L1Bridge), "L1ERC721Bridge");
-        vm.label(Predeploys.L2_ERC721_BRIDGE, "L2ERC721Bridge");
-        vm.label(Predeploys.OPTIMISM_MINTABLE_ERC721_FACTORY, "OptimismMintableERC721Factory");
+        vm.label(address(L2Bridge), "L2ERC721Bridge");
     }
 }
 
@@ -627,6 +622,25 @@ contract FFIInterface is Test {
 
         bytes memory result = vm.ffi(cmds);
         return abi.decode(result, (uint256, uint256));
+    }
+
+    function getMerkleTrieFuzzCase(string memory variant)
+        external
+        returns (
+            bytes32,
+            bytes memory,
+            bytes memory,
+            bytes[] memory
+        )
+    {
+        string[] memory cmds = new string[](5);
+        cmds[0] = "./test-case-generator/fuzz";
+        cmds[1] = "-m";
+        cmds[2] = "trie";
+        cmds[3] = "-v";
+        cmds[4] = variant;
+
+        return abi.decode(vm.ffi(cmds), (bytes32, bytes, bytes, bytes[]));
     }
 }
 

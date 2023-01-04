@@ -16,20 +16,30 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /**
      * @notice Enum representing different types of updates.
      *
-     * @custom:value BATCHER    Represents an update to the batcher hash.
-     * @custom:value GAS_CONFIG Represents an update to txn fee config on L2.
-     * @custom:value GAS_LIMIT  Represents an update to gas limit on L2.
+     * @custom:value BATCHER              Represents an update to the batcher hash.
+     * @custom:value GAS_CONFIG           Represents an update to txn fee config on L2.
+     * @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
+     * @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
+     *                                    block distrubution.
      */
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
-        GAS_LIMIT
+        GAS_LIMIT,
+        UNSAFE_BLOCK_SIGNER
     }
 
     /**
      * @notice Version identifier, used for upgrades.
      */
     uint256 public constant VERSION = 0;
+
+    /**
+     * @notice Storage slot that the unsafe block signer is stored at. Storing it at this
+     *         deterministic storage slot allows for decoupling the storage layout from the way
+     *         that `solc` lays out storage. The `op-node` uses a storage proof to fetch this value.
+     */
+    bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /**
      * @notice Minimum gas limit. This should not be lower than the maximum deposit gas resource
@@ -69,7 +79,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      *
      * @param _owner       Initial owner of the contract.
      * @param _overhead    Initial overhead value.
@@ -82,9 +92,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
-        uint64 _gasLimit
-    ) Semver(0, 0, 1) {
-        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit);
+        uint64 _gasLimit,
+        address _unsafeBlockSigner
+    ) Semver(1, 0, 0) {
+        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
     }
 
     /**
@@ -101,7 +112,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _overhead,
         uint256 _scalar,
         bytes32 _batcherHash,
-        uint64 _gasLimit
+        uint64 _gasLimit,
+        address _unsafeBlockSigner
     ) public initializer {
         require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
         __Ownable_init();
@@ -110,6 +122,21 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         scalar = _scalar;
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
+    }
+
+    /**
+     * @notice High level getter for the unsafe block signer address.
+     *         Unsafe blocks can be propagated across the p2p network
+     *         if they are signed by the key corresponding to this address.
+     */
+    function unsafeBlockSigner() public view returns (address) {
+        address addr;
+        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
+        assembly {
+            addr := sload(slot)
+        }
+        return addr;
     }
 
     /**
@@ -137,6 +164,27 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
         bytes memory data = abi.encode(_overhead, _scalar);
         emit ConfigUpdate(VERSION, UpdateType.GAS_CONFIG, data);
+    }
+
+    function setUnsafeBlockSigner(address _unsafeBlockSigner) external onlyOwner {
+        _setUnsafeBlockSigner(_unsafeBlockSigner);
+
+        bytes memory data = abi.encode(_unsafeBlockSigner);
+        emit ConfigUpdate(VERSION, UpdateType.UNSAFE_BLOCK_SIGNER, data);
+    }
+
+    /**
+     * @notice Low level setter for the unsafe block signer address.
+     *         This function exists to deduplicate code around storing
+     *         the unsafeBlockSigner address in storage.
+     *
+     * @param _unsafeBlockSigner New unsafeBlockSigner value
+     */
+    function _setUnsafeBlockSigner(address _unsafeBlockSigner) internal {
+        bytes32 slot = UNSAFE_BLOCK_SIGNER_SLOT;
+        assembly {
+            sstore(slot, _unsafeBlockSigner)
+        }
     }
 
     /**

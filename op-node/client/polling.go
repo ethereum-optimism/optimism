@@ -78,7 +78,7 @@ func (w *PollingClient) Close() {
 	w.c.Close()
 }
 
-func (w *PollingClient) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (w *PollingClient) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	return w.c.CallContext(ctx, result, method, args...)
 }
 
@@ -90,7 +90,7 @@ func (w *PollingClient) BatchCallContext(ctx context.Context, b []rpc.BatchElem)
 // to Geth's native EthSubscribe method. It will return an error, however, if the
 // passed in channel is not a *types.Headers channel or the subscription type is not
 // newHeads.
-func (w *PollingClient) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (w *PollingClient) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	select {
 	case <-w.ctx.Done():
 		return nil, ErrSubscriberClosed

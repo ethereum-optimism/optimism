@@ -11,7 +11,7 @@ GETH_VERSION='v1.10.26'
 
 
 def main():
-	for project in ('op-service', 'op-node', 'op-proposer', 'op-batcher', 'op-bindings', 'op-chain-ops', 'op-e2e'):
+	for project in ('op-service', 'op-node', 'op-proposer', 'op-batcher', 'op-bindings', 'op-chain-ops', 'op-e2e', 'op-wheel'):
 		print(f'Updating {project}...')
 		update_mod(project)
 

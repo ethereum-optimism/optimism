@@ -2,6 +2,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -36,6 +37,7 @@ type OpNode struct {
 	p2pNode   *p2p.NodeP2P          // P2P node functionality
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
+	runCfg    *RuntimeConfig        // runtime configurables
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -61,6 +63,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
+		log.Error("Error intializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
 			return nil, multierror.Append(err, closeErr)
@@ -75,6 +78,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 		return err
 	}
 	if err := n.initL1(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initL2(ctx, cfg, snapshotLog); err != nil {
@@ -106,14 +112,14 @@ func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
-	l1Node, trustRPC, err := cfg.L1.Setup(ctx, n.log)
+	l1Node, trustRPC, rpcProvKind, err := cfg.L1.Setup(ctx, n.log)
 	if err != nil {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
 	n.l1Source, err = sources.NewL1Client(
 		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
-		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC))
+		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC, rpcProvKind))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
@@ -142,6 +148,33 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
+func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
+	// attempt to load runtime config, repeat N times
+	n.runCfg = NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
+
+	for i := 0; i < 5; i++ {
+		fetchCtx, fetchCancel := context.WithTimeout(ctx, time.Second*10)
+		l1Head, err := n.l1Source.L1BlockRefByLabel(fetchCtx, eth.Unsafe)
+		fetchCancel()
+		if err != nil {
+			n.log.Error("failed to fetch L1 head for runtime config initialization", "err", err)
+			continue
+		}
+
+		fetchCtx, fetchCancel = context.WithTimeout(ctx, time.Second*10)
+		err = n.runCfg.Load(fetchCtx, l1Head)
+		fetchCancel()
+		if err != nil {
+			n.log.Error("failed to fetch runtime config data", "err", err)
+			continue
+		}
+
+		return nil
+	}
+
+	return errors.New("failed to load runtime configuration repeatedly")
+}
+
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
 	rpcClient, err := cfg.L2.Setup(ctx, n.log)
 	if err != nil {
@@ -162,21 +195,21 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 }
 
 func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
-	var err error
-	n.server, err = newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
+	server, err := newRPCServer(ctx, &cfg.RPC, &cfg.Rollup, n.l2Source.L2Client, n.l2Driver, n.log, n.appVersion, n.metrics)
 	if err != nil {
 		return err
 	}
 	if n.p2pNode != nil {
-		n.server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
+		server.EnableP2P(p2p.NewP2PAPIBackend(n.p2pNode, n.log, n.metrics))
 	}
 	if cfg.RPC.EnableAdmin {
-		n.server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
+		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
 	}
 	n.log.Info("Starting JSON-RPC server")
-	if err := n.server.Start(); err != nil {
+	if err := server.Start(); err != nil {
 		return fmt.Errorf("unable to start RPC server: %w", err)
 	}
+	n.server = server
 	return nil
 }
 
@@ -196,7 +229,7 @@ func (n *OpNode) initMetricsServer(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initP2P(ctx context.Context, cfg *Config) error {
 	if cfg.P2P != nil {
-		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.metrics)
+		p2pNode, err := p2p.NewNodeP2P(n.resourcesCtx, &cfg.Rollup, n.log, cfg.P2P, n, n.runCfg, n.metrics)
 		if err != nil || p2pNode == nil {
 			return err
 		}

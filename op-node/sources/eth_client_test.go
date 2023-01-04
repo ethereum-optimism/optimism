@@ -10,13 +10,14 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
-	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
+
+	"github.com/ethereum-optimism/optimism/op-node/client"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 type mockRPC struct {
@@ -27,11 +28,11 @@ func (m *mockRPC) BatchCallContext(ctx context.Context, b []rpc.BatchElem) error
 	return m.MethodCalled("BatchCallContext", ctx, b).Get(0).([]error)[0]
 }
 
-func (m *mockRPC) CallContext(ctx context.Context, result interface{}, method string, args ...interface{}) error {
+func (m *mockRPC) CallContext(ctx context.Context, result any, method string, args ...any) error {
 	return m.MethodCalled("CallContext", ctx, result, method, args).Get(0).([]error)[0]
 }
 
-func (m *mockRPC) EthSubscribe(ctx context.Context, channel interface{}, args ...interface{}) (ethereum.Subscription, error) {
+func (m *mockRPC) EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error) {
 	called := m.MethodCalled("EthSubscribe", channel, args)
 	return called.Get(0).(*rpc.ClientSubscription), called.Get(1).([]error)[0]
 }
@@ -51,6 +52,7 @@ var testEthClientConfig = &EthClientConfig{
 	MaxConcurrentRequests: 10,
 	TrustRPC:              false,
 	MustBePostMerge:       false,
+	RPCProviderKind:       RPCKindBasic,
 }
 
 func randHash() (out common.Hash) {
@@ -105,7 +107,7 @@ func TestEthClient_InfoByHash(t *testing.T) {
 	expectedInfo, _ := rhdr.Info(true, false)
 	ctx := context.Background()
 	m.On("CallContext", ctx, new(*rpcHeader),
-		"eth_getBlockByHash", []interface{}{rhdr.Hash, false}).Run(func(args mock.Arguments) {
+		"eth_getBlockByHash", []any{rhdr.Hash, false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
 	s, err := NewEthClient(m, nil, nil, testEthClientConfig)
@@ -128,10 +130,10 @@ func TestEthClient_InfoByNumber(t *testing.T) {
 	n := rhdr.Number
 	ctx := context.Background()
 	m.On("CallContext", ctx, new(*rpcHeader),
-		"eth_getBlockByNumber", []interface{}{n.String(), false}).Run(func(args mock.Arguments) {
+		"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
 		*args[1].(**rpcHeader) = rhdr
 	}).Return([]error{nil})
-	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true))
+	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindBasic))
 	require.NoError(t, err)
 	info, err := s.InfoByNumber(ctx, uint64(n))
 	require.NoError(t, err)

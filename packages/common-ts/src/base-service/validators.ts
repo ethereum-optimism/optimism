@@ -13,6 +13,8 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { Signer } from '@ethersproject/abstract-signer'
 import { ethers } from 'ethers'
 
+import { LogLevel, logLevels } from '../common'
+
 const provider = makeValidator<Provider>((input) => {
   const parsed = url()._parse(input)
   return new ethers.providers.JsonRpcProvider(parsed)
@@ -39,6 +41,14 @@ const wallet = makeValidator<Signer>((input) => {
   }
 })
 
+const logLevel = makeValidator<LogLevel>((input) => {
+  if (!logLevels.includes(input as LogLevel)) {
+    throw new Error(`expected log level to be one of ${logLevels.join(', ')}`)
+  } else {
+    return input as LogLevel
+  }
+})
+
 export const validators = {
   str,
   bool,
@@ -52,4 +62,5 @@ export const validators = {
   provider,
   jsonRpcProvider,
   staticJsonRpcProvider,
+  logLevel,
 }

@@ -41,7 +41,7 @@ func CollectAddresses(sd *SetupData, dp *DeployParams) (out []common.Address) {
 	out = append(out,
 		sd.L1Cfg.Coinbase,
 		sd.L2Cfg.Coinbase,
-		sd.RollupCfg.P2PSequencerAddress,
+		dp.Addresses.SequencerP2P,
 		predeploys.SequencerFeeVaultAddr,
 		sd.RollupCfg.BatchInboxAddress,
 		sd.RollupCfg.Genesis.SystemConfig.BatcherAddr,

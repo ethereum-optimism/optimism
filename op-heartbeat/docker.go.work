@@ -1,6 +1,7 @@
 go 1.18
 
 use (
+	./op-heartbeat
 	./op-node
 	./op-service
 )

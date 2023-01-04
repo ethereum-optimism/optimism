@@ -1,6 +1,6 @@
 /* Imports: Internal */
 import { Logger } from '../common/logger'
-import { Metrics } from '../common/metrics'
+import { LegacyMetrics } from '../common/metrics'
 
 type OptionSettings<TOptions> = {
   [P in keyof TOptions]?: {
@@ -11,7 +11,7 @@ type OptionSettings<TOptions> = {
 
 type BaseServiceOptions<T> = T & {
   logger?: Logger
-  metrics?: Metrics
+  metrics?: LegacyMetrics
 }
 
 /**
@@ -22,7 +22,7 @@ export class BaseService<T> {
   protected name: string
   protected options: T
   protected logger: Logger
-  protected metrics: Metrics
+  protected metrics: LegacyMetrics
   protected initialized = false
   protected running = false
 

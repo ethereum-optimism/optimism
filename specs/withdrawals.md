@@ -22,7 +22,7 @@ more specific terms to differentiate:
   withdrawal.
 
 Withdrawals are initiated on L2 via a call to the Message Passer predeploy contract, which records the important
-properties of the message in its storage. Withdrawals are finalized on L1 via a call to the `L2WithdrawalVerifier`
+properties of the message in its storage. Withdrawals are finalized on L1 via a call to the `OptimismPortal`
 contract, which proves the inclusion of this withdrawal message.
 
 In this way, withdrawals are different from [deposits][g-deposits] which make use of a special transaction type in the

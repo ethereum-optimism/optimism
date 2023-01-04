@@ -24,6 +24,8 @@ contracts=(
   contracts/L2/L2ToL1MessagePasser.sol:L2ToL1MessagePasser
   contracts/legacy/LegacyERC20ETH.sol:LegacyERC20ETH
   contracts/L2/SequencerFeeVault.sol:SequencerFeeVault
+  contracts/L2/BaseFeeVault.sol:BaseFeeVault
+  contracts/L2/L1FeeVault.sol:L1FeeVault
   contracts/vendor/WETH9.sol:WETH9
   contracts/universal/ProxyAdmin.sol:ProxyAdmin
   contracts/universal/Proxy.sol:Proxy

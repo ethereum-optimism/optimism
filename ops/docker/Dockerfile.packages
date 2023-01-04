@@ -41,13 +41,13 @@ COPY packages/common-ts/package.json ./packages/common-ts/package.json
 COPY packages/contracts/package.json ./packages/contracts/package.json
 COPY packages/contracts-bedrock/package.json ./packages/contracts-bedrock/package.json
 COPY packages/contracts-periphery/package.json ./packages/contracts-periphery/package.json
-COPY packages/contracts-governance/package.json ./packages/contracts-governance/package.json
 COPY packages/data-transport-layer/package.json ./packages/data-transport-layer/package.json
 COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-config/package.json
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
+COPY packages/balance-monitor/package.json ./packages/balance-monitor/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
 RUN yarn install --frozen-lockfile && yarn cache clean
@@ -71,7 +71,6 @@ FROM alpine:3.16.2 as contract-artifacts-bedrock
 RUN mkdir -p /artifacts
 WORKDIR /artifacts
 COPY --from=base /opt/optimism/packages/contracts-bedrock/artifacts  /artifacts/contracts-bedrock
-COPY --from=base /opt/optimism/packages/contracts-governance/artifacts  /artifacts/contracts-governance
 CMD ["echo", "0"]
 
 FROM base as deployer-bedrock
@@ -82,7 +81,6 @@ FROM base as data-transport-layer
 WORKDIR /opt/optimism/packages/data-transport-layer
 COPY ./ops/scripts/dtl.sh .
 CMD ["node", "dist/src/services/run.js"]
-
 
 FROM base as integration-tests
 WORKDIR /opt/optimism/integration-tests
@@ -109,3 +107,7 @@ ENTRYPOINT ["npm", "run", "start"]
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/drippie-mon
 ENTRYPOINT ["npm", "run", "start"]
+
+FROM base as drippie-mon
+WORKDIR /opt/optimism/packages/balance-monitor
+ENTRYPOINT ["yarn", "run", "start:prod"]

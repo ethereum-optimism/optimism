@@ -84,9 +84,9 @@ The Ethereum Node Record (ENR) for an Optimism rollup node must contain the foll
 - An IPv4 address (`ip` field) and/or IPv6 address (`ip6` field).
 - A TCP port (`tcp` field) representing the local libp2p listening port.
 - A UDP port (`udp` field) representing the local discv5 listening port.
-- An Optimism (`optimism` field) L2 network identifier
+- An OpStack (`opstack` field) L2 network identifier
 
-The `optimism` value is encoded as a single RLP `bytes` value, the concatenation of:
+The `opstack` value is encoded as a single RLP `bytes` value, the concatenation of:
 
 - chain ID (`unsigned varint`)
 - fork ID (`unsigned varint`)
@@ -101,7 +101,7 @@ The discovery process in Optimism is a pipeline of node records:
 2. Pull additional records with searches to random Node IDs if necessary
    (e.g. iterate [`RandomNodes()`][discv5-random-nodes] in Go implementation)
 3. Pull records from the DiscV5 module when looking for peers
-4. Check if the record contains the `optimism` entry, verify it matches the chain ID and current or future fork number
+4. Check if the record contains the `opstack` entry, verify it matches the chain ID and current or future fork number
 5. If not already connected, and not recently disconnected or put on deny-list, attempt to dial.
 
 ### LibP2P
