@@ -16,6 +16,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
+// validateReceipts validates that the receipt contents are valid.
+// Warning: contractAddress is not verified, since it is a more expensive operation for data we do not use.
+// See go-ethereum/crypto.CreateAddress to verify contract deployment address data based on sender and tx nonce.
 func validateReceipts(block eth.BlockID, receiptHash common.Hash, txHashes []common.Hash, receipts []*types.Receipt) error {
 	if len(receipts) != len(txHashes) {
 		return fmt.Errorf("got %d receipts but expected %d", len(receipts), len(txHashes))
@@ -28,6 +31,7 @@ func validateReceipts(block eth.BlockID, receiptHash common.Hash, txHashes []com
 	// We don't trust the RPC to provide consistent cached receipt info that we use for critical rollup derivation work.
 	// Let's check everything quickly.
 	logIndex := uint(0)
+	cumulativeGas := uint64(0)
 	for i, r := range receipts {
 		if r == nil { // on reorgs or other cases the receipts may disappear before they can be retrieved.
 			return fmt.Errorf("receipt of tx %d returns nil on retrieval", i)
@@ -43,6 +47,9 @@ func validateReceipts(block eth.BlockID, receiptHash common.Hash, txHashes []com
 		}
 		if r.BlockHash != block.Hash {
 			return fmt.Errorf("receipt %d has unexpected block hash %s, expected %s", i, r.BlockHash, block.Hash)
+		}
+		if expected := r.CumulativeGasUsed - cumulativeGas; r.GasUsed != expected {
+			return fmt.Errorf("receipt %d has invalid gas used metadata: %d, expected %d", i, r.GasUsed, expected)
 		}
 		for j, log := range r.Logs {
 			if log.Index != logIndex {
@@ -65,10 +72,10 @@ func validateReceipts(block eth.BlockID, receiptHash common.Hash, txHashes []com
 			}
 			logIndex++
 		}
+		cumulativeGas = r.CumulativeGasUsed
 		// Note: 3 non-consensus L1 receipt fields are ignored:
 		// PostState - not part of L1 ethereum anymore since EIP 658 (part of Byzantium)
 		// ContractAddress - we do not care about contract deployments
-		// GasUsed - we do not care about L1 gas usage of txs
 		// And Optimism L1 fee meta-data in the receipt is ignored as well
 	}
 
@@ -250,7 +257,7 @@ const (
 func AvailableReceiptsFetchingMethods(kind RPCProviderKind) ReceiptsFetchingMethod {
 	switch kind {
 	case RPCKindAlchemy:
-		return AlchemyGetTransactionReceipts | EthGetTransactionReceiptBatch
+		return AlchemyGetTransactionReceipts | EthGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindQuickNode:
 		return DebugGetRawReceipts | EthGetBlockReceipts | EthGetTransactionReceiptBatch
 	case RPCKindInfura:
@@ -287,9 +294,6 @@ func PickBestReceiptsFetchingMethod(kind RPCProviderKind, available ReceiptsFetc
 		if available&EthGetBlockReceipts != 0 && txCount > 500/15 {
 			return EthGetBlockReceipts
 		}
-		if available&ParityGetBlockReceipts != 0 && txCount > 500/15 {
-			return ParityGetBlockReceipts
-		}
 		return EthGetTransactionReceiptBatch
 	} else if kind == RPCKindQuickNode {
 		if available&DebugGetRawReceipts != 0 {
@@ -298,18 +302,20 @@ func PickBestReceiptsFetchingMethod(kind RPCProviderKind, available ReceiptsFetc
 		if available&EthGetBlockReceipts != 0 && txCount > 59/2 {
 			return EthGetBlockReceipts
 		}
-		if available&ParityGetBlockReceipts != 0 && txCount > 59/2 {
-			return ParityGetBlockReceipts
-		}
 		return EthGetTransactionReceiptBatch
 	}
-	// otherwise just find the first available method
-	x := ReceiptsFetchingMethod(1)
-	for x != 0 {
-		if available&x != 0 {
-			return x
-		}
-		x <<= 1
+	// in order of preference (based on cost): check available methods
+	if available&AlchemyGetTransactionReceipts != 0 {
+		return AlchemyGetTransactionReceipts
+	}
+	if available&DebugGetRawReceipts != 0 {
+		return DebugGetRawReceipts
+	}
+	if available&EthGetBlockReceipts != 0 {
+		return EthGetBlockReceipts
+	}
+	if available&ParityGetBlockReceipts != 0 {
+		return ParityGetBlockReceipts
 	}
 	// otherwise fall back on per-tx fetching
 	return EthGetTransactionReceiptBatch
@@ -415,6 +421,7 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 			if len(rawReceipts) == len(job.txHashes) {
 				result = make([]*types.Receipt, len(rawReceipts))
 				totalIndex := uint(0)
+				prevCumulativeGasUsed := uint64(0)
 				for i, r := range rawReceipts {
 					var x types.Receipt
 					_ = x.UnmarshalBinary(r) // safe to ignore, we verify receipts against the receipts hash later
@@ -422,6 +429,9 @@ func (job *receiptsFetchingJob) runAltMethod(ctx context.Context, m ReceiptsFetc
 					x.BlockHash = job.block.Hash
 					x.BlockNumber = new(big.Int).SetUint64(job.block.Number)
 					x.TransactionIndex = uint(i)
+					x.GasUsed = x.CumulativeGasUsed - prevCumulativeGasUsed
+					// contract address meta-data is not computed.
+					prevCumulativeGasUsed = x.CumulativeGasUsed
 					for _, l := range x.Logs {
 						l.BlockNumber = job.block.Number
 						l.TxHash = x.TxHash
