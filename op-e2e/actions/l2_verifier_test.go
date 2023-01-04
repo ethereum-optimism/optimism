@@ -51,7 +51,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 		expectedL1Origin := uint64(0)
 		// as soon as we complete the sequence window, we force-adopt the L1 origin
 		if l1Head >= sd.RollupCfg.SeqWindowSize {
-			expectedL1Origin = l1Head - sd.RollupCfg.SeqWindowSize + 1
+			expectedL1Origin = l1Head - sd.RollupCfg.SeqWindowSize
 		}
 		require.Equal(t, expectedL1Origin, verifier.SyncStatus().SafeL2.L1Origin.Number, "L1 origin is forced in, given enough L1 blocks pass by")
 		require.LessOrEqual(t, miner.l1Chain.GetBlockByNumber(expectedL1Origin).Time(), engine.l2Chain.CurrentBlock().Time(), "L2 time higher than L1 origin time")
@@ -87,7 +87,6 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	// Now it will reorg
 	verifier.ActL2PipelineFull(t)
 
-	// due to workaround we synced one more L1 block, so we need to compare against the parent of that
-	got := miner.l1Chain.GetBlockByHash(miner.l1Chain.GetBlockByHash(verifier.SyncStatus().SafeL2.L1Origin.Hash).ParentHash())
+	got := miner.l1Chain.GetBlockByHash(miner.l1Chain.GetBlockByHash(verifier.SyncStatus().SafeL2.L1Origin.Hash).Hash())
 	require.Equal(t, reorgL1Block.Hash(), got.Hash(), "must have reorged L2 chain to the new L1 chain")
 }
