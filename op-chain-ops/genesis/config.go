@@ -62,7 +62,6 @@ type DeployConfig struct {
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
 	L2GenesisBlockDifficulty    *hexutil.Big   `json:"l2GenesisBlockDifficulty"`
 	L2GenesisBlockMixHash       common.Hash    `json:"l2GenesisBlockMixHash"`
-	L2GenesisBlockCoinbase      common.Address `json:"l2GenesisBlockCoinbase"`
 	L2GenesisBlockNumber        hexutil.Uint64 `json:"l2GenesisBlockNumber"`
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
@@ -109,6 +108,9 @@ type DeployConfig struct {
 
 // Check will ensure that the config is sane and return an error when it is not
 func (d *DeployConfig) Check() error {
+	if d.L1StartingBlockTag == nil {
+		return fmt.Errorf("%w: L2StartingBlockTag cannot be nil", ErrInvalidDeployConfig)
+	}
 	if d.L1ChainID == 0 {
 		return fmt.Errorf("%w: L1ChainID cannot be 0", ErrInvalidDeployConfig)
 	}
@@ -170,7 +172,7 @@ func (d *DeployConfig) Check() error {
 		log.Warn("GasPriceOracleOverhead is 0")
 	}
 	if d.GasPriceOracleScalar == 0 {
-		log.Warn("GasPriceOracleScalar is 0")
+		return fmt.Errorf("%w: GasPriceOracleScalar cannot be 0", ErrInvalidDeployConfig)
 	}
 	if d.L1StandardBridgeProxy == (common.Address{}) {
 		return fmt.Errorf("%w: L1StandardBridgeProxy cannot be address(0)", ErrInvalidDeployConfig)
@@ -328,7 +330,7 @@ func NewDeployConfig(path string) (*DeployConfig, error) {
 
 	var config DeployConfig
 	if err := json.Unmarshal(file, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot unmarshal deploy config: %w", err)
 	}
 
 	return &config, nil

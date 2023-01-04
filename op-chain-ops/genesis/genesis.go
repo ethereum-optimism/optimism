@@ -5,6 +5,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -85,7 +86,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		GasLimit:   uint64(gasLimit),
 		Difficulty: difficulty.ToInt(),
 		Mixhash:    config.L2GenesisBlockMixHash,
-		Coinbase:   config.L2GenesisBlockCoinbase,
+		Coinbase:   predeploys.SequencerFeeVaultAddr,
 		Number:     uint64(config.L2GenesisBlockNumber),
 		GasUsed:    uint64(config.L2GenesisBlockGasUsed),
 		ParentHash: config.L2GenesisBlockParentHash,

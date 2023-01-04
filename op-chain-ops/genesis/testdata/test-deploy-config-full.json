@@ -32,7 +32,6 @@
   "l2GenesisBlockGasLimit": "0xe4e1c0",
   "l2GenesisBlockDifficulty": "0x1",
   "l2GenesisBlockMixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
-  "l2GenesisBlockCoinbase": "0x42000000000000000000000000000000000000f0",
   "l2GenesisBlockNumber": "0x0",
   "l2GenesisBlockGasUsed": "0x0",
   "l2GenesisBlockParentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
