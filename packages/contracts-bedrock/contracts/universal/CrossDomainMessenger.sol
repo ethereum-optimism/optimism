@@ -123,12 +123,11 @@ abstract contract CrossDomainMessenger is
     uint240 internal msgNonce;
 
     /**
-     * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
-     *         be present in this mapping if it failed to be relayed on this chain at least once.
-     *         If a message is successfully relayed on the first attempt, then it will only be
-     *         present within the successfulMessages mapping.
+     * @notice Mapping of message hashes to a boolean if and only if the message has failed to be
+     *         executed at least once. A message will not be present in this mapping if it
+     *         successfully executed on the first attempt.
      */
-    mapping(bytes32 => bool) public receivedMessages;
+    mapping(bytes32 => bool) public failedMessages;
 
     /**
      * @notice Reserve extra slots in the storage layout for future upgrades.
@@ -293,7 +292,7 @@ abstract contract CrossDomainMessenger is
             // These properties should always hold when the message is first submitted (as
             // opposed to being replayed).
             assert(msg.value == _value);
-            assert(!receivedMessages[versionedHash]);
+            assert(!failedMessages[versionedHash]);
         } else {
             require(
                 msg.value == 0,
@@ -301,7 +300,7 @@ abstract contract CrossDomainMessenger is
             );
 
             require(
-                receivedMessages[versionedHash],
+                failedMessages[versionedHash],
                 "CrossDomainMessenger: message cannot be replayed"
             );
         }
@@ -329,7 +328,7 @@ abstract contract CrossDomainMessenger is
             successfulMessages[versionedHash] = true;
             emit RelayedMessage(versionedHash);
         } else {
-            receivedMessages[versionedHash] = true;
+            failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
 
             // Revert in this case if the transaction was triggered by the estimation address. This
