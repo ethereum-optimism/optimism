@@ -88,3 +88,40 @@ contract OptimismPortal_CannotTimeTravel is OptimismPortal_Invariant_Harness {
         op.finalizeWithdrawalTransaction(_defaultTx);
     }
 }
+
+contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness {
+    function setUp() public override {
+        super.setUp();
+
+        // Prove the withdrawal transaction
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Warp passed the finalization period.
+        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Finalize the withdrawal transaction.
+        op.finalizeWithdrawalTransaction(_defaultTx);
+
+        // Set the target contract to the portal proxy
+        targetContract(address(op));
+        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
+        excludeSender(address(multisig));
+    }
+
+    /**
+     * @custom:invariant `finalizeWithdrawalTransaction` should revert if the withdrawal
+     * has already been finalized.
+     *
+     * Ensures that there is no chain of calls that can be made that allows a withdrawal
+     * to be finalized twice.
+     */
+    function invariant_cannotFinalizeTwice() external {
+        vm.expectRevert();
+        op.finalizeWithdrawalTransaction(_defaultTx);
+    }
+}
