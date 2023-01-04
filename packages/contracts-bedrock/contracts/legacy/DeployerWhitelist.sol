@@ -61,9 +61,9 @@ contract DeployerWhitelist is Semver {
     }
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      */
-    constructor() Semver(0, 0, 1) {}
+    constructor() Semver(1, 0, 0) {}
 
     /**
      * @notice Adds or removes an address from the deployment whitelist.
