@@ -55,7 +55,7 @@
   },
   "devDependencies": {
     "@defi-wonderland/smock": "^2.0.7",
-    "@eth-optimism/contracts-bedrock": "0.11.1",
+    "@eth-optimism/contracts-bedrock": "0.11.0",
     "@eth-optimism/core-utils": "^0.12.0",
     "@eth-optimism/hardhat-deploy-config": "^0.2.5",
     "@ethersproject/hardware-wallets": "^5.7.0",
