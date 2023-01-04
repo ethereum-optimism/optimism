@@ -147,7 +147,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	bedrockHeader := &types.Header{
 		ParentHash:  header.Hash(),
 		UncleHash:   types.EmptyUncleHash,
-		Coinbase:    config.L2GenesisBlockCoinbase,
+		Coinbase:    predeploys.SequencerFeeVaultAddr,
 		Root:        newRoot,
 		TxHash:      types.EmptyRootHash,
 		ReceiptHash: types.EmptyRootHash,
