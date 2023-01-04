@@ -93,7 +93,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		L2GenesisBlockGasLimit:      15_000_000,
 		L2GenesisBlockDifficulty:    uint64ToBig(0),
 		L2GenesisBlockMixHash:       common.Hash{},
-		L2GenesisBlockCoinbase:      predeploys.SequencerFeeVaultAddr,
 		L2GenesisBlockNumber:        0,
 		L2GenesisBlockGasUsed:       0,
 		L2GenesisBlockParentHash:    common.Hash{},
@@ -264,7 +263,6 @@ func ForkedDeployConfig(t require.TestingT, mnemonicCfg *MnemonicConfig, startBl
 		L2OutputOracleStartingTimestamp:  int(startBlock.Time()),
 		L2OutputOracleProposer:           addrs.Proposer,
 		L2OutputOracleChallenger:         addrs.Deployer,
-		L2GenesisBlockCoinbase:           common.HexToAddress("0x42000000000000000000000000000000000000f0"),
 		L2GenesisBlockGasLimit:           hexutil.Uint64(15_000_000),
 		// taken from devnet, need to check this
 		L2GenesisBlockBaseFeePerGas: uint64ToBig(0x3B9ACA00),

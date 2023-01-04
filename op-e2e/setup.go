@@ -85,7 +85,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L2GenesisBlockGasLimit:      8_000_000,
 		L2GenesisBlockDifficulty:    uint642big(1),
 		L2GenesisBlockMixHash:       common.Hash{},
-		L2GenesisBlockCoinbase:      common.Address{0: 0x12},
 		L2GenesisBlockNumber:        0,
 		L2GenesisBlockGasUsed:       0,
 		L2GenesisBlockParentHash:    common.Hash{},
