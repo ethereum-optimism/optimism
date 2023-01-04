@@ -1,5 +1,20 @@
 # data transport layer
 
+## 0.5.50
+
+### Patch Changes
+
+- 9b2891852: Refactors BaseServiceV2 slightly, merges standard options with regular options
+- Updated dependencies [e23f60f63]
+- Updated dependencies [ab8ec365c]
+- Updated dependencies [9b2891852]
+- Updated dependencies [d1f9098f9]
+- Updated dependencies [c6c9c7dbf]
+- Updated dependencies [ffcee1013]
+- Updated dependencies [eceb0de1d]
+  - @eth-optimism/common-ts@0.7.0
+  - @eth-optimism/contracts@0.5.40
+
 ## 0.5.49
 
 ### Patch Changes
