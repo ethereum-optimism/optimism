@@ -3,7 +3,6 @@ package genesis
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math/big"
 	"os"
@@ -114,28 +113,6 @@ var Subcommands = cli.Commands{
 				return err
 			}
 
-			if config.L1StartingBlockTag == nil {
-				return errors.New("must specify a starting block tag in genesis")
-			}
-			if config.L2GenesisBlockGasLimit == 0 { // TODO: this is a hotfix, need to set default values in more clean way + sanity check the config
-				config.L2GenesisBlockGasLimit = 15_000_000
-			}
-
-			client, err := ethclient.Dial(ctx.String("l1-rpc"))
-			if err != nil {
-				return err
-			}
-
-			var l1StartBlock *types.Block
-			if config.L1StartingBlockTag.BlockHash != nil {
-				l1StartBlock, err = client.BlockByHash(context.Background(), *config.L1StartingBlockTag.BlockHash)
-			} else if config.L1StartingBlockTag.BlockNumber != nil {
-				l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
-			}
-			if err != nil {
-				return fmt.Errorf("error getting l1 start block: %w", err)
-			}
-
 			depPath, network := filepath.Split(ctx.String("deployment-dir"))
 			hh, err := hardhat.New(network, nil, []string{depPath})
 			if err != nil {
@@ -150,6 +127,22 @@ var Subcommands = cli.Commands{
 			if err := config.Check(); err != nil {
 				return err
 			}
+
+			client, err := ethclient.Dial(ctx.String("l1-rpc"))
+			if err != nil {
+				return fmt.Errorf("cannot dial %s: %w", ctx.String("l1-rpc"), err)
+			}
+
+			var l1StartBlock *types.Block
+			if config.L1StartingBlockTag.BlockHash != nil {
+				l1StartBlock, err = client.BlockByHash(context.Background(), *config.L1StartingBlockTag.BlockHash)
+			} else if config.L1StartingBlockTag.BlockNumber != nil {
+				l1StartBlock, err = client.BlockByNumber(context.Background(), big.NewInt(config.L1StartingBlockTag.BlockNumber.Int64()))
+			}
+			if err != nil {
+				return fmt.Errorf("error getting l1 start block: %w", err)
+			}
+
 			// Build the developer L2 genesis block
 			l2Genesis, err := genesis.BuildL2DeveloperGenesis(config, l1StartBlock)
 			if err != nil {
