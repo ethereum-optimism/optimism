@@ -62,7 +62,6 @@ type DeployConfig struct {
 	L2GenesisBlockGasLimit      hexutil.Uint64 `json:"l2GenesisBlockGasLimit"`
 	L2GenesisBlockDifficulty    *hexutil.Big   `json:"l2GenesisBlockDifficulty"`
 	L2GenesisBlockMixHash       common.Hash    `json:"l2GenesisBlockMixHash"`
-	L2GenesisBlockCoinbase      common.Address `json:"l2GenesisBlockCoinbase"`
 	L2GenesisBlockNumber        hexutil.Uint64 `json:"l2GenesisBlockNumber"`
 	L2GenesisBlockGasUsed       hexutil.Uint64 `json:"l2GenesisBlockGasUsed"`
 	L2GenesisBlockParentHash    common.Hash    `json:"l2GenesisBlockParentHash"`
