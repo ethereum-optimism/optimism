@@ -3,7 +3,7 @@ module github.com/ethereum-optimism/optimism/op-chain-ops
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.5
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.6
 	github.com/ethereum-optimism/optimism/op-node v0.10.1
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/holiman/uint256 v1.2.0
