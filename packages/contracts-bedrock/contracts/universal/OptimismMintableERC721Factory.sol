@@ -41,39 +41,11 @@ contract OptimismMintableERC721Factory is Semver {
      * @custom:semver 1.0.0
      *
      * @param _bridge Address of the ERC721 bridge on this network.
+     * @param _remoteChainId Chain ID for the remote network.
      */
     constructor(address _bridge, uint256 _remoteChainId) Semver(1, 0, 0) {
-        require(
-            _bridge != address(0),
-            "OptimismMintableERC721Factory: bridge cannot be address(0)"
-        );
-        require(
-            _remoteChainId != 0,
-            "OptimismMintableERC721Factory: remote chain id cannot be zero"
-        );
-
         BRIDGE = _bridge;
         REMOTE_CHAIN_ID = _remoteChainId;
-    }
-
-    /**
-     * @custom:legacy
-     * @notice Legacy getter for ERC721 bridge address.
-     *
-     * @return Address of the ERC721 bridge on this network.
-     */
-    function bridge() external view returns (address) {
-        return BRIDGE;
-    }
-
-    /**
-     * @custom:legacy
-     * @notice Legacy getter for remote chain ID.
-     *
-     * @notice Chain ID for the remote network.
-     */
-    function remoteChainId() external view returns (uint256) {
-        return REMOTE_CHAIN_ID;
     }
 
     /**
