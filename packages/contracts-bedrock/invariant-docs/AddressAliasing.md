@@ -1,6 +1,7 @@
 # `AddressAliasing` Invariants
-
+ 
 ## Address aliases are always able to be undone.
-**Test:** [`L32`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/echidna/FuzzAddressAliasing.sol#L32)
+**Test:** [`FuzzAddressAliasing.sol#L32`](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/echidna/FuzzAddressAliasing.sol#L32)
 
 Asserts that an address that has been aliased with `applyL1ToL2Alias` can always be unaliased with `undoL1ToL2Alias`. 
+ 

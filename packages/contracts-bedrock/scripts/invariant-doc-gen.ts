@@ -141,13 +141,12 @@ const renderContractDoc = (contract: Contract, header: boolean): string => {
   const _header = header ? `# \`${contract.name}\` Invariants\n` : ''
   const docs = contract.docs
     .map((doc: InvariantDoc) => {
-      const line = `L${doc.lineNo}`
+      const line = `${contract.fileName}#L${doc.lineNo}`
       return `## ${doc.header}\n**Test:** [\`${line}\`](${getGithubBase(
         contract
-      )}${contract.fileName}#${line})\n\n${doc.desc}`
+      )}${line})\n\n${doc.desc}`
     })
     .join('\n\n')
-
   return `${_header}\n${docs}`
 }
 
