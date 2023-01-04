@@ -101,7 +101,7 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
             _withdrawalProof
         );
 
-        // Warp passed the finalization period.
+        // Warp past the finalization period.
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Finalize the withdrawal transaction.
@@ -121,7 +121,45 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
      * to be finalized twice.
      */
     function invariant_cannotFinalizeTwice() external {
-        vm.expectRevert();
+        vm.expectRevert("OptimismPortal: withdrawal has already been finalized");
         op.finalizeWithdrawalTransaction(_defaultTx);
+    }
+}
+
+contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant_Harness {
+    function setUp() public override {
+        super.setUp();
+
+        // Prove the withdrawal transaction
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Warp past the finalization period.
+        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Set the target contract to the portal proxy
+        targetContract(address(op));
+        // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
+        excludeSender(address(multisig));
+    }
+
+    /**
+     * @custom:invariant A withdrawal should **always** be able to be finalized
+     * `FINALIZATION_PERIOD_SECONDS` after it was successfully proven.
+     *
+     * This invariant asserts that there is no chain of calls that can be made that
+     * will prevent a withdrawal from being finalized exactly `FINALIZATION_PERIOD_SECONDS`
+     * after it was successfully proven.
+     */
+    function invariant_canAlwaysFinalize() external {
+        uint256 bobBalanceBefore = address(bob).balance;
+
+        op.finalizeWithdrawalTransaction(_defaultTx);
+
+        assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
     }
 }
