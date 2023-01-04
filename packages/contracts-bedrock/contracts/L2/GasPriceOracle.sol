@@ -70,9 +70,9 @@ contract GasPriceOracle is Semver {
     uint256 public constant DECIMALS = 6;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      */
-    constructor() Semver(0, 0, 1) {}
+    constructor() Semver(1, 0, 0) {}
 
     /**
      * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
