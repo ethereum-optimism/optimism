@@ -3,10 +3,8 @@ import fs from 'fs'
 const BASE_INVARIANTS_DIR = `${__dirname}/../contracts/test/invariants`
 const BASE_ECHIDNA_DIR = `${__dirname}/../contracts/echidna`
 const BASE_DOCS_DIR = `${__dirname}/../invariant-docs`
-const BASE_ECHIDNA_GH_URL =
-  'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/echidna/'
-const BASE_INVARIANT_GH_URL =
-  'https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts/test/invariants/'
+const BASE_ECHIDNA_GH_URL = '../contracts/echidna/'
+const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
 const BLOCK_COMMENT_PREFIX_REGEX = /\*(\/)?/
 const BLOCK_COMMENT_HEADER_REGEX = /\*\s(.)+/
