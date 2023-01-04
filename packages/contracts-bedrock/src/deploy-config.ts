@@ -151,7 +151,6 @@ interface OptionalL2DeployConfig {
   l2GenesisBlockGasLimit: string
   l2GenesisBlockDifficulty: string
   l2GenesisBlockMixHash: string
-  l2GenesisBlockCoinbase: string
   l2GenesisBlockNumber: string
   l2GenesisBlockGasUsed: string
   l2GenesisBlockParentHash: string
@@ -299,10 +298,6 @@ export const deployConfigSpec: {
   l2GenesisBlockMixHash: {
     type: 'string', // bytes32
     default: ethers.constants.HashZero,
-  },
-  l2GenesisBlockCoinbase: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
   },
   l2GenesisBlockNumber: {
     type: 'string', // uint64

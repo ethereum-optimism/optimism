@@ -26,8 +26,9 @@
   "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",
 
-  "optimismBaseFeeRecipient": "0x71b2e590ce66c94a3c2ad5e889adc75c11728889",
-  "optimismL1FeeRecipient": "0x749058367c48a10c728073dcc4613560d69e730d",
+  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+
 
   "fundDevAccounts": true,
   "baseFeeVaultRecipient": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
@@ -35,10 +36,8 @@
   "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
   "proxyAdminOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
   "systemConfigOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
-  "l2GenesisBlockBaseFeePerGas": "0x3B9ACA00",
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
-  "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10
