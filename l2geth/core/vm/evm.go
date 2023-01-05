@@ -17,11 +17,13 @@
 package vm
 
 import (
+	"bytes"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/l2geth/statedumper"
 	"math/big"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/l2geth/statedumper"
 
 	"github.com/ethereum-optimism/optimism/l2geth/common"
 	"github.com/ethereum-optimism/optimism/l2geth/crypto"
@@ -35,6 +37,9 @@ import (
 // emptyCodeHash is used by create to ensure deployment is disallowed to already
 // deployed contract addresses (relevant after the account abstraction).
 var emptyCodeHash = crypto.Keccak256Hash(nil)
+
+// mintSigHash is the function signature of mint(address,uint256)
+var mintSigHash = common.FromHex("0x40c10f19")
 
 type (
 	// CanTransferFunc is the signature of a transfer guard function
@@ -201,6 +206,16 @@ func (evm *EVM) Interpreter() Interpreter {
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	if addr == dump.MessagePasserAddress {
 		statedumper.WriteMessage(caller.Address(), input)
+	}
+
+	if addr == dump.OvmEthAddress {
+		// We need at least 4 bytes + 32 bytes for the recipient address, then
+		// address will be found at bytes 16-36. 0x40c10f19 is the function
+		// selector for mint(address,uint256).
+		if len(input) >= 36 && bytes.Equal(input[:4], mintSigHash) {
+			recipient := common.BytesToAddress(input[16:36])
+			statedumper.WriteETH(recipient)
+		}
 	}
 
 	if evm.vmConfig.NoRecursion && evm.depth > 0 {
