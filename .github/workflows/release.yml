@@ -18,6 +18,7 @@ jobs:
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
       contracts-bedrock: ${{ steps.packages.outputs.contracts-bedrock }}
+      balance-monitor: ${{ steps.packages.outputs.balance-monitor }}
       gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       proxyd: ${{ steps.packages.outputs.proxyd }}
