@@ -77,7 +77,7 @@ func WipePredeployStorage(db vm.StateDB) error {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
 		}
 
-		if UntouchablePredeploys[*addr] || *addr == predeploys.LegacyMessagePasserAddr {
+		if UntouchablePredeploys[*addr] || *addr == predeploys.LegacyMessagePasserAddr || *addr == predeploys.LegacyERC20ETHAddr {
 			log.Trace("skipping wiping of storage", "name", name, "address", *addr)
 			continue
 		}
