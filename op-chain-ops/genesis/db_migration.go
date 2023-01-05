@@ -138,6 +138,12 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	// actual migration process. This involves modifying parts of the legacy database and inserting
 	// a transition block.
 
+	// The predeploy storage must be wiped before anything else,
+	// otherwise the ERC-1967 proxy storage slots will be removed.
+	if err := WipePredeployStorage(db); err != nil {
+		return nil, fmt.Errorf("cannot wipe storage: %w", err)
+	}
+
 	// First order of business is to convert all predeployed smart contracts into proxies so they
 	// can be easily upgraded later on. In the legacy system, all upgrades to predeployed contracts
 	// required hard forks which was a huge pain. Note that we do NOT put the GovernanceToken or

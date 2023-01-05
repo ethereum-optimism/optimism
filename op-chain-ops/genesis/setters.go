@@ -60,6 +60,37 @@ func SetL1Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
 	return setProxies(db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
 }
 
+// WipeStorage will set every storage variable that is set to `bytes32(0)`.
+func WipeStorage(db vm.StateDB, addr common.Address) error {
+	err := db.ForEachStorage(addr, func(key, _ common.Hash) bool {
+		db.SetState(addr, key, common.Hash{})
+		return true
+	})
+	return err
+}
+
+// WipePredeployStorage will wipe the storage of all L2 predeploys expect
+// for predeploys that must not have their storage altered.
+func WipePredeployStorage(db vm.StateDB) error {
+	for name, addr := range predeploys.Predeploys {
+		if addr == nil {
+			return fmt.Errorf("nil address in predeploys mapping for %s", name)
+		}
+
+		if UntouchablePredeploys[*addr] || *addr == predeploys.LegacyMessagePasserAddr {
+			log.Trace("skipping wiping of storage", "name", name, "address", *addr)
+			continue
+		}
+
+		log.Info("wiping storage", "name", name, "address", *addr)
+		if err := WipeStorage(db, *addr); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
 	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	if err != nil {
