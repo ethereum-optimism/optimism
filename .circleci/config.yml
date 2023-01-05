@@ -68,7 +68,7 @@ jobs:
           patterns: op-bindings,op-chain-ops,packages/
       - run:
           name: Install dependencies
-          command: yarn --frozen-lockfile
+          command: yarn && git diff --exit-code
       - run:
           name: print forge version
           command: forge --version
