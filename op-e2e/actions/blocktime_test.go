@@ -1,11 +1,14 @@
 package actions
 
 import (
+	"context"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -262,4 +265,42 @@ func TestLargeL1Gaps(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 	verifyChainStateOnVerifier(12, 40, 9, 40, 9)
 	require.Equal(t, verifier.L2Safe(), sequencer.L2Safe())
+}
+
+func TestL1BlockTimeShorterThanL2Time(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L1BlockTime = 2
+	dp.DeployConfig.L2BlockTime = 4
+	dp.DeployConfig.SequencerWindowSize = 4
+	dp.DeployConfig.MaxSequencerDrift = 32
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+
+	sd, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
+
+	miner.ActL1StartBlock(2)(t)
+	miner.ActL1EndBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	sequencer.ActBuildToL1Head(t)
+
+	for i := 0; i < 25; i++ {
+		batcher.ActSubmitAll(t)
+		miner.ActL1StartBlock(2)(t)
+		miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+		miner.ActL1EndBlock(t)
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2PipelineFull(t)
+		sequencer.ActBuildToL1Head(t)
+	}
+
+	cl := sequencerEngine.EthClient()
+	head, _ := cl.BlockByNumber(context.TODO(), nil)
+	for i := head.Header().Number; i.Cmp(common.Big0) > 0; i.Sub(i, common.Big1) {
+		l2Block, _ := cl.BlockByNumber(context.TODO(), i)
+		l1Info, _ := derive.L1InfoDepositTxData(l2Block.Transactions()[0].Data())
+		log.Error("L1 Origin Information", "l2block", i, "l2_timestamp", l2Block.Time(), "origin", l1Info.Number, "l1_timestamp", l1Info.Time)
+	}
+
 }
