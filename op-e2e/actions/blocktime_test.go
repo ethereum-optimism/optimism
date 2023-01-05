@@ -279,6 +279,8 @@ func TestL1BlockTimeShorterThanL2Time(gt *testing.T) {
 
 	sd, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
+	batchSubmit := true
+
 	miner.ActL1StartBlock(2)(t)
 	miner.ActL1EndBlock(t)
 	sequencer.ActL1HeadSignal(t)
@@ -286,9 +288,13 @@ func TestL1BlockTimeShorterThanL2Time(gt *testing.T) {
 	sequencer.ActBuildToL1Head(t)
 
 	for i := 0; i < 25; i++ {
-		batcher.ActSubmitAll(t)
+		if batchSubmit {
+			batcher.ActSubmitAll(t)
+		}
 		miner.ActL1StartBlock(2)(t)
-		miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+		if batchSubmit {
+			miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+		}
 		miner.ActL1EndBlock(t)
 		sequencer.ActL1HeadSignal(t)
 		sequencer.ActL2PipelineFull(t)

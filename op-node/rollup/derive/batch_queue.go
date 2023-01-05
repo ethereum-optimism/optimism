@@ -234,7 +234,7 @@ batchLoop:
 	nextEpoch := bq.l1Blocks[1]
 	// Fill with empty L2 blocks of the same epoch until we meet the time of the next L1 origin,
 	// to preserve that L2 time >= L1 time
-	if nextTimestamp < nextEpoch.Time {
+	if nextTimestamp < nextEpoch.Time || l2SafeHead.L1Origin.Number != epoch.Number {
 		return &BatchData{
 			BatchV1{
 				ParentHash:   l2SafeHead.Hash,

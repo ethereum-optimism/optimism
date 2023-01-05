@@ -97,7 +97,11 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 
 	// If we ran out of sequencer time drift, then we drop the batch and produce an empty batch instead,
 	// as the sequencer is not allowed to include anything past this point without moving to the next epoch.
-	if max := batchOrigin.Time + cfg.MaxSequencerDrift; batch.Batch.Timestamp > max {
+	max := batchOrigin.Time + cfg.MaxSequencerDrift
+	if max < nextTimestamp {
+		max = nextTimestamp + 1
+	}
+	if batch.Batch.Timestamp > max {
 		log.Warn("batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again", "max_time", max)
 		return BatchDrop
 	}
