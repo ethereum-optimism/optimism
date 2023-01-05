@@ -8,6 +8,7 @@
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [`l1FeeOverhead` and `l1FeeScalar` (`uint256,uint256`)](#l1feeoverhead-and-l1feescalar-uint256uint256)
   - [`gasLimit` (`uint64`)](#gaslimit-uint64)
+  - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
 - [Reading the system config](#reading-the-system-config)
 
@@ -40,6 +41,19 @@ are updated in conjunction and apply new L1 costs to the L2 transactions.
 The gas limit of the L2 blocks is configured through the system config.
 Changes to the L2 gas limit are fully applied in the first L2 block with the L1 origin that introduced the change,
 as opposed to the 1/1024 adjustments towards a target as seen in limit updates of L1 blocks.
+
+### `unsafeBlockSigner` (`address`)
+
+Blocks are gossiped around the p2p network before they are made available on L1.
+To prevent denial of service on the p2p layer, these unsafe blocks must be
+signed with a particular key to be accepted as "canonical" unsafe blocks.
+The address corresponding to this key is the `unsafeBlockSigner`. To ensure
+that its value can be fetched with a storage proof in a storage layout independent
+manner, it is stored at a special storage slot corresponding to
+`keccak256("systemconfig.unsafeblocksigner")`.
+
+Unlike the other values, the `unsafeBlockSigner` only operates on blockchain
+policy. It is not a consensus level parameter.
 
 ## Writing the system config
 
