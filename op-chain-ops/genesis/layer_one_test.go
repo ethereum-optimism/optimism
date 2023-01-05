@@ -84,7 +84,7 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 
 	factory, err := bindings.NewOptimismMintableERC20(predeploys.DevOptimismMintableERC20FactoryAddr, sim)
 	require.NoError(t, err)
-	bridgeAddr, err := factory.Bridge(callOpts)
+	bridgeAddr, err := factory.BRIDGE(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevL1StandardBridgeAddr, bridgeAddr)
 

@@ -264,7 +264,7 @@ const deployFn: DeployFunction = async (hre) => {
       // Check OptimismMintableERC20Factory was initialized properly.
       await assertContractVariable(
         OptimismMintableERC20Factory,
-        'bridge',
+        'BRIDGE',
         L1StandardBridge.address
       )
 
