@@ -577,6 +577,9 @@ const check = {
 
     const addressManager = await ProxyAdmin.addressManager()
     console.log(`  - addressManager: ${addressManager}`)
+
+    await checkProxy(hre, 'ProxyAdmin')
+    await assertProxy(hre, 'ProxyAdmin')
   },
   // BaseFeeVault
   // - check version
