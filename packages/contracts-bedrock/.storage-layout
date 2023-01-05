@@ -39,7 +39,7 @@
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | msgNonce           | uint240                  | 205  | 0      | 30    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| receivedMessages   | mapping(bytes32 => bool) | 206  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| failedMessages     | mapping(bytes32 => bool) | 206  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | __gap              | uint256[42]              | 207  | 0      | 1344  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 +--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
@@ -228,7 +228,7 @@
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | msgNonce           | uint240                  | 205  | 0      | 30    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
-| receivedMessages   | mapping(bytes32 => bool) | 206  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| failedMessages     | mapping(bytes32 => bool) | 206  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 |--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------|
 | __gap              | uint256[42]              | 207  | 0      | 1344  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 +--------------------+--------------------------+------+--------+-------+----------------------------------------------------------------+
