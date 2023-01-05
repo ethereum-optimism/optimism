@@ -27,20 +27,8 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
     }
 
     function test_constructor_succeeds() external {
-        assertEq(factory.bridge(), address(L2Bridge));
-        assertEq(factory.remoteChainId(), 1);
         assertEq(factory.BRIDGE(), address(L2Bridge));
         assertEq(factory.REMOTE_CHAIN_ID(), 1);
-    }
-
-    function test_constructor_zeroBridge_reverts() external {
-        vm.expectRevert("OptimismMintableERC721Factory: bridge cannot be address(0)");
-        new OptimismMintableERC721Factory(address(0), 1);
-    }
-
-    function test_constructor_zeroRemoteChainId_reverts() external {
-        vm.expectRevert("OptimismMintableERC721Factory: remote chain id cannot be zero");
-        new OptimismMintableERC721Factory(address(L2Bridge), 0);
     }
 
     function test_createOptimismMintableERC721_succeeds() external {

@@ -108,7 +108,7 @@ describe('ERC721 Bridge', () => {
     expect(await L1ERC721Bridge.otherBridge()).to.equal(L2ERC721Bridge.address)
     expect(await L2ERC721Bridge.otherBridge()).to.equal(L1ERC721Bridge.address)
 
-    expect(await OptimismMintableERC721Factory.bridge()).to.equal(
+    expect(await OptimismMintableERC721Factory.BRIDGE()).to.equal(
       L2ERC721Bridge.address
     )
 
