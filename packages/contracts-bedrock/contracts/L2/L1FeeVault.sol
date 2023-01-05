@@ -13,6 +13,8 @@ import { FeeVault } from "../universal/FeeVault.sol";
 contract L1FeeVault is FeeVault, Semver {
     /**
      * @custom:semver 0.0.1
+     *
+     * @param _recipient Address that will receive the accumulated fees.
      */
     constructor(address _recipient) FeeVault(_recipient, 10 ether) Semver(0, 0, 1) {}
 }
