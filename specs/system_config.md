@@ -8,6 +8,7 @@
   - [`batcherHash` (`bytes32`)](#batcherhash-bytes32)
   - [`l1FeeOverhead` and `l1FeeScalar` (`uint256,uint256`)](#l1feeoverhead-and-l1feescalar-uint256uint256)
   - [`gasLimit` (`uint64`)](#gaslimit-uint64)
+  - [`unsafeBlockSigner` (`address`)](#unsafeblocksigner-address)
 - [Writing the system config](#writing-the-system-config)
 - [Reading the system config](#reading-the-system-config)
 
