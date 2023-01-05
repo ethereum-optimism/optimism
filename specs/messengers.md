@@ -36,7 +36,7 @@ interface CrossDomainMessenger {
     function MESSAGE_VERSION() view external returns (uint16);
     function messageNonce() view external returns (uint256);
     function otherMessenger() view external returns (address);
-    function receivedMessages(bytes32) view external returns (bool);
+    function failedMessages(bytes32) view external returns (bool);
     function relayMessage(uint256 _nonce, address _sender, address _target, uint256 _value, uint256 _minGasLimit, bytes memory _message) payable external;
     function sendMessage(address _target, bytes memory _message, uint32 _minGasLimit) payable external;
     function successfulMessages(bytes32) view external returns (bool);
@@ -49,7 +49,7 @@ interface CrossDomainMessenger {
 The `sendMessage` function is used to send a cross domain message. To trigger
 the execution on the other side, the `relayMessage` function is called.
 Successful messages have their hash stored in the `successfulMessages` mapping
-while unsuccessful messages have their hash stored in the `receivedMessages`
+while unsuccessful messages have their hash stored in the `failedMessages`
 mapping.
 
 The user experience when sending from L1 to L2 is a bit different than when
