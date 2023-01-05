@@ -37,7 +37,9 @@ contract SequencerFeeVault is SequencerFeeVaultLegacySpacer, FeeVault, Semver {
 
     /**
      * @custom:legacy
-     * @notice: Legacy getter for the recipient
+     * @notice Legacy getter for the recipient address.
+     *
+     * @return The recipient address.
      */
     function l1FeeWallet() public view returns (address) {
         return RECIPIENT;
