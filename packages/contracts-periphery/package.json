@@ -25,7 +25,6 @@
     "gas-snapshot": "forge snapshot",
     "pretest:slither": "rm -f @openzeppelin && rm -f hardhat && ln -s node_modules/@openzeppelin @openzeppelin && ln -s ../../node_modules/hardhat hardhat",
     "posttest:slither": "rm -f @openzeppelin && rm -f hardhat",
-    "install:ci": "./scripts/yarn-lock-file.sh",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",

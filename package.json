@@ -48,6 +48,7 @@
     "lint:specs:fix": "yarn run markdownlint-cli2-fix \"./specs/**/*.md\"",
     "lint:specs:check": "yarn run markdownlint-cli2  \"./specs/**/*.md\"",
     "lint:specs:toc": "yarn run doctoc '--title=**Table of Contents**' ./specs",
+    "install:ci": "./scripts/yarn-install.sh",
     "postinstall": "patch-package",
     "ready": "yarn lint && yarn test",
     "prepare": "husky install",
