@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.40
+
+### Patch Changes
+
+- d1f9098f9: Removes support for Kovan
+
 ## 0.5.39
 
 ### Patch Changes

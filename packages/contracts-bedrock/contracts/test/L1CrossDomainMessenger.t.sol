@@ -200,7 +200,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         // the message hash is in the successfulMessages mapping
         assert(L1Messenger.successfulMessages(hash));
         // it is not in the received messages mapping
-        assertEq(L1Messenger.receivedMessages(hash), false);
+        assertEq(L1Messenger.failedMessages(hash), false);
     }
 
     // relayMessage: should revert if attempting to relay a message sent to an L1 system contract
@@ -317,7 +317,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, value);
         assertEq(address(target).balance, 0);
         assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
 
         vm.expectEmit(true, true, true, true);
 
@@ -337,7 +337,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
     }
 
     // relayMessage: should revert if recipient is trying to reenter
@@ -385,7 +385,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
 
         assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
     }
 
     function test_relayMessage_legacy_succeeds() external {
@@ -426,7 +426,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         // Message was successfully relayed.
         assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.receivedMessages(hash), false);
+        assertEq(L1Messenger.failedMessages(hash), false);
     }
 
     function test_relayMessage_legacyOldReplay_reverts() external {
@@ -469,7 +469,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         // Message was not relayed.
         assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.receivedMessages(hash), false);
+        assertEq(L1Messenger.failedMessages(hash), false);
     }
 
     function test_relayMessage_legacyRetryAfterFailure_succeeds() external {
@@ -517,7 +517,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, value);
         assertEq(address(target).balance, 0);
         assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
 
         // Make the target not revert anymore.
         vm.etch(target, address(0).code);
@@ -544,7 +544,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
     }
 
     function test_relayMessage_legacyRetryAfterSuccess_reverts() external {
@@ -589,7 +589,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.receivedMessages(hash), false);
+        assertEq(L1Messenger.failedMessages(hash), false);
 
         // Expect a revert.
         vm.expectRevert("CrossDomainMessenger: message cannot be replayed");
@@ -647,7 +647,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, value);
         assertEq(address(target).balance, 0);
         assertEq(L1Messenger.successfulMessages(hash), false);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
 
         // Make the target not revert anymore.
         vm.etch(target, address(0).code);
@@ -674,7 +674,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(address(L1Messenger).balance, 0);
         assertEq(address(target).balance, value);
         assertEq(L1Messenger.successfulMessages(hash), true);
-        assertEq(L1Messenger.receivedMessages(hash), true);
+        assertEq(L1Messenger.failedMessages(hash), true);
 
         // Expect a revert.
         vm.expectRevert("CrossDomainMessenger: message has already been relayed");
