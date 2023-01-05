@@ -309,9 +309,10 @@ jobs:
       # - check-changed:
       #     patterns: contracts-bedrock,contracts
       - run:
-          name: Check slither
+          name: Check versions
           command: |
               slither --version
+              echidna-test --version
               slither . --print echidna
           working_directory: packages/contracts-bedrock
       - run:
