@@ -366,8 +366,7 @@ func TestDeepReorg(gt *testing.T) {
 	// Create a var to store the ref for the second to last block of the second sequencing window
 	var blockA39 eth.L1BlockRef
 
-	var aliceL2TxBlockRef eth.L2BlockRef
-
+	var aliceL2TxBlock types.Block
 	// Mine enough empty blocks on L1 to reach two sequence windows.
 	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize*3; i++ {
 		// At block #50, send a batch to L1 containing all L2 blocks built up to this point.
@@ -406,13 +405,16 @@ func TestDeepReorg(gt *testing.T) {
 			alice.L2.ActMakeTx(t)
 
 			// Include the tx in the block we're making
-			seqEngine.ActL2IncludeTx(alice.Address())
+			seqEngine.ActL2IncludeTx(alice.Address())(t)
 
 			// Finalize the L2 block containing alice's transaction
 			sequencer.ActL2EndBlock(t)
 
 			// Store the ref to the L2 block that the transaction was included in for later.
-			aliceL2TxBlockRef = sequencer.L2Unsafe()
+			b0, err := l2Client.BlockByNumber(t.Ctx(), big.NewInt(int64(sequencer.L2Unsafe().Number)))
+			require.NoError(t, err, "failed to fetch unsafe head of L2 after submitting alice's transaction")
+
+			aliceL2TxBlock = *b0
 		}
 
 		// Ask sequencer to handle new L1 head and build L2 blocks up to the L1 head
@@ -537,15 +539,15 @@ func TestDeepReorg(gt *testing.T) {
 	checkVerifEngine()
 
 	// Ensure that the parent of the L2 block containing Alice's transaction still exists
-	b0, err := l2Client.BlockByHash(t.Ctx(), aliceL2TxBlockRef.ParentHash)
+	b0, err := l2Client.BlockByHash(t.Ctx(), aliceL2TxBlock.ParentHash())
 	require.NoError(t, err, "Parent of the L2 block containing Alice's transaction should still exist on L2")
-	t.Log(b0.Hash(), b0.Number())
+	require.Equal(t, b0.Hash(), aliceL2TxBlock.ParentHash())
 
 	// Ensure that the L2 block containing Alice's transaction no longer exists.
-	b1, err := l2Client.BlockByNumber(t.Ctx(), new(big.Int).SetInt64(int64(aliceL2TxBlockRef.Number)))
-	t.Log(b1.Hash(), b1.Number())
-	require.NotEqual(t, b1.Hash(), aliceL2TxBlockRef.Hash)
-	// require.Error(t, err, "L2 block containing Alice's transaction should no longer exist on L2")
+	b1, err := l2Client.BlockByNumber(t.Ctx(), aliceL2TxBlock.Number())
+	require.NoError(t, err, "A block that has the same number as the block that contained Alice's transaction should still exist on L2")
+	require.Equal(t, b1.Number(), aliceL2TxBlock.Number())
+	require.NotEqual(t, b1.Hash(), aliceL2TxBlock.Hash(), "L2 block containing Alice's transaction should no longer exist on L2")
 }
 
 type rpcWrapper struct {
