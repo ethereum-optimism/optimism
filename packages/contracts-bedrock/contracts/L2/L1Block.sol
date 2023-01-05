@@ -60,9 +60,9 @@ contract L1Block is Semver {
     uint256 public l1FeeScalar;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      */
-    constructor() Semver(0, 0, 1) {}
+    constructor() Semver(1, 0, 0) {}
 
     /**
      * @notice Updates the L1 block values.
