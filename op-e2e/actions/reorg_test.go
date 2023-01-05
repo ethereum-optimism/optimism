@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"math/big"
 	"math/rand"
 	"path"
 	"testing"
@@ -338,6 +339,18 @@ func TestDeepReorg(gt *testing.T) {
 		require.Equal(t, verifier.L2Safe(), ref, "verifier safe head of engine matches rollup client")
 	}
 
+	// Set up alice
+	log := testlog.Logger(t, log.LvlDebug)
+	addresses := e2eutils.CollectAddresses(sd, dp)
+	l2UserEnv := &BasicUserEnv[*L2Bindings]{
+		EthCl:          l2Client,
+		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		AddressCorpora: addresses,
+		Bindings:       NewL2Bindings(t, l2Client, seqEngine.GethClient()),
+	}
+	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
+	alice.L2.SetUserEnv(l2UserEnv)
+
 	// Run one iteration of the L2 derivation pipeline
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
@@ -384,19 +397,18 @@ func TestDeepReorg(gt *testing.T) {
 		// Submit a dummy tx as alice in a block that will remain in the canonical chain
 		// after the reorg.
 		if i == 35 {
-			alice := NewBasicUser[any](nil, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
-			alice.SetUserEnv(&BasicUserEnv[any]{
-				EthCl:  l2Client,
-				Signer: types.LatestSigner(sd.L2Cfg.Config),
-			})
-
-			// Submit a dummy tx
-			alice.ActResetTxOpts(t)
-			alice.ActMakeTx(t)
-
 			// Include alice's transaction on L2
 			sequencer.ActL2StartBlock(t)
-			seqEngine.ActL2IncludeTx(dp.Addresses.Alice)
+
+			// Submit a dummy tx
+			alice.L2.ActResetTxOpts(t)
+			alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
+			alice.L2.ActMakeTx(t)
+
+			// Include the tx in the block we're making
+			seqEngine.ActL2IncludeTx(alice.Address())
+
+			// Finalize the L2 block containing alice's transaction
 			sequencer.ActL2EndBlock(t)
 
 			// Store the ref to the L2 block that the transaction was included in for later.
@@ -530,9 +542,10 @@ func TestDeepReorg(gt *testing.T) {
 	t.Log(b0.Hash(), b0.Number())
 
 	// Ensure that the L2 block containing Alice's transaction no longer exists.
-	b1, err := l2Client.BlockByHash(t.Ctx(), aliceL2TxBlockRef.Hash)
+	b1, err := l2Client.BlockByNumber(t.Ctx(), new(big.Int).SetInt64(int64(aliceL2TxBlockRef.Number)))
 	t.Log(b1.Hash(), b1.Number())
-	require.Error(t, err, "L2 block containing Alice's transaction should no longer exist on L2")
+	require.NotEqual(t, b1.Hash(), aliceL2TxBlockRef.Hash)
+	// require.Error(t, err, "L2 block containing Alice's transaction should no longer exist on L2")
 }
 
 type rpcWrapper struct {
