@@ -26,16 +26,36 @@ import (
 // in the future.
 const MaxSlotChecks = 1000
 
-var LegacyETHCheckSlots = map[common.Hash]common.Hash{
-	// Bridge
-	common.Hash{31: 0x06}: common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
-	// Symbol
-	common.Hash{31: 0x04}: common.HexToHash("0x4554480000000000000000000000000000000000000000000000000000000006"),
-	// Name
-	common.Hash{31: 0x03}: common.HexToHash("0x457468657200000000000000000000000000000000000000000000000000000a"),
-	// Total supply
-	common.Hash{31: 0x02}: {},
-}
+var (
+	LegacyETHCheckSlots = map[common.Hash]common.Hash{
+		// Bridge
+		common.Hash{31: 0x06}: common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
+		// Symbol
+		common.Hash{31: 0x04}: common.HexToHash("0x4554480000000000000000000000000000000000000000000000000000000006"),
+		// Name
+		common.Hash{31: 0x03}: common.HexToHash("0x457468657200000000000000000000000000000000000000000000000000000a"),
+		// Total supply
+		common.Hash{31: 0x02}: {},
+	}
+
+	// ContractStorageCount is a map of predeploy addresses to the number of storage slots expected
+	// to be set in those predeploys after the migration. It does not include any predeploys that
+	// were not wiped. It also accounts for the 2 EIP-1967 storage slots in each contract.
+	ContractStorageCount = map[common.Address]int{
+		predeploys.L2CrossDomainMessengerAddr:        3,
+		predeploys.L2StandardBridgeAddr:              2,
+		predeploys.SequencerFeeVaultAddr:             2,
+		predeploys.OptimismMintableERC20FactoryAddr:  2,
+		predeploys.L1BlockNumberAddr:                 2,
+		predeploys.GasPriceOracleAddr:                2,
+		predeploys.L1BlockAddr:                       2,
+		predeploys.L2ERC721BridgeAddr:                2,
+		predeploys.OptimismMintableERC721FactoryAddr: 2,
+		predeploys.ProxyAdminAddr:                    3,
+		predeploys.BaseFeeVaultAddr:                  2,
+		predeploys.L1FeeVaultAddr:                    2,
+	}
+)
 
 // PostCheckMigratedDB will check that the migration was performed correctly
 func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID uint64) error {
@@ -221,27 +241,32 @@ func PostCheckPredeployStorage(db vm.StateDB) error {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
 		}
 
-		// Skip the addresses that did not have their storage reset
-		if FrozenStoragePredeploys[*addr] {
+		// Skip the addresses that did not have their storage reset, also skip the
+		// L2ToL1MessagePasser because it's already covered by the withdrawals check.
+		if FrozenStoragePredeploys[*addr] || *addr == predeploys.L2ToL1MessagePasserAddr {
 			continue
 		}
 
 		// Create a mapping of all storage slots. These values were wiped
 		// so it should not take long to iterate through all of them.
 		slots := make(map[common.Hash]common.Hash)
-		db.ForEachStorage(*addr, func(key, value common.Hash) bool {
+		err := db.ForEachStorage(*addr, func(key, value common.Hash) bool {
 			slots[key] = value
 			return true
 		})
+		if err != nil {
+			return err
+		}
 
 		log.Info("predeploy storage", "name", name, "address", *addr, "count", len(slots))
 		for key, value := range slots {
 			log.Debug("storage values", "key", key, "value", value)
 		}
 
-		// TODO: create a map with expected number of storage slots by contract
-		// and assert that the expected number of storage slots matches the
-		// observed amount
+		// Assert that the correct number of slots are present.
+		if ContractStorageCount[*addr] != len(slots) {
+			return fmt.Errorf("expected %d storage slots for %s but got %d", ContractStorageCount[*addr], name, len(slots))
+		}
 	}
 	return nil
 }
