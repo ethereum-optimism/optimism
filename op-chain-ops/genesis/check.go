@@ -67,6 +67,11 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
+	if err := PostCheckPredeployStorage(db); err != nil {
+		return err
+	}
+	log.Info("checked predeploy storage")
+
 	if err := PostCheckUntouchables(underlyingDB, db, prevHeader.Root, l1ChainID); err != nil {
 		return err
 	}
@@ -205,6 +210,39 @@ func PostCheckPredeploys(db *state.StateDB) error {
 		}
 	}
 
+	return nil
+}
+
+// PostCheckPredeployStorage will ensure that the predeploys had their storage
+// wiped correctly.
+func PostCheckPredeployStorage(db vm.StateDB) error {
+	for name, addr := range predeploys.Predeploys {
+		if addr == nil {
+			return fmt.Errorf("nil address in predeploys mapping for %s", name)
+		}
+
+		// Skip the addresses that did not have their storage reset
+		if FrozenStoragePredeploys[*addr] {
+			continue
+		}
+
+		// Create a mapping of all storage slots. These values were wiped
+		// so it should not take long to iterate through all of them.
+		slots := make(map[common.Hash]common.Hash)
+		db.ForEachStorage(*addr, func(key, value common.Hash) bool {
+			slots[key] = value
+			return true
+		})
+
+		log.Info("predeploy storage", "name", name, "address", *addr, "count", len(slots))
+		for key, value := range slots {
+			log.Debug("storage values", "key", key, "value", value)
+		}
+
+		// TODO: create a map with expected number of storage slots by contract
+		// and assert that the expected number of storage slots matches the
+		// observed amount
+	}
 	return nil
 }
 
