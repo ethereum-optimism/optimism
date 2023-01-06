@@ -20,7 +20,10 @@ import (
 )
 
 var (
-	abiTrue                         = common.Hash{31: 0x01}
+	abiTrue = common.Hash{31: 0x01}
+	// BedrockTransitionBlockExtraData represents the extradata
+	// set in the very first bedrock block. This value must be
+	// less than 32 bytes long or it will create an invalid block.
 	BedrockTransitionBlockExtraData = []byte("BEDROCK")
 )
 
@@ -142,6 +145,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Set the amount of gas used so that EIP 1559 starts off stable
 	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
+
+	// Ensure that the extradata is valid
+	if size := len(BedrockTransitionBlockExtraData); size > 32 {
+		return nil, fmt.Errorf("transition block extradata too long: %d", size)
+	}
 
 	// Create the bedrock transition block
 	bedrockHeader := &types.Header{
