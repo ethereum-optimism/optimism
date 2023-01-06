@@ -619,38 +619,16 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/contracts-bedrock@0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.10.0.tgz#45012a78db2e7f66463fb19d38f54a69d8fcd1e6"
-  integrity sha512-T4PxAX/Q8wNNspa+DRWvRuIpEA838768hoZbSFxBbK7uPz7Mu6cdThbKIAaVQc79ZPcuLTH9Me3bjAbi1ROQ0A==
+"@eth-optimism/contracts-bedrock@0.11.0":
+  version "0.11.0"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.11.0.tgz#38d9406905fabac542eef62483e06be0c15f35c4"
+  integrity sha512-e8N5Dzbe/bayfbKnYkkAFGtPmdWS3zbm3GFBlItdW5CSwjWVVzQ7ExHv0cVRMBzZ+PY25gs0u8PA//aM775qwA==
   dependencies:
-    "@eth-optimism/core-utils" "^0.11.0"
+    "@eth-optimism/core-utils" "^0.12.0"
     "@openzeppelin/contracts" "4.7.3"
     "@openzeppelin/contracts-upgradeable" "4.7.3"
     ethers "^5.7.0"
     hardhat "^2.9.6"
-
-"@eth-optimism/core-utils@^0.11.0":
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.11.0.tgz#cc0ac24fc49a6f5f411e3947d2d3bb5f49333d5a"
-  integrity sha512-/oTyC1sqZ/R97pRk+7cQJpZ6qwmJvqcym9coy9fZaqmIuFaZkjXQKz04lWUPL0zzh9zTN+2nMSB+kZReccmong==
-  dependencies:
-    "@ethersproject/abi" "^5.7.0"
-    "@ethersproject/abstract-provider" "^5.7.0"
-    "@ethersproject/address" "^5.7.0"
-    "@ethersproject/bignumber" "^5.7.0"
-    "@ethersproject/bytes" "^5.7.0"
-    "@ethersproject/constants" "^5.7.0"
-    "@ethersproject/contracts" "^5.7.0"
-    "@ethersproject/hash" "^5.7.0"
-    "@ethersproject/keccak256" "^5.7.0"
-    "@ethersproject/properties" "^5.7.0"
-    "@ethersproject/providers" "^5.7.0"
-    "@ethersproject/rlp" "^5.7.0"
-    "@ethersproject/transactions" "^5.7.0"
-    "@ethersproject/web" "^5.7.0"
-    bufio "^1.0.7"
-    chai "^4.3.4"
 
 "@eth-optimism/core-utils@^0.5.2":
   version "0.5.5"
@@ -3725,6 +3703,14 @@
   resolved "https://registry.yarnpkg.com/@types/dateformat/-/dateformat-5.0.0.tgz#17ce64b0318f3f36d1c830c58a7a915445f1f93d"
   integrity sha512-SZg4JdHIWHQGEokbYGZSDvo5wA4TLYPXaqhigs/wH+REDOejcJzgH+qyY+HtEUtWOZxEUkbhbdYPqQDiEgrXeA==
 
+"@types/encoding-down@*":
+  version "5.0.1"
+  resolved "https://registry.yarnpkg.com/@types/encoding-down/-/encoding-down-5.0.1.tgz#5527b8656395b274bf0100a312c1c620a7880a24"
+  integrity sha512-1O8CyIC67hMR+VuxLtjlJvXwNn5cNnJ7YiaBR4p+ONGijlmIZjbXzsPuJm146p9eQZwzZRGgmRwWtCqXs5wwSw==
+  dependencies:
+    "@types/abstract-leveldown" "*"
+    "@types/level-codec" "*"
+
 "@types/express-serve-static-core@^4.17.18":
   version "4.17.24"
   resolved "https://registry.yarnpkg.com/@types/express-serve-static-core/-/express-serve-static-core-4.17.24.tgz#ea41f93bf7e0d59cd5a76665068ed6aab6815c07"
@@ -3769,10 +3755,33 @@
   resolved "https://registry.yarnpkg.com/@types/json5/-/json5-0.0.29.tgz#ee28707ae94e11d2b827bcbe5270bcea7f3e71ee"
   integrity sha512-dRLjCWHYg4oaA77cxO64oO+7JwCwnIzkZPdrrC71jQmQtlhM556pwKo5bUzqvZndkVbeFLIIi+9TC40JNF5hNQ==
 
+"@types/level-codec@*":
+  version "9.0.1"
+  resolved "https://registry.yarnpkg.com/@types/level-codec/-/level-codec-9.0.1.tgz#b135e0b3da81185b6f27655334c5f1da89b2b0af"
+  integrity sha512-6z7DSlBsmbax3I/bV1Q6jT1nKquDjFl95LURVThdKtwILkRawLYtXdINW19xM95N5kqN2detWb2iGrbUlPwNyw==
+
 "@types/level-errors@*":
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/@types/level-errors/-/level-errors-3.0.0.tgz#15c1f4915a5ef763b51651b15e90f6dc081b96a8"
   integrity sha512-/lMtoq/Cf/2DVOm6zE6ORyOM+3ZVm/BvzEZVxUhf6bgh8ZHglXlBqxbxSlJeVp8FCbD3IVvk/VbsaNmDjrQvqQ==
+
+"@types/level@^6.0.1":
+  version "6.0.1"
+  resolved "https://registry.yarnpkg.com/@types/level/-/level-6.0.1.tgz#6642c048dbae4638721105cd5f8255a2829bd5d6"
+  integrity sha512-4RK6vl9/CNCe5SyDCGaTgTOYEPNh8/wUaUY8UDN8AXon2D7hGPGIlx0t9jCds9wiKBqicsUyeAA0W4rUZeqYBQ==
+  dependencies:
+    "@types/abstract-leveldown" "*"
+    "@types/encoding-down" "*"
+    "@types/levelup" "*"
+
+"@types/levelup@*":
+  version "5.1.2"
+  resolved "https://registry.yarnpkg.com/@types/levelup/-/levelup-5.1.2.tgz#3b987fe66c95871dc97e74f0bce5b2eb91140782"
+  integrity sha512-JhCKONvFg2rEbsyyCCRkiPF03tMV1NyBXER4iXKBemgjwS4+SF6HGNuL4cfq6ueM6Yc+4ZbwJnU/5v6q3ZziUQ==
+  dependencies:
+    "@types/abstract-leveldown" "*"
+    "@types/level-errors" "*"
+    "@types/node" "*"
 
 "@types/levelup@^4.3.0":
   version "4.3.3"
@@ -9463,9 +9472,9 @@ forever-agent@~0.6.1:
   resolved "https://registry.yarnpkg.com/forever-agent/-/forever-agent-0.6.1.tgz#fbc71f0c41adeb37f96c577ad1ed42d8fdacca91"
   integrity sha1-+8cfDEGt6zf5bFd60e1C2P2sypE=
 
-"forge-std@https://github.com/foundry-rs/forge-std.git#5bafa16b4a6aa67c503d96294be846a22a6f6efb":
-  version "1.0.0"
-  resolved "https://github.com/foundry-rs/forge-std.git#5bafa16b4a6aa67c503d96294be846a22a6f6efb"
+"forge-std@https://github.com/foundry-rs/forge-std.git#53331f4cb2e313466f72440f3e73af048c454d02":
+  version "1.2.0"
+  resolved "https://github.com/foundry-rs/forge-std.git#53331f4cb2e313466f72440f3e73af048c454d02"
 
 form-data@^2.2.0:
   version "2.5.1"

@@ -5,6 +5,7 @@ pkg := bindings
 all: version mkdir bindings more
 
 bindings: l1block-bindings \
+  l1-blocknumber-bindings \
 	system-config-bindings \
 	l1-cross-domain-messenger-bindings \
 	l1-standard-bridge-bindings \
