@@ -619,38 +619,16 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/contracts-bedrock@0.10.0":
-  version "0.10.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.10.0.tgz#45012a78db2e7f66463fb19d38f54a69d8fcd1e6"
-  integrity sha512-T4PxAX/Q8wNNspa+DRWvRuIpEA838768hoZbSFxBbK7uPz7Mu6cdThbKIAaVQc79ZPcuLTH9Me3bjAbi1ROQ0A==
+"@eth-optimism/contracts-bedrock@0.11.0":
+  version "0.11.0"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.11.0.tgz#38d9406905fabac542eef62483e06be0c15f35c4"
+  integrity sha512-e8N5Dzbe/bayfbKnYkkAFGtPmdWS3zbm3GFBlItdW5CSwjWVVzQ7ExHv0cVRMBzZ+PY25gs0u8PA//aM775qwA==
   dependencies:
-    "@eth-optimism/core-utils" "^0.11.0"
+    "@eth-optimism/core-utils" "^0.12.0"
     "@openzeppelin/contracts" "4.7.3"
     "@openzeppelin/contracts-upgradeable" "4.7.3"
     ethers "^5.7.0"
     hardhat "^2.9.6"
-
-"@eth-optimism/core-utils@^0.11.0":
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.11.0.tgz#cc0ac24fc49a6f5f411e3947d2d3bb5f49333d5a"
-  integrity sha512-/oTyC1sqZ/R97pRk+7cQJpZ6qwmJvqcym9coy9fZaqmIuFaZkjXQKz04lWUPL0zzh9zTN+2nMSB+kZReccmong==
-  dependencies:
-    "@ethersproject/abi" "^5.7.0"
-    "@ethersproject/abstract-provider" "^5.7.0"
-    "@ethersproject/address" "^5.7.0"
-    "@ethersproject/bignumber" "^5.7.0"
-    "@ethersproject/bytes" "^5.7.0"
-    "@ethersproject/constants" "^5.7.0"
-    "@ethersproject/contracts" "^5.7.0"
-    "@ethersproject/hash" "^5.7.0"
-    "@ethersproject/keccak256" "^5.7.0"
-    "@ethersproject/properties" "^5.7.0"
-    "@ethersproject/providers" "^5.7.0"
-    "@ethersproject/rlp" "^5.7.0"
-    "@ethersproject/transactions" "^5.7.0"
-    "@ethersproject/web" "^5.7.0"
-    bufio "^1.0.7"
-    chai "^4.3.4"
 
 "@eth-optimism/core-utils@^0.5.2":
   version "0.5.5"
