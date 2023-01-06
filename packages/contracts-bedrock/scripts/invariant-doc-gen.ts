@@ -140,6 +140,38 @@ const docGen = (dir: string): void => {
 }
 
 /**
+ * Generate a table of contents for all invariant docs and place it in the README.
+ */
+const tocGen = (): void => {
+  const autoTOCPrefix = '<!-- START autoTOC -->\n'
+  const autoTOCPostfix = '<!-- END autoTOC -->\n'
+
+  // Grab the name of all markdown files in `BASE_DOCS_DIR` except for `README.md`.
+  const files = fs
+    .readdirSync(BASE_DOCS_DIR)
+    .filter((fileName: string) => fileName !== 'README.md')
+
+  // Generate a table of contents section.
+  const tocList = files
+    .map(
+      (fileName: string) => `- [${fileName.replace('.md', '')}](./${fileName})`
+    )
+    .join('\n')
+  const toc = `${autoTOCPrefix}\n## Table of Contents\n${tocList}\n${autoTOCPostfix}`
+
+  // Write the table of contents to the README.
+  const readmeContents = fs
+    .readFileSync(path.join(BASE_DOCS_DIR, 'README.md'))
+    .toString()
+  const above = readmeContents.split(autoTOCPrefix)[0]
+  const below = readmeContents.split(autoTOCPostfix)[1]
+  fs.writeFileSync(
+    path.join(BASE_DOCS_DIR, 'README.md'),
+    `${above}${toc}${below}`
+  )
+}
+
+/**
  * Render a `Contract` object into valid markdown.
  */
 const renderContractDoc = (contract: Contract, header: boolean): string => {
@@ -173,3 +205,6 @@ console.log()
 // Echidna
 console.log('Generating docs for echidna invariants...')
 docGen(BASE_ECHIDNA_DIR)
+
+// Generate an updated table of contents
+tocGen()
