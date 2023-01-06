@@ -48,6 +48,7 @@ type TestParams struct {
 	MaxSequencerDrift   uint64
 	SequencerWindowSize uint64
 	ChannelTimeout      uint64
+	L1BlockTime         uint64
 }
 
 func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
@@ -74,7 +75,7 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 
 		FinalSystemOwner: addresses.SysCfgOwner,
 
-		L1BlockTime:                 15,
+		L1BlockTime:                 tp.L1BlockTime,
 		L1GenesisBlockNonce:         0,
 		CliqueSignerAddress:         common.Address{}, // proof of stake, no clique
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),

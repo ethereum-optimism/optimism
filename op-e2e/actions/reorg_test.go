@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"math/big"
 	"math/rand"
 	"path"
 	"testing"
@@ -19,14 +20,16 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
-func setupReorgTest(t Testing) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
-	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+func setupReorgTest(t Testing, config *e2eutils.TestParams) (*e2eutils.SetupData, *e2eutils.DeployParams, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
+	dp := e2eutils.MakeDeployParams(t, config)
+
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
+
 	return setupReorgTestActors(t, dp, sd, log)
 }
 
-func setupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.SetupData, log log.Logger) (*e2eutils.SetupData, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
+func setupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.SetupData, log log.Logger) (*e2eutils.SetupData, *e2eutils.DeployParams, *L1Miner, *L2Sequencer, *L2Engine, *L2Verifier, *L2Engine, *L2Batcher) {
 	miner, seqEngine, sequencer := setupSequencerTest(t, sd, log)
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 	sequencer.ActL2PipelineFull(t)
@@ -37,12 +40,12 @@ func setupReorgTestActors(t Testing, dp *e2eutils.DeployParams, sd *e2eutils.Set
 		MaxL1TxSize: 128_000,
 		BatcherKey:  dp.Secrets.Batcher,
 	}, rollupSeqCl, miner.EthClient(), seqEngine.EthClient())
-	return sd, miner, sequencer, seqEngine, verifier, verifEngine, batcher
+	return sd, dp, miner, sequencer, seqEngine, verifier, verifEngine, batcher
 }
 
 func TestReorgOrphanBlock(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	sd, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 
 	sequencer.ActL2PipelineFull(t)
@@ -110,7 +113,7 @@ func TestReorgOrphanBlock(gt *testing.T) {
 
 func TestReorgFlipFlop(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	sd, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t)
+	sd, _, miner, sequencer, _, verifier, verifierEng, batcher := setupReorgTest(t, defaultRollupTestParams)
 	minerCl := miner.L1Client(t, sd.RollupCfg)
 	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
 	checkVerifEngine := func() {
@@ -266,6 +269,289 @@ func TestReorgFlipFlop(gt *testing.T) {
 	checkVerifEngine()
 }
 
+// Deep Reorg Test
+//
+// Steps:
+//  1. Create an L1 actor
+//  2. Ask the L1 actor to build three sequence windows of empty blocks
+//     2.a alice submits a transaction on l2 with an l1 origin of block #35
+//     2.b in block #50, include the batch that contains the l2 block with alice's transaction as well
+//     as all other blocks before it.
+//  3. Ask the L2 sequencer to build a chain that references these L1 blocks
+//  4. Ask the batch submitter to submit remaining unsafe L2 blocks to L1
+//  5. Ask the L1 to include this data
+//  6. Rewind chain A 21 blocks
+//  7. Ask the L1 actor to build one sequence window + 1 empty blocks on chain B
+//  8. Ask the L1 actor to build an empty block in place of the batch submission block on chain A
+//  9. Ask the L1 actor to create another empty block so that chain B is longer than chain A
+//  10. Ask the L2 sequencer to send a head signal and run one iteration of the derivation pipeline.
+//  11. Ask the L2 sequencer build a chain that references chain B's blocks
+//  12. Sync the verifier and assert that the L2 safe head L1 origin has caught up with chain B
+//  13. Ensure that the parent L2 block of the block that contains Alice's transaction still exists
+//     after the L2 has re-derived from chain B.
+//  14. Ensure that the L2 block that contained Alice's transction before the reorg no longer exists.
+//
+// Chain A
+// - 61 blocks total
+//   - 60 empty blocks
+//   - Alice submits her L2 transaction with an L1 Origin of block #35
+//   - In block 50, submit the batch containing the L2 block with Alice's transaction.
+//   - Block 61 includes batch with blocks [1, 60]
+//
+// Verifier
+// - Prior to second batch submission, safe head origin is block A50
+// - After batch, safe head origin is block A60
+// - Unsafe head origin is A61
+//
+// Reorg L1 (start: block #61, depth: 22 blocks)
+// - Rewind depth: Batch submission block + SeqWindowSize+1 blocks
+// - Wind back to block #39
+//
+// Before building L2 to L1 head / syncing verifier & sequencer:
+// Verifier
+// - Unsafe head L1 origin is block #60
+// - Safe head L1 origin is at genesis block #60
+//
+// Build Chain B
+// - 62 blocks total
+//   - 39 empty blocks left over from chain A
+//   - 21 empty blocks
+//   - empty block (61)
+//   - empty block (62) <- Makes chain B longer than chain A, the re-org will be picked up
+//
+// After building L2 to L1 head:
+// Verifier
+// - Unsafe head is 62
+// - Safe head is 42
+func TestDeepReorg(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+
+	// Create actor and verification engine client
+	sd, dp, miner, sequencer, seqEngine, verifier, verifierEng, batcher := setupReorgTest(t, &e2eutils.TestParams{
+		MaxSequencerDrift:   40,
+		SequencerWindowSize: 20,
+		ChannelTimeout:      120,
+		L1BlockTime:         4,
+	})
+	minerCl := miner.L1Client(t, sd.RollupCfg)
+	l2Client := seqEngine.EthClient()
+	verifEngClient := verifierEng.EngineClient(t, sd.RollupCfg)
+	checkVerifEngine := func() {
+		ref, err := verifEngClient.L2BlockRefByLabel(t.Ctx(), eth.Safe)
+		require.NoError(t, err)
+		require.Equal(t, verifier.L2Safe(), ref, "verifier safe head of engine matches rollup client")
+	}
+
+	// Set up alice
+	log := testlog.Logger(t, log.LvlDebug)
+	addresses := e2eutils.CollectAddresses(sd, dp)
+	l2UserEnv := &BasicUserEnv[*L2Bindings]{
+		EthCl:          l2Client,
+		Signer:         types.LatestSigner(sd.L2Cfg.Config),
+		AddressCorpora: addresses,
+		Bindings:       NewL2Bindings(t, l2Client, seqEngine.GethClient()),
+	}
+	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(0xa57b)))
+	alice.L2.SetUserEnv(l2UserEnv)
+
+	// Run one iteration of the L2 derivation pipeline
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	verifier.ActL2PipelineFull(t)
+
+	// Start building chain A
+	miner.ActL1SetFeeRecipient(common.Address{0x0A, 0x00})
+
+	// Create a var to store the ref for the second to last block of the second sequencing window
+	var blockA39 eth.L1BlockRef
+
+	var aliceL2TxBlock types.Block
+	// Mine enough empty blocks on L1 to reach two sequence windows.
+	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize*3; i++ {
+		// At block #50, send a batch to L1 containing all L2 blocks built up to this point.
+		// This batch contains alice's transaction, and will be reorg'd out of the L1 chain
+		// later in the test.
+		if i == 50 {
+			batcher.ActSubmitAll(t)
+
+			miner.ActL1StartBlock(12)(t)
+			miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+			miner.ActL1EndBlock(t)
+		} else {
+			miner.ActEmptyBlock(t)
+		}
+
+		// Get the second to last block of the first sequence window
+		// This is used later to verify the head of chain B after rewinding
+		// chain A 1 sequence window + 1 block + Block A1 (batch submission with two
+		// sequence windows worth of transactions)
+		if i == sd.RollupCfg.SeqWindowSize*2-2 {
+			var err error
+			blockA39, err = minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+			require.NoError(t, err)
+			require.Equal(t, uint64(39), blockA39.Number)
+		}
+
+		// Submit a dummy tx on L2 as alice with an L1 origin that will remain in the
+		// canonical chain after the reorg. The batch that contains this transaction
+		// will be submitted in block #50, which *will* be reorg'd out of the L1 chain, so the
+		// L2 block that contains this transaction should no longer exist after L2 has
+		// been re-derived from chain B later on in the test.
+		if i == 35 {
+			// Include alice's transaction on L2
+			sequencer.ActL2StartBlock(t)
+
+			// Submit a dummy tx
+			alice.L2.ActResetTxOpts(t)
+			alice.L2.ActSetTxToAddr(&dp.Addresses.Bob)(t)
+			alice.L2.ActMakeTx(t)
+
+			// Include the tx in the block we're making
+			seqEngine.ActL2IncludeTx(alice.Address())(t)
+
+			// Finalize the L2 block containing alice's transaction
+			sequencer.ActL2EndBlock(t)
+
+			// Store the ref to the L2 block that the transaction was included in for later.
+			b0, err := l2Client.BlockByNumber(t.Ctx(), big.NewInt(int64(sequencer.L2Unsafe().Number)))
+			require.NoError(t, err, "failed to fetch unsafe head of L2 after submitting alice's transaction")
+
+			aliceL2TxBlock = *b0
+		}
+
+		// Ask sequencer to handle new L1 head and build L2 blocks up to the L1 head
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2PipelineFull(t)
+		sequencer.ActBuildToL1Head(t)
+	}
+
+	// Get the last empty block built in the loop above.
+	// This will be the last block in the third sequencing window.
+	blockA60, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+
+	// Check that the safe head's L1 origin is block A50 before batch submission
+	require.Equal(t, uint64(50), sequencer.L2Safe().L1Origin.Number)
+	// Check that the unsafe head's L1 origin is block A60
+	require.Equal(t, blockA60.ID(), sequencer.L2Unsafe().L1Origin)
+
+	// Batch and submit all new L2 blocks that were built above to L1
+	batcher.ActSubmitAll(t)
+
+	// Build a new block on L1 that includes the L2 batch containing all blocks
+	// between [51, 60]
+	miner.ActL1SetFeeRecipient(common.Address{0x0A, 0x01})
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(sd.RollupCfg.Genesis.SystemConfig.BatcherAddr)(t)
+	miner.ActL1EndBlock(t)
+
+	// Handle the new head block on both the verifier and the sequencer
+	verifier.ActL1HeadSignal(t)
+	sequencer.ActL1HeadSignal(t)
+
+	// Run one iteration of the L2 derivation pipeline on both the verifier and sequencer
+	verifier.ActL2PipelineFull(t)
+	sequencer.ActL2PipelineFull(t)
+
+	// Ensure that the verifier picks up that the L2 blocks were submitted to L1
+	// and marks them as safe.
+	// We check that the L2 safe L1 origin is block A240, or the last block
+	// within the second sequencing window. This is the block directly before
+	// the block that included the batch on chain A.
+	require.Equal(t, blockA60.ID(), verifier.L2Safe().L1Origin)
+	checkVerifEngine()
+
+	// Perform a deep reorg the size of one sequencing window + 2 blocks.
+	// This will affect the safe L2 chain.
+	miner.ActL1RewindToParent(t)                              // Rewind the batch submission
+	miner.ActL1RewindDepth(sd.RollupCfg.SeqWindowSize + 1)(t) // Rewind one sequence window + 1 block
+
+	// Ensure that the block we rewinded to on L1 is the second to last block of the first
+	// sequencing window.
+	headAfterReorg, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+
+	// Ensure that we landed on the intended L1 block after the reorg
+	require.Equal(t, blockA39.ID(), headAfterReorg.ID())
+
+	// Ensure that the safe L2 head has not been altered yet- we have not issued
+	// a head signal to the sequencer or verifier post reorg.
+	require.Equal(t, blockA60.ID(), verifier.L2Safe().L1Origin)
+	require.Equal(t, blockA60.ID(), sequencer.L2Safe().L1Origin)
+	// Ensure that the L2 unsafe head has not been altered yet- we have not issued
+	// a head signal to the sequencer or verifier post reorg.
+	require.Equal(t, blockA60.ID(), verifier.L2Unsafe().L1Origin)
+	require.Equal(t, blockA60.ID(), sequencer.L2Unsafe().L1Origin)
+	checkVerifEngine()
+
+	// --------- [ CHAIN B ] ---------
+
+	// Start building chain B
+	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x00})
+	// Mine enough empty blocks on L1 to reach three sequence windows or 60 blocks.
+	// We already have 39 empty blocks on the rewinded L1 that are left over from chain A.
+	for i := uint64(0); i < sd.RollupCfg.SeqWindowSize+1; i++ {
+		miner.ActEmptyBlock(t)
+
+		// Ask sequencer to handle new L1 head and build L2 blocks up to the L1 head
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2PipelineFull(t)
+		sequencer.ActBuildToL1Head(t)
+	}
+
+	// Get the last unsafe block on chain B after creating SeqWindowSize+1 empty blocks
+	blockB60, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+	// Ensure blockB60 is #60 on chain B
+	require.Equal(t, uint64(60), blockB60.Number)
+
+	// Mine an empty block in place of the block that included the final batch on chain A
+	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x01})
+	miner.ActEmptyBlock(t)
+
+	// Make block B62. the reorg is picked up when we have a new, longer chain.
+	miner.ActL1SetFeeRecipient(common.Address{0x0B, 0x02})
+	miner.ActEmptyBlock(t)
+	blockB62, err := minerCl.L1BlockRefByLabel(t.Ctx(), eth.Unsafe)
+	require.NoError(t, err)
+
+	// Now sync the verifier. The batch from chain A is invalid, so it should have been ignored.
+	// The safe head should have an origin at block B42
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+
+	// Ensure that the L2 Safe block is B42
+	require.Equal(t, uint64(42), verifier.L2Safe().L1Origin.Number, "expected to be at block #42 after losing A40-61")
+	require.NotZero(t, verifier.L2Safe().Number, "still preserving old L2 blocks that did not reference reorged L1 chain (assuming more than one L2 block per L1 block)")
+	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "L2 safe and unsafe head should be equal")
+	checkVerifEngine()
+
+	// Sync the sequencer, then build some new L2 blocks, up to and including with L1 origin B62
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+	sequencer.ActBuildToL1Head(t)
+	require.Equal(t, sequencer.L2Unsafe().L1Origin, blockB62.ID())
+
+	// Sync the verifier to the L2 chain with origin B62
+	// Run an iteration of the derivation pipeline and ensure that the L2 safe L1 origin is block B62
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, uint64(42), verifier.L2Safe().L1Origin.Number, "expected to be at block #42 after losing A40-61 and building 23 blocks on reorged chain")
+	require.Equal(t, verifier.L2Safe(), verifier.L2Unsafe(), "L2 safe and unsafe head should be equal")
+	checkVerifEngine()
+
+	// Ensure that the parent of the L2 block containing Alice's transaction still exists
+	b0, err := l2Client.BlockByHash(t.Ctx(), aliceL2TxBlock.ParentHash())
+	require.NoError(t, err, "Parent of the L2 block containing Alice's transaction should still exist on L2")
+	require.Equal(t, b0.Hash(), aliceL2TxBlock.ParentHash())
+
+	// Ensure that the L2 block containing Alice's transaction no longer exists.
+	b1, err := l2Client.BlockByNumber(t.Ctx(), aliceL2TxBlock.Number())
+	require.NoError(t, err, "A block that has the same number as the block that contained Alice's transaction should still exist on L2")
+	require.Equal(t, b1.Number(), aliceL2TxBlock.Number())
+	require.NotEqual(t, b1.Hash(), aliceL2TxBlock.Hash(), "L2 block containing Alice's transaction should no longer exist on L2")
+}
+
 type rpcWrapper struct {
 	client.RPC
 }
@@ -373,7 +659,7 @@ func TestConflictingL2Blocks(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
-	sd, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, seqEng, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	// Extra setup: a full alternative sequencer, sequencer engine, and batcher
 	jwtPath := e2eutils.WriteDefaultJWT(t)
