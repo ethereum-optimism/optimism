@@ -50,6 +50,7 @@ var (
 		predeploys.WETH9Addr:               true,
 		predeploys.LegacyMessagePasserAddr: true,
 		predeploys.LegacyERC20ETHAddr:      true,
+		predeploys.DeployerWhitelistAddr:   true,
 	}
 )
 
