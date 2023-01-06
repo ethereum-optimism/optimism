@@ -131,6 +131,22 @@ const assertProxy = async (
   }
 }
 
+// checks to make sure that the genesis magic value
+// was set correctly
+const checkGenesisMagic = async (
+  hre: HardhatRuntimeEnvironment,
+  provider: providers.Provider
+) => {
+  const start = hre.deployConfig.l2OutputOracleStartingBlockNumber
+  const block = await provider.getBlock(start)
+  const extradata = block.extraData
+  const magic = '0x' + Buffer.from('BEDROCK').toString('hex')
+
+  if (extradata !== magic) {
+    throw new Error('magic value in extradata does not match')
+  }
+}
+
 const check = {
   // LegacyMessagePasser
   // - check version
@@ -631,6 +647,8 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
     if (!args.skipPredeployCheck) {
       await checkPredeploys(hre, signer.provider)
     }
+
+    await checkGenesisMagic(hre, signer.provider)
 
     console.log()
     // Check the currently configured predeploys
