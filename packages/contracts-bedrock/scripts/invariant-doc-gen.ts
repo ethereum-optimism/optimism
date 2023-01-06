@@ -1,8 +1,15 @@
 import fs from 'fs'
+import path from 'path'
 
-const BASE_INVARIANTS_DIR = `${__dirname}/../contracts/test/invariants`
-const BASE_ECHIDNA_DIR = `${__dirname}/../contracts/echidna`
-const BASE_DOCS_DIR = `${__dirname}/../invariant-docs`
+const BASE_INVARIANTS_DIR = path.join(
+  __dirname,
+  '..',
+  'contracts',
+  'test',
+  'invariants'
+)
+const BASE_ECHIDNA_DIR = path.join(__dirname, '..', 'contracts', 'echidna')
+const BASE_DOCS_DIR = path.join(__dirname, '..', 'invariant-docs')
 const BASE_ECHIDNA_GH_URL = '../contracts/echidna/'
 const BASE_INVARIANT_GH_URL = '../contracts/test/invariants/'
 const NATSPEC_INV = '@custom:invariant'
@@ -39,7 +46,7 @@ const docGen = (dir: string): void => {
 
   for (const fileName of files) {
     // Read the contents of the invariant test file.
-    const fileContents = fs.readFileSync(`${dir}/${fileName}`).toString()
+    const fileContents = fs.readFileSync(path.join(dir, fileName)).toString()
 
     // Split the file into individual lines and trim whitespace.
     const lines = fileContents.split('\n').map((line: string) => line.trim())
@@ -104,7 +111,7 @@ const docGen = (dir: string): void => {
   }
 
   for (const contract of docs) {
-    const fileName = `${BASE_DOCS_DIR}/${contract.name}.md`
+    const fileName = path.join(BASE_DOCS_DIR, `${contract.name}.md`)
     const alreadyWritten = writtenFiles.includes(fileName)
 
     // If the file has already been written, append the extra docs to the end.
@@ -116,7 +123,7 @@ const docGen = (dir: string): void => {
         : renderContractDoc(contract, true)
     )
 
-    // If the file has not already been written, add it to the list of written files.
+    // If the file was just written for the first time, add it to the list of written files.
     if (!alreadyWritten) {
       writtenFiles.push(fileName)
     }
