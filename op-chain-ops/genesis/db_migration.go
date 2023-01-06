@@ -138,13 +138,16 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	// actual migration process. This involves modifying parts of the legacy database and inserting
 	// a transition block.
 
-	// The predeploy storage must be wiped before anything else,
-	// otherwise the ERC-1967 proxy storage slots will be removed.
+	// We need to wipe the storage of every predeployed contract EXCEPT for the GovernanceToken,
+	// WETH9, the DeployerWhitelist, the LegacyMessagePasser, and LegacyERC20ETH. We have verified
+	// that none of the legacy storage (other than the aforementioned contracts) is accessible and
+	// therefore can be safely removed from the database. Storage must be wiped before anything
+	// else or the ERC-1967 proxy storage slots will be removed.
 	if err := WipePredeployStorage(db); err != nil {
 		return nil, fmt.Errorf("cannot wipe storage: %w", err)
 	}
 
-	// First order of business is to convert all predeployed smart contracts into proxies so they
+	// Next order of business is to convert all predeployed smart contracts into proxies so they
 	// can be easily upgraded later on. In the legacy system, all upgrades to predeployed contracts
 	// required hard forks which was a huge pain. Note that we do NOT put the GovernanceToken or
 	// WETH9 contracts behind proxies because we do not want to make these easily upgradable.
@@ -153,12 +156,9 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
-	// Next we wipe the storage of all predeployed contracts EXCEPT for the GovernanceToken, WETH9,
-	// the LegacyMessagePasser, and LegacyERC20ETH. We have verified that none of the legacy
-	// storage (other than the aforementioned contracts) is accessible and therefore can be safely
-	// removed from the database. We then update the storage of each contract with the new storage
-	// variables that we want to set on L2 and update the implementations for all predeployed
-	// contracts that are behind proxies (NOT the GovernanceToken or WETH9).
+	// Here we update the storage of each predeploy with the new storage variables that we want to
+	// set on L2 and update the implementations for all predeployed contracts that are behind
+	// proxies (NOT the GovernanceToken or WETH9).
 	log.Info("Updating implementations for predeployed contracts")
 	if err := SetImplementations(db, storage, immutable); err != nil {
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
