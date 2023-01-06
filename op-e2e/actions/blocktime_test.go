@@ -24,7 +24,7 @@ func TestBatchInLastPossibleBlocks(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
-	sd, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, sequencerEngine, _, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()
@@ -135,7 +135,7 @@ func TestLargeL1Gaps(gt *testing.T) {
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
-	sd, miner, sequencer, sequencerEngine, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
+	sd, _, miner, sequencer, sequencerEngine, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
 	signer := types.LatestSigner(sd.L2Cfg.Config)
 	cl := sequencerEngine.EthClient()

@@ -22,6 +22,7 @@ var defaultRollupTestParams = &e2eutils.TestParams{
 	MaxSequencerDrift:   40,
 	SequencerWindowSize: 120,
 	ChannelTimeout:      120,
+	L1BlockTime:         15,
 }
 
 var defaultAlloc = &e2eutils.AllocParams{PrefundTestUsers: true}
