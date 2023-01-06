@@ -21,7 +21,7 @@ import (
 
 var (
 	abiTrue                         = common.Hash{31: 0x01}
-	bedrockTransitionBlockExtraData = []byte("BEDROCK")
+	BedrockTransitionBlockExtraData = []byte("BEDROCK")
 )
 
 type MigrationResult struct {
@@ -42,7 +42,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	header := rawdb.ReadHeader(ldb, hash, *num)
 	log.Info("Read header from database", "number", *num)
 
-	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
+	if bytes.Equal(header.Extra, BedrockTransitionBlockExtraData) {
 		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
 
 		return &MigrationResult{
@@ -157,7 +157,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
 		GasUsed:     gasUsed,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
-		Extra:       bedrockTransitionBlockExtraData,
+		Extra:       BedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},
 		BaseFee:     big.NewInt(params.InitialBaseFee),
