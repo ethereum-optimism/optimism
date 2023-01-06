@@ -418,6 +418,22 @@ func TestValidBatch(t *testing.T) {
 			},
 			Expected: BatchAccept,
 		},
+		{
+			Name:       "batch with L2 time before L1 time",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
+			L2SafeHead: l2A0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &BatchData{BatchV1{
+					ParentHash:   l2A1.ParentHash,
+					EpochNum:     rollup.Epoch(l2A1.L1Origin.Number),
+					EpochHash:    l2A1.L1Origin.Hash,
+					Timestamp:    l2A1.Time - 1,
+					Transactions: nil,
+				}},
+			},
+			Expected: BatchDrop,
+		},
 	}
 
 	// Log level can be increased for debugging purposes
