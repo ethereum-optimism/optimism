@@ -51,8 +51,8 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 	header := rawdb.ReadHeader(ldb, hash, *num)
 	log.Info("Read header from database", "number", *num)
 
-	if !bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
-		return fmt.Errorf("expected extra data to be %x, but got %x", bedrockTransitionBlockExtraData, header.Extra)
+	if !bytes.Equal(header.Extra, BedrockTransitionBlockExtraData) {
+		return fmt.Errorf("expected extra data to be %x, but got %x", BedrockTransitionBlockExtraData, header.Extra)
 	}
 
 	prevHeader := rawdb.ReadHeader(ldb, header.ParentHash, *num-1)

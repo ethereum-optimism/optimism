@@ -20,8 +20,11 @@ import (
 )
 
 var (
-	abiTrue                         = common.Hash{31: 0x01}
-	bedrockTransitionBlockExtraData = []byte("BEDROCK")
+	abiTrue = common.Hash{31: 0x01}
+	// BedrockTransitionBlockExtraData represents the extradata
+	// set in the very first bedrock block. This value must be
+	// less than 32 bytes long or it will create an invalid block.
+	BedrockTransitionBlockExtraData = []byte("BEDROCK")
 )
 
 type MigrationResult struct {
@@ -42,7 +45,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	header := rawdb.ReadHeader(ldb, hash, *num)
 	log.Info("Read header from database", "number", *num)
 
-	if bytes.Equal(header.Extra, bedrockTransitionBlockExtraData) {
+	if bytes.Equal(header.Extra, BedrockTransitionBlockExtraData) {
 		log.Info("Detected migration already happened", "root", header.Root, "blockhash", header.Hash())
 
 		return &MigrationResult{
@@ -143,6 +146,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	// Set the amount of gas used so that EIP 1559 starts off stable
 	gasUsed := (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity
 
+	// Ensure that the extradata is valid
+	if size := len(BedrockTransitionBlockExtraData); size > 32 {
+		return nil, fmt.Errorf("transition block extradata too long: %d", size)
+	}
+
 	// Create the bedrock transition block
 	bedrockHeader := &types.Header{
 		ParentHash:  header.Hash(),
@@ -157,7 +165,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
 		GasUsed:     gasUsed,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
-		Extra:       bedrockTransitionBlockExtraData,
+		Extra:       BedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},
 		Nonce:       types.BlockNonce{},
 		BaseFee:     big.NewInt(params.InitialBaseFee),
