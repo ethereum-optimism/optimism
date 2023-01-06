@@ -147,7 +147,6 @@ interface OptionalL1DeployConfig {
  */
 interface OptionalL2DeployConfig {
   l2GenesisBlockNonce: string
-  l2GenesisBlockExtraData: string
   l2GenesisBlockGasLimit: string
   l2GenesisBlockDifficulty: string
   l2GenesisBlockMixHash: string
@@ -282,10 +281,6 @@ export const deployConfigSpec: {
   l2GenesisBlockNonce: {
     type: 'string', // uint64
     default: '0x0',
-  },
-  l2GenesisBlockExtraData: {
-    type: 'string', // important: in the case of L2, which uses post-Merge Ethereum rules, this must be <= 32 bytes.
-    default: ethers.constants.HashZero,
   },
   l2GenesisBlockGasLimit: {
     type: 'string',

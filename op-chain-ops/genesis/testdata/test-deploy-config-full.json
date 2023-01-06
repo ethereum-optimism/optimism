@@ -28,7 +28,6 @@
   "l1GenesisBlockTimestamp": "0x0",
   "l1GenesisBlockBaseFeePerGas": "0x3b9aca00",
   "l2GenesisBlockNonce": "0x0",
-  "l2GenesisBlockExtraData": "0x",
   "l2GenesisBlockGasLimit": "0xe4e1c0",
   "l2GenesisBlockDifficulty": "0x1",
   "l2GenesisBlockMixHash": "0x0000000000000000000000000000000000000000000000000000000000000000",

@@ -89,7 +89,6 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		FinalizationPeriodSeconds:   12,
 
 		L2GenesisBlockNonce:         0,
-		L2GenesisBlockExtraData:     []byte{},
 		L2GenesisBlockGasLimit:      15_000_000,
 		L2GenesisBlockDifficulty:    uint64ToBig(0),
 		L2GenesisBlockMixHash:       common.Hash{},
