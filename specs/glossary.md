@@ -205,7 +205,7 @@ roots][l2-output] to L1.
 
 A sequencing window is a range of L1 blocks from which a [sequencing epoch][sequencing-epoch] can be derived.
 
-A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transactions] for epoch
+A sequencing window whose first L1 block has number `N` contains [batcher transactions][batcher-transaction] for epoch
 `N`. The window contains blocks `[N, N + SWS)` where `SWS` is the sequencer window size.
 
 > **TODO** specify sequencer window size
