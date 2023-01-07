@@ -2,8 +2,10 @@ package genesis
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
@@ -46,6 +48,7 @@ var (
 	// ExpectedStorageSlots is a map of predeploy addresses to the storage slots and values that are
 	// expected to be set in those predeploys after the migration. It does not include any predeploys
 	// that were not wiped. It also accounts for the 2 EIP-1967 storage slots in each contract.
+	// It does _not_ include L1Block. L1Block is checked separately.
 	ExpectedStorageSlots = map[common.Address]StorageCheckMap{
 		predeploys.L2CrossDomainMessengerAddr: {
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
@@ -60,12 +63,12 @@ var (
 			AdminSlot:          common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
 			ImplementationSlot: common.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
 		},
-		predeploys.L2StandardBridgeAddr:              eip1967Slots(predeploys.L2StandardBridgeAddr),
-		predeploys.SequencerFeeVaultAddr:             eip1967Slots(predeploys.SequencerFeeVaultAddr),
-		predeploys.OptimismMintableERC20FactoryAddr:  eip1967Slots(predeploys.OptimismMintableERC20FactoryAddr),
-		predeploys.L1BlockNumberAddr:                 eip1967Slots(predeploys.L1BlockNumberAddr),
-		predeploys.GasPriceOracleAddr:                eip1967Slots(predeploys.GasPriceOracleAddr),
-		predeploys.L1BlockAddr:                       eip1967Slots(predeploys.L1BlockAddr),
+		predeploys.L2StandardBridgeAddr:             eip1967Slots(predeploys.L2StandardBridgeAddr),
+		predeploys.SequencerFeeVaultAddr:            eip1967Slots(predeploys.SequencerFeeVaultAddr),
+		predeploys.OptimismMintableERC20FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC20FactoryAddr),
+		predeploys.L1BlockNumberAddr:                eip1967Slots(predeploys.L1BlockNumberAddr),
+		predeploys.GasPriceOracleAddr:               eip1967Slots(predeploys.GasPriceOracleAddr),
+		//predeploys.L1BlockAddr:                       eip1967Slots(predeploys.L1BlockAddr),
 		predeploys.L2ERC721BridgeAddr:                eip1967Slots(predeploys.L2ERC721BridgeAddr),
 		predeploys.OptimismMintableERC721FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC721FactoryAddr),
 		// ProxyAdmin is not a proxy, and only has the _owner slot set.
@@ -79,7 +82,14 @@ var (
 )
 
 // PostCheckMigratedDB will check that the migration was performed correctly
-func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID uint64, finalSystemOwner common.Address) error {
+func PostCheckMigratedDB(
+	ldb ethdb.Database,
+	migrationData migration.MigrationData,
+	l1XDM *common.Address,
+	l1ChainID uint64,
+	finalSystemOwner common.Address,
+	info *derive.L1BlockInfo,
+) error {
 	log.Info("Validating database migration")
 
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -122,6 +132,11 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 		return err
 	}
 	log.Info("checked predeploys")
+
+	if err := PostCheckL1Block(db, info); err != nil {
+		return err
+	}
+	log.Info("checked L1Block")
 
 	if err := PostCheckLegacyETH(db); err != nil {
 		return err
@@ -320,6 +335,60 @@ func PostCheckLegacyETH(db vm.StateDB) error {
 			return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
 		}
 	}
+	return nil
+}
+
+// PostCheckL1Block checks that the L1Block contract was properly set to the L1 origin.
+func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
+	// Slot 0 is the concatenation of the block number and timestamp
+	data := db.GetState(predeploys.L1BlockAddr, common.Hash{}).Bytes()
+	blockNumber := binary.BigEndian.Uint64(data[24:])
+	timestamp := binary.BigEndian.Uint64(data[16:24])
+	if blockNumber != info.Number {
+		return fmt.Errorf("expected L1Block block number to be %d, but got %d", info.Number, blockNumber)
+	}
+	if timestamp != info.Time {
+		return fmt.Errorf("expected L1Block timestamp to be %d, but got %d", info.Time, timestamp)
+	}
+
+	// Slot 1 is the basefee.
+	baseFee := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x01}).Big()
+	if baseFee.Cmp(info.BaseFee) != 0 {
+		return fmt.Errorf("expected L1Block basefee to be %s, but got %s", info.BaseFee, baseFee)
+	}
+
+	// Slot 2 is the block hash
+	hash := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x02})
+	if hash != info.BlockHash {
+		return fmt.Errorf("expected L1Block hash to be %s, but got %s", info.BlockHash, hash)
+	}
+
+	// Slot 3 is the sequence number. It is expected to be zero.
+	sequenceNumber := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x03})
+	expSequenceNumber := common.Hash{}
+	if expSequenceNumber != sequenceNumber {
+		return fmt.Errorf("expected L1Block sequence number to be %s, but got %s", expSequenceNumber, sequenceNumber)
+	}
+
+	// Slot 4 is the versioned hash to authenticate the batcher. It is expected to be the initial batch sender.
+	batcherHash := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x04})
+	batchSender := common.BytesToAddress(batcherHash.Bytes())
+	if batchSender != info.BatcherAddr {
+		return fmt.Errorf("expected L1Block batcherHash to be %s, but got %s", info.BatcherAddr, batchSender)
+	}
+
+	// Slot 5 is the L1 fee overhead.
+	l1FeeOverhead := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x05})
+	if !bytes.Equal(l1FeeOverhead.Bytes(), info.L1FeeOverhead[:]) {
+		return fmt.Errorf("expected L1Block L1FeeOverhead to be %s, but got %s", info.L1FeeOverhead, l1FeeOverhead)
+	}
+
+	// Slot 6 is the L1 fee scalar.
+	l1FeeScalar := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x06})
+	if !bytes.Equal(l1FeeScalar.Bytes(), info.L1FeeScalar[:]) {
+		return fmt.Errorf("expected L1Block L1FeeScalar to be %s, but got %s", info.L1FeeScalar, l1FeeScalar)
+	}
+
 	return nil
 }
 
