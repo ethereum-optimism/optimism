@@ -135,12 +135,35 @@ const assertProxy = async (
 // was set correctly
 const checkGenesisMagic = async (
   hre: HardhatRuntimeEnvironment,
-  provider: providers.Provider
+  l2Provider: providers.Provider,
+  args
 ) => {
-  const start = hre.deployConfig.l2OutputOracleStartingBlockNumber
-  const block = await provider.getBlock(start)
-  const extradata = block.extraData
   const magic = '0x' + Buffer.from('BEDROCK').toString('hex')
+  let startingBlockNumber: number
+
+  // We have a connection to the L1 chain, fetch the remote value
+  if (args.l1RpcUrl !== '') {
+    const l1Provider = new hre.ethers.providers.StaticJsonRpcProvider(
+      args.l1RpcUrl
+    )
+    const Deployment__L2OutputOracle = await hre.deployments.get(
+      'L2OutputOracle'
+    )
+    const L2OutputOracle = new hre.ethers.Contract(
+      Deployment__L2OutputOracle.address,
+      Deployment__L2OutputOracle.abi,
+      l1Provider
+    )
+
+    startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+  } else {
+    // We do not have a connection to the L1 chain, use the local config
+    // The `--network` flag must be set to the L1 network
+    startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
+  }
+
+  const block = await l2Provider.getBlock(startingBlockNumber)
+  const extradata = block.extraData
 
   if (extradata !== magic) {
     throw new Error('magic value in extradata does not match')
@@ -610,7 +633,8 @@ const check = {
 }
 
 task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
-  .addOptionalParam('rpcUrl', 'RPC URL of the remote node', '', types.string)
+  .addOptionalParam('l1RpcUrl', 'L1 RPC URL of node', '', types.string)
+  .addOptionalParam('l2RpcUrl', 'L2 RPC URL of node', '', types.string)
   .addOptionalParam('chainId', 'Expected chain id', 0, types.int)
   .addOptionalParam(
     'skipPredeployCheck',
@@ -624,9 +648,9 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
 
     let signer: Signer = hre.ethers.provider.getSigner()
 
-    if (args.rpcUrl !== '') {
+    if (args.l2RpcUrl !== '') {
       console.log('Using CLI URL for provider instead of hardhat network')
-      const provider = new hre.ethers.providers.JsonRpcProvider(args.rpcUrl)
+      const provider = new hre.ethers.providers.JsonRpcProvider(args.l2RpcUrl)
       signer = Wallet.createRandom().connect(provider)
     }
 
@@ -648,7 +672,7 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
       await checkPredeploys(hre, signer.provider)
     }
 
-    await checkGenesisMagic(hre, signer.provider)
+    await checkGenesisMagic(hre, signer.provider, args)
 
     console.log()
     // Check the currently configured predeploys
