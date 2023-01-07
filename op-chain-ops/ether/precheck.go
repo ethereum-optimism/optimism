@@ -72,7 +72,7 @@ func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.
 	err = db.ForEachStorage(predeploys.LegacyERC20ETHAddr, func(key, value common.Hash) bool {
 		// We can safely ignore specific slots (totalSupply, name, symbol).
 		if ignoredSlots[key] {
-			return false
+			return true
 		}
 
 		// Slot exists, so add it to the map.

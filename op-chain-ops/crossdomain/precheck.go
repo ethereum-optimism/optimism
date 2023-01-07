@@ -32,7 +32,7 @@ func PreCheckWithdrawals(db *state.StateDB, withdrawals []*LegacyWithdrawal) ([]
 		// of the ABI encoding of "true". Although there should not be any other storage slots, we
 		// can safely ignore anything that is not "true".
 		if value != abiTrue {
-			return false
+			return true
 		}
 
 		// Slot exists, so add it to the map.
