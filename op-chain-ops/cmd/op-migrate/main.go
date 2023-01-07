@@ -209,7 +209,7 @@ func main() {
 					Time:          block.Time(),
 					BaseFee:       block.BaseFee(),
 					BlockHash:     block.Hash(),
-					BatcherAddr:   config.BatchInboxAddress,
+					BatcherAddr:   config.BatchSenderAddress,
 					L1FeeOverhead: eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleOverhead))),
 					L1FeeScalar:   eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleScalar))),
 				},
