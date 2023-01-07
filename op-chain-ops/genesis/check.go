@@ -26,7 +26,12 @@ import (
 // in the future.
 const MaxSlotChecks = 1000
 
+type StorageCheckMap = map[common.Hash]common.Hash
+
 var (
+	L2XDMOwnerSlot      = common.Hash{31: 0x33}
+	ProxyAdminOwnerSlot = common.Hash{}
+
 	LegacyETHCheckSlots = map[common.Hash]common.Hash{
 		// Bridge
 		common.Hash{31: 0x06}: common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000010"),
@@ -38,31 +43,43 @@ var (
 		common.Hash{31: 0x02}: {},
 	}
 
-	// ContractStorageCount is a map of predeploy addresses to the number of storage slots expected
-	// to be set in those predeploys after the migration. It does not include any predeploys that
-	// were not wiped. It also accounts for the 2 EIP-1967 storage slots in each contract.
-	ContractStorageCount = map[common.Address]int{
-		// L2CrossDomainMessenger is migrated to be behind a proxy. The following slots are set:
-		// - EIP-1967 storage slots (2)
-		// -
-		predeploys.L2CrossDomainMessengerAddr:        3,
-		predeploys.L2StandardBridgeAddr:              2,
-		predeploys.SequencerFeeVaultAddr:             2,
-		predeploys.OptimismMintableERC20FactoryAddr:  2,
-		predeploys.L1BlockNumberAddr:                 2,
-		predeploys.GasPriceOracleAddr:                2,
-		predeploys.L1BlockAddr:                       2,
-		predeploys.L2ERC721BridgeAddr:                2,
-		predeploys.OptimismMintableERC721FactoryAddr: 2,
+	// ExpectedStorageSlots is a map of predeploy addresses to the storage slots and values that are
+	// expected to be set in those predeploys after the migration. It does not include any predeploys
+	// that were not wiped. It also accounts for the 2 EIP-1967 storage slots in each contract.
+	ExpectedStorageSlots = map[common.Address]StorageCheckMap{
+		predeploys.L2CrossDomainMessengerAddr: {
+			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
+			common.Hash{}: common.HexToHash("0x0000000000000000000000010000000000000000000000000000000000000000"),
+			// Slot 0x33 (51) is _owner. Requires custom check, so set to a garbage value
+			L2XDMOwnerSlot: common.HexToHash("0xbadbadbadbad0xbadbadbadbad0xbadbadbadbad0xbadbadbadbad0xbadbad00"),
+			// Slot 0x97 (151) is _status
+			common.Hash{31: 0x97}: common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
+			// Slot 0xcc (204) is xDomainMsgSender
+			common.Hash{31: 0xcc}: common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
+			// EIP-1967 storage slots
+			AdminSlot:          common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: common.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
+		},
+		predeploys.L2StandardBridgeAddr:              eip1967Slots(predeploys.L2StandardBridgeAddr),
+		predeploys.SequencerFeeVaultAddr:             eip1967Slots(predeploys.SequencerFeeVaultAddr),
+		predeploys.OptimismMintableERC20FactoryAddr:  eip1967Slots(predeploys.OptimismMintableERC20FactoryAddr),
+		predeploys.L1BlockNumberAddr:                 eip1967Slots(predeploys.L1BlockNumberAddr),
+		predeploys.GasPriceOracleAddr:                eip1967Slots(predeploys.GasPriceOracleAddr),
+		predeploys.L1BlockAddr:                       eip1967Slots(predeploys.L1BlockAddr),
+		predeploys.L2ERC721BridgeAddr:                eip1967Slots(predeploys.L2ERC721BridgeAddr),
+		predeploys.OptimismMintableERC721FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC721FactoryAddr),
 		// ProxyAdmin is not a proxy, and only has the _owner slot set.
-		predeploys.ProxyAdminAddr:   1,
-		predeploys.BaseFeeVaultAddr: 2,
-		predeploys.L1FeeVaultAddr:   2,
+		predeploys.ProxyAdminAddr: {
+			// Slot 0x00 (0) is _owner. Requires custom check, so set to a garbage value
+			ProxyAdminOwnerSlot: common.HexToHash("0xbadbadbadbad0xbadbadbadbad0xbadbadbadbad0xbadbadbadbad0xbadbad00"),
+		},
+		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
+		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
 	}
 )
 
 // PostCheckMigratedDB will check that the migration was performed correctly
-func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID uint64) error {
+func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationData, l1XDM *common.Address, l1ChainID uint64, finalSystemOwner common.Address) error {
 	log.Info("Validating database migration")
 
 	hash := rawdb.ReadHeadHeaderHash(ldb)
@@ -91,7 +108,7 @@ func PostCheckMigratedDB(ldb ethdb.Database, migrationData migration.MigrationDa
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	if err := PostCheckPredeployStorage(db); err != nil {
+	if err := PostCheckPredeployStorage(db, finalSystemOwner); err != nil {
 		return err
 	}
 	log.Info("checked predeploy storage")
@@ -239,7 +256,7 @@ func PostCheckPredeploys(db *state.StateDB) error {
 
 // PostCheckPredeployStorage will ensure that the predeploys had their storage
 // wiped correctly.
-func PostCheckPredeployStorage(db vm.StateDB) error {
+func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) error {
 	for name, addr := range predeploys.Predeploys {
 		if addr == nil {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
@@ -267,10 +284,28 @@ func PostCheckPredeployStorage(db vm.StateDB) error {
 			log.Debug("storage values", "key", key.String(), "value", value.String())
 		}
 
+		expSlots := ExpectedStorageSlots[*addr]
 		// Assert that the correct number of slots are present.
-		if ContractStorageCount[*addr] != len(slots) {
-			log.Error("invalid contract storage", "expected", ContractStorageCount[*addr], "actual", len(slots), "contract", name)
-			//return fmt.Errorf("expected %d storage slots for %s but got %d", ContractStorageCount[*addr], name, len(slots))
+		if len(expSlots) != len(slots) {
+			return fmt.Errorf("expected %d storage slots for %s but got %d", len(expSlots), name, len(slots))
+		}
+
+		for key, value := range expSlots {
+			if slots[key] != value {
+				// The owner slots for the L2XDM and ProxyAdmin are special cases.
+				// They are set to the final system owner in the config.
+				if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
+					actualOwner := common.BytesToAddress(slots[key].Bytes())
+					if actualOwner != finalSystemOwner {
+						return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
+					}
+					log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
+					continue
+				}
+
+				log.Debug("validated storage value", "key", key.String(), "value", value.String())
+				return fmt.Errorf("expected storage slot %s to be %s but got %s", key, value, slots[key])
+			}
 		}
 	}
 	return nil
@@ -356,4 +391,15 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		return fmt.Errorf("error checking storage slots: %w", innerErr)
 	}
 	return nil
+}
+
+func eip1967Slots(address common.Address) StorageCheckMap {
+	codeAddr, err := AddressToCodeNamespace(address)
+	if err != nil {
+		panic(err)
+	}
+	return StorageCheckMap{
+		AdminSlot:          predeploys.ProxyAdminAddr.Hash(),
+		ImplementationSlot: codeAddr.Hash(),
+	}
 }
