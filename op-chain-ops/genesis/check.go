@@ -42,6 +42,9 @@ var (
 	// to be set in those predeploys after the migration. It does not include any predeploys that
 	// were not wiped. It also accounts for the 2 EIP-1967 storage slots in each contract.
 	ContractStorageCount = map[common.Address]int{
+		// L2CrossDomainMessenger is migrated to be behind a proxy. The following slots are set:
+		// - EIP-1967 storage slots (2)
+		// -
 		predeploys.L2CrossDomainMessengerAddr:        3,
 		predeploys.L2StandardBridgeAddr:              2,
 		predeploys.SequencerFeeVaultAddr:             2,
@@ -51,9 +54,10 @@ var (
 		predeploys.L1BlockAddr:                       2,
 		predeploys.L2ERC721BridgeAddr:                2,
 		predeploys.OptimismMintableERC721FactoryAddr: 2,
-		predeploys.ProxyAdminAddr:                    1,
-		predeploys.BaseFeeVaultAddr:                  2,
-		predeploys.L1FeeVaultAddr:                    2,
+		// ProxyAdmin is not a proxy, and only has the _owner slot set.
+		predeploys.ProxyAdminAddr:   1,
+		predeploys.BaseFeeVaultAddr: 2,
+		predeploys.L1FeeVaultAddr:   2,
 	}
 )
 
@@ -260,7 +264,7 @@ func PostCheckPredeployStorage(db vm.StateDB) error {
 
 		log.Info("predeploy storage", "name", name, "address", *addr, "count", len(slots))
 		for key, value := range slots {
-			log.Debug("storage values", "key", key, "value", value)
+			log.Debug("storage values", "key", key.String(), "value", value.String())
 		}
 
 		// Assert that the correct number of slots are present.
