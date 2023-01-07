@@ -4,7 +4,7 @@ import { task, types } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-import { Contract, providers, Wallet, Signer } from 'ethers'
+import { Contract, providers, Wallet, Signer, BigNumber } from 'ethers'
 
 import { predeploys } from '../src'
 
@@ -161,6 +161,9 @@ const checkGenesisMagic = async (
     // The `--network` flag must be set to the L1 network
     startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
   }
+
+  // ensure that the starting block number is a number
+  startingBlockNumber = BigNumber.from(startingBlockNumber).toNumber()
 
   const block = await l2Provider.getBlock(startingBlockNumber)
   const extradata = block.extraData
