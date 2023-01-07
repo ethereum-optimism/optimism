@@ -51,7 +51,7 @@ var (
 		predeploys.L1BlockAddr:                       2,
 		predeploys.L2ERC721BridgeAddr:                2,
 		predeploys.OptimismMintableERC721FactoryAddr: 2,
-		predeploys.ProxyAdminAddr:                    3,
+		predeploys.ProxyAdminAddr:                    1,
 		predeploys.BaseFeeVaultAddr:                  2,
 		predeploys.L1FeeVaultAddr:                    2,
 	}
