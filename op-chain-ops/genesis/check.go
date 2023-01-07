@@ -291,18 +291,18 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) e
 		}
 
 		for key, value := range expSlots {
-			if slots[key] != value {
-				// The owner slots for the L2XDM and ProxyAdmin are special cases.
-				// They are set to the final system owner in the config.
-				if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
-					actualOwner := common.BytesToAddress(slots[key].Bytes())
-					if actualOwner != finalSystemOwner {
-						return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
-					}
-					log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
-					continue
+			// The owner slots for the L2XDM and ProxyAdmin are special cases.
+			// They are set to the final system owner in the config.
+			if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
+				actualOwner := common.BytesToAddress(slots[key].Bytes())
+				if actualOwner != finalSystemOwner {
+					return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
 				}
+				log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
+				continue
+			}
 
+			if slots[key] != value {
 				log.Debug("validated storage value", "key", key.String(), "value", value.String())
 				return fmt.Errorf("expected storage slot %s to be %s but got %s", key, value, slots[key])
 			}
