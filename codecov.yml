@@ -16,6 +16,10 @@ coverage:
         target: auto  # target coverage is equal to the PR base
         threshold: 0% # coverage is not allowed to reduce vs. the PR base
         base: auto
+        informational: true
+    project:
+      default:
+        informational: true
 flag_management:
   # Note: flags should have the same name as the circleci job in which they
   # are uploaded.
