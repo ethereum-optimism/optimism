@@ -26,7 +26,7 @@ GENESIS_TMPL = {
         "shanghaiBlock": None,
         "cancunBlock": None,
         'clique': {
-            'period': 15,
+            'period': 3,
             'epoch': 30000
         }
     },
