@@ -249,6 +249,11 @@ func PostCheckPredeploys(db *state.StateDB) error {
 			continue
 		}
 
+		if *proxyAddr == predeploys.L1BlockAddr {
+			log.Trace("skipping l1 block predeploy")
+			continue
+		}
+
 		expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
 		if err != nil {
 			return fmt.Errorf("error converting to code namespace: %w", err)
@@ -387,6 +392,32 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	l1FeeScalar := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x06})
 	if !bytes.Equal(l1FeeScalar.Bytes(), info.L1FeeScalar[:]) {
 		return fmt.Errorf("expected L1Block L1FeeScalar to be %s, but got %s", info.L1FeeScalar, l1FeeScalar)
+	}
+
+	// Check EIP-1967
+	proxyAdmin := common.BytesToAddress(db.GetState(predeploys.L1BlockAddr, AdminSlot).Bytes())
+	if proxyAdmin != predeploys.ProxyAdminAddr {
+		return fmt.Errorf("expected L1Block admin to be %s, but got %s", predeploys.ProxyAdminAddr, proxyAdmin)
+	}
+	expImplementation, err := AddressToCodeNamespace(predeploys.L1BlockAddr)
+	if err != nil {
+		return fmt.Errorf("failed to get expected implementation for L1Block: %w", err)
+	}
+	actImplementation := common.BytesToAddress(db.GetState(predeploys.L1BlockAddr, ImplementationSlot).Bytes())
+	if expImplementation != actImplementation {
+		return fmt.Errorf("expected L1Block implementation to be %s, but got %s", expImplementation, actImplementation)
+	}
+
+	var count int
+	err = db.ForEachStorage(predeploys.L1BlockAddr, func(key, value common.Hash) bool {
+		count++
+		return true
+	})
+	if err != nil {
+		return fmt.Errorf("failed to iterate over L1Block storage: %w", err)
+	}
+	if count != 8 {
+		return fmt.Errorf("expected L1Block to have 8 storage slots, but got %d", count)
 	}
 
 	return nil
