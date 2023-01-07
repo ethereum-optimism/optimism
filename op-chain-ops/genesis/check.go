@@ -347,21 +347,25 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	if blockNumber != info.Number {
 		return fmt.Errorf("expected L1Block block number to be %d, but got %d", info.Number, blockNumber)
 	}
+	log.Debug("validated L1Block block number", "expected", info.Number)
 	if timestamp != info.Time {
 		return fmt.Errorf("expected L1Block timestamp to be %d, but got %d", info.Time, timestamp)
 	}
+	log.Debug("validated L1Block timestamp", "expected", info.Time)
 
 	// Slot 1 is the basefee.
 	baseFee := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x01}).Big()
 	if baseFee.Cmp(info.BaseFee) != 0 {
 		return fmt.Errorf("expected L1Block basefee to be %s, but got %s", info.BaseFee, baseFee)
 	}
+	log.Debug("validated L1Block basefee", "expected", info.BaseFee)
 
 	// Slot 2 is the block hash
 	hash := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x02})
 	if hash != info.BlockHash {
 		return fmt.Errorf("expected L1Block hash to be %s, but got %s", info.BlockHash, hash)
 	}
+	log.Debug("validated L1Block hash", "expected", info.BlockHash)
 
 	// Slot 3 is the sequence number. It is expected to be zero.
 	sequenceNumber := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x03})
@@ -369,6 +373,7 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	if expSequenceNumber != sequenceNumber {
 		return fmt.Errorf("expected L1Block sequence number to be %s, but got %s", expSequenceNumber, sequenceNumber)
 	}
+	log.Debug("validated L1Block sequence number", "expected", expSequenceNumber)
 
 	// Slot 4 is the versioned hash to authenticate the batcher. It is expected to be the initial batch sender.
 	batcherHash := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x04})
@@ -376,24 +381,28 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	if batchSender != info.BatcherAddr {
 		return fmt.Errorf("expected L1Block batcherHash to be %s, but got %s", info.BatcherAddr, batchSender)
 	}
+	log.Debug("validated L1Block batcherHash", "expected", info.BatcherAddr)
 
 	// Slot 5 is the L1 fee overhead.
 	l1FeeOverhead := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x05})
 	if !bytes.Equal(l1FeeOverhead.Bytes(), info.L1FeeOverhead[:]) {
 		return fmt.Errorf("expected L1Block L1FeeOverhead to be %s, but got %s", info.L1FeeOverhead, l1FeeOverhead)
 	}
+	log.Debug("validated L1Block L1FeeOverhead", "expected", info.L1FeeOverhead)
 
 	// Slot 6 is the L1 fee scalar.
 	l1FeeScalar := db.GetState(predeploys.L1BlockAddr, common.Hash{31: 0x06})
 	if !bytes.Equal(l1FeeScalar.Bytes(), info.L1FeeScalar[:]) {
 		return fmt.Errorf("expected L1Block L1FeeScalar to be %s, but got %s", info.L1FeeScalar, l1FeeScalar)
 	}
+	log.Debug("validated L1Block L1FeeScalar", "expected", info.L1FeeScalar)
 
 	// Check EIP-1967
 	proxyAdmin := common.BytesToAddress(db.GetState(predeploys.L1BlockAddr, AdminSlot).Bytes())
 	if proxyAdmin != predeploys.ProxyAdminAddr {
 		return fmt.Errorf("expected L1Block admin to be %s, but got %s", predeploys.ProxyAdminAddr, proxyAdmin)
 	}
+	log.Debug("validated L1Block admin", "expected", predeploys.ProxyAdminAddr)
 	expImplementation, err := AddressToCodeNamespace(predeploys.L1BlockAddr)
 	if err != nil {
 		return fmt.Errorf("failed to get expected implementation for L1Block: %w", err)
@@ -402,6 +411,7 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	if expImplementation != actImplementation {
 		return fmt.Errorf("expected L1Block implementation to be %s, but got %s", expImplementation, actImplementation)
 	}
+	log.Debug("validated L1Block implementation", "expected", expImplementation)
 
 	var count int
 	err = db.ForEachStorage(predeploys.L1BlockAddr, func(key, value common.Hash) bool {
@@ -414,6 +424,7 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	if count != 8 {
 		return fmt.Errorf("expected L1Block to have 8 storage slots, but got %d", count)
 	}
+	log.Debug("validated L1Block storage slot count", "expected", 8)
 
 	return nil
 }
