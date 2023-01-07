@@ -218,7 +218,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		Difficulty:  common.Big0,
 		Number:      new(big.Int).Add(header.Number, common.Big1),
 		GasLimit:    (uint64)(config.L2GenesisBlockGasLimit),
-		GasUsed:     (uint64)(config.L2GenesisBlockGasLimit) * config.EIP1559Elasticity,
+		GasUsed:     0,
 		Time:        uint64(config.L2OutputOracleStartingTimestamp),
 		Extra:       BedrockTransitionBlockExtraData,
 		MixDigest:   common.Hash{},

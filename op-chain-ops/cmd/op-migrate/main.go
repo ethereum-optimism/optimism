@@ -9,6 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum/common"
+
 	"github.com/ethereum/go-ethereum/core/types"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -195,7 +199,22 @@ func main() {
 				return err
 			}
 
-			if err := genesis.PostCheckMigratedDB(postLDB, migrationData, &config.L1CrossDomainMessengerProxy, config.L1ChainID); err != nil {
+			if err := genesis.PostCheckMigratedDB(
+				postLDB,
+				migrationData,
+				&config.L1CrossDomainMessengerProxy,
+				config.L1ChainID,
+				config.FinalSystemOwner,
+				&derive.L1BlockInfo{
+					Number:        block.NumberU64(),
+					Time:          block.Time(),
+					BaseFee:       block.BaseFee(),
+					BlockHash:     block.Hash(),
+					BatcherAddr:   config.BatchSenderAddress,
+					L1FeeOverhead: eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleOverhead))),
+					L1FeeScalar:   eth.Bytes32(common.BigToHash(new(big.Int).SetUint64(config.GasPriceOracleScalar))),
+				},
+			); err != nil {
 				return err
 			}
 
