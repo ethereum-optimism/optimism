@@ -249,11 +249,6 @@ func PostCheckPredeploys(db *state.StateDB) error {
 			continue
 		}
 
-		if *proxyAddr == predeploys.L1BlockAddr {
-			log.Trace("skipping l1 block predeploy")
-			continue
-		}
-
 		expImplAddr, err := AddressToCodeNamespace(*proxyAddr)
 		if err != nil {
 			return fmt.Errorf("error converting to code namespace: %w", err)
@@ -284,7 +279,7 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) e
 
 		// Skip the addresses that did not have their storage reset, also skip the
 		// L2ToL1MessagePasser because it's already covered by the withdrawals check.
-		if FrozenStoragePredeploys[*addr] || *addr == predeploys.L2ToL1MessagePasserAddr {
+		if FrozenStoragePredeploys[*addr] || *addr == predeploys.L2ToL1MessagePasserAddr || *addr == predeploys.L1BlockAddr {
 			continue
 		}
 
