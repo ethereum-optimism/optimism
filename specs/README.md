@@ -44,5 +44,5 @@ Our aim is to design a protocol specification that is:
 - **Secure:** This is self-evident. We cannot lose money and in a system where even a bit of
   downtime can result in loss of funds this means everything we build must be incredibly secure.
 - **Decentralizable:** Everything we build must have a clear path towards decentralization. Today
-  Optimism relies on the Optimism Foundation and OP Labs to function, but eventually it will be managed by a DAO and even in
-  that decentralized future our system must thrive.
+  Optimism relies on the Optimism Foundation and OP Labs to function, but eventually it will be
+  managed by a DAO and even in that decentralized future our system must thrive.
