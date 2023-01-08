@@ -65,7 +65,6 @@ and fault proofs.
 
 - **Rollup Node**:
   - A standalone, stateless binary.
-  - Receives L2 transactions from users.
   - Syncs and verifies rollup data on L1.
   - Applies rollup-specific block production rules to synthesize blocks from L1.
   - Appends blocks to the L2 chain using the Engine API.
@@ -74,6 +73,7 @@ and fault proofs.
 - **Execution Engine (EE)**:
   - A vanilla Geth node with minor modifications to support Optimism.
   - Maintains L2 state.
+  - Receives L2 transactions from users.
   - Sync state to other L2 nodes for fast onboarding.
   - Serves the Engine API to the rollup node.
 - **Batch Submitter**
@@ -190,7 +190,7 @@ state parameter for now - just know that one of its fields is the L2 chain's `he
 block hash of the tip of the L2 chain. The Engine API returns a payload ID.
 2. Call `engine_getPayloadV1` with the payload ID returned in step 1. The engine API returns a payload object that
 includes a block hash as one of its fields.
-3. Call `engine_newPayloadV1` with the payload returned in step 2.
+3. Call `engine_executePayloadV1` with the payload returned in step 2.
 4. Call `engine_forkChoiceUpdatedV1` with the fork choice parameter's `headBlockHash` set to the block hash returned in
 step 2. The tip of the L2 chain is now the block created in step 1.
 
