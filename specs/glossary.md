@@ -394,7 +394,7 @@ Data availability is the guarantee that some data will be "available" (i.e. *ret
 window. In Optimism's case, the data in question are [sequencer batches][sequencer-batch] that [validators][validator]
 needs in order to verify the sequencer's work and validate the L2 chain.
 
-The [finalization period][finalization-period] should be taken as the lower bound on such the availability window, since
+The [finalization period][finalization-period] should be taken as the lower bound on the availability window, since
 that is when data availability is the most crucial, as it is needed to perform a [fault proof][fault-proof].
 
 "Availability" **does not** mean guaranteed long-term storage of the data.
@@ -406,7 +406,7 @@ that is when data availability is the most crucial, as it is needed to perform a
 A data availability provider is a service that can be used to make data available. See the [Data
 Availability][data-availability] for more information on what this means.
 
-Ideally, a good data availability provider such provide strong *verifiable* guarantees of data availability
+Ideally, a good data availability provider provides strong *verifiable* guarantees of data availability
 
 Currently, the only supported data availability provider is Ethereum call data. [Ethereum data blobs][eip4844] will be
 supported when they get deployed on Ethereum.
@@ -436,7 +436,7 @@ transactions][batcher-transaction]. The reason to split a channel into frames is
 include in a single batcher transaction.
 
 A channel is uniquely identified by its timestamp (UNIX time at which the channel was created) and a random value. See
-the [Frame Format][frame-format] section of the L2 Chain Derivation specifictaion for more information.
+the [Frame Format][frame-format] section of the L2 Chain Derivation specification for more information.
 
 [frame-format]: derivation.md#frame-format
 
