@@ -146,14 +146,28 @@ const checkGenesisMagic = async (
     const l1Provider = new hre.ethers.providers.StaticJsonRpcProvider(
       args.l1RpcUrl
     )
-    const Deployment__L2OutputOracle = await hre.deployments.get(
-      'L2OutputOracle'
-    )
-    const L2OutputOracle = new hre.ethers.Contract(
-      Deployment__L2OutputOracle.address,
-      Deployment__L2OutputOracle.abi,
-      l1Provider
-    )
+
+    // Get the address if it was passed in via CLI
+    // Otherwise get the address from a hardhat deployment file
+    let address: string
+    if (args.l2OutputOracleAddress !== '') {
+      address = args.l2OutputOracleAddress
+    } else {
+      const Deployment__L2OutputOracle = await hre.deployments.get(
+        'L2OutputOracle'
+      )
+      address = Deployment__L2OutputOracle.address
+    }
+
+    const abi = {
+      inputs: [],
+      name: 'startingBlockNumber',
+      outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function',
+    }
+
+    const L2OutputOracle = new hre.ethers.Contract(address, [abi], l1Provider)
 
     startingBlockNumber = await L2OutputOracle.startingBlockNumber()
   } else {
@@ -639,6 +653,12 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
   .addOptionalParam('l1RpcUrl', 'L1 RPC URL of node', '', types.string)
   .addOptionalParam('l2RpcUrl', 'L2 RPC URL of node', '', types.string)
   .addOptionalParam('chainId', 'Expected chain id', 0, types.int)
+  .addOptionalParam(
+    'l2OutputOracleAddress',
+    'Address of the L2OutputOracle oracle',
+    '',
+    types.string
+  )
   .addOptionalParam(
     'skipPredeployCheck',
     'Skip long check',
