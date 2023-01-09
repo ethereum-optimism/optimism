@@ -17,7 +17,7 @@ contract RelayActor is StdUtils {
 
     uint256 public numHashes;
     bytes32[] public hashes;
-    bool public outOfGas = false;
+    bool public reverted = false;
 
     OptimismPortal op;
     L1CrossDomainMessenger xdm;
@@ -80,10 +80,10 @@ contract RelayActor is StdUtils {
                 _message
             )
         {} catch {
-            // If any of these calls revert, set `outOfGas` to true to fail the invariant test.
+            // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
-            outOfGas = true;
+            reverted = true;
         }
         vm.stopPrank();
 
@@ -132,6 +132,6 @@ contract XDM_MinGasLimits is Messenger_Initializer, InvariantTest {
             // it is not in the received messages mapping
             assertFalse(L1Messenger.failedMessages(hash));
         }
-        assertFalse(actor.outOfGas());
+        assertFalse(actor.reverted());
     }
 }
