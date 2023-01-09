@@ -32,15 +32,15 @@ func BuildL2DeveloperGenesis(config *DeployConfig, l1StartBlock *types.Block) (*
 		return nil, err
 	}
 
-	if err := SetL2Proxies(db); err != nil {
-		return nil, err
-	}
-
 	if err := SetImplementations(db, storage, immutable); err != nil {
 		return nil, err
 	}
 
-	if err := SetDevOnlyL2Implementations(db, storage, immutable); err != nil {
+	if err := SetL2Proxies(db); err != nil {
+		return nil, err
+	}
+
+	if err := SetLegacyETH(db, storage, immutable); err != nil {
 		return nil, err
 	}
 

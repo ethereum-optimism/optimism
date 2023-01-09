@@ -155,21 +155,20 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		return nil, fmt.Errorf("cannot wipe storage: %w", err)
 	}
 
-	// Next order of business is to convert all predeployed smart contracts into proxies so they
-	// can be easily upgraded later on. In the legacy system, all upgrades to predeployed contracts
-	// required hard forks which was a huge pain. Note that we do NOT put the GovernanceToken or
-	// WETH9 contracts behind proxies because we do not want to make these easily upgradable.
-	log.Info("Converting predeployed contracts to proxies")
-	if err := SetL2Proxies(db); err != nil {
-		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
-	}
-
 	// Here we update the storage of each predeploy with the new storage variables that we want to
-	// set on L2 and update the implementations for all predeployed contracts that are behind
-	// proxies (NOT the GovernanceToken or WETH9).
+	// set on L2 and update the implementations for all predeploys. We MUST do this before setting
+	// L2 proxies because untouchable predeploys will try to copy their code from the old addresses
+	// and if we update the proxies first then the old code will be the proxy code.
 	log.Info("Updating implementations for predeployed contracts")
 	if err := SetImplementations(db, storage, immutable); err != nil {
 		return nil, fmt.Errorf("cannot set implementations: %w", err)
+	}
+
+	// Next order of business is to convert all predeployed smart contracts into HardforkOnlyProxy
+	// contracts. These proxies can only be upgraded via hardfork in the op-node.
+	log.Info("Converting predeployed contracts to proxies")
+	if err := SetL2Proxies(db); err != nil {
+		return nil, fmt.Errorf("cannot set L2Proxies: %w", err)
 	}
 
 	// We need to update the code for LegacyERC20ETH. This is NOT a standard predeploy because it's

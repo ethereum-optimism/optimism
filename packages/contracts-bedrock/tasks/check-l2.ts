@@ -44,18 +44,10 @@ const checkPredeploys = async (
       throw new Error(`no code found at ${addr}`)
     }
 
-    if (
-      addr === predeploys.GovernanceToken ||
-      addr === predeploys.ProxyAdmin ||
-      addr === predeploys.WETH9
-    ) {
-      continue
-    }
-
     const slot = await provider.getStorageAt(addr, adminSlot)
     const admin = hre.ethers.utils.hexConcat([
       '0x000000000000000000000000',
-      predeploys.ProxyAdmin,
+      '0x1234000000000000000000000000000000004321',
     ])
 
     if (admin !== slot) {
@@ -561,22 +553,6 @@ const check = {
 
     await checkProxy(hre, 'OptimismMintableERC721Factory', signer.provider)
     await assertProxy(hre, 'OptimismMintableERC721Factory', signer.provider)
-  },
-  // ProxyAdmin
-  // - check owner
-  ProxyAdmin: async (hre: HardhatRuntimeEnvironment, signer: Signer) => {
-    const ProxyAdmin = await hre.ethers.getContractAt(
-      'ProxyAdmin',
-      predeploys.ProxyAdmin,
-      signer
-    )
-
-    const owner = await ProxyAdmin.owner()
-    assert(owner !== hre.ethers.constants.AddressZero)
-    yell(`  - owner: ${owner}`)
-
-    const addressManager = await ProxyAdmin.addressManager()
-    console.log(`  - addressManager: ${addressManager}`)
   },
   // BaseFeeVault
   // - check version

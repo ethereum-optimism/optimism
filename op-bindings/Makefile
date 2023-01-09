@@ -22,6 +22,7 @@ bindings: l1block-bindings \
 	optimism-mintable-erc20-bindings \
 	proxy-bindings \
 	proxy-admin-bindings \
+  hf-proxy-bindings \
 	erc20-bindings \
 	weth9-bindings \
 	deployer-whitelist-bindings \
@@ -106,6 +107,9 @@ proxy-bindings: compile
 proxy-admin-bindings: compile
 	./gen_bindings.sh contracts/universal/ProxyAdmin.sol:ProxyAdmin $(pkg)
 
+hf-proxy-bindings: compile
+	./gen_bindings.sh contracts/universal/HardforkOnlyProxy.sol:HardforkOnlyProxy $(pkg)
+
 legacy-message-passer-bindings: compile
 	./gen_bindings.sh contracts/legacy/LegacyMessagePasser.sol:LegacyMessagePasser $(pkg)
 
@@ -125,7 +129,7 @@ more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
-		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
+		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,HardforkOnlyProxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
 		-package bindings
 
 mkdir:
