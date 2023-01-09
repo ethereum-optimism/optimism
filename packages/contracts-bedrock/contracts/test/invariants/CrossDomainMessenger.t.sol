@@ -1,16 +1,17 @@
 pragma solidity 0.8.15;
 
 import { InvariantTest } from "forge-std/InvariantTest.sol";
-import { Test } from "forge-std/Test.sol";
+import { StdUtils } from "forge-std/StdUtils.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { OptimismPortal } from "../../L1/OptimismPortal.sol";
+import { L1CrossDomainMessenger } from "../../L1/L1CrossDomainMessenger.sol";
 import { Messenger_Initializer } from "../CommonTest.t.sol";
 import { Types } from "../../libraries/Types.sol";
 import { Predeploys } from "../../libraries/Predeploys.sol";
 import { Encoding } from "../../libraries/Encoding.sol";
 import { Hashing } from "../../libraries/Hashing.sol";
-import { OptimismPortal } from "../../L1/OptimismPortal.sol";
-import { L1CrossDomainMessenger } from "../../L1/L1CrossDomainMessenger.sol";
 
-contract RelayActor is Test {
+contract RelayActor is StdUtils {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
@@ -20,10 +21,16 @@ contract RelayActor is Test {
 
     OptimismPortal op;
     L1CrossDomainMessenger xdm;
+    Vm vm;
 
-    constructor(OptimismPortal _op, L1CrossDomainMessenger _xdm) {
+    constructor(
+        OptimismPortal _op,
+        L1CrossDomainMessenger _xdm,
+        Vm _vm
+    ) {
         op = _op;
         xdm = _xdm;
+        vm = _vm;
     }
 
     /**
@@ -93,7 +100,7 @@ contract XDM_MinGasLimits is Messenger_Initializer, InvariantTest {
         super.setUp();
 
         // Deploy a relay actor
-        actor = new RelayActor(op, L1Messenger);
+        actor = new RelayActor(op, L1Messenger, vm);
 
         // Target the `RelayActor` contract
         targetContract(address(actor));
