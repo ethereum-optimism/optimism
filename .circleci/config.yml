@@ -595,7 +595,7 @@ jobs:
                   make devnet-up-deploy
             - run:
                 name: Check L2 config
-                command: npx hardhat check-l2 --network devnetL2
+                command: npx hardhat check-l2 --network devnetL1 --l2-rpc-url http://localhost:9545 --l1-rpc-url http://localhost:8545
                 working_directory: packages/contracts-bedrock
             - run:
                 name: Deposit ERC20 through the bridge
@@ -645,7 +645,12 @@ jobs:
                   make devnet-up
             - run:
                 name: Check L2 config
-                command: npx hardhat check-l2 --network devnetL2
+                command: |
+                  npx hardhat check-l2 \
+                    --network devnetL1 \
+                    --l2-rpc-url http://localhost:9545 \
+                    --l1-rpc-url http://localhost:8545 \
+                    --l2-output-oracle-address 0x6900000000000000000000000000000000000000
                 working_directory: packages/contracts-bedrock
             - run:
                 name: Deposit ERC20 through the bridge
