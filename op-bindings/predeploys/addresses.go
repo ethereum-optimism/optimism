@@ -18,7 +18,6 @@ const (
 	LegacyMessagePasser           = "0x4200000000000000000000000000000000000000"
 	L2ERC721Bridge                = "0x4200000000000000000000000000000000000014"
 	OptimismMintableERC721Factory = "0x4200000000000000000000000000000000000017"
-	ProxyAdmin                    = "0x4200000000000000000000000000000000000018"
 	BaseFeeVault                  = "0x4200000000000000000000000000000000000019"
 	L1FeeVault                    = "0x420000000000000000000000000000000000001a"
 )
@@ -39,9 +38,13 @@ var (
 	LegacyMessagePasserAddr           = common.HexToAddress(LegacyMessagePasser)
 	L2ERC721BridgeAddr                = common.HexToAddress(L2ERC721Bridge)
 	OptimismMintableERC721FactoryAddr = common.HexToAddress(OptimismMintableERC721Factory)
-	ProxyAdminAddr                    = common.HexToAddress(ProxyAdmin)
 	BaseFeeVaultAddr                  = common.HexToAddress(BaseFeeVault)
 	L1FeeVaultAddr                    = common.HexToAddress(L1FeeVault)
+
+	// HardforkOnlyProxyOwnerAddr is the address that owns all
+	// HardforkOnlyProxy contracts on L2. It is an address that does not have a
+	// known private key.
+	HardforkOnlyProxyOwnerAddr = common.HexToAddress("0x1234000000000000000000000000000000004321")
 
 	Predeploys = make(map[string]*common.Address)
 )
@@ -62,7 +65,6 @@ func init() {
 	Predeploys["LegacyMessagePasser"] = &LegacyMessagePasserAddr
 	Predeploys["L2ERC721Bridge"] = &L2ERC721BridgeAddr
 	Predeploys["OptimismMintableERC721Factory"] = &OptimismMintableERC721FactoryAddr
-	Predeploys["ProxyAdmin"] = &ProxyAdminAddr
 	Predeploys["BaseFeeVault"] = &BaseFeeVaultAddr
 	Predeploys["L1FeeVault"] = &L1FeeVaultAddr
 }
