@@ -7,29 +7,13 @@ import { Predeploys } from "../libraries/Predeploys.sol";
 import { FeeVault } from "../universal/FeeVault.sol";
 
 /**
- * @custom:legacy
- * @title  SequencerFeeVaultLegacySpacer
- * @notice Contract only exists to add a spacer to the SequencerFeeVault where the
- *         l1FeeWallet variable used to exist. Must be the first contract in the inheritance
- *         tree of the SequencerFeeVault
- */
-contract SequencerFeeVaultLegacySpacer {
-    /**
-     * @custom:legacy
-     * @custom:spacer l1FeeWallet
-     * @notice Spacer for backwards compatibility.
-     */
-    address private spacer_0_0_20;
-}
-
-/**
  * @custom:proxied
  * @custom:predeploy 0x4200000000000000000000000000000000000011
  * @title SequencerFeeVault
  * @notice The SequencerFeeVault is the contract that holds any fees paid to the Sequencer during
  *         transaction processing and block production.
  */
-contract SequencerFeeVault is SequencerFeeVaultLegacySpacer, FeeVault, Semver {
+contract SequencerFeeVault is FeeVault, Semver {
     /**
      * @custom:semver 1.0.0
      *
