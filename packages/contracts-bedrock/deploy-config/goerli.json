@@ -1,36 +1,45 @@
 {
-  "finalSystemOwner": "DUMMY",
-  "controller": "DUMMY",
+  "numDeployConfirmations": 1,
 
-  "l1StartingBlockTag": "DUMMY",
+  "finalSystemOwner": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
+  "controller": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
+
+  "l1StartingBlockTag": "FILL_IN_DAY_OF",
+
   "l1ChainID": 5,
   "l2ChainID": 420,
   "l2BlockTime": 2,
 
-  "maxSequencerDrift": 1200,
+  "maxSequencerDrift": 600,
   "sequencerWindowSize": 3600,
-  "channelTimeout": 120,
+  "channelTimeout": 300,
 
-  "p2pSequencerAddress": "DUMMY",
+  "p2pSequencerAddress": "0x715b7219D986641DF9eFd9C7Ef01218D528e19ec",
   "batchInboxAddress": "0xff00000000000000000000000000000000000420",
-  "batchSenderAddress": "DUMMY",
-  "l2OutputOracleSubmissionInterval": 20,
-  "l2OutputOracleStartingTimestamp": -1,
-  "l2OutputOracleProposer": "DUMMY",
-  "l2OutputOracleChallenger": "DUMMY",
-  "finalizationPeriodSeconds": 2,
+  "batchSenderAddress": "0x7431310e026B69BFC676C0013E12A1A11411EEc9",
 
-  "l2GenesisBlockGasLimit": "0x17D7840",
-  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+  "l2OutputOracleSubmissionInterval": 12,
+  "l2OutputOracleStartingBlockNumber": "FILL_IN_DAY_OF",
+  "l2OutputOracleStartingTimestamp": "FILL_IN_DAY_OF",
 
-  "l2CrossDomainMessengerOwner": "DUMMY",
+  "l2OutputOracleProposer": "0x02b1786A85Ec3f71fBbBa46507780dB7cF9014f6",
+  "l2OutputOracleChallenger": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
 
-  "governanceTokenName": "Optimism",
-  "governanceTokenSymbol": "OP",
-  "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",
+  "finalizationPeriodSeconds": 12,
+
+  "proxyAdminOwner": "0xf80267194936da1E98dB10bcE06F3147D580a62e",
 
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
+
+  "governanceTokenSymbol": "OP",
+  "governanceTokenName": "Optimism",
+  "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",
+
+  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
+  "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10
 }
