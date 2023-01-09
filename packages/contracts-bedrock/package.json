@@ -22,6 +22,7 @@
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
     "build:ts": "tsc -p tsconfig.build.json",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts",
+    "autogen:invariant-docs": "ts-node scripts/invariant-doc-gen.ts",
     "deploy": "hardhat deploy",
     "test": "yarn build:differential && yarn build:fuzz && forge test",
     "coverage": "yarn build:differential && yarn build:fuzz && forge coverage",

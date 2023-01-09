@@ -263,6 +263,10 @@ jobs:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
+      - run:
+          name: invariant docs
+          command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          working_directory: packages/contracts-bedrock
 
   bedrock-echidna-build:
     docker:

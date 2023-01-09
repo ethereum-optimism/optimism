@@ -78,7 +78,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
                 ((uint256(params.prevBaseFee) - cachedPrevBaseFee) < maxBaseFeeChange);
         }
 
-        // If the last blocked used less than the target amount of gas, (or was empty),
+        // If the last block used less than the target amount of gas, (or was empty),
         // ensure that: this block's baseFee was decreased, but not by more than the max amount
         if (
             (cachedPrevBoughtGas < uint256(TARGET_RESOURCE_LIMIT)) ||
@@ -128,30 +128,78 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
 
     function _burnInternal(uint64 _gasToBurn) private metered(_gasToBurn) {}
 
+    /**
+     * @custom:invariant The base fee should increase if the last block used more
+     * than the target amount of gas
+     *
+     * If the last block used more than the target amount of gas (and there were no
+     * empty blocks in between), ensure this block's baseFee increased, but not by
+     * more than the max amount per block.
+     */
     function echidna_high_usage_raise_baseFee() public view returns (bool) {
         return !failedRaiseBaseFee;
     }
 
+    /**
+     * @custom:invariant The base fee should decrease if the last block used less
+     * than the target amount of gas
+     *
+     * If the previous block used less than the target amount of gas, the base fee should decrease,
+     * but not more than the max amount.
+     */
     function echidna_low_usage_lower_baseFee() public view returns (bool) {
         return !failedLowerBaseFee;
     }
 
+    /**
+     * @custom:invariant A block's base fee should never be below `MINIMUM_BASE_FEE`
+     *
+     * This test asserts that a block's base fee can never drop below the
+     * `MINIMUM_BASE_FEE` threshold.
+     */
     function echidna_never_below_min_baseFee() public view returns (bool) {
         return !failedNeverBelowMinBaseFee;
     }
 
+    /**
+     * @custom:invariant A block can never consume more than `MAX_RESOURCE_LIMIT` gas.
+     *
+     * This test asserts that a block can never consume more than the `MAX_RESOURCE_LIMIT`
+     * gas threshold.
+     */
     function echidna_never_above_max_gas_limit() public view returns (bool) {
         return !failedMaxGasPerBlock;
     }
 
+    /**
+     * @custom:invariant The base fee can never be raised more than the max base fee change.
+     *
+     * After a block consumes more gas than the target gas, the base fee cannot be raised
+     * more than the maximum amount allowed. The max base fee change (per-block) is derived
+     * as follows: `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
+     */
     function echidna_never_exceed_max_increase() public view returns (bool) {
         return !failedMaxRaiseBaseFeePerBlock;
     }
 
+    /**
+     * @custom:invariant The base fee can never be lowered more than the max base fee change.
+     *
+     * After a block consumes less than the target gas, the base fee cannot be lowered more
+     * than the maximum amount allowed. The max base fee change (per-block) is derived as
+     *follows: `prevBaseFee / BASE_FEE_MAX_CHANGE_DENOMINATOR`
+     */
     function echidna_never_exceed_max_decrease() public view returns (bool) {
         return !failedMaxLowerBaseFeePerBlock;
     }
 
+    /**
+     * @custom:invariant The `maxBaseFeeChange` calculation over multiple blocks can never
+     * underflow.
+     *
+     * When calculating the `maxBaseFeeChange` after multiple empty blocks, the calculation
+     * should never be allowed to underflow.
+     */
     function echidna_underflow() public view returns (bool) {
         return !underflow;
     }

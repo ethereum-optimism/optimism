@@ -49,7 +49,9 @@ contract EchidnaFuzzEncoding {
     }
 
     /**
-     * @notice Verifies that testRoundTripAToB did not ever fail.
+     * @custom:invariant `testRoundTripAToB` never fails.
+     *
+     * Asserts that a raw versioned nonce can be encoded / decoded to reach the same raw value.
      */
     function echidna_round_trip_encoding_AToB() public view returns (bool) {
         // ASSERTION: The round trip encoding done in testRoundTripAToB(...)
@@ -57,7 +59,10 @@ contract EchidnaFuzzEncoding {
     }
 
     /**
-     * @notice Verifies that testRoundTripBToA did not ever fail.
+     * @custom:invariant `testRoundTripBToA` never fails.
+     *
+     * Asserts that an encoded versioned nonce can always be decoded / re-encoded to reach
+     * the same encoded value.
      */
     function echidna_round_trip_encoding_BToA() public view returns (bool) {
         // ASSERTION: The round trip encoding done in testRoundTripBToA should never
