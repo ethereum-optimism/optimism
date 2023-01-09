@@ -123,9 +123,11 @@ inception][g-l2-chain-inception] as first epoch, then process all sequencing win
 Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`, 2s on Optimism), at the discretion of
 [the sequencer][g-sequencer], but subject to the following constraints for each block:
 
-- `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
+- `min_l2_timestamp <= block.timestamp <= max_l2_timestamp`, where
   - all these values are denominated in seconds
-  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+  - `min_l2_timestamp = l1_timestamp`
+    - This ensures that the L2 timestamp is not behind the L1 origin timestamp.
+  - `block.timestamp = prev_l2_timestamp + l2_block_time`
     - `prev_l2_timestamp` is the timestamp of the last L2 block of the previous epoch
     - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
   - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
@@ -600,7 +602,9 @@ Rules, in validation order:
 - `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
   to prevent batches from being replayed onto unexpected L1 chains.
 - `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
-  within time will be dropped, in favor of an empty batch that can advance the L1 origin.
+  within time will be dropped, in favor of an empty batch that can advance the L1 origin. This enforces the max L2
+  timestamp rule.
+- `batch.timestamp < batch_origin.time` -> `drop`: enforce the min L2 timestamp rule.
 - `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
   that is invalid or derived by other means exclusively:
   - any transaction that is empty (zero length byte string)

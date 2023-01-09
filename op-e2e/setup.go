@@ -81,7 +81,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L1GenesisBlockBaseFeePerGas: uint642big(7),
 
 		L2GenesisBlockNonce:         0,
-		L2GenesisBlockExtraData:     []byte{},
 		L2GenesisBlockGasLimit:      8_000_000,
 		L2GenesisBlockDifficulty:    uint642big(1),
 		L2GenesisBlockMixHash:       common.Hash{},
