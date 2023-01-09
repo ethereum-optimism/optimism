@@ -145,3 +145,8 @@ services:
       - "9090:8080"
     volumes:
       - op_log:/op_log:ro
+
+  gateway-ui:
+    image: ethereumoptimism/gateway-frontend:6629de552533a53cc4820f19c21ffbacc2deb403@sha256:001f3a7ba43f4351b61df1e864c7ccf8f1c2f195753fdb6e8e98675fcb147b2d
+    ports:
+      - "3000:80"
