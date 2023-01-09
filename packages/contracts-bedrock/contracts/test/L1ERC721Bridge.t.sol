@@ -5,6 +5,7 @@ import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { Messenger_Initializer } from "./CommonTest.t.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 
 contract TestERC721 is ERC721 {
     constructor() ERC721("Test", "TST") {}
@@ -18,7 +19,6 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
     TestERC721 internal localToken;
     TestERC721 internal remoteToken;
     L1ERC721Bridge internal bridge;
-    address internal constant otherBridge = address(0x3456);
     uint256 internal constant tokenId = 1;
 
     event ERC721BridgeInitiated(
@@ -43,7 +43,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         super.setUp();
 
         // Create necessary contracts.
-        bridge = new L1ERC721Bridge(address(L1Messenger), otherBridge);
+        bridge = new L1ERC721Bridge(address(L1Messenger));
         localToken = new TestERC721();
         remoteToken = new TestERC721();
 
@@ -60,9 +60,9 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
 
     function test_constructor_succeeds() public {
         assertEq(address(bridge.MESSENGER()), address(L1Messenger));
-        assertEq(address(bridge.OTHER_BRIDGE()), otherBridge);
+        assertEq(address(bridge.OTHER_BRIDGE()), Predeploys.L2_ERC721_BRIDGE);
         assertEq(address(bridge.messenger()), address(L1Messenger));
-        assertEq(address(bridge.otherBridge()), otherBridge);
+        assertEq(address(bridge.otherBridge()), Predeploys.L2_ERC721_BRIDGE);
     }
 
     function test_bridgeERC721_succeeds() public {
@@ -72,7 +72,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
             abi.encodeCall(
                 L1Messenger.sendMessage,
                 (
-                    address(otherBridge),
+                    address(Predeploys.L2_ERC721_BRIDGE),
                     abi.encodeCall(
                         L2ERC721Bridge.finalizeBridgeERC721,
                         (
@@ -161,7 +161,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
             abi.encodeCall(
                 L1Messenger.sendMessage,
                 (
-                    address(otherBridge),
+                    address(Predeploys.L2_ERC721_BRIDGE),
                     abi.encodeCall(
                         L2ERC721Bridge.finalizeBridgeERC721,
                         (address(remoteToken), address(localToken), alice, bob, tokenId, hex"5678")
@@ -258,7 +258,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         vm.mockCall(
             address(L1Messenger),
             abi.encodeWithSelector(L1Messenger.xDomainMessageSender.selector),
-            abi.encode(otherBridge)
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
         );
         vm.prank(address(L1Messenger));
         bridge.finalizeBridgeERC721(
@@ -313,7 +313,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         vm.mockCall(
             address(L1Messenger),
             abi.encodeWithSelector(L1Messenger.xDomainMessageSender.selector),
-            abi.encode(otherBridge)
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
         );
         vm.prank(address(L1Messenger));
         vm.expectRevert("L1ERC721Bridge: local token cannot be self");
@@ -332,7 +332,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
         vm.mockCall(
             address(L1Messenger),
             abi.encodeWithSelector(L1Messenger.xDomainMessageSender.selector),
-            abi.encode(otherBridge)
+            abi.encode(Predeploys.L2_ERC721_BRIDGE)
         );
         vm.prank(address(L1Messenger));
         vm.expectRevert("L1ERC721Bridge: Token ID is not escrowed in the L1 Bridge");

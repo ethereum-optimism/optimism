@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
+import { Predeploys } from "../libraries/Predeploys.sol";
 import { Semver } from "../universal/Semver.sol";
 
 /**
@@ -23,11 +24,10 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
      * @custom:semver 1.0.0
      *
      * @param _messenger   Address of the CrossDomainMessenger on this network.
-     * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    constructor(address _messenger, address _otherBridge)
+    constructor(address _messenger)
         Semver(1, 0, 0)
-        ERC721Bridge(_messenger, _otherBridge)
+        ERC721Bridge(_messenger, Predeploys.L2_ERC721_BRIDGE)
     {}
 
     /**

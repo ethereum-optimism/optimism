@@ -425,14 +425,10 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
         super.setUp();
 
         // Deploy the L1ERC721Bridge.
-        L1Bridge = new L1ERC721Bridge(address(L1Messenger), Predeploys.L2_ERC721_BRIDGE);
+        L1Bridge = new L1ERC721Bridge(address(L1Messenger));
 
         // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
-        vm.etch(
-            Predeploys.L2_ERC721_BRIDGE,
-            address(new L2ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(L1Bridge)))
-                .code
-        );
+        vm.etch(Predeploys.L2_ERC721_BRIDGE, address(new L2ERC721Bridge(address(L1Bridge))).code);
 
         // Set up a reference to the L2ERC721Bridge.
         L2Bridge = L2ERC721Bridge(Predeploys.L2_ERC721_BRIDGE);

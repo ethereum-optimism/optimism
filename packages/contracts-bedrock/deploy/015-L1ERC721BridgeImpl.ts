@@ -1,6 +1,5 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
-import { predeploys } from '../src'
 import {
   assertContractVariable,
   deploy,
@@ -16,7 +15,7 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy({
     hre,
     name: 'L1ERC721Bridge',
-    args: [L1CrossDomainMessengerProxy.address, predeploys.L2ERC721Bridge],
+    args: [L1CrossDomainMessengerProxy.address],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,

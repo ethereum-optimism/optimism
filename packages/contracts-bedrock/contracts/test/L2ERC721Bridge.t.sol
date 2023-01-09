@@ -54,7 +54,7 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
         super.setUp();
 
         // Create necessary contracts.
-        bridge = new L2ERC721Bridge(address(L2Messenger), otherBridge);
+        bridge = new L2ERC721Bridge(otherBridge);
         remoteToken = new TestERC721();
         localToken = new TestMintableERC721(address(bridge), address(remoteToken));
 

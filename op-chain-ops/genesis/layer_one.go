@@ -390,7 +390,6 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			opts,
 			backend,
 			predeploys.DevL1CrossDomainMessengerAddr,
-			predeploys.L2ERC721BridgeAddr,
 		)
 	default:
 		if strings.HasSuffix(deployment.Name, "Proxy") {
