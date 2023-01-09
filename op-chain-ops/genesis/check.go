@@ -3,7 +3,6 @@ package genesis
 import (
 	"bytes"
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -22,12 +21,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
 )
-
-// MaxSlotChecks is the maximum number of storage slots to check
-// when validating the untouched predeploys. This limit is in place
-// to bound execution time of the migration. We can parallelize this
-// in the future.
-const MaxSlotChecks = 1000
 
 type StorageCheckMap = map[common.Hash]common.Hash
 
@@ -61,7 +54,7 @@ var (
 			// Slot 0xcc (204) is xDomainMsgSender
 			common.Hash{31: 0xcc}: common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
 			// EIP-1967 storage slots
-			AdminSlot:          common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			AdminSlot:          common.HexToHash("0x0000000000000000000000001234000000000000000000000000000000004321"),
 			ImplementationSlot: common.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30007"),
 		},
 		predeploys.L2StandardBridgeAddr:             eip1967Slots(predeploys.L2StandardBridgeAddr),
@@ -72,13 +65,8 @@ var (
 		//predeploys.L1BlockAddr:                       eip1967Slots(predeploys.L1BlockAddr),
 		predeploys.L2ERC721BridgeAddr:                eip1967Slots(predeploys.L2ERC721BridgeAddr),
 		predeploys.OptimismMintableERC721FactoryAddr: eip1967Slots(predeploys.OptimismMintableERC721FactoryAddr),
-		// ProxyAdmin is not a proxy, and only has the _owner slot set.
-		predeploys.ProxyAdminAddr: {
-			// Slot 0x00 (0) is _owner. Requires custom check, so set to a garbage value
-			ProxyAdminOwnerSlot: common.HexToHash("0xbadbadbadbad0xbadbadbadbadbadbadbadbad0xbadbadbadbad0xbadbadbad0"),
-		},
-		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
-		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
+		predeploys.BaseFeeVaultAddr:                  eip1967Slots(predeploys.BaseFeeVaultAddr),
+		predeploys.L1FeeVaultAddr:                    eip1967Slots(predeploys.L1FeeVaultAddr),
 	}
 )
 
@@ -162,7 +150,9 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 
 	for addr := range UntouchablePredeploys {
 		// Check that the code is the same.
-		code := currDB.GetCode(addr)
+		impl := currDB.GetState(addr, ImplementationSlot)
+		implAddr := common.BytesToAddress(impl.Bytes())
+		code := currDB.GetCode(implAddr)
 		hash := crypto.Keccak256Hash(code)
 		expHash := UntouchableCodeHashes[addr][l1ChainID]
 		if hash != expHash {
@@ -170,34 +160,58 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 		}
 		log.Info("checked code hash", "address", addr, "hash", hash)
 
-		// Ensure that the current/previous roots match
-		prevRoot := prevDB.StorageTrie(addr).Hash()
-		currRoot := currDB.StorageTrie(addr).Hash()
-		if prevRoot != currRoot {
-			return fmt.Errorf("expected storage root for %s to be %s, but got %s", addr, prevRoot, currRoot)
-		}
-		log.Info("checked account roots", "address", addr, "curr_root", currRoot, "prev_root", prevRoot)
-
-		// Sample storage slots to ensure that they are not modified.
-		var count int
+		// Iterate over all old storage slots.
+		var expCount int
 		expSlots := make(map[common.Hash]common.Hash)
 		err := prevDB.ForEachStorage(addr, func(key, value common.Hash) bool {
-			count++
+			expCount++
 			expSlots[key] = value
-			return count < MaxSlotChecks
+			return true
 		})
 		if err != nil {
-			return fmt.Errorf("error iterating over storage: %w", err)
+			return fmt.Errorf("error iterating over old storage: %w", err)
 		}
 
+		// Iterate over all new storage slots.
+		var actCount int
+		actSlots := make(map[common.Hash]common.Hash)
+		err = currDB.ForEachStorage(addr, func(key, value common.Hash) bool {
+			actCount++
+			actSlots[key] = value
+			return true
+		})
+		if err != nil {
+			return fmt.Errorf("error iterating over new storage: %w", err)
+		}
+
+		// Assert that every old key still exists.
 		for expKey, expValue := range expSlots {
-			actValue := currDB.GetState(addr, expKey)
+			actValue := actSlots[expKey]
 			if actValue != expValue {
 				return fmt.Errorf("expected slot %s on %s to be %s, but got %s", expKey, addr, expValue, actValue)
 			}
 		}
 
-		log.Info("checked storage", "address", addr, "count", count)
+		// Should only have two new keys.
+		if actCount != expCount+2 {
+			return fmt.Errorf("expected %d new storage slots, but got %d", expCount+2, actCount)
+		}
+
+		// Check that implementation slot is new.
+		_, expOk1 := expSlots[ImplementationSlot]
+		_, actOk1 := actSlots[ImplementationSlot]
+		if expOk1 || !actOk1 {
+			return fmt.Errorf("expected implementation slot to be new")
+		}
+
+		// Check that admin slot is new.
+		_, expOk2 := expSlots[AdminSlot]
+		_, actOk2 := actSlots[AdminSlot]
+		if expOk2 || !actOk2 {
+			return fmt.Errorf("expected admin slot to be new")
+		}
+
+		log.Info("checked storage", "address", addr, "expCount", expCount, "actCount", actCount)
 	}
 	return nil
 }
@@ -216,37 +230,19 @@ func PostCheckPredeploys(db *state.StateDB) error {
 			return fmt.Errorf("no code found at predeploy %s", addr)
 		}
 
-		if UntouchablePredeploys[addr] {
-			log.Trace("skipping untouchable predeploy", "address", addr)
-			continue
-		}
-
 		// There must be an admin
 		admin := db.GetState(addr, AdminSlot)
 		adminAddr := common.BytesToAddress(admin.Bytes())
-		if addr != predeploys.ProxyAdminAddr && addr != predeploys.GovernanceTokenAddr && adminAddr != predeploys.ProxyAdminAddr {
-			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
+		if adminAddr != HardforkOnlyProxyOwnerAddr {
+			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, HardforkOnlyProxyOwnerAddr, adminAddr)
 		}
 	}
 
 	// For each predeploy, check that we've set the implementation correctly when
 	// necessary and that there's code at the implementation.
 	for _, proxyAddr := range predeploys.Predeploys {
-		if UntouchablePredeploys[*proxyAddr] {
-			log.Trace("skipping untouchable predeploy", "address", proxyAddr)
-			continue
-		}
-
 		if *proxyAddr == predeploys.LegacyERC20ETHAddr {
 			log.Trace("skipping legacy eth predeploy")
-			continue
-		}
-
-		if *proxyAddr == predeploys.ProxyAdminAddr {
-			implCode := db.GetCode(*proxyAddr)
-			if len(implCode) == 0 {
-				return errors.New("no code found at proxy admin")
-			}
 			continue
 		}
 
@@ -307,9 +303,9 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) e
 		}
 
 		for key, value := range expSlots {
-			// The owner slots for the L2XDM and ProxyAdmin are special cases.
-			// They are set to the final system owner in the config.
-			if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
+			// The owner slot for the L2XDM is a special case.
+			// It is set to the final system owner in the config.
+			if *addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot {
 				actualOwner := common.BytesToAddress(slots[key].Bytes())
 				if actualOwner != finalSystemOwner {
 					return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
@@ -400,10 +396,10 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 
 	// Check EIP-1967
 	proxyAdmin := common.BytesToAddress(db.GetState(predeploys.L1BlockAddr, AdminSlot).Bytes())
-	if proxyAdmin != predeploys.ProxyAdminAddr {
-		return fmt.Errorf("expected L1Block admin to be %s, but got %s", predeploys.ProxyAdminAddr, proxyAdmin)
+	if proxyAdmin != HardforkOnlyProxyOwnerAddr {
+		return fmt.Errorf("expected L1Block admin to be %s, but got %s", HardforkOnlyProxyOwnerAddr, proxyAdmin)
 	}
-	log.Debug("validated L1Block admin", "expected", predeploys.ProxyAdminAddr)
+	log.Debug("validated L1Block admin", "expected", HardforkOnlyProxyOwnerAddr)
 	expImplementation, err := AddressToCodeNamespace(predeploys.L1BlockAddr)
 	if err != nil {
 		return fmt.Errorf("failed to get expected implementation for L1Block: %w", err)
@@ -506,7 +502,7 @@ func eip1967Slots(address common.Address) StorageCheckMap {
 		panic(err)
 	}
 	return StorageCheckMap{
-		AdminSlot:          predeploys.ProxyAdminAddr.Hash(),
+		AdminSlot:          HardforkOnlyProxyOwnerAddr.Hash(),
 		ImplementationSlot: codeAddr.Hash(),
 	}
 }
