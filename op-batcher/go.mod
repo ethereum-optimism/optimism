@@ -7,6 +7,7 @@ require (
 	github.com/ethereum-optimism/optimism/op-node v0.10.10
 	github.com/ethereum-optimism/optimism/op-proposer v0.10.10
 	github.com/ethereum-optimism/optimism/op-service v0.10.10
+	github.com/ethereum-optimism/optimism/op-signer v0.0.0-20230109220848-b750e038ce71
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/urfave/cli v1.22.9
 )
@@ -87,7 +88,7 @@ require (
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43 // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
