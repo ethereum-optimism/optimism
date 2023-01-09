@@ -34,6 +34,7 @@
 /.github      @ethereum-optimism/infra-reviewers
 /ops          @ethereum-optimism/infra-reviewers
 /ops-bedrock  @ethereum-optimism/infra-reviewers
+/op-signer    @ethereum-optimism/infra-reviewers
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers
