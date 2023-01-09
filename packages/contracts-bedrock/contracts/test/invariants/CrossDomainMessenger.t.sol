@@ -125,6 +125,6 @@ contract XDM_MinGasLimits is Messenger_Initializer, InvariantTest {
             // it is not in the received messages mapping
             assertFalse(L1Messenger.failedMessages(hash));
         }
-        assertTrue(!actor.outOfGas());
+        assertFalse(actor.outOfGas());
     }
 }
