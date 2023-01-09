@@ -116,6 +116,7 @@ contract XDM_MinGasLimits is Messenger_Initializer, InvariantTest {
      * gas limits are supplied.
      *
      * There are two minimum gas limits here:
+     *
      * - The outer min gas limit is for the call from the `OptimismPortal` to the
      * `L1CrossDomainMessenger`,  and it can be retrieved by calling the xdm's `baseGas` function
      * with the `message` and inner limit.
