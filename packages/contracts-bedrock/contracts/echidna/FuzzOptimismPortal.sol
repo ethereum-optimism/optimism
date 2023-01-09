@@ -27,6 +27,13 @@ contract EchidnaFuzzOptimismPortal {
         failedToComplete = false;
     }
 
+    /**
+     * @custom:invariant Deposits of any value should always succeed unless
+     * `_to` = `address(0)` or `_isCreation` = `true`.
+     *
+     * All deposits, barring creation transactions and transactions sent to `address(0)`,
+     * should always succeed.
+     */
     function echidna_deposit_completes() public view returns (bool) {
         return !failedToComplete;
     }
