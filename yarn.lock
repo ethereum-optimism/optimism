@@ -619,17 +619,6 @@
     minimatch "^3.1.2"
     strip-json-comments "^3.1.1"
 
-"@eth-optimism/contracts-bedrock@0.11.0":
-  version "0.11.0"
-  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts-bedrock/-/contracts-bedrock-0.11.0.tgz#38d9406905fabac542eef62483e06be0c15f35c4"
-  integrity sha512-e8N5Dzbe/bayfbKnYkkAFGtPmdWS3zbm3GFBlItdW5CSwjWVVzQ7ExHv0cVRMBzZ+PY25gs0u8PA//aM775qwA==
-  dependencies:
-    "@eth-optimism/core-utils" "^0.12.0"
-    "@openzeppelin/contracts" "4.7.3"
-    "@openzeppelin/contracts-upgradeable" "4.7.3"
-    ethers "^5.7.0"
-    hardhat "^2.9.6"
-
 "@eth-optimism/core-utils@^0.5.2":
   version "0.5.5"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.5.5.tgz#0e2bb95b23965fb51adfb8ba6841c3afd26a6411"
