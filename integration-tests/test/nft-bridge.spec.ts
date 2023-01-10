@@ -2,7 +2,6 @@
 import { Contract, ContractFactory, utils, Wallet } from 'ethers'
 import { ethers } from 'hardhat'
 import { getChainId } from '@eth-optimism/core-utils'
-import { predeploys } from '@eth-optimism/contracts'
 import Artifact__TestERC721 from '@eth-optimism/contracts-periphery/artifacts/contracts/testing/helpers/TestERC721.sol/TestERC721.json'
 import Artifact__L1ERC721Bridge from '@eth-optimism/contracts-bedrock/artifacts/contracts/L1/L1ERC721Bridge.sol/L1ERC721Bridge.json'
 import Artifact__L2ERC721Bridge from '@eth-optimism/contracts-bedrock/artifacts/contracts/L2/L2ERC721Bridge.sol/L2ERC721Bridge.json'
@@ -84,16 +83,11 @@ describe('ERC721 Bridge', () => {
     await L1ERC721.deployed()
 
     L1ERC721Bridge = await Factory__L1ERC721Bridge.deploy(
-      env.messenger.contracts.l1.L1CrossDomainMessenger.address,
-      ethers.utils.getContractAddress({
-        from: await Factory__L2ERC721Bridge.signer.getAddress(),
-        nonce: await Factory__L2ERC721Bridge.signer.getTransactionCount(),
-      })
+      env.messenger.contracts.l1.L1CrossDomainMessenger.address
     )
     await L1ERC721Bridge.deployed()
 
     L2ERC721Bridge = await Factory__L2ERC721Bridge.deploy(
-      predeploys.L2CrossDomainMessenger,
       L1ERC721Bridge.address
     )
     await L2ERC721Bridge.deployed()
