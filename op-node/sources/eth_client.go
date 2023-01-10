@@ -292,6 +292,28 @@ func (s *EthClient) FetchReceipts(ctx context.Context, blockHash common.Hash) (e
 // The retrieval does sanity-check that storage proofs for the expected keys are present in the response,
 // but does not verify the result. Call accountResult.Verify(stateRoot) to verify the result.
 func (s *EthClient) GetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
+	var x common.Hash
+	parseErr := x.UnmarshalText([]byte(blockTag))
+	if s.provKind == RPCKindAlchemy && parseErr == nil {
+		// Alchemy does not *yet* support eth_getProof calls with blockhash parameter like other RPC providers
+		// due to incomplete execution-apis spec (fixed in https://github.com/ethereum/execution-apis/pull/326 )
+		header, err := s.InfoByHash(ctx, x)
+		if err != nil {
+			return nil, fmt.Errorf("failed to retrieve header for Alchemy get-proof workaround: %w", err)
+		}
+		res, err := s.innerGetProof(ctx, address, storage, hexutil.Uint64(header.NumberU64()).String())
+		if err != nil {
+			return nil, err
+		}
+		if err := res.Verify(header.Root()); err != nil {
+			return nil, fmt.Errorf("retrieved proof does not match state of block %s (id %s): %w", blockTag, eth.ToBlockID(header), err)
+		}
+		return res, nil
+	}
+	return s.innerGetProof(ctx, address, storage, blockTag)
+}
+
+func (s *EthClient) innerGetProof(ctx context.Context, address common.Address, storage []common.Hash, blockTag string) (*eth.AccountResult, error) {
 	var getProofResponse *eth.AccountResult
 	err := s.client.CallContext(ctx, &getProofResponse, "eth_getProof", address, storage, blockTag)
 	if err != nil {
