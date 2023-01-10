@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.31
+
+### Patch Changes
+
+- ccbca22c3: Patch release for additional instrumentation for the Bedrock upgrade.
+
 ## 0.5.30
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.6
+
+### Patch Changes
+
+- 0222215f6: Manually update the version on the contracts-bedrock dep.
+
 ## 1.0.5
 
 ### Patch Changes

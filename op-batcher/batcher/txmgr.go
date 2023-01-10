@@ -119,8 +119,8 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 		return nil, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, networkTimeout)
-	nonce, err := t.l1Client.NonceAt(ctx, t.senderAddress, nil)
+	childCtx, cancel := context.WithTimeout(ctx, networkTimeout)
+	nonce, err := t.l1Client.NonceAt(childCtx, t.senderAddress, nil)
 	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
@@ -142,6 +142,8 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	}
 	rawTx.Gas = gas
 
+	ctx, cancel = context.WithTimeout(ctx, networkTimeout)
+	defer cancel()
 	return t.signerFn(ctx, rawTx)
 }
 

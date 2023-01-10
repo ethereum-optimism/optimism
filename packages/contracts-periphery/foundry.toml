@@ -18,7 +18,7 @@ remappings = [
 	'ds-test/=node_modules/ds-test/src',
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   '@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/',
-  '@eth-optimism/contracts-bedrock/=node_modules/@eth-optimism/contracts-bedrock',
+  '@eth-optimism/contracts-bedrock/=../../node_modules/@eth-optimism/contracts-bedrock',
 ]
 # The metadata hash can be removed from the bytecode by setting "none"
 bytecode_hash = "none"

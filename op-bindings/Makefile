@@ -125,7 +125,7 @@ more:
 	go run ./gen/main.go \
 		-artifacts ../packages/contracts-bedrock/artifacts \
 		-out ./bindings \
-		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,GasPriceOracle,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
+		-contracts SystemConfig,OptimismMintableERC20Factory,L2StandardBridge,L1BlockNumber,LegacyMessagePasser,DeployerWhitelist,Proxy,OptimismPortal,L2ToL1MessagePasser,L2CrossDomainMessenger,SequencerFeeVault,L1Block,LegacyERC20ETH,WETH9,GovernanceToken,L1CrossDomainMessenger,L2ERC721Bridge,OptimismMintableERC721Factory,ProxyAdmin \
 		-package bindings
 
 mkdir:

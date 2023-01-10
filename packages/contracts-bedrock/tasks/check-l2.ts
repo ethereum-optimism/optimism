@@ -4,7 +4,7 @@ import { task, types } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
-import { Contract, providers, Wallet, Signer } from 'ethers'
+import { Contract, providers, Wallet, Signer, BigNumber } from 'ethers'
 
 import { predeploys } from '../src'
 
@@ -128,6 +128,62 @@ const assertProxy = async (
   const implCode = await provider.getCode(implAddress)
   if (implCode === '0x') {
     throw new Error('No code at implementation')
+  }
+}
+
+// checks to make sure that the genesis magic value
+// was set correctly
+const checkGenesisMagic = async (
+  hre: HardhatRuntimeEnvironment,
+  l2Provider: providers.Provider,
+  args
+) => {
+  const magic = '0x' + Buffer.from('BEDROCK').toString('hex')
+  let startingBlockNumber: number
+
+  // We have a connection to the L1 chain, fetch the remote value
+  if (args.l1RpcUrl !== '') {
+    const l1Provider = new hre.ethers.providers.StaticJsonRpcProvider(
+      args.l1RpcUrl
+    )
+
+    // Get the address if it was passed in via CLI
+    // Otherwise get the address from a hardhat deployment file
+    let address: string
+    if (args.l2OutputOracleAddress !== '') {
+      address = args.l2OutputOracleAddress
+    } else {
+      const Deployment__L2OutputOracle = await hre.deployments.get(
+        'L2OutputOracle'
+      )
+      address = Deployment__L2OutputOracle.address
+    }
+
+    const abi = {
+      inputs: [],
+      name: 'startingBlockNumber',
+      outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+      stateMutability: 'view',
+      type: 'function',
+    }
+
+    const L2OutputOracle = new hre.ethers.Contract(address, [abi], l1Provider)
+
+    startingBlockNumber = await L2OutputOracle.startingBlockNumber()
+  } else {
+    // We do not have a connection to the L1 chain, use the local config
+    // The `--network` flag must be set to the L1 network
+    startingBlockNumber = hre.deployConfig.l2OutputOracleStartingBlockNumber
+  }
+
+  // ensure that the starting block number is a number
+  startingBlockNumber = BigNumber.from(startingBlockNumber).toNumber()
+
+  const block = await l2Provider.getBlock(startingBlockNumber)
+  const extradata = block.extraData
+
+  if (extradata !== magic) {
+    throw new Error('magic value in extradata does not match')
   }
 }
 
@@ -594,8 +650,15 @@ const check = {
 }
 
 task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
-  .addOptionalParam('rpcUrl', 'RPC URL of the remote node', '', types.string)
+  .addOptionalParam('l1RpcUrl', 'L1 RPC URL of node', '', types.string)
+  .addOptionalParam('l2RpcUrl', 'L2 RPC URL of node', '', types.string)
   .addOptionalParam('chainId', 'Expected chain id', 0, types.int)
+  .addOptionalParam(
+    'l2OutputOracleAddress',
+    'Address of the L2OutputOracle oracle',
+    '',
+    types.string
+  )
   .addOptionalParam(
     'skipPredeployCheck',
     'Skip long check',
@@ -608,9 +671,9 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
 
     let signer: Signer = hre.ethers.provider.getSigner()
 
-    if (args.rpcUrl !== '') {
+    if (args.l2RpcUrl !== '') {
       console.log('Using CLI URL for provider instead of hardhat network')
-      const provider = new hre.ethers.providers.JsonRpcProvider(args.rpcUrl)
+      const provider = new hre.ethers.providers.JsonRpcProvider(args.l2RpcUrl)
       signer = Wallet.createRandom().connect(provider)
     }
 
@@ -631,6 +694,8 @@ task('check-l2', 'Checks a freshly migrated L2 system for correct migration')
     if (!args.skipPredeployCheck) {
       await checkPredeploys(hre, signer.provider)
     }
+
+    await checkGenesisMagic(hre, signer.provider, args)
 
     console.log()
     // Check the currently configured predeploys
