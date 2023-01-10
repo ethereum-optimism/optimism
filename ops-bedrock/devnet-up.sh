@@ -31,7 +31,6 @@ set -eu
 
 L1_URL="http://localhost:8545"
 L2_URL="http://localhost:9545"
-GATEWAY_URL="http://localhost:3000"
 
 OP_NODE="$PWD/op-node"
 CONTRACTS_BEDROCK="$PWD/packages/contracts-bedrock"
@@ -109,10 +108,6 @@ SEQUENCER_BATCH_INBOX_ADDRESS="$(cat $DEVNET/rollup.json | jq -r '.batch_inbox_a
 
   echo "Bringing up stateviz webserver..."
   docker-compose up -d stateviz
-
-  echo "Bringing up gateway-ui..."
-  docker-compose up -d gateway-ui
-  wait_up $GATEWAY_URL
 )
 
 echo "Devnet ready."
