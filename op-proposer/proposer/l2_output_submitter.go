@@ -31,6 +31,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 const (
@@ -53,10 +54,34 @@ func Main(version string) func(ctx *cli.Context) error {
 		l := oplog.NewLogger(cfg.LogConfig)
 		l.Info("Initializing L2 Output Submitter")
 
-		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, version, l)
-		if err != nil {
-			l.Error("Unable to create L2 Output Submitter", "error", err)
-			return err
+		var l2OutputSubmitter *L2OutputSubmitter
+		if !cfg.SignerConfig.Enabled() {
+			submitter, err := NewL2OutputSubmitter(cfg, version, l)
+			if err != nil {
+				l.Error("Unable to create L2 Output Submitter", "error", err)
+				return err
+			}
+			l2OutputSubmitter = submitter
+		} else {
+			signerClient, err := opsigner.NewSignerClientFromConfig(l, cfg.SignerConfig)
+			if err != nil {
+				l.Error("Unable to create Signer Client", "error", err)
+				return err
+			}
+			signer := func(chainID *big.Int) SignerFn {
+				return func(ctx context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+					if address.String() != cfg.SignerConfig.Address {
+						return nil, fmt.Errorf("attempting to sign for %s, expected %s: ", address, cfg.SignerConfig.Address)
+					}
+					return signerClient.SignTransaction(ctx, tx)
+				}
+			}
+			submitter, err := NewL2OutputSubmitterWithSigner(cfg, common.HexToAddress(cfg.SignerConfig.Address), signer, version, l)
+			if err != nil {
+				l.Error("Unable to create Batch Submitter with signer", "error", err)
+				return err
+			}
+			l2OutputSubmitter = submitter
 		}
 
 		l.Info("Starting L2 Output Submitter")
