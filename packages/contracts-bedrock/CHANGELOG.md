@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.11.2
+
+### Patch Changes
+
+- 8784bc0bc: Add invariant test for the L1 XDM's `relayMessage` minimum gas limits.
+
 ## 0.11.1
 
 ### Patch Changes
