@@ -83,12 +83,12 @@ var (
 		Usage:  "Whether or not this indexer should operate in Bedrock mode",
 		EnvVar: prefixEnvVar("BEDROCK"),
 	}
-	BedrockL1StandardBridgeAddress = cli.BoolFlag{
+	BedrockL1StandardBridgeAddress = cli.StringFlag{
 		Name:   "bedrock.l1-standard-bridge-address",
 		Usage:  "Address of the L1 standard bridge",
 		EnvVar: prefixEnvVar("BEDROCK_L1_STANDARD_BRIDGE"),
 	}
-	BedrockOptimismPortalAddress = cli.BoolFlag{
+	BedrockOptimismPortalAddress = cli.StringFlag{
 		Name:   "bedrock.portal-address",
 		Usage:  "Address of the portal",
 		EnvVar: prefixEnvVar("BEDROCK_OPTIMISM_PORTAL"),

@@ -1,16 +1,12 @@
 {
   "name": "@eth-optimism/balance-monitor",
   "version": "0.0.2",
-  "description": "Forta Agent that reports whether certain accounts have fallen below some balance",
-  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/balance-monitor#readme",
-  "license": "MIT",
-  "author": "Optimism PBC",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/ethereum-optimism/optimism.git"
-  },
-  "chainIds": [
-    5
+  "description": "[Optimism] Forta Agent that reports whether certain accounts have fallen below some balance",
+  "main": "dist/index",
+  "types": "dist/index",
+  "files": [
+    "dist/*",
+    "src/*"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -27,6 +23,19 @@
     "lint:fix": "yarn lint:check --fix",
     "lint": "yarn lint:fix && yarn lint:check"
   },
+  "keywords": [
+    "optimism",
+    "ethereum",
+    "forta",
+    "monitoring"
+  ],
+  "homepage": "https://github.com/ethereum-optimism/optimism/tree/develop/packages/balance-monitor#readme",
+  "license": "MIT",
+  "author": "Optimism PBC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ethereum-optimism/optimism.git"
+  },
   "dependencies": {
     "ethers": "^5.7.2",
     "node-fetch": "^2.6.1",
@@ -40,5 +49,8 @@
     "nodemon": "^2.0.8",
     "ts-mocha": "^10.0.0",
     "typescript": "^4.3.4"
-  }
+  },
+  "chainIds": [
+    5
+  ]
 }
