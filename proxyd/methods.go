@@ -67,12 +67,26 @@ func (e *EthGetBlockByNumberMethodHandler) cacheable(req *RPCReq) (bool, error) 
 	if err != nil {
 		return false, err
 	}
-	return !isBlockDependentParam(blockNum), nil
+	return blockNum != "pending" && (blockNum != "latest" || e.numBlockConfirmations == 0), nil
 }
 
 func (e *EthGetBlockByNumberMethodHandler) GetRPCMethod(ctx context.Context, req *RPCReq) (*RPCRes, error) {
 	if ok, err := e.cacheable(req); !ok || err != nil {
 		return nil, err
+	}
+	blockInput, includeTx, err := decodeGetBlockByNumberParams(req.Params)
+	if err != nil {
+		return nil, err
+	}
+	if blockInput == "latest" {
+		// if asking for latest, we override the req params to the latest synced blocknum
+		// this mutates the request params so its cached with the blocknum after the request on miss
+		// this should only happen if numBlockConfirmations == 0
+		curBlock, err := e.getLatestBlockNumFn(ctx)
+		if err != nil {
+			return nil, err
+		}
+		overwriteGetBlockByNumberParams(req, curBlock, includeTx)
 	}
 	key := e.cacheKey(req)
 	return getImmutableRPCResponse(ctx, e.cache, key, req)
@@ -99,7 +113,7 @@ func (e *EthGetBlockByNumberMethodHandler) PutRPCMethod(ctx context.Context, req
 		if err != nil {
 			return err
 		}
-		if curBlock <= blockNum+uint64(e.numBlockConfirmations) {
+		if curBlock < blockNum+uint64(e.numBlockConfirmations) {
 			return nil
 		}
 	}
@@ -294,6 +308,11 @@ func decodeGetBlockByNumberParams(params json.RawMessage) (string, bool, error) 
 		return "", false, errInvalidRPCParams
 	}
 	return blockNum, includeTx, nil
+}
+
+func overwriteGetBlockByNumberParams(req *RPCReq, blockNum uint64, includeTx bool) {
+	params := json.RawMessage(fmt.Sprintf(`["%s", %v]`, hexutil.EncodeUint64(blockNum), includeTx))
+	req.Params = params
 }
 
 func decodeGetBlockRangeParams(params json.RawMessage) (string, string, bool, error) {
