@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/drippie-mon",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "[Optimism] Service for monitoring Drippie instances",
   "main": "dist/index",
   "types": "dist/index",
@@ -33,9 +33,9 @@
   },
   "dependencies": {
     "@eth-optimism/common-ts": "0.7.0",
-    "@eth-optimism/contracts-periphery": "1.0.5",
+    "@eth-optimism/contracts-periphery": "1.0.6",
     "@eth-optimism/core-utils": "0.12.0",
-    "@eth-optimism/sdk": "1.9.0",
+    "@eth-optimism/sdk": "1.9.1",
     "ethers": "^5.7.0"
   },
   "devDependencies": {
