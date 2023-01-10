@@ -327,7 +327,7 @@ func (s *Driver) eventLoop() {
 			s.metrics.SetDerivationIdle(false)
 			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
-			err := s.derivation.Step(ctx)
+			err := s.derivation.Step(context.TODO())
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
