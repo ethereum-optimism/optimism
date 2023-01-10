@@ -17,7 +17,7 @@ contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     }
 
     function test_bridge_succeeds() external {
-        assertEq(address(L2TokenFactory.bridge()), address(L2Bridge));
+        assertEq(address(L2TokenFactory.BRIDGE()), address(L2Bridge));
     }
 
     function test_createStandardL2Token_succeeds() external {

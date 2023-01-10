@@ -44,20 +44,12 @@ contract OptimismMintableERC20Factory is Semver {
     );
 
     /**
+     * @custom:semver 1.0.0
+     *
      * @param _bridge Address of the StandardBridge on this chain.
      */
     constructor(address _bridge) Semver(1, 0, 0) {
         BRIDGE = _bridge;
-    }
-
-    /**
-     * @custom:legacy
-     * @notice Legacy getter for StandardBridge address.
-     *
-     * @return Address of the StandardBridge on this chain.
-     */
-    function bridge() external view returns (address) {
-        return BRIDGE;
     }
 
     /**

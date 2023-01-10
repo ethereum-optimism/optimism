@@ -47,13 +47,11 @@ contract ProxyAdmin is Ownable {
     }
 
     /**
-     * @custom:legacy
      * @notice A mapping of proxy types, used for backwards compatibility.
      */
     mapping(address => ProxyType) public proxyType;
 
     /**
-     * @custom:legacy
      * @notice A reverse mapping of addresses to names held in the AddressManager. This must be
      *         manually kept up to date with changes in the AddressManager for this contract
      *         to be able to work as an admin for the ResolvedDelegateProxy type.
@@ -61,17 +59,15 @@ contract ProxyAdmin is Ownable {
     mapping(address => string) public implementationName;
 
     /**
-     * @custom:legacy
      * @notice The address of the address manager, this is required to manage the
      *         ResolvedDelegateProxy type.
      */
     AddressManager public addressManager;
 
     /**
-     * @custom:legacy
      * @notice A legacy upgrading indicator used by the old Chugsplash Proxy.
      */
-    bool internal upgrading = false;
+    bool internal upgrading;
 
     /**
      * @param _owner Address of the initial owner of this contract.

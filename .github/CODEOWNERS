@@ -1,43 +1,43 @@
 # Legacy codebases
-/batch-submitter                @mslipper @tynes
-/bss-core                       @mslipper @tynes
-/gas-oracle                     @tynes @smartcontracts
-/integration-tests              @mslipper @tynes
-/l2geth                         @tynes @smartcontracts
-/l2geth-exporter                @tynes @smartcontracts
-/packages/actor-tests           @mslipper
-/packages/common-ts             @tynes @smartcontracts
-/packages/contracts             @tynes @smartcontracts @maurelian
-/packages/contracts-bedrock     @tynes @smartcontracts @maurelian
-/packages/contracts-periphery   @tynes @smartcontracts @maurelian
-/packages/core-utils            @tynes @smartcontracts
-/packages/data-transport-layer  @tynes @smartcontracts
+/batch-submitter                @ethereum-optimism/legacy-reviewers
+/bss-core                       @ethereum-optimism/legacy-reviewers
+/gas-oracle                     @ethereum-optimism/legacy-reviewers
+/integration-tests              @ethereum-optimism/legacy-reviewers
+/l2geth                         @ethereum-optimism/legacy-reviewers
+/l2geth-exporter                @ethereum-optimism/legacy-reviewers
+/packages/actor-tests           @ethereum-optimism/legacy-reviewers
+/packages/common-ts             @ethereum-optimism/typescript-reviewers
+/packages/contracts             @ethereum-optimism/contract-reviewers
+/packages/contracts-bedrock     @ethereum-optimism/contract-reviewers
+/packages/contracts-periphery   @ethereum-optimism/contract-reviewers
+/packages/core-utils            @ethereum-optimism/legacy-reviewers
+/packages/data-transport-layer  @ethereum-optimism/legacy-reviewers
 /packages/drippie-mon           @smartcontracts
-/packages/fault-detector        @tynes @smartcontracts
-/packages/hardhat-deploy-config @tynes @smartcontracts @maurelian
-/packages/message-relayer       @tynes @smartcontracts
-/packages/migration-data        @tynes @smartcontracts @mslipper
-/packages/replica-healthcheck   @tynes @smartcontracts @mslipper
-/packages/sdk                   @smartcontracts @roninjin10 @nickbalestra
+/packages/fault-detector        @ethereum-optimism/legacy-reviewers
+/packages/hardhat-deploy-config @ethereum-optimism/legacy-reviewers
+/packages/message-relayer       @ethereum-optimism/legacy-reviewers
+/packages/migration-data        @ethereum-optimism/legacy-reviewers
+/packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
+/packages/sdk                   @ethereum-optimism/ecopod
 
 # Bedrock codebases
-/bedrock-devnet @mslipper
-/op-batcher     @protolambda @trianglesphere
-/op-chain-ops   @protolambda @trianglesphere @tynes @mslipper
-/op-e2e         @protolambda @trianglesphere @tynes @mslipper
-/op-node        @protolambda @trianglesphere
-/op-proposer    @protolambda @trianglesphere
-/op-service     @protolambda @trianglesphere @mslipper
+/bedrock-devnet @ethereum-optimism/go-reviewers
+/op-batcher     @ethereum-optimism/go-reviewers
+/op-chain-ops   @ethereum-optimism/go-reviewers
+/op-e2e         @ethereum-optimism/go-reviewers
+/op-node        @ethereum-optimism/go-reviewers
+/op-proposer    @ethereum-optimism/go-reviewers
+/op-service     @ethereum-optimism/go-reviewers
 
 # Ops
-/.circleci    @mslipper @zhwrd @trianglesphere
-/.github      @mslipper @zhwrd
-/ops          @mslipper @zhwrd
-/ops-bedrock  @mslipper @zhwrd
+/.circleci    @ethereum-optimism/infra-reviewers
+/.github      @ethereum-optimism/infra-reviewers
+/ops          @ethereum-optimism/infra-reviewers
+/ops-bedrock  @ethereum-optimism/infra-reviewers
 
 # Misc
-/proxyd           @mslipper @Inphi @tynes
-/indexer          @mslipper @nickbalestra @roninjin10
-/infra            @mslipper @zhwrd
-/specs            @trianglesphere @tynes @protolambda @smartcontracts @maurelian
-/endpoint-monitor @zhwrd
+/proxyd           @ethereum-optimism/infra-reviewers
+/indexer          @ethereum-optimism/infra-reviewers
+/infra            @ethereum-optimism/infra-reviewers
+/specs            @ethereum-optimism/contract-reviewers @ethereum-optimism/go-reviewers
+/endpoint-monitor @ethereum-optimism/infra-reviewers

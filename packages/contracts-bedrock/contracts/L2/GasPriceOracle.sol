@@ -23,56 +23,14 @@ import { L1Block } from "../L2/L1Block.sol";
  */
 contract GasPriceOracle is Semver {
     /**
-     * @custom:legacy
-     * @custom:spacer _owner
-     * @notice Spacer for backwards compatibility.
-     */
-    address private spacer_0_0_20;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer gasPrice
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_1_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer l1BaseFee
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_2_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer overhead
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_3_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer scalar
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_4_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer decimals
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_5_0_32;
-
-    /**
      * @notice Number of decimals used in the scalar.
      */
     uint256 public constant DECIMALS = 6;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      */
-    constructor() Semver(0, 0, 1) {}
+    constructor() Semver(1, 0, 0) {}
 
     /**
      * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
