@@ -1,5 +1,11 @@
 # @eth-optimism/indexer
 
+## 0.7.0
+
+### Minor Changes
+
+- ed50bd5b4: Bump indexer
+
 ## 0.6.0
 
 ### Minor Changes
