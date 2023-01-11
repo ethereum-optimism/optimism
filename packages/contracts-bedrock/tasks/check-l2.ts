@@ -154,7 +154,7 @@ const checkGenesisMagic = async (
       address = args.l2OutputOracleAddress
     } else {
       const Deployment__L2OutputOracle = await hre.deployments.get(
-        'L2OutputOracle'
+        'L2OutputOracleProxy'
       )
       address = Deployment__L2OutputOracle.address
     }
