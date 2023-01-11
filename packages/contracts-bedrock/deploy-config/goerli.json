@@ -28,6 +28,9 @@
   "finalizationPeriodSeconds": 12,
 
   "proxyAdminOwner": "0xf80267194936da1E98dB10bcE06F3147D580a62e",
+  "baseFeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
+  "l1FeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
+  "sequencerFeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
 
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
