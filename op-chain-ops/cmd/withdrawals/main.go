@@ -246,6 +246,9 @@ func main() {
 			}
 
 			bedrockStartingBlock, err := clients.L2Client.BlockByNumber(context.Background(), bedrockStartingBlockNumber)
+			if err != nil {
+				return err
+			}
 
 			log.Info("Withdrawal config", "finalization-period", period, "bedrock-starting-block-number", bedrockStartingBlockNumber, "bedrock-starting-block-hash", bedrockStartingBlock.Hash().Hex())
 
@@ -385,6 +388,9 @@ func main() {
 
 					log.Info("Finalizing withdrawal")
 					receipt, err := finalizeWithdrawalTransaction(contracts, clients, opts, wd, withdrawal)
+					if err != nil {
+						return err
+					}
 					log.Info("withdrawal finalized", "tx-hash", receipt.TxHash, "withdrawal-hash", hash)
 
 					finalizationTrace, err := callTrace(clients, receipt)
