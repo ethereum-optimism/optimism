@@ -65,9 +65,13 @@ type Config struct {
 	// L1StartBlockNumber is the block number to start indexing L1 from.
 	L1StartBlockNumber uint64
 
-	// ConfDepth is the number of confirmations after which headers are
-	// considered confirmed.
-	ConfDepth uint64
+	// L1ConfDepth is the number of confirmations after which headers are
+	// considered confirmed on L1.
+	L1ConfDepth uint64
+
+	// L2ConfDepth is the number of confirmations after which headers are
+	// considered confirmed on L2.
+	L2ConfDepth uint64
 
 	// MaxHeaderBatchSize is the maximum number of headers to request as a
 	// batch.
@@ -122,7 +126,8 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		LogLevel:                       ctx.GlobalString(flags.LogLevelFlag.Name),
 		LogTerminal:                    ctx.GlobalBool(flags.LogTerminalFlag.Name),
 		L1StartBlockNumber:             ctx.GlobalUint64(flags.L1StartBlockNumberFlag.Name),
-		ConfDepth:                      ctx.GlobalUint64(flags.ConfDepthFlag.Name),
+		L1ConfDepth:                    ctx.GlobalUint64(flags.L1ConfDepthFlag.Name),
+		L2ConfDepth:                    ctx.GlobalUint64(flags.L2ConfDepthFlag.Name),
 		MaxHeaderBatchSize:             ctx.GlobalUint64(flags.MaxHeaderBatchSizeFlag.Name),
 		MetricsServerEnable:            ctx.GlobalBool(flags.MetricsServerEnableFlag.Name),
 		RESTHostname:                   ctx.GlobalString(flags.RESTHostnameFlag.Name),
