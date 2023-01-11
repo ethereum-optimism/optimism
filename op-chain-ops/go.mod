@@ -3,7 +3,6 @@ module github.com/ethereum-optimism/optimism/op-chain-ops
 go 1.18
 
 require (
-	github.com/ethereum-optimism/optimism/l2geth v0.0.0-20230125064221-e92bc23c2619
 	github.com/ethereum-optimism/optimism/op-bindings v0.10.11
 	github.com/ethereum-optimism/optimism/op-node v0.10.1
 	github.com/ethereum/go-ethereum v1.10.26
@@ -26,6 +25,7 @@ require (
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/ethereum-optimism/optimism/op-service v0.10.11 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
+	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
@@ -59,6 +59,7 @@ require (
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43 // indirect
 	golang.org/x/text v0.3.7 // indirect
+	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
