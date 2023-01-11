@@ -4,9 +4,9 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-node v0.10.6
-	github.com/ethereum-optimism/optimism/op-proposer v0.10.6
-	github.com/ethereum-optimism/optimism/op-service v0.10.6
+	github.com/ethereum-optimism/optimism/op-node v0.10.7
+	github.com/ethereum-optimism/optimism/op-proposer v0.10.7
+	github.com/ethereum-optimism/optimism/op-service v0.10.7
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/urfave/cli v1.22.9
 )
@@ -23,7 +23,7 @@ require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.6 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.7 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
@@ -31,6 +31,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
@@ -72,6 +73,7 @@ require (
 	github.com/prometheus/procfs v0.8.0 // indirect
 	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/rivo/uniseg v0.3.4 // indirect
+	github.com/rjeczalik/notify v0.9.2 // indirect
 	github.com/rs/cors v1.8.2 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
