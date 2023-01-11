@@ -55,7 +55,7 @@ var (
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
 			common.Hash{}: common.HexToHash("0x0000000000000000000000010000000000000000000000000000000000000000"),
 			// Slot 0x33 (51) is _owner. Requires custom check, so set to a garbage value
-			L2XDMOwnerSlot: common.HexToHash("0xbadbadbadbad0xbadbadbadbadbadbadbadbad0xbadbadbadbad0xbadbadbad0"),
+			L2XDMOwnerSlot: common.HexToHash("0xbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad0"),
 			// Slot 0x97 (151) is _status
 			common.Hash{31: 0x97}: common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 			// Slot 0xcc (204) is xDomainMsgSender
@@ -75,7 +75,11 @@ var (
 		// ProxyAdmin is not a proxy, and only has the _owner slot set.
 		predeploys.ProxyAdminAddr: {
 			// Slot 0x00 (0) is _owner. Requires custom check, so set to a garbage value
-			ProxyAdminOwnerSlot: common.HexToHash("0xbadbadbadbad0xbadbadbadbadbadbadbadbad0xbadbadbadbad0xbadbadbad0"),
+			ProxyAdminOwnerSlot: common.HexToHash("0xbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad0"),
+
+			// EIP-1967 storage slots
+			AdminSlot:          common.HexToHash("0x0000000000000000000000004200000000000000000000000000000000000018"),
+			ImplementationSlot: common.HexToHash("0x000000000000000000000000c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d3c0d30018"),
 		},
 		predeploys.BaseFeeVaultAddr: eip1967Slots(predeploys.BaseFeeVaultAddr),
 		predeploys.L1FeeVaultAddr:   eip1967Slots(predeploys.L1FeeVaultAddr),
