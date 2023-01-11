@@ -172,7 +172,6 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 			return fmt.Errorf("code not set for %s", name)
 		}
 	}
-
 	return nil
 }
 
