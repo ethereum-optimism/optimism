@@ -154,7 +154,7 @@ const checkGenesisMagic = async (
       address = args.l2OutputOracleAddress
     } else {
       const Deployment__L2OutputOracle = await hre.deployments.get(
-        'L2OutputOracle'
+        'L2OutputOracleProxy'
       )
       address = Deployment__L2OutputOracle.address
     }
@@ -577,6 +577,9 @@ const check = {
 
     const addressManager = await ProxyAdmin.addressManager()
     console.log(`  - addressManager: ${addressManager}`)
+
+    await checkProxy(hre, 'ProxyAdmin', signer.provider)
+    await assertProxy(hre, 'ProxyAdmin', signer.provider)
   },
   // BaseFeeVault
   // - check version

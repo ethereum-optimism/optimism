@@ -216,17 +216,17 @@ func FilterEnodes(log log.Logger, cfg *rollup.Config) func(node *enode.Node) boo
 		err := node.Load(&dat)
 		// if the entry does not exist, or if it is invalid, then ignore the node
 		if err != nil {
-			log.Debug("discovered node record has no opstack info", "node", node.ID(), "err", err)
+			log.Trace("discovered node record has no opstack info", "node", node.ID(), "err", err)
 			return false
 		}
 		// check chain ID matches
 		if cfg.L2ChainID.Uint64() != dat.chainID {
-			log.Debug("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.chainID, "expected", cfg.L2ChainID.Uint64())
+			log.Trace("discovered node record has no matching chain ID", "node", node.ID(), "got", dat.chainID, "expected", cfg.L2ChainID.Uint64())
 			return false
 		}
 		// check version matches
 		if dat.version != 0 {
-			log.Debug("discovered node record has no matching version", "node", node.ID(), "got", dat.version, "expected", 0)
+			log.Trace("discovered node record has no matching version", "node", node.ID(), "got", dat.version, "expected", 0)
 			return false
 		}
 		return true
