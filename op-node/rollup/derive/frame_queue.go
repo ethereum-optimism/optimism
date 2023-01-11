@@ -4,8 +4,9 @@ import (
 	"context"
 	"io"
 
-	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 var _ NextFrameProvider = &FrameQueue{}
@@ -55,7 +56,7 @@ func (fq *FrameQueue) NextFrame(ctx context.Context) (Frame, error) {
 	return ret, nil
 }
 
-func (fq *FrameQueue) Reset(ctx context.Context, base eth.L1BlockRef) error {
+func (fq *FrameQueue) Reset(_ context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
 	fq.frames = fq.frames[:0]
 	return io.EOF
 }

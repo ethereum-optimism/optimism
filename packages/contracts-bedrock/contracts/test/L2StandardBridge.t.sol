@@ -16,7 +16,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
     function test_initialize_succeeds() external {
         assertEq(address(L2Bridge.messenger()), address(L2Messenger));
-
+        assertEq(L1Bridge.l2TokenBridge(), address(L2Bridge));
         assertEq(address(L2Bridge.OTHER_BRIDGE()), address(L1Bridge));
     }
 
