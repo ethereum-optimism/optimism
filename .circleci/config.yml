@@ -1045,6 +1045,20 @@ workflows:
             - oplabs-gcr
           requires:
             - op-heartbeat-docker-build
+      - docker-build:
+          name: indexer-docker-build
+          docker_file: indexer/Dockerfile
+          docker_name: indexer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: indexer-docker-publish
+          docker_name: indexer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          requires:
+            - indexer-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
