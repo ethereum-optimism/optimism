@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
 
@@ -57,4 +58,8 @@ func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort u
 		}
 	}
 	return p.LocalNode, p.UDPv5, nil
+}
+
+func (p *Prepared) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
+	return nil
 }

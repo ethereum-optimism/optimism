@@ -96,13 +96,13 @@ func TestP2PFull(t *testing.T) {
 	pB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err, "failed to generate new p2p priv key")
 
-	mplexC, err := mplexC()
+	mplexC, err := MplexC()
 	require.NoError(t, err)
-	yamuxC, err := yamuxC()
+	yamuxC, err := YamuxC()
 	require.NoError(t, err)
-	noiseC, err := noiseC()
+	noiseC, err := NoiseC()
 	require.NoError(t, err)
-	tlsC, err := tlsC()
+	tlsC, err := TlsC()
 	require.NoError(t, err)
 
 	confA := Config{
@@ -242,13 +242,13 @@ func TestDiscovery(t *testing.T) {
 	logB := testlog.Logger(t, log.LvlError).New("host", "B")
 	logC := testlog.Logger(t, log.LvlError).New("host", "C")
 
-	mplexC, err := mplexC()
+	mplexC, err := MplexC()
 	require.NoError(t, err)
-	yamuxC, err := yamuxC()
+	yamuxC, err := YamuxC()
 	require.NoError(t, err)
-	noiseC, err := noiseC()
+	noiseC, err := NoiseC()
 	require.NoError(t, err)
-	tlsC, err := tlsC()
+	tlsC, err := TlsC()
 	require.NoError(t, err)
 
 	discDBA, err := enode.OpenDB("") // "" = memory db
