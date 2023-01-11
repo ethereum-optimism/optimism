@@ -77,7 +77,7 @@ func (cb *ChannelBank) prune() {
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 func (cb *ChannelBank) IngestFrame(f Frame) {
 	origin := cb.Origin()
-	log := log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber)
+	log := log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber, "is_last", f.IsLast)
 	log.Debug("channel bank got new data")
 
 	currentCh, ok := cb.channels[f.ID]
@@ -117,7 +117,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 		cb.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
 		delete(cb.channels, first)
 		cb.channelQueue = cb.channelQueue[1:]
-		return nil, io.EOF
+		return nil, nil // multiple different channels may all be timed out
 	}
 	if !ch.IsReady() {
 		return nil, io.EOF
@@ -126,7 +126,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	delete(cb.channels, first)
 	cb.channelQueue = cb.channelQueue[1:]
 	r := ch.Reader()
-	// Suprress error here. io.ReadAll does return nil instead of io.EOF though.
+	// Suppress error here. io.ReadAll does return nil instead of io.EOF though.
 	data, _ = io.ReadAll(r)
 	return data, nil
 }

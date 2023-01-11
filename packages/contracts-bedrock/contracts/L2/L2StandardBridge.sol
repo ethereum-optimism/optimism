@@ -140,6 +140,16 @@ contract L2StandardBridge is StandardBridge, Semver {
 
     /**
      * @custom:legacy
+     * @notice Retrieves the access of the corresponding L1 bridge contract.
+     *
+     * @return Address of the corresponding L1 bridge contract.
+     */
+    function l1TokenBridge() external view returns (address) {
+        return address(OTHER_BRIDGE);
+    }
+
+    /**
+     * @custom:legacy
      * @notice Internal function to a withdrawal from L2 to L1 to a target account on L1.
      *
      * @param _l2Token     Address of the L2 token to withdraw.
