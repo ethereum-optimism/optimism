@@ -93,6 +93,7 @@ func PostCheckMigratedDB(
 	l1XDM *common.Address,
 	l1ChainID uint64,
 	finalSystemOwner common.Address,
+	proxyAdminOwner common.Address,
 	info *derive.L1BlockInfo,
 ) error {
 	log.Info("Validating database migration")
@@ -123,7 +124,7 @@ func PostCheckMigratedDB(
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	if err := PostCheckPredeployStorage(db, finalSystemOwner); err != nil {
+	if err := PostCheckPredeployStorage(db, finalSystemOwner, proxyAdminOwner); err != nil {
 		return err
 	}
 	log.Info("checked predeploy storage")
@@ -276,7 +277,7 @@ func PostCheckPredeploys(db *state.StateDB) error {
 
 // PostCheckPredeployStorage will ensure that the predeploys had their storage
 // wiped correctly.
-func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) error {
+func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, proxyAdminOwner common.Address) error {
 	for name, addr := range predeploys.Predeploys {
 		if addr == nil {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
@@ -313,9 +314,18 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) e
 		for key, value := range expSlots {
 			// The owner slots for the L2XDM and ProxyAdmin are special cases.
 			// They are set to the final system owner in the config.
-			if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
+			if *addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot {
 				actualOwner := common.BytesToAddress(slots[key].Bytes())
 				if actualOwner != finalSystemOwner {
+					return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
+				}
+				log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
+				continue
+			}
+
+			if *addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot {
+				actualOwner := common.BytesToAddress(slots[key].Bytes())
+				if actualOwner != proxyAdminOwner {
 					return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
 				}
 				log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
