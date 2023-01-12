@@ -205,6 +205,7 @@ func main() {
 				&config.L1CrossDomainMessengerProxy,
 				config.L1ChainID,
 				config.FinalSystemOwner,
+				config.ProxyAdminOwner,
 				&derive.L1BlockInfo{
 					Number:        block.NumberU64(),
 					Time:          block.Time(),
