@@ -22,6 +22,9 @@ const config: HardhatUserConfig = {
     hardhat: {
       live: false,
     },
+    mainnet: {
+      url: process.env.RPC_URL || 'http://localhost:8545',
+    },
     devnetL1: {
       live: false,
       url: 'http://localhost:8545',
