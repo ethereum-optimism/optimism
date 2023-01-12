@@ -14,27 +14,45 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
-// UntouchablePredeploys are addresses in the predeploy namespace
-// that should not be touched by the migration process.
-var UntouchablePredeploys = map[common.Address]bool{
-	predeploys.GovernanceTokenAddr: true,
-	predeploys.WETH9Addr:           true,
-}
-
 // UntouchableCodeHashes contains code hashes of all the contracts
 // that should not be touched by the migration process.
 type ChainHashMap map[uint64]common.Hash
 
-var UntouchableCodeHashes = map[common.Address]ChainHashMap{
-	predeploys.GovernanceTokenAddr: {
-		1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
-		5: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
-	},
-	predeploys.WETH9Addr: {
-		1: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
-		5: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
-	},
-}
+var (
+	// UntouchablePredeploys are addresses in the predeploy namespace
+	// that should not be touched by the migration process.
+	UntouchablePredeploys = map[common.Address]bool{
+		predeploys.GovernanceTokenAddr: true,
+		predeploys.WETH9Addr:           true,
+	}
+
+	// UntouchableCodeHashes represent the bytecode hashes of contracts
+	// that should not be touched by the migration process.
+	UntouchableCodeHashes = map[common.Address]ChainHashMap{
+		predeploys.GovernanceTokenAddr: {
+			1: common.HexToHash("0x8551d935f4e67ad3c98609f0d9f0f234740c4c4599f82674633b55204393e07f"),
+			5: common.HexToHash("0xc4a213cf5f06418533e5168d8d82f7ccbcc97f27ab90197c2c051af6a4941cf9"),
+		},
+		predeploys.WETH9Addr: {
+			1: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+			5: common.HexToHash("0x779bbf2a738ef09d961c945116197e2ac764c1b39304b2b4418cd4e42668b173"),
+		},
+	}
+
+	// FrozenStoragePredeploys represents the set of predeploys that
+	// will not have their storage wiped during the migration process.
+	// It is very explicitly set in its own mapping to ensure that
+	// changes elsewhere in the codebase do no alter the predeploys
+	// that do not have their storage wiped. It is safe for all other
+	// predeploys to have their storage wiped.
+	FrozenStoragePredeploys = map[common.Address]bool{
+		predeploys.GovernanceTokenAddr:     true,
+		predeploys.WETH9Addr:               true,
+		predeploys.LegacyMessagePasserAddr: true,
+		predeploys.LegacyERC20ETHAddr:      true,
+		predeploys.DeployerWhitelistAddr:   true,
+	}
+)
 
 // FundDevAccounts will fund each of the development accounts.
 func FundDevAccounts(db vm.StateDB) {
@@ -60,6 +78,26 @@ func SetL1Proxies(db vm.StateDB, proxyAdminAddr common.Address) error {
 	return setProxies(db, proxyAdminAddr, bigL1PredeployNamespace, 2048)
 }
 
+// WipePredeployStorage will wipe the storage of all L2 predeploys expect
+// for predeploys that must not have their storage altered.
+func WipePredeployStorage(db vm.StateDB) error {
+	for name, addr := range predeploys.Predeploys {
+		if addr == nil {
+			return fmt.Errorf("nil address in predeploys mapping for %s", name)
+		}
+
+		if FrozenStoragePredeploys[*addr] {
+			log.Trace("skipping wiping of storage", "name", name, "address", *addr)
+			continue
+		}
+
+		log.Info("wiping storage", "name", name, "address", *addr)
+		db.CreateAccount(*addr)
+	}
+
+	return nil
+}
+
 func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int, count uint64) error {
 	depBytecode, err := bindings.GetDeployedBytecode("Proxy")
 	if err != nil {
@@ -70,7 +108,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		bigAddr := new(big.Int).Or(namespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 
-		if UntouchablePredeploys[addr] || addr == predeploys.ProxyAdminAddr {
+		if UntouchablePredeploys[addr] {
 			log.Info("Skipping setting proxy", "address", addr)
 			continue
 		}
@@ -83,6 +121,7 @@ func setProxies(db vm.StateDB, proxyAdminAddr common.Address, namespace *big.Int
 		db.SetState(addr, AdminSlot, proxyAdminAddr.Hash())
 		log.Trace("Set proxy", "address", addr, "admin", proxyAdminAddr)
 	}
+
 	return nil
 }
 
@@ -118,18 +157,11 @@ func SetImplementations(db vm.StateDB, storage state.StorageConfig, immutable im
 			return fmt.Errorf("error converting to code namespace: %w", err)
 		}
 
-		// Proxy admin is a special case - it needs an impl set, but at its own address
-		if *address == predeploys.ProxyAdminAddr {
-			codeAddr = *address
-		}
-
 		if !db.Exist(codeAddr) {
 			db.CreateAccount(codeAddr)
 		}
 
-		if *address != predeploys.ProxyAdminAddr {
-			db.SetState(*address, ImplementationSlot, codeAddr.Hash())
-		}
+		db.SetState(*address, ImplementationSlot, codeAddr.Hash())
 
 		if err := setupPredeploy(db, deployResults, storage, name, *address, codeAddr); err != nil {
 			return err

@@ -26,6 +26,12 @@ contract EchidnaFuzzBurnEth is StdUtils {
         }
     }
 
+    /**
+     * @custom:invariant `eth(uint256)` always burns the exact amount of eth passed.
+     *
+     * Asserts that when `Burn.eth(uint256)` is called, it always burns the exact amount
+     * of ETH passed to the function.
+     */
     function echidna_burn_eth() public view returns (bool) {
         // ASSERTION: The amount burned should always match the amount passed exactly
         return !failedEthBurn;
@@ -62,6 +68,12 @@ contract EchidnaFuzzBurnGas is StdUtils {
         }
     }
 
+    /**
+     * @custom:invariant `gas(uint256)` always burns at least the amount of gas passed.
+     *
+     * Asserts that when `Burn.gas(uint256)` is called, it always burns at least the amount
+     * of gas passed to the function.
+     */
     function echidna_burn_gas() public view returns (bool) {
         // ASSERTION: The amount of gas burned should be strictly greater than the
         // the amount passed as _value (minimum _value + whatever minor overhead to

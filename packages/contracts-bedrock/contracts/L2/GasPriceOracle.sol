@@ -23,49 +23,14 @@ import { L1Block } from "../L2/L1Block.sol";
  */
 contract GasPriceOracle is Semver {
     /**
-     * @custom:legacy
-     * @custom:spacer _owner
-     * @notice Spacer for backwards compatibility.
-     */
-    address private spacer_0_0_20;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer gasPrice
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_1_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer l1BaseFee
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_2_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer overhead
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_3_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer scalar
-     * @notice Spacer for backwards compatibility.
-     */
-    uint256 private spacer_4_0_32;
-
-    /**
      * @notice Number of decimals used in the scalar.
      */
-    uint256 public constant decimals = 6;
+    uint256 public constant DECIMALS = 6;
 
     /**
-     * @custom:semver 0.0.1
+     * @custom:semver 1.0.0
      */
-    constructor() Semver(0, 0, 1) {}
+    constructor() Semver(1, 0, 0) {}
 
     /**
      * @notice Computes the L1 portion of the fee based on the size of the rlp encoded input
@@ -78,7 +43,7 @@ contract GasPriceOracle is Semver {
     function getL1Fee(bytes memory _data) external view returns (uint256) {
         uint256 l1GasUsed = getL1GasUsed(_data);
         uint256 l1Fee = l1GasUsed * l1BaseFee();
-        uint256 divisor = 10**decimals;
+        uint256 divisor = 10**DECIMALS;
         uint256 unscaled = l1Fee * scalar();
         uint256 scaled = unscaled / divisor;
         return scaled;
@@ -127,6 +92,16 @@ contract GasPriceOracle is Semver {
      */
     function l1BaseFee() public view returns (uint256) {
         return L1Block(Predeploys.L1_BLOCK_ATTRIBUTES).basefee();
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Retrieves the number of decimals used in the scalar.
+     *
+     * @return Number of decimals used in the scalar.
+     */
+    function decimals() public pure returns (uint256) {
+        return DECIMALS;
     }
 
     /**

@@ -1,5 +1,24 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.11.2
+
+### Patch Changes
+
+- 8784bc0bc: Add invariant test for the L1 XDM's `relayMessage` minimum gas limits.
+
+## 0.11.1
+
+### Patch Changes
+
+- fe80a9488: Add echidna tests for portal
+- 827fc7b04: Adds a go package to generate fuzz inputs for the Bedrock contract tests.
+- a2166dcad: Add echidna tests for metering
+- ff09ec22d: Add echidna tests for hashing
+- 85dfa9fe2: Add echidna tests for encoding
+- 0f8fc58ad: Add echidna tests for Burn
+- 89f70c591: Add tests for the `Bytes` library
+- 03940c3cb: Make lint check and fix scripts match
+
 ## 0.11.0
 
 ### Minor Changes

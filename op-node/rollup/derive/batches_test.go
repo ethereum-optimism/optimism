@@ -169,22 +169,6 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchUndecided,
 		},
 		{
-			Name:       "inconsistent L1 info",
-			L1Blocks:   []eth.L1BlockRef{l1B},
-			L2SafeHead: l2A0,
-			Batch: BatchWithL1InclusionBlock{
-				L1InclusionBlock: l1B,
-				Batch: &BatchData{BatchV1{
-					ParentHash:   l2A1.ParentHash,
-					EpochNum:     rollup.Epoch(l2A1.L1Origin.Number),
-					EpochHash:    l2A1.L1Origin.Hash,
-					Timestamp:    l2A1.Time,
-					Transactions: nil,
-				}},
-			},
-			Expected: BatchUndecided,
-		},
-		{
 			Name:       "future timestamp",
 			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
 			L2SafeHead: l2A0,
@@ -433,6 +417,22 @@ func TestValidBatch(t *testing.T) {
 				}},
 			},
 			Expected: BatchAccept,
+		},
+		{
+			Name:       "batch with L2 time before L1 time",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
+			L2SafeHead: l2A2,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &BatchData{BatchV1{ // we build l2B0', which starts a new epoch too early
+					ParentHash:   l2A2.Hash,
+					EpochNum:     rollup.Epoch(l2B0.L1Origin.Number),
+					EpochHash:    l2B0.L1Origin.Hash,
+					Timestamp:    l2A2.Time + conf.BlockTime,
+					Transactions: nil,
+				}},
+			},
+			Expected: BatchDrop,
 		},
 	}
 

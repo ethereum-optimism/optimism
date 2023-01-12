@@ -83,12 +83,12 @@ var (
 		Usage:  "Whether or not this indexer should operate in Bedrock mode",
 		EnvVar: prefixEnvVar("BEDROCK"),
 	}
-	BedrockL1StandardBridgeAddress = cli.BoolFlag{
+	BedrockL1StandardBridgeAddress = cli.StringFlag{
 		Name:   "bedrock.l1-standard-bridge-address",
 		Usage:  "Address of the L1 standard bridge",
 		EnvVar: prefixEnvVar("BEDROCK_L1_STANDARD_BRIDGE"),
 	}
-	BedrockOptimismPortalAddress = cli.BoolFlag{
+	BedrockOptimismPortalAddress = cli.StringFlag{
 		Name:   "bedrock.portal-address",
 		Usage:  "Address of the portal",
 		EnvVar: prefixEnvVar("BEDROCK_OPTIMISM_PORTAL"),
@@ -137,11 +137,17 @@ var (
 		Value:  0,
 		EnvVar: prefixEnvVar("START_BLOCK_NUMBER"),
 	}
-	ConfDepthFlag = cli.Uint64Flag{
-		Name:   "conf-depth",
-		Usage:  "The number of confirmations after which headers are considered confirmed",
+	L1ConfDepthFlag = cli.Uint64Flag{
+		Name:   "l1-conf-depth",
+		Usage:  "The number of confirmations after which headers are considered confirmed on L1",
 		Value:  20,
-		EnvVar: prefixEnvVar("CONF_DEPTH"),
+		EnvVar: prefixEnvVar("L1_CONF_DEPTH"),
+	}
+	L2ConfDepthFlag = cli.Uint64Flag{
+		Name:   "l2-conf-depth",
+		Usage:  "The number of confirmations after which headers are considered confirmed on L1",
+		Value:  24,
+		EnvVar: prefixEnvVar("L2_CONF_DEPTH"),
 	}
 	MaxHeaderBatchSizeFlag = cli.Uint64Flag{
 		Name:   "max-header-batch-size",
@@ -203,7 +209,8 @@ var optionalFlags = []cli.Flag{
 	SentryEnableFlag,
 	SentryDsnFlag,
 	SentryTraceRateFlag,
-	ConfDepthFlag,
+	L1ConfDepthFlag,
+	L2ConfDepthFlag,
 	MaxHeaderBatchSizeFlag,
 	L1StartBlockNumberFlag,
 	RESTHostnameFlag,

@@ -147,11 +147,9 @@ interface OptionalL1DeployConfig {
  */
 interface OptionalL2DeployConfig {
   l2GenesisBlockNonce: string
-  l2GenesisBlockExtraData: string
   l2GenesisBlockGasLimit: string
   l2GenesisBlockDifficulty: string
   l2GenesisBlockMixHash: string
-  l2GenesisBlockCoinbase: string
   l2GenesisBlockNumber: string
   l2GenesisBlockGasUsed: string
   l2GenesisBlockParentHash: string
@@ -284,10 +282,6 @@ export const deployConfigSpec: {
     type: 'string', // uint64
     default: '0x0',
   },
-  l2GenesisBlockExtraData: {
-    type: 'string', // important: in the case of L2, which uses post-Merge Ethereum rules, this must be <= 32 bytes.
-    default: ethers.constants.HashZero,
-  },
   l2GenesisBlockGasLimit: {
     type: 'string',
     default: ethers.BigNumber.from(15_000_000).toHexString(),
@@ -299,10 +293,6 @@ export const deployConfigSpec: {
   l2GenesisBlockMixHash: {
     type: 'string', // bytes32
     default: ethers.constants.HashZero,
-  },
-  l2GenesisBlockCoinbase: {
-    type: 'address',
-    default: ethers.constants.AddressZero,
   },
   l2GenesisBlockNumber: {
     type: 'string', // uint64

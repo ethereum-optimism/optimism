@@ -63,7 +63,12 @@
   - [L2 Chain Derivation Pipeline](#l2-chain-derivation-pipeline)
     - [L1 Traversal](#l1-traversal)
     - [L1 Retrieval](#l1-retrieval)
+    - [Frame Queue](#frame-queue)
     - [Channel Bank](#channel-bank)
+      - [Pruning](#pruning)
+      - [Timeouts](#timeouts)
+      - [Reading](#reading)
+      - [Loading frames](#loading-frames)
     - [Batch Decoding](#batch-decoding)
     - [Batch Buffering](#batch-buffering)
     - [Payload Attributes Derivation](#payload-attributes-derivation)
@@ -123,9 +128,11 @@ inception][g-l2-chain-inception] as first epoch, then process all sequencing win
 Each epoch may contain a variable number of L2 blocks (one every `l2_block_time`, 2s on Optimism), at the discretion of
 [the sequencer][g-sequencer], but subject to the following constraints for each block:
 
-- `min_l2_timestamp <= block.timestamp < max_l2_timestamp`, where
+- `min_l2_timestamp <= block.timestamp <= max_l2_timestamp`, where
   - all these values are denominated in seconds
-  - `min_l2_timestamp = prev_l2_timestamp + l2_block_time`
+  - `min_l2_timestamp = l1_timestamp`
+    - This ensures that the L2 timestamp is not behind the L1 origin timestamp.
+  - `block.timestamp = prev_l2_timestamp + l2_block_time`
     - `prev_l2_timestamp` is the timestamp of the last L2 block of the previous epoch
     - `l2_block_time` is a configurable parameter of the time between L2 blocks (on Optimism, 2s)
   - `max_l2_timestamp = max(l1_timestamp + max_sequencer_drift, min_l2_timestamp + l2_block_time)`
@@ -464,83 +471,88 @@ updated, such that the batch-sender authentication is always accurate to the exa
 
 ### L1 Retrieval
 
-In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and extract data for it. In
-particular we extract a byte string that corresponds to the concatenation of the data in all the [batcher
-transaction][g-batcher-transaction] belonging to the block. This byte stream encodes a stream of [channel
-frames][g-channel-frame] (see the [Batch Submission Wire Format][wire-format] section for more info).
+In the *L1 Retrieval* stage, we read the block we get from the outer stage (L1 traversal), and extract data from it.
+By default, the rollup operates on calldata retrieved from [batcher transactions][g-batcher-transaction] in the block,
+for each transaction:
 
-These frames are parsed, then grouped per [channel][g-channel] into a structure we call the *channel bank*. When
-adding frames the the channel, individual frames may be invalid, but the channel does not have a notion of validity
-until the channel timeout is up. This enables adding the option to do a partial read from the channel in the future.
+- The receiver must be the configured batcher inbox address.
+- The sender must match the batcher address loaded from the system config matching the L1 block of the data.
 
-Some frames are ignored:
+Each data-transaction is versioned and contains a series of [channel frames][g-channel-frame] to be read by the
+Frame Queue, see [Batch Submission Wire Format][wire-format].
 
-- Frames with the same frame number as an existing frame in the channel (a duplicate). The first seen frame is used.
-- Frames that attempt to close an already closed channel. This would be the second frame with `frame.is_last == 1` even
-  if the frame number of the second frame is not the same as the first frame which closed the channel.
+### Frame Queue
 
-If a frame with `is_last == 1` is added to a channel, all frames with a higher frame number are removed from the
-channel.
-
-Channels are also recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
-queue the first time a frame belonging to the channel is seen. This structure is used in the next stage.
+The Frame Queue buffers one data-transaction at a time,
+decoded into [channel frames][g-channel-frame], to be consumed by the next stage.
+See [Batcher transaction format](#batcher-transaction-format) and [Frame format](#frame-format) specifications.
 
 ### Channel Bank
 
 The *Channel Bank* stage is responsible for managing buffering from the channel bank that was written to by the L1
 retrieval stage. A step in the channel bank stage tries to read data from channels that are "ready".
 
-In principle, we should be able to read any channel that has any number of sequential frames at the "front" of the
-channel (i.e. right after any frames that have been read from the bank already) and decompress batches from them. (Note
-that if we did this, we'd need to keep partially decompressed batches around.)
+Channels are currently fully buffered until read or dropped,
+streaming channels may be supported in a future version of the ChannelBank.
 
-However, our current implementation doesn't support streaming decompression, so currently we have to wait until either:
+To bound resource usage, the Channel Bank prunes based on channel size, and times out old channels.
 
-- We have received all frames in the channel: i.e. we received the last frame in the channel (`is_last == 1`) and every
-  frame with a lower number.
-- The channel has timed out (in which we case we read all contiguous sequential frames from the start of the channel).
-  - A channel is considered to be *timed out* if
-`currentL1Block.number > channeld_id.starting_l1_number + CHANNEL_TIMEOUT`.
-    - where `currentL1Block` is the L1 block maintained by this stage, which is the most recent L1 block whose frames
-          have been added to the channel bank.
-- The channel is pruned out of the channel bank (see below), in which case it isn't passed to the further stages.
+Channels are recorded in FIFO order in a structure called the *channel queue*. A channel is added to the channel
+queue the first time a frame belonging to the channel is seen.
 
-> **TODO** specify CHANNEL_TIMEOUT (currently 120s on Goerli testnet)
+#### Pruning
 
-As currently implemented, each step in this stage performs the following actions:
+After successfully inserting a new frame, the ChannelBank is pruned:
+channels are dropped in FIFO order, until `total_size <= MAX_CHANNEL_BANK_SIZE`, where:
 
-- Try to prune the channel bank.
-  - This occurs if the size of the channel bank exceeds `MAX_CHANNEL_BANK_SIZE` (currently set to 100,000,000 bytes).
-  - The size of channel bank is the sum of the sizes (in btes) of all the frames contained within it.
-  - In this case, channels are dropped from the front of the *channel queue* (see previous stage), and the frames
-    belonging from these channels are dropped from the channel bank.
-  - As many channels are dropped as is necessary so that the channel bank size falls back below
-      `MAX_CHANNEL_BANK_SIZE`.
-- Take the first channel and the *channel queue*, determine if it is ready, and process it if so.
-  - A channel is ready if all its frames have been received or it timed out (see list above for details).
-  - If the channel is ready, determine its *contiguous frame sequence*, which is a contiguous sequence of frames,
-      starting from the first frame in the channel.
-    - For a full channel, those are all the frames.
-    - For a timed channel, those are all the frames until the first missing frame. Frames after the first missing
-          frame are discarded.
-  - Concatenate the data of the *contiguous frame sequence* (in sequential order) and push it to the next stage.
+- `total_size` is the sum of the sizes of each channel, which is the sum of all buffered frame data of the channel,
+  with an additional frame-overhead of `200` bytes per frame.
+- `MAX_CHANNEL_BANK_SIZE` is a protocol constant of 100,000,000 bytes.
 
-The ordering of these actions is very important to be consistent across nodes & pipeline resets. The rollup node
-must attempt to do the following in order to maintain a consistent channel bank even in the presence of pruning.
+#### Timeouts
 
-1. Attempt to read as many channels as possible from the channel bank.
-2. Load in a single frame
-3. Check if channel bank needs to be pruned & do so if needed.
-4. Go to step 1 once the channel bank is under it's size limit.
+The L1 origin that the channel was opened in is tracked with the channel as `channel.open_l1_block`,
+and determines the maximum span of L1 blocks that the channel data is retained for, before being pruned.
 
-> **TODO** Instead of waiting on the first seen channel (which might not contain the oldest batches, meaning buffering
-> further down the pipeline), we could process any channel in the queue that is ready. We could do this by checking for
-> channel readiness upon writing into the bank, and moving ready channel to the front of the queue.
+A channel is timed out if: `current_l1_block.number > channel.open_l1_block.number + CHANNEL_TIMEOUT`, where:
+
+- `current_l1_block` is the L1 origin that the stage is currently traversing.
+- `CHANNEL_TIMEOUT` is a rollup-configurable, expressed in number of L1 blocks.
+
+New frames for timed-out channels are dropped instead of buffered.
+
+#### Reading
+
+The channel-bank can only output data from the first opened channel.
+
+Upon reading, first all timed-out channels are dropped.
+
+After pruning timed-out channels, the first remaining channel, if any, is read if it is ready:
+
+- The channel must be closed
+- The channel must have a contiguous sequence of frames until the closing frame
+
+If no channel is ready, the next frame is read and ingested into the channel bank.
+
+#### Loading frames
+
+When a channel ID referenced by a frame is not already present in the Channel Bank,
+a new channel is opened, tagged with the current L1 block, and appended to the channel-queue.
+
+Frame insertion conditions:
+
+- New frames matching existing timed-out channels are dropped.
+- Duplicate frames (by frame number) are dropped.
+- Duplicate closes (new frame `is_last == 1`, but the channel has already seen a closing frame) are dropped.
+
+If a frame is closing (`is_last == 1`) any existing higher-numbered frames are removed from the channel.
 
 ### Batch Decoding
 
 In the *Batch Decoding* stage, we decompress the channel we received in the last stage, then parse
 [batches][g-sequencer-batch] from the decompressed byte stream.
+
+See [Batch Format][batch-format] for decompression and decoding specification.
 
 ### Batch Buffering
 
@@ -600,7 +612,9 @@ Rules, in validation order:
 - `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
   to prevent batches from being replayed onto unexpected L1 chains.
 - `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
-  within time will be dropped, in favor of an empty batch that can advance the L1 origin.
+  within time will be dropped, in favor of an empty batch that can advance the L1 origin. This enforces the max L2
+  timestamp rule.
+- `batch.timestamp < batch_origin.time` -> `drop`: enforce the min L2 timestamp rule.
 - `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
   that is invalid or derived by other means exclusively:
   - any transaction that is empty (zero length byte string)

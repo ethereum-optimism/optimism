@@ -112,17 +112,36 @@ contract EchidnaFuzzHashing {
         }
     }
 
+    /**
+     * @custom:invariant `hashCrossDomainMessage` reverts if `version` is > `1`.
+     *
+     * The `hashCrossDomainMessage` function should always revert if the `version` passed is > `1`.
+     */
     function echidna_hash_xdomain_msg_high_version() public view returns (bool) {
         // ASSERTION: A call to hashCrossDomainMessage will never succeed for a version > 1
         return !failedCrossDomainHashHighVersion;
     }
 
+    /**
+     * @custom:invariant `version` = `0`: `hashCrossDomainMessage` and `hashCrossDomainMessageV0`
+     * are equivalent.
+     *
+     * If the version passed is 0, `hashCrossDomainMessage` and `hashCrossDomainMessageV0` should be
+     * equivalent.
+     */
     function echidna_hash_xdomain_msg_0() public view returns (bool) {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV0
         // should always match when the version passed is 0
         return !failedCrossDomainHashV0;
     }
 
+    /**
+     * @custom:invariant `version` = `1`: `hashCrossDomainMessage` and `hashCrossDomainMessageV1`
+     * are equivalent.
+     *
+     * If the version passed is 1, `hashCrossDomainMessage` and `hashCrossDomainMessageV1` should be
+     * equivalent.
+     */
     function echidna_hash_xdomain_msg_1() public view returns (bool) {
         // ASSERTION: A call to hashCrossDomainMessage and hashCrossDomainMessageV1
         // should always match when the version passed is 1

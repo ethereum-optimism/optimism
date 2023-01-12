@@ -59,12 +59,12 @@ contract L2StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:semver 0.0.2
+     * @custom:semver 1.0.0
      *
      * @param _otherBridge Address of the L1StandardBridge.
      */
     constructor(address payable _otherBridge)
-        Semver(0, 0, 2)
+        Semver(1, 0, 0)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
     {}
 
@@ -136,6 +136,16 @@ contract L2StandardBridge is StandardBridge, Semver {
         }
 
         emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Retrieves the access of the corresponding L1 bridge contract.
+     *
+     * @return Address of the corresponding L1 bridge contract.
+     */
+    function l1TokenBridge() external view returns (address) {
+        return address(OTHER_BRIDGE);
     }
 
     /**

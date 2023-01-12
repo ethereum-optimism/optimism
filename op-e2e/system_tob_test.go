@@ -424,6 +424,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 	// There are 7 different fields we try modifying to cause a failure, plus one "good" test result we test.
 	for i := 0; i <= 8; i++ {
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
+			t.Parallel()
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.FinalizationPeriodSeconds = 6

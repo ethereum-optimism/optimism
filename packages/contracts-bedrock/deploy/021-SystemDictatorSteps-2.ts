@@ -183,7 +183,19 @@ const deployFn: DeployFunction = async (hre) => {
         l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
       })
     } else {
+      const tx =
+        await SystemDictator.populateTransaction.updateL2OutputOracleDynamicConfig(
+          {
+            l2OutputOracleStartingBlockNumber:
+              hre.deployConfig.l2OutputOracleStartingBlockNumber,
+            l2OutputOracleStartingTimestamp:
+              hre.deployConfig.l2OutputOracleStartingTimestamp,
+          }
+        )
       console.log(`Please update dynamic oracle config...`)
+      console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
     }
 
     await awaitCondition(
@@ -264,7 +276,7 @@ const deployFn: DeployFunction = async (hre) => {
       // Check OptimismMintableERC20Factory was initialized properly.
       await assertContractVariable(
         OptimismMintableERC20Factory,
-        'bridge',
+        'BRIDGE',
         L1StandardBridge.address
       )
 

@@ -123,12 +123,11 @@ abstract contract CrossDomainMessenger is
     uint240 internal msgNonce;
 
     /**
-     * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
-     *         be present in this mapping if it failed to be relayed on this chain at least once.
-     *         If a message is successfully relayed on the first attempt, then it will only be
-     *         present within the successfulMessages mapping.
+     * @notice Mapping of message hashes to a boolean if and only if the message has failed to be
+     *         executed at least once. A message will not be present in this mapping if it
+     *         successfully executed on the first attempt.
      */
-    mapping(bytes32 => bool) public receivedMessages;
+    mapping(bytes32 => bool) public failedMessages;
 
     /**
      * @notice Reserve extra slots in the storage layout for future upgrades.
@@ -263,15 +262,23 @@ abstract contract CrossDomainMessenger is
         bytes calldata _message
     ) external payable nonReentrant whenNotPaused {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-
-        // Block any messages that aren't version 1. All version 0 messages have been guaranteed to
-        // be relayed OR have been migrated to version 1 messages. Version 0 messages do not commit
-        // to the value or minGasLimit fields, which can create unexpected issues for end-users.
         require(
-            version == 1,
-            "CrossDomainMessenger: only version 1 messages are supported after the Bedrock upgrade"
+            version < 2,
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
         );
 
+        // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
+        // to check that the legacy version of the message has not already been relayed.
+        if (version == 0) {
+            bytes32 oldHash = Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _nonce);
+            require(
+                successfulMessages[oldHash] == false,
+                "CrossDomainMessenger: legacy withdrawal already relayed"
+            );
+        }
+
+        // We use the v1 message hash as the unique identifier for the message because it commits
+        // to the value and minimum gas limit of the message.
         bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
             _nonce,
             _sender,
@@ -285,7 +292,7 @@ abstract contract CrossDomainMessenger is
             // These properties should always hold when the message is first submitted (as
             // opposed to being replayed).
             assert(msg.value == _value);
-            assert(!receivedMessages[versionedHash]);
+            assert(!failedMessages[versionedHash]);
         } else {
             require(
                 msg.value == 0,
@@ -293,7 +300,7 @@ abstract contract CrossDomainMessenger is
             );
 
             require(
-                receivedMessages[versionedHash],
+                failedMessages[versionedHash],
                 "CrossDomainMessenger: message cannot be replayed"
             );
         }
@@ -321,7 +328,7 @@ abstract contract CrossDomainMessenger is
             successfulMessages[versionedHash] = true;
             emit RelayedMessage(versionedHash);
         } else {
-            receivedMessages[versionedHash] = true;
+            failedMessages[versionedHash] = true;
             emit FailedRelayedMessage(versionedHash);
 
             // Revert in this case if the transaction was triggered by the estimation address. This
@@ -375,8 +382,8 @@ abstract contract CrossDomainMessenger is
      */
     function baseGas(bytes calldata _message, uint32 _minGasLimit) public pure returns (uint64) {
         // We peform the following math on uint64s to avoid overflow errors. Multiplying the
-        //  by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _mingasLimit to
-        // approximately 4.2 MM.
+        // by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _minGasLimit to
+        // type(uint32).max / MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR ~= 4.2m.
         return
             // Dynamic overhead
             ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /

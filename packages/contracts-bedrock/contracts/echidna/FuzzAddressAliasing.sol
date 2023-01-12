@@ -24,7 +24,10 @@ contract EchidnaFuzzAddressAliasing {
     }
 
     /**
-     * @notice Verifies that testRoundTrip(...) did not ever fail.
+     * @custom:invariant Address aliases are always able to be undone.
+     *
+     * Asserts that an address that has been aliased with `applyL1ToL2Alias` can always
+     * be unaliased with `undoL1ToL2Alias`.
      */
     function echidna_round_trip_aliasing() public view returns (bool) {
         // ASSERTION: The round trip aliasing done in testRoundTrip(...) should never fail.

@@ -93,5 +93,6 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Batc
 }
 
 func (aq *AttributesQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.SystemConfig) error {
+	aq.batch = nil
 	return io.EOF
 }

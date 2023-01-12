@@ -6,6 +6,14 @@ import sys
 
 from github import Github
 
+REBUILD_ALL_PATTERNS = [
+    r'^\.circleci/\.*',
+    r'^\.github/\.*',
+    r'^package\.json',
+    r'^yarn\.lock',
+    r'ops/check-changed/.*'
+]
+
 WHITELISTED_BRANCHES = {
     'master',
     'develop'
@@ -42,7 +50,7 @@ log = logging.getLogger(__name__)
 
 def main():
     patterns = sys.argv[1].split(',')
-    patterns.append(r'^\.circleci/\.*')
+    patterns = patterns + REBUILD_ALL_PATTERNS
 
     fp = os.path.realpath(__file__)
     monorepo_path = os.path.realpath(os.path.join(fp, '..', '..'))

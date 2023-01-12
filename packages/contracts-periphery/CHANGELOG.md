@@ -1,5 +1,27 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.6
+
+### Patch Changes
+
+- 0222215f6: Manually update the version on the contracts-bedrock dep.
+
+## 1.0.5
+
+### Patch Changes
+
+- fe8f2afd0: Minor fix to AttestationStation test
+- 886fec5bb: Add attestation contracts
+- 596d51852: Update zeppelin deps in contracts periphery
+- c12aeb2f9: Add deploy script for attestations tation
+- a610b4f3b: Make zeppelin deps in contracts periphery not get hoisted
+- 55515ba14: Add some default options to optimist config
+- bf5f9febd: Add authors to optimist contracts
+- 9a996a13c: Make deploy scripts a little safer
+- 09924e8ed: Add test coverage script to contracts periphery
+- 746ce5545: Add deployment scripts for optimist
+- 0e0546a11: Add optimist contract
+
 ## 1.0.4
 
 ### Patch Changes

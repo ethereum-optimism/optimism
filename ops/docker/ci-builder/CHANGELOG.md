@@ -1,5 +1,13 @@
 # @eth-optimism/ci-builder
 
+## 0.3.8
+
+### Patch Changes
+
+- 85dfa9fe2: Add echidna tests for encoding
+- ea0540e51: Update the slither version to fix echidna tests
+- 0f8fc58ad: Add echidna tests for Burn
+
 ## 0.3.7
 
 ### Patch Changes

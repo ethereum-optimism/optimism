@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/data-transport-layer",
-  "version": "0.5.49",
+  "version": "0.5.50",
   "description": "[Optimism] Service for shuttling data from L1 into L2",
   "main": "dist/index",
   "types": "dist/index",
@@ -36,8 +36,8 @@
     "url": "https://github.com/ethereum-optimism/optimism.git"
   },
   "dependencies": {
-    "@eth-optimism/common-ts": "0.6.8",
-    "@eth-optimism/contracts": "0.5.39",
+    "@eth-optimism/common-ts": "0.7.0",
+    "@eth-optimism/contracts": "0.5.40",
     "@eth-optimism/core-utils": "0.12.0",
     "@ethersproject/providers": "^5.7.0",
     "@ethersproject/transactions": "^5.7.0",
@@ -58,6 +58,7 @@
   "devDependencies": {
     "@types/cors": "^2.8.9",
     "@types/levelup": "^4.3.0",
+    "@types/level": "^6.0.1",
     "bfj": "^7.0.2",
     "chai-as-promised": "^7.1.1",
     "hardhat": "^2.9.6",

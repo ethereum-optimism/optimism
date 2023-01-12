@@ -29,6 +29,12 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
+    'final-migration-rehearsal': {
+      chainId: 5,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
   },
   external: {
     contracts: [
@@ -42,6 +48,11 @@ const config: HardhatUserConfig = {
       goerli: [
         '../contracts-bedrock/deployments/goerli',
         '../contracts/deployments/goerli',
+      ],
+      'final-migration-rehearsal': [
+        '../contracts-bedrock/deployments/final-migration-rehearsal',
+        '../contracts/deployments/goerli',
+        '../contracts-periphery/deployments/goerli',
       ],
     },
   },

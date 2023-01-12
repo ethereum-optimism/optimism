@@ -254,7 +254,7 @@ maintaining L1 context in L2. This allows for L1 state to be accessed in L2.
 Address: `0x4200000000000000000000000000000000000018`
 
 The `ProxyAdmin` is the owner of all of the proxy contracts set at the
-predeploys. It is not behind a proxy itself. The owner of the `ProxyAdmin` will
+predeploys. It is itself behind a proxy. The owner of the `ProxyAdmin` will
 have the ability to upgrade any of the other predeploy contracts.
 
 ## SequencerFeeVault

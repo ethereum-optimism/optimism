@@ -11,9 +11,9 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 [Deposited transaction](./glossary.md#deposited-transaction) are transactions on L2 that are
-initiated on L1. The gas that they use on L2 is bought on L1 via a gas burn or a direct payment. We
-maintain a fee market and hard cap on the amount of gas provided to all deposits in a single L1
-block.
+initiated on L1. The gas that they use on L2 is bought on L1 via a gas burn (or a direct payment
+in the future). We maintain a fee market and hard cap on the amount of gas provided to all deposits
+in a single L1 block.
 
 The gas provided to deposited transactions is sometimes called "guaranteed gas". The gas provided to
 deposited transactions is unique in the regard that it is not refundable. It cannot be refunded as
@@ -56,9 +56,9 @@ at a multiple of the target, we enable deposits to temporarily use more L2 gas a
 # the ability of the account to afford this gas.
 BASE_FEE_MAX_CHANGE_DENOMINATOR = 8
 ELASTICITY_MULTIPLIER = 4
-MAX_RESOURCE_LIMIT = 8,000,000
+MAX_RESOURCE_LIMIT = 8_000_000
 TARGET_RESOURCE_LIMIT = MAX_RESOURCE_LIMIT / ELASTICITY_MULTIPLIER
-MINIMUM_BASEFEE=10000
+MINIMUM_BASEFEE = 10000
 
 # prev_basefee is a u128, prev_bought_gas and prev_num are u64s
 prev_basefee, prev_bought_gas, prev_num = <values from previous update>
@@ -107,6 +107,10 @@ store_values(now_basefee, now_bought_gas, now_num)
 ```
 
 ## Rationale for burning L1 Gas
+
+There must be a sybil resistance mechanism for usage of the network. If it is very cheap to get
+guaranteed gas on L2, then it would be possible to spam the network. Burning a dynamic amount
+of gas on L1 acts as a sybil resistance mechanism as it becomes more expensive with more demand.
 
 If we collect ETH directly to pay for L2 gas, every (indirect) caller of the deposit function will need
 to be marked with the payable selector. This won't be possible for many existing projects. Unfortunately
