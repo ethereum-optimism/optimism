@@ -1,5 +1,11 @@
 # @eth-optimism/sdk
 
+## 1.10.0
+
+### Minor Changes
+
+- 3f4b3c328: Add in goerli bedrock addresses
+
 ## 1.9.1
 
 ### Patch Changes
@@ -454,8 +460,7 @@
 
 ### Patch Changes
 
-- 44420939: 1. Fix a bug in `L2Provider.getL1GasPrice()`
-  2. Make it easier to get correct estimates from `L2Provider.estimateL1Gas()` and `L2.estimateL2GasCost`.
+- 44420939: 1. Fix a bug in `L2Provider.getL1GasPrice()` 2. Make it easier to get correct estimates from `L2Provider.estimateL1Gas()` and `L2.estimateL2GasCost`.
 
 ## 0.2.3
 
