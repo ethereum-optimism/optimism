@@ -42,14 +42,14 @@ var Beta1 = rollup.Config{
 var Goerli = rollup.Config{
 	Genesis: rollup.Genesis{
 		L1: eth.BlockID{
-			Hash:   common.HexToHash(""),
-			Number: 0,
+			Hash:   common.HexToHash("0x6ffc1bf3754c01f6bb9fe057c1578b87a8571ce2e9be5ca14bace6eccfd336c7"),
+			Number: 8300214,
 		},
 		L2: eth.BlockID{
-			Hash:   common.HexToHash(""),
-			Number: 0,
+			Hash:   common.HexToHash("0x0f783549ea4313b784eadd9b8e8a69913b368b7366363ea814d7707ac505175f"),
+			Number: 4061224,
 		},
-		L2Time: 0,
+		L2Time: 1673550516,
 		SystemConfig: eth.SystemConfig{
 			BatcherAddr: common.HexToAddress("0x7431310e026B69BFC676C0013E12A1A11411EEc9"),
 			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
