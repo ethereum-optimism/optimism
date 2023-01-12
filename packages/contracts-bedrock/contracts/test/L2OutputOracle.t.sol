@@ -8,6 +8,13 @@ import { Proxy } from "../universal/Proxy.sol";
 import { Types } from "../libraries/Types.sol";
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
+    );
+
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
     function setUp() public override {
@@ -47,6 +54,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
 
         // Roll to after the block number we'll propose
         warpToProposeTime(proposedNumber);
+        vm.expectEmit(true, true, true, true);
+        emit OutputProposed(proposedOutput1, oracle.nextOutputIndex(), proposedNumber, block.timestamp);
         vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput1, proposedNumber, 0, 0);
         assertEq(oracle.latestBlockNumber(), proposedNumber);
