@@ -356,7 +356,7 @@ func TestMigration(t *testing.T) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(secrets.Proposer),
-	}, "", lgr.New("module", "proposer"))
+	}, lgr.New("module", "proposer"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

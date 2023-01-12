@@ -87,7 +87,7 @@ func (c Config) Check() error {
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context) Config {
 	return Config{
-		/* Required Flags */
+		// Required Flags
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
 		L2OOAddress:               ctx.GlobalString(flags.L2OOAddressFlag.Name),
@@ -98,10 +98,11 @@ func NewConfig(ctx *cli.Context) Config {
 		Mnemonic:                  ctx.GlobalString(flags.MnemonicFlag.Name),
 		L2OutputHDPath:            ctx.GlobalString(flags.L2OutputHDPathFlag.Name),
 		PrivateKey:                ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		AllowNonFinalized:         ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
-		RPCConfig:                 oprpc.ReadCLIConfig(ctx),
-		LogConfig:                 oplog.ReadCLIConfig(ctx),
-		MetricsConfig:             opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:               oppprof.ReadCLIConfig(ctx),
+		// Optional Flags
+		AllowNonFinalized: ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
+		RPCConfig:         oprpc.ReadCLIConfig(ctx),
+		LogConfig:         oplog.ReadCLIConfig(ctx),
+		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:       oppprof.ReadCLIConfig(ctx),
 	}
 }

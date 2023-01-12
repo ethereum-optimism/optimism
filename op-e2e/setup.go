@@ -512,7 +512,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(cfg.Secrets.Proposer),
-	}, "", sys.cfg.Loggers["proposer"])
+	}, sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
