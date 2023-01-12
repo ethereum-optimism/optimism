@@ -1045,6 +1045,20 @@ workflows:
             - oplabs-gcr
           requires:
             - op-heartbeat-docker-build
+      - docker-build:
+          name: indexer-docker-build
+          docker_file: indexer/Dockerfile
+          docker_name: indexer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_context: .
+      - docker-publish:
+          name: indexer-docker-publish
+          docker_name: indexer
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
+          requires:
+            - indexer-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1084,6 +1098,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-node-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1103,6 +1122,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-batcher-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1122,6 +1146,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-proposer-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1141,6 +1170,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-migrate-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-migrate
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1158,5 +1192,6 @@ workflows:
             - op-node-docker-publish
             - op-proposer-docker-publish
             - op-batcher-docker-publish
+            - op-migrate-docker-publish
           context:
             - oplabs-gcr-release

@@ -6,25 +6,25 @@ FROM ethereumoptimism/foundry:latest as foundry
 FROM node:16-alpine3.14 as base
 
 RUN apk --no-cache add curl \
-    jq \
-    python3 \
-    ca-certificates \
-    git \
-    make \
-    gcc \
-    musl-dev \
-    linux-headers \
-    bash \
-    build-base \
-    gcompat
+  jq \
+  python3 \
+  ca-certificates \
+  git \
+  make \
+  gcc \
+  musl-dev \
+  linux-headers \
+  bash \
+  build-base \
+  gcompat
 
 ENV GLIBC_KEY=https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
 ENV GLIBC_KEY_FILE=/etc/apk/keys/sgerrand.rsa.pub
 ENV GLIBC_RELEASE=https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r0/glibc-2.35-r0.apk
 
 RUN wget -q -O ${GLIBC_KEY_FILE} ${GLIBC_KEY} \
-    && wget -O glibc.apk ${GLIBC_RELEASE} \
-    && apk add glibc.apk --force
+  && wget -O glibc.apk ${GLIBC_RELEASE} \
+  && apk add glibc.apk --force
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
@@ -108,6 +108,6 @@ FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/drippie-mon
 ENTRYPOINT ["npm", "run", "start"]
 
-FROM base as drippie-mon
+FROM base as balance-monitor
 WORKDIR /opt/optimism/packages/balance-monitor
 ENTRYPOINT ["yarn", "run", "start:prod"]

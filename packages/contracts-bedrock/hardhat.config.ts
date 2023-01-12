@@ -22,6 +22,9 @@ const config: HardhatUserConfig = {
     hardhat: {
       live: false,
     },
+    mainnet: {
+      url: process.env.RPC_URL || 'http://localhost:8545',
+    },
     devnetL1: {
       live: false,
       url: 'http://localhost:8545',
@@ -97,7 +100,10 @@ const config: HardhatUserConfig = {
       },
     ],
     deployments: {
-      goerli: ['../contracts/deployments/goerli'],
+      goerli: [
+        '../contracts/deployments/goerli',
+        '../contracts-periphery/deployments/goerli',
+      ],
       mainnet: [
         '../contracts/deployments/mainnet',
         '../contracts-periphery/deployments/mainnet',
