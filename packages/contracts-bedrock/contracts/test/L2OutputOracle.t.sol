@@ -10,6 +10,13 @@ import { Types } from "../libraries/Types.sol";
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
+    );
+
     function setUp() public override {
         super.setUp();
     }
@@ -180,6 +187,7 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_proposeL2Output_proposeAnotherOutput_succeeds() public {
         bytes32 proposedOutput2 = keccak256(abi.encode());
         uint256 nextBlockNumber = oracle.nextBlockNumber();
+        uint256 nextOutputIndex = oracle.nextOutputIndex();
         warpToProposeTime(nextBlockNumber);
         uint256 proposedNumber = oracle.latestBlockNumber();
 
@@ -187,6 +195,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(nextBlockNumber, proposedNumber + submissionInterval);
 
         vm.roll(nextBlockNumber + 1);
+
+        vm.expectEmit(true, true, true, true);
+        emit OutputProposed(proposedOutput2, nextOutputIndex, nextBlockNumber, block.timestamp);
+
         vm.prank(proposer);
         oracle.proposeL2Output(proposedOutput2, nextBlockNumber, 0, 0);
     }
