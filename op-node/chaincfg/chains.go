@@ -51,26 +51,26 @@ var Goerli = rollup.Config{
 		},
 		L2Time: 0,
 		SystemConfig: eth.SystemConfig{
-			BatcherAddr: common.HexToAddress(""),
-			Overhead:    eth.Bytes32(common.HexToHash("")),
-			Scalar:      eth.Bytes32(common.HexToHash("")),
-			GasLimit:    0,
+			BatcherAddr: common.HexToAddress("0x7431310e026B69BFC676C0013E12A1A11411EEc9"),
+			Overhead:    eth.Bytes32(common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000834")),
+			Scalar:      eth.Bytes32(common.HexToHash("0x00000000000000000000000000000000000000000000000000000000000f4240")),
+			GasLimit:    25_000_000,
 		},
 	},
 	BlockTime:              2,
-	MaxSequencerDrift:      0,
-	SeqWindowSize:          0,
-	ChannelTimeout:         0,
+	MaxSequencerDrift:      600,
+	SeqWindowSize:          3600,
+	ChannelTimeout:         300,
 	L1ChainID:              big.NewInt(5),
 	L2ChainID:              big.NewInt(420),
-	BatchInboxAddress:      common.HexToAddress(""),
-	DepositContractAddress: common.HexToAddress(""),
-	L1SystemConfigAddress:  common.HexToAddress(""),
+	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000420"),
+	DepositContractAddress: common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
+	L1SystemConfigAddress:  common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
 }
 
 var NetworksByName = map[string]rollup.Config{
 	"beta-1": Beta1,
-	//"goerli": Goerli,
+	"goerli": Goerli,
 }
 
 func AvailableNetworks() []string {
