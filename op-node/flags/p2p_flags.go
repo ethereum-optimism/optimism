@@ -227,7 +227,7 @@ var (
 	}
 	GossipMeshDlazyFlag = cli.UintFlag{
 		Name:     "p2p.gossip.mesh.dlazy",
-		Usage:    "Configure GossipSub gossip target, a.k.a. target degree for publishing-only (not propagation like p2p.gossip.mesh.d)",
+		Usage:    "Configure GossipSub gossip target, a.k.a. target degree for gossip only (not messaging like p2p.gossip.mesh.d, just announcements of IHAVE",
 		Required: false,
 		Hidden:   true,
 		Value:    p2p.DefaultMeshDlazy,
