@@ -62,6 +62,7 @@
     "@ethereumjs/util": "^8.0.0-beta.1",
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/abstract-signer": "^5.7.0",
+    "@ethersproject/hardware-wallets": "^5.7.0",
     "ethereumjs-wallet": "^1.0.2",
     "@defi-wonderland/smock": "^2.0.2",
     "@foundry-rs/hardhat-forge": "^0.1.17",
