@@ -340,7 +340,13 @@ export const doStep = async (opts: {
     console.log(`Executing step ${opts.step}...`)
     await opts.SystemDictator[`step${opts.step}`]()
   } else {
+    const tx = await opts.SystemDictator.populateTransaction[
+      `step${opts.step}`
+    ]()
     console.log(`Please execute step ${opts.step}...`)
+    console.log(`MSD address: ${opts.SystemDictator.address}`)
+    console.log(`JSON:`)
+    console.log(jsonifyTransaction(tx))
   }
 
   // Wait for the step to complete.
