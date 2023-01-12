@@ -326,7 +326,7 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, p
 			if *addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot {
 				actualOwner := common.BytesToAddress(slots[key].Bytes())
 				if actualOwner != proxyAdminOwner {
-					return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
+					return fmt.Errorf("expected owner for %s to be %s but got %s", name, proxyAdminOwner, actualOwner)
 				}
 				log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
 				continue
