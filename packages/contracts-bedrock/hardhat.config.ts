@@ -97,7 +97,10 @@ const config: HardhatUserConfig = {
       },
     ],
     deployments: {
-      goerli: ['../contracts/deployments/goerli'],
+      goerli: [
+        '../contracts/deployments/goerli',
+        '../contracts-periphery/deployments/goerli',
+      ],
       mainnet: [
         '../contracts/deployments/mainnet',
         '../contracts-periphery/deployments/mainnet',
