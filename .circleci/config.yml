@@ -1098,6 +1098,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-node-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1117,6 +1122,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-batcher-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1136,6 +1146,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-proposer-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1155,6 +1170,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-migrate-docker-publish
+          filters:
+            tags:
+              only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
           docker_name: op-migrate
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
@@ -1172,5 +1192,6 @@ workflows:
             - op-node-docker-publish
             - op-proposer-docker-publish
             - op-batcher-docker-publish
+            - op-migrate-docker-publish
           context:
             - oplabs-gcr-release

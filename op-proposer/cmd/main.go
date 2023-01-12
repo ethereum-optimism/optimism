@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	Version   = "v0.10.7"
+	Version   = "v0.10.9"
 	GitCommit = ""
 	GitDate   = ""
 )
