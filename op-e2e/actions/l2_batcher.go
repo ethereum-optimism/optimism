@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/hex"
 	"io"
 	"math/big"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -183,6 +185,91 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
 		Data:      data.Bytes(),
+	}
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	require.NoError(t, err, "need to compute intrinsic gas")
+	rawTx.Gas = gas
+
+	tx, err := types.SignNewTx(s.l2BatcherCfg.BatcherKey, s.l1Signer, rawTx)
+	require.NoError(t, err, "need to sign tx")
+
+	err = s.l1.SendTransaction(t.Ctx(), tx)
+	require.NoError(t, err, "need to send tx")
+}
+
+// TODO: Move this to a better location
+type GarbageKind int64
+
+const (
+	STRIP_VERSION GarbageKind = iota
+	MALFORM_RLP
+	TRUNCATE_END
+	DIRTY_APPEND
+)
+
+var GarbageKinds = []GarbageKind{
+	STRIP_VERSION,
+	// MALFORM_RLP,
+	TRUNCATE_END,
+	DIRTY_APPEND,
+}
+
+// ActL2BatchSubmit constructs a malformed channel frame and submits it to the
+// batch inbox. This *should* cause the batch inbox to reject the blocks
+// encoded within the frame, even if they are valid.
+func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
+	// Don't run this action if there's no data to submit
+	if s.l2ChannelOut == nil {
+		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
+		return
+	}
+	// Collect the output frame
+	data := new(bytes.Buffer)
+	data.WriteByte(derive.DerivationVersion0)
+	// subtract one, to account for the version byte
+	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		s.l2ChannelOut = nil
+		s.l2Submitting = false
+	} else if err != nil {
+		s.l2Submitting = false
+		t.Fatalf("failed to output channel data to frame: %v", err)
+	}
+
+	outputFrame := data.Bytes()
+
+	// Malform the output frame
+	switch kind {
+	// Strip the derivation version byte from the output frame
+	case STRIP_VERSION:
+		outputFrame = outputFrame[1:]
+	case MALFORM_RLP:
+		// WIP
+		t.Log("output frame", hex.EncodeToString(outputFrame), rlp.Decode(bytes.NewReader(outputFrame[1:len(outputFrame)-47]), &derive.BatchData{}))
+	// Remove 4 bytes from the tail end of the output frame
+	case TRUNCATE_END:
+		outputFrame = outputFrame[:len(outputFrame)-4]
+	// Append 4 garbage bytes to the end of the output frame
+	case DIRTY_APPEND:
+		outputFrame = append(outputFrame, []byte{0xBA, 0xD0, 0xC0, 0xDE}...)
+	default:
+		t.Fatalf("Unexpected garbage kind: %v", kind)
+	}
+
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
+	require.NoError(t, err, "need batcher nonce")
+
+	gasTipCap := big.NewInt(2 * params.GWei)
+	pendingHeader, err := s.l1.HeaderByNumber(t.Ctx(), big.NewInt(-1))
+	require.NoError(t, err, "need l1 pending header for gas price estimation")
+	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:   s.rollupCfg.L1ChainID,
+		Nonce:     nonce,
+		To:        &s.rollupCfg.BatchInboxAddress,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Data:      outputFrame,
 	}
 	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
 	require.NoError(t, err, "need to compute intrinsic gas")

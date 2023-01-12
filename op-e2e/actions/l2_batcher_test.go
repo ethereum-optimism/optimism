@@ -196,6 +196,76 @@ func TestL2Finalization(gt *testing.T) {
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
 }
 
+// Tests the behavior of an invalid/malformed output channel frame containing
+// valid batches being submitted to the batch inbox.
+func TestGarbageBatch(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	p := defaultRollupTestParams
+	dp := e2eutils.MakeDeployParams(t, p)
+	for _, garbageKind := range GarbageKinds {
+		sd := e2eutils.Setup(t, dp, defaultAlloc)
+		log := testlog.Logger(t, log.LvlError)
+		miner, engine, sequencer := setupSequencerTest(t, sd, log)
+
+		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+
+		batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+			MinL1TxSize: 0,
+			MaxL1TxSize: 128_000,
+			BatcherKey:  dp.Secrets.Batcher,
+		}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
+
+		sequencer.ActL2PipelineFull(t)
+		verifier.ActL2PipelineFull(t)
+
+		syncAndBuildL2 := func() {
+			// Send a head signal to the sequencer and verifier
+			sequencer.ActL1HeadSignal(t)
+			verifier.ActL1HeadSignal(t)
+
+			// Run the derivation pipeline on the sequencer and verifier
+			sequencer.ActL2PipelineFull(t)
+			verifier.ActL2PipelineFull(t)
+
+			// Build the L2 chain to the L1 head
+			sequencer.ActBuildToL1Head(t)
+		}
+
+		// Build an empty block on L1 and run the derivation pipeline + build L2
+		// to the L1 head (block #1)
+		miner.ActEmptyBlock(t)
+		syncAndBuildL2()
+
+		// Ensure that the L2 safe head has an L1 Origin at genesis before any
+		// batches are submitted.
+		require.Equal(t, uint64(0), sequencer.L2Safe().L1Origin.Number)
+		require.Equal(t, uint64(1), sequencer.L2Unsafe().L1Origin.Number)
+
+		// Submit a batch containing all blocks built on L2 while catching up
+		// to the L1 head above. The output channel frame submitted to the batch
+		// inbox will be invalid- it will be malformed depending on the passed
+		// `garbageKind`.
+		batcher.ActBufferAll(t)
+		batcher.ActL2ChannelClose(t)
+		batcher.ActL2BatchSubmitGarbage(t, garbageKind)
+
+		// Include the batch on L1 in block #2
+		miner.ActL1StartBlock(12)(t)
+		miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+		miner.ActL1EndBlock(t)
+
+		// Send a head signal + run the derivation pipeline on the sequencer
+		// and verifier.
+		syncAndBuildL2()
+
+		// Verify that the L2 blocks that were batch submitted were *not* marked
+		// as safe due to the malformed output channel frame. The safe head should
+		// still have an L1 Origin at genesis.
+		require.Equal(t, uint64(0), sequencer.L2Safe().L1Origin.Number)
+		require.Equal(t, uint64(2), sequencer.L2Unsafe().L1Origin.Number)
+	}
+}
+
 func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := &e2eutils.TestParams{
