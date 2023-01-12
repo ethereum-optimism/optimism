@@ -88,6 +88,20 @@ Each target contract is tested with a separate yarn command, for example:
 yarn echidna:aliasing
 ```
 
+### Tasks
+
+Hardhat exposes a runner for "tasks" that serve to automate your development workflow. Tasks are defined in the [`tasks`](./tasks) folder. To learn more about writing tasks, visit the [Hardhat docs](https://hardhat.org/hardhat-runner/docs/guides/tasks-and-scripts#writing-hardhat-tasks).
+
+Tasks can be run by executing `npx hardhat <task_name>` and providing the defined arguments.
+
+_NOTE: you can append --help to the end of a task command to view arguments and additional help. e.g. `npx hardhat <task_name> --help`_
+
+### Scripts
+
+Hardhat scripts are similar to tasks, having the [Hardhat Runtime Environment](https://hardhat.org/hardhat-runner/docs/advanced/hardhat-runtime-environment) injected into the script. Though, note that scripts do not have the cli harness provided to tasks. To dive deeper into the difference between scripts and tasks, take a look at the [Hardhat Documentation](https://hardhat.org/hardhat-runner/docs/guides/tasks-and-scripts#choosing-between-tasks-and-scripts).
+
+Hardhat scripts are located in the [`scripts`](./scripts/) directory and can be run by passing the file path into hardhat like so: `npx hardhat run scripts/<script_name>.js` (where `<script_name>` is the name of the script).
+
 ### Deployment
 
 #### Configuration
