@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/balance-monitor",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "[Optimism] Forta Agent that reports whether certain accounts have fallen below some balance",
   "main": "dist/index",
   "types": "dist/index",

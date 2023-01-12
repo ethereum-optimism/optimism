@@ -1,5 +1,11 @@
 # @eth-optimism/balance-monitor
 
+## 0.0.4
+
+### Patch Changes
+
+- 013bd456f: Fixed the name in Dockerfile.packages
+
 ## 0.0.3
 
 ### Patch Changes
