@@ -178,7 +178,7 @@ contract L1ChugSplashProxy {
      * @return Owner address.
      */
     // slither-disable-next-line external-function
-    function getOwner() public proxyCallIfNotOwner returns (address) {
+    function getOwner() public view returns (address) {
         return _getOwner();
     }
 
@@ -188,7 +188,7 @@ contract L1ChugSplashProxy {
      * @return Implementation address.
      */
     // slither-disable-next-line external-function
-    function getImplementation() public proxyCallIfNotOwner returns (address) {
+    function getImplementation() public view returns (address) {
         return _getImplementation();
     }
 

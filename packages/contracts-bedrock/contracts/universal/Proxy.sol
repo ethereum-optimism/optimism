@@ -121,7 +121,7 @@ contract Proxy {
      *
      * @return Owner address.
      */
-    function admin() external proxyCallIfNotAdmin returns (address) {
+    function admin() external view returns (address) {
         return _getAdmin();
     }
 
@@ -130,7 +130,7 @@ contract Proxy {
      *
      * @return Implementation address.
      */
-    function implementation() external proxyCallIfNotAdmin returns (address) {
+    function implementation() external view returns (address) {
         return _getImplementation();
     }
 
