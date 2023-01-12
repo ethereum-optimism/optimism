@@ -198,7 +198,7 @@ contract L2OutputOracle is Initializable, Semver {
             );
         }
 
-        emit OutputProposed(_outputRoot, nextOutputIndex(), block.timestamp, _l2BlockNumber);
+        emit OutputProposed(_outputRoot, nextOutputIndex(), _l2BlockNumber, block.timestamp);
 
         l2Outputs.push(
             Types.OutputProposal({
