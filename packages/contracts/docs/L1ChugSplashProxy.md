@@ -13,7 +13,7 @@
 ### getImplementation
 
 ```solidity
-function getImplementation() external nonpayable returns (address)
+function getImplementation() external view returns (address)
 ```
 
 Queries the implementation address. Can only be called by the owner OR by making an eth_call and setting the &quot;from&quot; address to address(0).
@@ -30,7 +30,7 @@ Queries the implementation address. Can only be called by the owner OR by making
 ### getOwner
 
 ```solidity
-function getOwner() external nonpayable returns (address)
+function getOwner() external view returns (address)
 ```
 
 Queries the owner of the proxy contract. Can only be called by the owner OR by making an eth_call and setting the &quot;from&quot; address to address(0).
