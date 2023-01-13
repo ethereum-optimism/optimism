@@ -25,8 +25,13 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_receive_succeeds() external {
         assertEq(address(messagePasser).balance, 0);
 
+        // vm.expectEmit(true, true, true, true);
+        // emit ETHBridgeInitiated(alice, alice, 100, hex"");
+
         vm.expectEmit(true, true, true, true);
         emit ETHBridgeInitiated(alice, alice, 100, hex"");
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalInitiated(address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex"");
 
         // TODO: L2Messenger should be called
         // TODO: L2ToL1MessagePasser should be called

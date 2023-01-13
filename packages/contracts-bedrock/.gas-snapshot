@@ -168,7 +168,7 @@ L2StandardBridge_Test:test_finalizeBridgeETH_sendToMessenger_reverts() (gas: 239
 L2StandardBridge_Test:test_finalizeBridgeETH_sendToSelf_reverts() (gas: 23893)
 L2StandardBridge_Test:test_finalizeDeposit_succeeds() (gas: 89473)
 L2StandardBridge_Test:test_initialize_succeeds() (gas: 24270)
-L2StandardBridge_Test:test_receive_succeeds() (gas: 131905)
+L2StandardBridge_Test:test_receive_succeeds() (gas: 142000)
 L2StandardBridge_Test:test_withdrawTo_succeeds() (gas: 344660)
 L2StandardBridge_Test:test_withdraw_insufficientValue_reverts() (gas: 19630)
 L2StandardBridge_Test:test_withdraw_notEOA_reverts() (gas: 251798)
