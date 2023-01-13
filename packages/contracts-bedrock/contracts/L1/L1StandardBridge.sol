@@ -105,8 +105,8 @@ contract L1StandardBridge is StandardBridge, Semver {
      */
     receive() external payable override onlyEOA {
         // Notice this emits an `ETHDepositInitiated` event.
-        // Whereas `StandardBridge` contract's `receive` fallback will only call `_initiateBridgeEth`,
-        // which will emit an `ETHBridgeInitiated` event.
+        // Whereas `StandardBridge` contract's `receive` fallback will only call
+        // `_initiateBridgeEth`, which will emit an `ETHBridgeInitiated` event.
         emit ETHDepositInitiated(msg.sender, msg.sender, msg.value, bytes(""));
         _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
