@@ -75,7 +75,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// unregister identify-push handler. Only identifying on dial is fine, and more robust against spam
 		n.host.RemoveStreamHandler(identify.IDDelta)
-		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, metrics)
+		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, setup, metrics)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}

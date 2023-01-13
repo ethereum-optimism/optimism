@@ -1,5 +1,12 @@
 # @eth-optimism/drippie-mon
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [3f4b3c328]
+  - @eth-optimism/sdk@1.10.0
+
 ## 0.4.1
 
 ### Patch Changes

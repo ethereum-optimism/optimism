@@ -6,9 +6,9 @@ require (
 	github.com/btcsuite/btcd v0.23.3
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.8
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.8
-	github.com/ethereum-optimism/optimism/op-service v0.10.8
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.10
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.10
+	github.com/ethereum-optimism/optimism/op-service v0.10.10
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.8
