@@ -4,6 +4,8 @@ import (
 	"time"
 
 	"github.com/urfave/cli"
+
+	"github.com/ethereum-optimism/optimism/op-node/p2p"
 )
 
 func p2pEnv(v string) string {
@@ -199,6 +201,45 @@ var (
 		Value:    "",
 		EnvVar:   p2pEnv("SEQUENCER_KEY"),
 	}
+	GossipMeshDFlag = cli.UintFlag{
+		Name:     "p2p.gossip.mesh.d",
+		Usage:    "Configure GossipSub topic stable mesh target count, a.k.a. desired outbound degree, number of peers to gossip to",
+		Required: false,
+		Hidden:   true,
+		Value:    p2p.DefaultMeshD,
+		EnvVar:   p2pEnv("GOSSIP_MESH_D"),
+	}
+	GossipMeshDloFlag = cli.UintFlag{
+		Name:     "p2p.gossip.mesh.lo",
+		Usage:    "Configure GossipSub topic stable mesh low watermark, a.k.a. lower bound of outbound degree",
+		Required: false,
+		Hidden:   true,
+		Value:    p2p.DefaultMeshDlo,
+		EnvVar:   p2pEnv("GOSSIP_MESH_DLO"),
+	}
+	GossipMeshDhiFlag = cli.UintFlag{
+		Name:     "p2p.gossip.mesh.dhi",
+		Usage:    "Configure GossipSub topic stable mesh high watermark, a.k.a. upper bound of outbound degree, additional peers will not receive gossip",
+		Required: false,
+		Hidden:   true,
+		Value:    p2p.DefaultMeshDhi,
+		EnvVar:   p2pEnv("GOSSIP_MESH_DHI"),
+	}
+	GossipMeshDlazyFlag = cli.UintFlag{
+		Name:     "p2p.gossip.mesh.dlazy",
+		Usage:    "Configure GossipSub gossip target, a.k.a. target degree for gossip only (not messaging like p2p.gossip.mesh.d, just announcements of IHAVE",
+		Required: false,
+		Hidden:   true,
+		Value:    p2p.DefaultMeshDlazy,
+		EnvVar:   p2pEnv("GOSSIP_MESH_DLAZY"),
+	}
+	GossipFloodPublishFlag = cli.BoolFlag{
+		Name:     "p2p.gossip.mesh.floodpublish",
+		Usage:    "Configure GossipSub to publish messages to all known peers on the topic, outside of the mesh, also see Dlazy as less aggressive alternative.",
+		Required: false,
+		Hidden:   true,
+		EnvVar:   p2pEnv("GOSSIP_FLOOD_PUBLISH"),
+	}
 )
 
 // None of these flags are strictly required.
@@ -229,4 +270,9 @@ var p2pFlags = []cli.Flag{
 	PeerstorePath,
 	DiscoveryPath,
 	SequencerP2PKeyFlag,
+	GossipMeshDFlag,
+	GossipMeshDloFlag,
+	GossipMeshDhiFlag,
+	GossipMeshDlazyFlag,
+	GossipFloodPublishFlag,
 }
