@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"io"
 	"math/big"
-	"math/rand"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -248,8 +248,10 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 		outputFrame = outputFrame[1:]
 	// Replace the output frame with random bytes of length [1, 512]
 	case RANDOM:
-		buf := make([]byte, rand.Intn(512)+1)
-		_, err := rand.Read(buf)
+		i, err := rand.Int(rand.Reader, big.NewInt(512))
+		require.NoError(t, err, "error generating random bytes length")
+		buf := make([]byte, i.Int64()+1)
+		_, err = rand.Read(buf)
 		require.NoError(t, err, "error generating random bytes")
 		outputFrame = buf
 	// Remove 4 bytes from the tail end of the output frame
