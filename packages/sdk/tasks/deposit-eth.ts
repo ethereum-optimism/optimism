@@ -18,6 +18,8 @@ import {
   DEFAULT_L2_CONTRACT_ADDRESSES,
 } from '../src'
 
+const { formatEther } = utils
+
 task('deposit-eth', 'Deposits ether to L2.')
   .addParam(
     'l2ProviderUrl',
@@ -67,7 +69,7 @@ task('deposit-eth', 'Deposits ether to L2.')
     if (balance.eq(0)) {
       throw new Error('Signer has no balance')
     }
-    console.log(`Signer balance: ${utils.formatEther(balance.toString())}`)
+    console.log(`Signer balance: ${formatEther(balance.toString())}`)
 
     const l2Provider = new providers.StaticJsonRpcProvider(args.l2ProviderUrl)
 
@@ -216,8 +218,13 @@ task('deposit-eth', 'Deposits ether to L2.')
       OptimismPortal.address
     )
 
+    const l1BridgeBalanceBefore = await signer.provider.getBalance(
+      L1StandardBridge.address
+    )
+
     // Deposit ETH
     console.log('Depositing ETH through StandardBridge')
+    console.log(`Sending ${formatEther(amount)} ether`)
     const ethDeposit = await messenger.depositETH(amount, { recipient: to })
     console.log(`Transaction hash: ${ethDeposit.hash}`)
     const depositMessageReceipt = await messenger.waitForMessageReceipt(
@@ -233,6 +240,23 @@ task('deposit-eth', 'Deposits ether to L2.')
     const opBalanceAfter = await signer.provider.getBalance(
       OptimismPortal.address
     )
+
+    const l1BridgeBalanceAfter = await signer.provider.getBalance(
+      L1StandardBridge.address
+    )
+
+    console.log(
+      `L1StandardBridge balance before: ${formatEther(l1BridgeBalanceBefore)}`
+    )
+
+    console.log(
+      `L1StandardBridge balance after: ${formatEther(l1BridgeBalanceAfter)}`
+    )
+
+    console.log(
+      `OptimismPortal balance before: ${formatEther(opBalanceBefore)}`
+    )
+    console.log(`OptimismPortal balance after: ${formatEther(opBalanceAfter)}`)
 
     if (!opBalanceBefore.add(amount).eq(opBalanceAfter)) {
       throw new Error(`OptimismPortal balance mismatch`)

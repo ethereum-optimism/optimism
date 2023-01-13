@@ -13,6 +13,10 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
+	"github.com/libp2p/go-libp2p/p2p/muxer/mplex"
+	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/security/noise"
+	tls "github.com/libp2p/go-libp2p/p2p/security/tls"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	ma "github.com/multiformats/go-multiaddr"
 	madns "github.com/multiformats/go-multiaddr-dns"
@@ -174,4 +178,36 @@ func addrFromIPAndPort(ip net.IP, port uint16) (ma.Multiaddr, error) {
 		ip = ip4
 	}
 	return ma.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), port))
+}
+
+func YamuxC() (lconf.MsMuxC, error) {
+	mtpt, err := lconf.MuxerConstructor(yamux.DefaultTransport)
+	if err != nil {
+		return lconf.MsMuxC{}, err
+	}
+	return lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}, nil
+}
+
+func MplexC() (lconf.MsMuxC, error) {
+	mtpt, err := lconf.MuxerConstructor(mplex.DefaultTransport)
+	if err != nil {
+		return lconf.MsMuxC{}, err
+	}
+	return lconf.MsMuxC{MuxC: mtpt, ID: "/mplex/6.7.0"}, nil
+}
+
+func NoiseC() (lconf.MsSecC, error) {
+	stpt, err := lconf.SecurityConstructor(noise.New)
+	if err != nil {
+		return lconf.MsSecC{}, err
+	}
+	return lconf.MsSecC{SecC: stpt, ID: noise.ID}, nil
+}
+
+func TlsC() (lconf.MsSecC, error) {
+	stpt, err := lconf.SecurityConstructor(tls.New)
+	if err != nil {
+		return lconf.MsSecC{}, err
+	}
+	return lconf.MsSecC{SecC: stpt, ID: tls.ID}, nil
 }
