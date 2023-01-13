@@ -183,12 +183,30 @@ contract L1ChugSplashProxy {
     }
 
     /**
+     * Queries the owner of the proxy contract.
+     * @return Owner address.
+     */
+    // slither-disable-next-line external-function
+    function owner() public view returns (address) {
+        return _getOwner();
+    }
+
+    /**
      * Queries the implementation address. Can only be called by the owner OR by making an
      * eth_call and setting the "from" address to address(0).
      * @return Implementation address.
      */
     // slither-disable-next-line external-function
     function getImplementation() public proxyCallIfNotOwner returns (address) {
+        return _getImplementation();
+    }
+
+    /**
+     * Queries the implementation address.
+     * @return Implementation address.
+     */
+    // slither-disable-next-line external-function
+    function implementation() public view returns (address) {
         return _getImplementation();
     }
 

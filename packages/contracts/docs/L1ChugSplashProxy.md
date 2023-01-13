@@ -44,6 +44,40 @@ Queries the owner of the proxy contract. Can only be called by the owner OR by m
 |---|---|---|
 | _0 | address | Owner address.
 
+### implementation
+
+```solidity
+function implementation() external view returns (address)
+```
+
+Queries the implementation address.
+
+
+
+
+#### Returns
+
+| Name | Type | Description |
+|---|---|---|
+| _0 | address | Implementation address.
+
+### owner
+
+```solidity
+function owner() external view returns (address)
+```
+
+Queries the owner of the proxy contract.
+
+
+
+
+#### Returns
+
+| Name | Type | Description |
+|---|---|---|
+| _0 | address | Owner address.
+
 ### setCode
 
 ```solidity
