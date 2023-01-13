@@ -79,7 +79,14 @@ contract L2StandardBridge is StandardBridge, Semver {
             b.offset := 0
             b.length := 0
         }
-        _initiateWithdrawal(Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, b);
+        _initiateWithdrawal(
+            Predeploys.LEGACY_ERC20_ETH,
+            msg.sender,
+            msg.sender,
+            msg.value,
+            RECEIVE_DEFAULT_GAS_LIMIT,
+            b
+        );
     }
 
     /**
