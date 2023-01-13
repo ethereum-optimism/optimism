@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
-	"encoding/hex"
 	"io"
 	"math/big"
+	"math/rand"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -14,7 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -202,14 +201,18 @@ type GarbageKind int64
 
 const (
 	STRIP_VERSION GarbageKind = iota
+	RANDOM
 	MALFORM_RLP
+	INVALID_COMPRESSION
 	TRUNCATE_END
 	DIRTY_APPEND
 )
 
 var GarbageKinds = []GarbageKind{
 	STRIP_VERSION,
+	RANDOM,
 	// MALFORM_RLP,
+	// INVALID_COMPRESSION,
 	TRUNCATE_END,
 	DIRTY_APPEND,
 }
@@ -226,6 +229,7 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	// Collect the output frame
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)
+
 	// subtract one, to account for the version byte
 	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
 		s.l2ChannelOut = nil
@@ -242,9 +246,12 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	// Strip the derivation version byte from the output frame
 	case STRIP_VERSION:
 		outputFrame = outputFrame[1:]
-	case MALFORM_RLP:
-		// WIP
-		t.Log("output frame", hex.EncodeToString(outputFrame), rlp.Decode(bytes.NewReader(outputFrame[1:len(outputFrame)-47]), &derive.BatchData{}))
+	// Replace the output frame with random bytes of length [1, 512]
+	case RANDOM:
+		buf := make([]byte, rand.Intn(512)+1)
+		_, err := rand.Read(buf)
+		require.NoError(t, err, "error generating random bytes")
+		outputFrame = buf
 	// Remove 4 bytes from the tail end of the output frame
 	case TRUNCATE_END:
 		outputFrame = outputFrame[:len(outputFrame)-4]
