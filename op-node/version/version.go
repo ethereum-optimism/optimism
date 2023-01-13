@@ -1,6 +1,6 @@
 package version
 
 var (
-	Version = "v0.10.9"
+	Version = "v0.10.10"
 	Meta    = "dev"
 )
