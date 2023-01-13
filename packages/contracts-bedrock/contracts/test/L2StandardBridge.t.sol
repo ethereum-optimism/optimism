@@ -152,3 +152,21 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.finalizeBridgeETH{ value: 100 }(alice, address(L2Messenger), 100, hex"");
     }
 }
+
+contract L2StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
+    function test_finalizeBridgeETH() external {
+        address messenger = address(L2Bridge.messenger());
+        vm.mockCall(
+            messenger,
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L2Bridge.OTHER_BRIDGE()))
+        );
+        vm.deal(messenger, 100);
+        vm.prank(messenger);
+
+        vm.expectEmit(true, true, true, true);
+        emit ETHBridgeFinalized(alice, alice, 100, hex"");
+
+        L2Bridge.finalizeBridgeETH{ value: 100 }(alice, alice, 100, hex"");
+    }
+}

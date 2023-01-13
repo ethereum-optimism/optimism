@@ -353,7 +353,21 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_TestFail is Bridge_Initializer
 // Todo: move these next two contracts into a test file specific to the direction agnostic
 // StandardBridge interface
 contract L1StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
+    function test_finalizeBridgeETH() external {
+        address messenger = address(L1Bridge.messenger());
+        vm.mockCall(
+            messenger,
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L1Bridge.OTHER_BRIDGE()))
+        );
+        vm.deal(messenger, 100);
+        vm.prank(messenger);
 
+        vm.expectEmit(true, true, true, true);
+        emit ETHBridgeFinalized(alice, alice, 100, hex"");
+
+        L1Bridge.finalizeBridgeETH{ value: 100 }(alice, alice, 100, hex"");
+    }
 }
 
 contract L1StandardBridge_FinalizeBridgeETH_TestFail is Bridge_Initializer {
