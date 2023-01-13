@@ -40,8 +40,6 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit ETHDepositInitiated(alice, alice, 100, hex"");
-        // Below should NOT be emitted since this is emitted in the StandardBridge receive and not the L1StandardBridge receive.
-        // emit ETHBridgeInitiated(alice, alice, 100, hex"");
 
         vm.expectCall(
             address(L1Messenger),
