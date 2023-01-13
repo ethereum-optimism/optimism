@@ -246,6 +246,9 @@ func loadNetworkPrivKey(ctx *cli.Context) (*crypto.Secp256k1PrivateKey, error) {
 		return parsePriv(raw)
 	}
 	keyPath := ctx.GlobalString(flags.P2PPrivPath.Name)
+	if keyPath == "" {
+		return nil, errors.New("no p2p private key path specified, cannot auto-generate key without path")
+	}
 	f, err := os.OpenFile(keyPath, os.O_RDONLY, 0600)
 	if os.IsNotExist(err) {
 		p, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
