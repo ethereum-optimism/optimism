@@ -102,11 +102,10 @@ contract L1StandardBridge is StandardBridge, Semver {
 
     /**
      * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
+     *
+     * @dev Emits both an `ETHDepositInitiated` and `ETHBridgeInitiated` event.
      */
     receive() external payable override onlyEOA {
-        // Notice this emits an `ETHDepositInitiated` event.
-        // Whereas `StandardBridge` contract's `receive` fallback will only call
-        // `_initiateBridgeEth`, which will emit an `ETHBridgeInitiated` event.
         bytes calldata b;
         assembly {
             b.offset := 0

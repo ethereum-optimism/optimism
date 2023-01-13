@@ -69,6 +69,15 @@ contract L2StandardBridge is StandardBridge, Semver {
     {}
 
     /**
+     * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
+     *
+     * @dev Emits an `ETHBridgeInitiated` event.
+     */
+    receive() external payable override onlyEOA {
+        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+    }
+
+    /**
      * @custom:legacy
      * @notice Initiates a withdrawal from L2 to L1.
      *
