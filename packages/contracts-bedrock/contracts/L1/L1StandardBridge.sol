@@ -107,8 +107,12 @@ contract L1StandardBridge is StandardBridge, Semver {
         // Notice this emits an `ETHDepositInitiated` event.
         // Whereas `StandardBridge` contract's `receive` fallback will only call
         // `_initiateBridgeEth`, which will emit an `ETHBridgeInitiated` event.
-        emit ETHDepositInitiated(msg.sender, msg.sender, msg.value, bytes(""));
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+        bytes calldata b;
+        assembly {
+            b.offset := 0
+            b.length := 0
+        }
+        _initiateETHDeposit(msg.sender, msg.sender, RECEIVE_DEFAULT_GAS_LIMIT, b);
     }
 
     /**
