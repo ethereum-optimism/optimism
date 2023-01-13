@@ -166,7 +166,7 @@ abstract contract StandardBridge {
     /**
      * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
      */
-    receive() external payable onlyEOA {
+    receive() external payable virtual onlyEOA {
         _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
