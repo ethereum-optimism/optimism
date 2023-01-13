@@ -109,6 +109,12 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		return nil, fmt.Errorf("failed to fetch current L2 forkchoice state: %w", err)
 	}
 
+	// Geth on bad restarts can rewind the head back to last valid state, but fails to rewind the finalization or safe marker.
+	// In this case we must go back to the prior head, to reprocess the pruned finalized/safe data.
+	if result.Unsafe.Number < result.Finalized.Number || result.Unsafe.Number < result.Safe.Number {
+		return &FindHeadsResult{Unsafe: result.Unsafe, Safe: result.Unsafe, Finalized: result.Unsafe}, nil
+	}
+
 	// Remember original unsafe block to determine reorg depth
 	prevUnsafe := result.Unsafe
 
