@@ -287,6 +287,9 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_Test is Bridge_Initializer {
         vm.expectEmit(true, true, true, true);
         emit ERC20WithdrawalFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
+
         vm.expectCall(
             address(L1Token),
             abi.encodeWithSelector(ERC20.transfer.selector, alice, 100)

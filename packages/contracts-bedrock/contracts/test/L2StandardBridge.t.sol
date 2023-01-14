@@ -81,10 +81,16 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     function test_withdrawTo_succeeds() external {
         deal(address(L2Token), alice, 100, true);
 
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeInitiated(address(L2Token), address(L1Token), alice, bob, 100, hex"");
+
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalInitiated(address(L1Token), address(L2Token), alice, bob, 100, hex"");
+
+        // TODO: calls
+
         vm.prank(alice, alice);
         L2Bridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
-
-        // TODO: events and calls
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
