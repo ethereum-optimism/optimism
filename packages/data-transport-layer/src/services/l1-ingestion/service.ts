@@ -268,16 +268,16 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
           )
         }
 
-        // I prefer to do this in serial to avoid non-determinism. We could have a discussion about
-        // using Promise.all if necessary, but I don't see a good reason to do so unless parsing is
-        // really, really slow for all event types.
-        await this._syncEvents(
-          'CanonicalTransactionChain',
-          'TransactionEnqueued',
-          highestSyncedL1Block,
-          depositTargetL1Block,
-          handleEventsTransactionEnqueued
-        )
+        // We should not sync TransactionEnqueued events beyond the deposit shutoff block.
+        if (depositTargetL1Block >= highestSyncedL1Block) {
+          await this._syncEvents(
+            'CanonicalTransactionChain',
+            'TransactionEnqueued',
+            highestSyncedL1Block,
+            depositTargetL1Block,
+            handleEventsTransactionEnqueued
+          )
+        }
 
         await this._syncEvents(
           'CanonicalTransactionChain',
