@@ -28,14 +28,14 @@ var (
 	ConfigUpdateEventVersion0 = common.Hash{}
 )
 
-// A left-padded uint256 equal to 32.
-var OneWordUint = common.Hash{31: 32}
-
-// 24 zero bytes (the padding for a uint64 in a 32 byte word)
-var Uint64Padding = make([]byte, 24)
-
-// 12 zero bytes (the padding for an Ethereum address in a 32 byte word)
-var AddressPadding = make([]byte, 12)
+var (
+	// A left-padded uint256 equal to 32.
+	OneWordUint = common.Hash{31: 32}
+	// 24 zero bytes (the padding for a uint64 in a 32 byte word)
+	Uint64Padding = make([]byte, 24)
+	// 12 zero bytes (the padding for an Ethereum address in a 32 byte word)
+	AddressPadding = make([]byte, 12)
+)
 
 var logger = log.New("derive", "system_config")
 
