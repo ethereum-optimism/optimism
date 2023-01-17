@@ -31,6 +31,12 @@ export const handleEventsSequencerBatchAppended: EventHandlerSet<
     const l1Transaction = await event.getTransaction()
     const eventBlock = await event.getBlock()
 
+    if (!l1Transaction) {
+      console.error('Unable to find L1 transaction for SequencerBatchAppended event.')
+      console.error(`Transaction hash: ${event.transactionHash}`)
+      console.error('Event:', JSON.stringify(event, null, 2))
+    }
+
     // TODO: We need to update our events so that we actually have enough information to parse this
     // batch without having to pull out this extra event. For the meantime, we need to find this
     // "TransactonBatchAppended" event to get the rest of the data.
