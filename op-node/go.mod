@@ -23,6 +23,7 @@ require (
 	github.com/libp2p/go-libp2p-testing v0.12.0
 	github.com/multiformats/go-multiaddr v0.7.0
 	github.com/multiformats/go-multiaddr-dns v0.3.1
+	github.com/olekukonko/tablewriter v0.0.5
 	github.com/prometheus/client_golang v1.13.0
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
@@ -115,7 +116,6 @@ require (
 	github.com/multiformats/go-multistream v0.3.3 // indirect
 	github.com/multiformats/go-varint v0.0.6 // indirect
 	github.com/nxadm/tail v1.4.8 // indirect
-	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/onsi/ginkgo v1.16.5 // indirect
 	github.com/opencontainers/runtime-spec v1.0.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
