@@ -61,11 +61,17 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
 	}
 
+	daCfg, err := rollup.NewDAConfig(flags.DaRPC.Value, flags.NamespaceId.Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load da config: %w", err)
+	}
+
 	cfg := &node.Config{
-		L1:     l1Endpoint,
-		L2:     l2Endpoint,
-		Rollup: *rollupConfig,
-		Driver: *driverConfig,
+		L1:       l1Endpoint,
+		L2:       l2Endpoint,
+		Rollup:   *rollupConfig,
+		DAConfig: *daCfg,
+		Driver:   *driverConfig,
 		RPC: node.RPCConfig{
 			ListenAddr:  ctx.GlobalString(flags.RPCListenAddr.Name),
 			ListenPort:  ctx.GlobalInt(flags.RPCListenPort.Name),

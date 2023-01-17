@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	cnc "github.com/celestiaorg/go-cnc"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -18,7 +20,7 @@ import (
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
-// batches to L1 for availability.
+// batches to DA for availability.
 type BatchSubmitter struct {
 	Config // directly embed the config + sources
 
@@ -38,6 +40,17 @@ type BatchSubmitter struct {
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitter, error) {
+	var nid [8]byte
+
+	if cfg.NamespaceId == "" {
+		return nil, errors.New("namespace id cannot be blank")
+	}
+	namespaceId, err := hex.DecodeString(cfg.NamespaceId)
+	if err != nil {
+		return nil, err
+	}
+	copy(nid[:], namespaceId)
+
 	ctx := context.Background()
 
 	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerConfig)
@@ -64,7 +77,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 
 	rcfg, err := rollupClient.RollupConfig(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("querying rollup config: %w", err)
+		return nil, err
 	}
 
 	txManagerConfig := txmgr.Config{
@@ -78,6 +91,8 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		L1Client:        l1Client,
 		L2Client:        l2Client,
 		RollupNode:      rollupClient,
+		DaRpc:           cfg.DaRpc,
+		NamespaceId:     cfg.NamespaceId,
 		PollInterval:    cfg.PollInterval,
 		TxManagerConfig: txManagerConfig,
 		From:            fromAddress,
@@ -94,12 +109,12 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		},
 	}
 
-	return NewBatchSubmitter(batcherCfg, l)
+	return NewBatchSubmitter(batcherCfg, nid, l)
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
+func NewBatchSubmitter(cfg Config, nid [8]byte, l log.Logger) (*BatchSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
@@ -111,13 +126,19 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	cfg.log = l
 	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
 
+	daClient, err := cnc.NewClient(cfg.DaRpc, cnc.WithTimeout(90*time.Second))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
 	return &BatchSubmitter{
 		Config: cfg,
 		txMgr: NewTransactionManager(l,
 			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
-			cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.Rollup.L1ChainID)),
+			cfg.From, cfg.L1Client, daClient, nid, cfg.SignerFnFactory(cfg.Rollup.L1ChainID)),
 		done: make(chan struct{}),
-		// TODO: this context only exists because the event loop doesn't reach done
+		// TODO: this context only exists because the even loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
 		cancel: cancel,

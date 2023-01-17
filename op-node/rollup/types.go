@@ -4,10 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/big"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )

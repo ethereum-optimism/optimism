@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -38,7 +39,7 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
-
+	DaCfg     *rollup.DAConfig      // Rpc for DA node
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
 	resourcesCtx   context.Context
@@ -74,6 +75,9 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 }
 
 func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
+	if err := n.initDA(ctx, cfg); err != nil {
+		return err
+	}
 	if err := n.initTracer(ctx, cfg); err != nil {
 		return err
 	}
@@ -99,6 +103,11 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initMetricsServer(ctx, cfg); err != nil {
 		return err
 	}
+	return nil
+}
+
+func (n *OpNode) initDA(ctx context.Context, cfg *Config) error {
+	n.DaCfg = &cfg.DAConfig
 	return nil
 }
 
@@ -197,7 +206,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return err
 	}
 
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.DaCfg, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
 
 	return nil
 }

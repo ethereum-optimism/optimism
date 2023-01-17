@@ -111,6 +111,10 @@ def main():
     })
     wait_up(9545)
 
+    log.info('Bringing up DA')
+    run_command(['docker-compose', 'up', '-d', 'da'], cwd=ops_bedrock_dir, env={
+      'PWD': ops_bedrock_dir,
+    })
     log.info('Bringing up everything else.')
     run_command(['docker-compose', 'up', '-d', 'op-node', 'op-proposer', 'op-batcher'], cwd=ops_bedrock_dir, env={
         'PWD': ops_bedrock_dir,

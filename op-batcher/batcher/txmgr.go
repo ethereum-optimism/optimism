@@ -1,11 +1,14 @@
 package batcher
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"time"
 
+	cnc "github.com/celestiaorg/go-cnc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -26,19 +29,23 @@ type TransactionManager struct {
 	senderAddress     common.Address
 	chainID           *big.Int
 	// Outside world
-	txMgr    txmgr.TxManager
-	l1Client *ethclient.Client
-	signerFn opcrypto.SignerFn
-	log      log.Logger
+	txMgr       txmgr.TxManager
+	l1Client    *ethclient.Client
+	daClient    *cnc.Client
+	namespaceId [8]byte
+	signerFn    opcrypto.SignerFn
+	log         log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, daClient *cnc.Client, namespaceId [8]byte, signerFn opcrypto.SignerFn) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
 		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
 		l1Client:          l1Client,
+		daClient:          daClient,
+		namespaceId:       namespaceId,
 		signerFn:          signerFn,
 		log:               log,
 	}
@@ -50,7 +57,35 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
 func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
-	tx, err := t.CraftTx(ctx, data)
+	res, err := t.daClient.SubmitPFD(ctx, t.namespaceId, data, 20000, 700000)
+	if err != nil {
+		t.log.Warn("unable to publish tx to celestia", "err", err)
+		return nil, err
+	}
+
+	height := res.Height
+
+	// FIXME: needs to be tx index / share index?
+	index := res.Logs[0].MsgIndex
+
+	// DA pointer serialization format
+	// | -------------------------|
+	// | 8 bytes       | 4 bytes  |
+	// | block height | tx index  |
+	// | -------------------------|
+
+	buf := new(bytes.Buffer)
+	err = binary.Write(buf, binary.BigEndian, height)
+	if err != nil {
+		return nil, fmt.Errorf("data pointer block height serialization failed: %w", err)
+	}
+	err = binary.Write(buf, binary.BigEndian, index)
+	if err != nil {
+		return nil, fmt.Errorf("data pointer tx index serialization failed: %w", err)
+	}
+
+	serialized := buf.Bytes()
+	tx, err := t.CraftTx(ctx, serialized)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
