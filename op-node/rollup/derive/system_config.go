@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -26,6 +27,8 @@ var (
 	ConfigUpdateEventABIHash  = crypto.Keccak256Hash([]byte(ConfigUpdateEventABI))
 	ConfigUpdateEventVersion0 = common.Hash{}
 )
+
+var logger = log.New("derive", "system_config")
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
 func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config) error {
@@ -75,6 +78,20 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	// Allocate a placeholder word to read into
 	word := make([]byte, 32)
 
+	// Helper function to prevent code duplication.
+	readIntoWord := func(b []byte) {
+		// Sanity check that the byte array we're reading into is always 32 bytes in length.
+		if len(b) != 32 {
+			panic("invalid word length")
+		}
+
+		if _, err := reader.Read(b); err != nil {
+			// The possible error returned by `Read` is ignored due to the length check of the unindexed data in
+			// all cases of the below switch statement. While we don't panic here, this log should *never* be emitted.
+			logger.Crit("failed to read word from unindexed log data")
+		}
+	}
+
 	// Attempt to read unindexed data
 	switch updateType {
 	case SystemConfigUpdateBatcher:
@@ -82,26 +99,20 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return fmt.Errorf("expected 32*3 bytes in batcher hash update, but got %d bytes", len(ev.Data))
 		}
 
-		// Attempt to read the pointer, it should always equal 32.
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read pointer in batcher address update")
-		}
+		// Read the pointer, it should always equal 32.
+		readIntoWord(word)
 		if common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
-		// Attempt to read the length, it should also always equal 32.
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read length in batcher address update")
-		}
+		// Read the length, it should also always equal 32.
+		readIntoWord(word)
 		if common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
-		// Attempt to read the batcher hash
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read batcher hash in batcher address update")
-		}
+		// Read the updated batcher address
+		readIntoWord(word)
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the batcher address is correctly zero-padded.
 		if !bytes.Equal(word[:12], make([]byte, 12)) {
@@ -114,34 +125,26 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return fmt.Errorf("expected 32*4 bytes in GPO params update data, but got %d", len(ev.Data))
 		}
 
-		// Attempt to read the pointer, it should always equal 32.
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read pointer in GPO params update")
-		}
+		// Read the pointer, it should always equal 32.
+		readIntoWord(word)
 		if common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
-		// Attempt to read the length, it should always equal 64.
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read length in GPO params update")
-		}
+		// Read the length, it should always equal 64.
+		readIntoWord(word)
 		if common.BytesToHash(word) != (common.Hash{31: 64}) {
 			return fmt.Errorf("expected length to be 64 bytes, but got %s", word)
 		}
 
-		// Attempt to read the overhead
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read overhead in GPO params update")
-		}
+		// Read the overhead
+		readIntoWord(word)
 
 		// Allocate a second word to read the scalar into
 		secondWord := make([]byte, 32)
 
-		// Attempt to read the scalar
-		if _, err := reader.Read(secondWord); err != nil {
-			return fmt.Errorf("failed to read scalar in GPO params update")
-		}
+		// Read the scalar
+		readIntoWord(secondWord)
 
 		// Set the system config's overhead and scalar values to the values read from the log
 		copy(destSysCfg.Overhead[:], word)
@@ -152,26 +155,20 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return fmt.Errorf("expected 32*3 bytes in gas limit update, but got %d bytes", len(ev.Data))
 		}
 
-		// Attempt to read the pointer, it should always equal 32.
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read pointer in gas limit update")
-		}
+		// Read the pointer, it should always equal 32.
+		readIntoWord(word)
 		if common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
-		// Attempt to read the length, it should also always equal 32.
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read length in gas limit update")
-		}
+		// Read the length, it should also always equal 32.
+		readIntoWord(word)
 		if common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
-		// Attempt to read the gas limit
-		if _, err := reader.Read(word); err != nil {
-			return fmt.Errorf("failed to read gas limit in gas limit update")
-		}
+		// Read the gas limit
+		readIntoWord(word)
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the gas limit is correctly zero-padded.
 		if !bytes.Equal(word[:24], make([]byte, 24)) {
