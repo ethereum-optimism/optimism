@@ -188,6 +188,23 @@ contract SystemDictator is OwnableUpgradeable {
             config.proxyAddressConfig.l1StandardBridgeProxy,
             ProxyAdmin.ProxyType.CHUGSPLASH
         );
+
+        // Upgrade and initialize the SystemConfig so the Sequencer can start up.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.systemConfigProxy),
+            address(config.implementationAddressConfig.systemConfigImpl),
+            abi.encodeCall(
+                SystemConfig.initialize,
+                (
+                    config.systemConfigConfig.owner,
+                    config.systemConfigConfig.overhead,
+                    config.systemConfigConfig.scalar,
+                    config.systemConfigConfig.batcherHash,
+                    config.systemConfigConfig.gasLimit,
+                    config.systemConfigConfig.unsafeBlockSigner
+                )
+            )
+        );
     }
 
     /**
@@ -341,23 +358,6 @@ contract SystemDictator is OwnableUpgradeable {
         config.globalConfig.proxyAdmin.upgrade(
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
-        );
-
-        // Upgrade and initialize the SystemConfig.
-        config.globalConfig.proxyAdmin.upgradeAndCall(
-            payable(config.proxyAddressConfig.systemConfigProxy),
-            address(config.implementationAddressConfig.systemConfigImpl),
-            abi.encodeCall(
-                SystemConfig.initialize,
-                (
-                    config.systemConfigConfig.owner,
-                    config.systemConfigConfig.overhead,
-                    config.systemConfigConfig.scalar,
-                    config.systemConfigConfig.batcherHash,
-                    config.systemConfigConfig.gasLimit,
-                    config.systemConfigConfig.unsafeBlockSigner
-                )
-            )
         );
 
         // Pause the L1CrossDomainMessenger, chance to check that everything is OK.

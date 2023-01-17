@@ -1,5 +1,11 @@
 # @eth-optimism/ci-builder
 
+## 0.4.0
+
+### Minor Changes
+
+- 05cc935b2: Bump foundry to 2ff99025abade470a795724c10648c800a41025e
+
 ## 0.3.8
 
 ### Patch Changes

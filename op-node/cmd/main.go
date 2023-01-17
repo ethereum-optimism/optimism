@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
+
 	"github.com/urfave/cli"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
@@ -67,6 +69,10 @@ func main() {
 		{
 			Name:        "genesis",
 			Subcommands: genesis.Subcommands,
+		},
+		{
+			Name:        "doc",
+			Subcommands: doc.Subcommands,
 		},
 	}
 
