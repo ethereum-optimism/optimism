@@ -1153,7 +1153,8 @@ func TestStopStartSequencer(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = nodeRPC.CallContext(ctx, nil, "admin_stopSequencer")
+	blockHash := common.Hash{}
+	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
 	require.Nil(t, err, "Error stopping sequencer")
 
 	blockBefore = latestBlock(t, l2Seq)
@@ -1163,7 +1164,7 @@ func TestStopStartSequencer(t *testing.T) {
 
 	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer")
+	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
 	require.Nil(t, err, "Error starting sequencer")
 
 	blockBefore = latestBlock(t, l2Seq)

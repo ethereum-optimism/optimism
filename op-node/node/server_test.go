@@ -219,10 +219,10 @@ func (c *mockDriverClient) ResetDerivationPipeline(ctx context.Context) error {
 	return c.Mock.MethodCalled("ResetDerivationPipeline").Get(0).(error)
 }
 
-func (c *mockDriverClient) StartSequencer(ctx context.Context) error {
+func (c *mockDriverClient) StartSequencer(ctx context.Context, blockHash common.Hash) error {
 	return c.Mock.MethodCalled("StartSequencer").Get(0).(error)
 }
 
-func (c *mockDriverClient) StopSequencer(ctx context.Context) error {
-	return c.Mock.MethodCalled("StopSequencer").Get(0).(error)
+func (c *mockDriverClient) StopSequencer(ctx context.Context) (common.Hash, error) {
+	return c.Mock.MethodCalled("StopSequencer").Get(0).(common.Hash), nil
 }
