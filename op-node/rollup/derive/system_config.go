@@ -31,6 +31,8 @@ var (
 var (
 	// A left-padded uint256 equal to 32.
 	OneWordUint = common.Hash{31: 32}
+	// A left-padded uint256 equal to 64.
+	TwoWordUint = common.Hash{31: 64}
 	// 24 zero bytes (the padding for a uint64 in a 32 byte word)
 	Uint64Padding = make([]byte, 24)
 	// 12 zero bytes (the padding for an Ethereum address in a 32 byte word)
@@ -103,12 +105,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
+		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
+		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
@@ -126,12 +128,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
+		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should always equal 64.
-		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
+		if word := readWord(); word != TwoWordUint {
 			return fmt.Errorf("expected length to be 64 bytes, but got %s", word)
 		}
 
@@ -145,12 +147,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
+		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
+		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
