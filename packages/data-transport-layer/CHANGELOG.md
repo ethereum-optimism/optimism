@@ -1,5 +1,11 @@
 # data transport layer
 
+## 0.5.51
+
+### Patch Changes
+
+- 4396e187d: Fixes a bug in the DTL that would cause it to not be able to sync beyond the deposit shutoff block.
+
 ## 0.5.50
 
 ### Patch Changes

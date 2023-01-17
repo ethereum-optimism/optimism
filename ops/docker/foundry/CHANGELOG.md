@@ -1,5 +1,11 @@
 # @eth-optimism/foundry
 
+## 0.2.0
+
+### Minor Changes
+
+- 05cc935b2: Bump foundry to 2ff99025abade470a795724c10648c800a41025e
+
 ## 0.1.3
 
 ### Patch Changes
