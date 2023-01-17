@@ -69,50 +69,115 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	}
 	// indexed 1
 	updateType := ev.Topics[2]
-	// unindexed data
+
+	// Create a reader of the unindexed data
+	reader := bytes.NewReader(ev.Data)
+	// Allocate a placeholder word to read into
+	word := make([]byte, 32)
+
+	// Attempt to read unindexed data
 	switch updateType {
 	case SystemConfigUpdateBatcher:
 		if len(ev.Data) != 32*3 {
 			return fmt.Errorf("expected 32*3 bytes in batcher hash update, but got %d bytes", len(ev.Data))
 		}
-		if x := common.BytesToHash(ev.Data[:32]); x != (common.Hash{31: 32}) {
-			return fmt.Errorf("expected offset to point to length location, but got %s", x)
+
+		// Attempt to read the pointer, it should always equal 32.
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read pointer in batcher address update")
 		}
-		if x := common.BytesToHash(ev.Data[32:64]); x != (common.Hash{31: 32}) {
-			return fmt.Errorf("expected length of 1 bytes32, but got %s", x)
+		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
-		if !bytes.Equal(ev.Data[64:64+12], make([]byte, 12)) {
-			return fmt.Errorf("expected version 0 batcher hash with zero padding, but got %x", ev.Data)
+
+		// Attempt to read the length, it should also always equal 32.
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read length in batcher address update")
 		}
-		destSysCfg.BatcherAddr.SetBytes(ev.Data[64+12:])
+		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
+		}
+
+		// Attempt to read the batcher hash
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read batcher hash in batcher address update")
+		}
+		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
+		// Check that the batcher address is correctly zero-padded.
+		if !bytes.Equal(word[:12], make([]byte, 12)) {
+			return fmt.Errorf("expected version 0 batcher hash with zero padding, but got %x", word)
+		}
+		destSysCfg.BatcherAddr.SetBytes(word[12:])
 		return nil
-	case SystemConfigUpdateGasConfig: // left padded uint8
+	case SystemConfigUpdateGasConfig:
 		if len(ev.Data) != 32*4 {
 			return fmt.Errorf("expected 32*4 bytes in GPO params update data, but got %d", len(ev.Data))
 		}
-		if x := common.BytesToHash(ev.Data[:32]); x != (common.Hash{31: 32}) {
-			return fmt.Errorf("expected offset to point to length location, but got %s", x)
+
+		// Attempt to read the pointer, it should always equal 32.
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read pointer in GPO params update")
 		}
-		if x := common.BytesToHash(ev.Data[32:64]); x != (common.Hash{31: 64}) {
-			return fmt.Errorf("expected length of 2 bytes32, but got %s", x)
+		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
-		copy(destSysCfg.Overhead[:], ev.Data[64:96])
-		copy(destSysCfg.Scalar[:], ev.Data[96:128])
+
+		// Attempt to read the length, it should always equal 64.
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read length in GPO params update")
+		}
+		if common.BytesToHash(word) != (common.Hash{31: 64}) {
+			return fmt.Errorf("expected length to be 64 bytes, but got %s", word)
+		}
+
+		// Attempt to read the overhead
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read overhead in GPO params update")
+		}
+
+		// Allocate a second word to read the scalar into
+		secondWord := make([]byte, 32)
+
+		// Attempt to read the scalar
+		if _, err := reader.Read(secondWord); err != nil {
+			return fmt.Errorf("failed to read scalar in GPO params update")
+		}
+
+		// Set the system config's overhead and scalar values to the values read from the log
+		copy(destSysCfg.Overhead[:], word)
+		copy(destSysCfg.Scalar[:], secondWord)
 		return nil
 	case SystemConfigUpdateGasLimit:
 		if len(ev.Data) != 32*3 {
 			return fmt.Errorf("expected 32*3 bytes in gas limit update, but got %d bytes", len(ev.Data))
 		}
-		if x := common.BytesToHash(ev.Data[:32]); x != (common.Hash{31: 32}) {
-			return fmt.Errorf("expected offset to point to length location, but got %s", x)
+
+		// Attempt to read the pointer, it should always equal 32.
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read pointer in gas limit update")
 		}
-		if x := common.BytesToHash(ev.Data[32:64]); x != (common.Hash{31: 32}) {
-			return fmt.Errorf("expected length of 1 bytes32, but got %s", x)
+		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
-		if !bytes.Equal(ev.Data[64:64+24], make([]byte, 24)) {
-			return fmt.Errorf("expected zero padding for gaslimit, but got %x", ev.Data)
+
+		// Attempt to read the length, it should also always equal 32.
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read length in gas limit update")
 		}
-		destSysCfg.GasLimit = binary.BigEndian.Uint64(ev.Data[64+24:])
+		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
+		}
+
+		// Attempt to read the gas limit
+		if _, err := reader.Read(word); err != nil {
+			return fmt.Errorf("failed to read gas limit in gas limit update")
+		}
+		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
+		// Check that the gas limit is correctly zero-padded.
+		if !bytes.Equal(word[:24], make([]byte, 24)) {
+			return fmt.Errorf("expected zero padding for gaslimit, but got %x", word)
+		}
+		destSysCfg.GasLimit = binary.BigEndian.Uint64(word[24:])
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
