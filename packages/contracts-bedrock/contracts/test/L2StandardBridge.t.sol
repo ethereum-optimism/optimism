@@ -299,13 +299,21 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - supported token pair emits DepositFinalized
     // - invalid deposit calls Withdrawer.initiateWithdrawal
     function test_finalizeDeposit_succeeds() external {
-        // TODO: events and calls
-
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
             abi.encode(address(L2Bridge.OTHER_BRIDGE()))
         );
+
+        vm.expectCall(
+            address(L2Token),
+            abi.encodeWithSelector(
+                OptimismMintableERC20.mint.selector,
+                alice,
+                100
+            )
+        );
+
         vm.expectEmit(true, true, true, true, address(L2Bridge));
         emit ERC20BridgeFinalized(
             address(L2Token), // localToken
@@ -315,8 +323,10 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             100,
             hex""
         );
+
         vm.expectEmit(true, true, true, true, address(L2Bridge));
         emit DepositFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
+
         vm.prank(address(L2Messenger));
         L2Bridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
     }
