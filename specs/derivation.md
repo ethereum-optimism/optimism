@@ -743,8 +743,8 @@ Engine API Error handling:
 
 If no forkchoice updates or L1 data remain to be processed, and if the next possible L2 block is already available
 through an unsafe source such as the sequencer publishing it via the p2p network, then it is optimistically processed as
-an "unsafe" block. This reduces later derivation work to just consolidation with L1 in the happy case, and enables the user
-to see the head of the L2 chain faster than the L1 may confirm the L2 batches.
+an "unsafe" block. This reduces later derivation work to just consolidation with L1 in the happy case, and enables the
+user to see the head of the L2 chain faster than the L1 may confirm the L2 batches.
 
 To process unsafe payloads, the payload must:
 
