@@ -423,7 +423,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 				truncatedParams = truncatedParams[:maxRequestBodyLogLen*2]
 			}
 
-			log.Info(
+			log.Warn(
 				"got eth_sendRawTransaction",
 				"req_id", GetReqID(ctx),
 				"method", parsedReq.Method,
