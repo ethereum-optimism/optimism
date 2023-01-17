@@ -419,12 +419,12 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 		// Temp: log send raw transaction requests
 		if parsedReq.Method == "eth_sendRawTransaction" {
 			truncatedParams := parsedReq.Params
-			if len(truncatedParams) > maxRequestBodyLogLen {
-				truncatedParams = truncatedParams[:maxRequestBodyLogLen]
+			if len(truncatedParams) > maxRequestBodyLogLen*2 {
+				truncatedParams = truncatedParams[:maxRequestBodyLogLen*2]
 			}
 
 			log.Info(
-				"eth_sendRawTransaction",
+				"got eth_sendRawTransaction",
 				"req_id", GetReqID(ctx),
 				"method", parsedReq.Method,
 				"data", string(truncatedParams),
