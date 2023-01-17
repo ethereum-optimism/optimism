@@ -847,9 +847,9 @@ finality-signals and batch-inclusion, the derived L2 chain will become irreversi
 Note that this form of finalization only affects inputs, and nodes can then subjectively say the chain is irreversible,
 by reproducing the chain from these irreversible inputs and the set protocol rules and parameters.
 
-This is however completely unrelated to the outputs posted on L1, which require a form of proof like to finalize.
-Optimistic-rollup outputs like withdrawals on L1 are only labeled "finalized" after passing a week without dispute
-(fault proof challenge), a name-collision with the proof-of-stake finalization.
+This is however completely unrelated to the outputs posted on L1, which require a form of proof like a fault-proof or
+zk-proof to finalize. Optimistic-rollup outputs like withdrawals on L1 are only labeled "finalized" after passing a week
+without dispute (fault proof challenge window), a name-collision with the proof-of-stake finalization.
 
 [merge]: https://ethereum.org/en/upgrades/merge/
 [l1-finality]: https://ethereum.org/en/developers/docs/consensus-mechanisms/pos/#finality
