@@ -28,6 +28,9 @@ var (
 	ConfigUpdateEventVersion0 = common.Hash{}
 )
 
+// A left-padded uint256 equal to 32.
+var OneWordUint = common.Hash{31: 32}
+
 var logger = log.New("derive", "system_config")
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
@@ -77,15 +80,13 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	reader := bytes.NewReader(ev.Data)
 
 	// Helper function to prevent code duplication.
-	readWord := func() *[32]byte {
-		// Allocate a new slice to return
-		b := make([]byte, 32)
-		if _, err := reader.Read(b); err != nil {
+	readWord := func() (b [32]byte) {
+		if _, err := reader.Read(b[:]); err != nil {
 			// The possible error returned by `Read` is ignored due to the length check of the unindexed data in
 			// all cases of the below switch statement. While we don't panic here, this log should *never* be emitted.
 			logger.Crit("failed to read word from unindexed log data")
 		}
-		return (*[32]byte)(b)
+		return b
 	}
 
 	// Attempt to read unindexed data
@@ -96,12 +97,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
@@ -119,18 +120,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should always equal 64.
-		if word := readWord(); common.BytesToHash(word[:]) != (common.Hash{31: 64}) {
+		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
 			return fmt.Errorf("expected length to be 64 bytes, but got %s", word)
 		}
 
 		// Set the system config's overhead and scalar values to the values read from the log
-		copy(destSysCfg.Overhead[:], readWord()[:])
-		copy(destSysCfg.Scalar[:], readWord()[:])
+		destSysCfg.Overhead = readWord()
+		destSysCfg.Scalar = readWord()
 		return nil
 	case SystemConfigUpdateGasLimit:
 		if len(ev.Data) != 32*3 {
@@ -138,12 +139,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		if word := readWord(); common.BytesToHash(word[:]) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word[:]) != OneWordUint {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
