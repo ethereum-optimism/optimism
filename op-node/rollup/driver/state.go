@@ -42,6 +42,14 @@ type Driver struct {
 	// It tells the caller that the reset occurred by closing the passed in channel.
 	forceReset chan chan struct{}
 
+	// Upon receiving a channel in this channel, the sequencer is started.
+	// It tells the caller that the sequencer started by closing the passed in channel.
+	startSequencer chan chan struct{}
+
+	// Upon receiving a channel in this channel, the sequencer is stopped.
+	// It tells the caller that the sequencer stopped by closing the passed in channel.
+	stopSequencer chan chan struct{}
+
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
 
@@ -367,6 +375,15 @@ func (s *Driver) eventLoop() {
 			s.derivation.Reset()
 			s.metrics.RecordPipelineReset()
 			close(respCh)
+		case respCh := <-s.startSequencer:
+			s.log.Info("Sequencer has been started")
+			s.driverConfig.SequencerEnabled = true
+			sequencingPlannedOnto = eth.BlockID{}
+			close(respCh)
+		case respCh := <-s.stopSequencer:
+			s.log.Warn("Sequencer has been stopped")
+			s.driverConfig.SequencerEnabled = false
+			close(respCh)
 		case <-s.done:
 			return
 		}
@@ -382,6 +399,36 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	case s.forceReset <- respCh:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-respCh:
+			return nil
+		}
+	}
+}
+
+func (s *Driver) StartSequencer(ctx context.Context) error {
+	respCh := make(chan struct{}, 1)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.startSequencer <- respCh:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-respCh:
+			return nil
+		}
+	}
+}
+
+func (s *Driver) StopSequencer(ctx context.Context) error {
+	respCh := make(chan struct{}, 1)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.stopSequencer <- respCh:
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
