@@ -87,23 +87,24 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	// Create a reader of the unindexed data
 	reader := bytes.NewReader(ev.Data)
 
-	// Helper function to prevent code duplication.
+	// Counter for the number of bytes read from `reader` via `readWord`
+	countReadBytes := 0
+
+	// Helper function to read a word from the log data reader
 	readWord := func() (b [32]byte) {
 		if _, err := reader.Read(b[:]); err != nil {
-			// The possible error returned by `Read` is ignored due to the length check of the unindexed data in
-			// all cases of the below switch statement. While we don't panic here, this log should *never* be emitted.
-			logger.Crit("failed to read word from unindexed log data")
+			// If there is an error reading the next 32 bytes from the reader, return an empty
+			// 32 byte array. We always check that the number of bytes read (`countReadBytes`)
+			// is equal to the expected amount at the end of each switch case.
+			return b
 		}
+		countReadBytes += 32
 		return b
 	}
 
 	// Attempt to read unindexed data
 	switch updateType {
 	case SystemConfigUpdateBatcher:
-		if len(ev.Data) != 32*3 {
-			return fmt.Errorf("expected 32*3 bytes in batcher hash update, but got %d bytes", len(ev.Data))
-		}
-
 		// Read the pointer, it should always equal 32.
 		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
@@ -121,12 +122,13 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return fmt.Errorf("expected version 0 batcher hash with zero padding, but got %x", word)
 		}
 		destSysCfg.BatcherAddr.SetBytes(word[12:])
-		return nil
-	case SystemConfigUpdateGasConfig:
-		if len(ev.Data) != 32*4 {
-			return fmt.Errorf("expected 32*4 bytes in GPO params update data, but got %d", len(ev.Data))
+
+		if countReadBytes != 32*3 {
+			return NewCriticalError(fmt.Errorf("expected 32*3 bytes in batcher hash update, but got %d bytes", len(ev.Data)))
 		}
 
+		return nil
+	case SystemConfigUpdateGasConfig:
 		// Read the pointer, it should always equal 32.
 		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
@@ -140,12 +142,13 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		// Set the system config's overhead and scalar values to the values read from the log
 		destSysCfg.Overhead = readWord()
 		destSysCfg.Scalar = readWord()
-		return nil
-	case SystemConfigUpdateGasLimit:
-		if len(ev.Data) != 32*3 {
-			return fmt.Errorf("expected 32*3 bytes in gas limit update, but got %d bytes", len(ev.Data))
+
+		if countReadBytes != 32*4 {
+			return NewCriticalError(fmt.Errorf("expected 32*4 bytes in GPO params update data, but got %d", len(ev.Data)))
 		}
 
+		return nil
+	case SystemConfigUpdateGasLimit:
 		// Read the pointer, it should always equal 32.
 		if word := readWord(); word != OneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
@@ -163,6 +166,11 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 			return fmt.Errorf("expected zero padding for gaslimit, but got %x", word)
 		}
 		destSysCfg.GasLimit = binary.BigEndian.Uint64(word[24:])
+
+		if countReadBytes != 32*3 {
+			return NewCriticalError(fmt.Errorf("expected 32*3 bytes in gas limit update, but got %d bytes", len(ev.Data)))
+		}
+
 		return nil
 	case SystemConfigUpdateUnsafeBlockSigner:
 		// Ignored in derivation. This configurable applies to runtime configuration outside of the derivation.
