@@ -427,7 +427,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 				"eth_sendRawTransaction",
 				"req_id", GetReqID(ctx),
 				"method", parsedReq.Method,
-				"data", string(parsedReq.Params),
+				"data", string(truncatedParams),
 			)
 		}
 	}
