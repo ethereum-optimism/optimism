@@ -34,6 +34,9 @@ var OneWordUint = common.Hash{31: 32}
 // 24 zero bytes (the padding for a uint64 in a 32 byte word)
 var Uint64Padding = make([]byte, 24)
 
+// 12 zero bytes (the padding for an Ethereum address in a 32 byte word)
+var AddressPadding = make([]byte, 12)
+
 var logger = log.New("derive", "system_config")
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
@@ -112,7 +115,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the batcher address is correctly zero-padded.
 		word := readWord()
-		if !bytes.Equal(word[:12], make([]byte, 12)) {
+		if !bytes.Equal(word[:12], AddressPadding) {
 			return fmt.Errorf("expected version 0 batcher hash with zero padding, but got %x", word)
 		}
 		destSysCfg.BatcherAddr.SetBytes(word[12:])
