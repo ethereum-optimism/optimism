@@ -44,31 +44,57 @@ contract AttestationStation is Semver {
     );
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      */
-    constructor() Semver(1, 0, 0) {}
+    constructor() Semver(1, 1, 0) {}
+
+    /**
+     * @notice Allows anyone to create an attestation.
+     *
+     * @param _about Address that the attestation is about.
+     * @param _key   A key used to namespace the attestation.
+     * @param _val   An arbitrary value stored as part of the attestation.
+     */
+    function attest(
+        address _about,
+        bytes32 _key,
+        bytes memory _val
+    ) external {
+        _attest(_about, _key, _val);
+    }
 
     /**
      * @notice Allows anyone to create attestations.
      *
      * @param _attestations An array of attestation data.
      */
-    function attest(AttestationData[] memory _attestations) public {
+    function attest(AttestationData[] calldata _attestations) external {
         uint256 length = _attestations.length;
         for (uint256 i = 0; i < length; ) {
             AttestationData memory attestation = _attestations[i];
-            attestations[msg.sender][attestation.about][attestation.key] = attestation.val;
 
-            emit AttestationCreated(
-                msg.sender,
-                attestation.about,
-                attestation.key,
-                attestation.val
-            );
+            _attest(attestation.about, attestation.key, attestation.val);
 
             unchecked {
                 ++i;
             }
         }
+    }
+
+    /**
+     * @notice Internal function that stores the attestation in a mapping.
+     *
+     * @param _about Address that the attestation is about.
+     * @param _key   A key used to namespace the attestation.
+     * @param _val   An arbitrary value stored as part of the attestation.
+     */
+    function _attest(
+        address _about,
+        bytes32 _key,
+        bytes memory _val
+    ) internal {
+        attestations[msg.sender][_about][_key] = _val;
+
+        emit AttestationCreated(msg.sender, _about, _key, _val);
     }
 }
