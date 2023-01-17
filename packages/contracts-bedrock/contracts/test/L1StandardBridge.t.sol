@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
+import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
@@ -74,25 +75,73 @@ contract L1StandardBridge_DepositETH_Test is Bridge_Initializer {
     // - ETH ends up in the optimismPortal
     function test_depositETH_succeeds() external {
         assertEq(address(op).balance, 0);
+        uint256 nonce = L1Messenger.messageNonce();
+        uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
+        address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
         vm.expectEmit(true, true, true, true);
         emit ETHBridgeInitiated(alice, alice, 500, hex"ff");
+
+        bytes memory message = abi.encodeWithSelector(
+            StandardBridge.finalizeBridgeETH.selector,
+            alice,
+            alice,
+            500,
+            hex"ff"
+        );
 
         vm.expectCall(
             address(L1Messenger),
             abi.encodeWithSelector(
                 CrossDomainMessenger.sendMessage.selector,
                 address(L2Bridge),
-                abi.encodeWithSelector(
-                    StandardBridge.finalizeBridgeETH.selector,
-                    alice,
-                    alice,
-                    500,
-                    hex"ff"
-                ),
+                message,
                 50000
             )
         );
+
+        bytes memory innerMessage = abi.encodeWithSelector(
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(L1Bridge),
+            address(L2Bridge),
+            500,
+            50000,
+            message
+        );
+
+        uint64 baseGas = L1Messenger.baseGas(message, 50000);
+        vm.expectCall(
+            address(op),
+            abi.encodeWithSelector(
+                OptimismPortal.depositTransaction.selector,
+                address(L2Messenger),
+                500,
+                baseGas,
+                false,
+                innerMessage
+            )
+        );
+
+        bytes memory opaqueData = abi.encodePacked(
+            uint256(500),
+            uint256(500),
+            baseGas,
+            false,
+            innerMessage
+        );
+
+        // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
+        vm.expectEmit(true, true, true, true);
+        emit TransactionDeposited(l1MessengerAliased, address(L2Messenger), version, opaqueData);
+
+        // SentMessage event emitted by the CrossDomainMessenger
+        vm.expectEmit(true, true, true, true);
+        emit SentMessage(address(L2Bridge), address(L1Bridge), message, nonce, 50000);
+
+        // SentMessageExtension1 event emitted by the CrossDomainMessenger
+        vm.expectEmit(true, true, true, true);
+        emit SentMessageExtension1(address(L1Bridge), 500);
 
         vm.prank(alice, alice);
         L1Bridge.depositETH{ value: 500 }(50000, hex"ff");
@@ -214,6 +263,9 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
     function test_depositERC20To_succeeds() external {
         vm.expectEmit(true, true, true, true);
         emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
+
+        vm.expectEmit(true, true, true, true);
+        emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
 
         deal(address(L1Token), alice, 100000, true);
 
@@ -353,7 +405,7 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_TestFail is Bridge_Initializer
     }
 }
 
-// Todo: move these next two contracts into a test file specific to the direction agnostic
+// TODO: move these next two contracts into a test file specific to the direction agnostic
 // StandardBridge interface
 contract L1StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
     function test_finalizeBridgeETH() external {
