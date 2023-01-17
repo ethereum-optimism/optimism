@@ -263,7 +263,7 @@ The rest of the diagram is conceptually distinct from the first part and illustr
 channels have been reordered.
 
 The first line shows batcher transactions. Note that in this case, there exists an ordering of the batches that makes
-all frames within the channels appear contiguously. This is not true in true in general. For instance, in the second
+all frames within the channels appear contiguously. This is not true in general. For instance, in the second
 transaction, the position of `A1` and `B0` could have been inverted for exactly the same result — no changes needed in
 the rest of the diagram.
 

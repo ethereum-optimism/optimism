@@ -34,7 +34,11 @@ const (
 	globalValidateThrottle = 512
 	gossipHeartbeat        = 500 * time.Millisecond
 	// seenMessagesTTL limits the duration that message IDs are remembered for gossip deduplication purposes
-	seenMessagesTTL = 80 * gossipHeartbeat
+	seenMessagesTTL  = 80 * gossipHeartbeat
+	DefaultMeshD     = 8  // topic stable mesh target count
+	DefaultMeshDlo   = 6  // topic stable mesh low watermark
+	DefaultMeshDhi   = 12 // topic stable mesh high watermark
+	DefaultMeshDlazy = 6  // gossip target
 )
 
 // Message domains, the msg id function uncompresses to keep data monomorphic,
@@ -42,6 +46,10 @@ const (
 
 var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
+
+type GossipSetupConfigurables interface {
+	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
+}
 
 type GossipRuntimeConfig interface {
 	P2PSequencerAddress() common.Address
@@ -106,12 +114,24 @@ func BuildMsgIdFn(cfg *rollup.Config) pubsub.MsgIdFunction {
 	}
 }
 
+func (p *Config) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
+	params.D = p.MeshD
+	params.Dlo = p.MeshDLo
+	params.Dhi = p.MeshDHi
+	params.Dlazy = p.MeshDLazy
+
+	// in the future we may add more advanced options like scoring and PX / direct-mesh / episub
+	return []pubsub.Option{
+		pubsub.WithFloodPublish(p.FloodPublish),
+	}
+}
+
 func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	params := pubsub.DefaultGossipSubParams()
-	params.D = 8                               // topic stable mesh target count
-	params.Dlo = 6                             // topic stable mesh low watermark
-	params.Dhi = 12                            // topic stable mesh high watermark
-	params.Dlazy = 6                           // gossip target
+	params.D = DefaultMeshD                    // topic stable mesh target count
+	params.Dlo = DefaultMeshDlo                // topic stable mesh low watermark
+	params.Dhi = DefaultMeshDhi                // topic stable mesh high watermark
+	params.Dlazy = DefaultMeshDlazy            // gossip target
 	params.HeartbeatInterval = gossipHeartbeat // interval of heartbeat
 	params.FanoutTTL = 24 * time.Second        // ttl for fanout maps for topics we are not subscribed to but have published to
 	params.HistoryLength = 12                  // number of windows to retain full messages in cache for IWANT responses
@@ -120,12 +140,13 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, m GossipMetricer) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
 	}
-	return pubsub.NewGossipSub(p2pCtx, h,
+	params := BuildGlobalGossipParams(cfg)
+	gossipOpts := []pubsub.Option{
 		pubsub.WithMaxMessageSize(maxGossipSize),
 		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
 		pubsub.WithNoAuthor(),
@@ -137,9 +158,11 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, m Gos
 		pubsub.WithSeenMessagesTTL(seenMessagesTTL),
 		pubsub.WithPeerExchange(false),
 		pubsub.WithBlacklist(denyList),
-		pubsub.WithGossipSubParams(BuildGlobalGossipParams(cfg)),
+		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
-	)
+	}
+	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)
+	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
 	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
 }
 

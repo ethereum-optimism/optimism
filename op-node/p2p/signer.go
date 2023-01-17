@@ -4,16 +4,13 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
-	"fmt"
 	"io"
 	"math/big"
 
-	"github.com/urfave/cli"
-
-	"github.com/ethereum-optimism/optimism/op-node/flags"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
 var SigningDomainBlocksV1 = [32]byte{}
@@ -79,28 +76,6 @@ func (p *PreparedSigner) SetupSigner(ctx context.Context) (Signer, error) {
 	return p.Signer, nil
 }
 
-// TODO: implement remote signer setup (config to authenticated endpoint)
-// and remote signer itself (e.g. a open http client to make signing requests)
-
 type SignerSetup interface {
 	SetupSigner(ctx context.Context) (Signer, error)
-}
-
-// LoadSignerSetup loads a configuration for a Signer to be set up later
-func LoadSignerSetup(ctx *cli.Context) (SignerSetup, error) {
-	key := ctx.GlobalString(flags.SequencerP2PKeyFlag.Name)
-	if key != "" {
-		// Mnemonics are bad because they leak *all* keys when they leak.
-		// Unencrypted keys from file are bad because they are easy to leak (and we are not checking file permissions).
-		priv, err := crypto.HexToECDSA(key)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read batch submitter key: %w", err)
-		}
-
-		return &PreparedSigner{Signer: NewLocalSigner(priv)}, nil
-	}
-
-	// TODO: create remote signer
-
-	return nil, nil
 }
