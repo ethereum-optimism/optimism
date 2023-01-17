@@ -415,6 +415,21 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 		batchGroupID := ids[id]
 		batchGroup := batchGroup{groupID: batchGroupID, backendGroup: group}
 		batches[batchGroup] = append(batches[batchGroup], batchElem{parsedReq, i})
+
+		// Temp: log send raw transaction requests
+		if parsedReq.Method == "eth_sendRawTransaction" {
+			truncatedParams := parsedReq.Params
+			if len(truncatedParams) > maxRequestBodyLogLen {
+				truncatedParams = truncatedParams[:maxRequestBodyLogLen]
+			}
+
+			log.Info(
+				"eth_sendRawTransaction",
+				"req_id", GetReqID(ctx),
+				"method", parsedReq.Method,
+				"data", string(parsedReq.Params),
+			)
+		}
 	}
 
 	var cached bool
