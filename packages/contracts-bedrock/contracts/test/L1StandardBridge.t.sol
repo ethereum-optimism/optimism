@@ -587,7 +587,7 @@ contract L1StandardBridge_FinalizeERC20Withdrawal_TestFail is Bridge_Initializer
 }
 
 contract L1StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
-    function test_finalizeBridgeETH() external {
+    function test_finalizeBridgeETH_succeeds() external {
         address messenger = address(L1Bridge.messenger());
         vm.mockCall(
             messenger,

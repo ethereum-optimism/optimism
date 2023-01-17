@@ -65,7 +65,15 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
         // L2ToL1MessagePasser will emit a MessagePassed event
         vm.expectEmit(true, true, true, true);
-        emit MessagePassed(nonce, address(L2Messenger), address(L1Messenger), 100, baseGas, withdrawalData, withdrawalHash);
+        emit MessagePassed(
+            nonce,
+            address(L2Messenger),
+            address(L1Messenger),
+            100,
+            baseGas,
+            withdrawalData,
+            withdrawalHash
+        );
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true);
@@ -154,7 +162,15 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         emit ERC20BridgeInitiated(address(L2Token), address(L1Token), alice, alice, 100, hex"");
 
         vm.expectEmit(true, true, true, true);
-        emit MessagePassed(nonce, address(L2Messenger), address(L1Messenger), 0, baseGas, withdrawalData, withdrawalHash);
+        emit MessagePassed(
+            nonce,
+            address(L2Messenger),
+            address(L1Messenger),
+            0,
+            baseGas,
+            withdrawalData,
+            withdrawalHash
+        );
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true);
@@ -249,7 +265,15 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         emit ERC20BridgeInitiated(address(L2Token), address(L1Token), alice, bob, 100, hex"");
 
         vm.expectEmit(true, true, true, true);
-        emit MessagePassed(nonce, address(L2Messenger), address(L1Messenger), 0, baseGas, withdrawalData, withdrawalHash);
+        emit MessagePassed(
+            nonce,
+            address(L2Messenger),
+            address(L1Messenger),
+            0,
+            baseGas,
+            withdrawalData,
+            withdrawalHash
+        );
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true);
@@ -307,11 +331,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 
         vm.expectCall(
             address(L2Token),
-            abi.encodeWithSelector(
-                OptimismMintableERC20.mint.selector,
-                alice,
-                100
-            )
+            abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100)
         );
 
         vm.expectEmit(true, true, true, true, address(L2Bridge));
@@ -369,7 +389,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 }
 
 contract L2StandardBridge_FinalizeBridgeETH_Test is Bridge_Initializer {
-    function test_finalizeBridgeETH() external {
+    function test_finalizeBridgeETH_succeeds() external {
         address messenger = address(L2Bridge.messenger());
         vm.mockCall(
             messenger,
