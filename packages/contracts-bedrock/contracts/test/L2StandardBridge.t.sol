@@ -6,6 +6,10 @@ import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { console } from "forge-std/console.sol";
+import { StandardBridge } from "../universal/StandardBridge.sol";
+import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
+import { Hashing } from "../libraries/Hashing.sol";
+import { Types } from "../libraries/Types.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
@@ -24,14 +28,70 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - can accept ETH
     function test_receive_succeeds() external {
         assertEq(address(messagePasser).balance, 0);
+        uint256 nonce = L2Messenger.messageNonce();
+
+        bytes memory message = abi.encodeWithSelector(
+            StandardBridge.finalizeBridgeETH.selector,
+            alice,
+            alice,
+            100,
+            hex""
+        );
+        uint64 baseGas = L2Messenger.baseGas(message, 200_000);
+        bytes memory withdrawalData = abi.encodeWithSelector(
+            CrossDomainMessenger.relayMessage.selector,
+            nonce,
+            address(L2Bridge),
+            address(L1Bridge),
+            100,
+            200_000,
+            message
+        );
+        bytes32 withdrawalHash = Hashing.hashWithdrawal(
+            Types.WithdrawalTransaction({
+                nonce: nonce,
+                sender: address(L2Messenger),
+                target: address(L1Messenger),
+                value: 100,
+                gasLimit: baseGas,
+                data: withdrawalData
+            })
+        );
 
         vm.expectEmit(true, true, true, true);
         emit ETHBridgeInitiated(alice, alice, 100, hex"");
 
-        // TODO: L2Messenger should be called
-        // TODO: L2ToL1MessagePasser should be called
-        // TODO: withdrawal hash should be computed correctly
-        // TODO: events from each contract
+        // L2ToL1MessagePasser will emit a MessagePassed event
+        vm.expectEmit(true, true, true, true);
+        emit MessagePassed(nonce, address(L2Messenger), address(L1Messenger), 100, baseGas, withdrawalData, withdrawalHash);
+
+        // SentMessage event emitted by the CrossDomainMessenger
+        vm.expectEmit(true, true, true, true);
+        emit SentMessage(address(L1Bridge), address(L2Bridge), message, nonce, 200_000);
+
+        // SentMessageExtension1 event emitted by the CrossDomainMessenger
+        vm.expectEmit(true, true, true, true);
+        emit SentMessageExtension1(address(L2Bridge), 100);
+
+        vm.expectCall(
+            address(L2Messenger),
+            abi.encodeWithSelector(
+                CrossDomainMessenger.sendMessage.selector,
+                address(L1Bridge),
+                message,
+                200_000 // StandardBridge's RECEIVE_DEFAULT_GAS_LIMIT
+            )
+        );
+
+        vm.expectCall(
+            Predeploys.L2_TO_L1_MESSAGE_PASSER,
+            abi.encodeWithSelector(
+                L2ToL1MessagePasser.initiateWithdrawal.selector,
+                address(L1Messenger),
+                baseGas, // StandardBridge's RECEIVE_DEFAULT_GAS_LIMIT
+                withdrawalData
+            )
+        );
 
         vm.prank(alice, alice);
         (bool success, ) = address(L2Bridge).call{ value: 100 }(hex"");
