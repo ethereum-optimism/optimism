@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/hashicorp/go-multierror"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -30,16 +29,14 @@ var (
 
 var (
 	// A left-padded uint256 equal to 32.
-	OneWordUint = common.Hash{31: 32}
+	oneWordUint = common.Hash{31: 32}
 	// A left-padded uint256 equal to 64.
-	TwoWordUint = common.Hash{31: 64}
+	twoWordUint = common.Hash{31: 64}
 	// 24 zero bytes (the padding for a uint64 in a 32 byte word)
-	Uint64Padding = make([]byte, 24)
+	uint64Padding = make([]byte, 24)
 	// 12 zero bytes (the padding for an Ethereum address in a 32 byte word)
-	AddressPadding = make([]byte, 12)
+	addressPadding = make([]byte, 12)
 )
-
-var logger = log.New("derive", "system_config")
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
 func UpdateSystemConfigWithL1Receipts(sysCfg *eth.SystemConfig, receipts []*types.Receipt, cfg *rollup.Config) error {
@@ -106,19 +103,19 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 	switch updateType {
 	case SystemConfigUpdateBatcher:
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); word != OneWordUint {
+		if word := readWord(); word != oneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		if word := readWord(); word != OneWordUint {
+		if word := readWord(); word != oneWordUint {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the batcher address is correctly zero-padded.
 		word := readWord()
-		if !bytes.Equal(word[:12], AddressPadding) {
+		if !bytes.Equal(word[:12], addressPadding) {
 			return fmt.Errorf("expected version 0 batcher hash with zero padding, but got %x", word)
 		}
 		destSysCfg.BatcherAddr.SetBytes(word[12:])
@@ -130,12 +127,12 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return nil
 	case SystemConfigUpdateGasConfig:
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); word != OneWordUint {
+		if word := readWord(); word != oneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should always equal 64.
-		if word := readWord(); word != TwoWordUint {
+		if word := readWord(); word != twoWordUint {
 			return fmt.Errorf("expected length to be 64 bytes, but got %s", word)
 		}
 
@@ -150,19 +147,19 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return nil
 	case SystemConfigUpdateGasLimit:
 		// Read the pointer, it should always equal 32.
-		if word := readWord(); word != OneWordUint {
+		if word := readWord(); word != oneWordUint {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		if word := readWord(); word != OneWordUint {
+		if word := readWord(); word != oneWordUint {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the gas limit is correctly zero-padded.
 		word := readWord()
-		if !bytes.Equal(word[:24], Uint64Padding) {
+		if !bytes.Equal(word[:24], uint64Padding) {
 			return fmt.Errorf("expected zero padding for gaslimit, but got %x", word)
 		}
 		destSysCfg.GasLimit = binary.BigEndian.Uint64(word[24:])
