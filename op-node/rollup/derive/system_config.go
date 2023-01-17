@@ -75,21 +75,17 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 
 	// Create a reader of the unindexed data
 	reader := bytes.NewReader(ev.Data)
-	// Allocate a placeholder word to read into
-	word := make([]byte, 32)
 
 	// Helper function to prevent code duplication.
-	readIntoWord := func(b []byte) {
-		// Sanity check that the byte array we're reading into is always 32 bytes in length.
-		if len(b) != 32 {
-			panic("invalid word length")
-		}
-
+	readWord := func() []byte {
+		// Allocate a new slice to return
+		b := make([]byte, 32)
 		if _, err := reader.Read(b); err != nil {
 			// The possible error returned by `Read` is ignored due to the length check of the unindexed data in
 			// all cases of the below switch statement. While we don't panic here, this log should *never* be emitted.
 			logger.Crit("failed to read word from unindexed log data")
 		}
+		return b
 	}
 
 	// Attempt to read unindexed data
@@ -100,21 +96,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		readIntoWord(word)
-		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		readIntoWord(word)
-		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
-		// Read the updated batcher address
-		readIntoWord(word)
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the batcher address is correctly zero-padded.
+		word := readWord()
 		if !bytes.Equal(word[:12], make([]byte, 12)) {
 			return fmt.Errorf("expected version 0 batcher hash with zero padding, but got %x", word)
 		}
@@ -126,29 +119,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		readIntoWord(word)
-		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should always equal 64.
-		readIntoWord(word)
-		if common.BytesToHash(word) != (common.Hash{31: 64}) {
+		if word := readWord(); common.BytesToHash(word) != (common.Hash{31: 64}) {
 			return fmt.Errorf("expected length to be 64 bytes, but got %s", word)
 		}
 
-		// Read the overhead
-		readIntoWord(word)
-
-		// Allocate a second word to read the scalar into
-		secondWord := make([]byte, 32)
-
-		// Read the scalar
-		readIntoWord(secondWord)
-
 		// Set the system config's overhead and scalar values to the values read from the log
-		copy(destSysCfg.Overhead[:], word)
-		copy(destSysCfg.Scalar[:], secondWord)
+		copy(destSysCfg.Overhead[:], readWord())
+		copy(destSysCfg.Scalar[:], readWord())
 		return nil
 	case SystemConfigUpdateGasLimit:
 		if len(ev.Data) != 32*3 {
@@ -156,21 +138,18 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		}
 
 		// Read the pointer, it should always equal 32.
-		readIntoWord(word)
-		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected offset to point to length location, but got %s", word)
 		}
 
 		// Read the length, it should also always equal 32.
-		readIntoWord(word)
-		if common.BytesToHash(word) != (common.Hash{31: 32}) {
+		if word := readWord(); common.BytesToHash(word) != (common.Hash{31: 32}) {
 			return fmt.Errorf("expected length to be 32 bytes, but got %s", word)
 		}
 
-		// Read the gas limit
-		readIntoWord(word)
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the gas limit is correctly zero-padded.
+		word := readWord()
 		if !bytes.Equal(word[:24], make([]byte, 24)) {
 			return fmt.Errorf("expected zero padding for gaslimit, but got %x", word)
 		}
