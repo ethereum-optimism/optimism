@@ -31,6 +31,9 @@ var (
 // A left-padded uint256 equal to 32.
 var OneWordUint = common.Hash{31: 32}
 
+// 24 zero bytes (the padding for a uint64 in a 32 byte word)
+var Uint64Padding = make([]byte, 24)
+
 var logger = log.New("derive", "system_config")
 
 // UpdateSystemConfigWithL1Receipts filters all L1 receipts to find config updates and applies the config updates to the given sysCfg
@@ -151,7 +154,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		// Indexing `word` directly is always safe here, it is guaranteed to be 32 bytes in length.
 		// Check that the gas limit is correctly zero-padded.
 		word := readWord()
-		if !bytes.Equal(word[:24], make([]byte, 24)) {
+		if !bytes.Equal(word[:24], Uint64Padding) {
 			return fmt.Errorf("expected zero padding for gaslimit, but got %x", word)
 		}
 		destSysCfg.GasLimit = binary.BigEndian.Uint64(word[24:])
