@@ -170,3 +170,16 @@ func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 
 	return value, nil
 }
+
+// CrossDomainMessage turns the LegacyWithdrawal into
+// a CrossDomainMessage
+func (w *LegacyWithdrawal) CrossDomainMessage() *CrossDomainMessage {
+	return &CrossDomainMessage{
+		Nonce:    w.Nonce,
+		Sender:   w.Sender,
+		Target:   w.Target,
+		Value:    new(big.Int),
+		GasLimit: new(big.Int),
+		Data:     []byte(w.Data),
+	}
+}
