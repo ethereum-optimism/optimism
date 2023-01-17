@@ -653,7 +653,7 @@ This history does not have to be complete, but enables later L1 finality signals
 
 #### Engine API usage
 
-To interaction with the engine, the [execution engine API][exec-engine] is used, with the following JSON-RPC methods:
+To interact with the engine, the [execution engine API][exec-engine] is used, with the following JSON-RPC methods:
 
 [exec-engine]: exec-engine.md
 
@@ -743,7 +743,7 @@ Engine API Error handling:
 
 If no forkchoice updates or L1 data remain to be processed, and if the next possible L2 block is already available
 through an unsafe source such as the sequencer publishing it via the p2p network, then it is optimistically processed as
-"unsafe" block. This reduces later derivation work to just consolidation with L1 in the happy case, and enables the user
+an "unsafe" block. This reduces later derivation work to just consolidation with L1 in the happy case, and enables the user
 to see the head of the L2 chain faster than the L1 may confirm the L2 batches.
 
 To process unsafe payloads, the payload must:
