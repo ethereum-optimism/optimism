@@ -2,11 +2,13 @@ package crossdomain
 
 import (
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -28,7 +30,7 @@ type Withdrawal struct {
 	Target   *common.Address `json:"target"`
 	Value    *big.Int        `json:"value"`
 	GasLimit *big.Int        `json:"gasLimit"`
-	Data     []byte          `json:"data"`
+	Data     hexutil.Bytes   `json:"data"`
 }
 
 // NewWithdrawal will create a Withdrawal
@@ -44,7 +46,7 @@ func NewWithdrawal(
 		Target:   target,
 		Value:    value,
 		GasLimit: gasLimit,
-		Data:     data,
+		Data:     hexutil.Bytes(data),
 	}
 }
 
@@ -58,9 +60,9 @@ func (w *Withdrawal) Encode() ([]byte, error) {
 		{Name: "gasLimit", Type: Uint256Type},
 		{Name: "data", Type: BytesType},
 	}
-	enc, err := args.Pack(w.Nonce, w.Sender, w.Target, w.Value, w.GasLimit, w.Data)
+	enc, err := args.Pack(w.Nonce, w.Sender, w.Target, w.Value, w.GasLimit, []byte(w.Data))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot encode withdrawal: %w", err)
 	}
 	return enc, nil
 }
@@ -110,7 +112,7 @@ func (w *Withdrawal) Decode(data []byte) error {
 	w.Target = &target
 	w.Value = value
 	w.GasLimit = gasLimit
-	w.Data = msgData
+	w.Data = hexutil.Bytes(msgData)
 	return nil
 }
 
@@ -150,6 +152,6 @@ func (w *Withdrawal) WithdrawalTransaction() bindings.TypesWithdrawalTransaction
 		Target:   *w.Target,
 		Value:    w.Value,
 		GasLimit: w.GasLimit,
-		Data:     w.Data,
+		Data:     []byte(w.Data),
 	}
 }
