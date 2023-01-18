@@ -1,8 +1,8 @@
 package metrics
 
 import (
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // CacheMetrics implements the Metrics interface in the caching package,
@@ -34,16 +34,16 @@ func (m *CacheMetrics) CacheGet(typeLabel string, hit bool) {
 	}
 }
 
-func NewCacheMetrics(registry prometheus.Registerer, ns string, name string, displayName string) *CacheMetrics {
+func NewCacheMetrics(factory metrics.Factory, ns string, name string, displayName string) *CacheMetrics {
 	return &CacheMetrics{
-		SizeVec: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		SizeVec: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      name + "_size",
 			Help:      displayName + " cache size",
 		}, []string{
 			"type",
 		}),
-		GetVec: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		GetVec: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      name + "_get",
 			Help:      displayName + " lookups, hitting or not",
@@ -51,7 +51,7 @@ func NewCacheMetrics(registry prometheus.Registerer, ns string, name string, dis
 			"type",
 			"hit",
 		}),
-		AddVec: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		AddVec: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      name + "_add",
 			Help:      displayName + " additions, evicting previous values or not",

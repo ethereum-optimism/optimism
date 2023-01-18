@@ -14,12 +14,12 @@ import (
 // version 1 messages have a value and the most significant
 // byte of the nonce is a 1
 type CrossDomainMessage struct {
-	Nonce    *big.Int
-	Sender   *common.Address
-	Target   *common.Address
-	Value    *big.Int
-	GasLimit *big.Int
-	Data     []byte
+	Nonce    *big.Int        `json:"nonce"`
+	Sender   *common.Address `json:"sender"`
+	Target   *common.Address `json:"target"`
+	Value    *big.Int        `json:"value"`
+	GasLimit *big.Int        `json:"gasLimit"`
+	Data     []byte          `json:"data"`
 }
 
 // NewCrossDomainMessage creates a CrossDomainMessage.
