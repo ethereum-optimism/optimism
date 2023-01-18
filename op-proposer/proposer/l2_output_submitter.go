@@ -10,20 +10,23 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
-	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
-	"github.com/ethereum-optimism/optimism/op-node/client"
+	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -39,6 +42,12 @@ const (
 	defaultDialTimeout = 5 * time.Second
 )
 
+var supportedL2OutputVersion = eth.Bytes32{}
+
+type SignerFn func(context.Context, common.Address, *types.Transaction) (*types.Transaction, error)
+
+type SignerFactory func(chainID *big.Int) SignerFn
+
 // Main is the entrypoint into the L2 Output Submitter. This method returns a
 // closure that executes the service and blocks until the service exits. The use
 // of a closure allows the parameters bound to the top-level main package, e.g.
@@ -53,21 +62,21 @@ func Main(version string) func(ctx *cli.Context) error {
 		l := oplog.NewLogger(cfg.LogConfig)
 		l.Info("Initializing L2 Output Submitter")
 
-		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, version, l)
+		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, l)
 		if err != nil {
 			l.Error("Unable to create L2 Output Submitter", "error", err)
 			return err
 		}
 
 		l.Info("Starting L2 Output Submitter")
+		ctx, cancel := context.WithCancel(context.Background())
 
 		if err := l2OutputSubmitter.Start(); err != nil {
+			cancel()
 			l.Error("Unable to start L2 Output Submitter", "error", err)
 			return err
 		}
 		defer l2OutputSubmitter.Stop()
-
-		ctx, cancel := context.WithCancel(context.Background())
 
 		l.Info("L2 Output Submitter started")
 		pprofConfig := cfg.PprofConfig
@@ -89,16 +98,12 @@ func Main(version string) func(ctx *cli.Context) error {
 					l.Error("error starting metrics server", err)
 				}
 			}()
-			addr := l2OutputSubmitter.l2OutputService.cfg.Driver.WalletAddr()
-			opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l2OutputService.cfg.L1Client, addr)
+			// addr := l2OutputSubmitter.l2OutputService.cfg.Driver.WalletAddr()
+			// opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l2OutputService.cfg.L1Client, addr)
 		}
 
 		rpcCfg := cfg.RPCConfig
-		server := oprpc.NewServer(
-			rpcCfg.ListenAddr,
-			rpcCfg.ListenPort,
-			version,
-		)
+		server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version)
 		if err := server.Start(); err != nil {
 			cancel()
 			return fmt.Errorf("error starting RPC server: %w", err)
@@ -118,20 +123,40 @@ func Main(version string) func(ctx *cli.Context) error {
 	}
 }
 
-// L2OutputSubmitter encapsulates a service responsible for submitting
-// L2Outputs to the L2OutputOracle contract.
+// L2OutputSubmitter is responsible for proposing outputs
 type L2OutputSubmitter struct {
-	ctx             context.Context
-	l2OutputService *Service
+	txMgr txmgr.TxManager
+	wg    sync.WaitGroup
+	done  chan struct{}
+	log   log.Logger
+
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	// L1Client is used to submit transactions to
+	l1Client *ethclient.Client
+	// RollupClient is used to retrieve output roots from
+	rollupClient *sources.RollupClient
+
+	l2ooContract    *bindings.L2OutputOracle
+	rawL2ooContract *bind.BoundContract
+
+	// AllowNonFinalized enables the proposal of safe, but non-finalized L2 blocks.
+	// The L1 block-hash embedded in the proposal TX is checked and should ensure the proposal
+	// is never valid on an alternative L1 chain that would produce different L2 data.
+	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
+	allowNonFinalized bool
+	// From is the address to send transactions from
+	from common.Address
+	// SignerFn is the function used to sign transactions
+	signerFn SignerFn
+	// How frequently to poll L2 for new finalized outputs
+	pollInterval time.Duration
 }
 
 // NewL2OutputSubmitter initializes the L2OutputSubmitter, gathering any resources
 // that will be needed during operation.
-func NewL2OutputSubmitter(
-	cfg Config,
-	gitVersion string,
-	l log.Logger,
-) (*L2OutputSubmitter, error) {
+func NewL2OutputSubmitter(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
 	var l2OutputPrivKey *ecdsa.PrivateKey
 	var err error
 
@@ -167,22 +192,17 @@ func NewL2OutputSubmitter(
 			return s(addr, tx)
 		}
 	}
-	return NewL2OutputSubmitterWithSigner(cfg, crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey), signer, gitVersion, l)
+	return NewL2OutputSubmitterWithSigner(cfg, crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey), signer, l)
 }
 
-type SignerFactory func(chainID *big.Int) SignerFn
-
-func NewL2OutputSubmitterWithSigner(
-	cfg Config,
-	from common.Address,
-	signer SignerFactory,
-	gitVersion string,
-	l log.Logger,
-) (*L2OutputSubmitter, error) {
-	ctx := context.Background()
+// NewL2OutputSubmitterWithSigner actually creates the L2 Output Proposer given a signing factory.
+// This enables multiple different signing options.
+func NewL2OutputSubmitterWithSigner(cfg CLIConfig, from common.Address, signer SignerFactory, l log.Logger) (*L2OutputSubmitter, error) {
+	ctx, cancel := context.WithCancel(context.Background())
 
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
@@ -190,20 +210,25 @@ func NewL2OutputSubmitterWithSigner(
 	// most expensive.
 	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
+	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
+	chainID, err := l1Client.ChainID(cCtx)
+	cCancel()
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
-	txManagerConfig := txmgr.Config{
+	txMgrConfg := txmgr.Config{
 		Log:                       l,
 		Name:                      "L2Output Submitter",
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
@@ -212,75 +237,210 @@ func NewL2OutputSubmitterWithSigner(
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 	}
 
-	l2OutputDriver, err := NewDriver(DriverConfig{
-		Log:               l,
-		Name:              "L2Output Submitter",
-		L1Client:          l1Client,
-		RollupClient:      rollupClient,
-		AllowNonFinalized: cfg.AllowNonFinalized,
-		L2OOAddr:          l2ooAddress,
-		From:              from,
-		SignerFn:          signer(chainID),
-	})
+	l2ooContract, err := bindings.NewL2OutputOracle(l2ooAddress, l1Client)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
-	l2OutputService := NewService(ServiceConfig{
-		Log:             l,
-		Context:         ctx,
-		Driver:          l2OutputDriver,
-		PollInterval:    cfg.PollInterval,
-		L1Client:        l1Client,
-		TxManagerConfig: txManagerConfig,
-	})
+	parsed, err := abi.JSON(strings.NewReader(bindings.L2OutputOracleMetaData.ABI))
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	rawL2ooContract := bind.NewBoundContract(l2ooAddress, parsed, l1Client, l1Client, l1Client)
 
 	return &L2OutputSubmitter{
-		ctx:             ctx,
-		l2OutputService: l2OutputService,
+		txMgr:  txmgr.NewSimpleTxManager("proposer", txMgrConfg, l1Client),
+		done:   make(chan struct{}),
+		log:    l,
+		ctx:    ctx,
+		cancel: cancel,
+
+		l1Client:     l1Client,
+		rollupClient: rollupClient,
+
+		l2ooContract:    l2ooContract,
+		rawL2ooContract: rawL2ooContract,
+
+		allowNonFinalized: cfg.AllowNonFinalized,
+		from:              from,
+		signerFn:          signer(chainID),
+		pollInterval:      cfg.PollInterval,
 	}, nil
 }
 
 func (l *L2OutputSubmitter) Start() error {
-	return l.l2OutputService.Start()
+	l.wg.Add(1)
+	go l.loop()
+	return nil
 }
 
 func (l *L2OutputSubmitter) Stop() {
-	_ = l.l2OutputService.Stop()
+	l.cancel()
+	close(l.done)
+	l.wg.Wait()
 }
 
-// dialEthClientWithTimeout attempts to dial the L1 provider using the provided
-// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
-// method will return an error.
-func dialEthClientWithTimeout(ctx context.Context, url string) (
-	*ethclient.Client, error) {
-
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
-
-	return ethclient.DialContext(ctxt, url)
+// UpdateGasPrice signs an otherwise identical txn to the one provided but with
+// updated gas prices sampled from the existing network conditions.
+//
+// NOTE: This method SHOULD NOT publish the resulting transaction.
+func (l *L2OutputSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+	opts := &bind.TransactOpts{
+		From: l.from,
+		Signer: func(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return l.signerFn(ctx, addr, tx)
+		},
+		Context: ctx,
+		Nonce:   new(big.Int).SetUint64(tx.Nonce()),
+		NoSend:  true,
+	}
+	return l.rawL2ooContract.RawTransact(opts, tx.Data())
 }
 
-// dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
-// URL. If the dial doesn't complete within defaultDialTimeout seconds, this
-// method will return an error.
-func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.RollupClient, error) {
-	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
-	defer cancel()
+// SendTransaction injects a signed transaction into the pending pool for execution.
+func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
+	l.log.Info("proposer sending transaction", "tx", tx.Hash())
+	return l.l1Client.SendTransaction(ctx, tx)
+}
 
-	rpcCl, err := rpc.DialContext(ctxt, url)
+// FetchNextOutputInfo gets the block number of the next proposal.
+// It returns: the next block number, if the proposal should be made, error
+func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, bool, error) {
+	callOpts := &bind.CallOpts{
+		From:    l.from,
+		Context: ctx,
+	}
+	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
 	if err != nil {
+		l.log.Error("proposer unable to get next block number", "err", err)
+		return nil, false, err
+	}
+	// Fetch the current L2 heads
+	status, err := l.rollupClient.SyncStatus(ctx)
+	if err != nil {
+		l.log.Error("proposer unable to get sync status", "err", err)
+		return nil, false, err
+	}
+	// Use either the finalized or safe head depending on the config. Finalized head is default & safer.
+	var currentBlockNumber *big.Int
+	if l.allowNonFinalized {
+		currentBlockNumber = new(big.Int).SetUint64(status.SafeL2.Number)
+	} else {
+		currentBlockNumber = new(big.Int).SetUint64(status.FinalizedL2.Number)
+	}
+	// Ensure that we do not submit a block in the future
+	if currentBlockNumber.Cmp(nextCheckpointBlock) < 0 {
+		l.log.Info("proposer submission interval has not elapsed", "currentBlockNumber", currentBlockNumber, "nextBlockNumber", nextCheckpointBlock)
+		return nil, false, nil
+	}
+
+	output, err := l.rollupClient.OutputAtBlock(ctx, nextCheckpointBlock.Uint64())
+	if err != nil {
+		l.log.Error("failed to fetch output at block %d: %w", nextCheckpointBlock, err)
+		return nil, false, err
+	}
+	if output.Version != supportedL2OutputVersion {
+		l.log.Error("unsupported l2 output version: %s", output.Version)
+		return nil, false, errors.New("unsupported l2 output version")
+	}
+	if output.BlockRef.Number != nextCheckpointBlock.Uint64() { // sanity check, e.g. in case of bad RPC caching
+		l.log.Error("invalid blockNumber: next blockNumber is %v, blockNumber of block is %v", nextCheckpointBlock, output.BlockRef.Number)
+		return nil, false, errors.New("invalid blockNumber")
+	}
+
+	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
+	if !(output.BlockRef.Number <= output.Status.FinalizedL2.Number || (l.allowNonFinalized && output.BlockRef.Number <= output.Status.SafeL2.Number)) {
+		l.log.Debug("not proposing yet, L2 block is not ready for proposal",
+			"l2_proposal", output.BlockRef,
+			"l2_safe", output.Status.SafeL2,
+			"l2_finalized", output.Status.FinalizedL2,
+			"allow_non_finalized", l.allowNonFinalized)
+		return nil, false, nil
+	}
+	return output, true, nil
+}
+
+func (l *L2OutputSubmitter) CreateProposalTx(ctx context.Context, output *eth.OutputResponse) (*types.Transaction, error) {
+	nonce, err := l.l1Client.NonceAt(ctx, l.from, nil)
+	if err != nil {
+		l.log.Error("Failed to get nonce", "err", err, "from", l.from)
 		return nil, err
 	}
 
-	return sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)), nil
+	opts := &bind.TransactOpts{
+		From: l.from,
+		Signer: func(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return l.signerFn(ctx, addr, tx)
+		},
+		Context: ctx,
+		Nonce:   new(big.Int).SetUint64(nonce),
+		NoSend:  true,
+	}
+
+	tx, err := l.l2ooContract.ProposeL2Output(
+		opts,
+		output.OutputRoot,
+		new(big.Int).SetUint64(output.BlockRef.Number),
+		output.Status.CurrentL1.Hash,
+		new(big.Int).SetUint64(output.Status.CurrentL1.Number))
+	if err != nil {
+		l.log.Error("failed to create the ProposeL2Output transaction", "err", err)
+		return nil, err
+	}
+	return tx, nil
 }
 
-// parseAddress parses an ETH address from a hex string. This method will fail if
-// the address is not a valid hexadecimal address.
-func parseAddress(address string) (common.Address, error) {
-	if common.IsHexAddress(address) {
-		return common.HexToAddress(address), nil
+func (l *L2OutputSubmitter) SendTransactionExt(ctx context.Context, tx *types.Transaction) error {
+	// Construct the a closure that will update the txn with the current gas prices.
+	nonce := tx.Nonce()
+	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
+		l.log.Info("proposer updating batch tx gas price", "nonce", nonce)
+		return l.UpdateGasPrice(ctx, tx)
 	}
-	return common.Address{}, fmt.Errorf("invalid address: %v", address)
+
+	// Wait until one of our submitted transactions confirms. If no
+	// receipt is received it's likely our gas price was too low.
+	receipt, err := l.txMgr.Send(ctx, updateGasPrice, l.SendTransaction)
+	if err != nil {
+		l.log.Error("proposer unable to publish tx", "err", err)
+		return err
+	}
+
+	// The transaction was successfully submitted
+	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
+	return nil
+}
+
+func (l *L2OutputSubmitter) loop() {
+	defer l.wg.Done()
+
+	ctx := l.ctx
+
+	ticker := time.NewTicker(l.pollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			output, shouldPropose, err := l.FetchNextOutputInfo(ctx)
+			if err != nil {
+				continue
+			}
+			if !shouldPropose {
+				continue
+			}
+
+			tx, err := l.CreateProposalTx(ctx, output)
+			if err != nil {
+				continue
+			}
+			if err := l.SendTransactionExt(ctx, tx); err != nil {
+				continue
+			}
+
+		case <-l.done:
+			return
+		}
+	}
 }
