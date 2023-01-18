@@ -40,6 +40,7 @@ func TestAttributesQueue(t *testing.T) {
 
 	safeHead := testutils.RandomL2BlockRef(rng)
 	safeHead.L1Origin = l1Info.ID()
+	safeHead.Time = l1Info.InfoTime
 
 	batch := &BatchData{BatchV1{
 		ParentHash:   safeHead.Hash,
@@ -75,11 +76,12 @@ func TestAttributesQueue(t *testing.T) {
 		NoTxPool:              true,
 		GasLimit:              (*eth.Uint64Quantity)(&expectedL1Cfg.GasLimit),
 	}
+	attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l2Fetcher)
 
-	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, l1Fetcher, l2Fetcher, nil)
+	aq := NewAttributesQueue(testlog.Logger(t, log.LvlError), cfg, attrBuilder, nil)
 
 	actual, err := aq.createNextAttributes(context.Background(), batch, safeHead)
 
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, attrs, *actual)
 }
