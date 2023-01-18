@@ -22,6 +22,7 @@ task('wait-for-final-deposit', 'Waits for the final deposit to be ingested')
     const l1Provider = new hre.ethers.providers.StaticJsonRpcProvider(
       args.l1RpcUrl
     )
+
     const l2Provider = new hre.ethers.providers.StaticJsonRpcProvider(
       args.l2RpcUrl
     )
@@ -63,6 +64,9 @@ task('wait-for-final-deposit', 'Waits for the final deposit to be ingested')
 
     console.log(`DTL shutoff block ${dtlShutoffBlock.toString()}`)
 
+    let pending = await CanonicalTransactionChain.getNumPendingQueueElements()
+    console.log(`${pending} deposits must be batch submitted`)
+
     // Now query the number of queue elements in the CTC
     const queueLength = await CanonicalTransactionChain.getQueueLength()
     console.log(`Total number of deposits: ${queueLength}`)
@@ -80,11 +84,10 @@ task('wait-for-final-deposit', 'Waits for the final deposit to be ingested')
 
       if (tx.queueOrigin === 'l1') {
         const queueIndex = BigNumber.from(tx.queueIndex).toNumber()
-        if (queueIndex === queueLength) {
+        if (queueIndex === queueLength - 1) {
           break
         }
         if (queueIndex < queueLength) {
-          console.log()
           throw new Error(
             `Missed the final deposit. queueIndex ${queueIndex}, queueLength ${queueLength}`
           )
@@ -94,4 +97,6 @@ task('wait-for-final-deposit', 'Waits for the final deposit to be ingested')
     }
 
     console.log('Final deposit has been ingested by l2geth')
+    pending = await CanonicalTransactionChain.getNumPendingQueueElements()
+    console.log(`${pending} deposits must be batch submitted`)
   })
