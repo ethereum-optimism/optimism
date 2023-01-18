@@ -194,7 +194,7 @@
 ➡ contracts/vendor/WETH9.sol:WETH9
 =======================
 
-| Name       | Type                                            | Slot | Offset | Bytes | Contract                         |
+| Name      | Type                                            | Slot | Offset | Bytes | Contract                         |
 |-----------|-------------------------------------------------|------|--------|-------|----------------------------------|
 | name      | string                                          | 0    | 0      | 32    | contracts/vendor/WETH9.sol:WETH9 |
 | symbol    | string                                          | 1    | 0      | 32    | contracts/vendor/WETH9.sol:WETH9 |
