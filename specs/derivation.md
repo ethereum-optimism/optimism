@@ -638,7 +638,7 @@ In the *Engine Queue* stage, the previously derived `PayloadAttributes` structur
 
 The stage maintains references to three L2 blocks:
 
-- The [finalized L2 head][g-finalized]: everything up to and including this block can be fully derived from the
+- The [finalized L2 head][g-finalized-l2-head]: everything up to and including this block can be fully derived from the
   [finalized][l1-finality] (i.e. canonical and forever irreversible) part of the L1 chain.
 - The [safe L2 head][g-safe-l2-head]: everything up to and including this block can be fully derived from the
   currently canonical L1 chain.
