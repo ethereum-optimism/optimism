@@ -62,6 +62,22 @@ abstract contract StandardBridge {
     uint256[47] private __gap;
 
     /**
+     * @custom:legacy
+     * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
+     *
+     * @param from      Address of the depositor.
+     * @param to        Address of the recipient on L2.
+     * @param amount    Amount of ETH deposited.
+     * @param extraData Extra data attached to the deposit.
+     */
+    event ETHDepositInitiated(
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes extraData
+    );
+
+    /**
      * @notice Emitted when an ETH bridge is initiated to the other chain.
      *
      * @param from      Address of the sender.
@@ -365,6 +381,8 @@ abstract contract StandardBridge {
             "StandardBridge: bridging ETH must include sufficient ETH value"
         );
 
+        // `ETHDepositInitiated` is a legacy event for backwards-compatibility
+        emit ETHDepositInitiated(_from, _to, _amount, _extraData);
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         MESSENGER.sendMessage{ value: _amount }(
