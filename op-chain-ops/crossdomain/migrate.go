@@ -76,7 +76,7 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		withdrawal.Target,
 		value,
 		new(big.Int),
-		withdrawal.Data,
+		[]byte(withdrawal.Data),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)
