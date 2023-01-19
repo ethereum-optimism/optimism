@@ -38,12 +38,12 @@ contract OptimismMintableERC721Factory is Semver {
     );
 
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.0.0
      *
      * @param _bridge Address of the ERC721 bridge on this network.
      * @param _remoteChainId Chain ID for the remote network.
      */
-    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 1, 0) {
+    constructor(address _bridge, uint256 _remoteChainId) Semver(1, 0, 0) {
         BRIDGE = _bridge;
         REMOTE_CHAIN_ID = _remoteChainId;
     }
