@@ -37,10 +37,10 @@ type Sequencer struct {
 	log    log.Logger
 	config *rollup.Config
 
-	l1          Downloader
 	l2          derive.Engine
 	engineState EngineState
 
+	attrBuilder       derive.AttributesBuilder
 	buildingOnto      eth.L2BlockRef
 	buildingID        eth.PayloadID
 	buildingStartTime time.Time
@@ -48,14 +48,14 @@ type Sequencer struct {
 	metrics SequencerMetrics
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, l1 Downloader, l2 derive.Engine, engineState EngineState, metrics SequencerMetrics) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, l2 derive.Engine, engineState EngineState, attributesBuilder derive.AttributesBuilder, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
 		log:         log,
 		config:      cfg,
-		l1:          l1,
 		l2:          l2,
 		metrics:     metrics,
 		engineState: engineState,
+		attrBuilder: attributesBuilder,
 	}
 }
 
@@ -75,7 +75,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l1Origin eth.L1Block
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
 
-	attrs, err := derive.PreparePayloadAttributes(fetchCtx, d.config, d.l1, d.l2, l2Head, l2Head.Time+d.config.BlockTime, l1Origin.ID())
+	attrs, err := d.attrBuilder.PreparePayloadAttributes(fetchCtx, l2Head, l1Origin.ID())
 	if err != nil {
 		return err
 	}
