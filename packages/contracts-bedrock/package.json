@@ -15,7 +15,7 @@
   ],
   "scripts": {
     "build:forge": "forge build",
-    "build:with-metadata": "FOUNDRY_PROFILE=echidna yarn build:forge",
+    "build:echidna": "FOUNDRY_PROFILE=echidna yarn build:forge --build-info --force --build-info-path forge-artifacts/build-info",
     "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
     "build:fuzz": "go build -o test-case-generator test-case-generator/cmd/fuzz.go",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
