@@ -328,7 +328,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2StandardBridge, 'L2StandardBridge')
+    await assertSemver(L2StandardBridge, 'L2StandardBridge', '1.1.0')
 
     const OTHER_BRIDGE = await L2StandardBridge.OTHER_BRIDGE()
     assert(OTHER_BRIDGE !== hre.ethers.constants.AddressZero)
