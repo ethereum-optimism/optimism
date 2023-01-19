@@ -9,7 +9,5 @@
   "disable_color": false,
   "exclude_dependencies": false,
   "filter_paths": "contracts/test|lib",
-  "compile_custom_build": "yarn build:echidna",
-  "compile_force_framework": "foundry",
-  "foundry_out_directory": "forge-artifacts"
+  "compile_force_framework": "hardhat"
 }
