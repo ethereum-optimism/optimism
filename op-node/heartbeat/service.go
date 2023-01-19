@@ -22,6 +22,8 @@ type Payload struct {
 	ChainID uint64 `json:"chainID"`
 }
 
+// Beat sends a heartbeat to the server at the given URL. It will send a heartbeat immediately, and then every SendInterval.
+// Beat spawns a goroutine that will send heartbeats until the context is canceled.
 func Beat(
 	ctx context.Context,
 	log log.Logger,

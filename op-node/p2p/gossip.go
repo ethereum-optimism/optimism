@@ -39,6 +39,8 @@ const (
 	DefaultMeshDlo   = 6  // topic stable mesh low watermark
 	DefaultMeshDhi   = 12 // topic stable mesh high watermark
 	DefaultMeshDlazy = 6  // gossip target
+	// peerScoreInspectFrequency is the frequency at which peer scores are inspected
+	peerScoreInspectFrequency = 1 * time.Minute
 )
 
 // Message domains, the msg id function uncompresses to keep data monomorphic,
@@ -57,6 +59,7 @@ type GossipRuntimeConfig interface {
 
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
+	RecordPeerScoring(peerID peer.ID, score float64)
 }
 
 func blocksTopicV1(cfg *rollup.Config) string {
@@ -140,6 +143,8 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
+// NewGossipSub configures a new pubsub instance with the specified parameters.
+// PubSub uses a GossipSubRouter as it's router under the hood.
 func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
@@ -160,10 +165,21 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossi
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
+		pubsub.WithPeerScoreInspect(BuildPeerScoreInspector(m), peerScoreInspectFrequency),
 	}
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
-	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
+}
+
+// BuildPeerScoreInspector returns a function that is called periodically by the pubsub library to inspect the peer scores.
+// It is passed into the pubsub library as a [pubsub.ExtendedPeerScoreInspectFn] in the [pubsub.WithPeerScoreInspect] option.
+// The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
+func BuildPeerScoreInspector(metricer GossipMetricer) pubsub.ExtendedPeerScoreInspectFn {
+	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
+		for id, s := range m {
+			metricer.RecordPeerScoring(id, s.Score)
+		}
+	}
 }
 
 func validationResultString(v pubsub.ValidationResult) string {

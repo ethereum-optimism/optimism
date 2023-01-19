@@ -1,3 +1,4 @@
+// Package metrics provides a set of metrics for the op-node.
 package metrics
 
 import (
@@ -14,6 +15,7 @@ import (
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -52,7 +54,6 @@ type Metricer interface {
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	CountSequencedTxs(count int)
 	RecordL1ReorgDepth(d uint64)
-	RecordGossipEvent(evType int32)
 	IncPeerCount()
 	DecPeerCount()
 	IncStreamCount()
@@ -61,8 +62,12 @@ type Metricer interface {
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
 	Document() []metrics.DocumentedMetric
+	// P2P Metrics
+	RecordGossipEvent(evType int32)
+	RecordPeerScoring(peerID peer.ID, score float64)
 }
 
+// Metrics tracks all the metrics for the op-node.
 type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
@@ -109,6 +114,7 @@ type Metrics struct {
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
 	StreamCount       prometheus.Gauge
+	PeerScores        map[peer.ID]float64
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
 
@@ -456,6 +462,10 @@ func (m *Metrics) RecordGossipEvent(evType int32) {
 	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
 }
 
+func (m *Metrics) RecordPeerScoring(peerID peer.ID, score float64) {
+	m.PeerScores[peerID] = score
+}
+
 func (m *Metrics) IncPeerCount() {
 	m.PeerCount.Inc()
 }
@@ -582,6 +592,9 @@ func (n *noopMetricer) RecordL1ReorgDepth(d uint64) {
 }
 
 func (n *noopMetricer) RecordGossipEvent(evType int32) {
+}
+
+func (n *noopMetricer) RecordPeerScoring(peerID peer.ID, score float64) {
 }
 
 func (n *noopMetricer) IncPeerCount() {

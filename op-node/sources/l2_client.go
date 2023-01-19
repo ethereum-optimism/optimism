@@ -70,6 +70,9 @@ type L2Client struct {
 	systemConfigsCache *caching.LRUCache
 }
 
+// NewL2Client constructs a new L2Client instance. The L2Client is a thin wrapper around the EthClient with added functions
+// for fetching and caching eth.L2BlockRef values. This includes fetching an L2BlockRef by block number, label, or hash.
+// See: [L2BlockRefByLabel], [L2BlockRefByNumber], [L2BlockRefByHash]
 func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*L2Client, error) {
 	ethClient, err := NewEthClient(client, log, metrics, &config.EthClientConfig)
 	if err != nil {

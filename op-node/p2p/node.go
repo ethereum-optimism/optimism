@@ -34,6 +34,8 @@ type NodeP2P struct {
 	gsOut    GossipOut        // p2p gossip application interface for publishing
 }
 
+// NewNodeP2P creates a new p2p node, and returns a reference to it. If the p2p is disabled, it returns nil.
+// If metrics are configured, a bandwidth monitor will be spawned in a goroutine.
 func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, runCfg GossipRuntimeConfig, metrics metrics.Metricer) (*NodeP2P, error) {
 	if setup == nil {
 		return nil, errors.New("p2p node cannot be created without setup")
