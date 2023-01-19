@@ -292,7 +292,9 @@ contract L1StandardBridge is StandardBridge, Semver {
         _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
     }
 
-    // TODO
+    /**
+     * @inheritdoc StandardBridge
+     */
     function _postBridgeETH(
         address _from,
         address _to,

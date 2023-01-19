@@ -384,7 +384,15 @@ abstract contract StandardBridge {
         _postBridgeETH(_from, _to, _amount, _extraData);
     }
 
-    // TODO
+    /**
+     * @notice A post hook that is called after _initiateBridgeETH. This allows for
+     *         different logic to be exeuted after ETH is bridged on L1 and L2.
+     *
+     *         @param _from       Address of the sender.
+     *         @param _to         Address of the recipient.
+     *         @param _amount     Value in wei.
+     *         @param _extraData  Extra data associated with the transaction.
+     */
     function _postBridgeETH(
         address _from,
         address _to,

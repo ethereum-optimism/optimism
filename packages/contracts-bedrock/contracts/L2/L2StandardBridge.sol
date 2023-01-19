@@ -177,7 +177,9 @@ contract L2StandardBridge is StandardBridge, Semver {
         emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
-    // TODO
+    /**
+     * @inheritdoc StandardBridge
+     */
     function _postBridgeETH(
         address _from,
         address _to,
