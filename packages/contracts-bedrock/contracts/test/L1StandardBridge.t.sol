@@ -39,9 +39,11 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
         assertEq(address(op).balance, 0);
 
         vm.expectEmit(true, true, true, true);
-        emit ETHDepositInitiated(alice, alice, 100, hex"");
-        vm.expectEmit(true, true, true, true);
         emit ETHBridgeInitiated(alice, alice, 100, hex"");
+
+        // The legacy event must be emitted for backwards compatibility
+        vm.expectEmit(true, true, true, true);
+        emit ETHDepositInitiated(alice, alice, 100, hex"");
 
         vm.expectCall(
             address(L1Messenger),
@@ -123,10 +125,10 @@ contract L1StandardBridge_DepositETHTo_Test is Bridge_Initializer {
         assertEq(address(op).balance, 0);
 
         vm.expectEmit(true, true, true, true);
-        emit ETHDepositInitiated(alice, bob, 600, hex"dead");
+        emit ETHBridgeInitiated(alice, bob, 600, hex"dead");
 
         vm.expectEmit(true, true, true, true);
-        emit ETHBridgeInitiated(alice, bob, 600, hex"dead");
+        emit ETHDepositInitiated(alice, bob, 600, hex"dead");
 
         // depositETHTo on the L1 bridge should be called
         vm.expectCall(

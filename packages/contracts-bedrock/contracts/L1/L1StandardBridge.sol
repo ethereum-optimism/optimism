@@ -21,6 +21,8 @@ contract L1StandardBridge is StandardBridge, Semver {
     /**
      * @custom:legacy
      * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
+     *         This event uses legacy language as the original bridge design
+     *         was not bi-directional.
      *
      * @param from      Address of the depositor.
      * @param to        Address of the recipient on L2.
@@ -99,16 +101,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         Semver(1, 1, 0)
         StandardBridge(_messenger, payable(Predeploys.L2_STANDARD_BRIDGE))
     {}
-
-    /**
-     * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
-     *
-     * @dev Emits both an `ETHDepositInitiated` and `ETHBridgeInitiated` event.
-     */
-    receive() external payable override onlyEOA {
-        emit ETHDepositInitiated(msg.sender, msg.sender, msg.value, bytes(""));
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
-    }
 
     /**
      * @custom:legacy
@@ -273,7 +265,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal {
-        emit ETHDepositInitiated(_from, _to, msg.value, _extraData);
         _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
     }
 
@@ -299,5 +290,15 @@ contract L1StandardBridge is StandardBridge, Semver {
     ) internal {
         emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
+    }
+
+    // TODO
+    function _postBridgeETH(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ETHDepositInitiated(_from, _to, _amount, _extraData);
     }
 }

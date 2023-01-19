@@ -164,9 +164,11 @@ abstract contract StandardBridge {
     }
 
     /**
-     * @notice Allows depositing ETH in the bridge by sending ether directly.
+     * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
      */
-    receive() external payable virtual;
+    receive() external payable onlyEOA {
+        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+    }
 
     /**
      * @custom:legacy
@@ -378,7 +380,17 @@ abstract contract StandardBridge {
             ),
             _minGasLimit
         );
+
+        _postBridgeETH(_from, _to, _amount, _extraData);
     }
+
+    // TODO
+    function _postBridgeETH(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal virtual;
 
     /**
      * @notice Sends ERC20 tokens to a receiver's address on the other chain.
