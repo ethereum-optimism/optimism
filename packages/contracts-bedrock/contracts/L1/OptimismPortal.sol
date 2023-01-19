@@ -111,12 +111,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.0.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(1, 1, 0) {
+    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(1, 0, 0) {
         L2_ORACLE = _l2Oracle;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         initialize();
