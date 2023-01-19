@@ -91,7 +91,7 @@ contract L1StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      *
      * @param _messenger Address of the L1CrossDomainMessenger.
      */

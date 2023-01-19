@@ -65,9 +65,9 @@ contract L2ToL1MessagePasser is Semver {
     event WithdrawerBalanceBurnt(uint256 indexed amount);
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      */
-    constructor() Semver(1, 0, 0) {}
+    constructor() Semver(1, 1, 0) {}
 
     /**
      * @notice Allows users to withdraw ETH by sending directly to this contract.

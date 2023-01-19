@@ -10,7 +10,7 @@ import { predeploys } from '../src'
 
 // expectedSemver is the semver version of the contracts
 // deployed at bedrock deployment
-const expectedSemver = '1.0.0'
+const expectedSemver = '1.1.0'
 const implSlot =
   '0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc'
 const adminSlot =
