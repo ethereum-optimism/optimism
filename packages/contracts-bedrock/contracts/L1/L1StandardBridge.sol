@@ -20,6 +20,22 @@ import { Semver } from "../universal/Semver.sol";
 contract L1StandardBridge is StandardBridge, Semver {
     /**
      * @custom:legacy
+     * @notice Emitted whenever a deposit of ETH from L1 into L2 is initiated.
+     *
+     * @param from      Address of the depositor.
+     * @param to        Address of the recipient on L2.
+     * @param amount    Amount of ETH deposited.
+     * @param extraData Extra data attached to the deposit.
+     */
+    event ETHDepositInitiated(
+        address indexed from,
+        address indexed to,
+        uint256 amount,
+        bytes extraData
+    );
+
+    /**
+     * @custom:legacy
      * @notice Emitted whenever a withdrawal of ETH from L2 to L1 is finalized.
      *
      * @param from      Address of the withdrawer.
@@ -90,6 +106,7 @@ contract L1StandardBridge is StandardBridge, Semver {
      * @dev Emits both an `ETHDepositInitiated` and `ETHBridgeInitiated` event.
      */
     receive() external payable override onlyEOA {
+        emit ETHDepositInitiated(msg.sender, msg.sender, msg.value, bytes(""));
         _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
     }
 
@@ -256,6 +273,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal {
+        emit ETHDepositInitiated(_from, _to, msg.value, _extraData);
         _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
     }
 

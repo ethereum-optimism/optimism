@@ -74,19 +74,10 @@ contract L2StandardBridge is StandardBridge, Semver {
      * @dev Emits both an `WithdrawalInitiated` and `ETHBridgeInitiated` event.
      */
     receive() external payable override onlyEOA {
-        bytes calldata b;
-        assembly {
-            b.offset := 0
-            b.length := 0
-        }
-        _initiateWithdrawal(
-            Predeploys.LEGACY_ERC20_ETH,
-            msg.sender,
-            msg.sender,
-            msg.value,
-            RECEIVE_DEFAULT_GAS_LIMIT,
-            b
-        );
+        address l2Token = Predeploys.LEGACY_ERC20_ETH;
+        address l1Token = OptimismMintableERC20(l2Token).l1Token();
+        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
+        emit WithdrawalInitiated(l1Token, l2Token, msg.sender, msg.sender, msg.value, bytes(""));
     }
 
     /**
