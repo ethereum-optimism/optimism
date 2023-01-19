@@ -133,9 +133,8 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
 
 	// Copy data from the local buffer into the frame data buffer
 	// Don't go past the maxSize with the fixed frame overhead.
-	// Fixed overhead: 32 + 8 + 2 + 4 + 1  = 47 bytes.
-	// Add one extra byte for the version byte (for the entire L1 tx though)
-	maxDataSize := maxSize - 47 - 1
+	// Fixed overhead: 16 + 2 + 4 + 1 = 23 bytes.
+	maxDataSize := maxSize - 23
 	if maxDataSize > uint64(co.buf.Len()) {
 		maxDataSize = uint64(co.buf.Len())
 		// If we are closed & will not spill past the current frame
