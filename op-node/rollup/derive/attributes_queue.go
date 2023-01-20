@@ -23,22 +23,24 @@ import (
 // This stage can be reset by clearing it's batch buffer.
 // This stage does not need to retain any references to L1 blocks.
 
-type AttributesQueue struct {
-	log    log.Logger
-	config *rollup.Config
-	dl     L1ReceiptsFetcher
-	eng    SystemConfigL2Fetcher
-	prev   *BatchQueue
-	batch  *BatchData
+type AttributesBuilder interface {
+	PreparePayloadAttributes(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 }
 
-func NewAttributesQueue(log log.Logger, cfg *rollup.Config, l1Fetcher L1ReceiptsFetcher, eng SystemConfigL2Fetcher, prev *BatchQueue) *AttributesQueue {
+type AttributesQueue struct {
+	log     log.Logger
+	config  *rollup.Config
+	builder AttributesBuilder
+	prev    *BatchQueue
+	batch   *BatchData
+}
+
+func NewAttributesQueue(log log.Logger, cfg *rollup.Config, builder AttributesBuilder, prev *BatchQueue) *AttributesQueue {
 	return &AttributesQueue{
-		log:    log,
-		config: cfg,
-		dl:     l1Fetcher,
-		eng:    eng,
-		prev:   prev,
+		log:     log,
+		config:  cfg,
+		builder: builder,
+		prev:    prev,
 	}
 }
 
@@ -74,9 +76,13 @@ func (aq *AttributesQueue) createNextAttributes(ctx context.Context, batch *Batc
 	if batch.ParentHash != l2SafeHead.Hash {
 		return nil, NewResetError(fmt.Errorf("valid batch has bad parent hash %s, expected %s", batch.ParentHash, l2SafeHead.Hash))
 	}
+	// sanity check timestamp
+	if expected := l2SafeHead.Time + aq.config.BlockTime; expected != batch.Timestamp {
+		return nil, NewResetError(fmt.Errorf("valid batch has bad timestamp %d, expected %d", batch.Timestamp, expected))
+	}
 	fetchCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	attrs, err := PreparePayloadAttributes(fetchCtx, aq.config, aq.dl, aq.eng, l2SafeHead, batch.Timestamp, batch.Epoch())
+	attrs, err := aq.builder.PreparePayloadAttributes(fetchCtx, l2SafeHead, batch.Epoch())
 	if err != nil {
 		return nil, err
 	}

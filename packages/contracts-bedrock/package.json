@@ -29,7 +29,7 @@
     "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
-    "validate-spacers": "hardhat validate-spacers",
+    "validate-spacers": "hardhat compile && hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
     "lint:ts:check": "eslint . --max-warnings=0",

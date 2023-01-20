@@ -59,14 +59,28 @@ contract L2StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      *
      * @param _otherBridge Address of the L1StandardBridge.
      */
     constructor(address payable _otherBridge)
-        Semver(1, 0, 0)
+        Semver(1, 1, 0)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
     {}
+
+    /**
+     * @notice Allows EOAs to bridge ETH by sending directly to the bridge.
+     */
+    receive() external payable override onlyEOA {
+        _initiateWithdrawal(
+            Predeploys.LEGACY_ERC20_ETH,
+            msg.sender,
+            msg.sender,
+            msg.value,
+            RECEIVE_DEFAULT_GAS_LIMIT,
+            bytes("")
+        );
+    }
 
     /**
      * @custom:legacy
@@ -165,7 +179,7 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _extraData
+        bytes memory _extraData
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
