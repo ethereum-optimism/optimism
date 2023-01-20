@@ -151,6 +151,8 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossi
 		return nil, err
 	}
 	params := BuildGlobalGossipParams(cfg)
+	peerScoreParams := NewPeerScoreParams()
+	peerScoreThresholds := NewPeerScoreThresholds()
 	gossipOpts := []pubsub.Option{
 		pubsub.WithMaxMessageSize(maxGossipSize),
 		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
@@ -165,6 +167,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossi
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
+		pubsub.WithPeerScore(&peerScoreParams, &peerScoreThresholds),
 		pubsub.WithPeerScoreInspect(BuildPeerScoreInspector(m), peerScoreInspectFrequency),
 	}
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)

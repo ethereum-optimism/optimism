@@ -1,7 +1,6 @@
 package p2p
 
 import (
-	"bufio"
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
@@ -52,8 +51,7 @@ func Pub2PeerID(r io.Reader) (string, error) {
 }
 
 func readHexData(r io.Reader) ([]byte, error) {
-	reader := bufio.NewReader(os.Stdin)
-	data, err := reader.ReadString('\n')
+	data, err := io.ReadAll(r)
 	if err != nil {
 		return nil, err
 	}
