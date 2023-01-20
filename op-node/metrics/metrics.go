@@ -114,7 +114,7 @@ type Metrics struct {
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
 	StreamCount       prometheus.Gauge
-	PeerScores        map[peer.ID]float64
+	PeerScores        *prometheus.HistogramVec
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
 
@@ -283,6 +283,15 @@ func NewMetrics(procName string) *Metrics {
 			Subsystem: "p2p",
 			Name:      "stream_count",
 			Help:      "Count of currently connected p2p streams",
+		}),
+		PeerScores: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_scores",
+			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
+			Help:      "Histogram of p2p peer scores",
+		}, []string{
+			"method",
 		}),
 		GossipEventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
@@ -463,7 +472,7 @@ func (m *Metrics) RecordGossipEvent(evType int32) {
 }
 
 func (m *Metrics) RecordPeerScoring(peerID peer.ID, score float64) {
-	m.PeerScores[peerID] = score
+	m.PeerScores.WithLabelValues(peerID.String()).Observe(score)
 }
 
 func (m *Metrics) IncPeerCount() {

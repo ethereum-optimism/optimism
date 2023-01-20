@@ -29,9 +29,9 @@ func NewPeerScoreParams() pubsub.PeerScoreParams {
 		BehaviourPenaltyWeight:      -1,
 		BehaviourPenaltyDecay:       0.999,
 		DecayInterval:               24 * time.Hour,
-		DecayToZero:                 0.01,
-		RetainScore:                 math.MaxInt64,
-		SeenMsgTTL:                  0, // Defaults to global TimeCacheDuration when 0
+		DecayToZero:                 0.001,
+		RetainScore:                 math.MaxInt64, // We want to keep scores indefinitely - don't refresh on connect/disconnect
+		SeenMsgTTL:                  0,             // Defaults to global TimeCacheDuration when 0
 	}
 }
 
