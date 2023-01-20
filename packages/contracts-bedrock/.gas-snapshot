@@ -105,7 +105,7 @@ L1StandardBridge_FinalizeERC20Withdrawal_Test:test_finalizeERC20Withdrawal_succe
 L1StandardBridge_FinalizeERC20Withdrawal_TestFail:test_finalizeERC20Withdrawal_notMessenger_reverts() (gas: 31148)
 L1StandardBridge_FinalizeERC20Withdrawal_TestFail:test_finalizeERC20Withdrawal_notOtherBridge_reverts() (gas: 31504)
 L1StandardBridge_FinalizeETHWithdrawal_Test:test_finalizeETHWithdrawal_succeeds() (gas: 58686)
-L1StandardBridge_Getter_Test:test_getters_succeeds() (gas: 26135)
+L1StandardBridge_Getter_Test:test_getters_succeeds() (gas: 32151)
 L1StandardBridge_Initialize_Test:test_initialize_succeeds() (gas: 22005)
 L1StandardBridge_Receive_Test:test_receive_succeeds() (gas: 519995)
 L2CrossDomainMessenger_Test:test_messageVersion_succeeds() (gas: 8389)
