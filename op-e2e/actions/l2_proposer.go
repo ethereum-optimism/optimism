@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
@@ -26,28 +28,41 @@ type ProposerCfg struct {
 type L2Proposer struct {
 	log     log.Logger
 	l1      *ethclient.Client
-	driver  *proposer.Driver
+	driver  *proposer.L2OutputSubmitter
 	address common.Address
 	lastTx  common.Hash
 }
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
-	chainID, err := l1.ChainID(t.Ctx())
-	require.NoError(t, err)
-	signer := opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID)
-	dr, err := proposer.NewDriver(proposer.DriverConfig{
-		Log:               log,
-		Name:              "proposer",
+	signer := func(chainID *big.Int) proposer.SignerFn {
+		s := opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID)
+		return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return s(addr, tx)
+		}
+	}
+	from := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
+
+	proposerCfg := proposer.Config{
+		L2OutputOracleAddr: cfg.OutputOracleAddr,
+		PollInterval:       time.Second,
+		TxManagerConfig: txmgr.Config{
+			Log:                       log,
+			Name:                      "action-proposer",
+			ResubmissionTimeout:       5 * time.Second,
+			ReceiptQueryInterval:      time.Second,
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 4,
+		},
 		L1Client:          l1,
 		RollupClient:      rollupCl,
 		AllowNonFinalized: cfg.AllowNonFinalized,
-		L2OOAddr:          cfg.OutputOracleAddr,
-		From:              crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey),
-		SignerFn: func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
-			return signer(addr, tx)
-		},
-	})
+		From:              from,
+		SignerFnFactory:   signer,
+	}
+
+	dr, err := proposer.NewL2OutputSubmitterWithSigner(proposerCfg, log)
 	require.NoError(t, err)
+
 	return &L2Proposer{
 		log:     log,
 		l1:      l1,
@@ -57,25 +72,24 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 }
 
 func (p *L2Proposer) CanPropose(t Testing) bool {
-	start, end, err := p.driver.GetBlockRange(t.Ctx())
+	_, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
 	require.NoError(t, err)
-	return start.Cmp(end) < 0
+	return shouldPropose
 }
 
 func (p *L2Proposer) ActMakeProposalTx(t Testing) {
-	start, end, err := p.driver.GetBlockRange(t.Ctx())
-	require.NoError(t, err)
-	if start.Cmp(end) == 0 {
-		t.InvalidAction("nothing to propose, block range starts and ends at %s", start.String())
+	output, shouldPropose, err := p.driver.FetchNextOutputInfo(t.Ctx())
+	if !shouldPropose {
+		return
 	}
-	nonce, err := p.l1.PendingNonceAt(t.Ctx(), p.address)
 	require.NoError(t, err)
 
-	tx, err := p.driver.CraftTx(t.Ctx(), start, end, new(big.Int).SetUint64(nonce))
+	tx, err := p.driver.CreateProposalTx(t.Ctx(), output)
 	require.NoError(t, err)
 
 	err = p.driver.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err)
+
 	p.lastTx = tx.Hash()
 }
 
