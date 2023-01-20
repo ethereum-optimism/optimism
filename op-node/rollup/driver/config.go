@@ -13,4 +13,7 @@ type Config struct {
 
 	// SequencerEnabled is true when the driver should sequence new blocks.
 	SequencerEnabled bool `json:"sequencer_enabled"`
+
+	// SequencerStopped is false when the driver should sequence new blocks.
+	SequencerStopped bool `json:"sequencer_stopped"`
 }

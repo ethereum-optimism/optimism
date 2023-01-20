@@ -3,13 +3,16 @@ package main
 import (
 	"context"
 	"net"
-	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
-	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
 
 	"github.com/urfave/cli"
+
+	"github.com/ethereum/go-ethereum/log"
 
 	opnode "github.com/ethereum-optimism/optimism/op-node"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/genesis"
@@ -19,7 +22,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/version"
-	"github.com/ethereum/go-ethereum/log"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
 var (
@@ -67,6 +70,10 @@ func main() {
 		{
 			Name:        "genesis",
 			Subcommands: genesis.Subcommands,
+		},
+		{
+			Name:        "doc",
+			Subcommands: doc.Subcommands,
 		},
 	}
 
@@ -139,24 +146,14 @@ func RollupNodeMain(ctx *cli.Context) error {
 	}
 
 	if cfg.Pprof.Enabled {
-		var srv http.Server
-		srv.Addr = net.JoinHostPort(cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort)
-		// Start pprof server + register it's shutdown
+		pprofCtx, pprofCancel := context.WithCancel(context.Background())
 		go func() {
-			log.Info("pprof server started", "addr", srv.Addr)
-			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-				log.Error("error in pprof server", "err", err)
-			} else {
-				log.Info("pprof server shutting down")
+			log.Info("pprof server started", "addr", net.JoinHostPort(cfg.Pprof.ListenAddr, strconv.Itoa(cfg.Pprof.ListenPort)))
+			if err := oppprof.ListenAndServe(pprofCtx, cfg.Pprof.ListenAddr, cfg.Pprof.ListenPort); err != nil {
+				log.Error("error starting pprof", "err", err)
 			}
-
 		}()
-		defer func() {
-			shutCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			err := srv.Shutdown(shutCtx)
-			log.Info("pprof server shut down", "err", err)
-		}()
+		defer pprofCancel()
 	}
 
 	interruptChannel := make(chan os.Signal, 1)
