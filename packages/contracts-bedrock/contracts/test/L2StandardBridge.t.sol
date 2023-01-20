@@ -119,11 +119,9 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.withdraw(address(Predeploys.LEGACY_ERC20_ETH), 100, 1000, hex"");
     }
 
-    // withdraw
-    // - token is burned
-    // - emits WithdrawalInitiated
-    // - calls Withdrawer.initiateWithdrawal
-    function test_withdraw_withdrawingERC20_succeeds() external {
+    // withdrawTo and BridgeERC20To should behave the same when transferring ERC20 tokens
+    // so they should share the same setup and expectEmit calls
+    function _preWithdraw() private {
         // Alice has 100 L2Token
         deal(address(L2Token), alice, 100, true);
         assertEq(L2Token.balanceOf(alice), 100);
@@ -210,7 +208,26 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
 
         vm.prank(alice, alice);
+    }
+
+    // withdraw
+    // - token is burned
+    // - emits WithdrawalInitiated
+    // - calls Withdrawer.initiateWithdrawal
+    function test_withdraw_withdrawingERC20_succeeds() external {
+        _preWithdraw();
         L2Bridge.withdraw(address(L2Token), 100, 1000, hex"");
+
+        assertEq(L2Token.balanceOf(alice), 0);
+    }
+
+    // BridgeERC20
+    // - token is burned
+    // - emits WithdrawalInitiated
+    // - calls Withdrawer.initiateWithdrawal
+    function test_bridgeERC20_succeeds() external {
+        _preWithdraw();
+        L2Bridge.bridgeERC20(address(L2Token), address(L1Token), 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
@@ -223,11 +240,9 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         L2Bridge.withdraw(address(L2Token), 100, 1000, hex"");
     }
 
-    // withdrawTo
-    // - token is burned
-    // - emits WithdrawalInitiated w/ correct recipient
-    // - calls Withdrawer.initiateWithdrawal
-    function test_withdrawTo_withdrawingERC20_succeeds() external {
+    // withdrawTo and BridgeERC20To should behave the same when transferring ERC20 tokens
+    // so they should share the same setup and expectEmit calls
+    function _preWithdrawTo() private {
         deal(address(L2Token), alice, 100, true);
         assertEq(L2Token.balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
@@ -313,8 +328,27 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         );
 
         vm.prank(alice, alice);
+    }
+
+    // withdrawTo
+    // - token is burned
+    // - emits WithdrawalInitiated w/ correct recipient
+    // - calls Withdrawer.initiateWithdrawal
+    function test_withdrawTo_withdrawingERC20_succeeds() external {
+        _preWithdrawTo();
         L2Bridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
 
+        assertEq(L2Token.balanceOf(alice), 0);
+    }
+
+    // bridgeERC20To
+    // - token is burned
+    // - emits WithdrawalInitiated w/ correct recipient
+    // - calls Withdrawer.initiateWithdrawal
+    function test_bridgeERC20To__succeeds() external {
+        _preWithdrawTo();
+        vm.prank(alice, alice);
+        L2Bridge.bridgeERC20To(address(L2Token), address(L1Token), bob, 100, 1000, hex"");
         assertEq(L2Token.balanceOf(alice), 0);
     }
 

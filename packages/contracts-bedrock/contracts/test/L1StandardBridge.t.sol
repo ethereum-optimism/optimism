@@ -72,12 +72,7 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
 contract L1StandardBridge_Receive_TestFail {}
 
 contract L1StandardBridge_DepositETH_Test is Bridge_Initializer {
-    // depositETH
-    // - emits ETHDepositInitiated
-    // - calls optimismPortal.depositTransaction
-    // - only EOA
-    // - ETH ends up in the optimismPortal
-    function test_depositETH_succeeds() external {
+    function _preDepositETH() internal {
         assertEq(address(op).balance, 0);
         uint256 nonce = L1Messenger.messageNonce();
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
@@ -151,7 +146,31 @@ contract L1StandardBridge_DepositETH_Test is Bridge_Initializer {
         emit SentMessageExtension1(address(L1Bridge), 500);
 
         vm.prank(alice, alice);
+    }
+
+    // depositETH
+    // - emits ETHDepositInitiated
+    // - emits ETHBridgeInitiated
+    // - calls optimismPortal.depositTransaction
+    // - only EOA
+    // - ETH ends up in the optimismPortal
+    function test_depositETH_succeeds() external {
+        _preDepositETH();
         L1Bridge.depositETH{ value: 500 }(50000, hex"ff");
+        assertEq(address(op).balance, 500);
+    }
+}
+
+contract L1StandardBridge_BridgeETH_Test is L1StandardBridge_DepositETH_Test {
+    // BridgeETH
+    // - emits ETHDepositInitiated
+    // - emits ETHBridgeInitiated
+    // - calls optimismPortal.depositTransaction
+    // - only EOA
+    // - ETH ends up in the optimismPortal
+    function test_bridgeETH_succeeds() external {
+        _preDepositETH();
+        L1Bridge.bridgeETH{ value: 500 }(50000, hex"ff");
         assertEq(address(op).balance, 500);
     }
 }
@@ -168,12 +187,7 @@ contract L1StandardBridge_DepositETH_TestFail is Bridge_Initializer {
 }
 
 contract L1StandardBridge_DepositETHTo_Test is Bridge_Initializer {
-    // depositETHTo
-    // - emits ETHDepositInitiated
-    // - calls optimismPortal.depositTransaction
-    // - EOA or contract can call
-    // - ETH ends up in the optimismPortal
-    function test_depositETHTo_succeeds() external {
+    function _preDepositETHTo() internal {
         assertEq(address(op).balance, 0);
         uint256 nonce = L1Messenger.messageNonce();
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
@@ -256,7 +270,30 @@ contract L1StandardBridge_DepositETHTo_Test is Bridge_Initializer {
 
         // deposit eth to bob
         vm.prank(alice, alice);
+    }
+
+    // depositETHTo
+    // - emits ETHDepositInitiated
+    // - calls optimismPortal.depositTransaction
+    // - EOA or contract can call
+    // - ETH ends up in the optimismPortal
+    function test_depositETHTo_succeeds() external {
+        _preDepositETHTo();
         L1Bridge.depositETHTo{ value: 600 }(bob, 1000, hex"dead");
+    }
+}
+
+contract L1StandardBridge_BridgeETHTo_Test is L1StandardBridge_DepositETHTo_Test {
+    // BridgeETHTo
+    // - emits ETHDepositInitiated
+    // - emits ETHBridgeInitiated
+    // - calls optimismPortal.depositTransaction
+    // - only EOA
+    // - ETH ends up in the optimismPortal
+    function test_bridgeETHTo_succeeds() external {
+        _preDepositETHTo();
+        L1Bridge.bridgeETHTo{ value: 500 }(bob, 50000, hex"ff");
+        assertEq(address(op).balance, 500);
     }
 }
 
