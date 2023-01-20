@@ -28,6 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
     L1StandardBridgeProxyWithSigner,
     L1ERC721BridgeProxy,
     L1ERC721BridgeProxyWithSigner,
+    SystemConfigProxy,
   ] = await getContractsFromArtifacts(hre, [
     {
       name: 'SystemDictatorProxy',
@@ -59,6 +60,11 @@ const deployFn: DeployFunction = async (hre) => {
     },
     {
       name: 'L1ERC721BridgeProxy',
+      signerOrProvider: deployer,
+    },
+    {
+      name: 'SystemConfigProxy',
+      iface: 'SystemConfig',
       signerOrProvider: deployer,
     },
   ])
@@ -250,6 +256,36 @@ const deployFn: DeployFunction = async (hre) => {
         (await ProxyAdmin.proxyType(
           getDeploymentAddress(hre, 'Proxy__OVM_L1StandardBridge')
         )) === 1
+      )
+
+      // Check the SystemConfig was initialized properly.
+      await assertContractVariable(
+        SystemConfigProxy,
+        'owner',
+        hre.deployConfig.finalSystemOwner
+      )
+      await assertContractVariable(
+        SystemConfigProxy,
+        'overhead',
+        hre.deployConfig.gasPriceOracleOverhead
+      )
+      await assertContractVariable(
+        SystemConfigProxy,
+        'scalar',
+        hre.deployConfig.gasPriceOracleScalar
+      )
+      await assertContractVariable(
+        SystemConfigProxy,
+        'batcherHash',
+        ethers.utils.hexZeroPad(
+          hre.deployConfig.batchSenderAddress.toLowerCase(),
+          32
+        )
+      )
+      await assertContractVariable(
+        SystemConfigProxy,
+        'gasLimit',
+        hre.deployConfig.l2GenesisBlockGasLimit
       )
     },
   })

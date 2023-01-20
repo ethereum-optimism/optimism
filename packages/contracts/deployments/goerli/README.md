@@ -3,6 +3,10 @@
 - **Chain ID**: 420
 - **Public RPC**: https://goerli.optimism.io
 - **Block Explorer**: https://goerli-optimism.etherscan.io/
+
+**Note:** This list is out of date, now that Goerli is on bedrock.
+[The valid list is here](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/deployments/goerli).
+
 ## Layer 1 Contracts
 <table>
 <tr>
