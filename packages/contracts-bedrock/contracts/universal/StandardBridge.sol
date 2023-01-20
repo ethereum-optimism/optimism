@@ -164,11 +164,10 @@ abstract contract StandardBridge {
     }
 
     /**
-     * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
+     * @notice Allows EOAs to bridge ETH by sending directly to the bridge.
+     *         Must be implemented by contracts that inherit.
      */
-    receive() external payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
-    }
+    receive() external payable virtual;
 
     /**
      * @custom:legacy
@@ -401,7 +400,7 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _extraData
+        bytes memory _extraData
     ) internal {
         if (_isOptimismMintableERC20(_localToken)) {
             require(

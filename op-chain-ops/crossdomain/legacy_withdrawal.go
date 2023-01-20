@@ -170,3 +170,17 @@ func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 
 	return value, nil
 }
+
+// CrossDomainMessage turns the LegacyWithdrawal into
+// a CrossDomainMessage. LegacyWithdrawals do not have
+// the concept of value or gaslimit, so set them to 0.
+func (w *LegacyWithdrawal) CrossDomainMessage() *CrossDomainMessage {
+	return &CrossDomainMessage{
+		Nonce:    w.Nonce,
+		Sender:   w.Sender,
+		Target:   w.Target,
+		Value:    new(big.Int),
+		GasLimit: new(big.Int),
+		Data:     []byte(w.Data),
+	}
+}
