@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Bridge_Initializer } from "./CommonTest.t.sol";
 import { stdStorage, StdStorage } from "forge-std/Test.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
+import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 import { Predeploys } from "../libraries/Predeploys.sol";
 import { console } from "forge-std/console.sol";
 import { StandardBridge } from "../universal/StandardBridge.sol";
@@ -15,10 +16,6 @@ import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
 
 contract L2StandardBridge_Test is Bridge_Initializer {
     using stdStorage for StdStorage;
-
-    function setUp() public override {
-        super.setUp();
-    }
 
     function test_initialize_succeeds() external {
         assertEq(address(L2Bridge.messenger()), address(L2Messenger));
@@ -126,7 +123,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - token is burned
     // - emits WithdrawalInitiated
     // - calls Withdrawer.initiateWithdrawal
-    function test_withdraw_succeeds() external {
+    function test_withdraw_withdrawingERC20_succeeds() external {
         // Alice has 100 L2Token
         deal(address(L2Token), alice, 100, true);
         assertEq(L2Token.balanceOf(alice), 100);
@@ -230,7 +227,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - token is burned
     // - emits WithdrawalInitiated w/ correct recipient
     // - calls Withdrawer.initiateWithdrawal
-    function test_withdrawTo_succeeds() external {
+    function test_withdrawTo_withdrawingERC20_succeeds() external {
         deal(address(L2Token), alice, 100, true);
         assertEq(L2Token.balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
@@ -325,7 +322,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
     // - only callable by l1TokenBridge
     // - supported token pair emits DepositFinalized
     // - invalid deposit calls Withdrawer.initiateWithdrawal
-    function test_finalizeDeposit_succeeds() external {
+    function test_finalizeDeposit_depositingERC20_succeeds() external {
         vm.mockCall(
             address(L2Bridge.messenger()),
             abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
@@ -337,6 +334,25 @@ contract L2StandardBridge_Test is Bridge_Initializer {
             abi.encodeWithSelector(OptimismMintableERC20.mint.selector, alice, 100)
         );
 
+        // Should emit both the bedrock and legacy events
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit ERC20BridgeFinalized(address(L2Token), address(L1Token), alice, alice, 100, hex"");
+
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit DepositFinalized(address(L1Token), address(L2Token), alice, alice, 100, hex"");
+
+        vm.prank(address(L2Messenger));
+        L2Bridge.finalizeDeposit(address(L1Token), address(L2Token), alice, alice, 100, hex"");
+    }
+
+    function test_finalizeDeposit_depositingETH_succeeds() external {
+        vm.mockCall(
+            address(L2Bridge.messenger()),
+            abi.encodeWithSelector(CrossDomainMessenger.xDomainMessageSender.selector),
+            abi.encode(address(L2Bridge.OTHER_BRIDGE()))
+        );
+
+        // Should emit both the bedrock and legacy events
         vm.expectEmit(true, true, true, true, address(L2Bridge));
         emit ERC20BridgeFinalized(
             address(L2Token), // localToken

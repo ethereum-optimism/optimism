@@ -84,6 +84,9 @@ contract L1StandardBridge_DepositETH_Test is Bridge_Initializer {
         address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
         vm.expectEmit(true, true, true, true);
+        emit ETHDepositInitiated(alice, alice, 500, hex"ff");
+
+        vm.expectEmit(true, true, true, true);
         emit ETHBridgeInitiated(alice, alice, 500, hex"ff");
 
         bytes memory message = abi.encodeWithSelector(
@@ -272,9 +275,6 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
         address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
-        vm.expectEmit(true, true, true, true);
-        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, alice, 100, hex"");
-
         // Deal Alice's ERC20 State
         deal(address(L1Token), alice, 100000, true);
         vm.prank(alice);
@@ -338,7 +338,10 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
             innerMessage
         );
 
-        // ERC20 Deposit Initiated event emitted by the StandardBridge Contract
+        // Should emit both the bedrock and legacy events
+        vm.expectEmit(true, true, true, true);
+        emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, alice, 100, hex"");
+
         vm.expectEmit(true, true, true, true);
         emit ERC20BridgeInitiated(address(L1Token), address(L2Token), alice, alice, 100, hex"");
 
@@ -434,6 +437,7 @@ contract L1StandardBridge_DepositERC20To_Test is Bridge_Initializer {
             innerMessage
         );
 
+        // Should emit both the bedrock and legacy events
         vm.expectEmit(true, true, true, true);
         emit ERC20DepositInitiated(address(L1Token), address(L2Token), alice, bob, 1000, hex"");
 
@@ -480,6 +484,9 @@ contract L1StandardBridge_FinalizeETHWithdrawal_Test is Bridge_Initializer {
 
         vm.expectEmit(true, true, true, true);
         emit ETHWithdrawalFinalized(alice, alice, 100, hex"");
+
+        vm.expectEmit(true, true, true, true);
+        emit ETHBridgeFinalized(alice, alice, 100, hex"");
 
         vm.expectCall(alice, hex"");
 
