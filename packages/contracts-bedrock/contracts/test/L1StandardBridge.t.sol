@@ -16,7 +16,7 @@ contract L1StandardBridge_Getter_Test is Bridge_Initializer {
         assert(L1Bridge.OTHER_BRIDGE() == L2Bridge);
         assert(L1Bridge.messenger() == L1Messenger);
         assert(L1Bridge.MESSENGER() == L1Messenger);
-        assertEq(L1Bridge.version(), "1.0.0");
+        assertEq(L1Bridge.version(), "1.1.0");
     }
 }
 
@@ -37,6 +37,10 @@ contract L1StandardBridge_Receive_Test is Bridge_Initializer {
     // - can accept ETH
     function test_receive_succeeds() external {
         assertEq(address(op).balance, 0);
+
+        // The legacy event must be emitted for backwards compatibility
+        vm.expectEmit(true, true, true, true);
+        emit ETHDepositInitiated(alice, alice, 100, hex"");
 
         vm.expectEmit(true, true, true, true);
         emit ETHBridgeInitiated(alice, alice, 100, hex"");
