@@ -479,7 +479,7 @@ transaction must also be signed by a recognized batch submitter account.
 
 [channel-timeout]: glossary.md#channel-timeout
 
-The channel timeout is a duration (in seconds) during which [channel frames][channel-frame may land on L1 within
+The channel timeout is a duration (in L1 blocks) during which [channel frames][channel-frame] may land on L1 within
 [batcher transactions][batcher-transaction].
 
 The acceptable time range for the frames of a [channel][channel] is `[channel_id.timestamp, channel_id.timestamp +

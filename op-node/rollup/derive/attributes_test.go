@@ -43,12 +43,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
 		epoch := l1Info.ID()
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
-		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
 		require.ErrorIs(t, err, ErrReset, "inconsistent L1 origin transition must be handled like a critical error with reorg")
 	})
@@ -60,11 +60,11 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoNum = l2Parent.L1Origin.Number
 		epoch := l1Info.ID()
-		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NotNil(t, err, "inconsistent L1 origin error expected")
 		require.ErrorIs(t, err, ErrReset, "inconsistent L1 origin transition must be handled like a critical error with reorg")
 	})
@@ -76,12 +76,12 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		epoch := l2Parent.L1Origin
 		epoch.Number += 1
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, nil, nil, mockRPCErr)
-		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
 	})
@@ -93,11 +93,11 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		epoch := l2Parent.L1Origin
 		mockRPCErr := errors.New("mock rpc error")
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, nil, mockRPCErr)
-		_, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		_, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.ErrorIs(t, err, mockRPCErr, "mock rpc error expected")
 		require.ErrorIs(t, err, ErrTemporary, "rpc errors should not be critical, it is not necessary to reorg")
 	})
@@ -109,7 +109,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
@@ -117,7 +116,8 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1InfoTx, err := L1InfoDepositBytes(0, l1Info, testSysCfg)
 		require.NoError(t, err)
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, nil, nil)
-		attrs, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
@@ -135,7 +135,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoParentHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number + 1
@@ -157,7 +156,8 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l2Txs := append(append(make([]eth.Data, 0), l1InfoTx), usedDepositTxs...)
 
 		l1Fetcher.ExpectFetchReceipts(epoch.Hash, l1Info, receipts, nil)
-		attrs, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))
@@ -175,7 +175,6 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		l1CfgFetcher := &testutils.MockL2Client{}
 		l1CfgFetcher.ExpectSystemConfigByL2Hash(l2Parent.Hash, testSysCfg, nil)
 		defer l1CfgFetcher.AssertExpectations(t)
-		l2Time := l2Parent.Time + cfg.BlockTime
 		l1Info := testutils.RandomBlockInfo(rng)
 		l1Info.InfoHash = l2Parent.L1Origin.Hash
 		l1Info.InfoNum = l2Parent.L1Origin.Number
@@ -185,7 +184,8 @@ func TestPreparePayloadAttributes(t *testing.T) {
 		require.NoError(t, err)
 
 		l1Fetcher.ExpectInfoByHash(epoch.Hash, l1Info, nil)
-		attrs, err := PreparePayloadAttributes(context.Background(), cfg, l1Fetcher, l1CfgFetcher, l2Parent, l2Time, epoch)
+		attrBuilder := NewFetchingAttributesBuilder(cfg, l1Fetcher, l1CfgFetcher)
+		attrs, err := attrBuilder.PreparePayloadAttributes(context.Background(), l2Parent, epoch)
 		require.NoError(t, err)
 		require.NotNil(t, attrs)
 		require.Equal(t, l2Parent.Time+cfg.BlockTime, uint64(attrs.Timestamp))

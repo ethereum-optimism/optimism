@@ -33,6 +33,9 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         // TODO: withdrawal hash should be computed correctly
         // TODO: events from each contract
 
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalInitiated(address(0), Predeploys.LEGACY_ERC20_ETH, alice, alice, 100, hex"");
+
         vm.prank(alice, alice);
         (bool success, ) = address(L2Bridge).call{ value: 100 }(hex"");
         assertEq(success, true);
