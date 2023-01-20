@@ -58,6 +58,7 @@ var DefaultConfig = Config{
 		Recommit: 3 * time.Second,
 	},
 	TxPool:        core.DefaultTxPoolConfig,
+	RPCGasCap:     new(big.Int).SetUint64(25_000_000),
 	RPCEVMTimeout: 5 * time.Second,
 	GPO: gasprice.Config{
 		Blocks:     20,
