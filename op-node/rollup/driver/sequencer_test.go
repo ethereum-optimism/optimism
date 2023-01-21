@@ -132,10 +132,10 @@ func (fn testAttrBuilderFn) PreparePayloadAttributes(ctx context.Context, l2Pare
 
 var _ derive.AttributesBuilder = (testAttrBuilderFn)(nil)
 
-type testOriginSelectorFn func(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
+type testOriginSelectorFn func(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 
-func (fn testOriginSelectorFn) FindL1Origin(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
-	return fn(ctx, l1Head, l2Head)
+func (fn testOriginSelectorFn) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	return fn(ctx, l2Head)
 }
 
 var _ L1OriginSelectorIface = (testOriginSelectorFn)(nil)
@@ -262,7 +262,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 	maxL1BlockTimeGap := uint64(100)
 	// The origin selector just generates random L1 blocks based on RNG
 	var originErr error
-	originSelector := testOriginSelectorFn(func(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	originSelector := testOriginSelectorFn(func(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 		if originErr != nil {
 			return eth.L1BlockRef{}, originErr
 		}
@@ -297,8 +297,6 @@ func TestSequencerChaosMonkey(t *testing.T) {
 
 	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector)
 	seq.timeNow = clockFn
-
-	l1Head := eth.L1BlockRef{} // TODO this is getting removed
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems
 	desiredBlocks := 1000
@@ -339,7 +337,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		default:
 			// no error
 		}
-		payload := seq.RunNextSequencerAction(context.Background(), l1Head)
+		payload := seq.RunNextSequencerAction(context.Background())
 		if payload != nil {
 			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ID(), "head must stay in sync with emitted payloads")
 			var tx types.Transaction

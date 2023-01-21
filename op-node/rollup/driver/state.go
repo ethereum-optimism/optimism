@@ -212,7 +212,7 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			payload := s.sequencer.RunNextSequencerAction(ctx, s.l1State.L1Head())
+			payload := s.sequencer.RunNextSequencerAction(ctx)
 			if s.network != nil && payload != nil {
 				// Publishing of unsafe data via p2p is optional.
 				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
