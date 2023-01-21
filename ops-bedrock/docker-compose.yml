@@ -65,6 +65,7 @@ services:
       --metrics.addr=0.0.0.0
       --metrics.port=7300
       --pprof.enabled
+      --rpc.enable-admin
     ports:
       - "7545:8545"
       - "9003:9003"
