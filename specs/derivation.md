@@ -598,10 +598,18 @@ Rules, in validation order:
 - `batch.epoch_num > epoch.number+1` -> `drop`: i.e. the L1 origin cannot change by more than one L1 block per L2 block.
 - `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
   to prevent batches from being replayed onto unexpected L1 chains.
-- `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
-  within time will be dropped, in favor of an empty batch that can advance the L1 origin. This enforces the max L2
-  timestamp rule.
 - `batch.timestamp < batch_origin.time` -> `drop`: enforce the min L2 timestamp rule.
+- `batch.timestamp > batch_origin.time + max_sequencer_drift`: enforce the L2 timestamp drift rule,
+  but with exceptions to preserve above min L2 timestamp invariant:
+  - `len(batch.transactions) == 0`:
+    - `epoch.number >= batch.epoch_num`:
+      this implies the batch does not already advance the L1 origin, and must thus be checked against `next_epoch`.
+      - If `next_epoch` is not known -> `undecided`:
+        without the next L1 origin we cannot yet determine if time invariant could have been kept.
+      - If `batch.timestamp >= next_epoch.time` -> `drop`:
+        the batch could have adopted the next L1 origin without breaking the `L2 time >= L1 time` invariant.
+  - `len(batch.transactions) > 0`: -> `drop`:
+    when exceeding the sequencer time drift, never allow the sequencer to include transactions.
 - `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
   that is invalid or derived by other means exclusively:
   - any transaction that is empty (zero length byte string)
