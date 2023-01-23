@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.32
+
+### Patch Changes
+
+- ea817097b: Use default cas gap of 25 million
+
 ## 0.5.31
 
 ### Patch Changes
