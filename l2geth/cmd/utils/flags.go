@@ -516,6 +516,7 @@ var (
 	}
 	RPCGlobalGasCap = cli.Uint64Flag{
 		Name:  "rpc.gascap",
+		Value: eth.DefaultConfig.RPCGasCap.Uint64(),
 		Usage: "Sets a cap on gas that can be used in eth_call/estimateGas",
 	}
 	RPCGlobalEVMTimeoutFlag = &cli.DurationFlag{

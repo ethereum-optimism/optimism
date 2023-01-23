@@ -26,6 +26,7 @@
 /op-chain-ops   @ethereum-optimism/go-reviewers
 /op-e2e         @ethereum-optimism/go-reviewers
 /op-node        @ethereum-optimism/go-reviewers
+/op-node/rollup @protolambda @trianglesphere
 /op-proposer    @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
 
@@ -34,6 +35,7 @@
 /.github      @ethereum-optimism/infra-reviewers
 /ops          @ethereum-optimism/infra-reviewers
 /ops-bedrock  @ethereum-optimism/infra-reviewers
+/op-signer    @ethereum-optimism/infra-reviewers
 
 # Misc
 /proxyd           @ethereum-optimism/infra-reviewers

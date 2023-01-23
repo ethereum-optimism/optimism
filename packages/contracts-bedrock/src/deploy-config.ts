@@ -56,7 +56,7 @@ interface RequiredDeployConfig {
   sequencerWindowSize: number
 
   /**
-   * Number of seconds (w.r.t. L1 time) that a frame can be valid when included in L1.
+   * Number of L1 blocks that a frame stays valid when included in L1.
    */
   channelTimeout: number
 
