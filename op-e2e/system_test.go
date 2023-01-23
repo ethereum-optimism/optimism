@@ -1129,6 +1129,58 @@ func TestFees(t *testing.T) {
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
 
+func TestStopStartSequencer(t *testing.T) {
+	parallel(t)
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	rollupNode := sys.RollupNodes["sequencer"]
+
+	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
+	require.Nil(t, err, "Error dialing node")
+
+	blockBefore := latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter := latestBlock(t, l2Seq)
+	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	blockHash := common.Hash{}
+	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
+	require.Nil(t, err, "Error stopping sequencer")
+
+	blockBefore = latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter = latestBlock(t, l2Seq)
+	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
+	require.Nil(t, err, "Error starting sequencer")
+
+	blockBefore = latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter = latestBlock(t, l2Seq)
+	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
+}
+
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
+}
+
+func latestBlock(t *testing.T, client *ethclient.Client) uint64 {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	blockAfter, err := client.BlockNumber(ctx)
+	require.Nil(t, err, "Error getting latest block")
+	return blockAfter
 }

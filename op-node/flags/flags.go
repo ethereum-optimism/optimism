@@ -94,6 +94,11 @@ var (
 		Usage:  "Enable sequencing of new L2 blocks. A separate batch submitter has to be deployed to publish the data for verifiers.",
 		EnvVar: prefixEnvVar("SEQUENCER_ENABLED"),
 	}
+	SequencerStoppedFlag = cli.BoolFlag{
+		Name:   "sequencer.stopped",
+		Usage:  "Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC",
+		EnvVar: prefixEnvVar("SEQUENCER_STOPPED"),
+	}
 	SequencerL1Confs = cli.Uint64Flag{
 		Name:     "sequencer.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
@@ -197,6 +202,7 @@ var optionalFlags = append([]cli.Flag{
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
+	SequencerStoppedFlag,
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
 	LogLevelFlag,
