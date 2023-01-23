@@ -32,6 +32,7 @@ type NodeP2P struct {
 	dv5Udp   *discover.UDPv5  // p2p discovery service
 	gs       *pubsub.PubSub   // p2p gossip router
 	gsOut    GossipOut        // p2p gossip application interface for publishing
+	scorer   Scorer           // p2p peer scorer
 }
 
 // NewNodeP2P creates a new p2p node, and returns a reference to it. If the p2p is disabled, it returns nil.
@@ -77,7 +78,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// unregister identify-push handler. Only identifying on dial is fine, and more robust against spam
 		n.host.RemoveStreamHandler(identify.IDDelta)
-		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, setup, metrics)
+		n.gs, err = NewGossipSub(resourcesCtx, n.host, n.gater, rollupCfg, setup, metrics)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}
