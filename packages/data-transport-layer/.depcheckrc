@@ -1,5 +1,6 @@
 ignores: [
   "@babel/eslint-parser",
+  "@types/level",
   "@typescript-eslint/parser",
   "eslint-plugin-import",
   "eslint-plugin-unicorn",
