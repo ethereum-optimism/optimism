@@ -1,3 +1,4 @@
+// Package metrics provides a set of metrics for the op-node.
 package metrics
 
 import (
@@ -63,6 +64,7 @@ type Metricer interface {
 	Document() []metrics.DocumentedMetric
 }
 
+// Metrics tracks all the metrics for the op-node.
 type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
@@ -118,6 +120,7 @@ type Metrics struct {
 
 var _ Metricer = (*Metrics)(nil)
 
+// NewMetrics creates a new [Metrics] instance with the given process name.
 func NewMetrics(procName string) *Metrics {
 	if procName == "" {
 		procName = "default"

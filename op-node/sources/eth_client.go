@@ -1,3 +1,12 @@
+// Package sources exports a number of clients used to access ethereum chain data.
+//
+// There are a number of these exported clients used by the op-node:
+// [L1Client] wraps an RPC client to retrieve L1 ethereum data.
+// [L2Client] wraps an RPC client to retrieve L2 ethereum data.
+// [RollupClient] wraps an RPC client to retrieve rollup data.
+// [EngineClient] extends the [L2Client] providing engine API bindings.
+//
+// Internally, the listed clients wrap an [EthClient] which itself wraps a specified RPC client.
 package sources
 
 import (
@@ -126,8 +135,8 @@ func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
 	}
 }
 
-// NewEthClient wraps a RPC with bindings to fetch ethereum data,
-// while logging errors, parallel-requests constraint, tracking metrics (optional), and caching.
+// NewEthClient returns an [EthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
+// metric tracking, and caching. The [EthClient] uses a [LimitRPC] wrapper to limit the number of concurrent RPC requests.
 func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *EthClientConfig) (*EthClient, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
