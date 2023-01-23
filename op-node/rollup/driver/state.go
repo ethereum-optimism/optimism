@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	gosync "sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -41,6 +43,14 @@ type Driver struct {
 	// Upon receiving a channel in this channel, the derivation pipeline is forced to be reset.
 	// It tells the caller that the reset occurred by closing the passed in channel.
 	forceReset chan chan struct{}
+
+	// Upon receiving a hash in this channel, the sequencer is started at the given hash.
+	// It tells the caller that the sequencer started by closing the passed in channel (or returning an error).
+	startSequencer chan hashAndErrorChannel
+
+	// Upon receiving a channel in this channel, the sequencer is stopped.
+	// It tells the caller that the sequencer stopped by returning the latest sequenced L2 block hash.
+	stopSequencer chan chan hashAndError
 
 	// Rollup config: rollup chain configuration
 	config *rollup.Config
@@ -274,7 +284,7 @@ func (s *Driver) eventLoop() {
 	for {
 		// If we are sequencing, update the trigger for the next sequencer action.
 		// This may adjust at any time based on fork-choice changes or previous errors.
-		if s.driverConfig.SequencerEnabled {
+		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped {
 			// update sequencer time if the head changed
 			if sequencingPlannedOnto != s.derivation.UnsafeL2Head().ID() {
 				planSequencerAction()
@@ -367,6 +377,26 @@ func (s *Driver) eventLoop() {
 			s.derivation.Reset()
 			s.metrics.RecordPipelineReset()
 			close(respCh)
+		case resp := <-s.startSequencer:
+			unsafeHead := s.derivation.UnsafeL2Head().Hash
+			if !s.driverConfig.SequencerStopped {
+				resp.err <- errors.New("sequencer already running")
+			} else if !bytes.Equal(unsafeHead[:], resp.hash[:]) {
+				resp.err <- fmt.Errorf("block hash does not match: head %s, received %s", unsafeHead.String(), resp.hash.String())
+			} else {
+				s.log.Info("Sequencer has been started")
+				s.driverConfig.SequencerStopped = false
+				sequencingPlannedOnto = eth.BlockID{}
+				close(resp.err)
+			}
+		case respCh := <-s.stopSequencer:
+			if s.driverConfig.SequencerStopped {
+				respCh <- hashAndError{err: errors.New("sequencer not running")}
+			} else {
+				s.log.Warn("Sequencer has been stopped")
+				s.driverConfig.SequencerStopped = true
+				respCh <- hashAndError{hash: s.derivation.UnsafeL2Head().Hash}
+			}
 		case <-s.done:
 			return
 		}
@@ -387,6 +417,45 @@ func (s *Driver) ResetDerivationPipeline(ctx context.Context) error {
 			return ctx.Err()
 		case <-respCh:
 			return nil
+		}
+	}
+}
+
+func (s *Driver) StartSequencer(ctx context.Context, blockHash common.Hash) error {
+	if !s.driverConfig.SequencerEnabled {
+		return errors.New("sequencer is not enabled")
+	}
+	h := hashAndErrorChannel{
+		hash: blockHash,
+		err:  make(chan error, 1),
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case s.startSequencer <- h:
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case e := <-h.err:
+			return e
+		}
+	}
+}
+
+func (s *Driver) StopSequencer(ctx context.Context) (common.Hash, error) {
+	if !s.driverConfig.SequencerEnabled {
+		return common.Hash{}, errors.New("sequencer is not enabled")
+	}
+	respCh := make(chan hashAndError, 1)
+	select {
+	case <-ctx.Done():
+		return common.Hash{}, ctx.Err()
+	case s.stopSequencer <- respCh:
+		select {
+		case <-ctx.Done():
+			return common.Hash{}, ctx.Err()
+		case he := <-respCh:
+			return he.hash, he.err
 		}
 	}
 }
@@ -454,4 +523,14 @@ func (s *Driver) snapshot(event string) {
 		"l2Head", deferJSONString{s.derivation.UnsafeL2Head()},
 		"l2Safe", deferJSONString{s.derivation.SafeL2Head()},
 		"l2FinalizedHead", deferJSONString{s.derivation.Finalized()})
+}
+
+type hashAndError struct {
+	hash common.Hash
+	err  error
+}
+
+type hashAndErrorChannel struct {
+	hash common.Hash
+	err  chan error
 }

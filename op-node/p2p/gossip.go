@@ -140,6 +140,8 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 	return params
 }
 
+// NewGossipSub configures a new pubsub instance with the specified parameters.
+// PubSub uses a GossipSubRouter as it's router under the hood.
 func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {

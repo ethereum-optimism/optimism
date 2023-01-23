@@ -76,6 +76,7 @@ func (h *Hardhat) init() error {
 // initDeployments reads all of the deployment json files from disk and then
 // caches the deserialized `Deployment` structs.
 func (h *Hardhat) initDeployments() error {
+	knownDeployments := make(map[string]string)
 	for _, deploymentPath := range h.DeploymentPaths {
 		fileSystem := os.DirFS(filepath.Join(deploymentPath, h.network))
 		err := fs.WalkDir(fileSystem, ".", func(path string, d fs.DirEntry, err error) error {
@@ -103,7 +104,16 @@ func (h *Hardhat) initDeployments() error {
 			}
 
 			deployment.Name = filepath.Base(name[:len(name)-5])
+			if knownDeployments[deployment.Name] != "" {
+				return fmt.Errorf(
+					"discovered duplicate deployment %s. old: %s, new: %s",
+					deployment.Name,
+					knownDeployments[deployment.Name],
+					name,
+				)
+			}
 			h.deployments = append(h.deployments, &deployment)
+			knownDeployments[deployment.Name] = name
 			return nil
 		})
 		if err != nil {

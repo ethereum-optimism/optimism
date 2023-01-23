@@ -422,6 +422,10 @@ jobs:
           name: Check integration-tests
           command: npx depcheck
           working_directory: integration-tests
+      - run:
+          name: Check two-step-monitor
+          command: npx depcheck
+          working_directory: packages/two-step-monitor
 
   go-lint:
     parameters:

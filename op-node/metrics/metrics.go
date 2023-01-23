@@ -1,3 +1,4 @@
+// Package metrics provides a set of metrics for the op-node.
 package metrics
 
 import (
@@ -10,11 +11,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-service/metrics"
+
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/ethereum/go-ethereum"
@@ -59,8 +61,10 @@ type Metricer interface {
 	RecordBandwidth(ctx context.Context, bwc *libp2pmetrics.BandwidthCounter)
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
+	Document() []metrics.DocumentedMetric
 }
 
+// Metrics tracks all the metrics for the op-node.
 type Metrics struct {
 	Info *prometheus.GaugeVec
 	Up   prometheus.Gauge
@@ -111,10 +115,12 @@ type Metrics struct {
 	BandwidthTotal    *prometheus.GaugeVec
 
 	registry *prometheus.Registry
+	factory  metrics.Factory
 }
 
 var _ Metricer = (*Metrics)(nil)
 
+// NewMetrics creates a new [Metrics] instance with the given process name.
 func NewMetrics(procName string) *Metrics {
 	if procName == "" {
 		procName = "default"
@@ -124,21 +130,22 @@ func NewMetrics(procName string) *Metrics {
 	registry := prometheus.NewRegistry()
 	registry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 	registry.MustRegister(collectors.NewGoCollector())
+	factory := metrics.With(registry)
 	return &Metrics{
-		Info: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		Info: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "info",
 			Help:      "Pseudo-metric tracking version and config info",
 		}, []string{
 			"version",
 		}),
-		Up: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		Up: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "up",
 			Help:      "1 if the op node has finished starting up",
 		}),
 
-		RPCServerRequestsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		RPCServerRequestsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: RPCServerSubsystem,
 			Name:      "requests_total",
@@ -146,7 +153,7 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"method",
 		}),
-		RPCServerRequestDurationSeconds: promauto.With(registry).NewHistogramVec(prometheus.HistogramOpts{
+		RPCServerRequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
 			Subsystem: RPCServerSubsystem,
 			Name:      "request_duration_seconds",
@@ -155,7 +162,7 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"method",
 		}),
-		RPCClientRequestsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		RPCClientRequestsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: RPCClientSubsystem,
 			Name:      "requests_total",
@@ -163,7 +170,7 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"method",
 		}),
-		RPCClientRequestDurationSeconds: promauto.With(registry).NewHistogramVec(prometheus.HistogramOpts{
+		RPCClientRequestDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
 			Namespace: ns,
 			Subsystem: RPCClientSubsystem,
 			Name:      "request_duration_seconds",
@@ -172,7 +179,7 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"method",
 		}),
-		RPCClientResponsesTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		RPCClientResponsesTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: RPCClientSubsystem,
 			Name:      "responses_total",
@@ -182,33 +189,33 @@ func NewMetrics(procName string) *Metrics {
 			"error",
 		}),
 
-		L1SourceCache: NewCacheMetrics(registry, ns, "l1_source_cache", "L1 Source cache"),
-		L2SourceCache: NewCacheMetrics(registry, ns, "l2_source_cache", "L2 Source cache"),
+		L1SourceCache: NewCacheMetrics(factory, ns, "l1_source_cache", "L1 Source cache"),
+		L2SourceCache: NewCacheMetrics(factory, ns, "l2_source_cache", "L2 Source cache"),
 
-		DerivationIdle: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		DerivationIdle: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "derivation_idle",
 			Help:      "1 if the derivation pipeline is idle",
 		}),
 
-		PipelineResets:   NewEventMetrics(registry, ns, "pipeline_resets", "derivation pipeline resets"),
-		UnsafePayloads:   NewEventMetrics(registry, ns, "unsafe_payloads", "unsafe payloads"),
-		DerivationErrors: NewEventMetrics(registry, ns, "derivation_errors", "derivation errors"),
-		SequencingErrors: NewEventMetrics(registry, ns, "sequencing_errors", "sequencing errors"),
-		PublishingErrors: NewEventMetrics(registry, ns, "publishing_errors", "p2p publishing errors"),
+		PipelineResets:   NewEventMetrics(factory, ns, "pipeline_resets", "derivation pipeline resets"),
+		UnsafePayloads:   NewEventMetrics(factory, ns, "unsafe_payloads", "unsafe payloads"),
+		DerivationErrors: NewEventMetrics(factory, ns, "derivation_errors", "derivation errors"),
+		SequencingErrors: NewEventMetrics(factory, ns, "sequencing_errors", "sequencing errors"),
+		PublishingErrors: NewEventMetrics(factory, ns, "publishing_errors", "p2p publishing errors"),
 
-		UnsafePayloadsBufferLen: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		UnsafePayloadsBufferLen: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "unsafe_payloads_buffer_len",
 			Help:      "Number of buffered L2 unsafe payloads",
 		}),
-		UnsafePayloadsBufferMemSize: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		UnsafePayloadsBufferMemSize: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "unsafe_payloads_buffer_mem_size",
 			Help:      "Total estimated memory size of buffered L2 unsafe payloads",
 		}),
 
-		RefsNumber: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		RefsNumber: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "refs_number",
 			Help:      "Gauge representing the different L1/L2 reference block numbers",
@@ -216,7 +223,7 @@ func NewMetrics(procName string) *Metrics {
 			"layer",
 			"type",
 		}),
-		RefsTime: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		RefsTime: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "refs_time",
 			Help:      "Gauge representing the different L1/L2 reference block timestamps",
@@ -224,7 +231,7 @@ func NewMetrics(procName string) *Metrics {
 			"layer",
 			"type",
 		}),
-		RefsHash: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		RefsHash: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "refs_hash",
 			Help:      "Gauge representing the different L1/L2 reference block hashes truncated to float values",
@@ -232,14 +239,14 @@ func NewMetrics(procName string) *Metrics {
 			"layer",
 			"type",
 		}),
-		RefsSeqNr: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		RefsSeqNr: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "refs_seqnr",
 			Help:      "Gauge representing the different L2 reference sequence numbers",
 		}, []string{
 			"type",
 		}),
-		RefsLatency: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		RefsLatency: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "refs_latency",
 			Help:      "Gauge representing the different L1/L2 reference block timestamps minus current time, in seconds",
@@ -249,32 +256,32 @@ func NewMetrics(procName string) *Metrics {
 		}),
 		LatencySeen: make(map[string]common.Hash),
 
-		L1ReorgDepth: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+		L1ReorgDepth: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "l1_reorg_depth",
 			Buckets:   []float64{0.5, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5, 9.5, 10.5, 20.5, 50.5, 100.5},
 			Help:      "Histogram of L1 Reorg Depths",
 		}),
 
-		TransactionsSequencedTotal: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		TransactionsSequencedTotal: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Name:      "transactions_sequenced_total",
 			Help:      "Count of total transactions sequenced",
 		}),
 
-		PeerCount: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		PeerCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
 			Name:      "peer_count",
 			Help:      "Count of currently connected p2p peers",
 		}),
-		StreamCount: promauto.With(registry).NewGauge(prometheus.GaugeOpts{
+		StreamCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
 			Name:      "stream_count",
 			Help:      "Count of currently connected p2p streams",
 		}),
-		GossipEventsTotal: promauto.With(registry).NewCounterVec(prometheus.CounterOpts{
+		GossipEventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
 			Name:      "gossip_events_total",
@@ -282,7 +289,7 @@ func NewMetrics(procName string) *Metrics {
 		}, []string{
 			"type",
 		}),
-		BandwidthTotal: promauto.With(registry).NewGaugeVec(prometheus.GaugeOpts{
+		BandwidthTotal: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
 			Name:      "bandwidth_bytes_total",
@@ -291,7 +298,7 @@ func NewMetrics(procName string) *Metrics {
 			"direction",
 		}),
 
-		SequencerBuildingDiffDurationSeconds: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+		SequencerBuildingDiffDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "sequencer_building_diff_seconds",
 			Buckets: []float64{
@@ -299,24 +306,25 @@ func NewMetrics(procName string) *Metrics {
 				.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			Help: "Histogram of Sequencer building time, minus block time",
 		}),
-		SequencerBuildingDiffTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		SequencerBuildingDiffTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "sequencer_building_diff_total",
 			Help:      "Number of sequencer block building jobs",
 		}),
-		SequencerSealingDurationSeconds: promauto.With(registry).NewHistogram(prometheus.HistogramOpts{
+		SequencerSealingDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
 			Namespace: ns,
 			Name:      "sequencer_sealing_seconds",
 			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			Help:      "Histogram of Sequencer block sealing time",
 		}),
-		SequencerSealingTotal: promauto.With(registry).NewCounter(prometheus.CounterOpts{
+		SequencerSealingTotal: factory.NewCounter(prometheus.CounterOpts{
 			Namespace: ns,
 			Name:      "sequencer_sealing_total",
 			Help:      "Number of sequencer block sealing jobs",
 		}),
 
 		registry: registry,
+		factory:  factory,
 	}
 }
 
@@ -515,6 +523,10 @@ func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 	return server.ListenAndServe()
 }
 
+func (m *Metrics) Document() []metrics.DocumentedMetric {
+	return m.factory.Document()
+}
+
 type noopMetricer struct{}
 
 var NoopMetrics Metricer = new(noopMetricer)
@@ -594,4 +606,8 @@ func (n *noopMetricer) RecordSequencerBuildingDiffTime(duration time.Duration) {
 }
 
 func (n *noopMetricer) RecordSequencerSealingTime(duration time.Duration) {
+}
+
+func (n *noopMetricer) Document() []metrics.DocumentedMetric {
+	return nil
 }

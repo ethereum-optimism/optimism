@@ -156,7 +156,7 @@ export abstract class BaseServiceV2<
 
     // Use commander as a way to communicate info about the service. We don't actually *use*
     // commander for anything besides the ability to run `ts-node ./service.ts --help`.
-    const program = new Command()
+    const program = new Command().allowUnknownOption(true)
     for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
       // Skip options that are not meant to be used by the user.
       if (['useEnv', 'useArgv'].includes(optionName)) {

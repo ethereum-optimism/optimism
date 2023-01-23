@@ -342,7 +342,7 @@ func TestMigration(t *testing.T) {
 		batcher.Stop()
 	})
 
-	proposer, err := l2os.NewL2OutputSubmitter(l2os.Config{
+	proposer, err := l2os.NewL2OutputSubmitter(l2os.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
 		L2OOAddress:               l2OS.Address.String(),
@@ -356,7 +356,7 @@ func TestMigration(t *testing.T) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(secrets.Proposer),
-	}, "", lgr.New("module", "proposer"))
+	}, lgr.New("module", "proposer"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

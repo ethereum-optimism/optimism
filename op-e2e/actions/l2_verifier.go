@@ -113,6 +113,14 @@ func (s *l2VerifierBackend) ResetDerivationPipeline(ctx context.Context) error {
 	return nil
 }
 
+func (s *l2VerifierBackend) StartSequencer(ctx context.Context, blockHash common.Hash) error {
+	return nil
+}
+
+func (s *l2VerifierBackend) StopSequencer(ctx context.Context) (common.Hash, error) {
+	return common.Hash{}, errors.New("stopping the L2Verifier sequencer is not supported")
+}
+
 func (s *L2Verifier) L2Finalized() eth.L2BlockRef {
 	return s.derivation.Finalized()
 }

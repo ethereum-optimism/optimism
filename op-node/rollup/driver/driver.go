@@ -89,14 +89,16 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 	findL1Origin := NewL1OriginSelector(log, cfg, l1, driverCfg.SequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
-	sequencer := NewSequencer(log, cfg, l1, l2, derivationPipeline, metrics)
-
+	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
+	sequencer := NewSequencer(log, cfg, l2, derivationPipeline, attrBuilder, metrics)
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
 		idleDerivation:   false,
 		stateReq:         make(chan chan struct{}),
 		forceReset:       make(chan chan struct{}, 10),
+		startSequencer:   make(chan hashAndErrorChannel, 10),
+		stopSequencer:    make(chan chan hashAndError, 10),
 		config:           cfg,
 		driverConfig:     driverCfg,
 		done:             make(chan struct{}),
