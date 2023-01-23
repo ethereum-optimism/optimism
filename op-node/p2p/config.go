@@ -49,6 +49,9 @@ type Config struct {
 	DisableP2P  bool
 	NoDiscovery bool
 
+	// P2P Scoring Configurations
+	ScoringConfig *ScoringConfig
+
 	ListenIP      net.IP
 	ListenTCPPort uint16
 
@@ -93,6 +96,11 @@ type Config struct {
 
 	ConnGater func(conf *Config) (connmgr.ConnectionGater, error)
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
+}
+
+type ScoringConfig struct {
+	// Scoring Level
+	EnablePeerScoring bool
 }
 
 type ConnectionGater interface {

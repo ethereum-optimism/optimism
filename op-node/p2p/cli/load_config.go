@@ -74,6 +74,11 @@ func validatePort(p uint) (uint16, error) {
 	return uint16(p), nil
 }
 
+func loadScoringOpts(conf *p2p.Config, ctx *cli.Context) error {
+	conf.ScoringParams = p2p.DefaultScoringParams
+	return nil
+}
+
 func loadListenOpts(conf *p2p.Config, ctx *cli.Context) error {
 	listenIP := ctx.GlobalString(flags.ListenIP.Name)
 	if listenIP != "" { // optional
