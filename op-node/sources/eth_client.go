@@ -3,6 +3,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -205,6 +206,16 @@ func (s *EthClient) payloadCall(ctx context.Context, method string, id any) (*et
 	}
 	s.payloadsCache.Add(payload.BlockHash, payload)
 	return payload, nil
+}
+
+// ChainID fetches the chain id of the internal RPC.
+func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
+	var id *big.Int
+	err := s.client.CallContext(ctx, &id, "eth_chainId")
+	if err != nil {
+		return nil, err
+	}
+	return id, nil
 }
 
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {

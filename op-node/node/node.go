@@ -124,6 +124,30 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
+	// Validate the L1 Client Chain ID
+	id, err := n.l1Source.L1ChainID(ctx)
+	if err != nil {
+		n.log.Warn("failed to verify L1 RPC chain id", "err", err)
+	} else {
+		if cfg.Rollup.L1ChainID != id {
+			n.log.Warn("incorrect L1 RPC chain id", "expected", cfg.Rollup.L1ChainID, "actual", id)
+		} else {
+			n.log.Info("L1 RPC chain id verified", "id", id)
+		}
+	}
+
+	// Validate the Rollup L1 Genesis Blockhash
+	l1GenesisBlockRef, err := n.l1Source.L1BlockRefByNumber(ctx, cfg.Rollup.Genesis.L1.Number)
+	if err != nil {
+		n.log.Warn("failed to validate L1 genesis block", "err", err)
+	} else {
+		if l1GenesisBlockRef.Hash != cfg.Rollup.Genesis.L1.Hash {
+			n.log.Warn("incorrect L1 genesis block", "expected", cfg.Rollup.Genesis.L1.Hash, "actual", l1GenesisBlockRef.Hash)
+		} else {
+			n.log.Info("L1 genesis block verified", "hash", l1GenesisBlockRef.Hash)
+		}
+	}
+
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
 	n.l1HeadsSub = event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
 		if err != nil {
@@ -187,6 +211,30 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
+	}
+
+	// Validate the L2 Client Chain ID
+	id, err := n.l2Source.L2ChainID(ctx)
+	if err != nil {
+		n.log.Warn("failed to verify L2 RPC chain id", "err", err)
+	} else {
+		if cfg.Rollup.L2ChainID != id {
+			n.log.Warn("incorrect L2 RPC chain id", "expected", cfg.Rollup.L2ChainID, "actual", id)
+		} else {
+			n.log.Info("L2 RPC chain id verified", "id", id)
+		}
+	}
+
+	// Validate the Rollup L2 Genesis Blockhash
+	l2GenesisBlockRef, err := n.l2Source.L2BlockRefByNumber(ctx, cfg.Rollup.Genesis.L2.Number)
+	if err != nil {
+		n.log.Warn("failed to validate L2 genesis block", "err", err)
+	} else {
+		if l2GenesisBlockRef.Hash != cfg.Rollup.Genesis.L2.Hash {
+			n.log.Warn("incorrect L2 genesis block", "expected", cfg.Rollup.Genesis.L2.Hash, "actual", l2GenesisBlockRef.Hash)
+		} else {
+			n.log.Info("L2 genesis block verified", "hash", l2GenesisBlockRef.Hash)
+		}
 	}
 
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
