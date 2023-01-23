@@ -10,6 +10,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 type Config struct {
@@ -78,6 +79,9 @@ type Config struct {
 	MetricsConfig opmetrics.CLIConfig
 
 	PprofConfig oppprof.CLIConfig
+
+	// SignerConfig contains the client config for op-signer service
+	SignerConfig opsigner.CLIConfig
 }
 
 func (c Config) Check() error {
@@ -91,6 +95,9 @@ func (c Config) Check() error {
 		return err
 	}
 	if err := c.PprofConfig.Check(); err != nil {
+		return err
+	}
+	if err := c.SignerConfig.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -121,5 +128,6 @@ func NewConfig(ctx *cli.Context) Config {
 		LogConfig:                  oplog.ReadCLIConfig(ctx),
 		MetricsConfig:              opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:                oppprof.ReadCLIConfig(ctx),
+		SignerConfig:               opsigner.ReadCLIConfig(ctx),
 	}
 }

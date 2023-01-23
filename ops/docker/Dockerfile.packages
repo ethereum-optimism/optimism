@@ -48,6 +48,7 @@ COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
 COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
 COPY packages/balance-monitor/package.json ./packages/balance-monitor/package.json
+COPY packages/two-step-monitor/package.json ./packages/two-step-monitor/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
 
 RUN yarn install --frozen-lockfile && yarn cache clean
@@ -111,3 +112,7 @@ ENTRYPOINT ["npm", "run", "start"]
 FROM base as balance-monitor
 WORKDIR /opt/optimism/packages/balance-monitor
 ENTRYPOINT ["yarn", "run", "start:prod"]
+
+FROM base as two-step-monitor
+WORKDIR /opt/optimism/packages/two-step-monitor
+ENTRYPOINT ["yarn", "run", "start"]
