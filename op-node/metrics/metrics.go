@@ -291,7 +291,7 @@ func NewMetrics(procName string) *Metrics {
 			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
 			Help:      "Histogram of p2p peer scores",
 		}, []string{
-			"method",
+			"peerid",
 		}),
 		GossipEventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
