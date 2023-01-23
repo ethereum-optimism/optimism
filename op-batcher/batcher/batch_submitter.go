@@ -57,7 +57,7 @@ func Main(version string) func(cliCtx *cli.Context) error {
 			signer := func(chainID *big.Int) SignerFn {
 				return func(ctx context.Context, rawTx types.TxData) (*types.Transaction, error) {
 					tx := types.NewTx(rawTx)
-					return signerClient.SignTransaction(ctx, tx)
+					return signerClient.SignTransaction(ctx, chainID, tx)
 				}
 			}
 			bs, err := NewBatchSubmitterWithSigner(cfg, common.HexToAddress(cfg.SignerConfig.Address), signer, l)
