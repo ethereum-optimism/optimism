@@ -1,4 +1,11 @@
-import { Contract } from 'ethers'
+import { Contract, BigNumber } from 'ethers'
+
+export interface OutputOracle<TSubmissionEventArgs> {
+  contract: Contract
+  filter: any
+  getTotalElements: () => Promise<BigNumber>
+  getEventIndex: (args: TSubmissionEventArgs) => BigNumber
+}
 
 /**
  * Partial event interface, meant to reduce the size of the event cache to avoid
@@ -41,27 +48,32 @@ const getCache = (
 }
 
 /**
- * Updates the event cache for the SCC.
+ * Updates the event cache for a contract and event.
  *
- * @param scc The State Commitment Chain contract.
+ * @param contract Contract to update cache for.
+ * @param filter Event filter to use.
  */
-export const updateStateBatchEventCache = async (
-  scc: Contract
+export const updateOracleCache = async <TSubmissionEventArgs>(
+  oracle: OutputOracle<TSubmissionEventArgs>
 ): Promise<void> => {
-  const cache = getCache(scc.address)
+  const cache = getCache(oracle.contract.address)
   let currentBlock = cache.highestBlock
-  const endingBlock = await scc.provider.getBlockNumber()
+  const endingBlock = await oracle.contract.provider.getBlockNumber()
   let step = endingBlock - currentBlock
   let failures = 0
   while (currentBlock < endingBlock) {
     try {
-      const events = await scc.queryFilter(
-        scc.filters.StateBatchAppended(),
+      const events = await oracle.contract.queryFilter(
+        oracle.filter,
         currentBlock,
         currentBlock + step
       )
+
+      // Throw the events into the cache.
       for (const event of events) {
-        cache.eventCache[event.args._batchIndex.toNumber()] = {
+        cache.eventCache[
+          oracle.getEventIndex(event.args as TSubmissionEventArgs).toNumber()
+        ] = {
           blockNumber: event.blockNumber,
           transactionHash: event.transactionHash,
           args: event.args,
@@ -101,11 +113,11 @@ export const updateStateBatchEventCache = async (
  * @param index State batch index to search for.
  * @returns Event corresponding to the batch.
  */
-export const findEventForStateBatch = async (
-  scc: Contract,
+export const findEventForStateBatch = async <TSubmissionEventArgs>(
+  oracle: OutputOracle<TSubmissionEventArgs>,
   index: number
 ): Promise<PartialEvent> => {
-  const cache = getCache(scc.address)
+  const cache = getCache(oracle.contract.address)
 
   // Try to find the event in cache first.
   if (cache.eventCache[index]) {
@@ -113,7 +125,7 @@ export const findEventForStateBatch = async (
   }
 
   // Update the event cache if we don't have the event.
-  await updateStateBatchEventCache(scc)
+  await updateOracleCache(oracle)
 
   // Event better be in cache now!
   if (cache.eventCache[index] === undefined) {
@@ -129,20 +141,20 @@ export const findEventForStateBatch = async (
  * @param scc StateCommitmentChain contract.
  * @returns Starting state root batch index.
  */
-export const findFirstUnfinalizedStateBatchIndex = async (
-  scc: Contract
+export const findFirstUnfinalizedStateBatchIndex = async <TSubmissionEventArgs>(
+  oracle: OutputOracle<TSubmissionEventArgs>,
+  fpw: number
 ): Promise<number> => {
-  const fpw = (await scc.FRAUD_PROOF_WINDOW()).toNumber()
-  const latestBlock = await scc.provider.getBlock('latest')
-  const totalBatches = (await scc.getTotalBatches()).toNumber()
+  const latestBlock = await oracle.contract.provider.getBlock('latest')
+  const totalBatches = (await oracle.getTotalElements()).toNumber()
 
   // Perform a binary search to find the next batch that will pass the challenge period.
   let lo = 0
   let hi = totalBatches
   while (lo !== hi) {
     const mid = Math.floor((lo + hi) / 2)
-    const event = await findEventForStateBatch(scc, mid)
-    const block = await scc.provider.getBlock(event.blockNumber)
+    const event = await findEventForStateBatch(oracle, mid)
+    const block = await oracle.contract.provider.getBlock(event.blockNumber)
 
     if (block.timestamp + fpw < latestBlock.timestamp) {
       lo = mid + 1
