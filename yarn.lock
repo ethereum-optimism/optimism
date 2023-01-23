@@ -12090,7 +12090,7 @@ level-ws@^2.0.0:
     readable-stream "^3.1.0"
     xtend "^4.0.1"
 
-level@^6.0.1:
+"level6@npm:level@^6.0.1":
   version "6.0.1"
   resolved "https://registry.yarnpkg.com/level/-/level-6.0.1.tgz#dc34c5edb81846a6de5079eac15706334b0d7cd6"
   integrity sha512-psRSqJZCsC/irNhfHzrVZbmPYXDcEYhA5TVNwr+V92jF44rbf86hqGp8fiT702FyiArScYIlPSBTDUASCVNSpw==
