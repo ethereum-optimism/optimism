@@ -20,20 +20,17 @@ export const waitForProvider = async (
     name?: string
   }
 ) => {
-  opts?.logger?.info(`waiting for ${opts?.name || 'target'} provider...`)
-
+  const name = opts?.name || 'target'
+  opts?.logger?.info(`waiting for ${name} provider...`)
   let connected = false
   while (!connected) {
     try {
       await provider.getBlockNumber()
       connected = true
     } catch (e) {
-      opts?.logger?.info(`${provider} provider not connected, retrying...`)
-
-      // Don't spam requests
+      opts?.logger?.info(`${name} provider not connected, retrying...`)
       await sleep(opts?.intervalMs || 15000)
     }
   }
-
-  opts?.logger?.info(`${opts?.name || 'target'} provider connected`)
+  opts?.logger?.info(`${name} provider connected`)
 }

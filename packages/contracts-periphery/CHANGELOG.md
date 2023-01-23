@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-periphery
 
+## 1.0.7
+
+### Patch Changes
+
+- 4c64a5811: Update the attestation station impl to 1.1.0
+
 ## 1.0.6
 
 ### Patch Changes
