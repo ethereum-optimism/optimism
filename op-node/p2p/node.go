@@ -32,7 +32,6 @@ type NodeP2P struct {
 	dv5Udp   *discover.UDPv5  // p2p discovery service
 	gs       *pubsub.PubSub   // p2p gossip router
 	gsOut    GossipOut        // p2p gossip application interface for publishing
-	scorer   Scorer           // p2p peer scorer
 }
 
 // NewNodeP2P creates a new p2p node, and returns a reference to it. If the p2p is disabled, it returns nil.

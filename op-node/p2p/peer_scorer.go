@@ -36,18 +36,34 @@ func NewScorer(connGater ConnectionGater, peerStore peerstore.Peerstore, metrice
 // It is passed into the pubsub library as a [pubsub.ExtendedPeerScoreInspectFn] in the [pubsub.WithPeerScoreInspect] option.
 // The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
 func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
+	// peer := s.peerStore.Get(peer.ID)
+	// loop through each peer ID, get the score
+	// if the score < the configured threshold, ban the peer
+	// factor in the number of connections/disconnections into the score
+	// e.g., score = score - (s.peerConnections[peerID] * ConnectionFactor)
+	// s.connGater.BanAddr(peerID)
+
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		for id, snap := range m {
 			// Record peer score in the metricer
 			s.metricer.RecordPeerScoring(id, snap.Score)
+
+			// TODO: encorporate the number of peer connections/disconnections into the score
+			// TODO: or should we just affect the score in the OnConnect/OnDisconnect methods?
+			// TODO: if we don't have to do this calculation here, we can push score updates to the metricer
+			// TODO: which would leave the scoring to the pubsub lib
+			// peer, err := s.peerStore.Get(id)
+			// if err != nil {
+			// }
+
 			// Check if the peer score is below the threshold
 			// If so, we need to block the peer
 			if snap.Score < PeerScoreThreshold {
-				s.connGater.BlockPeer(id)
+				_ = s.connGater.BlockPeer(id)
 			}
 			// Unblock peers whose score has recovered to an acceptable level
 			if (snap.Score > PeerScoreThreshold) && contains(s.connGater.ListBlockedPeers(), id) {
-				s.connGater.UnblockPeer(id)
+				_ = s.connGater.UnblockPeer(id)
 			}
 		}
 	}
@@ -75,13 +91,4 @@ func (s *scorer) OnConnect() {
 // See [p2p.NotificationsMetricer] for invocation.
 func (s *scorer) OnDisconnect() {
 	// record a disconnection
-}
-
-func (s *scorer) inspectPeers(peersMap map[peer.ID]*pubsub.PeerScoreSnapshot) {
-	// peer := s.peerStore.Get(peer.ID)
-	// loop through each peer ID, get the score
-	// if the score < the configured threshold, ban the peer
-	// factor in the number of connections/disconnections into the score
-	// e.g., score = score - (s.peerConnections[peerID] * ConnectionFactor)
-	// s.connGater.BanAddr(peerID)
 }
