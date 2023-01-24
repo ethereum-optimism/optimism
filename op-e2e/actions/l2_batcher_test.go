@@ -196,8 +196,9 @@ func TestL2Finalization(gt *testing.T) {
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
 }
 
-// Tests the behavior of an invalid/malformed output channel frame containing
-// valid batches being submitted to the batch inbox.
+// TestGarbageBatch tests the behavior of an invalid/malformed output channel frame containing
+// valid batches being submitted to the batch inbox. These batches should always be rejected
+// and the safe L2 head should remain unaltered.
 func TestGarbageBatch(gt *testing.T) {
 	t := NewDefaultTesting(gt)
 	p := defaultRollupTestParams

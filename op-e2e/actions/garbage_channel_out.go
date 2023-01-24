@@ -19,7 +19,7 @@ import (
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
 
-// Interface shared between `zlib.Writer` and `gzip.Writer`
+// WriterApi is the interface shared between `zlib.Writer` and `gzip.Writer`
 type WriterApi interface {
 	Close() error
 	Flush() error
@@ -27,7 +27,8 @@ type WriterApi interface {
 	Write([]byte) (int, error)
 }
 
-// Modified `derive.ChannelOut` that can be configured to behave differently than the original
+// GarbageChannelOut is a modified `derive.ChannelOut` that can be configured to behave differently
+// than the original
 type GarbageChannelOut struct {
 	id derive.ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
@@ -50,6 +51,7 @@ func (co *GarbageChannelOut) ID() derive.ChannelID {
 	return co.id
 }
 
+// NewGarbageChannelOut creates a new `GarbageChannelOut` with the given configuration.
 func NewGarbageChannelOut(cfg *GarbageChannelCfg) (*GarbageChannelOut, error) {
 	c := &GarbageChannelOut{
 		id:        derive.ChannelID{}, // TODO: use GUID here instead of fully random data

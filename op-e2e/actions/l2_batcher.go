@@ -254,9 +254,9 @@ type GarbageChannelCfg struct {
 	malformRLP            bool
 }
 
-// ActL2BatchSubmit constructs a malformed channel frame and submits it to the
+// ActL2BatchSubmitGarbage constructs a malformed channel frame and submits it to the
 // batch inbox. This *should* cause the batch inbox to reject the blocks
-// encoded within the frame, even if they are valid.
+// encoded within the frame, even if the blocks themselves are valid.
 func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	// Don't run this action if there's no data to submit
 	if s.l2ChannelOut == nil {
