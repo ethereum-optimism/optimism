@@ -60,3 +60,7 @@ __pycache__
 
 # Ignore echidna artifacts
 crytic-export
+
+# nx cloud looks for any api keys here
+# a readonly key is publically available in nx.json
+nx-cloud.env

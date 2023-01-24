@@ -20,8 +20,8 @@
     "standards"
   ],
   "scripts": {
-    "build": "yarn build:contracts && yarn copy:contracts && yarn autogen:artifacts && yarn build:typescript",
-    "build:typescript": "tsc -p ./tsconfig.json",
+    "build": "npx nx run-many --targets=build:contracts,copy:contracts,autogen:artifacts,build:ts",
+    "build:ts": "tsc -p ./tsconfig.json",
     "build:contracts": "hardhat compile --show-stack-traces",
     "autogen:markdown": "ts-node scripts/generate-markdown.ts",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts && ts-node scripts/generate-deployed-artifacts.ts",

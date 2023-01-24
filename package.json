@@ -38,10 +38,10 @@
   "private": true,
   "scripts": {
     "clean": "yarn lerna run clean --parallel",
-    "build": "yarn lerna run build",
-    "test": "yarn lerna run test --parallel",
+    "build": "npx nx run-many --target=build --all --parallel 3",
+    "test": "npx nx run-many --target=build --all --parallel 3",
+    "lint": "npx nx run-many --target=lint --all --parallel 3",
     "test:coverage": "yarn lerna run test:coverage --parallel",
-    "lint": "yarn lerna run lint",
     "lint:ts:check": "yarn lerna run lint:ts:check",
     "lint:check": "yarn lerna run lint:check",
     "lint:fix": "yarn lerna run lint:fix --parallel",
@@ -56,6 +56,8 @@
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
+    "@nrwl/nx-cloud": "latest",
+    "@nx-go/nx-go": "^2.7.0",
     "@types/chai": "^4.2.18",
     "@types/chai-as-promised": "^7.1.4",
     "@types/mocha": "^8.2.2",
@@ -84,6 +86,7 @@
     "markdownlint-cli2": "0.4.0",
     "mkdirp": "^1.0.4",
     "mocha": "^8.4.0",
+    "nx": "15.6.0",
     "nyc": "^15.1.0",
     "patch-package": "^6.4.7",
     "prettier": "^2.8.0",
@@ -94,6 +97,7 @@
   "dependencies": {
     "@changesets/cli": "^2.26.0",
     "@codechecks/client": "^0.1.11",
-    "@ethersproject/abstract-provider": "^5.7.0"
+    "@ethersproject/abstract-provider": "^5.7.0",
+    "@nrwl/devkit": "^15.6.0"
   }
 }
