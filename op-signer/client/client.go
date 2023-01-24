@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"math/big"
 	"net/http"
 	"os"
 	"time"
@@ -88,8 +89,8 @@ func (s *SignerClient) pingVersion() (string, error) {
 	return v, nil
 }
 
-func (s *SignerClient) SignTransaction(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
-	args := NewTransactionArgsFromTransaction(tx)
+func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, tx *types.Transaction) (*types.Transaction, error) {
+	args := NewTransactionArgsFromTransaction(chainId, tx)
 
 	var result hexutil.Bytes
 	if err := s.client.CallContext(ctx, &result, "eth_signTransaction", args); err != nil {

@@ -31,7 +31,7 @@ type TransactionArgs struct {
 }
 
 // NewTransactionArgsFromTransaction creates a TransactionArgs struct from an EIP-1559 transaction
-func NewTransactionArgsFromTransaction(tx *types.Transaction) *TransactionArgs {
+func NewTransactionArgsFromTransaction(chainId *big.Int, tx *types.Transaction) *TransactionArgs {
 	data := hexutil.Bytes(tx.Data())
 	nonce := hexutil.Uint64(tx.Nonce())
 	gas := hexutil.Uint64(tx.Gas())
@@ -42,7 +42,7 @@ func NewTransactionArgsFromTransaction(tx *types.Transaction) *TransactionArgs {
 		Value:                (*hexutil.Big)(tx.Value()),
 		Gas:                  &gas,
 		To:                   tx.To(),
-		ChainID:              (*hexutil.Big)(tx.ChainId()),
+		ChainID:              (*hexutil.Big)(chainId),
 		MaxFeePerGas:         (*hexutil.Big)(tx.GasFeeCap()),
 		MaxPriorityFeePerGas: (*hexutil.Big)(tx.GasTipCap()),
 		AccessList:           &accesses,
