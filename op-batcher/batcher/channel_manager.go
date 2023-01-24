@@ -46,8 +46,8 @@ type taggedData struct {
 // channel.
 // Functions on channelManager are not safe for concurrent access.
 type channelManager struct {
-	log            log.Logger
-	channelTimeout uint64
+	log log.Logger
+	cfg ChannelConfig
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
@@ -64,10 +64,10 @@ type channelManager struct {
 	confirmedTransactions map[txID]eth.BlockID
 }
 
-func NewChannelManager(log log.Logger, channelTimeout uint64) *channelManager {
+func NewChannelManager(log log.Logger, cfg ChannelConfig) *channelManager {
 	return &channelManager{
 		log:                   log,
-		channelTimeout:        channelTimeout,
+		cfg:                   cfg,
 		pendingTransactions:   make(map[txID][]byte),
 		confirmedTransactions: make(map[txID]eth.BlockID),
 	}
