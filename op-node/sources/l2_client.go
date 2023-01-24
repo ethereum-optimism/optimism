@@ -87,7 +87,6 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}, nil
 }
 
-// L2BlockRefByLabel returns the L2 block reference for the given label.
 // L2BlockRefByLabel returns the [eth.L2BlockRef] for the given block label.
 func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	payload, err := s.PayloadByLabel(ctx, label)
