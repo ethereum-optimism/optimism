@@ -4,9 +4,8 @@ go 1.18
 
 require (
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-node v0.10.10
-	github.com/ethereum-optimism/optimism/op-proposer v0.10.10
-	github.com/ethereum-optimism/optimism/op-service v0.10.10
+	github.com/ethereum-optimism/optimism/op-node v0.10.11
+	github.com/ethereum-optimism/optimism/op-service v0.10.11
 	github.com/ethereum-optimism/optimism/op-signer v0.1.0
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/urfave/cli v1.22.9
@@ -25,7 +24,7 @@ require (
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/dyson/certman v0.3.0 // indirect
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.10 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.11 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -93,6 +92,7 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43 // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
+	golang.org/x/time v0.0.0-20220722155302-e5dcc9cfc0b9 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 	lukechampine.com/blake3 v1.1.7 // indirect
