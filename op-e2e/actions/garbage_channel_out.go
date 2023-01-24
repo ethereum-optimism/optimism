@@ -16,8 +16,31 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
-var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
-var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
+type GarbageKind int64
+
+const (
+	STRIP_VERSION GarbageKind = iota
+	RANDOM
+	TRUNCATE_END
+	DIRTY_APPEND
+	INVALID_COMPRESSION
+	MALFORM_RLP
+)
+
+var GarbageKinds = []GarbageKind{
+	STRIP_VERSION,
+	RANDOM,
+	TRUNCATE_END,
+	DIRTY_APPEND,
+	INVALID_COMPRESSION,
+	MALFORM_RLP,
+}
+
+// GarbageChannelCfg is the configuration for a `GarbageChannelOut`
+type GarbageChannelCfg struct {
+	useInvalidCompression bool
+	malformRLP            bool
+}
 
 // WriterApi is the interface shared between `zlib.Writer` and `gzip.Writer`
 type WriterApi interface {
@@ -118,7 +141,7 @@ func (co *GarbageChannelOut) AddBlock(block *types.Block) error {
 	}
 	if co.rlpLength+buf.Len() > derive.MaxRLPBytesPerChannel {
 		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
-			buf.Len(), co.rlpLength, derive.MaxRLPBytesPerChannel, ErrTooManyRLPBytes)
+			buf.Len(), co.rlpLength, derive.MaxRLPBytesPerChannel, derive.ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 
@@ -204,7 +227,7 @@ func blockToBatch(block *types.Block) (*derive.BatchData, error) {
 	}
 	l1InfoTx := block.Transactions()[0]
 	if l1InfoTx.Type() != types.DepositTxType {
-		return nil, ErrNotDepositTx
+		return nil, derive.ErrNotDepositTx
 	}
 	l1Info, err := derive.L1InfoDepositTxData(l1InfoTx.Data())
 	if err != nil {
