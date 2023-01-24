@@ -67,7 +67,7 @@ func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
 	if err != nil {
 		return err
 	}
-	if cfg.L1ChainID != id {
+	if cfg.L1ChainID.Cmp(id) != 0 {
 		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", cfg.L1ChainID, id)
 	}
 	return nil
@@ -96,7 +96,7 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 	if err != nil {
 		return err
 	}
-	if cfg.L2ChainID != id {
+	if cfg.L2ChainID.Cmp(id) != 0 {
 		return fmt.Errorf("incorrect L2 RPC chain id %d, expected %d", cfg.L2ChainID, id)
 	}
 	return nil

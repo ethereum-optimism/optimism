@@ -127,11 +127,13 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	// Validate the L1 Client Chain ID
 	if err := cfg.Rollup.CheckL1ChainID(ctx, n.l1Source); err != nil {
 		n.log.Error("failed to verify L1 RPC chain id", "err", err)
+		return err
 	}
 
 	// Validate the Rollup L1 Genesis Blockhash
 	if err := cfg.Rollup.CheckL1GenesisBlockHash(ctx, n.l1Source); err != nil {
 		n.log.Error("failed to verify L1 genesis block hash", "err", err)
+		return err
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -202,11 +204,13 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	// Validate the L2 Client Chain ID
 	if err := cfg.Rollup.CheckL2ChainID(ctx, n.l2Source); err != nil {
 		n.log.Error("failed to verify L2 RPC chain id", "err", err)
+		return err
 	}
 
 	// Validate the Rollup L2 Genesis Blockhash
 	if err := cfg.Rollup.CheckL2GenesisBlockHash(ctx, n.l2Source); err != nil {
 		n.log.Error("failed to verify L2 genesis block hash", "err", err)
+		return err
 	}
 
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
