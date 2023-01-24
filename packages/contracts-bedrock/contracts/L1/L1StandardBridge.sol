@@ -126,7 +126,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         bytes calldata _extraData
     ) external onlyOtherBridge {
-        emit ERC20WithdrawalFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
@@ -242,7 +241,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         bytes calldata _extraData
     ) external payable onlyOtherBridge {
-        emit ETHWithdrawalFinalized(_from, _to, _amount, _extraData);
         finalizeBridgeETH(_from, _to, _amount, _extraData);
     }
 
@@ -293,7 +291,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint32 _minGasLimit,
         bytes memory _extraData
     ) internal {
-        emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
     }
 
@@ -319,7 +316,37 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         bytes memory _extraData
     ) internal override {
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
         emit ETHWithdrawalFinalized(_from, _to, _amount, _extraData);
+        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @inheritdoc StandardBridge
+     */
+    function _emitERC20BridgeInitiated(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ERC20DepositInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @inheritdoc StandardBridge
+     */
+    function _emitERC20BridgeFinalized(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ERC20WithdrawalFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 }
