@@ -87,10 +87,7 @@ func (co *GarbageChannelOut) Reset() error {
 	co.compress.Reset(&co.buf)
 	co.closed = false
 	_, err := rand.Read(co.id[:])
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }
 
 // AddBlock adds a block to the channel. It returns an error
