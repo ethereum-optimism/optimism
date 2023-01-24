@@ -2,7 +2,7 @@ use clap::Parser;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
-    fs::File,
+    fs::{self, File},
     io::{BufRead, BufReader},
 };
 use yansi::{Color, Paint};
@@ -28,8 +28,6 @@ struct SnapshotAccount {
 fn main() -> Result<()> {
     let args = EofCrawler::parse();
 
-    let mut eof_contracts: Vec<SnapshotAccount> = Vec::new();
-
     let file = File::open(&args.snapshot_file)?;
     let mut reader = BufReader::new(file);
 
@@ -42,23 +40,26 @@ fn main() -> Result<()> {
         .fg(Color::Cyan)
     );
 
+    let mut eof_contracts: Vec<SnapshotAccount> = Vec::new();
     let mut buf = String::new();
-    // Ignore the first line of the snapshot, which contains the root of the snapshot.
-    if let Ok(mut num_bytes) = reader.read_line(&mut buf) {
-        while num_bytes > 0 {
-            buf.clear();
-            num_bytes = reader.read_line(&mut buf)?;
-            if buf.is_empty() {
-                break;
-            }
 
-            // Check if the account is a contract, and if it is, check if it has an EOF
-            // prefix.
-            let contract: SnapshotAccount = serde_json::from_str(&buf)?;
-            if let Some(code) = contract.code.as_ref() {
-                if &code[2..4].to_uppercase() == "EF" {
-                    eof_contracts.push(contract);
-                }
+    // Ignore the first line of the snapshot, which contains the root.
+    #[allow(unused_assignments)]
+    let mut num_bytes = reader.read_line(&mut buf)?;
+
+    loop {
+        buf.clear();
+        num_bytes = reader.read_line(&mut buf)?;
+        if num_bytes == 0 {
+            break;
+        }
+
+        // Check if the account is a contract, and if it is, check if it has an EOF
+        // prefix.
+        let contract: SnapshotAccount = serde_json::from_str(&buf)?;
+        if let Some(code) = contract.code.as_ref() {
+            if &code[2..4].to_uppercase() == "EF" {
+                eof_contracts.push(contract);
             }
         }
     }
@@ -71,7 +72,7 @@ fn main() -> Result<()> {
         ))
         .fg(Color::Cyan)
     );
-    std::fs::write(
+    fs::write(
         "eof_contracts.json",
         serde_json::to_string_pretty(&eof_contracts)?,
     )?;
