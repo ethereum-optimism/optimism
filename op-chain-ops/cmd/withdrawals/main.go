@@ -32,6 +32,8 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
+// abiTrue represents the storage representation of the boolean
+// value true.
 var abiTrue = common.Hash{31: 0x01}
 
 // callFrame represents the response returned from geth's
@@ -49,119 +51,22 @@ type callFrame struct {
 	Calls   []callFrame `json:"calls,omitempty"`
 }
 
+// BigValue turns a 0x prefixed string into a `big.Int`
 func (c *callFrame) BigValue() *big.Int {
 	v := strings.TrimPrefix(c.Value, "0x")
 	b, _ := new(big.Int).SetString(v, 16)
 	return b
 }
 
+// suspiciousWithdrawal represents a pending withdrawal that failed for some
+// reason after the migration. These are written to disk so that they can
+// be manually inspected.
 type suspiciousWithdrawal struct {
 	Withdrawal *crossdomain.Withdrawal       `json:"withdrawal"`
 	Legacy     *crossdomain.LegacyWithdrawal `json:"legacy"`
 	Trace      callFrame                     `json:"trace"`
 	Index      int                           `json:"index"`
 	Reason     string                        `json:"reason"`
-}
-
-// findWithdrawalCall will find the call frame for the call that
-// represents the user's intent.
-func findWithdrawalCall(trace *callFrame, wd *crossdomain.LegacyWithdrawal, l1xdm common.Address) *callFrame {
-	isCall := trace.Type == "CALL"
-	isTarget := common.HexToAddress(trace.To) == *wd.Target
-	isFrom := common.HexToAddress(trace.From) == l1xdm
-	if isCall && isTarget && isFrom {
-		return trace
-	}
-	for _, subcall := range trace.Calls {
-		if call := findWithdrawalCall(&subcall, wd, l1xdm); call != nil {
-			return call
-		}
-	}
-	return nil
-}
-
-// createOutput will create the data required to send a withdrawal
-// transaction.
-func createOutput(
-	withdrawal *crossdomain.Withdrawal,
-	oracle *bindings.L2OutputOracle,
-	blockNumber *big.Int,
-	clients *clients,
-) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
-	// compute the storage slot that the withdrawal is stored in
-	slot, err := withdrawal.StorageSlot()
-	if err != nil {
-		return nil, bindings.TypesOutputRootProof{}, nil, err
-	}
-
-	// find the output index that the withdrawal was committed to in
-	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, blockNumber)
-	if err != nil {
-		return nil, bindings.TypesOutputRootProof{}, nil, err
-	}
-	// fetch the output the commits to the withdrawal using the index
-	l2Output, err := oracle.GetL2Output(&bind.CallOpts{}, l2OutputIndex)
-	if err != nil {
-		return nil, bindings.TypesOutputRootProof{}, nil, err
-	}
-
-	log.Debug(
-		"L2 output",
-		"index", l2OutputIndex,
-		"root", common.Bytes2Hex(l2Output.OutputRoot[:]),
-		"l2-blocknumber", l2Output.L2BlockNumber,
-		"timestamp", l2Output.Timestamp,
-	)
-
-	// get the block header committed to in the output
-	header, err := clients.L2Client.HeaderByNumber(context.Background(), l2Output.L2BlockNumber)
-	if err != nil {
-		return nil, bindings.TypesOutputRootProof{}, nil, err
-	}
-
-	// get the storage proof for the withdrawal's storage slot
-	proof, err := clients.L2GethClient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, blockNumber)
-
-	if err != nil {
-		return nil, bindings.TypesOutputRootProof{}, nil, err
-	}
-	if count := len(proof.StorageProof); count != 1 {
-		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("invalid amount of storage proofs: %d", count)
-	}
-	trieNodes := make([][]byte, len(proof.StorageProof[0].Proof))
-	for i, s := range proof.StorageProof[0].Proof {
-		trieNodes[i] = common.FromHex(s)
-	}
-
-	// create an output root proof
-	outputRootProof := bindings.TypesOutputRootProof{
-		Version:                  [32]byte{},
-		StateRoot:                header.Root,
-		MessagePasserStorageRoot: proof.StorageHash,
-		LatestBlockhash:          header.Hash(),
-	}
-
-	localOutputRootHash := crypto.Keccak256Hash(
-		outputRootProof.Version[:],
-		outputRootProof.StateRoot[:],
-		outputRootProof.MessagePasserStorageRoot[:],
-		outputRootProof.LatestBlockhash[:],
-	)
-
-	// ensure that the locally computed hash matches
-	if l2Output.OutputRoot != localOutputRootHash {
-		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("mismatch in output root hashes, got 0x%x expected 0x%x", localOutputRootHash, l2Output.OutputRoot)
-	}
-	log.Info(
-		"output root proof",
-		"version", common.Hash(outputRootProof.Version),
-		"state-root", common.Hash(outputRootProof.StateRoot),
-		"storage-root", common.Hash(outputRootProof.MessagePasserStorageRoot),
-		"block-hash", common.Hash(outputRootProof.LatestBlockhash),
-		"trie-node-count", len(trieNodes),
-	)
-
-	return l2OutputIndex, outputRootProof, trieNodes, nil
 }
 
 func main() {
@@ -408,7 +313,7 @@ func main() {
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "should revert"); err != nil {
 							return err
 						}
-						panic("THIS SHOULD REVERT")
+						panic("DOUBLE PLAYED DEPOSIT ALLOWED")
 					}
 
 					callFrame := findWithdrawalCall(&finalizationTrace, wd, l1xdmAddr)
@@ -478,8 +383,7 @@ func main() {
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "target mismatch"); err != nil {
 							return err
 						}
-						panic("target mismatch")
-						//continue
+						continue
 					}
 					if !bytes.Equal(hexutil.MustDecode(callFrame.Input), wd.Data) {
 						log.Info("calldata mismatch", "index", i)
@@ -487,16 +391,14 @@ func main() {
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "calldata mismatch"); err != nil {
 							return err
 						}
-						panic("calldata mismatch")
-						//continue
+						continue
 					}
 					if callFrame.BigValue().Cmp(wdValue) != 0 {
 						log.Info("value mismatch", "index", i)
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "value mismatch"); err != nil {
 							return err
 						}
-						panic("value mismatch")
-						//continue
+						continue
 					}
 
 					// Get the ETH balance of the withdrawal target *after* the finalization
@@ -518,8 +420,7 @@ func main() {
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "balance mismatch"); err != nil {
 							return err
 						}
-						panic("balance mismatch")
-						//continue
+						continue
 					}
 				} else {
 					log.Info("Already finalized")
@@ -534,6 +435,7 @@ func main() {
 	}
 }
 
+// callTrace will call `debug_traceTransaction` on a remote node
 func callTrace(c *clients, receipt *types.Receipt) (callFrame, error) {
 	var finalizationTrace callFrame
 	tracer := "callTracer"
@@ -547,6 +449,7 @@ func callTrace(c *clients, receipt *types.Receipt) (callFrame, error) {
 	return finalizationTrace, err
 }
 
+// handleFinalizeETHWithdrawal will ensure that the calldata is correct
 func handleFinalizeETHWithdrawal(args []any) error {
 	from, ok := args[0].(common.Address)
 	if !ok {
@@ -576,6 +479,8 @@ func handleFinalizeETHWithdrawal(args []any) error {
 	return nil
 }
 
+// handleFinalizeERC20Withdrawal will look at the receipt logs and make
+// assertions that the values are correct
 func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1StandardBridgeAddress common.Address) error {
 	erc20Abi, err := bindings.ERC20MetaData.GetAbi()
 	if err != nil {
@@ -629,8 +534,6 @@ func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1Standar
 					return fmt.Errorf("")
 				}
 
-				fmt.Printf("%#v\n", l.Topics)
-
 				_from := common.BytesToAddress(l.Topics[1].Bytes())
 				_to := common.BytesToAddress(l.Topics[2].Bytes())
 
@@ -655,6 +558,9 @@ func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1Standar
 	return nil
 }
 
+// proveWithdrawalTransaction will build the data required for proving a
+// withdrawal and then send the transaction and make sure that it is included
+// and successful and then wait for the finalization period to elapse.
 func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
 	l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, c.L2OutputOracle, bn, cl)
 	if err != nil {
@@ -868,7 +774,8 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 		return nil, err
 	}
 
-	// use empty ovmMessages if its not mainnet
+	// use empty ovmMessages if its not mainnet. The mainnet messages are
+	// committed to in git.
 	if l1ChainID.Cmp(common.Big1) != 0 {
 		log.Info("not using ovm messages because its not mainnet")
 		ovmMessages = []*migration.SentMessage{}
@@ -923,6 +830,110 @@ func newTransactor(ctx *cli.Context) (*bind.TransactOpts, error) {
 	return opts, nil
 }
 
+// findWithdrawalCall will find the call frame for the call that
+// represents the user's intent.
+func findWithdrawalCall(trace *callFrame, wd *crossdomain.LegacyWithdrawal, l1xdm common.Address) *callFrame {
+	isCall := trace.Type == "CALL"
+	isTarget := common.HexToAddress(trace.To) == *wd.Target
+	isFrom := common.HexToAddress(trace.From) == l1xdm
+	if isCall && isTarget && isFrom {
+		return trace
+	}
+	for _, subcall := range trace.Calls {
+		if call := findWithdrawalCall(&subcall, wd, l1xdm); call != nil {
+			return call
+		}
+	}
+	return nil
+}
+
+// createOutput will create the data required to send a withdrawal transaction.
+func createOutput(
+	withdrawal *crossdomain.Withdrawal,
+	oracle *bindings.L2OutputOracle,
+	blockNumber *big.Int,
+	clients *clients,
+) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
+	// compute the storage slot that the withdrawal is stored in
+	slot, err := withdrawal.StorageSlot()
+	if err != nil {
+		return nil, bindings.TypesOutputRootProof{}, nil, err
+	}
+
+	// find the output index that the withdrawal was committed to in
+	l2OutputIndex, err := oracle.GetL2OutputIndexAfter(&bind.CallOpts{}, blockNumber)
+	if err != nil {
+		return nil, bindings.TypesOutputRootProof{}, nil, err
+	}
+	// fetch the output the commits to the withdrawal using the index
+	l2Output, err := oracle.GetL2Output(&bind.CallOpts{}, l2OutputIndex)
+	if err != nil {
+		return nil, bindings.TypesOutputRootProof{}, nil, err
+	}
+
+	log.Debug(
+		"L2 output",
+		"index", l2OutputIndex,
+		"root", common.Bytes2Hex(l2Output.OutputRoot[:]),
+		"l2-blocknumber", l2Output.L2BlockNumber,
+		"timestamp", l2Output.Timestamp,
+	)
+
+	// get the block header committed to in the output
+	header, err := clients.L2Client.HeaderByNumber(context.Background(), l2Output.L2BlockNumber)
+	if err != nil {
+		return nil, bindings.TypesOutputRootProof{}, nil, err
+	}
+
+	// get the storage proof for the withdrawal's storage slot
+	proof, err := clients.L2GethClient.GetProof(context.Background(), predeploys.L2ToL1MessagePasserAddr, []string{slot.String()}, blockNumber)
+
+	if err != nil {
+		return nil, bindings.TypesOutputRootProof{}, nil, err
+	}
+	if count := len(proof.StorageProof); count != 1 {
+		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("invalid amount of storage proofs: %d", count)
+	}
+	trieNodes := make([][]byte, len(proof.StorageProof[0].Proof))
+	for i, s := range proof.StorageProof[0].Proof {
+		trieNodes[i] = common.FromHex(s)
+	}
+
+	// create an output root proof
+	outputRootProof := bindings.TypesOutputRootProof{
+		Version:                  [32]byte{},
+		StateRoot:                header.Root,
+		MessagePasserStorageRoot: proof.StorageHash,
+		LatestBlockhash:          header.Hash(),
+	}
+
+	// TODO(mark): import the function from `op-node` to compute the hash
+	// instead of doing this. Will update when testing against mainnet.
+	localOutputRootHash := crypto.Keccak256Hash(
+		outputRootProof.Version[:],
+		outputRootProof.StateRoot[:],
+		outputRootProof.MessagePasserStorageRoot[:],
+		outputRootProof.LatestBlockhash[:],
+	)
+
+	// ensure that the locally computed hash matches
+	if l2Output.OutputRoot != localOutputRootHash {
+		return nil, bindings.TypesOutputRootProof{}, nil, fmt.Errorf("mismatch in output root hashes, got 0x%x expected 0x%x", localOutputRootHash, l2Output.OutputRoot)
+	}
+	log.Info(
+		"output root proof",
+		"version", common.Hash(outputRootProof.Version),
+		"state-root", common.Hash(outputRootProof.StateRoot),
+		"storage-root", common.Hash(outputRootProof.MessagePasserStorageRoot),
+		"block-hash", common.Hash(outputRootProof.LatestBlockhash),
+		"trie-node-count", len(trieNodes),
+	)
+
+	return l2OutputIndex, outputRootProof, trieNodes, nil
+}
+
+// writeSuspicious will create a suspiciousWithdrawal and then append it to a
+// JSONL file. Each line is its own JSON where there is a newline separating them.
 func writeSuspicious(
 	f *os.File,
 	withdrawal *crossdomain.Withdrawal,
