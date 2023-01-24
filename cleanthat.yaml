@@ -1,0 +1,52 @@
+syntax_version: "2021-08-02"
+meta:
+  labels:
+  - "cleanthat"
+  refs:
+    branches:
+    - "refs/heads/develop"
+    - "refs/heads/main"
+    - "refs/heads/master"
+source_code:
+  excludes: []
+  includes: []
+  encoding: "UTF-8"
+  line_ending: "UNKNOWN"
+languages:
+- language: "java"
+  language_version: "0"
+  skip: false
+  source_code:
+    excludes: []
+    includes: []
+    encoding: "UTF-8"
+    line_ending: "UNKNOWN"
+  processors:
+  - engine: "rules"
+    parameters:
+      production_ready_only: true
+  - engine: "revelc_imports"
+    parameters:
+      remove_unused: true
+      groups: "java.,javax.,org.,com."
+      static_groups: "java,*"
+      static_after: false
+  - engine: "eclipse_formatter"
+    parameters:
+      url: "classpath:/eclipse/eclipse-java-google-style.xml"
+- language: "json"
+  language_version: "0"
+  skip: false
+  source_code:
+    excludes: []
+    includes: []
+    encoding: "UTF-8"
+    line_ending: "UNKNOWN"
+  processors:
+  - engine: "jackson"
+    parameters:
+      indent: -1
+      indentation: "    "
+      space_before_separator: true
+      alphabetical_order: false
+      eol_at_eof: false
