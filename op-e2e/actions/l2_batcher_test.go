@@ -209,11 +209,22 @@ func TestGarbageBatch(gt *testing.T) {
 
 		_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
 
-		batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		batcherCfg := &BatcherCfg{
 			MinL1TxSize: 0,
 			MaxL1TxSize: 128_000,
 			BatcherKey:  dp.Secrets.Batcher,
-		}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
+		}
+
+		if garbageKind == MALFORM_RLP || garbageKind == INVALID_COMPRESSION {
+			// If the garbage kind is `INVALID_COMPRESSION` or `MALFORM_RLP`, use the `actions` packages
+			// modified `ChannelOut`.
+			batcherCfg.GarbageCfg = &GarbageChannelCfg{
+				useInvalidCompression: garbageKind == INVALID_COMPRESSION,
+				malformRLP:            garbageKind == MALFORM_RLP,
+			}
+		}
+
+		batcher := NewL2Batcher(log, sd.RollupCfg, batcherCfg, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
 
 		sequencer.ActL2PipelineFull(t)
 		verifier.ActL2PipelineFull(t)

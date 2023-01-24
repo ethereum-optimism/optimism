@@ -35,12 +35,24 @@ type L1TxAPI interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
+type ChannelOutApi interface {
+	ID() derive.ChannelID
+	Reset() error
+	AddBlock(block *types.Block) error
+	ReadyBytes() int
+	Flush() error
+	Close() error
+	OutputFrame(w *bytes.Buffer, maxSize uint64) error
+}
+
 type BatcherCfg struct {
 	// Limit the size of txs
 	MinL1TxSize uint64
 	MaxL1TxSize uint64
 
 	BatcherKey *ecdsa.PrivateKey
+
+	GarbageCfg *GarbageChannelCfg
 }
 
 // L2Batcher buffers and submits L2 batches to L1.
@@ -59,7 +71,7 @@ type L2Batcher struct {
 
 	l1Signer types.Signer
 
-	l2ChannelOut     *derive.ChannelOut
+	l2ChannelOut     ChannelOutApi
 	l2Submitting     bool // when the channel out is being submitted, and not safe to write to without resetting
 	l2BufferedBlock  eth.BlockID
 	l2SubmittedBlock eth.BlockID
@@ -123,7 +135,12 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 	}
 	// Create channel if we don't have one yet
 	if s.l2ChannelOut == nil {
-		ch, err := derive.NewChannelOut()
+		var ch ChannelOutApi
+		if s.l2BatcherCfg.GarbageCfg != nil {
+			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
+		} else {
+			ch, err = derive.NewChannelOut()
+		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
 	}
@@ -196,25 +213,45 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 	require.NoError(t, err, "need to send tx")
 }
 
+func (s *L2Batcher) ActBufferAll(t Testing) {
+	stat, err := s.syncStatusAPI.SyncStatus(t.Ctx())
+	require.NoError(t, err)
+	for s.l2BufferedBlock.Number < stat.UnsafeL2.Number {
+		s.ActL2BatchBuffer(t)
+	}
+}
+
+func (s *L2Batcher) ActSubmitAll(t Testing) {
+	s.ActBufferAll(t)
+	s.ActL2ChannelClose(t)
+	s.ActL2BatchSubmit(t)
+}
+
 // TODO: Move this to a better location
 type GarbageKind int64
 
 const (
 	STRIP_VERSION GarbageKind = iota
 	RANDOM
-	MALFORM_RLP
-	INVALID_COMPRESSION
 	TRUNCATE_END
 	DIRTY_APPEND
+	INVALID_COMPRESSION
+	MALFORM_RLP
 )
 
 var GarbageKinds = []GarbageKind{
 	STRIP_VERSION,
 	RANDOM,
-	// MALFORM_RLP,
-	// INVALID_COMPRESSION,
 	TRUNCATE_END,
 	DIRTY_APPEND,
+	INVALID_COMPRESSION,
+	MALFORM_RLP,
+}
+
+// Configuration for a garbage channel (`ChannelOut` in the `actions` pkg)
+type GarbageChannelCfg struct {
+	useInvalidCompression bool
+	malformRLP            bool
 }
 
 // ActL2BatchSubmit constructs a malformed channel frame and submits it to the
@@ -226,6 +263,7 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
 		return
 	}
+
 	// Collect the output frame
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)
@@ -260,6 +298,14 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	// Append 4 garbage bytes to the end of the output frame
 	case DIRTY_APPEND:
 		outputFrame = append(outputFrame, []byte{0xBA, 0xD0, 0xC0, 0xDE}...)
+	case INVALID_COMPRESSION:
+		// Do nothing post frame encoding- the `GarbageChannelOut` used for this case is modified to
+		// use gzip compression rather than zlib, which is invalid.
+		break
+	case MALFORM_RLP:
+		// Do nothing post frame encoding- the `GarbageChannelOut` used for this case is modified to
+		// write malformed RLP each time a block is added to the channel.
+		break
 	default:
 		t.Fatalf("Unexpected garbage kind: %v", kind)
 	}
@@ -289,18 +335,4 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 
 	err = s.l1.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err, "need to send tx")
-}
-
-func (s *L2Batcher) ActBufferAll(t Testing) {
-	stat, err := s.syncStatusAPI.SyncStatus(t.Ctx())
-	require.NoError(t, err)
-	for s.l2BufferedBlock.Number < stat.UnsafeL2.Number {
-		s.ActL2BatchBuffer(t)
-	}
-}
-
-func (s *L2Batcher) ActSubmitAll(t Testing) {
-	s.ActBufferAll(t)
-	s.ActL2ChannelClose(t)
-	s.ActL2BatchSubmit(t)
 }
