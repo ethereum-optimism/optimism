@@ -148,8 +148,6 @@ contract L2StandardBridge is StandardBridge, Semver {
         } else {
             finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
         }
-
-        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -200,5 +198,18 @@ contract L2StandardBridge is StandardBridge, Semver {
     ) internal override {
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
         emit WithdrawalInitiated(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @inheritdoc StandardBridge
+     */
+    function _emitETHBridgeFinalized(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        emit DepositFinalized(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
     }
 }

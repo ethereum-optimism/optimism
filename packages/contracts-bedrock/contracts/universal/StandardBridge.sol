@@ -301,7 +301,7 @@ abstract contract StandardBridge {
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(MESSENGER), "StandardBridge: cannot send to messenger");
 
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        _emitETHBridgeFinalized(_from, _to, _amount, _extraData);
 
         bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
         require(success, "StandardBridge: ETH transfer failed");
@@ -481,4 +481,19 @@ abstract contract StandardBridge {
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
+    /**
+     * @notice Emits the ETHBridgeFinalized and if necessary the appropriate legacy event when an
+     *         ETH bridge is finalized on this chain.
+     *
+     * @param from      Address of the sender.
+     * @param to        Address of the receiver.
+     * @param amount    Amount of ETH sent.
+     * @param extraData Extra data sent with the transaction.
+     */
+    function _emitETHBridgeFinalized(
+        address from,
+        address to,
+        uint256 amount,
+        bytes memory extraData
+    ) internal virtual;
 }

@@ -309,4 +309,17 @@ contract L1StandardBridge is StandardBridge, Semver {
         emit ETHDepositInitiated(_from, _to, _amount, _extraData);
         emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
+
+    /**
+     * @inheritdoc StandardBridge
+     */
+    function _emitETHBridgeFinalized(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        emit ETHWithdrawalFinalized(_from, _to, _amount, _extraData);
+    }
 }
