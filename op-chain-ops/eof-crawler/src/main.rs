@@ -1,5 +1,4 @@
 use clap::Parser;
-use ethers::utils::{hex, keccak256};
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -18,13 +17,12 @@ struct EofCrawler {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SnapshotAccount {
-    /// The bytecode of the account
-    code: Option<String>,
-    /// The public key of the account
-    #[serde(rename(deserialize = "key"))]
-    public_key: String,
+    /// The key of the account in the global state trie
+    key: String,
     /// The address of the account
     address: Option<String>,
+    /// The bytecode of the account
+    code: Option<String>,
 }
 
 fn main() -> Result<()> {
@@ -56,16 +54,9 @@ fn main() -> Result<()> {
 
             // Check if the account is a contract, and if it is, check if it has an EOF
             // prefix.
-            let mut contract: SnapshotAccount = serde_json::from_str(&buf)?;
+            let contract: SnapshotAccount = serde_json::from_str(&buf)?;
             if let Some(code) = contract.code.as_ref() {
                 if &code[2..4].to_uppercase() == "EF" {
-                    // Derive the address of the account from the public key.
-                    // address = keccak256(public_key)[12:]
-                    let address = {
-                        let public_key = hex::decode(&contract.public_key[2..])?;
-                        format!("0x{}", hex::encode(&keccak256(&public_key)[12..]))
-                    };
-                    contract.address = Some(address);
                     eof_contracts.push(contract);
                 }
             }

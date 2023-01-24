@@ -15,7 +15,7 @@ Options:
 
 1. To begin, create a geth snapshot:
 ```sh
-geth snapshot dump --nostorage >> snapshot.txt
+geth dump --iterative --nostorage >> snapshot.txt
 ```
 1. Once the snapshot has been generated, feed it into the CLI:
 ```sh
