@@ -1,0 +1,25 @@
+{
+  "name": "@eth-optimism/op-node",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "op-node",
+  "targets": {
+    "build": {
+      "executor": "@nx-go/nx-go:build",
+      "options": {
+        "outputPath": "dist/op-node",
+        "main": "op-node/cmd/main.go"
+      }
+    },
+    "serve": {
+      "executor": "@nx-go/nx-go:serve",
+      "options": {
+        "main": "op-node/cmd/main.go"
+      }
+    },
+    "test": {
+      "executor": "@nx-go/nx-go:test"
+    }
+  },
+  "tags": []
+}

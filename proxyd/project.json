@@ -1,0 +1,22 @@
+{
+  "name": "@eth-optimism/proxyd",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "proxyd",
+  "targets": {
+    "build": {
+      "executor": "@nx-go/nx-go:build",
+      "options": {
+        "outputPath": "dist/proxyd",
+        "main": "proxyd/cmd/proxyd/main.go"
+      }
+    },
+    "serve": {
+      "executor": "@nx-go/nx-go:serve",
+      "options": {
+        "main": "proxyd/cmd/proxyd/main.go"
+      }
+    }
+  },
+  "tags": []
+}

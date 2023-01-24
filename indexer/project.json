@@ -1,0 +1,22 @@
+{
+  "name": "@eth-optimism/indexer",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "projectType": "application",
+  "sourceRoot": "indexer",
+  "targets": {
+    "build": {
+      "executor": "@nx-go/nx-go:build",
+      "options": {
+        "outputPath": "dist/indexer",
+        "main": "indexer/cmd/indexer/main.go"
+      }
+    },
+    "serve": {
+      "executor": "@nx-go/nx-go:serve",
+      "options": {
+        "main": "indexer/cmd/indexer/main.go"
+      }
+    }
+  },
+  "tags": []
+}
