@@ -17,8 +17,8 @@ import (
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
 
-// ChannelOutApi is the interface implemented by ChannelOut
-type ChannelOutApi interface {
+// ChannelOutIface is the interface implemented by ChannelOut
+type ChannelOutIface interface {
 	ID() ChannelID
 	Reset() error
 	AddBlock(block *types.Block) error
@@ -29,7 +29,7 @@ type ChannelOutApi interface {
 }
 
 // Compile-time check for ChannelOutApi interface implementation for the ChannelOut type.
-var _ ChannelOutApi = (*ChannelOut)(nil)
+var _ ChannelOutIface = (*ChannelOut)(nil)
 
 type ChannelOut struct {
 	id ChannelID

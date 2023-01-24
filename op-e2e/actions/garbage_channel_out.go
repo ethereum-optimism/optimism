@@ -42,8 +42,8 @@ type GarbageChannelCfg struct {
 	malformRLP            bool
 }
 
-// WriterApi is the interface shared between `zlib.Writer` and `gzip.Writer`
-type WriterApi interface {
+// Writer is the interface shared between `zlib.Writer` and `gzip.Writer`
+type Writer interface {
 	Close() error
 	Flush() error
 	Reset(io.Writer)
@@ -51,7 +51,7 @@ type WriterApi interface {
 }
 
 // Compile-time check for derive.ChannelOutApi interface implementation for the GarbageChannelOut type.
-var _ derive.ChannelOutApi = (*GarbageChannelOut)(nil)
+var _ derive.ChannelOutIface = (*GarbageChannelOut)(nil)
 
 // GarbageChannelOut is a modified `derive.ChannelOut` that can be configured to behave differently
 // than the original
@@ -63,7 +63,7 @@ type GarbageChannelOut struct {
 	rlpLength int
 
 	// Compressor stage. Write input data to it
-	compress WriterApi
+	compress Writer
 	// post compression buffer
 	buf bytes.Buffer
 
@@ -91,7 +91,7 @@ func NewGarbageChannelOut(cfg *GarbageChannelCfg) (*GarbageChannelOut, error) {
 	}
 
 	// Optionally use zlib or gzip compression
-	var compress WriterApi
+	var compress Writer
 	if cfg.useInvalidCompression {
 		compress, err = gzip.NewWriterLevel(&c.buf, gzip.BestCompression)
 	} else {
