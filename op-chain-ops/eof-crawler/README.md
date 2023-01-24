@@ -19,6 +19,6 @@ geth dump --iterative --nostorage >> snapshot.txt
 ```
 1. Once the snapshot has been generated, feed it into the CLI:
 ```sh
-cargo r -- -s ./snapshot.txt
+cargo r --release -- -s ./snapshot.txt
 ```
 1. The CLI will output a file named `eof_contracts.json` containing all found EOF-prefixed contracts.
