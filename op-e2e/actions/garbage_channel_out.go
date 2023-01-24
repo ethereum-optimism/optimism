@@ -50,8 +50,22 @@ type Writer interface {
 	Write([]byte) (int, error)
 }
 
-// Compile-time check for derive.ChannelOutApi interface implementation for the GarbageChannelOut type.
-var _ derive.ChannelOutIface = (*GarbageChannelOut)(nil)
+// ChannelOutIface is the interface implemented by ChannelOut & GarbageChannelOut
+type ChannelOutIface interface {
+	ID() derive.ChannelID
+	Reset() error
+	AddBlock(block *types.Block) error
+	ReadyBytes() int
+	Flush() error
+	Close() error
+	OutputFrame(w *bytes.Buffer, maxSize uint64) error
+}
+
+// Compile-time check for ChannelOutIface interface implementation for the ChannelOut type.
+var _ ChannelOutIface = (*derive.ChannelOut)(nil)
+
+// Compile-time check for ChannelOutIface interface implementation for the GarbageChannelOut type.
+var _ ChannelOutIface = (*GarbageChannelOut)(nil)
 
 // GarbageChannelOut is a modified `derive.ChannelOut` that can be configured to behave differently
 // than the original

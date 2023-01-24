@@ -61,7 +61,7 @@ type L2Batcher struct {
 
 	l1Signer types.Signer
 
-	l2ChannelOut     derive.ChannelOutIface
+	l2ChannelOut     ChannelOutIface
 	l2Submitting     bool // when the channel out is being submitted, and not safe to write to without resetting
 	l2BufferedBlock  eth.BlockID
 	l2SubmittedBlock eth.BlockID
@@ -125,7 +125,7 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 	}
 	// Create channel if we don't have one yet
 	if s.l2ChannelOut == nil {
-		var ch derive.ChannelOutIface
+		var ch ChannelOutIface
 		if s.l2BatcherCfg.GarbageCfg != nil {
 			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
 		} else {

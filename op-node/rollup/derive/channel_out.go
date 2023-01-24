@@ -17,20 +17,6 @@ import (
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
 
-// ChannelOutIface is the interface implemented by ChannelOut
-type ChannelOutIface interface {
-	ID() ChannelID
-	Reset() error
-	AddBlock(block *types.Block) error
-	ReadyBytes() int
-	Flush() error
-	Close() error
-	OutputFrame(w *bytes.Buffer, maxSize uint64) error
-}
-
-// Compile-time check for ChannelOutApi interface implementation for the ChannelOut type.
-var _ ChannelOutIface = (*ChannelOut)(nil)
-
 type ChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
