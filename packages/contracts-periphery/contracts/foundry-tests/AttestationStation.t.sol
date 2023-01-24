@@ -26,6 +26,23 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         super._setUp();
     }
 
+    event AttestationCreated(
+        address indexed creator,
+        address indexed about,
+        bytes32 indexed key,
+        bytes val
+    );
+
+    function test_attest_individual() external {
+        AttestationStation attestationStation = new AttestationStation();
+
+        vm.expectEmit(true, true, true, true);
+        emit AttestationCreated(alice_attestor, bob, bytes32("foo"), bytes("bar"));
+
+        vm.prank(alice_attestor);
+        attestationStation.attest({ _about: bob, _key: bytes32("foo"), _val: bytes("bar") });
+    }
+
     function test_attest_single() external {
         AttestationStation attestationStation = new AttestationStation();
 

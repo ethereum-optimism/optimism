@@ -124,6 +124,7 @@ type Metrics struct {
 
 var _ Metricer = (*Metrics)(nil)
 
+// NewMetrics creates a new [Metrics] instance with the given process name.
 func NewMetrics(procName string) *Metrics {
 	if procName == "" {
 		procName = "default"

@@ -145,19 +145,19 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 
 // NewGossipSub configures a new pubsub instance with the specified parameters.
 // PubSub uses a GossipSubRouter as it's router under the hood.
-func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
 	}
 	params := BuildGlobalGossipParams(cfg)
 	// TODO: make this configurable behind a cli flag - disabled or default
-	peerScoreParams, err := GetPeerScoreParams("default")
+	peerScoreParams, err := GetPeerScoreParams("default", cfg)
 	if err != nil {
 		return nil, err
 	}
 	peerScoreThresholds := NewPeerScoreThresholds()
-	scorer := NewScorer(g, h.Peerstore(), m)
+	scorer := NewScorer(g, h.Peerstore(), m, log)
 	gossipOpts := []pubsub.Option{
 		pubsub.WithMaxMessageSize(maxGossipSize),
 		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
@@ -442,7 +442,7 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 	// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
 	// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
 	// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
-	defaultTopicScoreParams, err := GetTopicScoreParams("default")
+	defaultTopicScoreParams, err := GetTopicScoreParams("default", cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create default topic score params: %w", err)
 	}

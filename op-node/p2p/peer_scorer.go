@@ -1,9 +1,11 @@
 package p2p
 
 import (
+	"github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/core/peerstore"
+	"golang.org/x/exp/slices"
 )
 
 const ConnectionFactor = -10
@@ -14,6 +16,7 @@ type scorer struct {
 	connGater ConnectionGater
 	peerStore peerstore.Peerstore
 	metricer  GossipMetricer
+	log       log.Logger
 }
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
@@ -24,11 +27,12 @@ type Scorer interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(connGater ConnectionGater, peerStore peerstore.Peerstore, metricer GossipMetricer) Scorer {
+func NewScorer(connGater ConnectionGater, peerStore peerstore.Peerstore, metricer GossipMetricer, log log.Logger) Scorer {
 	return &scorer{
 		connGater: connGater,
 		peerStore: peerStore,
 		metricer:  metricer,
+		log:       log,
 	}
 }
 
@@ -59,27 +63,19 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 			// Check if the peer score is below the threshold
 			// If so, we need to block the peer
 			if snap.Score < PeerScoreThreshold {
-				_ = s.connGater.BlockPeer(id)
+				err := s.connGater.BlockPeer(id)
+				s.log.Warn("connection gater failed to block peer", id.String(), "err", err)
 			}
 			// Unblock peers whose score has recovered to an acceptable level
-			if (snap.Score > PeerScoreThreshold) && contains(s.connGater.ListBlockedPeers(), id) {
-				_ = s.connGater.UnblockPeer(id)
+			if (snap.Score > PeerScoreThreshold) && slices.Contains(s.connGater.ListBlockedPeers(), id) {
+				err := s.connGater.UnblockPeer(id)
+				s.log.Warn("connection gater failed to unblock peer", id.String(), "err", err)
 			}
 		}
 	}
 }
 
-func contains(peers []peer.ID, id peer.ID) bool {
-	for _, v := range peers {
-		if v == id {
-			return true
-		}
-	}
-
-	return false
-}
-
-// call the two methods below from the notifier
+// TODO: call the two methods below from the notifier
 
 // OnConnect is called when a peer connects.
 // See [p2p.NotificationsMetricer] for invocation.

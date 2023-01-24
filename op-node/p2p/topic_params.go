@@ -2,91 +2,93 @@ package p2p
 
 import (
 	"fmt"
-	"math"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
-// TODO: Update these parameters.
-const (
-	beaconBlockWeight  = 0.8
-	meshWeight         = -0.717
-	invalidDecayPeriod = 50 * epoch
-	maxInMeshScore     = 10
-	decayEpoch         = time.Duration(5)
-)
+// MeshWeight is the weight of the mesh delivery topic.
+const MeshWeight = -0.7
+
+// MaxInMeshScore is the maximum score for being in the mesh.
+const MaxInMeshScore = 10
+
+// DecayEpoch is the number of epochs to decay the score over.
+const DecayEpoch = time.Duration(5)
 
 // DefaultTopicScoreParams is a default instantiation of [pubsub.TopicScoreParams].
 // See [TopicScoreParams] for detailed documentation.
-// Default parameters are loosely based on prysm's default block topic scoring parameters.
-// See [PrysmTopicScoringParams] for more details.
 //
 // [TopicScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#TopicScoreParams
-// [PrysmTopicScoringParams]: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go#L169
-var DefaultTopicScoreParams = pubsub.TopicScoreParams{
-	TopicWeight:                     beaconBlockWeight,
-	TimeInMeshWeight:                maxInMeshScore / inMeshCap(),
-	TimeInMeshQuantum:               inMeshTime(),
-	TimeInMeshCap:                   inMeshCap(),
-	FirstMessageDeliveriesWeight:    1,
-	FirstMessageDeliveriesDecay:     scoreDecay(20 * epoch),
-	FirstMessageDeliveriesCap:       23,
-	MeshMessageDeliveriesWeight:     meshWeight,
-	MeshMessageDeliveriesDecay:      scoreDecay(decayEpoch * epoch),
-	MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(decayEpoch)),
-	MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(decayEpoch) / 10),
-	MeshMessageDeliveriesWindow:     2 * time.Second,
-	MeshMessageDeliveriesActivation: 4 * epoch,
-	MeshFailurePenaltyWeight:        meshWeight,
-	MeshFailurePenaltyDecay:         scoreDecay(decayEpoch * epoch),
-	InvalidMessageDeliveriesWeight:  -140.4475,
-	InvalidMessageDeliveriesDecay:   scoreDecay(invalidDecayPeriod),
-}
-
-// determines the decay rate from the provided time period till
-// the decayToZero value. Ex: ( 1 -> 0.01)
-func scoreDecay(duration time.Duration) float64 {
-	numOfTimes := duration / slot
-	return math.Pow(decayToZero, 1/float64(numOfTimes))
-}
-
-// denotes the unit time in mesh for scoring tallying.
-func inMeshTime() time.Duration {
-	return 1 * slot
+var DefaultTopicScoreParams = func(cfg *rollup.Config) pubsub.TopicScoreParams {
+	slot := time.Duration(cfg.BlockTime) * time.Second
+	if slot == 0 {
+		slot = 2 * time.Second
+	}
+	// TODO: tune these params
+	// TODO: we initialize an "epoch" as 6 blocks suggesting 6 blocks, each taking ~ 2 seconds, is 12 seconds
+	epoch := 6 * slot
+	invalidDecayPeriod := 50 * epoch
+	return pubsub.TopicScoreParams{
+		TopicWeight:                     0.8,
+		TimeInMeshWeight:                MaxInMeshScore / inMeshCap(slot),
+		TimeInMeshQuantum:               slot,
+		TimeInMeshCap:                   inMeshCap(slot),
+		FirstMessageDeliveriesWeight:    1,
+		FirstMessageDeliveriesDecay:     ScoreDecay(20*epoch, slot),
+		FirstMessageDeliveriesCap:       23,
+		MeshMessageDeliveriesWeight:     MeshWeight,
+		MeshMessageDeliveriesDecay:      ScoreDecay(DecayEpoch*epoch, slot),
+		MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(DecayEpoch)),
+		MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(DecayEpoch) / 10),
+		MeshMessageDeliveriesWindow:     2 * time.Second,
+		MeshMessageDeliveriesActivation: 4 * epoch,
+		MeshFailurePenaltyWeight:        MeshWeight,
+		MeshFailurePenaltyDecay:         ScoreDecay(DecayEpoch*epoch, slot),
+		InvalidMessageDeliveriesWeight:  -140.4475,
+		InvalidMessageDeliveriesDecay:   ScoreDecay(invalidDecayPeriod, slot),
+	}
 }
 
 // the cap for `inMesh` time scoring.
-func inMeshCap() float64 {
-	return float64((3600 * time.Second) / inMeshTime())
+func inMeshCap(slot time.Duration) float64 {
+	return float64((3600 * time.Second) / slot)
 }
 
 // DisabledTopicScoreParams is an instantiation of [pubsub.TopicScoreParams] where all scoring is disabled.
 // See [TopicScoreParams] for detailed documentation.
 //
 // [TopicScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#TopicScoreParams
-var DisabledTopicScoreParams = pubsub.TopicScoreParams{
-	TopicWeight:                     0, // disabled
-	TimeInMeshWeight:                0, // disabled
-	TimeInMeshQuantum:               inMeshTime(),
-	TimeInMeshCap:                   inMeshCap(),
-	FirstMessageDeliveriesWeight:    0, // disabled
-	FirstMessageDeliveriesDecay:     scoreDecay(20 * epoch),
-	FirstMessageDeliveriesCap:       23,
-	MeshMessageDeliveriesWeight:     0, // disabled
-	MeshMessageDeliveriesDecay:      scoreDecay(decayEpoch * epoch),
-	MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(decayEpoch)),
-	MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(decayEpoch) / 10),
-	MeshMessageDeliveriesWindow:     2 * time.Second,
-	MeshMessageDeliveriesActivation: 4 * epoch,
-	MeshFailurePenaltyWeight:        0, // disabled
-	MeshFailurePenaltyDecay:         scoreDecay(decayEpoch * epoch),
-	InvalidMessageDeliveriesWeight:  0, // disabled
-	InvalidMessageDeliveriesDecay:   scoreDecay(invalidDecayPeriod),
+var DisabledTopicScoreParams = func(cfg *rollup.Config) pubsub.TopicScoreParams {
+	slot := time.Duration(cfg.BlockTime) * time.Second
+	// TODO: tune these params
+	// TODO: we initialize an "epoch" as 6 blocks suggesting 6 blocks, each taking ~ 2 seconds, is 12 seconds
+	epoch := 6 * slot
+	invalidDecayPeriod := 50 * epoch
+	return pubsub.TopicScoreParams{
+		TopicWeight:                     0, // disabled
+		TimeInMeshWeight:                0, // disabled
+		TimeInMeshQuantum:               slot,
+		TimeInMeshCap:                   inMeshCap(slot),
+		FirstMessageDeliveriesWeight:    0, // disabled
+		FirstMessageDeliveriesDecay:     ScoreDecay(20*epoch, slot),
+		FirstMessageDeliveriesCap:       23,
+		MeshMessageDeliveriesWeight:     0, // disabled
+		MeshMessageDeliveriesDecay:      ScoreDecay(DecayEpoch*epoch, slot),
+		MeshMessageDeliveriesCap:        float64(uint64(epoch/slot) * uint64(DecayEpoch)),
+		MeshMessageDeliveriesThreshold:  float64(uint64(epoch/slot) * uint64(DecayEpoch) / 10),
+		MeshMessageDeliveriesWindow:     2 * time.Second,
+		MeshMessageDeliveriesActivation: 4 * epoch,
+		MeshFailurePenaltyWeight:        0, // disabled
+		MeshFailurePenaltyDecay:         ScoreDecay(DecayEpoch*epoch, slot),
+		InvalidMessageDeliveriesWeight:  0, // disabled
+		InvalidMessageDeliveriesDecay:   ScoreDecay(invalidDecayPeriod, slot),
+	}
 }
 
 // TopicScoreParamsByName is a map of name to [pubsub.TopicScoreParams].
-var TopicScoreParamsByName = map[string]pubsub.TopicScoreParams{
+var TopicScoreParamsByName = map[string](func(*rollup.Config) pubsub.TopicScoreParams){
 	"default":  DefaultTopicScoreParams,
 	"disabled": DisabledTopicScoreParams,
 }
@@ -103,11 +105,11 @@ func AvailableTopicScoreParams() []string {
 }
 
 // GetTopicScoreParams returns the [pubsub.TopicScoreParams] for the given name.
-func GetTopicScoreParams(name string) (pubsub.TopicScoreParams, error) {
+func GetTopicScoreParams(name string, cfg *rollup.Config) (pubsub.TopicScoreParams, error) {
 	params, ok := TopicScoreParamsByName[name]
 	if !ok {
 		return pubsub.TopicScoreParams{}, fmt.Errorf("invalid topic params %s", name)
 	}
 
-	return params, nil
+	return params(cfg), nil
 }

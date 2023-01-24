@@ -1,3 +1,4 @@
+// Package heartbeat provides a service for sending heartbeats to a server.
 package heartbeat
 
 import (

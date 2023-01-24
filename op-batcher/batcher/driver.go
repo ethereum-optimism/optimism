@@ -163,7 +163,7 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),
-		// TODO: this context only exists because the even loop doesn't reach done
+		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
 		cancel: cancel,
