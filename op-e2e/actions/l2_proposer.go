@@ -60,7 +60,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		SignerFnFactory:   signer,
 	}
 
-	dr, err := proposer.NewL2OutputSubmitterWithSigner(proposerCfg, log)
+	dr, err := proposer.NewL2OutputSubmitter(proposerCfg, log)
 	require.NoError(t, err)
 
 	return &L2Proposer{

@@ -28,7 +28,7 @@ func main() {
 	app.Usage = "L2Output Submitter"
 	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"
 
-	app.Action = proposer.Main(Version)
+	app.Action = proposer.Main
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
