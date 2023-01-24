@@ -78,12 +78,6 @@ contract PreBridgeETH is Bridge_Initializer {
         uint256 version = 0; // Internal constant in the OptimismPortal: DEPOSIT_VERSION
         address l1MessengerAliased = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
-        vm.expectEmit(true, true, true, true, address(L1Bridge));
-        emit ETHDepositInitiated(alice, alice, 500, hex"ff");
-
-        vm.expectEmit(true, true, true, true, address(L1Bridge));
-        emit ETHBridgeInitiated(alice, alice, 500, hex"ff");
-
         bytes memory message = abi.encodeWithSelector(
             StandardBridge.finalizeBridgeETH.selector,
             alice,
@@ -148,10 +142,10 @@ contract PreBridgeETH is Bridge_Initializer {
             innerMessage
         );
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, address(L1Bridge));
         emit ETHDepositInitiated(alice, alice, 500, hex"dead");
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, address(L1Bridge));
         emit ETHBridgeInitiated(alice, alice, 500, hex"dead");
 
         // OptimismPortal emits a TransactionDeposited event on `depositTransaction` call
@@ -293,7 +287,6 @@ contract PreBridgeETHTo is Bridge_Initializer {
 
         // SentMessage event emitted by the CrossDomainMessenger
         vm.expectEmit(true, true, true, true, address(L1Messenger));
-
         emit SentMessage(address(L2Bridge), address(L1Bridge), message, nonce, 60000);
 
         // SentMessageExtension1 event emitted by the CrossDomainMessenger

@@ -294,6 +294,10 @@ contract L1StandardBridge is StandardBridge, Semver {
         _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
     }
 
+    // The following internal functions override the virtual functions defined in the parent
+    // StandarBridge contract, to ensure that the legacy events are emitted along with the
+    // newer events, for backwards compatibility.
+
     /**
      * @inheritdoc StandardBridge
      */
