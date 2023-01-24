@@ -56,14 +56,44 @@ type Config struct {
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
 }
 
+// ValidateL1Config checks L1 config variables for errors.
+func (cfg *Config) ValidateL1Config(ctx context.Context, client L1Client) error {
+	// Validate the L1 Client Chain ID
+	if err := cfg.CheckL1ChainID(ctx, client); err != nil {
+		return err
+	}
+
+	// Validate the Rollup L1 Genesis Blockhash
+	if err := cfg.CheckL1GenesisBlockHash(ctx, client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ValidateL2Config checks L2 config variables for errors.
+func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client) error {
+	// Validate the L2 Client Chain ID
+	if err := cfg.CheckL2ChainID(ctx, client); err != nil {
+		return err
+	}
+
+	// Validate the Rollup L2 Genesis Blockhash
+	if err := cfg.CheckL2GenesisBlockHash(ctx, client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 type L1Client interface {
-	L1ChainID(context.Context) (*big.Int, error)
+	ChainID(context.Context) (*big.Int, error)
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
 }
 
 // CheckL1ChainID checks that the configured L1 chain ID matches the client's chain ID.
 func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
-	id, err := client.L1ChainID(ctx)
+	id, err := client.ChainID(ctx)
 	if err != nil {
 		return err
 	}
@@ -86,13 +116,13 @@ func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client)
 }
 
 type L2Client interface {
-	L2ChainID(context.Context) (*big.Int, error)
+	ChainID(context.Context) (*big.Int, error)
 	L2BlockRefByNumber(context.Context, uint64) (eth.L2BlockRef, error)
 }
 
 // CheckL2ChainID checks that the configured L2 chain ID matches the client's chain ID.
 func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
-	id, err := client.L2ChainID(ctx)
+	id, err := client.ChainID(ctx)
 	if err != nil {
 		return err
 	}

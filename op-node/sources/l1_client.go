@@ -3,7 +3,6 @@ package sources
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum"
@@ -67,11 +66,6 @@ func NewL1Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 		EthClient:        ethClient,
 		l1BlockRefsCache: caching.NewLRUCache(metrics, "blockrefs", config.L1BlockRefsCacheSize),
 	}, nil
-}
-
-// L1ChainID fetches the chain id for the RPC Client.
-func (s *L1Client) L1ChainID(ctx context.Context) (*big.Int, error) {
-	return s.ChainID(ctx)
 }
 
 // L1BlockRefByLabel returns the [eth.L1BlockRef] for the given block label.

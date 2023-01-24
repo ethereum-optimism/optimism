@@ -3,7 +3,6 @@ package sources
 import (
 	"context"
 	"fmt"
-	"math/big"
 	"strings"
 
 	"github.com/ethereum/go-ethereum"
@@ -86,11 +85,6 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 		l2BlockRefsCache:   caching.NewLRUCache(metrics, "blockrefs", config.L2BlockRefsCacheSize),
 		systemConfigsCache: caching.NewLRUCache(metrics, "systemconfigs", config.L1ConfigsCacheSize),
 	}, nil
-}
-
-// L2ChainID fetches the chain id for the RPC Client.
-func (s *L2Client) L2ChainID(ctx context.Context) (*big.Int, error) {
-	return s.ChainID(ctx)
 }
 
 // L2BlockRefByLabel returns the L2 block reference for the given label.

@@ -124,15 +124,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
-	// Validate the L1 Client Chain ID
-	if err := cfg.Rollup.CheckL1ChainID(ctx, n.l1Source); err != nil {
-		n.log.Error("failed to verify L1 RPC chain id", "err", err)
-		return err
-	}
-
-	// Validate the Rollup L1 Genesis Blockhash
-	if err := cfg.Rollup.CheckL1GenesisBlockHash(ctx, n.l1Source); err != nil {
-		n.log.Error("failed to verify L1 genesis block hash", "err", err)
+	if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
 		return err
 	}
 
@@ -201,15 +193,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	// Validate the L2 Client Chain ID
-	if err := cfg.Rollup.CheckL2ChainID(ctx, n.l2Source); err != nil {
-		n.log.Error("failed to verify L2 RPC chain id", "err", err)
-		return err
-	}
-
-	// Validate the Rollup L2 Genesis Blockhash
-	if err := cfg.Rollup.CheckL2GenesisBlockHash(ctx, n.l2Source); err != nil {
-		n.log.Error("failed to verify L2 genesis block hash", "err", err)
+	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source); err != nil {
 		return err
 	}
 
