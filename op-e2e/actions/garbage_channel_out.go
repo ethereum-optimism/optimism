@@ -50,6 +50,9 @@ type WriterApi interface {
 	Write([]byte) (int, error)
 }
 
+// Compile-time check for derive.ChannelOutApi interface implementation for the GarbageChannelOut type.
+var _ derive.ChannelOutApi = (*GarbageChannelOut)(nil)
+
 // GarbageChannelOut is a modified `derive.ChannelOut` that can be configured to behave differently
 // than the original
 type GarbageChannelOut struct {

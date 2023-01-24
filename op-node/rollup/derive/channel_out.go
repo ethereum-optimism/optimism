@@ -28,6 +28,9 @@ type ChannelOutApi interface {
 	OutputFrame(w *bytes.Buffer, maxSize uint64) error
 }
 
+// Compile-time check for ChannelOutApi interface implementation for the ChannelOut type.
+var _ ChannelOutApi = (*ChannelOut)(nil)
+
 type ChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
