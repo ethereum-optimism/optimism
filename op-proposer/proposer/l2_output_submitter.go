@@ -2,7 +2,6 @@ package proposer
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -14,18 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
-	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -35,7 +30,6 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 const (
@@ -159,58 +153,9 @@ type L2OutputSubmitter struct {
 // NewL2OutputSubmitter initializes the L2OutputSubmitter, gathering any resources
 // that will be needed during operation.
 func NewL2OutputSubmitter(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
-	var l2OutputPrivKey *ecdsa.PrivateKey
-	var err error
-
-	var signer SignerFactory
-	var fromAddress common.Address
-	if cfg.SignerConfig.Enabled() {
-		signerClient, err := opsigner.NewSignerClientFromConfig(l, cfg.SignerConfig)
-		if err != nil {
-			l.Error("Unable to create Signer Client", "error", err)
-			return nil, err
-		}
-		fromAddress = common.BytesToAddress(hexutil.MustDecode(cfg.SignerConfig.Address))
-		signer = func(chainID *big.Int) SignerFn {
-			return func(ctx context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				if address.String() != cfg.SignerConfig.Address {
-					return nil, fmt.Errorf("attempting to sign for %s, expected %s: ", address, cfg.SignerConfig.Address)
-				}
-				return signerClient.SignTransaction(ctx, chainID, tx)
-			}
-		}
-	} else {
-		if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
-			return nil, errors.New("cannot specify both a private key and a mnemonic")
-		}
-		if cfg.PrivateKey == "" {
-			// Parse l2output wallet private key and L2OO contract address.
-			wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-			if err != nil {
-				return nil, err
-			}
-
-			l2OutputPrivKey, err = wallet.PrivateKey(accounts.Account{
-				URL: accounts.URL{
-					Path: cfg.L2OutputHDPath,
-				},
-			})
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			l2OutputPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
-			if err != nil {
-				return nil, err
-			}
-		}
-		fromAddress = crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey)
-		signer = func(chainID *big.Int) SignerFn {
-			s := opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID)
-			return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return s(addr, tx)
-			}
-		}
+	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
