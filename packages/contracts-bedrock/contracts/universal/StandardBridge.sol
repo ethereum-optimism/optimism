@@ -366,7 +366,7 @@ abstract contract StandardBridge {
             "StandardBridge: bridging ETH must include sufficient ETH value"
         );
 
-        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+        _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         MESSENGER.sendMessage{ value: _amount }(
             address(OTHER_BRIDGE),
@@ -463,4 +463,22 @@ abstract contract StandardBridge {
     {
         return _otherToken == OptimismMintableERC20(_mintableToken).l1Token();
     }
+
+    /** @notice Emits the ETHBridgeInitiated event and if necessary the appropriate legacy event
+     *          when an ETH bridge is finalized on this chain.
+     *
+     * @param from      Address of the sender.
+     * @param to        Address of the receiver.
+     * @param amount    Amount of ETH sent.
+     * @param extraData Extra data sent with the transaction.
+     */
+    function _emitETHBridgeInitiated(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal virtual {
+        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+    }
+
 }

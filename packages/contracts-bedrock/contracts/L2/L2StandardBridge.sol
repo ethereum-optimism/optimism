@@ -187,7 +187,18 @@ contract L2StandardBridge is StandardBridge, Semver {
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
         }
+    }
 
-        emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
+    /**
+     * @inheritdoc StandardBridge
+     */
+    function _emitETHBridgeInitiated(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+        emit WithdrawalInitiated(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
     }
 }

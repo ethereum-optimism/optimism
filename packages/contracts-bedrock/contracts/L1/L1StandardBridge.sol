@@ -270,7 +270,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         uint32 _minGasLimit,
         bytes memory _extraData
     ) internal {
-        emit ETHDepositInitiated(_from, _to, msg.value, _extraData);
         _initiateBridgeETH(_from, _to, msg.value, _minGasLimit, _extraData);
     }
 
@@ -296,5 +295,18 @@ contract L1StandardBridge is StandardBridge, Semver {
     ) internal {
         emit ERC20DepositInitiated(_l1Token, _l2Token, _from, _to, _amount, _extraData);
         _initiateBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _minGasLimit, _extraData);
+    }
+
+    /**
+     * @inheritdoc StandardBridge
+     */
+    function _emitETHBridgeInitiated(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit ETHDepositInitiated(_from, _to, _amount, _extraData);
+        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 }
