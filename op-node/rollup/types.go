@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"math/big"
@@ -53,6 +54,94 @@ type Config struct {
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
+}
+
+// ValidateL1Config checks L1 config variables for errors.
+func (cfg *Config) ValidateL1Config(ctx context.Context, client L1Client) error {
+	// Validate the L1 Client Chain ID
+	if err := cfg.CheckL1ChainID(ctx, client); err != nil {
+		return err
+	}
+
+	// Validate the Rollup L1 Genesis Blockhash
+	if err := cfg.CheckL1GenesisBlockHash(ctx, client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ValidateL2Config checks L2 config variables for errors.
+func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client) error {
+	// Validate the L2 Client Chain ID
+	if err := cfg.CheckL2ChainID(ctx, client); err != nil {
+		return err
+	}
+
+	// Validate the Rollup L2 Genesis Blockhash
+	if err := cfg.CheckL2GenesisBlockHash(ctx, client); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+type L1Client interface {
+	ChainID(context.Context) (*big.Int, error)
+	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
+}
+
+// CheckL1ChainID checks that the configured L1 chain ID matches the client's chain ID.
+func (cfg *Config) CheckL1ChainID(ctx context.Context, client L1Client) error {
+	id, err := client.ChainID(ctx)
+	if err != nil {
+		return err
+	}
+	if cfg.L1ChainID.Cmp(id) != 0 {
+		return fmt.Errorf("incorrect L1 RPC chain id %d, expected %d", cfg.L1ChainID, id)
+	}
+	return nil
+}
+
+// CheckL1GenesisBlockHash checks that the configured L1 genesis block hash is valid for the given client.
+func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client) error {
+	l1GenesisBlockRef, err := client.L1BlockRefByNumber(ctx, cfg.Genesis.L1.Number)
+	if err != nil {
+		return err
+	}
+	if l1GenesisBlockRef.Hash != cfg.Genesis.L1.Hash {
+		return fmt.Errorf("incorrect L1 genesis block hash %d, expected %d", cfg.Genesis.L1.Hash, l1GenesisBlockRef.Hash)
+	}
+	return nil
+}
+
+type L2Client interface {
+	ChainID(context.Context) (*big.Int, error)
+	L2BlockRefByNumber(context.Context, uint64) (eth.L2BlockRef, error)
+}
+
+// CheckL2ChainID checks that the configured L2 chain ID matches the client's chain ID.
+func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
+	id, err := client.ChainID(ctx)
+	if err != nil {
+		return err
+	}
+	if cfg.L2ChainID.Cmp(id) != 0 {
+		return fmt.Errorf("incorrect L2 RPC chain id %d, expected %d", cfg.L2ChainID, id)
+	}
+	return nil
+}
+
+// CheckL2GenesisBlockHash checks that the configured L2 genesis block hash is valid for the given client.
+func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client) error {
+	l2GenesisBlockRef, err := client.L2BlockRefByNumber(ctx, cfg.Genesis.L2.Number)
+	if err != nil {
+		return err
+	}
+	if l2GenesisBlockRef.Hash != cfg.Genesis.L2.Hash {
+		return fmt.Errorf("incorrect L2 genesis block hash %d, expected %d", cfg.Genesis.L2.Hash, l2GenesisBlockRef.Hash)
+	}
+	return nil
 }
 
 // Check verifies that the given configuration makes sense
