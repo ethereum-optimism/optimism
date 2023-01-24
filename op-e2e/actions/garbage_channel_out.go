@@ -213,7 +213,7 @@ func blockToBatch(block *types.Block) (*derive.BatchData, error) {
 	}
 
 	return &derive.BatchData{
-		derive.BatchV1{
+		BatchV1: derive.BatchV1{
 			ParentHash:   block.ParentHash(),
 			EpochNum:     rollup.Epoch(l1Info.Number),
 			EpochHash:    l1Info.BlockHash,
