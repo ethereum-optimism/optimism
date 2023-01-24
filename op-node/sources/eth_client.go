@@ -219,12 +219,12 @@ func (s *EthClient) payloadCall(ctx context.Context, method string, id any) (*et
 
 // ChainID fetches the chain id of the internal RPC.
 func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
-	var id *big.Int
+	var id hexutil.Big
 	err := s.client.CallContext(ctx, &id, "eth_chainId")
 	if err != nil {
 		return nil, err
 	}
-	return id, nil
+	return (*big.Int)(&id), nil
 }
 
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
