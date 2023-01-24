@@ -2,22 +2,16 @@ package batcher
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
-	"strings"
 	"sync"
 	"time"
 
-	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -42,59 +36,7 @@ type BatchSubmitter struct {
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
-	var err error
-	var sequencerPrivKey *ecdsa.PrivateKey
-	var addr common.Address
-
-	if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
-		return nil, errors.New("cannot specify both a private key and a mnemonic")
-	}
-
-	if cfg.PrivateKey == "" {
-		// Parse wallet private key that will be used to submit L2 txs to the batch
-		// inbox address.
-		wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-		if err != nil {
-			return nil, err
-		}
-
-		acc := accounts.Account{
-			URL: accounts.URL{
-				Path: cfg.SequencerHDPath,
-			},
-		}
-		addr, err = wallet.Address(acc)
-		if err != nil {
-			return nil, err
-		}
-
-		sequencerPrivKey, err = wallet.PrivateKey(acc)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		sequencerPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
-		if err != nil {
-			return nil, err
-		}
-
-		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
-	}
-
-	signer := func(chainID *big.Int) SignerFn {
-		s := types.LatestSignerForChainID(chainID)
-		return func(_ context.Context, rawTx types.TxData) (*types.Transaction, error) {
-			return types.SignNewTx(sequencerPrivKey, s, rawTx)
-		}
-	}
-
-	return NewBatchSubmitterWithSigner(cfg, addr, signer, l)
-}
-
-type SignerFactory func(chainID *big.Int) SignerFn
-
-func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerFactory, l log.Logger) (*BatchSubmitter, error) {
+func NewBatchSubmitter(cfg Config, addr common.Address, signer opcrypto.SignerFactory, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
