@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -31,6 +30,8 @@ func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.
 	slotsInp := make(map[common.Hash]int)
 
 	// For each known address, compute its balance key and add it to the list of addresses.
+	// Mint events are instrumented as regular ETH events in the witness data, so we no longer
+	// need to iterate over mint events during the migration.
 	for _, addr := range addresses {
 		addrs = append(addrs, addr)
 		slotsInp[CalcOVMETHStorageKey(addr)] = 1
@@ -48,28 +49,11 @@ func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.
 	addrs = append(addrs, sequencerEntrypointAddr)
 	slotsInp[CalcOVMETHStorageKey(sequencerEntrypointAddr)] = 1
 
-	// Also extract addresses/slots from Mint events. Our instrumentation currently only looks at
-	// direct balance changes inside of Geth, but Mint events mutate the ERC20 storage directly and
-	// therefore aren't picked up by our instrumentation. Instead of updating the instrumentation,
-	// we can simply iterate over every Mint event and add the address to the list of addresses.
-	log.Info("Reading mint events from DB")
-	headBlock := rawdb.ReadHeadBlock(ldb)
-	logProgress := ProgressLogger(100, "read mint events")
-	err := IterateMintEvents(ldb, headBlock.NumberU64(), func(address common.Address, headNum uint64) error {
-		addrs = append(addrs, address)
-		slotsInp[CalcOVMETHStorageKey(address)] = 1
-		logProgress("headnum", headNum)
-		return nil
-	})
-	if err != nil {
-		return nil, wrapErr(err, "error reading mint events")
-	}
-
 	// Build a mapping of every storage slot in the LegacyERC20ETH contract, except the list of
 	// slots that we know we can ignore (totalSupply, name, symbol).
 	var count int
 	slotsAct := make(map[common.Hash]common.Hash)
-	err = db.ForEachStorage(predeploys.LegacyERC20ETHAddr, func(key, value common.Hash) bool {
+	err := db.ForEachStorage(predeploys.LegacyERC20ETHAddr, func(key, value common.Hash) bool {
 		// We can safely ignore specific slots (totalSupply, name, symbol).
 		if ignoredSlots[key] {
 			return true

@@ -176,7 +176,7 @@ func NewL2OutputSubmitter(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, erro
 				if address.String() != cfg.SignerConfig.Address {
 					return nil, fmt.Errorf("attempting to sign for %s, expected %s: ", address, cfg.SignerConfig.Address)
 				}
-				return signerClient.SignTransaction(ctx, tx)
+				return signerClient.SignTransaction(ctx, chainID, tx)
 			}
 		}
 	} else {

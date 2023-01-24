@@ -9,7 +9,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -29,7 +28,7 @@ var (
 	}
 )
 
-func MigrateLegacyETH(ldb ethdb.Database, db *state.StateDB, addresses []common.Address, chainID int, noCheck bool) error {
+func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, chainID int, noCheck bool) error {
 	// Chain params to use for integrity checking.
 	params := migration.ParamsByChainID[chainID]
 	if params == nil {
