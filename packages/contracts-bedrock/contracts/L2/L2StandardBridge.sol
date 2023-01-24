@@ -188,6 +188,9 @@ contract L2StandardBridge is StandardBridge, Semver {
     }
 
     /**
+     * @notice Emits the legacy WithdrawalInitiated event followed by the ETHBridgeInitiated event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitETHBridgeInitiated(
@@ -196,7 +199,6 @@ contract L2StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         bytes memory _extraData
     ) internal override {
-        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
         emit WithdrawalInitiated(
             address(0),
             Predeploys.LEGACY_ERC20_ETH,
@@ -205,9 +207,13 @@ contract L2StandardBridge is StandardBridge, Semver {
             _amount,
             _extraData
         );
+        super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
     /**
+     * @notice Emits the legacy DepositFinalized event followed by the ETHBridgeFinalized event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitETHBridgeFinalized(
@@ -216,7 +222,6 @@ contract L2StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         bytes memory _extraData
     ) internal override {
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
         emit DepositFinalized(
             address(0),
             Predeploys.LEGACY_ERC20_ETH,
@@ -225,9 +230,13 @@ contract L2StandardBridge is StandardBridge, Semver {
             _amount,
             _extraData
         );
+        super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 
     /**
+     * @notice Emits the legacy WithdrawalInitiated event followed by the ERC20BridgeInitiated
+     *         event. This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitERC20BridgeInitiated(
@@ -239,10 +248,13 @@ contract L2StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit WithdrawalInitiated(_remoteToken, _localToken, _from, _to, _amount, _extraData);
-        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**
+     * @notice Emits the legacy DepositFinalized event followed by the ERC20BridgeFinalized event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitERC20BridgeFinalized(
@@ -253,7 +265,7 @@ contract L2StandardBridge is StandardBridge, Semver {
         uint256 _amount,
         bytes memory _extraData
     ) internal override {
-        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
         emit DepositFinalized(_remoteToken, _localToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 }

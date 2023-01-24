@@ -295,6 +295,9 @@ contract L1StandardBridge is StandardBridge, Semver {
     }
 
     /**
+     * @notice Emits the legacy ETHDepositInitiated event followed by the ETHBridgeInitiated event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitETHBridgeInitiated(
@@ -304,10 +307,13 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ETHDepositInitiated(_from, _to, _amount, _extraData);
-        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+        super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
     /**
+     * @notice Emits the legacy ETHWithdrawalFinalized event followed by the ETHBridgeFinalized
+     *         event. This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitETHBridgeFinalized(
@@ -317,10 +323,13 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ETHWithdrawalFinalized(_from, _to, _amount, _extraData);
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 
     /**
+     * @notice Emits the legacy ERC20DepositInitiated event followed by the ERC20BridgeInitiated
+     *         event. This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitERC20BridgeInitiated(
@@ -332,10 +341,13 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ERC20DepositInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**
+     * @notice Emits the legacy ERC20WithdrawalFinalized event followed by the ERC20BridgeFinalized
+     *         event. This is necessary for backwards compatibility with the legacy bridge.
+     *
      * @inheritdoc StandardBridge
      */
     function _emitERC20BridgeFinalized(
@@ -347,6 +359,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ERC20WithdrawalFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 }
