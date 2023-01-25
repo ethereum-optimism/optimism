@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -50,6 +51,8 @@ type channelManager struct {
 
 	// All blocks since the last request for new tx data.
 	blocks []*types.Block
+	// last block hash - for reorg detection
+	tip common.Hash
 
 	// Pending data returned by TxData waiting on Tx Confirmed/Failed
 
@@ -259,15 +262,17 @@ func (s *channelManager) addBlocks() error {
 	return nil
 }
 
+var zeroHash common.Hash
+
 // AddL2Block saves an L2 block to the internal state. It returns ErrReorg
 // if the block does not extend the last block loaded into the state.
-// If no block is already in the channel, the the parent hash check is skipped.
-// TODO: Phantom last block b/c if the local state is fully drained we can reorg without realizing it.
+// If no blocks were added yet, the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
-	if l := len(s.blocks); l > 0 && s.blocks[l-1].Hash() != block.ParentHash() {
+	if s.tip != zeroHash && s.tip != block.ParentHash() {
 		return ErrReorg
 	}
 	s.blocks = append(s.blocks, block)
+	s.tip = block.Hash()
 
 	return nil
 }
