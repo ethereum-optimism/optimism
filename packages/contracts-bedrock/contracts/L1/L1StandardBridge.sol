@@ -308,7 +308,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ETHDepositInitiated(_from, _to, _amount, _extraData);
-        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+        super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
     /**
@@ -321,7 +321,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ETHWithdrawalFinalized(_from, _to, _amount, _extraData);
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 
     /**
@@ -336,7 +336,7 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ERC20DepositInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -351,6 +351,6 @@ contract L1StandardBridge is StandardBridge, Semver {
         bytes memory _extraData
     ) internal override {
         emit ERC20WithdrawalFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
-        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 }
