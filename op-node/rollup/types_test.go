@@ -1,6 +1,7 @@
 package rollup
 
 import (
+	"context"
 	"encoding/json"
 	"math/big"
 	"math/rand"
@@ -54,4 +55,160 @@ func TestConfigJSON(t *testing.T) {
 	var roundTripped Config
 	assert.NoError(t, json.Unmarshal(data, &roundTripped))
 	assert.Equal(t, &roundTripped, config)
+}
+
+type mockL1Client struct {
+	chainID *big.Int
+	Hash    common.Hash
+}
+
+func (m *mockL1Client) ChainID(context.Context) (*big.Int, error) {
+	return m.chainID, nil
+}
+
+func (m *mockL1Client) L1BlockRefByNumber(ctx context.Context, number uint64) (eth.L1BlockRef, error) {
+	return eth.L1BlockRef{
+		Hash:   m.Hash,
+		Number: 100,
+	}, nil
+}
+
+func TestValidateL1Config(t *testing.T) {
+	config := randConfig()
+	config.L1ChainID = big.NewInt(100)
+	config.Genesis.L1.Number = 100
+	config.Genesis.L1.Hash = [32]byte{0x01}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL1Config(context.TODO(), &mockClient)
+	assert.NoError(t, err)
+}
+
+func TestValidateL1ConfigInvalidChainIdFails(t *testing.T) {
+	config := randConfig()
+	config.L1ChainID = big.NewInt(101)
+	config.Genesis.L1.Number = 100
+	config.Genesis.L1.Hash = [32]byte{0x01}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL1Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+	config.L1ChainID = big.NewInt(99)
+	err = config.ValidateL1Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+}
+
+func TestValidateL1ConfigInvalidGenesisHashFails(t *testing.T) {
+	config := randConfig()
+	config.L1ChainID = big.NewInt(100)
+	config.Genesis.L1.Number = 100
+	config.Genesis.L1.Hash = [32]byte{0x00}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL1Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+	config.Genesis.L1.Hash = [32]byte{0x02}
+	err = config.ValidateL1Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+}
+
+func TestCheckL1ChainID(t *testing.T) {
+	config := randConfig()
+	config.L1ChainID = big.NewInt(100)
+	err := config.CheckL1ChainID(context.TODO(), &mockL1Client{chainID: big.NewInt(100)})
+	assert.NoError(t, err)
+	err = config.CheckL1ChainID(context.TODO(), &mockL1Client{chainID: big.NewInt(101)})
+	assert.Error(t, err)
+	err = config.CheckL1ChainID(context.TODO(), &mockL1Client{chainID: big.NewInt(99)})
+	assert.Error(t, err)
+}
+
+func TestCheckL1BlockRefByNumber(t *testing.T) {
+	config := randConfig()
+	config.Genesis.L1.Number = 100
+	config.Genesis.L1.Hash = [32]byte{0x01}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.CheckL1GenesisBlockHash(context.TODO(), &mockClient)
+	assert.NoError(t, err)
+	mockClient.Hash = common.Hash{0x02}
+	err = config.CheckL1GenesisBlockHash(context.TODO(), &mockClient)
+	assert.Error(t, err)
+	mockClient.Hash = common.Hash{0x00}
+	err = config.CheckL1GenesisBlockHash(context.TODO(), &mockClient)
+	assert.Error(t, err)
+}
+
+type mockL2Client struct {
+	chainID *big.Int
+	Hash    common.Hash
+}
+
+func (m *mockL2Client) ChainID(context.Context) (*big.Int, error) {
+	return m.chainID, nil
+}
+
+func (m *mockL2Client) L2BlockRefByNumber(ctx context.Context, number uint64) (eth.L2BlockRef, error) {
+	return eth.L2BlockRef{
+		Hash:   m.Hash,
+		Number: 100,
+	}, nil
+}
+
+func TestValidateL2Config(t *testing.T) {
+	config := randConfig()
+	config.L2ChainID = big.NewInt(100)
+	config.Genesis.L2.Number = 100
+	config.Genesis.L2.Hash = [32]byte{0x01}
+	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL2Config(context.TODO(), &mockClient)
+	assert.NoError(t, err)
+}
+
+func TestValidateL2ConfigInvalidChainIdFails(t *testing.T) {
+	config := randConfig()
+	config.L2ChainID = big.NewInt(101)
+	config.Genesis.L2.Number = 100
+	config.Genesis.L2.Hash = [32]byte{0x01}
+	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL2Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+	config.L2ChainID = big.NewInt(99)
+	err = config.ValidateL2Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+}
+
+func TestValidateL2ConfigInvalidGenesisHashFails(t *testing.T) {
+	config := randConfig()
+	config.L2ChainID = big.NewInt(100)
+	config.Genesis.L2.Number = 100
+	config.Genesis.L2.Hash = [32]byte{0x00}
+	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.ValidateL2Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+	config.Genesis.L2.Hash = [32]byte{0x02}
+	err = config.ValidateL2Config(context.TODO(), &mockClient)
+	assert.Error(t, err)
+}
+
+func TestCheckL2ChainID(t *testing.T) {
+	config := randConfig()
+	config.L2ChainID = big.NewInt(100)
+	err := config.CheckL2ChainID(context.TODO(), &mockL2Client{chainID: big.NewInt(100)})
+	assert.NoError(t, err)
+	err = config.CheckL2ChainID(context.TODO(), &mockL2Client{chainID: big.NewInt(101)})
+	assert.Error(t, err)
+	err = config.CheckL2ChainID(context.TODO(), &mockL2Client{chainID: big.NewInt(99)})
+	assert.Error(t, err)
+}
+
+func TestCheckL2BlockRefByNumber(t *testing.T) {
+	config := randConfig()
+	config.Genesis.L2.Number = 100
+	config.Genesis.L2.Hash = [32]byte{0x01}
+	mockClient := mockL2Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	err := config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	assert.NoError(t, err)
+	mockClient.Hash = common.Hash{0x02}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	assert.Error(t, err)
+	mockClient.Hash = common.Hash{0x00}
+	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
+	assert.Error(t, err)
 }

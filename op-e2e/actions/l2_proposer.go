@@ -15,8 +15,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 type ProposerCfg struct {
@@ -34,7 +34,7 @@ type L2Proposer struct {
 }
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
-	signer := func(chainID *big.Int) proposer.SignerFn {
+	signer := func(chainID *big.Int) opcrypto.SignerFn {
 		s := opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID)
 		return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return s(addr, tx)
@@ -60,7 +60,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		SignerFnFactory:   signer,
 	}
 
-	dr, err := proposer.NewL2OutputSubmitterWithSigner(proposerCfg, log)
+	dr, err := proposer.NewL2OutputSubmitter(proposerCfg, log)
 	require.NoError(t, err)
 
 	return &L2Proposer{
