@@ -60,6 +60,7 @@ func TestConfigJSON(t *testing.T) {
 type mockL1Client struct {
 	chainID *big.Int
 	Hash    common.Hash
+	code    []byte
 }
 
 func (m *mockL1Client) ChainID(context.Context) (*big.Int, error) {
@@ -73,12 +74,16 @@ func (m *mockL1Client) L1BlockRefByNumber(ctx context.Context, number uint64) (e
 	}, nil
 }
 
+func (m *mockL1Client) CodeAt(ctx context.Context, addr common.Address, blockTag string) ([]byte, error) {
+	return m.code, nil
+}
+
 func TestValidateL1Config(t *testing.T) {
 	config := randConfig()
 	config.L1ChainID = big.NewInt(100)
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
-	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, code: []byte{0x01}}
 	err := config.ValidateL1Config(context.TODO(), &mockClient)
 	assert.NoError(t, err)
 }
@@ -88,7 +93,7 @@ func TestValidateL1ConfigInvalidChainIdFails(t *testing.T) {
 	config.L1ChainID = big.NewInt(101)
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x01}
-	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, code: []byte{0x01}}
 	err := config.ValidateL1Config(context.TODO(), &mockClient)
 	assert.Error(t, err)
 	config.L1ChainID = big.NewInt(99)
@@ -101,12 +106,16 @@ func TestValidateL1ConfigInvalidGenesisHashFails(t *testing.T) {
 	config.L1ChainID = big.NewInt(100)
 	config.Genesis.L1.Number = 100
 	config.Genesis.L1.Hash = [32]byte{0x00}
-	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}}
+	mockClient := mockL1Client{chainID: big.NewInt(100), Hash: common.Hash{0x01}, code: []byte{0x01}}
 	err := config.ValidateL1Config(context.TODO(), &mockClient)
 	assert.Error(t, err)
 	config.Genesis.L1.Hash = [32]byte{0x02}
 	err = config.ValidateL1Config(context.TODO(), &mockClient)
 	assert.Error(t, err)
+}
+
+func TestValidateL1ConfigInvalidBytecodeFails(t *testing.T) {
+	// TODO
 }
 
 func TestCheckL1ChainID(t *testing.T) {

@@ -12,6 +12,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
+// ErrContractNotDeployed represents the error case of when a required contract is not deployed
+var ErrContractNotDeployed = errors.New("contract not deployed")
+
 type Genesis struct {
 	// The L1 block that the rollup starts *after* (no derived transactions)
 	L1 eth.BlockID `json:"l1"`
@@ -68,6 +71,16 @@ func (cfg *Config) ValidateL1Config(ctx context.Context, client L1Client) error 
 		return err
 	}
 
+	// Validate the deposit contract
+	if err := cfg.CheckDepositContract(ctx, client); err != nil {
+		return err
+	}
+
+	// Validate the SystemConfig
+	if err := cfg.CheckL1SystemConfig(ctx, client); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -89,6 +102,7 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client) error 
 type L1Client interface {
 	ChainID(context.Context) (*big.Int, error)
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)
+	CodeAt(ctx context.Context, account common.Address, blockTag string) ([]byte, error)
 }
 
 // CheckL1ChainID checks that the configured L1 chain ID matches the client's chain ID.
@@ -111,6 +125,32 @@ func (cfg *Config) CheckL1GenesisBlockHash(ctx context.Context, client L1Client)
 	}
 	if l1GenesisBlockRef.Hash != cfg.Genesis.L1.Hash {
 		return fmt.Errorf("incorrect L1 genesis block hash %d, expected %d", cfg.Genesis.L1.Hash, l1GenesisBlockRef.Hash)
+	}
+	return nil
+}
+
+// CheckDepositContract ensures that the deposit contract has been deployed at
+// the configured address.
+func (cfg *Config) CheckDepositContract(ctx context.Context, client L1Client) error {
+	code, err := client.CodeAt(ctx, cfg.DepositContractAddress, "latest")
+	if err != nil {
+		return err
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("%w: deposit contract at %s", ErrContractNotDeployed, cfg.DepositContractAddress)
+	}
+	return nil
+}
+
+// CheckL1SystemConfig ensures that the SystemConfig contract has been deployed
+// at the configured address.
+func (cfg *Config) CheckL1SystemConfig(ctx context.Context, client L1Client) error {
+	code, err := client.CodeAt(ctx, cfg.L1SystemConfigAddress, "latest")
+	if err != nil {
+		return err
+	}
+	if len(code) == 0 {
+		return fmt.Errorf("%w: L1SystemConfig at %s", ErrContractNotDeployed, cfg.L1SystemConfigAddress)
 	}
 	return nil
 }

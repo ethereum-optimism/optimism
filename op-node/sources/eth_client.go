@@ -362,6 +362,13 @@ func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, s
 	return common.BytesToHash(result.StorageProof[0].Value), nil
 }
 
+// CodeAt returns the contract code of the given account.
+func (s *EthClient) CodeAt(ctx context.Context, account common.Address, blockTag string) ([]byte, error) {
+	var result hexutil.Bytes
+	err := s.client.CallContext(ctx, &result, "eth_getCode", account, blockTag)
+	return result, err
+}
+
 func (s *EthClient) Close() {
 	s.client.Close()
 }
