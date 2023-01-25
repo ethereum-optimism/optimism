@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"io/ioutil"
 	"log"
 	"os"
 	"time"
@@ -69,7 +68,10 @@ func main() {
 	for it.Next() {
 		// Decode the state account
 		var data types.StateAccount
-		rlp.DecodeBytes(it.Value, &data)
+		err := rlp.DecodeBytes(it.Value, &data)
+		if err != nil {
+			log.Fatalf("Failed to decode state account: %v", err)
+		}
 
 		// Check to see if the account has any code associated with it before performing
 		// more reads from the trie & db.
@@ -100,7 +102,6 @@ func main() {
 		code, err := stateDB.ContractCode(crypto.Keccak256Hash(addrBytes), common.BytesToHash(data.CodeHash))
 		if err != nil {
 			log.Fatalf("Could not load code for account %x: %v", addr, err)
-			continue
 		}
 
 		// Check if the contract's runtime bytecode starts with the EOF prefix.
@@ -125,7 +126,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot marshal EOF contracts: %v", err)
 	}
-	err = ioutil.WriteFile("eof_contracts.json", file, 0644)
+	err = os.WriteFile("eof_contracts.json", file, 0644)
+	if err != nil {
+		log.Fatalf("Failed to write EOF contracts array to file: %v", err)
+	}
 
 	log.Printf("Wrote list of EOF contracts to `eof_contracts.json`")
 }
