@@ -342,7 +342,7 @@ func TestMigration(t *testing.T) {
 		batcher.Stop()
 	})
 
-	proposer, err := l2os.NewL2OutputSubmitter(l2os.CLIConfig{
+	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
 		L2OOAddress:               l2OS.Address.String(),
