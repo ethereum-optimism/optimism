@@ -1,4 +1,4 @@
-package main
+package eof
 
 import (
 	"bytes"
@@ -31,9 +31,11 @@ type Account struct {
 // emptyCodeHash is the known hash of an account with no code.
 var emptyCodeHash = crypto.Keccak256(nil)
 
-func main() {
+// IndexEOFContracts indexes all the EOF contracts in the state trie of the head block
+// for the given db and writes them to a JSON file.
+func IndexEOFContracts(dbPath string, out string) {
 	// Open an existing Ethereum database
-	db, err := rawdb.NewLevelDBDatabase(os.Args[1], 16, 16, "", true)
+	db, err := rawdb.NewLevelDBDatabase(dbPath, 16, 16, "", true)
 	if err != nil {
 		log.Fatalf("Failed to open database: %v", err)
 	}
@@ -126,10 +128,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot marshal EOF contracts: %v", err)
 	}
-	err = os.WriteFile("eof_contracts.json", file, 0644)
+	err = os.WriteFile(out, file, 0644)
 	if err != nil {
 		log.Fatalf("Failed to write EOF contracts array to file: %v", err)
 	}
 
-	log.Printf("Wrote list of EOF contracts to `eof_contracts.json`")
+	log.Printf("Wrote list of EOF contracts to `%v`", out)
 }
