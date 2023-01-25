@@ -74,15 +74,18 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 	childCtx, cancel := context.WithTimeout(ctx, networkTimeout)
 	gasTipCap, err = t.l1Client.SuggestGasTipCap(childCtx)
 	cancel()
-	if err != nil {
+	if err != nil || gasTipCap == nil {
 		return nil, nil, fmt.Errorf("failed to get suggested gas tip cap: %w", err)
 	}
 
 	childCtx, cancel = context.WithTimeout(ctx, networkTimeout)
 	head, err := t.l1Client.HeaderByNumber(childCtx, nil)
 	cancel()
-	if err != nil {
+	if err != nil || head == nil {
 		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
+	}
+	if head.BaseFee == nil {
+		return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
 	}
 	gasFeeCap = txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
 
