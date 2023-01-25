@@ -2,7 +2,6 @@ package proposer
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"math/big"
@@ -14,18 +13,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
-	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -35,7 +30,6 @@ import (
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 const (
@@ -46,83 +40,75 @@ const (
 
 var supportedL2OutputVersion = eth.Bytes32{}
 
-type SignerFn func(context.Context, common.Address, *types.Transaction) (*types.Transaction, error)
-
-type SignerFactory func(chainID *big.Int) SignerFn
-
-// Main is the entrypoint into the L2 Output Submitter. This method returns a
-// closure that executes the service and blocks until the service exits. The use
-// of a closure allows the parameters bound to the top-level main package, e.g.
-// GitVersion, to be captured and used once the function is executed.
-func Main(version string) func(ctx *cli.Context) error {
-	return func(cliCtx *cli.Context) error {
-		cfg := NewConfig(cliCtx)
-		if err := cfg.Check(); err != nil {
-			return fmt.Errorf("invalid CLI flags: %w", err)
-		}
-
-		l := oplog.NewLogger(cfg.LogConfig)
-		l.Info("Initializing L2 Output Submitter")
-
-		l2OutputSubmitter, err := NewL2OutputSubmitter(cfg, l)
-		if err != nil {
-			l.Error("Unable to create L2 Output Submitter", "error", err)
-			return err
-		}
-
-		l.Info("Starting L2 Output Submitter")
-		ctx, cancel := context.WithCancel(context.Background())
-
-		if err := l2OutputSubmitter.Start(); err != nil {
-			cancel()
-			l.Error("Unable to start L2 Output Submitter", "error", err)
-			return err
-		}
-		defer l2OutputSubmitter.Stop()
-
-		l.Info("L2 Output Submitter started")
-		pprofConfig := cfg.PprofConfig
-		if pprofConfig.Enabled {
-			l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
-			go func() {
-				if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
-					l.Error("error starting pprof", "err", err)
-				}
-			}()
-		}
-
-		registry := opmetrics.NewRegistry()
-		metricsCfg := cfg.MetricsConfig
-		if metricsCfg.Enabled {
-			l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
-			go func() {
-				if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
-					l.Error("error starting metrics server", err)
-				}
-			}()
-			addr := l2OutputSubmitter.from
-			opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l1Client, addr)
-		}
-
-		rpcCfg := cfg.RPCConfig
-		server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version)
-		if err := server.Start(); err != nil {
-			cancel()
-			return fmt.Errorf("error starting RPC server: %w", err)
-		}
-
-		interruptChannel := make(chan os.Signal, 1)
-		signal.Notify(interruptChannel, []os.Signal{
-			os.Interrupt,
-			os.Kill,
-			syscall.SIGTERM,
-			syscall.SIGQUIT,
-		}...)
-		<-interruptChannel
-		cancel()
-
-		return nil
+// Main is the entrypoint into the L2 Output Submitter. This method executes the
+// service and blocks until the service exits.
+func Main(version string, cliCtx *cli.Context) error {
+	cfg := NewConfig(cliCtx)
+	if err := cfg.Check(); err != nil {
+		return fmt.Errorf("invalid CLI flags: %w", err)
 	}
+
+	l := oplog.NewLogger(cfg.LogConfig)
+	l.Info("Initializing L2 Output Submitter")
+
+	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l)
+	if err != nil {
+		l.Error("Unable to create the L2 Output Submitter", "error", err)
+		return err
+	}
+
+	l.Info("Starting L2 Output Submitter")
+	ctx, cancel := context.WithCancel(context.Background())
+
+	if err := l2OutputSubmitter.Start(); err != nil {
+		cancel()
+		l.Error("Unable to start L2 Output Submitter", "error", err)
+		return err
+	}
+	defer l2OutputSubmitter.Stop()
+
+	l.Info("L2 Output Submitter started")
+	pprofConfig := cfg.PprofConfig
+	if pprofConfig.Enabled {
+		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
+		go func() {
+			if err := oppprof.ListenAndServe(ctx, pprofConfig.ListenAddr, pprofConfig.ListenPort); err != nil {
+				l.Error("error starting pprof", "err", err)
+			}
+		}()
+	}
+
+	registry := opmetrics.NewRegistry()
+	metricsCfg := cfg.MetricsConfig
+	if metricsCfg.Enabled {
+		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
+		go func() {
+			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+				l.Error("error starting metrics server", err)
+			}
+		}()
+		addr := l2OutputSubmitter.from
+		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l1Client, addr)
+	}
+
+	rpcCfg := cfg.RPCConfig
+	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version)
+	if err := server.Start(); err != nil {
+		cancel()
+		return fmt.Errorf("error starting RPC server: %w", err)
+	}
+
+	interruptChannel := make(chan os.Signal, 1)
+	signal.Notify(interruptChannel, []os.Signal{
+		os.Interrupt,
+		os.Kill,
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	}...)
+	<-interruptChannel
+	cancel()
+
+	return nil
 }
 
 // L2OutputSubmitter is responsible for proposing outputs
@@ -151,66 +137,16 @@ type L2OutputSubmitter struct {
 	// From is the address to send transactions from
 	from common.Address
 	// SignerFn is the function used to sign transactions
-	signerFn SignerFn
+	signerFn opcrypto.SignerFn
 	// How frequently to poll L2 for new finalized outputs
 	pollInterval time.Duration
 }
 
-// NewL2OutputSubmitter initializes the L2OutputSubmitter, gathering any resources
-// that will be needed during operation.
-func NewL2OutputSubmitter(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
-	var l2OutputPrivKey *ecdsa.PrivateKey
-	var err error
-
-	var signer SignerFactory
-	var fromAddress common.Address
-	if cfg.SignerConfig.Enabled() {
-		signerClient, err := opsigner.NewSignerClientFromConfig(l, cfg.SignerConfig)
-		if err != nil {
-			l.Error("Unable to create Signer Client", "error", err)
-			return nil, err
-		}
-		fromAddress = common.BytesToAddress(hexutil.MustDecode(cfg.SignerConfig.Address))
-		signer = func(chainID *big.Int) SignerFn {
-			return func(ctx context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				if address.String() != cfg.SignerConfig.Address {
-					return nil, fmt.Errorf("attempting to sign for %s, expected %s: ", address, cfg.SignerConfig.Address)
-				}
-				return signerClient.SignTransaction(ctx, chainID, tx)
-			}
-		}
-	} else {
-		if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
-			return nil, errors.New("cannot specify both a private key and a mnemonic")
-		}
-		if cfg.PrivateKey == "" {
-			// Parse l2output wallet private key and L2OO contract address.
-			wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-			if err != nil {
-				return nil, err
-			}
-
-			l2OutputPrivKey, err = wallet.PrivateKey(accounts.Account{
-				URL: accounts.URL{
-					Path: cfg.L2OutputHDPath,
-				},
-			})
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			l2OutputPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
-			if err != nil {
-				return nil, err
-			}
-		}
-		fromAddress = crypto.PubkeyToAddress(l2OutputPrivKey.PublicKey)
-		signer = func(chainID *big.Int) SignerFn {
-			s := opcrypto.PrivateKeySignerFn(l2OutputPrivKey, chainID)
-			return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return s(addr, tx)
-			}
-		}
+// NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
+func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
+	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
@@ -218,8 +154,7 @@ func NewL2OutputSubmitter(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, erro
 		return nil, err
 	}
 
-	// Connect to L1 and L2 providers. Perform these last since they are the
-	// most expensive.
+	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
 	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
 	if err != nil {
@@ -251,11 +186,11 @@ func NewL2OutputSubmitter(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, erro
 		SignerFnFactory:    signer,
 	}
 
-	return NewL2OutputSubmitterWithSigner(proposerCfg, l)
+	return NewL2OutputSubmitter(proposerCfg, l)
 }
 
-// NewL2OutputSubmitterWithSigner creates a new L2 Output Submitter
-func NewL2OutputSubmitterWithSigner(cfg Config, l log.Logger) (*L2OutputSubmitter, error) {
+// NewL2OutputSubmitter creates a new L2 Output Submitter
+func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
