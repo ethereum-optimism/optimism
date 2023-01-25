@@ -86,7 +86,7 @@ func (s *channelManager) TxFailed(id txID) {
 		s.pendingChannel.PushFrame(id, data)
 		delete(s.pendingTransactions, id)
 	} else {
-		s.log.Warn("unknown frame transaction marked as failed", "id", id)
+		s.log.Warn("unknown transaction marked as failed", "id", id)
 	}
 }
 
@@ -97,7 +97,7 @@ func (s *channelManager) TxFailed(id txID) {
 func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 	s.log.Trace("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := s.pendingTransactions[id]; !ok {
-		s.log.Info("marked transaction as confirmed despite having no record of it", "id", id, "block", inclusionBlock)
+		s.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
 		// TODO: This can occur if we clear the channel while there are still pending transactions
 		// We need to keep track of stale transactions instead
 		return
@@ -108,13 +108,13 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
 	if s.pendingChannelIsTimedOut() {
-		s.log.Warn("Channel timed out", "chID", s.pendingChannel)
+		s.log.Warn("Channel timed out", "chID", s.pendingChannel.ID())
 		s.blocks = append(s.pendingChannel.Blocks(), s.blocks...)
 		s.clearPendingChannel()
 	}
 	// If we are done with this channel, record that.
 	if s.pendingChannelIsFullySubmitted() {
-		s.log.Info("Channel is fully submitted", "chID", s.pendingChannel)
+		s.log.Info("Channel is fully submitted", "chID", s.pendingChannel.ID())
 		s.clearPendingChannel()
 	}
 }
@@ -163,6 +163,7 @@ func (s *channelManager) pendingChannelIsFullySubmitted() bool {
 // nextTxData pops off s.datas & handles updating the internal state
 func (s *channelManager) nextTxData() ([]byte, txID, error) {
 	if s.pendingChannel == nil || !s.pendingChannel.HasFrame() {
+		s.log.Trace("no next tx data")
 		return nil, txID{}, io.EOF // TODO: not enough data error instead
 	}
 
@@ -184,7 +185,7 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 // It may buffer very large channels as well.
 func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
-	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "block_count", len(s.blocks))
+	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
 	// Short circuit if there is a pending frame.
 	if dataPending {
@@ -207,7 +208,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	}
 
 	if err := s.pendingChannel.OutputFrames(); err != nil {
-		return nil, txID{}, fmt.Errorf("create frames with channel builder: %w", err)
+		return nil, txID{}, fmt.Errorf("creating frames with channel builder: %w", err)
 	}
 
 	return s.nextTxData()
@@ -235,19 +236,25 @@ func (s *channelManager) addBlocks() error {
 	)
 	for ; blockidx < len(s.blocks); blockidx++ {
 		if err := s.pendingChannel.AddBlock(s.blocks[blockidx]); s.pendingChannel.IsFull() {
+			channelFull = true
 			break
 		} else if err != nil {
 			return fmt.Errorf("adding block[%d] to channel builder: %w", blockidx, err)
 		}
 	}
+	blocksAdded := blockidx + 1
 
-	s.log.Debug("Added blocks to channel", "num_blocks", blockidx+1, "channel_full", channelFull)
-	if blockidx+1 == len(s.blocks) {
+	s.log.Debug("Added blocks to channel",
+		"blocks_added", blocksAdded,
+		"channel_full", channelFull,
+		"blocks_pending", len(s.blocks)-blocksAdded,
+	)
+	if blocksAdded == len(s.blocks) {
 		// all blocks processed, reuse slice
 		s.blocks = s.blocks[:0]
 	} else {
 		// remove processed blocks
-		s.blocks = s.blocks[blockidx+1:]
+		s.blocks = s.blocks[blocksAdded:]
 	}
 	return nil
 }
