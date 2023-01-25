@@ -35,9 +35,7 @@ func main() {
 			}
 			out := ctx.String("out")
 
-			eof.IndexEOFContracts(dbPath, out)
-
-			return nil
+			return eof.IndexEOFContracts(dbPath, out)
 		},
 	}
 

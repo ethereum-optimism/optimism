@@ -3,6 +3,8 @@ package eof
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -33,11 +35,11 @@ var emptyCodeHash = crypto.Keccak256(nil)
 
 // IndexEOFContracts indexes all the EOF contracts in the state trie of the head block
 // for the given db and writes them to a JSON file.
-func IndexEOFContracts(dbPath string, out string) {
+func IndexEOFContracts(dbPath string, out string) error {
 	// Open an existing Ethereum database
 	db, err := rawdb.NewLevelDBDatabase(dbPath, 16, 16, "", true)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		return fmt.Errorf("Failed to open database: %w", err)
 	}
 	stateDB := state.NewDatabase(db)
 
@@ -45,17 +47,17 @@ func IndexEOFContracts(dbPath string, out string) {
 	hash := rawdb.ReadHeadBlockHash(db)
 	number := rawdb.ReadHeaderNumber(db, hash)
 	if number == nil {
-		log.Fatalf("Failed to retrieve head block number")
+		return errors.New("Failed to retrieve head block number")
 	}
 	head := rawdb.ReadBlock(db, hash, *number)
 	if head == nil {
-		log.Fatalf("Failed to retrieve head block")
+		return errors.New("Failed to retrieve head block")
 	}
 
 	// Retrieve the state belonging to the head block
 	st, err := trie.New(trie.StateTrieID(head.Root()), trie.NewDatabase(db))
 	if err != nil {
-		log.Fatalf("Failed to retrieve account trie: %v", err)
+		return fmt.Errorf("Failed to retrieve state trie: %w", err)
 	}
 	log.Printf("Indexing state trie at head block #%d [0x%x]", *number, hash)
 
@@ -72,7 +74,7 @@ func IndexEOFContracts(dbPath string, out string) {
 		var data types.StateAccount
 		err := rlp.DecodeBytes(it.Value, &data)
 		if err != nil {
-			log.Fatalf("Failed to decode state account: %v", err)
+			return fmt.Errorf("Failed to decode state account: %w", err)
 		}
 
 		// Check to see if the account has any code associated with it before performing
@@ -103,7 +105,7 @@ func IndexEOFContracts(dbPath string, out string) {
 		// Attempt to get the code of the account from the trie
 		code, err := stateDB.ContractCode(crypto.Keccak256Hash(addrBytes), common.BytesToHash(data.CodeHash))
 		if err != nil {
-			log.Fatalf("Could not load code for account %x: %v", addr, err)
+			return fmt.Errorf("Could not load code for account %x: %w", addr, err)
 		}
 
 		// Check if the contract's runtime bytecode starts with the EOF prefix.
@@ -126,12 +128,13 @@ func IndexEOFContracts(dbPath string, out string) {
 	// Write the EOF contracts to a file
 	file, err := json.MarshalIndent(eofContracts, "", " ")
 	if err != nil {
-		log.Fatalf("Cannot marshal EOF contracts: %v", err)
+		return fmt.Errorf("Cannot marshal EOF contracts: %w", err)
 	}
 	err = os.WriteFile(out, file, 0644)
 	if err != nil {
-		log.Fatalf("Failed to write EOF contracts array to file: %v", err)
+		return fmt.Errorf("Failed to write EOF contracts array to file: %w", err)
 	}
 
 	log.Printf("Wrote list of EOF contracts to `%v`", out)
+	return nil
 }
