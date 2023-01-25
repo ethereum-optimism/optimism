@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
@@ -74,8 +75,13 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 	childCtx, cancel := context.WithTimeout(ctx, networkTimeout)
 	gasTipCap, err = t.l1Client.SuggestGasTipCap(childCtx)
 	cancel()
-	if err != nil || gasTipCap == nil {
+	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get suggested gas tip cap: %w", err)
+	}
+
+	if gasTipCap == nil {
+		t.log.Warn("unexpected unset gasTipCap, using default 2 gwei")
+		gasTipCap = new(big.Int).SetUint64(params.GWei * 2)
 	}
 
 	childCtx, cancel = context.WithTimeout(ctx, networkTimeout)
