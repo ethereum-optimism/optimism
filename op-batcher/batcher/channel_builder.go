@@ -71,6 +71,8 @@ var (
 	ErrMaxFrameIndex      = errors.New("max frame index reached (uint16)")
 )
 
+// InputThreshold calculates the input data threshold in bytes from the given
+// parameters.
 func (c ChannelConfig) InputThreshold() uint64 {
 	return uint64(float64(c.TargetNumFrames) * float64(c.TargetFrameSize) / c.ApproxComprRatio)
 }
@@ -102,15 +104,12 @@ func (c *channelBuilder) Reset() error {
 	return c.co.Reset()
 }
 
-// AddBlock adds a block to the channel compression pipeline. InputTargetReached
-// should be called aftewards to test whether the target input data amount has
-// been reached. In this case, a new channel must be started.
+// AddBlock adds a block to the channel compression pipeline. IsFull should be
+// called aftewards to test whether the channel is full. If full, a new channel
+// must be started.
 //
-// AddBlock returns ErrInputTargetReached if called despite having reached the
-// input data target.
-// It returns ErrTooManyRLPBytes if the channel cannot take more input
-// data. Then, too, a new channel has to be started.
-// It returns
+// AddBlock returns a ChannelFullError if called even though the channel is
+// already full. See description of FullErr for details.
 //
 // Call OutputFrames() afterwards to create frames.
 func (c *channelBuilder) AddBlock(block *types.Block) error {
@@ -143,11 +142,20 @@ func (c *channelBuilder) InputTargetReached() bool {
 }
 
 // IsFull returns whether the channel is full.
+// FullErr returns the reason for the channel being full.
 func (c *channelBuilder) IsFull() bool {
 	return c.fullErr != nil
 }
 
-// FullErr returns the reason why the channel is full.
+// FullErr returns the reason why the channel is full. If not full yet, it
+// returns nil.
+//
+// It returns a ChannelFullError wrapping one of three possible reasons for the
+// channel being full:
+//   - ErrInputTargetReached if the target amount of input data has been reached,
+//   - derive.MaxRLPBytesPerChannel if the general maximum amount of input data
+//     would have been exceeded by the latest AddBlock call,
+//   - ErrMaxFrameIndex if the maximum number of frames has been generated (uint16)
 func (c *channelBuilder) FullErr() error {
 	return c.fullErr
 }
@@ -243,7 +251,7 @@ func (c *channelBuilder) NumFrames() int {
 }
 
 // NextFrame returns the next available frame.
-// HasFrame must be called prio to check if there's a next frame available.
+// HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
 func (c *channelBuilder) NextFrame() (txID, []byte) {
 	if len(c.frames) == 0 {
