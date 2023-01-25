@@ -14,8 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	geth_eth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
@@ -28,7 +26,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -38,8 +35,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
@@ -502,38 +497,22 @@ func (cfg SystemConfig) Start() (*System, error) {
 		}
 	}
 
-	rpcCl, err := rpc.Dial(sys.RollupNodes["sequencer"].HTTPEndpoint())
-	if err != nil {
-		return nil, err
-	}
-
-	proposerSigner := func(chainID *big.Int) opcrypto.SignerFn {
-		s := opcrypto.PrivateKeySignerFn(cfg.Secrets.Proposer, chainID)
-		return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
-			return s(addr, tx)
-		}
-	}
-
-	proposerCfg := l2os.Config{
-		L2OutputOracleAddr: predeploys.DevL2OutputOracleAddr,
-		PollInterval:       50 * time.Millisecond,
-		TxManagerConfig: txmgr.Config{
-			Log:                       sys.cfg.Loggers["proposer"],
-			Name:                      "proposer",
-			ResubmissionTimeout:       3 * time.Second,
-			ReceiptQueryInterval:      time.Second,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-		},
-		L1Client:          l1Client,
-		RollupClient:      sources.NewRollupClient(client.NewBaseRPCClient(rpcCl)),
-		AllowNonFinalized: cfg.NonFinalizedProposals,
-		From:              crypto.PubkeyToAddress(cfg.Secrets.Proposer.PublicKey),
-		SignerFnFactory:   proposerSigner,
-	}
-
 	// L2Output Submitter
-	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(proposerCfg, sys.cfg.Loggers["proposer"])
+	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
+		PollInterval:              50 * time.Millisecond,
+		NumConfirmations:          1,
+		ResubmissionTimeout:       3 * time.Second,
+		SafeAbortNonceTooLowCount: 3,
+		AllowNonFinalized:         cfg.NonFinalizedProposals,
+		LogConfig: oplog.CLIConfig{
+			Level:  "info",
+			Format: "text",
+		},
+		PrivateKey: hexPriv(cfg.Secrets.Proposer),
+	}, sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}

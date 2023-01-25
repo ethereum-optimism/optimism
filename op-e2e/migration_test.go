@@ -11,38 +11,33 @@ import (
 	"testing"
 	"time"
 
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
-	"github.com/ethereum/go-ethereum/common"
-	ethtypes "github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 
-	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration_action"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	opclient "github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
 
 type migrationTestConfig struct {
@@ -324,9 +319,6 @@ func TestMigration(t *testing.T) {
 		require.NoError(t, rollupNode.Close())
 	})
 
-	rpcCl, err := rpc.Dial(rollupNode.HTTPEndpoint())
-	require.NoError(t, err)
-
 	batcher, err := bss.NewBatchSubmitter(bss.Config{
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
@@ -350,32 +342,21 @@ func TestMigration(t *testing.T) {
 		batcher.Stop()
 	})
 
-	proposerSigner := func(chainID *big.Int) opcrypto.SignerFn {
-		s := opcrypto.PrivateKeySignerFn(secrets.Proposer, chainID)
-		return func(_ context.Context, addr common.Address, tx *ethtypes.Transaction) (*ethtypes.Transaction, error) {
-			return s(addr, tx)
-		}
-	}
-
-	proposerCfg := l2os.Config{
-		L2OutputOracleAddr: l2OS.Address,
-		PollInterval:       50 * time.Millisecond,
-		TxManagerConfig: txmgr.Config{
-			Log:                       lgr.New("module", "proposer"),
-			Name:                      "proposer",
-			ResubmissionTimeout:       3 * time.Second,
-			ReceiptQueryInterval:      time.Second,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
+	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
+		L1EthRpc:                  forkedL1URL,
+		RollupRpc:                 rollupNode.HTTPEndpoint(),
+		L2OOAddress:               l2OS.Address.String(),
+		PollInterval:              50 * time.Millisecond,
+		NumConfirmations:          1,
+		ResubmissionTimeout:       3 * time.Second,
+		SafeAbortNonceTooLowCount: 3,
+		AllowNonFinalized:         true,
+		LogConfig: oplog.CLIConfig{
+			Level:  "info",
+			Format: "text",
 		},
-		L1Client:          forkedL1Client,
-		RollupClient:      sources.NewRollupClient(opclient.NewBaseRPCClient(rpcCl)),
-		AllowNonFinalized: true,
-		From:              crypto.PubkeyToAddress(secrets.Proposer.PublicKey),
-		SignerFnFactory:   proposerSigner,
-	}
-
-	proposer, err := l2os.NewL2OutputSubmitter(proposerCfg, lgr.New("module", "proposer"))
+		PrivateKey: hexPriv(secrets.Proposer),
+	}, lgr.New("module", "proposer"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

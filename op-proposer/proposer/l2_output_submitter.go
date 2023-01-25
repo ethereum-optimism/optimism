@@ -51,52 +51,9 @@ func Main(version string, cliCtx *cli.Context) error {
 	l := oplog.NewLogger(cfg.LogConfig)
 	l.Info("Initializing L2 Output Submitter")
 
-	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
+	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l)
 	if err != nil {
-		return err
-	}
-
-	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
-	if err != nil {
-		return err
-	}
-
-	// Connect to L1 and L2 providers. Perform these last since they are the
-	// most expensive.
-	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
-	if err != nil {
-		return err
-	}
-
-	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
-	if err != nil {
-		return err
-	}
-
-	txMgrConfg := txmgr.Config{
-		Log:                       l,
-		Name:                      "L2Output Submitter",
-		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		ReceiptQueryInterval:      time.Second,
-		NumConfirmations:          cfg.NumConfirmations,
-		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
-	}
-
-	proposerCfg := Config{
-		L2OutputOracleAddr: l2ooAddress,
-		PollInterval:       cfg.PollInterval,
-		TxManagerConfig:    txMgrConfg,
-		L1Client:           l1Client,
-		RollupClient:       rollupClient,
-		AllowNonFinalized:  cfg.AllowNonFinalized,
-		From:               fromAddress,
-		SignerFnFactory:    signer,
-	}
-
-	l2OutputSubmitter, err := NewL2OutputSubmitter(proposerCfg, l)
-	if err != nil {
-		l.Error("Unable to create L2 Output Submitter", "error", err)
+		l.Error("Unable to create the L2 Output Submitter", "error", err)
 		return err
 	}
 
@@ -183,6 +140,53 @@ type L2OutputSubmitter struct {
 	signerFn opcrypto.SignerFn
 	// How frequently to poll L2 for new finalized outputs
 	pollInterval time.Duration
+}
+
+// NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
+func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
+	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
+	if err != nil {
+		return nil, err
+	}
+
+	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
+	ctx := context.Background()
+	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+	if err != nil {
+		return nil, err
+	}
+
+	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
+	if err != nil {
+		return nil, err
+	}
+
+	txMgrConfg := txmgr.Config{
+		Log:                       l,
+		Name:                      "L2Output Submitter",
+		ResubmissionTimeout:       cfg.ResubmissionTimeout,
+		ReceiptQueryInterval:      time.Second,
+		NumConfirmations:          cfg.NumConfirmations,
+		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
+	}
+
+	proposerCfg := Config{
+		L2OutputOracleAddr: l2ooAddress,
+		PollInterval:       cfg.PollInterval,
+		TxManagerConfig:    txMgrConfg,
+		L1Client:           l1Client,
+		RollupClient:       rollupClient,
+		AllowNonFinalized:  cfg.AllowNonFinalized,
+		From:               fromAddress,
+		SignerFnFactory:    signer,
+	}
+
+	return NewL2OutputSubmitter(proposerCfg, l)
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
