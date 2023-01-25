@@ -319,7 +319,7 @@ func TestMigration(t *testing.T) {
 		require.NoError(t, rollupNode.Close())
 	})
 
-	batcher, err := bss.NewBatchSubmitter(bss.Config{
+	batcher, err := bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
