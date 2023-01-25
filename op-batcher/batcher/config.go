@@ -1,11 +1,18 @@
 package batcher
 
 import (
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -14,6 +21,30 @@ import (
 )
 
 type Config struct {
+	log             log.Logger
+	L1Client        *ethclient.Client
+	L2Client        *ethclient.Client
+	RollupNode      *sources.RollupClient
+	PollInterval    time.Duration
+	TxManagerConfig txmgr.Config
+	From            common.Address
+	SignerFnFactory opcrypto.SignerFactory
+	ChainID         *big.Int
+
+	// Limit the size of txs
+	MinL1TxSize uint64
+	MaxL1TxSize uint64
+
+	// Where to send the batch txs to.
+	BatchInboxAddress common.Address
+
+	// The batcher can decide to set it shorter than the actual timeout,
+	//  since submitting continued channel data to L1 is not instantaneous.
+	//  It's not worth it to work with nearly timed-out channels.
+	ChannelTimeout uint64
+}
+
+type CLIConfig struct {
 	/* Required Params */
 
 	// L1EthRpc is the HTTP provider URL for L1.
@@ -82,7 +113,7 @@ type Config struct {
 	SignerConfig opsigner.CLIConfig
 }
 
-func (c Config) Check() error {
+func (c CLIConfig) Check() error {
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
 	}
@@ -102,8 +133,8 @@ func (c Config) Check() error {
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context) Config {
-	return Config{
+func NewConfig(ctx *cli.Context) CLIConfig {
+	return CLIConfig{
 		/* Required Flags */
 		L1EthRpc:                   ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                   ctx.GlobalString(flags.L2EthRpcFlag.Name),
