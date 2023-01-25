@@ -173,7 +173,7 @@ func (c *channelBuilder) setFullErr(err error) {
 // If the target has been reached, the channel is closed and all remaining
 // frames will be created, possibly with a small leftover frame.
 func (c *channelBuilder) OutputFrames() error {
-	if c.InputTargetReached() {
+	if c.IsFull() {
 		return c.closeAndOutputAllFrames()
 	}
 	return c.outputReadyFrames()
