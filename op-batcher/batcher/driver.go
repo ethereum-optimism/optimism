@@ -13,7 +13,7 @@ import (
 
 	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"

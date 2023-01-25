@@ -500,7 +500,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// L2Output Submitter
-	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.CLIConfig{
+	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
