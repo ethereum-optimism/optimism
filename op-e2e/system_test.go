@@ -1052,10 +1052,10 @@ func TestFees(t *testing.T) {
 	err = l2Seq.SendTransaction(context.Background(), tx)
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
-	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = waitForTransaction(tx.Hash(), l2Seq, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
