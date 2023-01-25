@@ -218,7 +218,7 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	data.WriteByte(derive.DerivationVersion0)
 
 	// subtract one, to account for the version byte
-	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {
