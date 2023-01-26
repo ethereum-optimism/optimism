@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -382,6 +383,38 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
+
+	var blobs []*eth.Blob
+	if l.Rollup.BlobsEnabledL1Timestamp != nil && *l.Rollup.BlobsEnabledL1Timestamp <= uint64(time.Now().Unix()) {
+		// encode to blob data
+		if len(data) > 4096*31-4 {
+			l.log.Error("data is too large for blob", len(txdata.frame.data))
+			return
+		}
+		// reverse of derivation process:
+		// - encode 4-byte little-endian length-prefix
+		// - pack data in 32 byte slices with last byte per slice == 0 to handle field-elem
+		//   (KZG_ENDIANNESS = big-endian) limited range
+		var blob eth.Blob
+		binary.LittleEndian.PutUint32(blob[1:5], uint32(len(data)))
+		offset := copy(blob[5:32], data)
+		for i := 1; i < 4096; i += 1 {
+			offset += copy(blob[i*32+1:i*32+32], data[offset:])
+			if offset == len(data) {
+				break
+			}
+		}
+		if offset < len(data) {
+			l.log.Error("failed to fit all data into blob", "remaining", len(data)-offset)
+			return
+		}
+		// add blob
+		blobs = append(blobs, &blob)
+
+		// no calldata
+		data = []byte{}
+	}
+
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
 		l.log.Error("Failed to calculate intrinsic gas", "error", err)
@@ -392,6 +425,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 		To:       &l.Rollup.BatchInboxAddress,
 		TxData:   data,
 		GasLimit: intrinsicGas,
+		Blobs:    blobs,
 	}
 	queue.Send(txdata, candidate, receiptsCh)
 }
