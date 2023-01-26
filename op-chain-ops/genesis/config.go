@@ -207,6 +207,11 @@ type DeployConfig struct {
 	// RequiredProtocolVersion indicates the protocol version that
 	// nodes are recommended to adopt, to stay in sync with the network.
 	RecommendedProtocolVersion params.ProtocolVersion `json:"recommendedProtocolVersion"`
+
+	// When Cancun activates. Relative to L1 genesis.
+	L1CancunTimeOffset *uint64 `json:"l1CancunTimeOffset,omitempty"`
+	// When 4844 blob-tx functionality for rollup DA actives. Relative to L2 genesis.
+	L2BlobsUpgradeTimeOffset *uint64 `json:"l2BlobsUpgradeTimeOffset,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -455,6 +460,17 @@ func (d *DeployConfig) SpanBatchTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
+func (d *DeployConfig) BlobsUpgradeTime(genesisTime uint64) *uint64 {
+	if d.L2BlobsUpgradeTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2BlobsUpgradeTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
 // RollupConfig converts a DeployConfig to a rollup.Config
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
@@ -493,6 +509,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 		RegolithTime:           d.RegolithTime(l1StartBlock.Time()),
 		SpanBatchTime:          d.SpanBatchTime(l1StartBlock.Time()),
+		// 4844 blobs usage activation for rollup DA
+		BlobsEnabledL1Timestamp: d.BlobsUpgradeTime(l1StartBlock.Time()),
 	}, nil
 }
 

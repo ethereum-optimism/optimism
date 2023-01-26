@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/fakebeacon"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils/geth"
 	"github.com/ethereum-optimism/optimism/op-node/p2p/store"
 	"github.com/ethereum-optimism/optimism/op-service/clock"
@@ -108,6 +109,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L1InfoPredeployAddress: predeploys.L1BlockAddr,
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
+		BlobsPath:              t.TempDir(),
 		Nodes: map[string]*rollupNode.Config{
 			"sequencer": {
 				Driver: driver.Config{
@@ -173,6 +175,8 @@ type SystemConfig struct {
 
 	JWTFilePath string
 	JWTSecret   [32]byte
+
+	BlobsPath string
 
 	Premine        map[common.Address]*big.Int
 	Nodes          map[string]*rollupNode.Config // Per node config. Don't use populate rollup.Config
@@ -254,6 +258,8 @@ type System struct {
 	L2OutputSubmitter *l2os.L2OutputSubmitter
 	BatchSubmitter    *bss.BatchSubmitter
 	Mocknet           mocknet.Mocknet
+
+	L1BeaconAPIAddr string
 
 	// TimeTravelClock is nil unless SystemConfig.SupportL1TimeTravel was set to true
 	// It provides access to the clock instance used by the L1 node. Calling TimeTravelClock.AdvanceBy
@@ -421,6 +427,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			RegolithTime:            cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			SpanBatchTime:           cfg.DeployConfig.SpanBatchTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
+			// 4844
+			BlobsEnabledL1Timestamp: cfg.DeployConfig.BlobsUpgradeTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -429,8 +437,19 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	}
 	sys.RollupConfig = &defaultConfig
 
+	// Create a fake Beacon node to hold on to blobs created by the L1 miner, and to serve them to L2
+	bcn := fakebeacon.NewBeacon(testlog.Logger(t, log.LvlInfo).New("role", "l1_cl"),
+		path.Join(cfg.BlobsPath, "l1_cl"), l1Genesis.Timestamp, cfg.DeployConfig.L1BlockTime)
+	t.Cleanup(func() {
+		_ = bcn.Close()
+	})
+	require.NoError(t, bcn.Start("127.0.0.1:0"))
+	beaconApiAddr := bcn.BeaconAddr()
+	require.NotEmpty(t, beaconApiAddr, "beacon API listener must be up")
+
 	// Initialize nodes
-	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := geth.InitL1(cfg.DeployConfig.L1ChainID, cfg.DeployConfig.L1BlockTime, l1Genesis, c,
+		path.Join(cfg.BlobsPath, "l1_el"), bcn, cfg.GethOptions["l1"]...)
 	if err != nil {
 		return nil, err
 	}
@@ -446,8 +465,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for name := range cfg.Nodes {
 		var ethClient EthInstance
+		blobPoolPath := path.Join(cfg.BlobsPath, name)
 		if cfg.ExternalL2Shim == "" {
-			node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, blobPoolPath, cfg.GethOptions[name]...)
 			if err != nil {
 				return nil, err
 			}
@@ -466,10 +486,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 				t.Skip("External L2 nodes do not support configuration through GethOptions")
 			}
 			ethClient = (&ExternalRunner{
-				Name:    name,
-				BinPath: cfg.ExternalL2Shim,
-				Genesis: l2Genesis,
-				JWTPath: cfg.JWTFilePath,
+				Name:         name,
+				BinPath:      cfg.ExternalL2Shim,
+				Genesis:      l2Genesis,
+				JWTPath:      cfg.JWTFilePath,
+				BlobPoolPath: blobPoolPath,
 			}).Run(t)
 		}
 		sys.EthInstances[name] = ethClient
@@ -480,7 +501,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// of only websockets (which are required for external eth client tests).
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
-		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
+		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret, beaconApiAddr)
 
 		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
 			Client:   nil,
@@ -766,7 +787,7 @@ type WSOrHTTPEndpoint interface {
 	HTTPAuthEndpoint() string
 }
 
-func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
+func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte, l1BeaconAPIAddr string) {
 	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
 	if useHTTP {
@@ -777,6 +798,7 @@ func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtS
 		L2EngineAddr:      l2EndpointConfig,
 		L2EngineJWTSecret: jwtSecret,
 	}
+	rollupNodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: l1BeaconAPIAddr}
 }
 
 func (cfg SystemConfig) L1ChainIDBig() *big.Int {
