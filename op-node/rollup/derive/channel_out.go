@@ -98,6 +98,11 @@ func (co *ChannelOut) AddBlock(block *types.Block) (uint64, error) {
 	return uint64(written), err
 }
 
+// InputBytes returns the total amount of RLP-encoded input bytes.
+func (co *ChannelOut) InputBytes() int {
+	return co.rlpLength
+}
+
 // ReadyBytes returns the number of bytes that the channel out can immediately output into a frame.
 // Use `Flush` or `Close` to move data from the compression buffer into the ready buffer if more bytes
 // are needed. Add blocks may add to the ready buffer, but it is not guaranteed due to the compression stage.
@@ -154,7 +159,7 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 	}
 
 	co.frame += 1
-	fn := uint16(f.FrameNumber)
+	fn := f.FrameNumber
 	if f.IsLast {
 		return fn, io.EOF
 	} else {
