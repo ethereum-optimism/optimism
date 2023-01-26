@@ -23,6 +23,8 @@ type ExternalRunner struct {
 	BinPath string
 	Genesis *core.Genesis
 	JWTPath string
+	// 4844: a datadir specifically for tx-pool blobs
+	BlobPoolPath string
 }
 
 type ExternalEthClient struct {

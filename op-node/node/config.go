@@ -20,6 +20,8 @@ type Config struct {
 	L2     L2EndpointSetup
 	L2Sync L2SyncEndpointSetup
 
+	Beacon L1BeaconEndpointSetup
+
 	Driver driver.Config
 
 	Rollup rollup.Config
@@ -117,6 +119,11 @@ func (cfg *Config) Check() error {
 	}
 	if err := cfg.L2Sync.Check(); err != nil {
 		return fmt.Errorf("sync config error: %w", err)
+	}
+	if cfg.Beacon != nil {
+		if err := cfg.Beacon.Check(); err != nil {
+			return fmt.Errorf("beacon endpoint config error: %w", err)
+		}
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
