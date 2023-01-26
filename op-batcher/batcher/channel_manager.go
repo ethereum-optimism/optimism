@@ -78,6 +78,7 @@ func NewChannelManager(log log.Logger, cfg ChannelConfig) *channelManager {
 func (s *channelManager) Clear() {
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
+	s.tip = common.Hash{}
 	s.clearPendingChannel()
 }
 
@@ -269,13 +270,11 @@ func (s *channelManager) addBlocks() error {
 	return nil
 }
 
-var zeroHash common.Hash
-
 // AddL2Block saves an L2 block to the internal state. It returns ErrReorg
 // if the block does not extend the last block loaded into the state.
 // If no blocks were added yet, the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
-	if s.tip != zeroHash && s.tip != block.ParentHash() {
+	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 		return ErrReorg
 	}
 	s.blocks = append(s.blocks, block)
