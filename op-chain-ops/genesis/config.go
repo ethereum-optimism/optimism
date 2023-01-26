@@ -332,7 +332,9 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		ChannelTimeout:         d.ChannelTimeout,
 		L1ChainID:              new(big.Int).SetUint64(d.L1ChainID),
 		L2ChainID:              new(big.Int).SetUint64(d.L2ChainID),
+		// SYSCOIN
 		BatchInboxAddress:      d.BatchInboxAddress,
+		L2OutputOracleAddress:	d.L2OutputOracleProxy,
 		DepositContractAddress: d.OptimismPortalProxy,
 		L1SystemConfigAddress:  d.SystemConfigProxy,
 	}, nil

@@ -58,7 +58,7 @@ func (ba *FetchingAttributesBuilder) PreparePayloadAttributes(ctx context.Contex
 	// user deposits.
 	if l2Parent.L1Origin.Number != epoch.Number {
 		// SYSCOIN
-		info, receipts, _, err := ba.dl.FetchReceipts(ctx, epoch.Hash)
+		info, receipts, _, err := ba.l1.FetchReceipts(ctx, epoch.Hash)
 		if err != nil {
 			return nil, NewTemporaryError(fmt.Errorf("failed to fetch L1 block info and receipts: %w", err))
 		}

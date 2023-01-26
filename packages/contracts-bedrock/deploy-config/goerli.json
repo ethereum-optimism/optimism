@@ -1,9 +1,9 @@
 {
   "numDeployConfirmations": 1,
-  "finalSystemOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
-  "controller": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
+  "finalSystemOwner": "0x48ab1cE92e1ea9713AdDeA668E146f575D60954e",
+  "controller": "0x48ab1cE92e1ea9713AdDeA668E146f575D60954e",
 
-  "l1StartingBlockTag": "0xd155d73d881e534b78a69b7703332e50632ba1cc25d7f433eaa504a8bfd7ac2b",
+  "l1StartingBlockTag": "0xcb44de2c7bc3e5430e01993c092adc78cfa565042ab591167a7cefe5216ffc76",
   "l1ChainID": 5700,
   "l2ChainID": 57000,
   "l2BlockTime": 2,

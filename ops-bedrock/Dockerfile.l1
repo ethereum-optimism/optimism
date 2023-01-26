@@ -1,5 +1,5 @@
 FROM sidhujag/syscoin-core:latest as syscoin-alpine
-FROM alpine:3.15
+FROM alpine
 
 RUN apk add --no-cache jq
 
