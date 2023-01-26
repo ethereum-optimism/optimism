@@ -17,8 +17,6 @@ type (
 	channelBuilder struct {
 		cfg ChannelConfig
 
-		// tracks total input data rlp bytes
-		inputSize uint64
 		// marked as full if a) max RLP input bytes, b) max num frames or c) max
 		// allowed frame index (uint16) has been reached
 		fullErr error
@@ -98,7 +96,6 @@ func (c *channelBuilder) Blocks() []*types.Block {
 }
 
 func (c *channelBuilder) Reset() error {
-	c.inputSize = 0
 	c.blocks = c.blocks[:0]
 	c.frames = c.frames[:0]
 	return c.co.Reset()
@@ -117,14 +114,13 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 		return c.FullErr()
 	}
 
-	rlpsize, err := c.co.AddBlock(block)
+	_, err := c.co.AddBlock(block)
 	if errors.Is(err, derive.ErrTooManyRLPBytes) {
 		c.setFullErr(err)
 		return c.FullErr()
 	} else if err != nil {
 		return fmt.Errorf("adding block to channel out: %w", err)
 	}
-	c.inputSize += rlpsize
 	c.blocks = append(c.blocks, block)
 
 	if c.InputTargetReached() {
@@ -138,7 +134,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 // InputTargetReached says whether the target amount of input data has been
 // reached in this channel builder. No more blocks can be added afterwards.
 func (c *channelBuilder) InputTargetReached() bool {
-	return c.inputSize >= c.cfg.InputThreshold()
+	return uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
 }
 
 // IsFull returns whether the channel is full.
