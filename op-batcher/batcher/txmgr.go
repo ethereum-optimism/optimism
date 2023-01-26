@@ -6,12 +6,13 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
@@ -78,11 +79,19 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 		return nil, nil, fmt.Errorf("failed to get suggested gas tip cap: %w", err)
 	}
 
+	if gasTipCap == nil {
+		t.log.Warn("unexpected unset gasTipCap, using default 2 gwei")
+		gasTipCap = new(big.Int).SetUint64(params.GWei * 2)
+	}
+
 	childCtx, cancel = context.WithTimeout(ctx, networkTimeout)
 	head, err := t.l1Client.HeaderByNumber(childCtx, nil)
 	cancel()
-	if err != nil {
+	if err != nil || head == nil {
 		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
+	}
+	if head.BaseFee == nil {
+		return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
 	}
 	gasFeeCap = txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
 

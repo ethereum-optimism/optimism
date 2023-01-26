@@ -1,5 +1,11 @@
 # @eth-optimism/proxyd
 
+## 3.13.0
+
+### Minor Changes
+
+- 6de891d3b: Add sender-based rate limiter
+
 ## 3.12.0
 
 ### Minor Changes

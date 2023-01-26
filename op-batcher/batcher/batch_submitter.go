@@ -3,6 +3,7 @@ package batcher
 import (
 	"context"
 	"fmt"
+	"math/big"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -13,6 +14,9 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/urfave/cli"
 )
 
@@ -36,10 +40,32 @@ func Main(version string) func(cliCtx *cli.Context) error {
 		l := oplog.NewLogger(cfg.LogConfig)
 		l.Info("Initializing Batch Submitter")
 
-		batchSubmitter, err := NewBatchSubmitter(cfg, l)
-		if err != nil {
-			l.Error("Unable to create Batch Submitter", "error", err)
-			return err
+		var batchSubmitter *BatchSubmitter
+		if !cfg.SignerConfig.Enabled() {
+			bs, err := NewBatchSubmitter(cfg, l)
+			if err != nil {
+				l.Error("Unable to create Batch Submitter", "error", err)
+				return err
+			}
+			batchSubmitter = bs
+		} else {
+			signerClient, err := opsigner.NewSignerClientFromConfig(l, cfg.SignerConfig)
+			if err != nil {
+				l.Error("Unable to create Signer Client", "error", err)
+				return err
+			}
+			signer := func(chainID *big.Int) SignerFn {
+				return func(ctx context.Context, rawTx types.TxData) (*types.Transaction, error) {
+					tx := types.NewTx(rawTx)
+					return signerClient.SignTransaction(ctx, chainID, tx)
+				}
+			}
+			bs, err := NewBatchSubmitterWithSigner(cfg, common.HexToAddress(cfg.SignerConfig.Address), signer, l)
+			if err != nil {
+				l.Error("Unable to create Batch Submitter with signer", "error", err)
+				return err
+			}
+			batchSubmitter = bs
 		}
 
 		l.Info("Starting Batch Submitter")

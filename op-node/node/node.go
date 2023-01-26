@@ -124,6 +124,10 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
 
+	if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
+		return err
+	}
+
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
 	n.l1HeadsSub = event.ResubscribeErr(time.Second*10, func(ctx context.Context, err error) (event.Subscription, error) {
 		if err != nil {
@@ -187,6 +191,10 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
+	}
+
+	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source); err != nil {
+		return err
 	}
 
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
