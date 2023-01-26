@@ -707,11 +707,11 @@ func TestSystemP2PAltSync(t *testing.T) {
 		},
 	}
 	configureL1(syncNodeCfg, sys.EthInstances["l1"])
-	syncerL2Engine, _, err := geth.InitL2("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath)
+	syncerL2Engine, _, err := geth.InitL2("syncer", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), sys.L2GenesisCfg, cfg.JWTFilePath, t.TempDir())
 	require.NoError(t, err)
 	require.NoError(t, syncerL2Engine.Start())
 
-	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret)
+	configureL2(syncNodeCfg, syncerL2Engine, cfg.JWTSecret, sys.L1BeaconAPIAddr)
 
 	syncerNode, err := rollupNode.New(context.Background(), syncNodeCfg, cfg.Loggers["syncer"], snapLog, "", metrics.NewMetrics(""))
 	require.NoError(t, err)

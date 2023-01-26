@@ -100,6 +100,12 @@ var (
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
 	}
+	BeaconAddr = &cli.StringFlag{
+		Name:    "beacon",
+		Usage:   "Address of Beacon-node HTTP endpoint to use (beacon namespace required)",
+		Value:   "http://127.0.0.1:4000",
+		EnvVars: prefixEnvVars("L1_BEACON_API"),
+	}
 	L2EngineJWTSecret = &cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -268,6 +274,7 @@ var requiredFlags = []cli.Flag{
 var optionalFlags = []cli.Flag{
 	RPCListenAddr,
 	RPCListenPort,
+	BeaconAddr,
 	RollupConfig,
 	Network,
 	L1TrustRPC,
