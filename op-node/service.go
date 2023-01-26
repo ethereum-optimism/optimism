@@ -72,10 +72,15 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	if haltOption == "none" {
 		haltOption = ""
 	}
+	beaconEndpoint, err := NewL1BeaconEndpointConfig(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load beacon endpoints info: %w", err)
+	}
 
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
+		Beacon: beaconEndpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
@@ -157,6 +162,12 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	return &node.L2EndpointConfig{
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
+	}, nil
+}
+
+func NewL1BeaconEndpointConfig(ctx *cli.Context) (*node.L1BeaconEndpointConfig, error) {
+	return &node.L1BeaconEndpointConfig{
+		BeaconAddr: ctx.String(flags.BeaconAddr.Name),
 	}, nil
 }
 

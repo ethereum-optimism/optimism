@@ -120,8 +120,12 @@ func TestDataFromEVMTransactions(t *testing.T) {
 				expectedData = append(expectedData, txs[i].Data())
 			}
 		}
-
-		out := DataFromEVMTransactions(DataSourceConfig{cfg.L1Signer(), cfg.BatchInboxAddress}, batcherAddr, txs, testlog.Logger(t, log.LvlCrit))
+		config := DataSourceConfig{
+			cfg.L1Signer(),
+			cfg.BatchInboxAddress,
+			nil,
+		}
+		out := CallDataFromEVMTransactions(config, batcherAddr, txs, testlog.Logger(t, log.LvlCrit))
 		require.ElementsMatch(t, expectedData, out)
 	}
 

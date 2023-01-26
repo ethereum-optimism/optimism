@@ -230,6 +230,9 @@ type DeployConfig struct {
 
 	// When Cancun activates. Relative to L1 genesis.
 	L1CancunTimeOffset *uint64 `json:"l1CancunTimeOffset,omitempty"`
+
+	// When 4844 blob-tx functionality for rollup DA actives. Relative to L2 genesis.
+	L2BlobsUpgradeTimeOffset *uint64 `json:"l2BlobsUpgradeTimeOffset,omitempty"`
 }
 
 // Copy will deeply copy the DeployConfig. This does a JSON roundtrip to copy
@@ -522,6 +525,17 @@ func (d *DeployConfig) InteropTime(genesisTime uint64) *uint64 {
 	return &v
 }
 
+func (d *DeployConfig) BlobsUpgradeTime(genesisTime uint64) *uint64 {
+	if d.L2BlobsUpgradeTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if offset := *d.L2BlobsUpgradeTimeOffset; offset > 0 {
+		v = genesisTime + uint64(offset)
+	}
+	return &v
+}
+
 // RollupConfig converts a DeployConfig to a rollup.Config
 func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHash common.Hash, l2GenesisBlockNumber uint64) (*rollup.Config, error) {
 	if d.OptimismPortalProxy == (common.Address{}) {
@@ -564,6 +578,8 @@ func (d *DeployConfig) RollupConfig(l1StartBlock *types.Block, l2GenesisBlockHas
 		EclipseTime:            d.EclipseTime(l1StartBlock.Time()),
 		FjordTime:              d.FjordTime(l1StartBlock.Time()),
 		InteropTime:            d.InteropTime(l1StartBlock.Time()),
+		// 4844 blobs usage activation for rollup DA
+		BlobsEnabledL1Timestamp: d.BlobsUpgradeTime(l1StartBlock.Time()),
 	}, nil
 }
 

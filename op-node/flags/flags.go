@@ -119,6 +119,12 @@ var (
 		EnvVars: prefixEnvVars("L1_HTTP_POLL_INTERVAL"),
 		Value:   time.Second * 12,
 	}
+	BeaconAddr = &cli.StringFlag{
+		Name:    "beacon",
+		Usage:   "Address of Beacon-node HTTP endpoint to use (beacon namespace required)",
+		Value:   "http://127.0.0.1:4000",
+		EnvVars: prefixEnvVars("L1_BEACON_API"),
+	}
 	VerifierL1Confs = &cli.Uint64Flag{
 		Name:    "verifier.l1-confs",
 		Usage:   "Number of L1 blocks to keep distance from the L1 head before deriving L2 data from. Reorgs are supported, but may be slow to perform.",
@@ -271,6 +277,7 @@ var optionalFlags = []cli.Flag{
 	SyncModeFlag,
 	RPCListenAddr,
 	RPCListenPort,
+	BeaconAddr,
 	L1TrustRPC,
 	L1RPCProviderKind,
 	L1RPCRateLimit,
