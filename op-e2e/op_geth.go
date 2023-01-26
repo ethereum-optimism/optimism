@@ -73,7 +73,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
+	node, _, err := geth.InitL2("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, t.TempDir())
 	require.Nil(t, err)
 	require.Nil(t, node.Start())
 

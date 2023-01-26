@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 	"reflect"
+	"strconv"
 
 	"github.com/holiman/uint256"
 
@@ -292,4 +293,44 @@ type SystemConfig struct {
 	// GasLimit identifies the L2 block gas limit
 	GasLimit uint64 `json:"gasLimit"`
 	// More fields can be added for future SystemConfig versions.
+}
+
+type Bytes48 [48]byte
+
+func (b *Bytes48) UnmarshalJSON(text []byte) error {
+	return hexutil.UnmarshalFixedJSON(reflect.TypeOf(b), text, b[:])
+}
+
+func (b *Bytes48) UnmarshalText(text []byte) error {
+	return hexutil.UnmarshalFixedText("Bytes32", text, b[:])
+}
+
+func (b Bytes48) MarshalText() ([]byte, error) {
+	return hexutil.Bytes(b[:]).MarshalText()
+}
+
+func (b Bytes48) String() string {
+	return hexutil.Encode(b[:])
+}
+
+// TerminalString implements log.TerminalStringer, formatting a string for console
+// output during logging.
+func (b Bytes48) TerminalString() string {
+	return fmt.Sprintf("%x..%x", b[:3], b[45:])
+}
+
+type Uint64String uint64
+
+func (v Uint64String) MarshalText() (out []byte, err error) {
+	out = strconv.AppendUint(out, uint64(v), 10)
+	return
+}
+
+func (v *Uint64String) UnmarshalText(b []byte) error {
+	n, err := strconv.ParseUint(string(b), 0, 64)
+	if err != nil {
+		return err
+	}
+	*v = Uint64String(n)
+	return nil
 }

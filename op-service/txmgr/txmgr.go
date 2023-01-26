@@ -15,8 +15,11 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/holiman/uint256"
 
+	"github.com/ethereum-optimism/optimism/op-service/eth"
 	"github.com/ethereum-optimism/optimism/op-service/retry"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
@@ -141,8 +144,10 @@ func (m *SimpleTxManager) BlockNumber(ctx context.Context) (uint64, error) {
 // TxCandidate is a transaction candidate that can be submitted to ask the
 // [TxManager] to construct a transaction with gas price bounds.
 type TxCandidate struct {
-	// TxData is the transaction data to be used in the constructed tx.
+	// TxData is the transaction calldata to be used in the constructed tx.
 	TxData []byte
+	// Blobs to send along in the tx (optional).
+	Blobs []*eth.Blob
 	// To is the recipient of the constructed tx. Nil means contract creation.
 	To *common.Address
 	// GasLimit is the gas limit to be used in the constructed tx.
@@ -204,6 +209,9 @@ func (m *SimpleTxManager) send(ctx context.Context, candidate TxCandidate) (*typ
 // NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transaction's gas.
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+	log := m.l.New("to", candidate.To, "from", m.cfg.From, "blobs", len(candidate.Blobs))
+	log.Info("Creating tx")
+
 	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		m.metr.RPCError()
@@ -211,46 +219,87 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   m.chainID,
-		To:        candidate.To,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Data:      candidate.TxData,
-		Value:     candidate.Value,
-	}
-
-	m.l.Info("Creating tx", "to", rawTx.To, "from", m.cfg.From)
+	gasLimit := candidate.GasLimit
 
 	// If the gas limit is set, we can use that as the gas
-	if candidate.GasLimit != 0 {
-		rawTx.Gas = candidate.GasLimit
-	} else {
+	if gasLimit == 0 {
 		// Calculate the intrinsic gas for the transaction
 		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
 			From:      m.cfg.From,
 			To:        candidate.To,
 			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
-			Data:      rawTx.Data,
-			Value:     rawTx.Value,
+			Data:      candidate.TxData,
+			Value:     candidate.Value,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to estimate gas: %w", err)
 		}
-		rawTx.Gas = gas
+		gasLimit = gas
+		log.Info("estimated gas", "gas", gasLimit)
 	}
 
-	// Avoid bumping the nonce if the gas estimation fails.
+	var sidecar *types.BlobTxSidecar
+	var blobHashes []common.Hash
+	if len(candidate.Blobs) > 0 {
+		if candidate.To == nil {
+			return nil, errors.New("blob txs cannot deploy contracts")
+		}
+		blobHashes = make([]common.Hash, 0, len(candidate.Blobs))
+		sidecar = &types.BlobTxSidecar{}
+		for i, blob := range candidate.Blobs {
+			rawBlob := *blob.KZGBlob()
+			sidecar.Blobs = append(sidecar.Blobs, rawBlob)
+			commitment, err := kzg4844.BlobToCommitment(rawBlob)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compute KZG commitment of blob %d in tx candidate: %w", i, err)
+			}
+			sidecar.Commitments = append(sidecar.Commitments, commitment)
+			proof, err := kzg4844.ComputeBlobProof(rawBlob, commitment)
+			if err != nil {
+				return nil, fmt.Errorf("cannot compute KZG proof for fast commitment verification of blob %d in tx candidate: %w", i, err)
+			}
+			sidecar.Proofs = append(sidecar.Proofs, proof)
+			blobHashes = append(blobHashes, eth.KzgToVersionedHash(commitment))
+		}
+		log.Info("crafted blob tx sidecar")
+	}
+
+	// Avoid bumping the nonce if the gas estimation, or blob construction, fails.
 	nonce, err := m.nextNonce(ctx)
 	if err != nil {
 		return nil, err
 	}
-	rawTx.Nonce = nonce
+
+	var tx *types.Transaction
+	if sidecar != nil {
+		tx = types.NewTx(&types.BlobTx{
+			ChainID:    uint256.MustFromBig(m.chainID),
+			Nonce:      nonce,
+			To:         *candidate.To,
+			GasTipCap:  uint256.MustFromBig(gasTipCap),
+			GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+			Data:       candidate.TxData,
+			Gas:        gasLimit,
+			BlobFeeCap: uint256.NewInt(1000_000), // TODO blob fee estimation
+			BlobHashes: blobHashes,
+			Sidecar:    sidecar,
+		})
+	} else {
+		tx = types.NewTx(&types.DynamicFeeTx{
+			ChainID:   m.chainID,
+			Nonce:     nonce,
+			To:        candidate.To,
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+			Data:      candidate.TxData,
+			Gas:       gasLimit,
+		})
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
+	return m.cfg.Signer(ctx, m.cfg.From, tx)
 }
 
 // nextNonce returns a nonce to use for the next transaction. It uses
@@ -322,6 +371,7 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 				m.l.Warn("Aborting transaction submission")
 				return nil, errors.New("aborted transaction sending")
 			}
+			// TODO: maybe increase the blob tx fees separately?
 			// Increase the gas price & submit the new transaction
 			newTx, err := m.increaseGasPrice(ctx, tx)
 			if err != nil || sendState.IsWaitingForConfirmation() {
@@ -352,6 +402,9 @@ func (m *SimpleTxManager) sendTx(ctx context.Context, tx *types.Transaction) (*t
 // for the transaction.
 func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Transaction, sendState *SendState, receiptChan chan *types.Receipt) {
 	log := m.l.New("hash", tx.Hash(), "nonce", tx.Nonce(), "gasTipCap", tx.GasTipCap(), "gasFeeCap", tx.GasFeeCap())
+	if sidecar := tx.BlobTxSidecar(); sidecar != nil {
+		log = log.New("blobs", len(sidecar.Blobs))
+	}
 	log.Info("Publishing transaction")
 
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
