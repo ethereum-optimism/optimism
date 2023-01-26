@@ -100,14 +100,14 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 		if tx.Gas() > s.l1BuildingHeader.GasLimit {
 			t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
 		}
-		if tx.Gas() > uint64(*s.l1GasPool) {
-			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.l1GasPool))
+		if tx.Gas() > s.l1GasPool.Gas() {
+			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), s.l1GasPool.Gas())
 			return
 		}
 		s.pendingIndices[from] = i + 1 // won't retry the tx
-		s.l1BuildingState.Prepare(tx.Hash(), len(s.l1Transactions))
+		s.l1BuildingState.SetTxContext(tx.Hash(), len(s.l1Transactions))
 		receipt, err := core.ApplyTransaction(s.l1Cfg.Config, s.l1Chain, &s.l1BuildingHeader.Coinbase,
-			s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx, &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
+			s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, big.NewInt(0), tx, &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
 		if err != nil {
 			s.l1TxFailed = append(s.l1TxFailed, tx)
 			t.Fatalf("failed to apply transaction to L1 block (tx %d): %w", len(s.l1Transactions), err)
@@ -132,7 +132,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	}
 
 	s.l1Building = false
-	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - uint64(*s.l1GasPool)
+	s.l1BuildingHeader.GasUsed = s.l1BuildingHeader.GasLimit - s.l1GasPool.Gas()
 	s.l1BuildingHeader.Root = s.l1BuildingState.IntermediateRoot(s.l1Cfg.Config.IsEIP158(s.l1BuildingHeader.Number))
 	block := types.NewBlock(s.l1BuildingHeader, s.l1Transactions, nil, s.l1Receipts, trie.NewStackTrie(nil))
 

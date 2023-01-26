@@ -115,7 +115,7 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	}
 	t.log.Info("creating tx", "to", rawTx.To, "from", t.senderAddress)
 
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}

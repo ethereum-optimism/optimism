@@ -96,9 +96,9 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 		if err := tx.UnmarshalBinary(otx); err != nil {
 			return fmt.Errorf("transaction %d is not valid: %w", i, err)
 		}
-		ea.l2BuildingState.Prepare(tx.Hash(), i)
+		ea.l2BuildingState.SetTxContext(tx.Hash(), i)
 		receipt, err := core.ApplyTransaction(ea.l2Cfg.Config, ea.l2Chain, &ea.l2BuildingHeader.Coinbase,
-			ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, &tx, &ea.l2BuildingHeader.GasUsed, *ea.l2Chain.GetVMConfig())
+			ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, big.NewInt(0), &tx, &ea.l2BuildingHeader.GasUsed, *ea.l2Chain.GetVMConfig())
 		if err != nil {
 			ea.l2TxFailed = append(ea.l2TxFailed, &tx)
 			return fmt.Errorf("failed to apply deposit transaction to L2 block (tx %d): %w", i, err)
@@ -116,7 +116,7 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 	header := ea.l2BuildingHeader
 	ea.l2BuildingHeader = nil
 
-	header.GasUsed = header.GasLimit - uint64(*ea.l2GasPool)
+	header.GasUsed = header.GasLimit - ea.l2GasPool.Gas()
 	header.Root = ea.l2BuildingState.IntermediateRoot(ea.l2Cfg.Config.IsEIP158(header.Number))
 	block := types.NewBlock(header, ea.l2Transactions, nil, ea.l2Receipts, trie.NewStackTrie(nil))
 
@@ -249,7 +249,7 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 	for i, tx := range payload.Transactions {
 		txs[i] = tx
 	}
-	block, err := beacon.ExecutableDataToBlock(beacon.ExecutableDataV1{
+	block, err := beacon.ExecutableDataToBlock(beacon.ExecutableData{
 		ParentHash:    payload.ParentHash,
 		FeeRecipient:  payload.FeeRecipient,
 		StateRoot:     common.Hash(payload.StateRoot),

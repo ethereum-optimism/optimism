@@ -51,8 +51,8 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		ArrowGlacierBlock:             big.NewInt(0),
 		GrayGlacierBlock:              big.NewInt(0),
 		MergeNetsplitBlock:            big.NewInt(0),
-		ShanghaiBlock:                 nil,
-		CancunBlock:                   nil,
+		ShanghaiTime:                  nil,
+		CancunTime:                    nil,
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		BedrockBlock:                  new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
@@ -121,8 +121,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
-		ShanghaiBlock:       nil,
-		CancunBlock:         nil,
+		ShanghaiTime:        nil,
+		CancunTime:          nil,
 	}
 
 	if config.CliqueSignerAddress != (common.Address{}) {

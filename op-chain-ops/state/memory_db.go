@@ -3,6 +3,7 @@ package state
 import (
 	"bytes"
 	"fmt"
+	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 	"sync"
 
@@ -23,6 +24,17 @@ var emptyCodeHash = crypto.Keccak256(nil)
 type MemoryStateDB struct {
 	rw      sync.RWMutex
 	genesis *core.Genesis
+}
+
+func (db *MemoryStateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
+	panic("TODO mark implement transient storage") // TODO tynes
+}
+
+func (db *MemoryStateDB) SetTransientState(addr common.Address, key, value common.Hash) {
+	panic("TODO mark implement transient storage") // TODO tynes
+}
+
+func (db *MemoryStateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {
 }
 
 func NewMemoryStateDB(genesis *core.Genesis) *MemoryStateDB {

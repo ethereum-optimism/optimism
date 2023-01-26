@@ -180,9 +180,17 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 		}
 		log.Info("checked code hash", "address", addr, "hash", hash)
 
+		prevTrie, err := prevDB.StorageTrie(addr)
+		if err != nil {
+			return err
+		}
+		currTrie, err := currDB.StorageTrie(addr)
+		if err != nil {
+			return err
+		}
 		// Ensure that the current/previous roots match
-		prevRoot := prevDB.StorageTrie(addr).Hash()
-		currRoot := currDB.StorageTrie(addr).Hash()
+		prevRoot := prevTrie.Hash()
+		currRoot := currTrie.Hash()
 		if prevRoot != currRoot {
 			return fmt.Errorf("expected storage root for %s to be %s, but got %s", addr, prevRoot, currRoot)
 		}
@@ -191,7 +199,7 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 		// Sample storage slots to ensure that they are not modified.
 		var count int
 		expSlots := make(map[common.Hash]common.Hash)
-		err := prevDB.ForEachStorage(addr, func(key, value common.Hash) bool {
+		err = prevDB.ForEachStorage(addr, func(key, value common.Hash) bool {
 			count++
 			expSlots[key] = value
 			return count < MaxSlotChecks

@@ -184,7 +184,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 		GasFeeCap: gasFeeCap,
 		Data:      data.Bytes(),
 	}
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
 	require.NoError(t, err, "need to compute intrinsic gas")
 	rawTx.Gas = gas
 

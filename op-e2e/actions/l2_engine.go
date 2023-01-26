@@ -2,6 +2,7 @@ package actions
 
 import (
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
@@ -177,14 +178,14 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 		if tx.Gas() > e.l2BuildingHeader.GasLimit {
 			t.Fatalf("tx consumes %d gas, more than available in L2 block %d", tx.Gas(), e.l2BuildingHeader.GasLimit)
 		}
-		if tx.Gas() > uint64(*e.l2GasPool) {
-			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*e.l2GasPool))
+		if tx.Gas() > e.l2GasPool.Gas() {
+			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), e.l2GasPool.Gas())
 			return
 		}
 		e.pendingIndices[from] = i + 1 // won't retry the tx
-		e.l2BuildingState.Prepare(tx.Hash(), len(e.l2Transactions))
+		e.l2BuildingState.SetTxContext(tx.Hash(), len(e.l2Transactions))
 		receipt, err := core.ApplyTransaction(e.l2Cfg.Config, e.l2Chain, &e.l2BuildingHeader.Coinbase,
-			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
+			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, big.NewInt(0), tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {
 			e.l2TxFailed = append(e.l2TxFailed, tx)
 			t.Fatalf("failed to apply transaction to L2 block (tx %d): %v", len(e.l2Transactions), err)
