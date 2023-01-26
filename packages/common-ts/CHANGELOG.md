@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.7.1
+
+### Patch Changes
+
+- f04e5db2d: Fix unknown option error in base service v2
+
 ## 0.7.0
 
 ### Minor Changes

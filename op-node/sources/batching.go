@@ -12,9 +12,9 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
-// IterativeBatchCall is an util to create a job to fetch many RPC requests in batches,
-// and enable the caller to parallelize easily and safely, handle and re-try errors,
-// and pick a batch size all by simply calling Fetch again and again until it returns io.EOF.
+// IterativeBatchCall batches many RPC requests with safe and easy parallelization.
+// Request errors are handled and re-tried, and the batch size is configurable.
+// Executing IterativeBatchCall is as simple as calling Fetch repeatedly until it returns io.EOF.
 type IterativeBatchCall[K any, V any] struct {
 	completed uint32       // tracks how far to completing all requests we are
 	resetLock sync.RWMutex // ensures we do not concurrently read (incl. fetch) / reset
@@ -77,7 +77,7 @@ func (ibc *IterativeBatchCall[K, V]) Reset() {
 }
 
 // Fetch fetches more of the data, and returns io.EOF when all data has been fetched.
-// This method is safe to call concurrently: it will parallelize the fetching work.
+// This method is safe to call concurrently; it will parallelize the fetching work.
 // If no work is available, but the fetching is not done yet,
 // then Fetch will block until the next thing can be fetched, or until the context expires.
 func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
