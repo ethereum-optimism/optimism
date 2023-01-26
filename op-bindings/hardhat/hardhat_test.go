@@ -146,6 +146,20 @@ func TestHardhatGetDeployments(t *testing.T) {
 	require.NotNil(t, deployment)
 }
 
+func TestHardhatGetDeploymentsDuplicates(t *testing.T) {
+	t.Parallel()
+
+	// Set the network to an empty string to simulate
+	// an invalid network name.
+	_, err := hardhat.New(
+		"",
+		[]string{"testdata/artifacts"},
+		[]string{"testdata/deployments"},
+	)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate deployment")
+}
+
 func TestHardhatGetStorageLayout(t *testing.T) {
 	t.Parallel()
 

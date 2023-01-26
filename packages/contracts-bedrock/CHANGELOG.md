@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.11.3
+
+### Patch Changes
+
+- 4964be480: Added a test for large deposit gaps
+
 ## 0.11.2
 
 ### Patch Changes

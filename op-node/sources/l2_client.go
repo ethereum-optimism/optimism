@@ -70,6 +70,9 @@ type L2Client struct {
 	systemConfigsCache *caching.LRUCache
 }
 
+// NewL2Client constructs a new L2Client instance. The L2Client is a thin wrapper around the EthClient with added functions
+// for fetching and caching eth.L2BlockRef values. This includes fetching an L2BlockRef by block number, label, or hash.
+// See: [L2BlockRefByLabel], [L2BlockRefByNumber], [L2BlockRefByHash]
 func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, config *L2ClientConfig) (*L2Client, error) {
 	ethClient, err := NewEthClient(client, log, metrics, &config.EthClientConfig)
 	if err != nil {
@@ -84,7 +87,7 @@ func NewL2Client(client client.RPC, log log.Logger, metrics caching.Metrics, con
 	}, nil
 }
 
-// L2BlockRefByLabel returns the L2 block reference for the given label.
+// L2BlockRefByLabel returns the [eth.L2BlockRef] for the given block label.
 func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) (eth.L2BlockRef, error) {
 	payload, err := s.PayloadByLabel(ctx, label)
 	if err != nil {
@@ -104,7 +107,7 @@ func (s *L2Client) L2BlockRefByLabel(ctx context.Context, label eth.BlockLabel) 
 	return ref, nil
 }
 
-// L2BlockRefByNumber returns the L2 block reference for the given block number.
+// L2BlockRefByNumber returns the [eth.L2BlockRef] for the given block number.
 func (s *L2Client) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2BlockRef, error) {
 	payload, err := s.PayloadByNumber(ctx, num)
 	if err != nil {
@@ -119,7 +122,7 @@ func (s *L2Client) L2BlockRefByNumber(ctx context.Context, num uint64) (eth.L2Bl
 	return ref, nil
 }
 
-// L2BlockRefByHash returns the L2 block reference for the given block hash.
+// L2BlockRefByHash returns the [eth.L2BlockRef] for the given block hash.
 // The returned BlockRef may not be in the canonical chain.
 func (s *L2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L2BlockRef, error) {
 	if ref, ok := s.l2BlockRefsCache.Get(hash); ok {
@@ -139,8 +142,8 @@ func (s *L2Client) L2BlockRefByHash(ctx context.Context, hash common.Hash) (eth.
 	return ref, nil
 }
 
-// SystemConfigByL2Hash returns the system config (matching the config updates up to and including the L1 origin) for the given L2 block hash.
-// The returned SystemConfig may not be in the canonical chain when the hash is not canonical.
+// SystemConfigByL2Hash returns the [eth.SystemConfig] (matching the config updates up to and including the L1 origin) for the given L2 block hash.
+// The returned [eth.SystemConfig] may not be in the canonical chain when the hash is not canonical.
 func (s *L2Client) SystemConfigByL2Hash(ctx context.Context, hash common.Hash) (eth.SystemConfig, error) {
 	if ref, ok := s.systemConfigsCache.Get(hash); ok {
 		return ref.(eth.SystemConfig), nil
