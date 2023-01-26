@@ -1,47 +1,43 @@
 {
   "numDeployConfirmations": 1,
+  "finalSystemOwner": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
+  "controller": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
 
-  "finalSystemOwner": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
-  "controller": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
-
-  "l1StartingBlockTag": "0x6ffc1bf3754c01f6bb9fe057c1578b87a8571ce2e9be5ca14bace6eccfd336c7",
-
-  "l1ChainID": 5,
-  "l2ChainID": 420,
+  "l1StartingBlockTag": "0xd155d73d881e534b78a69b7703332e50632ba1cc25d7f433eaa504a8bfd7ac2b",
+  "l1ChainID": 5700,
+  "l2ChainID": 57000,
   "l2BlockTime": 2,
+  "l1BlockTime": 150,
 
-  "maxSequencerDrift": 600,
-  "sequencerWindowSize": 3600,
-  "channelTimeout": 300,
 
-  "p2pSequencerAddress": "0x715b7219D986641DF9eFd9C7Ef01218D528e19ec",
-  "batchInboxAddress": "0xff00000000000000000000000000000000000420",
-  "batchSenderAddress": "0x7431310e026B69BFC676C0013E12A1A11411EEc9",
+  "maxSequencerDrift": 1500,
+  "finalizationPeriodSeconds": 1500,
+  "sequencerWindowSize": 12,
+  "channelTimeout": 12,
+  "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
+  "batchInboxAddress": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
+  "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
 
-  "l2OutputOracleSubmissionInterval": 120,
-  "l2OutputOracleStartingBlockNumber": 4061224,
-  "l2OutputOracleStartingTimestamp": 1673550516,
+  "l2OutputOracleSubmissionInterval": 18000,
+  "l2OutputOracleStartingTimestamp": -1,
+  "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
+  "l2OutputOracleChallenger": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
 
-  "l2OutputOracleProposer": "0x02b1786A85Ec3f71fBbBa46507780dB7cF9014f6",
-  "l2OutputOracleChallenger": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
-
-  "finalizationPeriodSeconds": 12,
-
-  "proxyAdminOwner": "0xf80267194936da1E98dB10bcE06F3147D580a62e",
-  "baseFeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
-  "l1FeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
-  "sequencerFeeVaultRecipient": "0xBc1233d0C3e6B5d53Ab455cF65A6623F6dCd7e4f",
-
-  "gasPriceOracleOverhead": 2100,
-  "gasPriceOracleScalar": 1000000,
-
-  "governanceTokenSymbol": "OP",
   "governanceTokenName": "Optimism",
+  "governanceTokenSymbol": "OP",
   "governanceTokenOwner": "0x038a8825A3C3B0c08d52Cc76E5E361953Cf6Dc76",
 
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
 
+
+  "fundDevAccounts": true,
+  "baseFeeVaultRecipient": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
+  "sequencerFeeVaultRecipient": "0xfabb0ac9d68b0b445fb7357272ff202c5651694a",
+  "proxyAdminOwner": "0xa0Ee7A142d267C1f36714E4a8F75612F20a79720",
+  "gasPriceOracleOverhead": 2100,
+  "gasPriceOracleScalar": 1000000,
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10
 }

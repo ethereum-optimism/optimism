@@ -70,7 +70,7 @@ if [ ! -f "$DEVNET/done" ]; then
     go run cmd/main.go genesis l2 \
         --l1-rpc https://rpc.tanenbaum.io \
         --deployment-dir $CONTRACTS_BEDROCK/deployments/goerli \
-        --deploy-config $CONTRACTS_BEDROCK/deploy-config/goerli-forked.json \
+        --deploy-config $CONTRACTS_BEDROCK/deploy-config/goerli.json \
         --outfile.l2 $DEVNET/genesis-l2.json \
         --outfile.rollup $DEVNET/rollup.json
     touch "$DEVNET/done"
