@@ -79,19 +79,6 @@ const (
 	BlockInsertPayloadErr
 )
 
-// InsertHeadBlock creates, executes, and inserts the specified block as the head block.
-// It first uses the given FC to start the block creation process and then after the payload is executed,
-// sets the FC to the same safe and finalized hashes, but updates the head hash to the new block.
-// If updateSafe is true, the head block is considered to be the safe head as well as the head.
-// It returns the payload, an RPC error (if the payload might still be valid), and a payload error (if the payload was not valid)
-func InsertHeadBlock(ctx context.Context, log log.Logger, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes, updateSafe bool) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
-	id, errTyp, err := StartPayload(ctx, eng, fc, attrs)
-	if err != nil {
-		return nil, errTyp, err
-	}
-	return ConfirmPayload(ctx, log, eng, fc, id, updateSafe)
-}
-
 // StartPayload starts an execution payload building process in the provided Engine, with the given attributes.
 // The severity of the error is distinguished to determine whether the same payload attributes may be re-attempted later.
 func StartPayload(ctx context.Context, eng Engine, fc eth.ForkchoiceState, attrs *eth.PayloadAttributes) (id eth.PayloadID, errType BlockInsertionErrType, err error) {
