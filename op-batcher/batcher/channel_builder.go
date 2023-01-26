@@ -207,6 +207,9 @@ func (c *channelBuilder) closeAndOutputAllFrames() error {
 	}
 }
 
+// outputFrame creates one new frame and adds it to the frames queue.
+// Note that compressed output data must be available on the underlying
+// ChannelOut, or an empty frame will be produced.
 func (c *channelBuilder) outputFrame() error {
 	var buf bytes.Buffer
 	fn, err := c.co.OutputFrame(&buf, c.cfg.MaxFrameSize)

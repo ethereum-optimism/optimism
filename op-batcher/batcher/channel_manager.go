@@ -183,9 +183,14 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 	return data, id, nil
 }
 
-// TxData returns the next tx.data that should be submitted to L1.
-// It is very simple & currently ignores the l1Head provided (this will change).
-// It may buffer very large channels as well.
+// TxData returns the next tx data that should be submitted to L1.
+//
+// It currently only uses one frame per transaction. If the pending channel is
+// full, it only returns the remaining frames of this channel until it got
+// successfully fully sent to L1. It returns io.EOF if there's no pending frame.
+//
+// It currently ignores the l1Head provided and doesn't track channel timeouts
+// or the sequencer window span yet.
 func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
@@ -232,6 +237,8 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
 	return nil
 }
 
+// addBlocks adds blocks from the blocks queue to the pending channel until
+// either the queue got exhausted or the channel is full.
 func (s *channelManager) addBlocks() error {
 	var (
 		blockidx    int
