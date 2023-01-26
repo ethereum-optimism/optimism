@@ -148,13 +148,6 @@ func (dp *DerivationPipeline) BuildingPayload() (onto eth.L2BlockRef, id eth.Pay
 	return dp.eng.BuildingPayload()
 }
 
-// SetUnsafeHead changes the forkchoice state unsafe head, without changing the engine.
-//
-// deprecated: use the EngineControl interface instead.
-func (dp *DerivationPipeline) SetUnsafeHead(head eth.L2BlockRef) {
-	dp.eng.SetUnsafeHead(head)
-}
-
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
 func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	dp.eng.AddUnsafePayload(payload)
