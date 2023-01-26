@@ -54,6 +54,8 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		ArrowGlacierBlock:             big.NewInt(0),
 		GrayGlacierBlock:              big.NewInt(0),
 		MergeNetsplitBlock:            big.NewInt(0),
+		ShanghaiTime:                  nil,
+		CancunTime:                    nil,
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		BedrockBlock:                  new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
@@ -127,6 +129,8 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
+		ShanghaiTime:        nil,
+		CancunTime:          nil,
 	}
 
 	extraData := make([]byte, 0)
@@ -160,6 +164,10 @@ func NewL1Genesis(config *DeployConfig) (*core.Genesis, error) {
 	timestamp := config.L1GenesisBlockTimestamp
 	if timestamp == 0 {
 		timestamp = hexutil.Uint64(time.Now().Unix())
+	}
+	if !config.L1UseClique && config.L1CancunTimeOffset != nil {
+		cancunTime := uint64(timestamp) + *config.L1CancunTimeOffset
+		chainConfig.CancunTime = &cancunTime
 	}
 
 	return &core.Genesis{

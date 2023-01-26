@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -21,10 +22,15 @@ import (
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
 )
 
-func InitL1(chainID uint64, blockTime uint64, genesis *core.Genesis, c clock.Clock, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+func InitL1(chainID uint64, blockTime uint64, genesis *core.Genesis, c clock.Clock, blobPoolDir string, beaconSrv Beacon, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: chainID,
 		Genesis:   genesis,
+		BlobPool: blobpool.Config{
+			Datadir:   blobPoolDir,
+			Datacap:   blobpool.DefaultConfig.Datacap,
+			PriceBump: blobpool.DefaultConfig.PriceBump,
+		},
 	}
 	nodeConfig := &node.Config{
 		Name:        "l1-geth",
@@ -53,6 +59,7 @@ func InitL1(chainID uint64, blockTime uint64, genesis *core.Genesis, c clock.Clo
 		finalizedDistance: 8,
 		safeDistance:      4,
 		engineAPI:         catalyst.NewConsensusAPI(l1Eth),
+		beacon:            beaconSrv,
 	})
 
 	return l1Node, l1Eth, nil
@@ -76,7 +83,7 @@ func defaultNodeConfig(name string, jwtPath string) *node.Config {
 type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
 // InitL2 inits a L2 geth node.
-func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, blobPoolDir string, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: l2ChainID.Uint64(),
 		Genesis:   genesis,
@@ -88,6 +95,11 @@ func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath stri
 			GasPrice:          nil,
 			Recommit:          0,
 			NewPayloadTimeout: 0,
+		},
+		BlobPool: blobpool.Config{
+			Datadir:   blobPoolDir,
+			Datacap:   blobpool.DefaultConfig.Datacap,
+			PriceBump: blobpool.DefaultConfig.PriceBump,
 		},
 	}
 	nodeConfig := defaultNodeConfig(fmt.Sprintf("l2-geth-%v", name), jwtPath)

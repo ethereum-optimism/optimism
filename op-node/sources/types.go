@@ -108,7 +108,16 @@ type rpcHeader struct {
 	BaseFee *hexutil.Big `json:"baseFeePerGas"`
 
 	// WithdrawalsRoot was added by EIP-4895 and is ignored in legacy headers.
-	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot"`
+	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot,omitempty"`
+
+	// BlobGasUsed was added by EIP-4844 and is ignored in legacy headers.
+	BlobGasUsed *hexutil.Uint64 `json:"blobGasUsed,omitempty"`
+
+	// ExcessBlobGas was added by EIP-4844 and is ignored in legacy headers.
+	ExcessBlobGas *hexutil.Uint64 `json:"excessBlobGas,omitempty"`
+
+	// ParentBeaconRoot was added by EIP-4788 and is ignored in legacy headers.
+	ParentBeaconRoot *common.Hash `json:"parentBeaconBlockRoot,omitempty"`
 
 	// untrusted info included by RPC, may have to be checked
 	Hash common.Hash `json:"hash"`
@@ -161,6 +170,10 @@ func (hdr *rpcHeader) createGethHeader() *types.Header {
 		Nonce:           hdr.Nonce,
 		BaseFee:         (*big.Int)(hdr.BaseFee),
 		WithdrawalsHash: hdr.WithdrawalsRoot,
+		// Cancun
+		BlobGasUsed:      (*uint64)(hdr.BlobGasUsed),
+		ExcessBlobGas:    (*uint64)(hdr.ExcessBlobGas),
+		ParentBeaconRoot: hdr.ParentBeaconRoot,
 	}
 }
 
