@@ -436,6 +436,8 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 			CanyonTime:              cfg.DeployConfig.CanyonTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			SpanBatchTime:           cfg.DeployConfig.SpanBatchTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 			ProtocolVersionsAddress: cfg.L1Deployments.ProtocolVersionsProxy,
+			// 4844
+			BlobsEnabledL1Timestamp: cfg.DeployConfig.BlobsUpgradeTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -472,8 +474,9 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 
 	for name := range cfg.Nodes {
 		var ethClient EthInstance
+		blobPoolPath := path.Join(cfg.BlobsPath, name)
 		if cfg.ExternalL2Shim == "" {
-			node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
+			node, backend, err := geth.InitL2(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, blobPoolPath, cfg.GethOptions[name]...)
 			if err != nil {
 				return nil, err
 			}
@@ -492,10 +495,11 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 				t.Skip("External L2 nodes do not support configuration through GethOptions")
 			}
 			ethClient = (&ExternalRunner{
-				Name:    name,
-				BinPath: cfg.ExternalL2Shim,
-				Genesis: l2Genesis,
-				JWTPath: cfg.JWTFilePath,
+				Name:         name,
+				BinPath:      cfg.ExternalL2Shim,
+				Genesis:      l2Genesis,
+				JWTPath:      cfg.JWTFilePath,
+				BlobPoolPath: blobPoolPath,
 			}).Run(t)
 		}
 		sys.EthInstances[name] = ethClient
@@ -506,7 +510,7 @@ func (cfg SystemConfig) Start(t *testing.T, _opts ...SystemConfigOption) (*Syste
 	// of only websockets (which are required for external eth client tests).
 	for name, rollupCfg := range cfg.Nodes {
 		configureL1(rollupCfg, sys.EthInstances["l1"])
-		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret)
+		configureL2(rollupCfg, sys.EthInstances[name], cfg.JWTSecret, beaconApiAddr)
 
 		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
 			Client:   nil,
@@ -816,7 +820,7 @@ type WSOrHTTPEndpoint interface {
 	HTTPAuthEndpoint() string
 }
 
-func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte) {
+func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtSecret [32]byte, l1BeaconAPIAddr string) {
 	l2EndpointConfig := l2Node.WSAuthEndpoint()
 	if UseHTTP() {
 		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
@@ -826,6 +830,7 @@ func configureL2(rollupNodeCfg *rollupNode.Config, l2Node WSOrHTTPEndpoint, jwtS
 		L2EngineAddr:      l2EndpointConfig,
 		L2EngineJWTSecret: jwtSecret,
 	}
+	rollupNodeCfg.Beacon = &rollupNode.L1BeaconEndpointConfig{BeaconAddr: l1BeaconAPIAddr}
 }
 
 func (cfg SystemConfig) L1ChainIDBig() *big.Int {

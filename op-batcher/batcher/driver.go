@@ -315,7 +315,7 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	// send all available transactions
 	l1tip, err := l.l1Tip(ctx)
 	if err != nil {
-		l.Log.Error("Failed to query L1 tip", "error", err)
+		l.Log.Error("Failed to query L1 tip", "err", err)
 		return err
 	}
 	l.recordL1Tip(l1tip)
@@ -334,15 +334,29 @@ func (l *BatchSubmitter) publishTxToL1(ctx context.Context, queue *txmgr.Queue[t
 	return nil
 }
 
-// sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// sendTransaction creates & submits a transaction to the batch inbox address with the given `txData`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txData], receiptsCh chan txmgr.TxReceipt[txData]) {
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	data := txdata.Bytes()
+
+	var blobs []*eth.Blob
+	if l.RollupCfg.BlobsEnabledL1Timestamp != nil && *l.RollupCfg.BlobsEnabledL1Timestamp <= uint64(time.Now().Unix()) {
+		var b eth.Blob
+		if err := b.FromData(data); err != nil {
+			l.Log.Error("data could not be converted to blob", "err", err)
+			return
+		}
+		blobs = append(blobs, &b)
+
+		// no calldata
+		data = []byte{}
+	}
+
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
-		l.Log.Error("Failed to calculate intrinsic gas", "error", err)
+		l.Log.Error("Failed to calculate intrinsic gas", "err", err)
 		return
 	}
 
@@ -350,6 +364,7 @@ func (l *BatchSubmitter) sendTransaction(txdata txData, queue *txmgr.Queue[txDat
 		To:       &l.RollupCfg.BatchInboxAddress,
 		TxData:   data,
 		GasLimit: intrinsicGas,
+		Blobs:    blobs,
 	}
 	queue.Send(txdata, candidate, receiptsCh)
 }

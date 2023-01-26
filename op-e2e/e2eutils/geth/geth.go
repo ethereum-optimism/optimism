@@ -83,7 +83,7 @@ func defaultNodeConfig(name string, jwtPath string) *node.Config {
 type GethOption func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error
 
 // InitL2 inits a L2 geth node.
-func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
+func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath string, blobPoolDir string, opts ...GethOption) (*node.Node, *eth.Ethereum, error) {
 	ethConfig := &ethconfig.Config{
 		NetworkId: l2ChainID.Uint64(),
 		Genesis:   genesis,
@@ -95,6 +95,11 @@ func InitL2(name string, l2ChainID *big.Int, genesis *core.Genesis, jwtPath stri
 			GasPrice:          nil,
 			Recommit:          0,
 			NewPayloadTimeout: 0,
+		},
+		BlobPool: blobpool.Config{
+			Datadir:   blobPoolDir,
+			Datacap:   blobpool.DefaultConfig.Datacap,
+			PriceBump: blobpool.DefaultConfig.PriceBump,
 		},
 	}
 	nodeConfig := defaultNodeConfig(fmt.Sprintf("l2-geth-%v", name), jwtPath)
