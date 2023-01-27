@@ -237,11 +237,15 @@ func (l *BatchSubmitter) loop() {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.ctx)
 
-			// Empty the state after loading into it on every iteration.
 		blockLoop:
 			for {
-				// Collect the output frame
-				data, id, err := l.state.TxData(eth.L1BlockRef{})
+				l1tip, err := l.l1Tip(l.ctx)
+				if err != nil {
+					l.log.Error("Failed to query L1 tip")
+					break
+				}
+				// Collect next transaction data
+				data, id, err := l.state.TxData(l1tip)
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
@@ -251,7 +255,7 @@ func (l *BatchSubmitter) loop() {
 				}
 				// Record TX Status
 				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
-					l.log.Error("Failed to send transaction", "err", err)
+					l.log.Warn("Failed to send transaction", "err", err)
 					l.state.TxFailed(id)
 				} else {
 					l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
@@ -272,4 +276,16 @@ func (l *BatchSubmitter) loop() {
 			return
 		}
 	}
+}
+
+// l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
+// to be a runtime context, so it is internally wrapped with a network timeout.
+func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
+	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	defer cancel()
+	head, err := l.cfg.L1Client.HeaderByNumber(tctx, nil)
+	if err != nil {
+		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
+	}
+	return eth.L1BlockRefFromHeader(head), nil
 }
