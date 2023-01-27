@@ -241,24 +241,27 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
 // addBlocks adds blocks from the blocks queue to the pending channel until
 // either the queue got exhausted or the channel is full.
 func (s *channelManager) addBlocks() error {
-	var (
-		blockidx    int
-		channelFull bool
-	)
-	for ; blockidx < len(s.blocks); blockidx++ {
-		if err := s.pendingChannel.AddBlock(s.blocks[blockidx]); s.pendingChannel.IsFull() {
-			channelFull = true
+	var blocksAdded int
+	var _chFullErr *ChannelFullError // throw away, just for type checking
+	for i, block := range s.blocks {
+		if err := s.pendingChannel.AddBlock(block); errors.As(err, &_chFullErr) {
+			// current block didn't get added because channel is already full
 			break
 		} else if err != nil {
-			return fmt.Errorf("adding block[%d] to channel builder: %w", blockidx, err)
+			return fmt.Errorf("adding block[%d] to channel builder: %w", i, err)
+		}
+		blocksAdded += 1
+		// current block got added but channel is now full
+		if s.pendingChannel.IsFull() {
+			break
 		}
 	}
-	blocksAdded := blockidx + 1
 
 	s.log.Debug("Added blocks to channel",
 		"blocks_added", blocksAdded,
-		"channel_full", channelFull,
+		"channel_full", s.pendingChannel.IsFull(),
 		"blocks_pending", len(s.blocks)-blocksAdded,
+		"input_bytes", s.pendingChannel.InputBytes(),
 	)
 	if blocksAdded == len(s.blocks) {
 		// all blocks processed, reuse slice
