@@ -23,17 +23,11 @@ type DriverConfig struct {
 
 	RollupNode *sources.RollupClient
 
-	// Limit the size of txs
-	MinL1TxSize uint64
-	MaxL1TxSize uint64
-
 	// Where to send the batch txs to.
 	BatchInboxAddress common.Address
 
-	// The batcher can decide to set it shorter than the actual timeout,
-	//  since submitting continued channel data to L1 is not instantaneous.
-	//  It's not worth it to work with nearly timed-out channels.
-	ChannelTimeout uint64
+	// Channel creation parameters
+	Channel ChannelConfig
 
 	// Chain ID of the L1 chain to submit txs to.
 	ChainID *big.Int
