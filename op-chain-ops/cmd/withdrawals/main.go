@@ -209,7 +209,6 @@ func main() {
 					return err
 				}
 
-				// This is just wrong
 				xdmHash := crypto.Keccak256Hash(withdrawal.Data)
 				if err != nil {
 					return err
