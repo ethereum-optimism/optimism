@@ -273,6 +273,6 @@ func TestGetPendingWithdrawals(t *testing.T) {
 		withdrawal := withdrawals[i]
 
 		require.Equal(t, msg.Target, *withdrawal.Target)
-		require.Equal(t, msg.Message, withdrawal.Data)
+		require.Equal(t, msg.Message, []byte(withdrawal.Data))
 	}
 }
