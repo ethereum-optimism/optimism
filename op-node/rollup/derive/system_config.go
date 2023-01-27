@@ -70,7 +70,7 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
 	if ev.Topics[0] != ConfigUpdateEventABIHash {
-		return fmt.Errorf("invalid deposit event selector: %s, expected %s", ev.Topics[0], DepositEventABIHash)
+		return fmt.Errorf("invalid deposit event selector: %s, expected %s", ev.Topics[0], ConfigUpdateEventABIHash)
 	}
 
 	// indexed 0
