@@ -172,12 +172,10 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 	}
 
 	id, data := s.pendingChannel.NextFrame()
-	if id.frameNumber == 0 {
-		// prepend version byte for first frame
-		// TODO: more memory efficient solution; shouldn't be responsibility of
-		// channelBuilder though.
-		data = append([]byte{0}, data...)
-	}
+	// prepend version byte for first frame of transaction
+	// TODO: more memory efficient solution; shouldn't be responsibility of
+	// channelBuilder though.
+	data = append([]byte{0}, data...)
 
 	s.log.Trace("returning next tx data", "id", id)
 	s.pendingTransactions[id] = data
