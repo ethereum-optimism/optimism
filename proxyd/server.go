@@ -474,6 +474,7 @@ func (s *Server) handleBatchRPC(ctx context.Context, reqs []json.RawMessage, isL
 					"error forwarding RPC batch",
 					"batch_size", len(elems),
 					"backend_group", group,
+					"req_id", GetReqID(ctx),
 					"err", err,
 				)
 				res = nil
@@ -631,7 +632,7 @@ func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
 		return ErrInvalidParams(err.Error())
 	}
 
-	ok, err := s.senderLim.Take(ctx, msg.From().Hex())
+	ok, err := s.senderLim.Take(ctx, fmt.Sprintf("%s:%d", msg.From().Hex(), tx.Nonce()))
 	if err != nil {
 		log.Error("error taking from sender limiter", "err", err, "req_id", GetReqID(ctx))
 		return ErrInternal
