@@ -63,3 +63,7 @@ func (p *Prepared) Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort u
 func (p *Prepared) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option {
 	return nil
 }
+
+func (p *Prepared) Disabled() bool {
+	return false
+}

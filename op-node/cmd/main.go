@@ -123,7 +123,7 @@ func RollupNodeMain(ctx *cli.Context) error {
 
 	if cfg.Heartbeat.Enabled {
 		var peerID string
-		if cfg.P2P == nil {
+		if cfg.P2P.Disabled() {
 			peerID = "disabled"
 		} else {
 			peerID = n.P2P().Host().ID().String()
