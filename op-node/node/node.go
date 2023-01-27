@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -38,6 +39,8 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
+
+	l1BlobsSource derive.L1BlobsFetcher
 
 	// some resources cannot be stopped directly, like the p2p gossipsub router (not our design),
 	// and depend on this ctx to be closed.
@@ -78,6 +81,9 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 		return err
 	}
 	if err := n.initL1(ctx, cfg); err != nil {
+		return err
+	}
+	if err := n.initL1BlobsFetcher(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
@@ -148,6 +154,11 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
+func (n *OpNode) initL1BlobsFetcher(ctx context.Context, cfg *Config) error {
+	// TODO
+	return nil
+}
+
 func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	// attempt to load runtime config, repeat N times
 	n.runCfg = NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
@@ -189,7 +200,7 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n.l1BlobsSource, n, n.log, snapshotLog, n.metrics)
 
 	return nil
 }

@@ -53,6 +53,8 @@ type Config struct {
 	DepositContractAddress common.Address `json:"deposit_contract_address"`
 	// L1 System Config Address
 	L1SystemConfigAddress common.Address `json:"l1_system_config_address"`
+	// L1 block timestamp to start reading blobs as batch data-source. Optional.
+	BlobsEnabledL1Timestamp *uint64 `json:"blobs_data,omitempty"`
 }
 
 // Check verifies that the given configuration makes sense
