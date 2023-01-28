@@ -81,7 +81,7 @@ var (
 	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
 		Name:   "max-l1-tx-size-bytes",
 		Usage:  "The maximum size of a batch tx submitted to L1.",
-		Value:  120_000,
+		Value:  2097120,
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_L1_TX_SIZE_BYTES"),
 	}
 	TargetL1TxSizeBytesFlag = cli.Uint64Flag{
