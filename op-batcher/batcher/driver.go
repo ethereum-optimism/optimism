@@ -31,6 +31,10 @@ type BatchSubmitter struct {
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
 
+	// latest known L1 timestamp - used in unlikely case that a header cannot be
+	// retrieved
+	lastKnownL1Time uint64
+
 	state *channelManager
 }
 
@@ -244,6 +248,7 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("Failed to query L1 tip")
 					break
 				}
+
 				// Collect next transaction data
 				data, id, err := l.state.TxData(l1tip)
 				if err == io.EOF {
@@ -255,11 +260,9 @@ func (l *BatchSubmitter) loop() {
 				}
 				// Record TX Status
 				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
-					l.log.Warn("Failed to send transaction", "err", err)
-					l.state.TxFailed(id)
+					l.recordFailedTx(id, err)
 				} else {
-					l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-					l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
+					l.recordConfirmedTx(id, receipt)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
@@ -278,14 +281,69 @@ func (l *BatchSubmitter) loop() {
 	}
 }
 
+func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
+	l.log.Warn("Failed to send transaction", "err", err)
+	l.state.TxFailed(id)
+}
+
+func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
+	l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
+	// Unfortunately, a tx receipt doesn't include the timestamp, so we have to
+	// query the header.
+	l1ref, err := l.l1BlockRefByReceipt(l.ctx, receipt)
+	if err != nil {
+		// Very unlikely that tx sending worked but then we cannot get the
+		// header. Fall back to latest known L1 time to be on the safe side.
+		l1ref.Time = l.lastKnownL1Time
+		l.log.Warn("Failed to get block ref for successful batcher tx. Setting timestamp to latest know L1 block time.", "block_ref", l1ref)
+	} else {
+		l.lastKnownL1Time = l1ref.Time
+	}
+	// l1ref is guaranteed to have at least fields Hash, Number and Time set.
+	l.state.TxConfirmed(id, l1ref)
+
+}
+
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
-// to be a runtime context, so it is internally wrapped with a network timeout.
+// to be a lifetime context, so it is internally wrapped with a network timeout.
 func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
 	head, err := l.cfg.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
+	}
+	l.lastKnownL1Time = head.Time
+	return eth.L1BlockRefFromHeader(head), nil
+}
+
+// l1BlockRefByReceipt gets the L1BlockRef for the passed receipt. The passed
+// context is assumed to be a lifetime context, so it is internally wrapped with
+// a network timeout.
+//
+// If there's an error getting the block header, the returned block ref will
+// still have the block hash and number fields set.
+func (l *BatchSubmitter) l1BlockRefByReceipt(ctx context.Context, rec *types.Receipt) (eth.L1BlockRef, error) {
+	l1ref, err := l.l1BlockRefByHash(ctx, rec.BlockHash)
+	if err != nil {
+		// Set as much data as possible
+		return eth.L1BlockRef{
+			Hash:   rec.BlockHash,
+			Number: rec.BlockNumber.Uint64(),
+		}, err
+	}
+	return l1ref, nil
+}
+
+// l1BlockRefByHash gets the L1BlockRef for the passed L1 block hash. The passed
+// context is assumed to be a lifetime context, so it is internally wrapped with
+// a network timeout.
+func (l *BatchSubmitter) l1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
+	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	defer cancel()
+	head, err := l.cfg.L1Client.HeaderByHash(tctx, hash)
+	if err != nil {
+		return eth.L1BlockRef{}, fmt.Errorf("getting L1 block %v: %w", hash, err)
 	}
 	return eth.L1BlockRefFromHeader(head), nil
 }

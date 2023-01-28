@@ -17,6 +17,9 @@ type (
 	channelBuilder struct {
 		cfg ChannelConfig
 
+		// L1 block timestamp of channel timeout. 0 if no timeout set yet.
+		timeout uint64
+
 		// marked as full if a) max RLP input bytes, b) max num frames or c) max
 		// allowed frame index (uint16) has been reached
 		fullErr error
@@ -67,6 +70,7 @@ func (e *ChannelFullError) Unwrap() error {
 var (
 	ErrInputTargetReached = errors.New("target amount of input data reached")
 	ErrMaxFrameIndex      = errors.New("max frame index reached (uint16)")
+	ErrChannelTimedOut    = errors.New("channel timed out")
 )
 
 // InputThreshold calculates the input data threshold in bytes from the given
@@ -107,7 +111,33 @@ func (c *channelBuilder) Blocks() []*types.Block {
 func (c *channelBuilder) Reset() error {
 	c.blocks = c.blocks[:0]
 	c.frames = c.frames[:0]
+	c.timeout = 0
+	c.fullErr = nil
 	return c.co.Reset()
+}
+
+// FramePublished calculates the timeout of this channel from the given frame
+// inclusion tx timestamp. If an older frame tx has already been seen, the
+// timeout is not updated.
+func (c *channelBuilder) FramePublished(ts uint64) {
+	timeout := ts + c.cfg.ChannelTimeout
+	if c.timeout == 0 || c.timeout > timeout {
+		c.timeout = timeout
+	}
+}
+
+// TimedOut returns whether the passed timestamp is after the channel timeout.
+// If no timeout is set yet, it returns false.
+func (c *channelBuilder) TimedOut(ts uint64) bool {
+	return c.timeout != 0 && ts >= c.timeout
+}
+
+// TriggerTimeout checks if the channel is timed out at the given timestamp and
+// in this case sets the channel as full with reason ErrChannelTimedOut.
+func (c *channelBuilder) TriggerTimeout(ts uint64) {
+	if !c.IsFull() && c.TimedOut(ts) {
+		c.setFullErr(ErrChannelTimedOut)
+	}
 }
 
 // AddBlock adds a block to the channel compression pipeline. IsFull should be
@@ -155,12 +185,14 @@ func (c *channelBuilder) IsFull() bool {
 // FullErr returns the reason why the channel is full. If not full yet, it
 // returns nil.
 //
-// It returns a ChannelFullError wrapping one of three possible reasons for the
+// It returns a ChannelFullError wrapping one of four possible reasons for the
 // channel being full:
 //   - ErrInputTargetReached if the target amount of input data has been reached,
 //   - derive.MaxRLPBytesPerChannel if the general maximum amount of input data
 //     would have been exceeded by the latest AddBlock call,
-//   - ErrMaxFrameIndex if the maximum number of frames has been generated (uint16)
+//   - ErrMaxFrameIndex if the maximum number of frames has been generated
+//     (uint16),
+//   - ErrChannelTimedOut if the batcher channel timeout has been reached.
 func (c *channelBuilder) FullErr() error {
 	return c.fullErr
 }
