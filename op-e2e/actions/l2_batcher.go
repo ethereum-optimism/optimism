@@ -142,7 +142,7 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 		s.l2BufferedBlock = syncStatus.SafeL2.ID()
 		s.l2ChannelOut = nil
 	}
-	if err := s.l2ChannelOut.AddBlock(block); err != nil { // should always succeed
+	if _, err := s.l2ChannelOut.AddBlock(block); err != nil { // should always succeed
 		t.Fatalf("failed to add block to channel: %v", err)
 	}
 	s.l2BufferedBlock = eth.ToBlockID(block)
@@ -168,7 +168,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
-	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {
@@ -218,7 +218,7 @@ func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
 	data.WriteByte(derive.DerivationVersion0)
 
 	// subtract one, to account for the version byte
-	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {

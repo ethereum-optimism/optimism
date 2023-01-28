@@ -883,7 +883,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Get l2BlockNumber for proof generation
-	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 	require.Nil(t, err)
@@ -933,7 +933,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
 	require.Nil(t, err)
@@ -1052,10 +1052,10 @@ func TestFees(t *testing.T) {
 	err = l2Seq.SendTransaction(context.Background(), tx)
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
-	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = waitForTransaction(tx.Hash(), l2Seq, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 

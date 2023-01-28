@@ -25,12 +25,6 @@ type Config struct {
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
-	// MinL1TxSize is the minimum size of a batch tx submitted to L1.
-	MinL1TxSize uint64
-
-	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
-	MaxL1TxSize uint64
-
 	// ChannelTimeout is the maximum amount of time to attempt completing an opened channel,
 	// as opposed to submitting missing blocks in new channels
 	ChannelTimeout uint64
@@ -74,6 +68,19 @@ type Config struct {
 
 	/* Optional Params */
 
+	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
+	MaxL1TxSize uint64
+
+	// TargetL1TxSize is the target size of a batch tx submitted to L1.
+	TargetL1TxSize uint64
+
+	// TargetNumFrames is the target number of frames per channel.
+	TargetNumFrames int
+
+	// ApproxComprRatio is the approximate compression ratio (<= 1.0) of the used
+	// compression algorithm.
+	ApproxComprRatio float64
+
 	LogConfig oplog.CLIConfig
 
 	MetricsConfig opmetrics.CLIConfig
@@ -107,16 +114,20 @@ func (c Config) Check() error {
 func NewConfig(ctx *cli.Context) Config {
 	return Config{
 		/* Required Flags */
-		L1EthRpc:                   ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                   ctx.GlobalString(flags.L2EthRpcFlag.Name),
-		RollupRpc:                  ctx.GlobalString(flags.RollupRpcFlag.Name),
-		MinL1TxSize:                ctx.GlobalUint64(flags.MinL1TxSizeBytesFlag.Name),
+		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
+		ChannelTimeout:            ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
+		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
+		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
+		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
+
+		/* Optional Flags */
 		MaxL1TxSize:                ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		ChannelTimeout:             ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
-		PollInterval:               ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		NumConfirmations:           ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		SafeAbortNonceTooLowCount:  ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
-		ResubmissionTimeout:        ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
+		TargetL1TxSize:             ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
+		TargetNumFrames:            ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:           ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
 		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
 		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),

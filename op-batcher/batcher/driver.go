@@ -152,12 +152,16 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		L2Client:          l2Client,
 		RollupNode:        rollupClient,
 		SyscoinNode:       syscoinClient,
-		MinL1TxSize:       cfg.MinL1TxSize,
-		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
-		ChannelTimeout:    cfg.ChannelTimeout,
-		ChainID:           chainID,
-		PollInterval:      cfg.PollInterval,
+		Channel: ChannelConfig{
+			ChannelTimeout:   cfg.ChannelTimeout,
+			MaxFrameSize:     cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
+			TargetFrameSize:  cfg.TargetL1TxSize - 1, // subtract 1 byte for version
+			TargetNumFrames:  cfg.TargetNumFrames,
+			ApproxComprRatio: cfg.ApproxComprRatio,
+		},
+		ChainID:      chainID,
+		PollInterval: cfg.PollInterval,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -167,7 +171,7 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
 		done:  make(chan struct{}),
 		log:   l,
-		state: NewChannelManager(l, cfg.ChannelTimeout),
+		state: NewChannelManager(l, batcherCfg.Channel),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
@@ -289,7 +293,7 @@ func (l *BatchSubmitter) loop() {
 		blockLoop:
 			for {
 				// Collect the output frame
-				data, id, err := l.state.TxData(eth.L1BlockRef{}, l.cfg.MaxL1TxSize-1)
+				data, id, err := l.state.TxData(eth.L1BlockRef{})
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
