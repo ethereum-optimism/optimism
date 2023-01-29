@@ -5,20 +5,21 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"io"
 )
 
 // BlobDataSource fetches both call-data (backup) and blobs and transforms them into usable rollup data.
 type BlobDataSource struct {
 	open           bool
 	callData       []eth.Data
-	blobDataHashes []IndexedDataHash
+	blobDataHashes []eth.IndexedDataHash
 
 	// TODO: would be nice if there's a L1 API to fetch blobs 1-by-1 to avoid large requests
 	blobs []types.Blob
@@ -69,7 +70,7 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 	}
 	if len(ds.blobDataHashes) > 0 { // check if there is any blob data in this block we have opened.
 		if ds.blobs == nil { // fetch blobs if we haven't already
-			blobs, err := ds.blobsFetcher.BlobsByRefAndIndexedDatahashes(ctx, ds.ref, ds.blobDataHashes)
+			blobs, err := ds.blobsFetcher.BlobsByRefAndIndexedDataHashes(ctx, ds.ref, ds.blobDataHashes)
 			if errors.Is(err, ethereum.NotFound) { // if the L1 block was seen to be available, then the blobs should also be available
 				return nil, NewResetError(fmt.Errorf("failed to find blobs: %w", err))
 			} else if err != nil {
@@ -102,9 +103,9 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 // from transactions that are sent to the batch inbox address from the batch sender address.
 // This will return an empty array if no valid transactions are found.
 // Call-data can be used as fallback in case blobs are overpriced or unstable.
-func BlobDataFromEVMTransactions(config *rollup.Config, batcherAddr common.Address, txs types.Transactions, log log.Logger) ([]eth.Data, []IndexedDataHash) {
+func BlobDataFromEVMTransactions(config *rollup.Config, batcherAddr common.Address, txs types.Transactions, log log.Logger) ([]eth.Data, []eth.IndexedDataHash) {
 	var callData []eth.Data
-	var indexedDataHashes []IndexedDataHash
+	var indexedDataHashes []eth.IndexedDataHash
 	blobIndex := uint64(0)
 	l1Signer := config.L1Signer()
 	for j, tx := range txs {
@@ -123,7 +124,7 @@ func BlobDataFromEVMTransactions(config *rollup.Config, batcherAddr common.Addre
 			}
 			callData = append(callData, tx.Data())
 			for _, h := range tx.DataHashes() {
-				indexedDataHashes = append(indexedDataHashes, IndexedDataHash{
+				indexedDataHashes = append(indexedDataHashes, eth.IndexedDataHash{
 					Index:    blobIndex,
 					DataHash: h,
 				})

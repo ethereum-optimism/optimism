@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -18,15 +19,9 @@ type L1TransactionFetcher interface {
 	InfoAndTxsByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, types.Transactions, error)
 }
 
-type IndexedDataHash struct {
-	Index    uint64      // absolute index in the block, a.k.a. index in sidecar
-	DataHash common.Hash // hash of the blob, used for consistency checks
-	// Might add tx index and/or tx hash here later, depending on blobs API design
-}
-
 type L1BlobsFetcher interface {
-	// BlobsByRefAndIndexedDatahashes fetches blobs that were confirmed in the given L1 block at the given index.
-	BlobsByRefAndIndexedDatahashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []IndexedDataHash) ([]types.Blob, error)
+	// BlobsByRefAndIndexedDataHashes fetches blobs that were confirmed in the given L1 block with the given indexed hashes.
+	BlobsByRefAndIndexedDataHashes(ctx context.Context, ref eth.L1BlockRef, dataHashes []eth.IndexedDataHash) ([]types.Blob, error)
 }
 
 // DataSourceFactory readers raw transactions from a given block & then filters for

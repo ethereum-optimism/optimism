@@ -26,6 +26,11 @@ type L1EndpointSetup interface {
 	Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, kind sources.RPCProviderKind, err error)
 }
 
+type L1BeaconEndpointSetup interface {
+	Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error)
+	Check() error
+}
+
 type L2EndpointConfig struct {
 	L2EngineAddr string // Address of L2 Engine JSON-RPC endpoint to use (engine and eth namespace required)
 
@@ -109,4 +114,39 @@ var _ L1EndpointSetup = (*PreparedL1Endpoint)(nil)
 
 func (p *PreparedL1Endpoint) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, kind sources.RPCProviderKind, err error) {
 	return p.Client, p.TrustRPC, p.RPCProviderKind, nil
+}
+
+type L1BeaconEndpointConfig struct {
+	BeaconAddr string // Address of L1 User Beacon-API endpoint to use (beacon namespace required)
+}
+
+var _ L1BeaconEndpointSetup = (*L1BeaconEndpointConfig)(nil)
+
+func (cfg *L1BeaconEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error) {
+	return client.NewBasicHTTPClient(cfg.BeaconAddr, log), nil
+}
+
+func (cfg *L1BeaconEndpointConfig) Check() error {
+	if cfg.BeaconAddr != "" {
+		return fmt.Errorf("expected beacon address, but got none")
+	}
+	return nil
+}
+
+// PreparedL1BeaconEndpoint enables testing with an in-process pre-setup connection to a beacon node mock
+type PreparedL1BeaconEndpoint struct {
+	Client client.HTTP
+}
+
+var _ L1BeaconEndpointSetup = (*PreparedL1BeaconEndpoint)(nil)
+
+func (p *PreparedL1BeaconEndpoint) Setup(ctx context.Context, log log.Logger) (cl client.HTTP, err error) {
+	return p.Client, nil
+}
+
+func (p *PreparedL1BeaconEndpoint) Check() error {
+	if p.Client == nil {
+		return fmt.Errorf("expected beacon client, but got none")
+	}
+	return nil
 }

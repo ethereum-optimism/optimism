@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"github.com/protolambda/ztyp/view"
 	"math/big"
@@ -114,7 +115,7 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	var rawTx types.TxData
 	var wrapData types.TxWrapData
 	if t.blobTxs {
-		maxLen := 4096*31 - 4
+		maxLen := params.FieldElementsPerBlob*31 - 4
 		if len(data) > maxLen {
 			return nil, fmt.Errorf("data too large for single blob: %d", len(data))
 		}
@@ -159,11 +160,12 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 		blobTxData.Blobs = types.Blobs{blob}
 		commitment, _ := kzgeth.BlobToKZGCommitment(&blob)
 		kzgCommitment := types.KZGCommitment(commitment)
-		blobTxData.BlobKzgs = types.BlobKzgs{}
+		blobTxData.BlobKzgs = types.BlobKzgs{kzgCommitment}
 		proof, _ := kzgeth.ComputeAggregateKZGProof(blobTxData.Blobs)
 		blobTxData.KzgAggregatedProof = types.KZGProof(proof)
 		tx.Message.BlobVersionedHashes = types.VersionedHashesView{kzgCommitment.ComputeVersionedHash()}
 		rawTx = tx
+		wrapData = &blobTxData
 	} else {
 		tx := &types.DynamicFeeTx{
 			ChainID:   t.chainID,

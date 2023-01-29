@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -39,6 +40,8 @@ type OpNode struct {
 	p2pSigner p2p.Signer            // p2p gogssip application messages will be signed with this signer
 	tracer    Tracer                // tracer to get events for testing/debugging
 	runCfg    *RuntimeConfig        // runtime configurables
+
+	beacon *sources.L1BeaconClient
 
 	l1BlobsSource derive.L1BlobsFetcher
 
@@ -83,7 +86,7 @@ func (n *OpNode) init(ctx context.Context, cfg *Config, snapshotLog log.Logger) 
 	if err := n.initL1(ctx, cfg); err != nil {
 		return err
 	}
-	if err := n.initL1BlobsFetcher(ctx, cfg); err != nil {
+	if err := n.initL1BeaconAPI(ctx, cfg); err != nil {
 		return err
 	}
 	if err := n.initRuntimeConfig(ctx, cfg); err != nil {
@@ -154,12 +157,6 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 	return nil
 }
 
-func (n *OpNode) initL1BlobsFetcher(ctx context.Context, cfg *Config) error {
-	// TODO
-	// implement client
-	return nil
-}
-
 func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	// attempt to load runtime config, repeat N times
 	n.runCfg = NewRuntimeConfig(n.log, n.l1Source, &cfg.Rollup)
@@ -185,6 +182,18 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 	}
 
 	return errors.New("failed to load runtime configuration repeatedly")
+}
+
+func (n *OpNode) initL1BeaconAPI(ctx context.Context, cfg *Config) error {
+	httpClient, err := cfg.Beacon.Setup(ctx, n.log)
+	if err != nil {
+		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
+	}
+
+	// TODO: wrap http client with metrics
+	n.beacon = sources.NewL1BeaconClient(httpClient)
+
+	return nil
 }
 
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
