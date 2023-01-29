@@ -69,6 +69,8 @@ type Config struct {
 
 	RPCConfig oprpc.CLIConfig
 
+	BlobTxs bool
+
 	/* Optional Params */
 
 	LogConfig oplog.CLIConfig
@@ -112,6 +114,7 @@ func NewConfig(ctx *cli.Context) Config {
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
 		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
+		BlobTxs:                    ctx.GlobalBoolT(flags.BlobTxsFlag.Name),
 		RPCConfig:                  oprpc.ReadCLIConfig(ctx),
 		LogConfig:                  oplog.ReadCLIConfig(ctx),
 		MetricsConfig:              opmetrics.ReadCLIConfig(ctx),

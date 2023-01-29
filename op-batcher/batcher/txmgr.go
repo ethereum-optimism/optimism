@@ -2,7 +2,10 @@ package batcher
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
+	"github.com/holiman/uint256"
+	"github.com/protolambda/ztyp/view"
 	"math/big"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	kzgeth "github.com/protolambda/go-kzg/eth"
 )
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
@@ -24,6 +28,7 @@ type TransactionManager struct {
 	batchInboxAddress common.Address
 	senderAddress     common.Address
 	chainID           *big.Int
+	blobTxs           bool
 	// Outside world
 	txMgr    txmgr.TxManager
 	l1Client *ethclient.Client
@@ -31,12 +36,13 @@ type TransactionManager struct {
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, blobTxs bool, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
 		txMgr:             txmgr.NewSimpleTxManager("batcher", txMgrConfg, l1Client),
+		blobTxs:           blobTxs,
 		l1Client:          l1Client,
 		signerFn:          signerFn,
 		log:               log,
@@ -105,25 +111,88 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   t.chainID,
-		Nonce:     nonce,
-		To:        &t.batchInboxAddress,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Data:      data,
-	}
-	t.log.Info("creating tx", "to", rawTx.To, "from", t.senderAddress)
+	var rawTx types.TxData
+	var wrapData types.TxWrapData
+	if t.blobTxs {
+		maxLen := 4096*31 - 4
+		if len(data) > maxLen {
+			return nil, fmt.Errorf("data too large for single blob: %d", len(data))
+		}
+		gasTipCapU256, _ := uint256.FromBig(gasTipCap)
+		gasFeeCapU256, _ := uint256.FromBig(gasFeeCap)
+		chainIDU256, _ := uint256.FromBig(t.chainID)
 
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		gas, err := core.IntrinsicGas(nil, nil, false, true, true, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		}
+
+		tx := &types.SignedBlobTx{
+			Message: types.BlobTxMessage{
+				ChainID:             *(*view.Uint256View)(chainIDU256),
+				Nonce:               view.Uint64View(nonce),
+				GasTipCap:           *(*view.Uint256View)(gasTipCapU256),
+				GasFeeCap:           *(*view.Uint256View)(gasFeeCapU256),
+				Gas:                 view.Uint64View(gas),
+				To:                  types.AddressOptionalSSZ{Address: (*types.AddressSSZ)(&t.batchInboxAddress)},
+				Value:               view.Uint256View{},
+				Data:                nil,
+				AccessList:          nil,
+				MaxFeePerDataGas:    view.Uint256View(*uint256.NewInt(1000)), // TODO hardcoded fee per data gas
+				BlobVersionedHashes: nil,
+			},
+			Signature: types.ECDSASignature{}, // to be signed later
+		}
+		blobTxData := types.BlobTxWrapData{}
+		blob := types.Blob{}
+		blobData := make([]byte, 4, len(data)+4)
+		binary.LittleEndian.PutUint32(blobData[:], uint32(len(data)))
+		blobData = append(blobData, data...)
+		for i := 0; i < len(blob); i++ {
+			incr := 31
+			if len(data) < incr {
+				incr = len(blobData)
+			}
+			copy(blob[i][:31], blobData[:incr]) // little-endian, not using top byte because of field-elem range
+			blobData = blobData[incr:]
+		}
+		blobTxData.Blobs = types.Blobs{blob}
+		commitment, _ := kzgeth.BlobToKZGCommitment(&blob)
+		kzgCommitment := types.KZGCommitment(commitment)
+		blobTxData.BlobKzgs = types.BlobKzgs{}
+		proof, _ := kzgeth.ComputeAggregateKZGProof(blobTxData.Blobs)
+		blobTxData.KzgAggregatedProof = types.KZGProof(proof)
+		tx.Message.BlobVersionedHashes = types.VersionedHashesView{kzgCommitment.ComputeVersionedHash()}
+		rawTx = tx
+	} else {
+		tx := &types.DynamicFeeTx{
+			ChainID:   t.chainID,
+			Nonce:     nonce,
+			To:        &t.batchInboxAddress,
+			GasTipCap: gasTipCap,
+			GasFeeCap: gasFeeCap,
+			Data:      data,
+		}
+		t.log.Info("creating tx", "to", tx.To, "from", t.senderAddress)
+
+		gas, err := core.IntrinsicGas(tx.Data, nil, false, true, true, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		}
+		tx.Gas = gas
+		rawTx = tx
 	}
-	rawTx.Gas = gas
 
 	ctx, cancel = context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	return t.signerFn(ctx, rawTx)
+	tx, err := t.signerFn(ctx, rawTx)
+	if err != nil {
+		return nil, err
+	}
+	if wrapData != nil {
+		types.WithTxWrapData(wrapData)(tx) // TODO abusing option pattern here since signer function doesn't have tx options
+	}
+	return tx, nil
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with

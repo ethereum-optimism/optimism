@@ -156,6 +156,7 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) initL1BlobsFetcher(ctx context.Context, cfg *Config) error {
 	// TODO
+	// implement client
 	return nil
 }
 

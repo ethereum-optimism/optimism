@@ -103,6 +103,12 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
 	}
+	BlobTxsFlag = cli.BoolFlag{
+		Name:     "blob-txs",
+		Usage:    "Enable blob transactions",
+		Required: false,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "BLOB_TXS"),
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -123,6 +129,7 @@ var optionalFlags = []cli.Flag{
 	MnemonicFlag,
 	SequencerHDPathFlag,
 	PrivateKeyFlag,
+	BlobTxsFlag,
 }
 
 func init() {

@@ -159,7 +159,7 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 	return &BatchSubmitter{
 		cfg:   batcherCfg,
 		addr:  addr,
-		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
+		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, cfg.BlobTxs, chainID, addr, l1Client, signer(chainID)),
 		done:  make(chan struct{}),
 		log:   l,
 		state: NewChannelManager(l, cfg.ChannelTimeout),

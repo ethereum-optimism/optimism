@@ -8,6 +8,9 @@ require (
 	github.com/ethereum-optimism/optimism/op-proposer v0.10.10
 	github.com/ethereum-optimism/optimism/op-service v0.10.10
 	github.com/ethereum/go-ethereum v1.10.26
+	github.com/holiman/uint256 v1.2.1
+	github.com/protolambda/go-kzg v0.0.0-20221224134646-c91cee5e954e
+	github.com/protolambda/ztyp v0.2.2
 	github.com/urfave/cli v1.22.9
 )
 
@@ -37,12 +40,13 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
+	github.com/herumi/bls-eth-go-binary v1.28.1 // indirect
 	github.com/holiman/big v0.0.0-20221017200358-a027dc42d04e // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
-	github.com/holiman/uint256 v1.2.0 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
 	github.com/ipfs/go-cid v0.3.2 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
+	github.com/kilic/bls12-381 v0.1.1-0.20220929213557-ca162e8a70f4 // indirect
 	github.com/klauspost/cpuid/v2 v2.1.1 // indirect
 	github.com/libp2p/go-buffer-pool v0.1.0 // indirect
 	github.com/libp2p/go-flow-metrics v0.1.0 // indirect

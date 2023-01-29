@@ -2,6 +2,7 @@ package derive
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -83,6 +84,12 @@ func (ds *BlobDataSource) Next(ctx context.Context) (eth.Data, error) {
 			// field elems are little endian uint256 in BLS modulus range, thus can't full use the last byte each
 			for j, fieldElem := range blob {
 				copy(data[j*31:], fieldElem[:31])
+			}
+			// TODO better versioning of blob data extraction method
+			datLen := binary.LittleEndian.Uint32(data[:4])
+			data = data[4:]
+			if datLen < uint32(len(data)) {
+				data = data[:datLen]
 			}
 			ds.blobs = ds.blobs[1:]
 			return data, nil
