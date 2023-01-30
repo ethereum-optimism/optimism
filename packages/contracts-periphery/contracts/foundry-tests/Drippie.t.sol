@@ -154,6 +154,12 @@ contract Drippie_Test is Test {
         vm.expectEmit(true, true, true, true);
         emit DripCreated(dripName, dripName, cfg);
 
+        if (cfg.reentrant) {
+            assertEq(cfg.interval, 0);
+        } else {
+            assertTrue(cfg.interval > 0);
+        }
+
         vm.prank(drippie.owner());
         drippie.create(dripName, cfg);
 
@@ -567,5 +573,56 @@ contract Drippie_Test is Test {
         vm.expectRevert("Drippie: selected drip does not exist or is not currently active");
 
         drippie.drip(dripName);
+    }
+
+    /**
+     * @notice The interval must be 0 if reentrant is set on the config.
+     */
+    function test_reentrant_succeeds() external {
+        address owner = drippie.owner();
+        Drippie.DripConfig memory cfg = _defaultConfig();
+        cfg.reentrant = true;
+        cfg.interval = 0;
+
+        vm.prank(owner);
+        vm.expectEmit(true, true, true, true, address(drippie));
+        emit DripCreated(dripName, dripName, cfg);
+        drippie.create(dripName, cfg);
+
+        Drippie.DripConfig memory _cfg = drippie.dripConfig(dripName);
+        assertEq(_cfg.reentrant, true);
+        assertEq(_cfg.interval, 0);
+    }
+
+    /**
+     * @notice A non zero interval when reentrant is true will cause a revert
+     *         when creating a drip.
+     */
+    function test_reentrant_fails() external {
+        address owner = drippie.owner();
+        Drippie.DripConfig memory cfg = _defaultConfig();
+        cfg.reentrant = true;
+        cfg.interval = 1;
+
+        vm.prank(owner);
+
+        vm.expectRevert("Drippie: if allowing reentrant drip, must set interval to zero");
+        drippie.create(dripName, cfg);
+    }
+
+    /**
+     * @notice If reentrant is false and the interval is 0 then it should
+     *         revert when the drip is created.
+     */
+    function test_non_reentrant_zero_interval_fails() external {
+        address owner = drippie.owner();
+        Drippie.DripConfig memory cfg = _defaultConfig();
+        cfg.reentrant = false;
+        cfg.interval = 0;
+
+        vm.prank(owner);
+
+        vm.expectRevert("Drippie: interval must be greater than zero if drip is not reentrant");
+        drippie.create(dripName, cfg);
     }
 }
