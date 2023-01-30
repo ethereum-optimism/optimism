@@ -25,7 +25,7 @@
       "changeProcessCWD": true
     },
     {
-      "directory": "packages/drippie-mon",
+      "directory": "packages/chain-mon",
       "changeProcessCWD": true
     },
     {
