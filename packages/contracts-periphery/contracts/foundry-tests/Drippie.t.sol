@@ -194,7 +194,9 @@ contract Drippie_Test is Test {
     /**
      * @notice Ensures that only the owner of Drippie can create a drip.
      */
-    function test_fails_unauthorized() external {
+    function testFuzz_fails_unauthorized(address caller) external {
+        vm.assume(caller != drippie.owner());
+        vm.prank(caller);
         vm.expectRevert("UNAUTHORIZED");
         drippie.create(dripName, _defaultConfig());
     }
@@ -437,6 +439,8 @@ contract Drippie_Test is Test {
             abi.encodeWithSelector(SimpleStorage.set.selector, key, value)
         );
 
+        vm.expectEmit(true, true, true, true, address(drippie));
+        emit DripExecuted(dripName, dripName, address(this), block.timestamp);
         drippie.drip(dripName);
 
         assertEq(simpleStorage.get(key), value);
@@ -492,6 +496,8 @@ contract Drippie_Test is Test {
             abi.encodeWithSelector(SimpleStorage.set.selector, keyTwo, valueTwo)
         );
 
+        vm.expectEmit(true, true, true, true, address(drippie));
+        emit DripExecuted(dripName, dripName, address(this), block.timestamp);
         drippie.drip(dripName);
 
         assertEq(simpleStorage.get(keyOne), valueOne);
@@ -524,7 +530,7 @@ contract Drippie_Test is Test {
 
         _warpToExecutable(dripName);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, address(drippie));
         emit DripExecuted({
             nameref: dripName,
             name: dripName,
