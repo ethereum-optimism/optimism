@@ -26,7 +26,7 @@
 
 ## Overview
 
-[Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy] exist on Optimism
+[Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy) exist on Optimism
 at predetermined addresses in the genesis state. They are  similar to precompiles but instead run
 directly in the EVM instead of running  native code outside of the EVM.
 

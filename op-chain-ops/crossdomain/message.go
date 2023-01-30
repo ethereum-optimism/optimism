@@ -72,6 +72,12 @@ func (c *CrossDomainMessage) Hash() (common.Hash, error) {
 	}
 }
 
+// HashV1 forces using the V1 hash even if its a legacy hash. This is used
+// for the migration process.
+func (c *CrossDomainMessage) HashV1() (common.Hash, error) {
+	return HashCrossDomainMessageV1(c.Nonce, c.Sender, c.Target, c.Value, c.GasLimit, c.Data)
+}
+
 // ToWithdrawal will turn a CrossDomainMessage into a Withdrawal.
 // This only works for version 0 CrossDomainMessages as not all of
 // the data is present for version 1 CrossDomainMessages to be turned

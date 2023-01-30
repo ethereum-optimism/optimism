@@ -146,12 +146,16 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		L1Client:          l1Client,
 		L2Client:          l2Client,
 		RollupNode:        rollupClient,
-		MinL1TxSize:       cfg.MinL1TxSize,
-		MaxL1TxSize:       cfg.MaxL1TxSize,
 		BatchInboxAddress: batchInboxAddress,
-		ChannelTimeout:    cfg.ChannelTimeout,
-		ChainID:           chainID,
-		PollInterval:      cfg.PollInterval,
+		Channel: ChannelConfig{
+			ChannelTimeout:   cfg.ChannelTimeout,
+			MaxFrameSize:     cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
+			TargetFrameSize:  cfg.TargetL1TxSize - 1, // subtract 1 byte for version
+			TargetNumFrames:  cfg.TargetNumFrames,
+			ApproxComprRatio: cfg.ApproxComprRatio,
+		},
+		ChainID:      chainID,
+		PollInterval: cfg.PollInterval,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -162,7 +166,7 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
 		done:  make(chan struct{}),
 		log:   l,
-		state: NewChannelManager(l, cfg.ChannelTimeout),
+		state: NewChannelManager(l, batcherCfg.Channel),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
