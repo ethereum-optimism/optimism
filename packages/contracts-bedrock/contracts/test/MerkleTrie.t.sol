@@ -4,7 +4,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 import { MerkleTrie } from "../libraries/trie/MerkleTrie.sol";
 
-contract MerkleTrie_Test is CommonTest {
+contract MerkleTrie_get_Test is CommonTest {
     function setUp() public {
         _setUp();
     }
