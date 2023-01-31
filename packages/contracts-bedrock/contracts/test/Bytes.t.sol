@@ -132,7 +132,7 @@ contract Bytes_toNibbles_Test is Test {
      *
      * @return Yul version of `toNibbles` applied to `_bytes`.
      */
-    function toNibblesYul(bytes memory _bytes) internal pure returns (bytes memory) {
+    function _toNibblesYul(bytes memory _bytes) internal pure returns (bytes memory) {
         // Allocate memory for the `nibbles` array.
         bytes memory nibbles = new bytes(_bytes.length << 1);
 
