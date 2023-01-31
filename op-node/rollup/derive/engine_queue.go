@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -371,54 +370,6 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 			eq.log.Info("skipping unsafe payload, since it does not build onto the existing unsafe chain", "safe", eq.safeHead.ID(), "unsafe", first.ID(), "payload", first.ID())
 			eq.unsafePayloads.Pop()
 		}
-
-		// Request the payload that builds upon the current unsafe head from the fallback RPC.
-		// This is a temporary alternative sync method- in the future, this will be done over the p2p network.
-		if eq.cfg.BackupL2UnsafeSyncRPC != "" {
-			eq.log.Info("requesting unsafe payload from backup RPC", "unsafe head", eq.unsafeHead.ID(), "first unsafe payload", first.ID(), "backup rpc", eq.cfg.BackupL2UnsafeSyncRPC)
-			// TODO: Create a client for the backup RPC and request the payload from the backup sync RPC via the `eth_getBlockByNumber` method.
-			// Once the payload has been received, verify its integrity and push it into the priority queue.
-
-			// TODO: Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
-			// the `eth_getBlockByNumber` method is more widely available.
-
-			// Dial the backup unsafe sync RPC.
-			// TODO: Should this request block this thread (with a reasonable timeout) so that we can attempt to continue when the payload
-			// has been received and pushed into the priority queue? Or should it be made concurrently?
-			client, err := rpc.DialHTTP(eq.cfg.BackupL2UnsafeSyncRPC)
-			if err != nil {
-				return NewTemporaryError(fmt.Errorf("failed to dial backup unsafe sync RPC: %w", err))
-			}
-
-			// Fetch the next unsafe block from the backup unsafe sync RPC.
-			var block *types.Block
-			timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			defer cancel()
-			if err = client.CallContext(timeoutCtx, &block, "eth_getBlockByNumber", eq.unsafeHead.Number+1); err != nil {
-				return NewTemporaryError(fmt.Errorf("failed to get next unsafe block from backup unsafe sync RPC: %w", err))
-			}
-
-			// Convert the received block to a `eth.ExecutionPayload`.
-			payload, err := eth.BlockAsPayload(block)
-			if err != nil {
-				return NewTemporaryError(fmt.Errorf("failed to convert block to execution payload: %w", err))
-			}
-
-			// TODO: Validate the integrity of the payload.
-			if _, ok := payload.CheckBlockHash(); !ok {
-				return NewTemporaryError(fmt.Errorf("received invalid payload from backup unsafe sync RPC; invalid block hash"))
-			}
-
-			eq.log.Info("received unsafe payload from backup RPC", "payload", payload.ID(), "backup rpc", eq.cfg.BackupL2UnsafeSyncRPC)
-
-			// Add the received execution payload to the unsafe payload priority queue.
-			eq.AddUnsafePayload(payload)
-
-			eq.log.Info("inserted received unsafe payload into priority queue", "payload", payload.ID(), "backup rpc", eq.cfg.BackupL2UnsafeSyncRPC)
-
-			// TODO: Should we attempt to continue here, or wait for the next iteration of the state loop and still return EOF?
-		}
-
 		return io.EOF // time to go to next stage if we cannot process the first unsafe payload
 	}
 
@@ -710,4 +661,25 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.metrics.RecordL2Ref("l2_unsafe", unsafe)
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
+}
+
+// GetUnsafeQueueGap retrieves the current size, start, and end of the gap between the tip of the unsafe priority queue and the unsafe head.
+// If there is no gap, all values will be 0.
+// Note: The range returned by this function is *inclusive*.
+func (eq *EngineQueue) GetUnsafeQueueGap() (size uint64, start uint64, end uint64) {
+	first := eq.unsafePayloads.Peek()
+
+	// If the parent hash of the first unsafe payload does not match the current unsafe head, then there is a gap.
+	if first.ParentHash != eq.unsafeHead.Hash {
+		// The gap starts at the unsafe head + 1
+		start = eq.unsafeHead.Number + 1
+		// The gap ends at the parent block of the first unsafe payload in the priority queue.
+		end = first.ID().Number - 1
+		// The size of the gap is the difference between the exclusive end and inclusive start.
+		size = first.ID().Number - start
+
+		return size, start, end
+	} else {
+		return 0, 0, 0
+	}
 }

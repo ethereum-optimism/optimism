@@ -48,6 +48,7 @@ type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	GetUnsafeQueueGap() (uint64, uint64, uint64)
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
