@@ -232,59 +232,9 @@ func (s *Driver) eventLoop() {
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		// TODO: Should this be lower-priority in the switch case?
 		case <-altSyncTicker.C:
-			size, start, end := s.derivation.GetUnsafeQueueGap()
-
-			// If there is a gap in the queue and a backup sync RPC is configured, attempt to retrieve the missing payloads from the backup RPC
-			if size > 0 && s.config.BackupL2UnsafeSyncRPC != "" {
-				// Dial the backup unsafe sync RPC.
-				client, err := rpc.DialHTTP(s.config.BackupL2UnsafeSyncRPC)
-				if err != nil {
-					s.log.Warn("failed to dial backup unsafe sync RPC", "backup rpc", s.config.BackupL2UnsafeSyncRPC, "err", err)
-					continue
-				}
-
-				// Attempt to fetch the missing payloads from the backup unsafe sync RPC concurrently.
-				// Concurrent requests are safe here due to the engine queue being a priority queue.
-				// TODO: Should enforce a max gap size to prevent spamming the backup RPC or being rate limited.
-				for i := start; i <= end; i++ {
-					go func(blockNumber uint64) {
-						s.log.Info("requesting unsafe payload from backup RPC", "block number", blockNumber, "backup rpc", s.config.BackupL2UnsafeSyncRPC)
-
-						// TODO: Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
-						// the `eth_getBlockByNumber` method is more widely available.
-
-						// Fetch the next unsafe block from the backup unsafe sync RPC.
-						var block *types.Block
-						timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-						defer cancel()
-						if err = client.CallContext(timeoutCtx, &block, "eth_getBlockByNumber", blockNumber); err != nil {
-							s.log.Warn("failed to retireve unsafe payload from backup RPC", "block number", blockNumber, "backup rpc", s.config.BackupL2UnsafeSyncRPC, "err", err)
-							return
-						}
-
-						// Convert the received block to a `eth.ExecutionPayload`.
-						payload, err := eth.BlockAsPayload(block)
-						if err != nil {
-							s.log.Warn("failed to convert block to execution payload", "block number", blockNumber, "backup rpc", s.config.BackupL2UnsafeSyncRPC, "err", err)
-							return
-						}
-
-						// TODO: Validate the integrity of the payload.
-						// Signature validation is not necessary here since the backup RPC is trusted. (?)
-						if _, ok := payload.CheckBlockHash(); !ok {
-							s.log.Warn("received invalid payload from backup RPC; invalid block hash", "payload", payload.ID(), "backup rpc", s.config.BackupL2UnsafeSyncRPC)
-							return
-						}
-
-						s.log.Info("received unsafe payload from backup RPC", "payload", payload.ID(), "backup rpc", s.config.BackupL2UnsafeSyncRPC)
-
-						// Send the retrieved payload to the `unsafeL2Payloads` channel.
-						s.unsafeL2Payloads <- payload
-
-						s.log.Info("inserted received unsafe payload into priority queue", "payload", payload.ID(), "backup rpc", s.config.BackupL2UnsafeSyncRPC)
-					}(i)
-				}
-			}
+			// Check if there is a gap in the current unsafe payload queue. If there is, attempt to fetch
+			// missing payloads from the backup RPC (if it is configured).
+			s.checkForGapInUnsafeQueue(ctx)
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
@@ -503,4 +453,66 @@ type hashAndError struct {
 type hashAndErrorChannel struct {
 	hash common.Hash
 	err  chan error
+}
+
+// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from the backup RPC.
+// WARNING: This function fails silently (aside from warning logs).
+func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) {
+	start, end := s.derivation.GetUnsafeQueueGap()
+	size := end - start
+
+	// If there is a gap in the queue and a backup sync RPC is configured, attempt to retrieve the missing payloads from the backup RPC
+	if size > 0 && s.config.BackupL2UnsafeSyncRPC != "" {
+		// Dial the backup unsafe sync RPC.
+		client, err := rpc.DialHTTP(s.config.BackupL2UnsafeSyncRPC)
+		if err != nil {
+			s.log.Warn("failed to dial backup unsafe sync RPC", "backup rpc", s.config.BackupL2UnsafeSyncRPC, "err", err)
+		}
+
+		// Attempt to fetch the missing payloads from the backup unsafe sync RPC concurrently.
+		// Concurrent requests are safe here due to the engine queue being a priority queue.
+		// TODO: Should enforce a max gap size to prevent spamming the backup RPC or being rate limited.
+		for blockNumber := start; blockNumber < end; blockNumber++ {
+			go s.fetchUnsafeBlockFromRpc(ctx, blockNumber, client)
+		}
+	}
+}
+
+// fetchUnsafeBlockFromRpc attempts to fetch an unsafe execution payload from the backup unsafe sync RPC.
+// WARNING: This function fails silently (aside from warning logs).
+func (s *Driver) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64, client *rpc.Client) {
+	s.log.Info("requesting unsafe payload from backup RPC", "block number", blockNumber, "backup rpc", s.config.BackupL2UnsafeSyncRPC)
+
+	// TODO: Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
+	// the `eth_getBlockByNumber` method is more widely available.
+
+	// Fetch the next unsafe block from the backup unsafe sync RPC.
+	var block *types.Block
+	timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+	defer cancel()
+	if err := client.CallContext(timeoutCtx, &block, "eth_getBlockByNumber", blockNumber); err != nil {
+		s.log.Warn("failed to retrieve unsafe payload from backup RPC", "block number", blockNumber, "backup rpc", s.config.BackupL2UnsafeSyncRPC, "err", err)
+		return
+	}
+
+	// Convert the received block to a `eth.ExecutionPayload`.
+	payload, err := eth.BlockAsPayload(block)
+	if err != nil {
+		s.log.Warn("failed to convert block to execution payload", "block number", blockNumber, "backup rpc", s.config.BackupL2UnsafeSyncRPC, "err", err)
+		return
+	}
+
+	// TODO: Validate the integrity of the payload.
+	// Signature validation is not necessary here since the backup RPC is trusted. (?)
+	if _, ok := payload.CheckBlockHash(); !ok {
+		s.log.Warn("received invalid payload from backup RPC; invalid block hash", "payload", payload.ID(), "backup rpc", s.config.BackupL2UnsafeSyncRPC)
+		return
+	}
+
+	s.log.Info("received unsafe payload from backup RPC", "payload", payload.ID(), "backup rpc", s.config.BackupL2UnsafeSyncRPC)
+
+	// Send the retrieved payload to the `unsafeL2Payloads` channel.
+	s.unsafeL2Payloads <- payload
+
+	s.log.Info("inserted received unsafe payload into priority queue", "payload", payload.ID(), "backup rpc", s.config.BackupL2UnsafeSyncRPC)
 }

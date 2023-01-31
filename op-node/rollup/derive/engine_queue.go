@@ -663,23 +663,20 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	return io.EOF
 }
 
-// GetUnsafeQueueGap retrieves the current size, start, and end of the gap between the tip of the unsafe priority queue and the unsafe head.
-// If there is no gap, all values will be 0.
-// Note: The range returned by this function is *inclusive*.
-func (eq *EngineQueue) GetUnsafeQueueGap() (size uint64, start uint64, end uint64) {
+// GetUnsafeQueueGap retrieves the current [start, end) range of the gap between the tip of the unsafe priority queue and the unsafe head.
+// If there is no gap, the start and end will be 0.
+func (eq *EngineQueue) GetUnsafeQueueGap() (start uint64, end uint64) {
 	first := eq.unsafePayloads.Peek()
 
 	// If the parent hash of the first unsafe payload does not match the current unsafe head, then there is a gap.
 	if first.ParentHash != eq.unsafeHead.Hash {
 		// The gap starts at the unsafe head + 1
 		start = eq.unsafeHead.Number + 1
-		// The gap ends at the parent block of the first unsafe payload in the priority queue.
-		end = first.ID().Number - 1
-		// The size of the gap is the difference between the exclusive end and inclusive start.
-		size = first.ID().Number - start
+		// The gap ends at the parent block of the first unsafe payload in the priority queue, but we return the exclusive bound.
+		end = first.ID().Number
 
-		return size, start, end
+		return start, end
 	} else {
-		return 0, 0, 0
+		return 0, 0
 	}
 }
