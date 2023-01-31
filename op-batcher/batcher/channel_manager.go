@@ -211,7 +211,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 		return nil, txID{}, err
 	}
 
-	s.pendingChannel.TriggerTimeout(l1Head.Time)
+	s.triggerTimeout(l1Head)
 
 	if err := s.addBlocks(); err != nil {
 		return nil, txID{}, err
@@ -237,6 +237,16 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
 	s.log.Info("Created channel", "chID", cb.ID(), "l1Head", l1Head)
 
 	return nil
+}
+
+func (s *channelManager) triggerTimeout(l1Head eth.L1BlockRef) {
+	s.pendingChannel.TriggerTimeout(l1Head.Time)
+	ferr := s.pendingChannel.FullErr()
+	s.log.Debug("timeout triggered",
+		"l1Head", l1Head,
+		"timed_out", errors.Is(ferr, ErrChannelTimedOut),
+		"full_reason", ferr,
+	)
 }
 
 // addBlocks adds blocks from the blocks queue to the pending channel until
