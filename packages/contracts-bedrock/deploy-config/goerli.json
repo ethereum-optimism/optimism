@@ -3,7 +3,7 @@
   "finalSystemOwner": "0x48ab1cE92e1ea9713AdDeA668E146f575D60954e",
   "controller": "0x48ab1cE92e1ea9713AdDeA668E146f575D60954e",
 
-  "l1StartingBlockTag": "0xdab9765fc86c4ab0552664360f369a5612079b59f0efdde73b558307dd85bb82",
+  "l1StartingBlockTag": "0x4b4ce648279918a03cc38f45bf049bb390c17bca9d70094366e6158d5e2eaccb",
   "l1ChainID": 5700,
   "l2ChainID": 57000,
   "l2BlockTime": 2,
@@ -12,13 +12,13 @@
 
   "maxSequencerDrift": 1500,
   "finalizationPeriodSeconds": 1500,
-  "sequencerWindowSize": 12,
-  "channelTimeout": 12,
+  "sequencerWindowSize": 288,
+  "channelTimeout": 24,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "batchInboxAddress": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
 
-  "l2OutputOracleSubmissionInterval": 18000,
+  "l2OutputOracleSubmissionInterval": 1500,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
