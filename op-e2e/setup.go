@@ -522,7 +522,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// Batch Submitter
-	sys.BatchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
+	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
