@@ -36,6 +36,11 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
+	// If the backup sync RPC flag is set, then use it over the value present in the config file.
+	if backupSyncRPC := ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name); backupSyncRPC != "" {
+		rollupConfig.BackupL2UnsafeSyncRPC = backupSyncRPC
+	}
+
 	driverConfig, err := NewDriverConfig(ctx)
 	if err != nil {
 		return nil, err
