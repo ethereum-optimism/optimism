@@ -666,10 +666,8 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 // GetUnsafeQueueGap retrieves the current [start, end) range of the gap between the tip of the unsafe priority queue and the unsafe head.
 // If there is no gap, the start and end will be 0.
 func (eq *EngineQueue) GetUnsafeQueueGap() (start uint64, end uint64) {
-	first := eq.unsafePayloads.Peek()
-
 	// If the parent hash of the first unsafe payload does not match the current unsafe head, then there is a gap.
-	if first.ParentHash != eq.unsafeHead.Hash {
+	if first := eq.unsafePayloads.Peek(); first != nil && first.ParentHash != eq.unsafeHead.Hash {
 		// The gap starts at the unsafe head + 1
 		start = eq.unsafeHead.Number + 1
 		// The gap ends at the parent block of the first unsafe payload in the priority queue, but we return the exclusive bound.
