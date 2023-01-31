@@ -244,7 +244,7 @@ contract L2StandardBridge_BridgeERC20_Test is PreBridgeERC20 {
     // - emits WithdrawalInitiated
     // - calls Withdrawer.initiateWithdrawal
     function test_withdraw_withdrawingERC20_succeeds() external {
-        _preBridgeERC20(true);
+        _preBridgeERC20({ isLegacy: true });
         L2Bridge.withdraw(address(L2Token), 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
@@ -255,7 +255,7 @@ contract L2StandardBridge_BridgeERC20_Test is PreBridgeERC20 {
     // - emits WithdrawalInitiated
     // - calls Withdrawer.initiateWithdrawal
     function test_bridgeERC20_succeeds() external {
-        _preBridgeERC20(false);
+        _preBridgeERC20({ isLegacy: false });
         L2Bridge.bridgeERC20(address(L2Token), address(L1Token), 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
@@ -395,7 +395,7 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
     // - emits WithdrawalInitiated w/ correct recipient
     // - calls Withdrawer.initiateWithdrawal
     function test_withdrawTo_withdrawingERC20_succeeds() external {
-        _preBridgeERC20To(true);
+        _preBridgeERC20To({ isLegacy: true });
         L2Bridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
@@ -406,7 +406,7 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
     // - emits WithdrawalInitiated w/ correct recipient
     // - calls Withdrawer.initiateWithdrawal
     function test_bridgeERC20To_succeeds() external {
-        _preBridgeERC20To(false);
+        _preBridgeERC20To({ isLegacy: false });
         L2Bridge.bridgeERC20To(address(L2Token), address(L1Token), bob, 100, 1000, hex"");
         assertEq(L2Token.balanceOf(alice), 0);
     }

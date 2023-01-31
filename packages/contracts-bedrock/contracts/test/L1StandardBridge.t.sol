@@ -172,7 +172,7 @@ contract L1StandardBridge_DepositETH_Test is PreBridgeETH {
     // - only EOA
     // - ETH ends up in the optimismPortal
     function test_depositETH_succeeds() external {
-        _preBridgeETH(true);
+        _preBridgeETH({ isLegacy: true });
         L1Bridge.depositETH{ value: 500 }(50000, hex"dead");
         assertEq(address(op).balance, 500);
     }
@@ -186,7 +186,7 @@ contract L1StandardBridge_BridgeETH_Test is PreBridgeETH {
     // - only EOA
     // - ETH ends up in the optimismPortal
     function test_bridgeETH_succeeds() external {
-        _preBridgeETH(false);
+        _preBridgeETH({ isLegacy: false });
         L1Bridge.bridgeETH{ value: 500 }(50000, hex"dead");
         assertEq(address(op).balance, 500);
     }
@@ -305,7 +305,7 @@ contract L1StandardBridge_DepositETHTo_Test is PreBridgeETHTo {
     // - EOA or contract can call
     // - ETH ends up in the optimismPortal
     function test_depositETHTo_succeeds() external {
-        _preBridgeETHTo(true);
+        _preBridgeETHTo({ isLegacy: true });
         L1Bridge.depositETHTo{ value: 600 }(bob, 60000, hex"dead");
         assertEq(address(op).balance, 600);
     }
@@ -319,7 +319,7 @@ contract L1StandardBridge_BridgeETHTo_Test is PreBridgeETHTo {
     // - only EOA
     // - ETH ends up in the optimismPortal
     function test_bridgeETHTo_succeeds() external {
-        _preBridgeETHTo(false);
+        _preBridgeETHTo({ isLegacy: false });
         L1Bridge.bridgeETHTo{ value: 600 }(bob, 60000, hex"dead");
         assertEq(address(op).balance, 600);
     }
