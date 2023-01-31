@@ -18,11 +18,11 @@ type MockL1OriginSelector struct {
 	originOverride eth.L1BlockRef // override which origin gets picked
 }
 
-func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
 	if m.originOverride != (eth.L1BlockRef{}) {
 		return m.originOverride, nil
 	}
-	return m.actual.FindL1Origin(ctx, l1Head, l2Head)
+	return m.actual.FindL1Origin(ctx, l2Head)
 }
 
 // L2Sequencer is an actor that functions like a rollup node,
@@ -40,8 +40,9 @@ type L2Sequencer struct {
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
 	ver := NewL2Verifier(t, log, l1, eng, cfg)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
+	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
 	l1OriginSelector := &MockL1OriginSelector{
-		actual: driver.NewL1OriginSelector(log, cfg, l1, seqConfDepth),
+		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),
 	}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
@@ -62,7 +63,7 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 		return
 	}
 
-	err := s.sequencer.StartBuildingBlock(t.Ctx(), s.l1State.L1Head())
+	err := s.sequencer.StartBuildingBlock(t.Ctx())
 	require.NoError(t, err, "failed to start block building")
 
 	s.l2Building = true
@@ -106,7 +107,7 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 	for {
 		s.ActL2PipelineFull(t)
-		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), s.derivation.UnsafeL2Head())
+		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
 		require.NoError(t, err)
 		if nextOrigin.Number >= s.l1State.L1Head().Number {
 			break
