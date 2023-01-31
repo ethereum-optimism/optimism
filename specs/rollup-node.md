@@ -55,8 +55,7 @@ For a complete specification of the L2 block derivation, refer to the [L2 block 
 
 ## L2 Output RPC method
 
-The Rollup node has its own RPC method, `optimism_outputAtBlock` which returns the
-a 32 byte hash corresponding to the [L2 output root](./proposals.md#l2-output-commitment-construction).
+The Rollup node has its own RPC method, `optimism_outputAtBlock` which returns a 32 byte hash corresponding to the [L2 output root](./proposals.md#l2-output-commitment-construction).
 
 [SSZ]: https://github.com/ethereum/consensus-specs/blob/dev/ssz/simple-serialize.md
 
