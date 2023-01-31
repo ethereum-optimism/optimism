@@ -45,9 +45,6 @@ type Config struct {
 	// Required to identify the L2 network and create p2p signatures unique for this chain.
 	L2ChainID *big.Int `json:"l2_chain_id"`
 
-	// BackupL2UnsafeSyncRPC is an optional value that allows the L2 node to sync from a backup L2 node via RPC
-	BackupL2UnsafeSyncRPC string `json:"backup_l2_unsafe_sync_rpc"`
-
 	// Note: below addresses are part of the block-derivation process,
 	// and required to be the same network-wide to stay in consensus.
 

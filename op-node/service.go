@@ -36,11 +36,6 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	// If the backup sync RPC flag is set, then use it over the value present in the config file.
-	if backupSyncRPC := ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name); backupSyncRPC != "" {
-		rollupConfig.BackupL2UnsafeSyncRPC = backupSyncRPC
-	}
-
 	driverConfig, err := NewDriverConfig(ctx)
 	if err != nil {
 		return nil, err
@@ -66,9 +61,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load l2 endpoints info: %w", err)
 	}
 
+	l2SyncEndpoint := NewL2SyncEndpointConfig(ctx)
+
 	cfg := &node.Config{
 		L1:     l1Endpoint,
 		L2:     l2Endpoint,
+		L2Sync: l2SyncEndpoint,
 		Rollup: *rollupConfig,
 		Driver: *driverConfig,
 		RPC: node.RPCConfig{
@@ -137,6 +135,12 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 		L2EngineAddr:      l2Addr,
 		L2EngineJWTSecret: secret,
 	}, nil
+}
+
+func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
+	return &node.L2SyncEndpointConfig{
+		L2NodeAddr: ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name),
+	}
 }
 
 func NewDriverConfig(ctx *cli.Context) (*driver.Config, error) {
