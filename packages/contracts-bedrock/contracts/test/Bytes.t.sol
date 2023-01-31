@@ -219,7 +219,7 @@ contract Bytes_toNibbles_Test is Test {
      *         implementation.
      */
     function testDiff_toNibbles_succeeds(bytes memory _input) public {
-        assertEq(Bytes.toNibbles(_input), toNibblesYul(_input));
+        assertEq(Bytes.toNibbles(_input), _toNibblesYul(_input));
     }
 }
 
