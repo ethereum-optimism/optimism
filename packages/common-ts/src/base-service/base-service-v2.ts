@@ -124,6 +124,7 @@ export abstract class BaseServiceV2<
       metricsSpec: MetricsSpec<TMetrics>
       options?: Partial<TOptions & StandardOptions>
       loop?: boolean
+      bodyParserParams?: bodyParser.OptionsJson
     }
   ) {
     this.loop = params.loop !== undefined ? params.loop : true
@@ -330,6 +331,7 @@ export abstract class BaseServiceV2<
           verify: (req, res, buf, encoding) => {
             ;(req as any).rawBody = buf?.toString(encoding || 'utf8') || ''
           },
+          ...(this.params.bodyParserParams ?? {}),
         })
       )
 
