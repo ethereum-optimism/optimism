@@ -340,8 +340,12 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     )
 
     console.log('Finalizing withdrawal...')
-    const finalize = await messenger.finalizeMessage(withdraw)
+    // TODO: Update SDK to properly estimate gas
+    const finalize = await messenger.finalizeMessage(withdraw, {
+      overrides: { gasLimit: 500_000 },
+    })
     const finalizeReceipt = await finalize.wait()
+    console.log('finalizeReceipt:', finalizeReceipt)
     console.log(`Took ${Math.floor(Date.now() / 1000) - now} seconds`)
 
     for (const log of finalizeReceipt.logs) {
