@@ -93,11 +93,12 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		SignerFnFactory:   signer,
 		BatchInboxAddress: batchInboxAddress,
 		Channel: ChannelConfig{
-			ChannelTimeout:   cfg.ChannelTimeout,
-			MaxFrameSize:     cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
-			TargetFrameSize:  cfg.TargetL1TxSize - 1, // subtract 1 byte for version
-			TargetNumFrames:  cfg.TargetNumFrames,
-			ApproxComprRatio: cfg.ApproxComprRatio,
+			ChannelTimeout:    cfg.ChannelTimeout,
+			ChannelSubTimeout: cfg.ChannelSubTimeout,
+			MaxFrameSize:      cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
+			TargetFrameSize:   cfg.TargetL1TxSize - 1, // subtract 1 byte for version
+			TargetNumFrames:   cfg.TargetNumFrames,
+			ApproxComprRatio:  cfg.ApproxComprRatio,
 		},
 	}
 

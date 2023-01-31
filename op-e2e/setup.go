@@ -531,6 +531,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 		TargetNumFrames:           1,
 		ApproxComprRatio:          1.0,
 		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
+		ChannelSubTimeout:         24,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,

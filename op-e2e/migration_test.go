@@ -328,6 +328,7 @@ func TestMigration(t *testing.T) {
 		TargetNumFrames:           1,
 		ApproxComprRatio:          1.0,
 		ChannelTimeout:            deployCfg.ChannelTimeout,
+		ChannelSubTimeout:         24,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,

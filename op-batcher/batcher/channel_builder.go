@@ -32,11 +32,16 @@ type (
 	}
 
 	ChannelConfig struct {
-		// ChannelTimeout is the maximum duration, in seconds, to attempt completing
-		// an opened channel. The batcher can decide to set it shorter than the
-		// actual timeout, since submitting continued channel data to L1 is not
-		// instantaneous. It's not worth it to work with nearly timed-out channels.
+		// The maximum number of L1 blocks that the inclusion transactions of a
+		// channel's frames can span.
 		ChannelTimeout uint64
+		// ChannelSubTimeout is the maximum duration, in seconds, to attempt
+		// completing an opened channel. When reached, the channel is closed and all
+		// remaining frames are submitted. The batcher should set it shorter than
+		// the actual channel timeout (specified in number of L1 blocks), since
+		// submitting continued channel data to L1 is not instantaneous. It's not
+		// worth it to work with nearly timed-out channels.
+		ChannelSubTimeout uint64
 		// The maximum byte-size a frame can have.
 		MaxFrameSize uint64
 		// The target number of frames to create per channel. Note that if the
@@ -116,11 +121,11 @@ func (c *channelBuilder) Reset() error {
 	return c.co.Reset()
 }
 
-// FramePublished calculates the timeout of this channel from the given frame
-// inclusion tx timestamp. If an older frame tx has already been seen, the
-// timeout is not updated.
+// FramePublished calculates the submission timeout of this channel from the
+// given frame inclusion tx timestamp. If an older frame tx has already been
+// seen, the timeout is not updated.
 func (c *channelBuilder) FramePublished(ts uint64) {
-	timeout := ts + c.cfg.ChannelTimeout
+	timeout := ts + c.cfg.ChannelSubTimeout
 	if c.timeout == 0 || c.timeout > timeout {
 		c.timeout = timeout
 	}

@@ -50,9 +50,17 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
-	// ChannelTimeout is the maximum amount of time to attempt completing an opened channel,
-	// as opposed to submitting missing blocks in new channels
+	// The maximum number of L1 blocks that the inclusion transactions of a
+	// channel's frames can span.
 	ChannelTimeout uint64
+
+	// ChannelSubTimeout is the maximum duration, in seconds, to attempt
+	// completing an opened channel. When reached, the channel is closed and all
+	// remaining frames are submitted. The batcher should set it shorter than
+	// the actual channel timeout (specified in number of L1 blocks), since
+	// submitting continued channel data to L1 is not instantaneous. It's not
+	// worth it to work with nearly timed-out channels.
+	ChannelSubTimeout uint64
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -141,6 +149,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
 		ChannelTimeout:            ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
+		ChannelSubTimeout:         ctx.GlobalUint64(flags.ChannelSubTimeoutFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
 		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),

@@ -36,9 +36,15 @@ var (
 	}
 	ChannelTimeoutFlag = cli.Uint64Flag{
 		Name:     "channel-timeout",
-		Usage:    "The maximum duration (in seconds) to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
+		Usage:    "The maximum number of L1 blocks that the inclusion transactions of a channel's frames can span",
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "CHANNEL_TIMEOUT"),
+	}
+	ChannelSubTimeoutFlag = cli.Uint64Flag{
+		Name:     "channel-sub-timeout",
+		Usage:    "The maximum duration (in seconds) to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
+		Required: true,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "CHANNEL_SUB_TIMEOUT"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -126,6 +132,7 @@ var requiredFlags = []cli.Flag{
 	L2EthRpcFlag,
 	RollupRpcFlag,
 	ChannelTimeoutFlag,
+	ChannelSubTimeoutFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
