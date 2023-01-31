@@ -1,9 +1,0 @@
-go 1.18
-
-use (
-	./op-bindings
-	./op-node
-	./op-proposer
-	./op-service
-	./op-signer
-)
