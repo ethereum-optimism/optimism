@@ -1,19 +1,44 @@
 package batcher
 
 import (
+	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 type Config struct {
+	log             log.Logger
+	L1Client        *ethclient.Client
+	L2Client        *ethclient.Client
+	RollupNode      *sources.RollupClient
+	PollInterval    time.Duration
+	TxManagerConfig txmgr.Config
+	From            common.Address
+	SignerFnFactory opcrypto.SignerFactory
+	ChainID         *big.Int
+
+	// Where to send the batch txs to.
+	BatchInboxAddress common.Address
+
+	// Channel creation parameters
+	Channel ChannelConfig
+}
+
+type CLIConfig struct {
 	/* Required Params */
 
 	// L1EthRpc is the HTTP provider URL for L1.
@@ -91,7 +116,7 @@ type Config struct {
 	SignerConfig opsigner.CLIConfig
 }
 
-func (c Config) Check() error {
+func (c CLIConfig) Check() error {
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
 	}
@@ -111,8 +136,8 @@ func (c Config) Check() error {
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context) Config {
-	return Config{
+func NewConfig(ctx *cli.Context) CLIConfig {
+	return CLIConfig{
 		/* Required Flags */
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),

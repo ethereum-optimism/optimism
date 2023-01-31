@@ -20,7 +20,7 @@ type Downloader interface {
 }
 
 type L1OriginSelectorIface interface {
-	FindL1Origin(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
+	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 }
 
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.
@@ -51,11 +51,11 @@ func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.EngineContro
 }
 
 // StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
-func (d *Sequencer) StartBuildingBlock(ctx context.Context, l1Head eth.L1BlockRef) error {
+func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	l2Head := d.engine.UnsafeL2Head()
 
 	// Figure out which L1 origin block we're going to be building on top of.
-	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l1Head, l2Head)
+	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
 	if err != nil {
 		d.log.Error("Error finding next L1 Origin", "err", err)
 		return err
@@ -159,7 +159,7 @@ func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
 // RunNextSequencerAction starts new block building work, or seals existing work,
 // and is best timed by first awaiting the delay returned by PlanNextSequencerAction.
 // If a new block is successfully sealed, it will be returned for publishing, nil otherwise.
-func (d *Sequencer) RunNextSequencerAction(ctx context.Context, l1Head eth.L1BlockRef) *eth.ExecutionPayload {
+func (d *Sequencer) RunNextSequencerAction(ctx context.Context) *eth.ExecutionPayload {
 	if _, buildingID, _ := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) {
 		payload, err := d.CompleteBuildingBlock(ctx)
 		if err != nil {
@@ -174,7 +174,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context, l1Head eth.L1Blo
 			return payload
 		}
 	} else {
-		err := d.StartBuildingBlock(ctx, l1Head)
+		err := d.StartBuildingBlock(ctx)
 		if err != nil {
 			d.log.Error("sequencer failed to start building new block", "err", err)
 			d.nextAction = d.timeNow().Add(time.Second)

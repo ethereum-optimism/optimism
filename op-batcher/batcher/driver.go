@@ -2,34 +2,28 @@ package batcher
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"errors"
 	"fmt"
 	"io"
 	"math/big"
-	"strings"
+	_ "net/http/pprof"
 	"sync"
 	"time"
 
-	hdwallet "github.com/ethereum-optimism/go-ethereum-hdwallet"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
 // batches to L1 for availability.
 type BatchSubmitter struct {
+	Config // directly embed the config + sources
+
 	txMgr *TransactionManager
-	addr  common.Address
-	cfg   DriverConfig
 	wg    sync.WaitGroup
 	done  chan struct{}
-	log   log.Logger
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -40,62 +34,15 @@ type BatchSubmitter struct {
 	state *channelManager
 }
 
-// NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
+// NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
-	var err error
-	var sequencerPrivKey *ecdsa.PrivateKey
-	var addr common.Address
-
-	if cfg.PrivateKey != "" && cfg.Mnemonic != "" {
-		return nil, errors.New("cannot specify both a private key and a mnemonic")
-	}
-
-	if cfg.PrivateKey == "" {
-		// Parse wallet private key that will be used to submit L2 txs to the batch
-		// inbox address.
-		wallet, err := hdwallet.NewFromMnemonic(cfg.Mnemonic)
-		if err != nil {
-			return nil, err
-		}
-
-		acc := accounts.Account{
-			URL: accounts.URL{
-				Path: cfg.SequencerHDPath,
-			},
-		}
-		addr, err = wallet.Address(acc)
-		if err != nil {
-			return nil, err
-		}
-
-		sequencerPrivKey, err = wallet.PrivateKey(acc)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		sequencerPrivKey, err = crypto.HexToECDSA(strings.TrimPrefix(cfg.PrivateKey, "0x"))
-		if err != nil {
-			return nil, err
-		}
-
-		addr = crypto.PubkeyToAddress(sequencerPrivKey.PublicKey)
-	}
-
-	signer := func(chainID *big.Int) SignerFn {
-		s := types.LatestSignerForChainID(chainID)
-		return func(_ context.Context, rawTx types.TxData) (*types.Transaction, error) {
-			return types.SignNewTx(sequencerPrivKey, s, rawTx)
-		}
-	}
-
-	return NewBatchSubmitterWithSigner(cfg, addr, signer, l)
-}
-
-type SignerFactory func(chainID *big.Int) SignerFn
-
-func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerFactory, l log.Logger) (*BatchSubmitter, error) {
+func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitter, error) {
 	ctx := context.Background()
+
+	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
 	if err != nil {
@@ -130,12 +77,6 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		return nil, err
 	}
 
-	sequencerBalance, err := l1Client.BalanceAt(ctx, addr, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	log.Info("starting batch submitter", "submitter_addr", addr, "submitter_bal", sequencerBalance)
 	txManagerConfig := txmgr.Config{
 		Log:                       l,
 		Name:                      "Batch Submitter",
@@ -145,13 +86,16 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 	}
 
-	batcherCfg := DriverConfig{
-		Log:               l,
-		Name:              "Batch Submitter",
+	batcherCfg := Config{
 		L1Client:          l1Client,
 		L2Client:          l2Client,
 		RollupNode:        rollupClient,
 		SyscoinNode:       syscoinClient,
+		ChainID:           chainID,
+		PollInterval:      cfg.PollInterval,
+		TxManagerConfig:   txManagerConfig,
+		From:              fromAddress,
+		SignerFnFactory:   signer,
 		BatchInboxAddress: batchInboxAddress,
 		Channel: ChannelConfig{
 			ChannelTimeout:   cfg.ChannelTimeout,
@@ -160,23 +104,36 @@ func NewBatchSubmitterWithSigner(cfg Config, addr common.Address, signer SignerF
 			TargetNumFrames:  cfg.TargetNumFrames,
 			ApproxComprRatio: cfg.ApproxComprRatio,
 		},
-		ChainID:      chainID,
-		PollInterval: cfg.PollInterval,
 	}
 
+	return NewBatchSubmitter(batcherCfg, l)
+}
+
+// NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
+// that will be needed during operation.
+func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+
+	cfg.log = l
+	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
+
 	return &BatchSubmitter{
-		cfg:   batcherCfg,
-		addr:  addr,
-		txMgr: NewTransactionManager(l, txManagerConfig, batchInboxAddress, chainID, addr, l1Client, signer(chainID)),
-		done:  make(chan struct{}),
-		log:   l,
-		state: NewChannelManager(l, batcherCfg.Channel),
+		Config: cfg,
+		txMgr:  NewTransactionManager(l, cfg.TxManagerConfig, cfg.BatchInboxAddress, cfg.ChainID, cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.ChainID)),
+		done:   make(chan struct{}),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
 		cancel: cancel,
+		state:  NewChannelManager(l, cfg.Channel),
 	}, nil
+
 }
 
 func (l *BatchSubmitter) Start() error {
@@ -223,7 +180,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
 func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (eth.BlockID, error) {
 	ctx, cancel := context.WithTimeout(ctx, networkTimeout)
-	block, err := l.cfg.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
+	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	cancel()
 	if err != nil {
 		return eth.BlockID{}, err
@@ -241,7 +198,7 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
 	childCtx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	syncStatus, err := l.cfg.RollupNode.SyncStatus(childCtx)
+	syncStatus, err := l.RollupNode.SyncStatus(childCtx)
 	// Ensure that we have the sync status
 	if err != nil {
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
@@ -282,7 +239,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
-	ticker := time.NewTicker(l.cfg.PollInterval)
+	ticker := time.NewTicker(l.PollInterval)
 	defer ticker.Stop()
 	for {
 		select {

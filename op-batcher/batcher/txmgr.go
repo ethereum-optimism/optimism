@@ -13,11 +13,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
-
-type SignerFn func(ctx context.Context, rawTx types.TxData) (*types.Transaction, error)
 
 // TransactionManager wraps the simple txmgr package to make it easy to send & wait for transactions
 type TransactionManager struct {
@@ -28,11 +28,11 @@ type TransactionManager struct {
 	// Outside world
 	txMgr    txmgr.TxManager
 	l1Client *ethclient.Client
-	signerFn SignerFn
+	signerFn opcrypto.SignerFn
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
@@ -152,7 +152,8 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 
 	ctx, cancel = context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	return t.signerFn(ctx, rawTx)
+	tx := types.NewTx(rawTx)
+	return t.signerFn(ctx, t.senderAddress, tx)
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with
@@ -177,5 +178,6 @@ func (t *TransactionManager) UpdateGasPrice(ctx context.Context, tx *types.Trans
 	// Only log the new tip/fee cap because the updateGasPrice closure reuses the same initial transaction
 	t.log.Trace("updating gas price", "tip_cap", gasTipCap, "fee_cap", gasFeeCap)
 
-	return t.signerFn(ctx, rawTx)
+	finalTx := types.NewTx(rawTx)
+	return t.signerFn(ctx, t.senderAddress, finalTx)
 }

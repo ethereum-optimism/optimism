@@ -3,9 +3,8 @@ module github.com/ethereum-optimism/optimism/op-batcher
 go 1.18
 
 require (
-	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-node v0.10.11
-	github.com/ethereum-optimism/optimism/op-service v0.10.11
+	github.com/ethereum-optimism/optimism/op-node v0.10.12
+	github.com/ethereum-optimism/optimism/op-service v0.10.12
 	github.com/ethereum-optimism/optimism/op-signer v0.1.0
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/urfave/cli v1.22.9
@@ -24,7 +23,8 @@ require (
 	github.com/deckarep/golang-set v1.8.0 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/dyson/certman v0.3.0 // indirect
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.11 // indirect
+	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 // indirect
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.12 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
