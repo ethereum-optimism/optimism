@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -258,7 +259,7 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
-				receipt, err := l.txMgr.SendBlobTransaction(l.ctx, l.cfg.SyscoinNode.CreateBlob, &l.cfg.SyscoinNode, data)
+				receipt, err := l.txMgr.SendBlobTransaction(l.ctx, l.SyscoinNode.CreateBlob, &l.SyscoinNode, data)
 				if err != nil {
 					l.log.Error("Failed to send blob", "err", err)
 					l.state.TxFailed(id)
