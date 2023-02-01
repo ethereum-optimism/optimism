@@ -15,7 +15,7 @@ contract Transactor_Initializer is Test {
     Reverter reverter;
     CallRecorder callRecorded;
 
-    function _setUp() public {
+    function setUp() public {
         // Deploy Reverter and CallRecorder helper contracts
         reverter = new Reverter();
         callRecorded = new CallRecorder();
@@ -34,10 +34,6 @@ contract Transactor_Initializer is Test {
 }
 
 contract TransactorTest is Transactor_Initializer {
-    function setUp() public {
-        super._setUp();
-    }
-
     // Tests if the owner was set correctly during deploy
     function test_constructor() external {
         assertEq(address(alice), transactor.owner());

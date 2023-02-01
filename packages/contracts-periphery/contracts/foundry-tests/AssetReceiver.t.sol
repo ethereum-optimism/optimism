@@ -32,7 +32,7 @@ contract AssetReceiver_Initializer is Test {
         uint256 id
     );
 
-    function _setUp() public {
+    function setUp() public {
         // Deploy ERC20 and ERC721 tokens
         testERC20 = new TestERC20();
         testERC721 = new TestERC721();
@@ -53,10 +53,6 @@ contract AssetReceiver_Initializer is Test {
 }
 
 contract AssetReceiverTest is AssetReceiver_Initializer {
-    function setUp() public {
-        super._setUp();
-    }
-
     // Tests if the owner was set correctly during deploy
     function test_constructor() external {
         assertEq(address(alice), assetReceiver.owner());
