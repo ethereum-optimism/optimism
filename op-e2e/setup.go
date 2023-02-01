@@ -522,12 +522,14 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// Batch Submitter
-	sys.BatchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
+	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MinL1TxSize:               1,
-		MaxL1TxSize:               120000,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            1,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          1.0,
 		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,

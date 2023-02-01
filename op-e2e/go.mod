@@ -10,12 +10,12 @@ require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-batcher v0.10.11
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.11
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.11
-	github.com/ethereum-optimism/optimism/op-node v0.10.11
-	github.com/ethereum-optimism/optimism/op-proposer v0.10.11
-	github.com/ethereum-optimism/optimism/op-service v0.10.11
+	github.com/ethereum-optimism/optimism/op-batcher v0.10.12
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.12
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.12
+	github.com/ethereum-optimism/optimism/op-node v0.10.12
+	github.com/ethereum-optimism/optimism/op-proposer v0.10.12
+	github.com/ethereum-optimism/optimism/op-service v0.10.12
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
 	github.com/libp2p/go-libp2p v0.23.3

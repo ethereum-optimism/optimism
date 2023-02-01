@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	Version   = "v0.10.11"
+	Version   = "v0.10.12"
 	GitCommit = ""
 	GitDate   = ""
 )
@@ -29,9 +29,17 @@ func main() {
 	app.Description = "Service for generating and submitting L2 tx batches " +
 		"to L1"
 
-	app.Action = batcher.Main(Version)
+	app.Action = curryMain(Version)
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
+	}
+}
+
+// curryMain transforms the batcher.Main function into an app.Action
+// This is done to capture the Version of the batcher.
+func curryMain(version string) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		return batcher.Main(version, ctx)
 	}
 }

@@ -54,11 +54,11 @@ type Writer interface {
 type ChannelOutIface interface {
 	ID() derive.ChannelID
 	Reset() error
-	AddBlock(block *types.Block) error
+	AddBlock(block *types.Block) (uint64, error)
 	ReadyBytes() int
 	Flush() error
 	Close() error
-	OutputFrame(w *bytes.Buffer, maxSize uint64) error
+	OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error)
 }
 
 // Compile-time check for ChannelOutIface interface implementation for the ChannelOut type.
@@ -135,19 +135,19 @@ func (co *GarbageChannelOut) Reset() error {
 // error that it returns is ErrTooManyRLPBytes. If this error
 // is returned, the channel should be closed and a new one
 // should be made.
-func (co *GarbageChannelOut) AddBlock(block *types.Block) error {
+func (co *GarbageChannelOut) AddBlock(block *types.Block) (uint64, error) {
 	if co.closed {
-		return errors.New("already closed")
+		return 0, errors.New("already closed")
 	}
 	batch, err := blockToBatch(block)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	// We encode to a temporary buffer to determine the encoded length to
 	// ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	var buf bytes.Buffer
 	if err := rlp.Encode(&buf, batch); err != nil {
-		return err
+		return 0, err
 	}
 	if co.cfg.malformRLP {
 		// Malform the RLP by incrementing the length prefix by 1.
@@ -157,13 +157,13 @@ func (co *GarbageChannelOut) AddBlock(block *types.Block) error {
 		buf.Write(bufBytes)
 	}
 	if co.rlpLength+buf.Len() > derive.MaxRLPBytesPerChannel {
-		return fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
+		return 0, fmt.Errorf("could not add %d bytes to channel of %d bytes, max is %d. err: %w",
 			buf.Len(), co.rlpLength, derive.MaxRLPBytesPerChannel, derive.ErrTooManyRLPBytes)
 	}
 	co.rlpLength += buf.Len()
 
-	_, err = io.Copy(co.compress, &buf)
-	return err
+	written, err := io.Copy(co.compress, &buf)
+	return uint64(written), err
 }
 
 // ReadyBytes returns the number of bytes that the channel out can immediately output into a frame.
@@ -192,11 +192,12 @@ func (co *GarbageChannelOut) Close() error {
 // Returns io.EOF when the channel is closed & there are no more frames
 // Returns nil if there is still more buffered data.
 // Returns and error if it ran into an error during processing.
-func (co *GarbageChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error {
+func (co *GarbageChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error) {
 	f := derive.Frame{
 		ID:          co.id,
 		FrameNumber: uint16(co.frame),
 	}
+	fn := f.FrameNumber
 
 	// Copy data from the local buffer into the frame data buffer
 	// Don't go past the maxSize with the fixed frame overhead.
@@ -214,18 +215,18 @@ func (co *GarbageChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) error 
 	f.Data = make([]byte, maxDataSize)
 
 	if _, err := io.ReadFull(&co.buf, f.Data); err != nil {
-		return err
+		return fn, err
 	}
 
 	if err := f.MarshalBinary(w); err != nil {
-		return err
+		return fn, err
 	}
 
 	co.frame += 1
 	if f.IsLast {
-		return io.EOF
+		return fn, io.EOF
 	} else {
-		return nil
+		return fn, nil
 	}
 }
 

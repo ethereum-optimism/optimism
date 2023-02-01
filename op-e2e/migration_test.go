@@ -319,12 +319,14 @@ func TestMigration(t *testing.T) {
 		require.NoError(t, rollupNode.Close())
 	})
 
-	batcher, err := bss.NewBatchSubmitter(bss.Config{
+	batcher, err := bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
-		MinL1TxSize:               1,
-		MaxL1TxSize:               120000,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            1,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          1.0,
 		ChannelTimeout:            deployCfg.ChannelTimeout,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,

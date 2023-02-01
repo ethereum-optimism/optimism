@@ -47,7 +47,7 @@ contract Optimist_Initializer is Test {
         attestationStation.attest(attestationData);
     }
 
-    function _setUp() public {
+    function setUp() public {
         // Give alice and bob and sally some ETH
         vm.deal(alice_admin, 1 ether);
         vm.deal(bob, 1 ether);
@@ -68,11 +68,6 @@ contract Optimist_Initializer is Test {
 }
 
 contract OptimistTest is Optimist_Initializer {
-    function setUp() public {
-        super._setUp();
-        _initializeContracts();
-    }
-
     function test_optimist_initialize() external {
         // expect name to be set
         assertEq(optimist.name(), name);

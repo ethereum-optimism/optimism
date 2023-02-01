@@ -55,7 +55,7 @@ We first describe the end to end flow of initiating and finalizing a withdrawal:
 ### On L2
 
 An L2 account sends a withdrawal message (and possibly also ETH) to the `L2ToL1MessagePasser` predeploy contract.
-This is a very simple contract that stores the a hash of the withdrawal data.
+This is a very simple contract that stores the hash of the withdrawal data.
 
 ### On L1
 

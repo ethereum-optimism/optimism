@@ -11,7 +11,7 @@ contract AssetReceiver_Initializer is Test {
     address bob = address(256);
     address sally = address(512);
 
-    function _setUp() public {
+    function setUp() public {
         // Give alice and bob some ETH
         vm.deal(alice_attestor, 1 ether);
 
@@ -22,10 +22,6 @@ contract AssetReceiver_Initializer is Test {
 }
 
 contract AssetReceiverTest is AssetReceiver_Initializer {
-    function setUp() public {
-        super._setUp();
-    }
-
     event AttestationCreated(
         address indexed creator,
         address indexed about,

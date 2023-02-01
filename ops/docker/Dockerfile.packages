@@ -46,7 +46,7 @@ COPY packages/hardhat-deploy-config/package.json ./packages/hardhat-deploy-confi
 COPY packages/message-relayer/package.json ./packages/message-relayer/package.json
 COPY packages/fault-detector/package.json ./packages/fault-detector/package.json
 COPY packages/replica-healthcheck/package.json ./packages/replica-healthcheck/package.json
-COPY packages/drippie-mon/package.json ./packages/drippie-mon/package.json
+COPY packages/chain-mon/package.json ./packages/chain-mon/package.json
 COPY packages/balance-monitor/package.json ./packages/balance-monitor/package.json
 COPY packages/two-step-monitor/package.json ./packages/two-step-monitor/package.json
 COPY integration-tests/package.json ./integration-tests/package.json
@@ -106,8 +106,8 @@ WORKDIR /opt/optimism/packages/replica-healthcheck
 ENTRYPOINT ["npm", "run", "start"]
 
 FROM base as drippie-mon
-WORKDIR /opt/optimism/packages/drippie-mon
-ENTRYPOINT ["npm", "run", "start"]
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["npm", "run", "start:drippie-mon"]
 
 FROM base as balance-monitor
 WORKDIR /opt/optimism/packages/balance-monitor

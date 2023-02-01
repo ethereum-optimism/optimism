@@ -22,7 +22,7 @@ func TestChannelOutAddBlock(t *testing.T) {
 			},
 			nil,
 		)
-		err := cout.AddBlock(block)
+		_, err := cout.AddBlock(block)
 		require.Error(t, err)
 		require.Equal(t, ErrNotDepositTx, err)
 	})

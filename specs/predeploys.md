@@ -26,7 +26,7 @@
 
 ## Overview
 
-[Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy] exist on Optimism
+[Predeployed smart contracts](./glossary.md#predeployed-contract-predeploy) exist on Optimism
 at predetermined addresses in the genesis state. They are  similar to precompiles but instead run
 directly in the EVM instead of running  native code outside of the EVM.
 
@@ -108,12 +108,11 @@ permissionlessly removed from the L2 supply by calling the `burn()` function.
 
 Address: `0x4200000000000000000000000000000000000002`
 
-The `DeployerWhitelist` is a predeploy that was used to provide additional
-safety during the initial phases of Optimism. It is owned by the
-Optimism foundation and defines the accounts that are allowed to deploy contracts to the
-network.
+The `DeployerWhitelist` is a predeploy that was used to provide additional safety
+during the initial phases of Optimism.
+It previously defined the accounts that are allowed to deploy contracts to the network.
 
-Arbitrary contract deployment has been enabled and it is not possible to turn
+Arbitrary contract deployment was subsequently enabled and it is not possible to turn
 off. In the legacy system, this contract was hooked into `CREATE` and
 `CREATE2` to ensure that the deployer was allowlisted.
 
@@ -263,9 +262,9 @@ have the ability to upgrade any of the other predeploy contracts.
 
 Address: `0x4200000000000000000000000000000000000011`
 
-The `SequencerFeeVault` accumulates any transaction tips and is the value of
-`block.coinbase`. When enough fees accumulate in this account, they can be
-permissionlessly withdrawn to an immutable L1 address.
+The `SequencerFeeVault` accumulates any transaction priority fee and is the value of
+`block.coinbase`.
+When enough fees accumulate in this account, they can be withdrawn to an immutable L1 address.
 
 To change the L1 address that fees are withdrawn to, the contract must be
 upgraded by changing its proxy's implementation key.
@@ -300,7 +299,7 @@ Address: `0x4200000000000000000000000000000000000019`
 
 The `BaseFeeVault` predeploy receives the basefees on L2. The basefee is not
 burnt on L2 like it is on L1. Once the contract has received a certain amount
-of fees, the ETH can be permissionlessly withdrawn to an immutable address on
+of fees, the ETH can be withdrawn to an immutable address on
 L1.
 
 ## L1FeeVault
@@ -311,4 +310,4 @@ Address: `0x420000000000000000000000000000000000001a`
 
 The `L1FeeVault` predeploy receives the L1 portion of the transaction fees.
 Once the contract has received a certain amount of fees, the ETH can be
-permissionlessly withdrawn to an immutable address on L1.
+withdrawn to an immutable address on L1.

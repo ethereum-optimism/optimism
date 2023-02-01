@@ -31,6 +31,8 @@ type ResetableStage interface {
 }
 
 type EngineQueueStage interface {
+	EngineControl
+
 	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
@@ -130,8 +132,20 @@ func (dp *DerivationPipeline) UnsafeL2Head() eth.L2BlockRef {
 	return dp.eng.UnsafeL2Head()
 }
 
-func (dp *DerivationPipeline) SetUnsafeHead(head eth.L2BlockRef) {
-	dp.eng.SetUnsafeHead(head)
+func (dp *DerivationPipeline) StartPayload(ctx context.Context, parent eth.L2BlockRef, attrs *eth.PayloadAttributes, updateSafe bool) (errType BlockInsertionErrType, err error) {
+	return dp.eng.StartPayload(ctx, parent, attrs, updateSafe)
+}
+
+func (dp *DerivationPipeline) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPayload, errTyp BlockInsertionErrType, err error) {
+	return dp.eng.ConfirmPayload(ctx)
+}
+
+func (dp *DerivationPipeline) CancelPayload(ctx context.Context, force bool) error {
+	return dp.eng.CancelPayload(ctx, force)
+}
+
+func (dp *DerivationPipeline) BuildingPayload() (onto eth.L2BlockRef, id eth.PayloadID, safe bool) {
+	return dp.eng.BuildingPayload()
 }
 
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1

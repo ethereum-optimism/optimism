@@ -33,6 +33,7 @@ var DefaultBootnodes = []*enode.Node{
 // SetupP2P provides a host and discovery service for usage in the rollup node.
 type SetupP2P interface {
 	Check() error
+	Disabled() bool
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
 	Host(log log.Logger, reporter metrics.Reporter) (host.Host, error)
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
@@ -132,6 +133,10 @@ func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
 
 func (conf *Config) TargetPeers() uint {
 	return conf.PeersLo
+}
+
+func (conf *Config) Disabled() bool {
+	return conf.DisableP2P
 }
 
 const maxMeshParam = 1000
