@@ -56,9 +56,6 @@ RUN wget -q -O ${GLIBC_KEY_FILE} ${GLIBC_KEY} \
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
 
-# copy over the needed configs to run the dep installation
-# note: this approach can be a bit unhandy to maintain, but it allows
-# us to cache the installation steps
 WORKDIR /opt/optimism
 
 # Copy manifest files into the image in
