@@ -26,7 +26,8 @@ proving any piece of data captured by the outputs.
 Proposers submit the output roots to L1 and can be contested with a fault proof,
 with a bond at stake if the proof is wrong.
 
-_Note_: Although fault proof construction and verification [is implemented in Cannon][cannon],
+_Note_: Fault proofs on Optimism are not fully specified at this time. Although fault proof construction and verification 
+[is implemented in Cannon][cannon],
 the fault proof game specification and integration of a output-root challenger into the [rollup-node][g-rollup-node]
 are part of later specification milestones.
 
@@ -50,7 +51,7 @@ The proposer may also delete multiple output roots by calling the `deleteL2Outpu
 index of the first output to delete, this will also delete all subsequent outputs.
 
 > **Note regarding future work:** In the initial version of the system, the proposer will be the same entity as the
-> sequencer, which is a trusted role. In the future proposers will need to submit a bond in order to post L2 output
+> sequencer, which is a trusted role. In the future proposers may need to submit a bond in order to post L2 output
 > roots, and some or all of this bond may be taken in the event of a faulty proposal.
 
 ## L2 Output Commitment Construction

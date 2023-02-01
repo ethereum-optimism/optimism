@@ -91,9 +91,11 @@ At the heart of the network are users (us!). Users can:
 
 ### Sequencers
 
-The sequencer is the primary block producer. There may be one sequencer **or** many using a consensus protocol. For
-1.0.0, there is just one sequencer.  In general, specifications may use "the sequencer" to be a stand-in term for the
-consensus protocol operated by multiple sequencers.
+The sequencer is the primary block producer.
+There may be one sequencer **or** many using a consensus protocol.
+For 1.0.0, there is just one sequencer (currently operated under the oversight of the Optimism Foundation).
+In general, specifications may use "the sequencer" to be a stand-in term 
+for the consensus protocol operated by multiple sequencers.
 
 The sequencer:
 
@@ -125,21 +127,21 @@ provide context when diving into any particular component specification.
 
 ### Depositing and Sending Transactions
 
-Users will often begin their L2 journey by depositing ETH from L1. Once they have ETH to pay fees, they'll start
-sending transactions on L2. The following diagram demonstrates this interaction and all key Optimism
-components which are utilized:
+Users will often begin their L2 journey by depositing ETH from L1.
+Once they have ETH to pay fees, they'll start sending transactions on L2.
+The following diagram demonstrates this interaction and all key Optimism components which are or should be utilized:
 
 ![Diagram of Depositing and Sending Transactions](./assets/sequencer-handling-deposits-and-transactions.svg)
 
 Links to components mentioned in this diagram:
 
-- Batch Inbox (WIP)
+<!-- - Batch Inbox (WIP) -->
 - [Rollup Node](./rollup-node.md)
 - [Execution Engine](./exec-engine.md)
-- Sequencer Batch Submitter (WIP)
+<!-- - Sequencer Batch Submitter (WIP) -->
 - [L2 Output Oracle](./proposals.md#l2-output-oracle-smart-contract)
 - [L2 Output Submitter](./proposals.md#proposing-l2-output-commitments)
-- Fault Proof VM (WIP)
+<!-- - Fault Proof VM (WIP) -->
 
 ### Withdrawing
 
