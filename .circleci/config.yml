@@ -846,9 +846,9 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: drippie-mon-tests
-          coverage_flag: drippie-mon-tests
-          package_name: drippie-mon
+          name: chain-mon-tests
+          coverage_flag: chain-mon-tests
+          package_name: chain-mon
           dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
           requires:
             - yarn-monorepo
