@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -310,7 +312,7 @@ func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	head, err := l.cfg.L1Client.HeaderByNumber(tctx, nil)
+	head, err := l.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
@@ -342,7 +344,7 @@ func (l *BatchSubmitter) l1BlockRefByReceipt(ctx context.Context, rec *types.Rec
 func (l *BatchSubmitter) l1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
 	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	head, err := l.cfg.L1Client.HeaderByHash(tctx, hash)
+	head, err := l.L1Client.HeaderByHash(tctx, hash)
 	if err != nil {
 		return eth.L1BlockRef{}, fmt.Errorf("getting L1 block %v: %w", hash, err)
 	}
