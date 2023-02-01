@@ -49,7 +49,7 @@ contract TransactorTest is Transactor_Initializer {
         bytes memory data = abi.encodeWithSelector(callRecorded.record.selector);
         // Run CALL
         vm.prank(alice);
-        vm.expectCall(address(callRecorded), data);
+        vm.expectCall(address(callRecorded), 200_000 wei, data);
         transactor.CALL(address(callRecorded), data, 200_000 wei);
     }
 
