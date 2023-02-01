@@ -359,7 +359,8 @@ func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, s
 	if err := result.Verify(block.Root()); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to verify retrieved proof against state root: %w", err)
 	}
-	return common.BytesToHash(result.StorageProof[0].Value), nil
+	value := big.Int(result.StorageProof[0].Value)
+	return common.BytesToHash((&value).Bytes()), nil
 }
 
 func (s *EthClient) Close() {
