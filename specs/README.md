@@ -27,7 +27,7 @@ Our aim is to design a protocol specification that is:
 - **Fast:** When users send transactions, they get reliable confirmations with low-latency.
   For example when swapping on Uniswap you should see that your transaction succeed in less than 2
   seconds.
-- **Scalable:** It should be possible to handle an enormous number of transactions 
+- **Scalable:** It should be possible to handle an enormous number of transactions
   per second which will enable the system to charge low fees.
   V1.0 will enable Optimism to scale up to and even past the gas limit on L1.
   Later iterations should scale much further.
@@ -44,7 +44,7 @@ Our aim is to design a protocol specification that is:
   systems team consuming the spec is also key!
 - **Secure:** This is self-evident.
   User’s assets are at stake. Every component of the system must be incredibly secure.
-- **Decentralizable:** Optimism must be designed to avail itself of the security and 
+- **Decentralizable:** Optimism must be designed to avail itself of the security and
   censorship-resistant guarantees achieved by a decentralized system.
   Currently centralized components of the system should have a clear path towards decentralization.
   Already decentralized components of the system should be protected and preserved.

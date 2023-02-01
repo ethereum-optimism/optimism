@@ -26,8 +26,8 @@ proving any piece of data captured by the outputs.
 Proposers submit the output roots to L1 and can be contested with a fault proof,
 with a bond at stake if the proof is wrong.
 
-_Note_: Fault proofs on Optimism are not fully specified at this time. Although fault proof construction and verification 
-[is implemented in Cannon][cannon],
+_Note_: Fault proofs on Optimism are not fully specified at this time. Although fault proof 
+construction and verification [is implemented in Cannon][cannon],
 the fault proof game specification and integration of a output-root challenger into the [rollup-node][g-rollup-node]
 are part of later specification milestones.
 

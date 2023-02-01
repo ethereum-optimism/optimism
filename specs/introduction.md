@@ -94,7 +94,7 @@ At the heart of the network are users (us!). Users can:
 The sequencer is the primary block producer.
 There may be one sequencer **or** many using a consensus protocol.
 For 1.0.0, there is just one sequencer (currently operated under the oversight of the Optimism Foundation).
-In general, specifications may use "the sequencer" to be a stand-in term 
+In general, specifications may use "the sequencer" to be a stand-in term
 for the consensus protocol operated by multiple sequencers.
 
 The sequencer:

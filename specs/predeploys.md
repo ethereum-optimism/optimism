@@ -108,7 +108,7 @@ permissionlessly removed from the L2 supply by calling the `burn()` function.
 
 Address: `0x4200000000000000000000000000000000000002`
 
-The `DeployerWhitelist` is a predeploy that was used to provide additional safety 
+The `DeployerWhitelist` is a predeploy that was used to provide additional safety
 during the initial phases of Optimism.
 It previously defined the accounts that are allowed to deploy contracts to the network.
 
