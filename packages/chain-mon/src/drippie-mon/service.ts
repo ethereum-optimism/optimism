@@ -9,7 +9,7 @@ import { Provider } from '@ethersproject/abstract-provider'
 import { ethers } from 'ethers'
 import * as DrippieArtifact from '@eth-optimism/contracts-periphery/artifacts/contracts/universal/drippie/Drippie.sol/Drippie.json'
 
-import { version } from '../package.json'
+import { version } from '../../package.json'
 
 type DrippieMonOptions = {
   rpc: Provider
