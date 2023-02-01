@@ -12,13 +12,13 @@
 
   "maxSequencerDrift": 1500,
   "finalizationPeriodSeconds": 1500,
-  "sequencerWindowSize": 288,
-  "channelTimeout": 24,
+  "sequencerWindowSize": 12,
+  "channelTimeout": 12,
   "p2pSequencerAddress": "0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc",
   "batchInboxAddress": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
   "batchSenderAddress": "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
 
-  "l2OutputOracleSubmissionInterval": 1500,
+  "l2OutputOracleSubmissionInterval": 18000,
   "l2OutputOracleStartingTimestamp": -1,
   "l2OutputOracleProposer": "0x70997970C51812dc3A010C7d01b50e0d17dc79C8",
   "l2OutputOracleChallenger": "0x3071b919a37D3217fA19d54f8E1a08AEC4d8eB4e",
