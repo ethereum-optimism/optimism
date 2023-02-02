@@ -16,12 +16,14 @@ const envVarPrefix = "OP_BATCHER"
 var (
 	/* Required flags */
 
+	// TODO: this should fail
 	L1EthRpcFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "L1_ETH_RPC"),
 	}
+	// TODO: ENG-1234 this should not fail
 	L2EthRpcFlag = cli.StringFlag{
 		Name:     "l2-eth-rpc",
 		Usage:    "HTTP provider URL for L2 execution engine",
