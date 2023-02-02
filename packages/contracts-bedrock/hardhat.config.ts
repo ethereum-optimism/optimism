@@ -84,6 +84,30 @@ const config: HardhatUserConfig = {
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
       live: true,
     },
+    'op-chainmaker-goerli-l2': {
+      chainId: 5,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
+    'op-chainmaker-goerli-l3': {
+      chainId: 420,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
+    'op-chainmaker-mainnet-l2': {
+      chainId: 5,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
+    'op-chainmaker-mainnet-l3': {
+      chainId: 10,
+      url: process.env.L1_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      live: true,
+    },
   },
   foundry: {
     buildInfo: true,
