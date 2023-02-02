@@ -213,7 +213,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 
 	s.triggerTimeout(l1Head)
 
-	if err := s.addBlocks(); err != nil {
+	if err := s.processBlocks(); err != nil {
 		return nil, txID{}, err
 	}
 
@@ -249,9 +249,9 @@ func (s *channelManager) triggerTimeout(l1Head eth.L1BlockRef) {
 	)
 }
 
-// addBlocks adds blocks from the blocks queue to the pending channel until
+// processBlocks adds blocks from the blocks queue to the pending channel until
 // either the queue got exhausted or the channel is full.
-func (s *channelManager) addBlocks() error {
+func (s *channelManager) processBlocks() error {
 	var blocksAdded int
 	var _chFullErr *ChannelFullError // throw away, just for type checking
 	for i, block := range s.blocks {
@@ -284,9 +284,9 @@ func (s *channelManager) addBlocks() error {
 	return nil
 }
 
-// AddL2Block saves an L2 block to the internal state. It returns ErrReorg
-// if the block does not extend the last block loaded into the state.
-// If no blocks were added yet, the parent hash check is skipped.
+// AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
+// if the block does not extend the last block loaded into the state. If no
+// blocks were added yet, the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
 	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 		return ErrReorg
