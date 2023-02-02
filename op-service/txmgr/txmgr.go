@@ -2,6 +2,7 @@ package txmgr
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 	"sync"
@@ -10,6 +11,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
 // UpdateGasPriceSendTxFunc defines a function signature for publishing a
@@ -40,6 +43,10 @@ type Config struct {
 	// are required to give up on a tx at a particular nonce without receiving
 	// confirmation.
 	SafeAbortNonceTooLowCount uint64
+
+	// Signer is used to sign transactions when the gas price is increased.
+	Signer opcrypto.SignerFn
+	From   common.Address
 }
 
 // TxManager is an interface that allows callers to reliably publish txs,
@@ -50,15 +57,15 @@ type TxManager interface {
 	// until an invocation of sendTx returns (called with differing gas
 	// prices). The method may be canceled using the passed context.
 	//
+	// The initial transaction MUST be signed & ready to submit.
+	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
-	Send(ctx context.Context, updateGasPrice UpdateGasPriceFunc, sendTxn SendTransactionFunc) (*types.Receipt, error)
+	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
 }
 
-// ReceiptSource is a minimal function signature used to detect the confirmation
-// of published txs.
-//
-// NOTE: This is a subset of bind.DeployBackend.
-type ReceiptSource interface {
+// L1Connection is the set of methods that the transaction manager uses to resubmit gas & determine
+// when transactions are included on L1.
+type L1Connection interface {
 	// BlockNumber returns the most recent block number.
 	BlockNumber(ctx context.Context) (uint64, error)
 
@@ -66,6 +73,13 @@ type ReceiptSource interface {
 	// txHash. If lookup does not fail, but the transaction is not found,
 	// nil should be returned for both values.
 	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+
+	// SendTransaction submits a signed transaction to L1.
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
+
+	// These functions are used to estimate what the basefee & priority fee should be set to.
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -74,12 +88,73 @@ type SimpleTxManager struct {
 	Config // embed the config directly
 	name   string
 
-	backend ReceiptSource
+	backend L1Connection
 	l       log.Logger
 }
 
+// IncreaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
+// If the basefee + priority fee did not increase by a minimum percent (geth's replacement percent) an
+// error will be returned.
+func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var gasTipCap, gasFeeCap *big.Int
+
+	if tip, err := m.backend.SuggestGasTipCap(ctx); err != nil {
+		return nil, err
+	} else if tip == nil {
+		return nil, errors.New("the suggested tip was nil")
+	} else {
+		gasTipCap = tip
+	}
+
+	if head, err := m.backend.HeaderByNumber(ctx, nil); err != nil {
+		return nil, err
+	} else if head.BaseFee == nil {
+		return nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
+	} else {
+		gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
+	}
+
+	// TODO: Check for a large enough price bump
+	// TODO: Decide to enforce price bump or ignore resubmission.
+	// Note: Geth defaults to 10% for the price bump
+	//
+	// Geth's algorithm
+	// // thresholdFeeCap = oldFC  * (100 + priceBump) / 100
+	// a := big.NewInt(100 + int64(priceBump))
+	// aFeeCap := new(big.Int).Mul(a, old.GasFeeCap())
+	// aTip := a.Mul(a, old.GasTipCap())
+
+	// // thresholdTip    = oldTip * (100 + priceBump) / 100
+	// b := big.NewInt(100)
+	// thresholdFeeCap := aFeeCap.Div(aFeeCap, b)
+	// thresholdTip := aTip.Div(aTip, b)
+
+	// // We have to ensure that both the new fee cap and tip are higher than the
+	// // old ones as well as checking the percentage threshold to ensure that
+	// // this is accurate for low (Wei-level) gas price replacements.
+	// if tx.GasFeeCapIntCmp(thresholdFeeCap) < 0 || tx.GasTipCapIntCmp(thresholdTip) < 0 {
+	// 	return false, nil
+	// }
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:    tx.ChainId(),
+		Nonce:      tx.Nonce(),
+		GasTipCap:  gasTipCap,
+		GasFeeCap:  gasFeeCap,
+		Gas:        tx.Gas(),
+		To:         tx.To(),
+		Value:      tx.Value(),
+		Data:       tx.Data(),
+		AccessList: tx.AccessList(),
+	}
+	return m.Signer(ctx, m.From, types.NewTx(rawTx))
+}
+
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ReceiptSource) *SimpleTxManager {
+func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend L1Connection) *SimpleTxManager {
 	if cfg.NumConfirmations == 0 {
 		panic("txmgr: NumConfirmations cannot be zero")
 	}
@@ -97,8 +172,12 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ReceiptSo
 // invocation of sendTx returns (called with differing gas prices). The method
 // may be canceled using the passed context.
 //
+// The initially supplied transaction must be signed, have gas estimation done, and have a reasonable gas fee.
+// When the transaction is resubmitted the tx manager will re-sign the transaction at a different gas pricing
+// but retain the gas used, the nonce, and the data.
+//
 // NOTE: Send should be called by AT MOST one caller at a time.
-func (m *SimpleTxManager) Send(ctx context.Context, updateGasPrice UpdateGasPriceFunc, sendTx SendTransactionFunc) (*types.Receipt, error) {
+func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
 
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
@@ -114,21 +193,12 @@ func (m *SimpleTxManager) Send(ctx context.Context, updateGasPrice UpdateGasPric
 
 	sendState := NewSendState(m.SafeAbortNonceTooLowCount)
 
-	// Create a closure that will block on passed sendTx function in the
+	// Create a closure that will block on submitting the tx in the
 	// background, returning the first successfully mined receipt back to
 	// the main event loop via receiptChan.
 	receiptChan := make(chan *types.Receipt, 1)
-	sendTxAsync := func() {
+	sendTxAsync := func(tx *types.Transaction) {
 		defer wg.Done()
-
-		tx, err := updateGasPrice(ctx)
-		if err != nil {
-			if err == context.Canceled || strings.Contains(err.Error(), "context canceled") {
-				return
-			}
-			m.l.Error("unable to update txn gas price", "err", err)
-			return
-		}
 
 		txHash := tx.Hash()
 		nonce := tx.Nonce()
@@ -137,8 +207,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, updateGasPrice UpdateGasPric
 		log := m.l.New("txHash", txHash, "nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 		log.Info("publishing transaction")
 
-		// Sign and publish transaction with current gas price.
-		err = sendTx(ctx, tx)
+		err := m.backend.SendTransaction(ctx, tx)
 		sendState.ProcessSendError(err)
 		if err != nil {
 			if err == context.Canceled ||
@@ -177,7 +246,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, updateGasPrice UpdateGasPric
 	// background, before entering the event loop and waiting out the
 	// resubmission timeout.
 	wg.Add(1)
-	go sendTxAsync()
+	go sendTxAsync(tx)
 
 	ticker := time.NewTicker(m.ResubmissionTimeout)
 	defer ticker.Stop()
@@ -196,9 +265,15 @@ func (m *SimpleTxManager) Send(ctx context.Context, updateGasPrice UpdateGasPric
 				continue
 			}
 
-			// Submit and wait for the bumped traction to confirm.
+			// Increase the gas price & submit the new transaction
+			newTx, err := m.IncreaseGasPrice(ctx, tx)
+			if err != nil {
+				m.l.Error("Failed to increase the gas price for the tx", "err", err)
+			}
+			// Save the tx so we know it's gas price.
+			tx = newTx
 			wg.Add(1)
-			go sendTxAsync()
+			go sendTxAsync(tx)
 
 		// The passed context has been canceled, i.e. in the event of a
 		// shutdown.
