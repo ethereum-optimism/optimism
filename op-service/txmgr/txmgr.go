@@ -2,6 +2,7 @@ package txmgr
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"strings"
 	"sync"
@@ -11,6 +12,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
+
+const priceBump int64 = 10
 
 // UpdateGasPriceSendTxFunc defines a function signature for publishing a
 // desired tx with a specific gas price. Implementations of this signature
@@ -76,6 +79,64 @@ type SimpleTxManager struct {
 
 	backend ReceiptSource
 	l       log.Logger
+}
+
+// IncreaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
+// If the basefee + priority fee did not increase by a minimum percent (geth's replacement percent) an
+// error will be returned.
+// We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
+// act of including the transaction renders the repeat of the transaction invalid.
+func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	var gasTipCap, gasFeeCap *big.Int
+
+	if tip, err := m.backend.SuggestGasTipCap(ctx); err != nil {
+		return nil, err
+	} else if tip == nil {
+		return nil, errors.New("the suggested tip was nil")
+	} else {
+		gasTipCap = tip
+	}
+
+	if head, err := m.backend.HeaderByNumber(ctx, nil); err != nil {
+		return nil, err
+	} else if head.BaseFee == nil {
+		return nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
+	} else {
+		gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
+	}
+
+	// thresholdFeeCap = oldFC  * (100 + priceBump) / 100
+	a := big.NewInt(100 + priceBump)
+	aFeeCap := new(big.Int).Mul(a, tx.GasFeeCap())
+	aTip := a.Mul(a, tx.GasTipCap())
+
+	// thresholdTip    = oldTip * (100 + priceBump) / 100
+	b := big.NewInt(100)
+	thresholdFeeCap := aFeeCap.Div(aFeeCap, b)
+	thresholdTip := aTip.Div(aTip, b)
+
+	// We have to ensure that both the new fee cap and tip are higher than the
+	// old ones as well as checking the percentage threshold to ensure that
+	// this is accurate for low (Wei-level) gas price replacements.
+	if tx.GasFeeCapIntCmp(thresholdFeeCap) < 0 || tx.GasTipCapIntCmp(thresholdTip) < 0 {
+		return nil, errors.New("replacement tx gas price (from current prices) is underpriced")
+	}
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:    tx.ChainId(),
+		Nonce:      tx.Nonce(),
+		GasTipCap:  gasTipCap,
+		GasFeeCap:  gasFeeCap,
+		Gas:        tx.Gas(),
+		To:         tx.To(),
+		Value:      tx.Value(),
+		Data:       tx.Data(),
+		AccessList: tx.AccessList(),
+	}
+	return m.Signer(ctx, m.From, types.NewTx(rawTx))
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
