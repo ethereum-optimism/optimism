@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"io"
 
 	"github.com/ethereum/go-ethereum"
@@ -15,7 +16,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
-
+const (
+	// SYSCOIN
+	appendSequencerBatchMethodName = "appendSequencerBatch()"
+)
 type DataIter interface {
 	Next(ctx context.Context) (eth.Data, error)
 }
@@ -123,6 +127,12 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 		}
 		calldata := txs[receipt.TransactionIndex].Data()
 		// remove function hash
+		sig := crypto.Keccak256([]byte(appendSequencerBatchMethodName))[:4]
+		sigToCheck := calldata[:4]
+		if (!reflect.DeepEqual(sig, sigToCheck)) {
+			log.Warn("DataFromEVMTransactions", "append function not found as method signature")
+			continue
+		}
 		calldata = calldata[4:]
 		lenData := len(calldata)
 		if (lenData%32) != 0 {

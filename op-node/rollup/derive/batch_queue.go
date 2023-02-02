@@ -75,7 +75,7 @@ func (bq *BatchQueue) NextBatch(ctx context.Context, safeL2Head eth.L2BlockRef) 
 			bq.l1Blocks = append(bq.l1Blocks, bq.origin)
 		} else {
 			// This is to handle the special case of startup. At startup we call Reset & include
-			// the L1 origin. That Fy time where immediately after `Reset` is called
+			// the L1 origin. That is the only time where immediately after `Reset` is called
 			// originBehind is false.
 			bq.l1Blocks = bq.l1Blocks[:0]
 		}
