@@ -37,7 +37,7 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
-		txMgr:             txmgr.NewSimpleTxManager("batcher", txMgrConfg, l1Client),
+		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
 		l1Client:          l1Client,
 		signerFn:          signerFn,
 		log:               log,

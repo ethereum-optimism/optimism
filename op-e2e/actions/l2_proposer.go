@@ -46,8 +46,6 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		PollInterval:       time.Second,
 		TxManagerConfig: txmgr.Config{
-			Log:                       log,
-			Name:                      "action-proposer",
 			ResubmissionTimeout:       5 * time.Second,
 			ReceiptQueryInterval:      time.Second,
 			NumConfirmations:          1,
