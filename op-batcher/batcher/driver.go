@@ -32,10 +32,6 @@ type BatchSubmitter struct {
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
 
-	// latest known L1 timestamp - used in unlikely case that a header cannot be
-	// retrieved
-	lastKnownL1Time uint64
-
 	state *channelManager
 }
 
@@ -300,6 +296,5 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	if err != nil {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
-	l.lastKnownL1Time = head.Time
 	return eth.L1BlockRefFromHeader(head), nil
 }
