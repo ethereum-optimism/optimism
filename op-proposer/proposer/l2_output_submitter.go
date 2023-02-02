@@ -171,6 +171,7 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
+		From:                      fromAddress,
 	}
 
 	proposerCfg := Config{
@@ -198,6 +199,8 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 		cancel()
 		return nil, err
 	}
+	signer := cfg.SignerFnFactory(chainID)
+	cfg.TxManagerConfig.Signer = signer
 
 	l2ooContract, err := bindings.NewL2OutputOracle(cfg.L2OutputOracleAddr, cfg.L1Client)
 	if err != nil {
@@ -227,7 +230,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 
 		allowNonFinalized: cfg.AllowNonFinalized,
 		from:              cfg.From,
-		signerFn:          cfg.SignerFnFactory(chainID),
+		signerFn:          signer,
 		pollInterval:      cfg.PollInterval,
 	}, nil
 }
@@ -259,12 +262,6 @@ func (l *L2OutputSubmitter) UpdateGasPrice(ctx context.Context, tx *types.Transa
 		NoSend:  true,
 	}
 	return l.rawL2ooContract.RawTransact(opts, tx.Data())
-}
-
-// SendTransaction injects a signed transaction into the pending pool for execution.
-func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
-	l.log.Info("proposer sending transaction", "tx", tx.Hash())
-	return l.l1Client.SendTransaction(ctx, tx)
 }
 
 // FetchNextOutputInfo gets the block number of the next proposal.
@@ -356,22 +353,15 @@ func (l *L2OutputSubmitter) CreateProposalTx(ctx context.Context, output *eth.Ou
 	return tx, nil
 }
 
-// SendTransactionExt sends a transaction through the transaction manager which handles automatic
+// SendTransaction sends a transaction through the transaction manager which handles automatic
 // price bumping.
 // It also hardcodes a timeout of 100s.
-func (l *L2OutputSubmitter) SendTransactionExt(ctx context.Context, tx *types.Transaction) error {
-	// Construct the closure that will update the txn with the current gas prices.
-	nonce := tx.Nonce()
-	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-		l.log.Info("proposer updating batch tx gas price", "nonce", nonce)
-		return l.UpdateGasPrice(ctx, tx)
-	}
-
+func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Transaction) error {
 	// Wait until one of our submitted transactions confirms. If no
 	// receipt is received it's likely our gas price was too low.
 	cCtx, cancel := context.WithTimeout(ctx, 100*time.Second)
 	defer cancel()
-	receipt, err := l.txMgr.Send(cCtx, updateGasPrice, l.SendTransaction)
+	receipt, err := l.txMgr.Send(cCtx, tx)
 	if err != nil {
 		l.log.Error("proposer unable to publish tx", "err", err)
 		return err
@@ -411,7 +401,7 @@ func (l *L2OutputSubmitter) loop() {
 				cancel()
 				break
 			}
-			if err := l.SendTransactionExt(cCtx, tx); err != nil {
+			if err := l.SendTransaction(cCtx, tx); err != nil {
 				l.log.Error("Failed to send proposal transaction", "err", err)
 				cancel()
 				break
