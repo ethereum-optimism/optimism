@@ -20,6 +20,9 @@ type (
 		// L1 block timestamp of channel timeout. 0 if no timeout set yet.
 		timeout uint64
 
+		// sequencer window timeout block. 0 if not set yet.
+		swTimeoutBlock uint64
+
 		// marked as full if a) max RLP input bytes, b) max num frames or c) max
 		// allowed frame index (uint16) has been reached
 		fullErr error
@@ -32,6 +35,9 @@ type (
 	}
 
 	ChannelConfig struct {
+		// Number of epochs (L1 blocks) per sequencing window, including the epoch
+		// L1 origin block itself
+		SeqWindowSize uint64
 		// The maximum number of L1 blocks that the inclusion transactions of a
 		// channel's frames can span.
 		ChannelTimeout uint64
@@ -158,14 +164,19 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 		return c.FullErr()
 	}
 
-	_, err := c.co.AddBlock(block)
-	if errors.Is(err, derive.ErrTooManyRLPBytes) {
+	batch, err := derive.BlockToBatch(block)
+	if err != nil {
+		return fmt.Errorf("converting block to batch: %w", err)
+	}
+
+	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
 		c.setFullErr(err)
 		return c.FullErr()
 	} else if err != nil {
 		return fmt.Errorf("adding block to channel out: %w", err)
 	}
 	c.blocks = append(c.blocks, block)
+	c.updateSwTimeout(batch)
 
 	if c.InputTargetReached() {
 		c.setFullErr(ErrInputTargetReached)
@@ -173,6 +184,14 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 	}
 
 	return nil
+}
+
+func (c *channelBuilder) updateSwTimeout(batch *derive.BatchData) {
+	if c.swTimeoutBlock != 0 {
+		return
+	}
+	// TODO: subtract safety margin
+	c.swTimeoutBlock = uint64(batch.EpochNum) + c.cfg.SeqWindowSize
 }
 
 // InputTargetReached says whether the target amount of input data has been

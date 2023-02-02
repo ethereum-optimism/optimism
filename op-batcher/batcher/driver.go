@@ -77,6 +77,11 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
+	rcfg, err := rollupClient.RollupConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	txManagerConfig := txmgr.Config{
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ReceiptQueryInterval:      time.Second,
@@ -95,6 +100,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		SignerFnFactory:   signer,
 		BatchInboxAddress: batchInboxAddress,
 		Channel: ChannelConfig{
+			SeqWindowSize:     rcfg.SeqWindowSize,
 			ChannelTimeout:    cfg.ChannelTimeout,
 			ChannelSubTimeout: cfg.ChannelSubTimeout,
 			MaxFrameSize:      cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
