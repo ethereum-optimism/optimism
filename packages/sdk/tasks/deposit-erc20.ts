@@ -340,29 +340,44 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
     )
 
     console.log('Finalizing withdrawal...')
-    const finalize = await messenger.finalizeMessage(withdraw)
+    // TODO: Update SDK to properly estimate gas
+    const finalize = await messenger.finalizeMessage(withdraw, {
+      overrides: { gasLimit: 500_000 },
+    })
     const finalizeReceipt = await finalize.wait()
+    console.log('finalizeReceipt:', finalizeReceipt)
     console.log(`Took ${Math.floor(Date.now() / 1000) - now} seconds`)
 
     for (const log of finalizeReceipt.logs) {
       switch (log.address) {
         case OptimismPortal.address: {
           const parsed = OptimismPortal.interface.parseLog(log)
-          console.log(`Log ${parsed.name} from ${log.address}`)
+          console.log(`Log ${parsed.name} from OptimismPortal (${log.address})`)
           console.log(parsed.args)
           console.log()
           break
         }
         case L1CrossDomainMessenger.address: {
           const parsed = L1CrossDomainMessenger.interface.parseLog(log)
-          console.log(`Log ${parsed.name} from ${log.address}`)
+          console.log(
+            `Log ${parsed.name} from L1CrossDomainMessenger (${log.address})`
+          )
           console.log(parsed.args)
           console.log()
           break
         }
         case L1StandardBridge.address: {
           const parsed = L1StandardBridge.interface.parseLog(log)
-          console.log(`Log ${parsed.name} from ${log.address}`)
+          console.log(
+            `Log ${parsed.name} from L1StandardBridge (${log.address})`
+          )
+          console.log(parsed.args)
+          console.log()
+          break
+        }
+        case WETH9.address: {
+          const parsed = WETH9.interface.parseLog(log)
+          console.log(`Log ${parsed.name} from WETH9 (${log.address})`)
           console.log(parsed.args)
           console.log()
           break
@@ -378,7 +393,9 @@ task('deposit-erc20', 'Deposits WETH9 onto L2.')
 
     const expectedBalance = preBalance.add(utils.parseEther('1'))
     if (!expectedBalance.eq(postBalance)) {
-      throw new Error('Balance mismatch')
+      throw new Error(
+        `Balance mismatch, expected: ${expectedBalance}, actual: ${postBalance}`
+      )
     }
     console.log('Withdrawal success')
   })
