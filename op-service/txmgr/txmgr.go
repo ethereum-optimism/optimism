@@ -15,6 +15,8 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
+const priceBump int64 = 10
+
 // UpdateGasPriceSendTxFunc defines a function signature for publishing a
 // desired tx with a specific gas price. Implementations of this signature
 // should also return promptly when the context is canceled.
@@ -120,7 +122,22 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
 	}
 
-	// TODO (CLI-2630): Check for a large enough price bump
+	// thresholdFeeCap = oldFC  * (100 + priceBump) / 100
+	a := big.NewInt(100 + priceBump)
+	aFeeCap := new(big.Int).Mul(a, tx.GasFeeCap())
+	aTip := a.Mul(a, tx.GasTipCap())
+
+	// thresholdTip    = oldTip * (100 + priceBump) / 100
+	b := big.NewInt(100)
+	thresholdFeeCap := aFeeCap.Div(aFeeCap, b)
+	thresholdTip := aTip.Div(aTip, b)
+
+	// We have to ensure that both the new fee cap and tip are higher than the
+	// old ones as well as checking the percentage threshold to ensure that
+	// this is accurate for low (Wei-level) gas price replacements.
+	if tx.GasFeeCapIntCmp(thresholdFeeCap) < 0 || tx.GasTipCapIntCmp(thresholdTip) < 0 {
+		return nil, errors.New("replacement tx gas price (from current prices) is underpriced")
+	}
 
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
