@@ -17,11 +17,9 @@ type (
 	channelBuilder struct {
 		cfg ChannelConfig
 
-		// L1 block timestamp of channel timeout. 0 if no timeout set yet.
+		// L1 block timestamp of combined channel & sequencing window timeout. 0 if
+		// no timeout set yet.
 		timeout uint64
-
-		// sequencer window timeout block. 0 if not set yet.
-		swTimeoutBlock uint64
 
 		// marked as full if a) max RLP input bytes, b) max num frames or c) max
 		// allowed frame index (uint16) has been reached
@@ -41,13 +39,10 @@ type (
 		// The maximum number of L1 blocks that the inclusion transactions of a
 		// channel's frames can span.
 		ChannelTimeout uint64
-		// ChannelSubTimeout is the maximum duration, in seconds, to attempt
-		// completing an opened channel. When reached, the channel is closed and all
-		// remaining frames are submitted. The batcher should set it shorter than
-		// the actual channel timeout (specified in number of L1 blocks), since
-		// submitting continued channel data to L1 is not instantaneous. It's not
-		// worth it to work with nearly timed-out channels.
-		ChannelSubTimeout uint64
+		// The batcher tx submission safety margin (in #L1-blocks) to subtract from
+		// a channel's timeout and sequencing window, to guarantee safe inclusion of
+		// a channel on L1.
+		SubSafetyMargin uint64
 		// The maximum byte-size a frame can have.
 		MaxFrameSize uint64
 		// The target number of frames to create per channel. Note that if the
@@ -128,25 +123,23 @@ func (c *channelBuilder) Reset() error {
 }
 
 // FramePublished calculates the submission timeout of this channel from the
-// given frame inclusion tx timestamp. If an older frame tx has already been
+// given frame inclusion L1-block number. If an older frame tx has already been
 // seen, the timeout is not updated.
-func (c *channelBuilder) FramePublished(ts uint64) {
-	timeout := ts + c.cfg.ChannelSubTimeout
-	if c.timeout == 0 || c.timeout > timeout {
-		c.timeout = timeout
-	}
+func (c *channelBuilder) FramePublished(l1BlockNum uint64) {
+	timeout := l1BlockNum + c.cfg.ChannelTimeout - c.cfg.SubSafetyMargin
+	c.updateTimeout(timeout)
 }
 
-// TimedOut returns whether the passed timestamp is after the channel timeout.
-// If no timeout is set yet, it returns false.
-func (c *channelBuilder) TimedOut(ts uint64) bool {
-	return c.timeout != 0 && ts >= c.timeout
+// TimedOut returns whether the passed block number is after the channel timeout
+// block. If no block timeout is set yet, it returns false.
+func (c *channelBuilder) TimedOut(blockNum uint64) bool {
+	return c.timeout != 0 && blockNum >= c.timeout
 }
 
 // TriggerTimeout checks if the channel is timed out at the given timestamp and
 // in this case sets the channel as full with reason ErrChannelTimedOut.
-func (c *channelBuilder) TriggerTimeout(ts uint64) {
-	if !c.IsFull() && c.TimedOut(ts) {
+func (c *channelBuilder) TriggerTimeout(blockNum uint64) {
+	if !c.IsFull() && c.TimedOut(blockNum) {
 		c.setFullErr(ErrChannelTimedOut)
 	}
 }
@@ -186,12 +179,20 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 	return nil
 }
 
+// updateSwTimeout updates the block timeout with the sequencer window timeout
+// derived from the batch's origin L1 block. The timeout is only moved forward
+// if the derived sequencer window timeout is earlier than the current.
 func (c *channelBuilder) updateSwTimeout(batch *derive.BatchData) {
-	if c.swTimeoutBlock != 0 {
-		return
+	timeout := uint64(batch.EpochNum) + c.cfg.SeqWindowSize - c.cfg.SubSafetyMargin
+	c.updateTimeout(timeout)
+}
+
+// updateTimeout updates the timeout block to the given block number if it is
+// earlier then the current block timeout, or if it still unset.
+func (c *channelBuilder) updateTimeout(timeoutBlockNum uint64) {
+	if c.timeout == 0 || c.timeout > timeoutBlockNum {
+		c.timeout = timeoutBlockNum
 	}
-	// TODO: subtract safety margin
-	c.swTimeoutBlock = uint64(batch.EpochNum) + c.cfg.SeqWindowSize
 }
 
 // InputTargetReached says whether the target amount of input data has been

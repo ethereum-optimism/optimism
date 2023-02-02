@@ -49,17 +49,10 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
-	// The maximum number of L1 blocks that the inclusion transactions of a
-	// channel's frames can span.
-	ChannelTimeout uint64
-
-	// ChannelSubTimeout is the maximum duration, in seconds, to attempt
-	// completing an opened channel. When reached, the channel is closed and all
-	// remaining frames are submitted. The batcher should set it shorter than
-	// the actual channel timeout (specified in number of L1 blocks), since
-	// submitting continued channel data to L1 is not instantaneous. It's not
-	// worth it to work with nearly timed-out channels.
-	ChannelSubTimeout uint64
+	// The batcher tx submission safety margin (in #L1-blocks) to subtract from
+	// a channel's timeout and sequencing window, to guarantee safe inclusion of
+	// a channel on L1.
+	SubSafetyMargin uint64
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
@@ -89,10 +82,6 @@ type CLIConfig struct {
 
 	// PrivateKey is the private key used to submit sequencer transactions.
 	PrivateKey string
-
-	// SequencerBatchInboxAddress is the address in which to send batch
-	// transactions.
-	SequencerBatchInboxAddress string
 
 	RPCConfig oprpc.CLIConfig
 
@@ -147,26 +136,24 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
-		ChannelTimeout:            ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
-		ChannelSubTimeout:         ctx.GlobalUint64(flags.ChannelSubTimeoutFlag.Name),
+		SubSafetyMargin:           ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
 		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
 		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 
 		/* Optional Flags */
-		MaxL1TxSize:                ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		TargetL1TxSize:             ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
-		TargetNumFrames:            ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:           ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
-		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
-		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
-		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
-		RPCConfig:                  oprpc.ReadCLIConfig(ctx),
-		LogConfig:                  oplog.ReadCLIConfig(ctx),
-		MetricsConfig:              opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:                oppprof.ReadCLIConfig(ctx),
-		SignerConfig:               opsigner.ReadCLIConfig(ctx),
+		MaxL1TxSize:      ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
+		TargetL1TxSize:   ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
+		TargetNumFrames:  ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio: ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
+		Mnemonic:         ctx.GlobalString(flags.MnemonicFlag.Name),
+		SequencerHDPath:  ctx.GlobalString(flags.SequencerHDPathFlag.Name),
+		PrivateKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		RPCConfig:        oprpc.ReadCLIConfig(ctx),
+		LogConfig:        oplog.ReadCLIConfig(ctx),
+		MetricsConfig:    opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:      oppprof.ReadCLIConfig(ctx),
+		SignerConfig:     opsigner.ReadCLIConfig(ctx),
 	}
 }

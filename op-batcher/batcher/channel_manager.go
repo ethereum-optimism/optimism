@@ -61,7 +61,7 @@ type channelManager struct {
 	// Set of unconfirmed txID -> frame data. For tx resubmission
 	pendingTransactions map[txID][]byte
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
-	confirmedTransactions map[txID]eth.L1BlockRef
+	confirmedTransactions map[txID]eth.BlockID
 }
 
 func NewChannelManager(log log.Logger, cfg ChannelConfig) *channelManager {
@@ -69,7 +69,7 @@ func NewChannelManager(log log.Logger, cfg ChannelConfig) *channelManager {
 		log:                   log,
 		cfg:                   cfg,
 		pendingTransactions:   make(map[txID][]byte),
-		confirmedTransactions: make(map[txID]eth.L1BlockRef),
+		confirmedTransactions: make(map[txID]eth.BlockID),
 	}
 }
 
@@ -98,7 +98,7 @@ func (s *channelManager) TxFailed(id txID) {
 // a channel have been marked as confirmed on L1 the channel may be invalid & need to be
 // resubmitted.
 // This function may reset the pending channel if the pending channel has timed out.
-func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.L1BlockRef) {
+func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 	s.log.Trace("marked transaction as confirmed", "id", id, "block", inclusionBlock)
 	if _, ok := s.pendingTransactions[id]; !ok {
 		s.log.Warn("unknown transaction marked as confirmed", "id", id, "block", inclusionBlock)
@@ -108,7 +108,7 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.L1BlockRef) {
 	}
 	delete(s.pendingTransactions, id)
 	s.confirmedTransactions[id] = inclusionBlock
-	s.pendingChannel.FramePublished(inclusionBlock.Time)
+	s.pendingChannel.FramePublished(inclusionBlock.Number)
 
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
@@ -129,7 +129,7 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.L1BlockRef) {
 func (s *channelManager) clearPendingChannel() {
 	s.pendingChannel = nil
 	s.pendingTransactions = make(map[txID][]byte)
-	s.confirmedTransactions = make(map[txID]eth.L1BlockRef)
+	s.confirmedTransactions = make(map[txID]eth.BlockID)
 }
 
 // pendingChannelIsTimedOut returns true if submitted channel has timed out.
@@ -191,7 +191,7 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 //
 // It currently ignores the l1Head provided and doesn't track channel timeouts
 // or the sequencer window span yet.
-func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
@@ -224,7 +224,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	return s.nextTxData()
 }
 
-func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
+func (s *channelManager) ensurePendingChannel(l1Head eth.BlockID) error {
 	if s.pendingChannel != nil {
 		return nil
 	}
@@ -239,8 +239,8 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
 	return nil
 }
 
-func (s *channelManager) triggerTimeout(l1Head eth.L1BlockRef) {
-	s.pendingChannel.TriggerTimeout(l1Head.Time)
+func (s *channelManager) triggerTimeout(l1Head eth.BlockID) {
+	s.pendingChannel.TriggerTimeout(l1Head.Number)
 	ferr := s.pendingChannel.FullErr()
 	s.log.Debug("timeout triggered",
 		"l1Head", l1Head,

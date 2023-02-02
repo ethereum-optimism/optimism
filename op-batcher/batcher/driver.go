@@ -89,13 +89,13 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		SignerFnFactory: signer,
 		Rollup:          rcfg,
 		Channel: ChannelConfig{
-			SeqWindowSize:     rcfg.SeqWindowSize,
-			ChannelTimeout:    rcfg.ChannelTimeout,
-			ChannelSubTimeout: cfg.ChannelSubTimeout,
-			MaxFrameSize:      cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
-			TargetFrameSize:   cfg.TargetL1TxSize - 1, // subtract 1 byte for version
-			TargetNumFrames:   cfg.TargetNumFrames,
-			ApproxComprRatio:  cfg.ApproxComprRatio,
+			SeqWindowSize:    rcfg.SeqWindowSize,
+			ChannelTimeout:   rcfg.ChannelTimeout,
+			SubSafetyMargin:  cfg.SubSafetyMargin,
+			MaxFrameSize:     cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
+			TargetFrameSize:  cfg.TargetL1TxSize - 1, // subtract 1 byte for version
+			TargetNumFrames:  cfg.TargetNumFrames,
+			ApproxComprRatio: cfg.ApproxComprRatio,
 		},
 	}
 
@@ -245,12 +245,12 @@ func (l *BatchSubmitter) loop() {
 			for {
 				l1tip, err := l.l1Tip(l.ctx)
 				if err != nil {
-					l.log.Error("Failed to query L1 tip")
+					l.log.Error("Failed to query L1 tip", "error", err)
 					break
 				}
 
 				// Collect next transaction data
-				data, id, err := l.state.TxData(l1tip)
+				data, id, err := l.state.TxData(l1tip.ID())
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
@@ -288,20 +288,8 @@ func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 
 func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 	l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-	// Unfortunately, a tx receipt doesn't include the timestamp, so we have to
-	// query the header.
-	l1ref, err := l.l1BlockRefByReceipt(l.ctx, receipt)
-	if err != nil {
-		// Very unlikely that tx sending worked but then we cannot get the
-		// header. Fall back to latest known L1 time to be on the safe side.
-		l1ref.Time = l.lastKnownL1Time
-		l.log.Warn("Failed to get block ref for successful batcher tx. Setting timestamp to latest know L1 block time.", "block_ref", l1ref)
-	} else {
-		l.lastKnownL1Time = l1ref.Time
-	}
-	// l1ref is guaranteed to have at least fields Hash, Number and Time set.
-	l.state.TxConfirmed(id, l1ref)
-
+	l1block := eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash}
+	l.state.TxConfirmed(id, l1block)
 }
 
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
