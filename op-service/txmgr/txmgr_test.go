@@ -92,6 +92,12 @@ func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int) {
 	return epochGasTipCap, epochGasFeeCap
 }
 
+func (g *gasPricer) basefee() *big.Int {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return new(big.Int).Mul(g.baseBaseFee, big.NewInt(g.epoch))
+}
+
 func (g *gasPricer) sample() (*big.Int, *big.Int) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -160,11 +166,8 @@ func (b *mockBackend) BlockNumber(ctx context.Context) (uint64, error) {
 }
 
 func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	tip, cap := b.g.sample()
-	basefee := new(big.Int).Sub(cap, tip)
-	basefee = basefee.Div(basefee, common.Big2)
 	return &types.Header{
-		BaseFee: basefee,
+		BaseFee: b.g.basefee(),
 	}, nil
 }
 
