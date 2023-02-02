@@ -1,7 +1,6 @@
 package batcher
 
 import (
-	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -29,10 +29,9 @@ type Config struct {
 	TxManagerConfig txmgr.Config
 	From            common.Address
 	SignerFnFactory opcrypto.SignerFactory
-	ChainID         *big.Int
 
-	// Where to send the batch txs to.
-	BatchInboxAddress common.Address
+	// RollupConfig is queried at startup
+	Rollup *rollup.Config
 
 	// Channel creation parameters
 	Channel ChannelConfig

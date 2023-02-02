@@ -50,11 +50,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
-	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
-	if err != nil {
-		return nil, err
-	}
-
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
 	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
@@ -72,14 +67,9 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
-	if err != nil {
-		return nil, err
-	}
-
 	rcfg, err := rollupClient.RollupConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
 	txManagerConfig := txmgr.Config{
@@ -90,18 +80,17 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 	}
 
 	batcherCfg := Config{
-		L1Client:          l1Client,
-		L2Client:          l2Client,
-		RollupNode:        rollupClient,
-		ChainID:           chainID,
-		PollInterval:      cfg.PollInterval,
-		TxManagerConfig:   txManagerConfig,
-		From:              fromAddress,
-		SignerFnFactory:   signer,
-		BatchInboxAddress: batchInboxAddress,
+		L1Client:        l1Client,
+		L2Client:        l2Client,
+		RollupNode:      rollupClient,
+		PollInterval:    cfg.PollInterval,
+		TxManagerConfig: txManagerConfig,
+		From:            fromAddress,
+		SignerFnFactory: signer,
+		Rollup:          rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:     rcfg.SeqWindowSize,
-			ChannelTimeout:    cfg.ChannelTimeout,
+			ChannelTimeout:    rcfg.ChannelTimeout,
 			ChannelSubTimeout: cfg.ChannelSubTimeout,
 			MaxFrameSize:      cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
 			TargetFrameSize:   cfg.TargetL1TxSize - 1, // subtract 1 byte for version
@@ -129,8 +118,10 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 
 	return &BatchSubmitter{
 		Config: cfg,
-		txMgr:  NewTransactionManager(l, cfg.TxManagerConfig, cfg.BatchInboxAddress, cfg.ChainID, cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.ChainID)),
-		done:   make(chan struct{}),
+		txMgr: NewTransactionManager(l,
+			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
+			cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.Rollup.L1ChainID)),
+		done: make(chan struct{}),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
