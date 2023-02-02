@@ -16,8 +16,7 @@
           "test",
           "build:contracts",
           "autogen:artifacts"
-        ],
-        "accessToken": "NTVjZDAyMDItZGY0My00YjgwLWE4M2MtODAyNDYwMDI1NWM5fHJlYWQ="
+        ]
       }
     }
   },
