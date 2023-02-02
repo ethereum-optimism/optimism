@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -302,36 +301,5 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
 	l.lastKnownL1Time = head.Time
-	return eth.L1BlockRefFromHeader(head), nil
-}
-
-// l1BlockRefByReceipt gets the L1BlockRef for the passed receipt. The passed
-// context is assumed to be a lifetime context, so it is internally wrapped with
-// a network timeout.
-//
-// If there's an error getting the block header, the returned block ref will
-// still have the block hash and number fields set.
-func (l *BatchSubmitter) l1BlockRefByReceipt(ctx context.Context, rec *types.Receipt) (eth.L1BlockRef, error) {
-	l1ref, err := l.l1BlockRefByHash(ctx, rec.BlockHash)
-	if err != nil {
-		// Set as much data as possible
-		return eth.L1BlockRef{
-			Hash:   rec.BlockHash,
-			Number: rec.BlockNumber.Uint64(),
-		}, err
-	}
-	return l1ref, nil
-}
-
-// l1BlockRefByHash gets the L1BlockRef for the passed L1 block hash. The passed
-// context is assumed to be a lifetime context, so it is internally wrapped with
-// a network timeout.
-func (l *BatchSubmitter) l1BlockRefByHash(ctx context.Context, hash common.Hash) (eth.L1BlockRef, error) {
-	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
-	defer cancel()
-	head, err := l.L1Client.HeaderByHash(tctx, hash)
-	if err != nil {
-		return eth.L1BlockRef{}, fmt.Errorf("getting L1 block %v: %w", hash, err)
-	}
 	return eth.L1BlockRefFromHeader(head), nil
 }
