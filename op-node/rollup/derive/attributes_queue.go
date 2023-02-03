@@ -20,7 +20,7 @@ import (
 // It also buffers batches that have been output because multiple batches can
 // be created at once.
 //
-// This stage can be reset by clearing it's batch buffer.
+// This stage can be reset by clearing its batch buffer.
 // This stage does not need to retain any references to L1 blocks.
 
 type AttributesBuilder interface {
