@@ -3,6 +3,7 @@
   "version": "0.5.40",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
   "main": "dist/index",
+  "type": "commonjs",
   "types": "dist/index",
   "files": [
     "dist/**/*.js",

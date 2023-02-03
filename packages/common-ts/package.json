@@ -2,6 +2,7 @@
   "name": "@eth-optimism/common-ts",
   "version": "0.7.1",
   "description": "[Optimism] Advanced typescript tooling used by various services",
+  "type": "commonjs",
   "main": "dist/index",
   "types": "dist/index",
   "files": [

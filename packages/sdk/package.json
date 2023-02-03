@@ -2,6 +2,7 @@
   "name": "@eth-optimism/sdk",
   "version": "1.10.1",
   "description": "[Optimism] Tools for working with Optimism",
+  "type": "commonjs",
   "main": "dist/index",
   "types": "dist/index",
   "files": [
