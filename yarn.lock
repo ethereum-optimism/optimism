@@ -18724,7 +18724,14 @@ rlp@^2.2.7:
   dependencies:
     bn.js "^5.2.0"
 
-rollup@^3.2.5, rollup@^3.7.0:
+rollup@^3.2.5:
+  version "3.13.0"
+  resolved "https://registry.yarnpkg.com/rollup/-/rollup-3.13.0.tgz#202883a91b5d1bf98302efe4daa907e3e5e4ae94"
+  integrity sha512-HJwQtrXAc0AmyDohTJ/2c+Bx/sWPScJLlAUJ1kuD7rAkCro8Cr2SnVB2gVYBiSLxpgD2kZ24jbyXtG++GumrYQ==
+  optionalDependencies:
+    fsevents "~2.3.2"
+
+rollup@^3.7.0:
   version "3.12.0"
   resolved "https://registry.yarnpkg.com/rollup/-/rollup-3.12.0.tgz#813d88ec11e36108da788fc471b3c81b365a7c29"
   integrity sha512-4MZ8kA2HNYahIjz63rzrMMRvDqQDeS9LoriJvMuV0V6zIGysP36e9t4yObUfwdT9h/szXoHQideICftcdZklWg==
