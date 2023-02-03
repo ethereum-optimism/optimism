@@ -2,9 +2,8 @@
   "name": "@eth-optimism/core-utils",
   "version": "0.12.0",
   "description": "[Optimism] Core typescript utilities",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "src/index.ts",
+  "main": "dist/index",
+  "types": "dist/index",
   "files": [
     "dist/*"
   ],
@@ -13,11 +12,9 @@
     "build": "tsc -p tsconfig.json",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "prelint:check": "yarn typecheck",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
-    "typecheck": "tsc --noEmit",
     "test": "ts-mocha test/*.spec.ts",
     "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
@@ -53,7 +50,6 @@
     "chai": "^4.3.4"
   },
   "devDependencies": {
-    "mocha": "^10.0.0",
-    "tsup": "^6.5.0"
+    "mocha": "^10.0.0"
   }
 }
