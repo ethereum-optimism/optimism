@@ -3,7 +3,7 @@
   "version": "2.0.1",
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index.js",
-  "module": "dist/index.cjs",
+  "module": "dist/index.mjs",
   "types": "src/index.ts",
   "files": [
     "dist/*",
