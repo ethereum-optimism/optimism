@@ -81,6 +81,12 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         assertEq(setter.value(), 0);
     }
 
+    function test_notLocalOwner_transferLocalOwnership_reverts() external {
+        vm.prank(bob);
+        vm.expectRevert("CrossDomainOwnable2: caller is not the localOwner");
+        setter.transferLocalOwnership(bob);
+    }
+
     function test_onlyOwner_succeeds() external {
         address owner = setter.owner();
 
@@ -100,5 +106,35 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         );
 
         assertEq(setter.value(), 2);
+    }
+
+    /**
+     * @notice Thrown when the local owner changes.
+     */
+    event LocalOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    function test_onlyLocalOwner_transferLocalOwnership_succeeds(address newOwner) external {
+        vm.assume(newOwner != address(0));
+
+        vm.expectEmit(true, true, false, true);
+        emit LocalOwnershipTransferred(alice, newOwner);
+
+        vm.prank(alice);
+        setter.transferLocalOwnership(newOwner);
+    }
+
+    /**
+     * @notice Thrown when the cross domain owner changes.
+     */
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    function test_localOwner_transferOwnership_succeeds(address newOwner) external {
+        vm.assume(newOwner != address(0));
+
+        vm.expectEmit(true, true, false, true);
+        emit OwnershipTransferred(alice, newOwner);
+
+        vm.prank(alice);
+        setter.transferOwnership(newOwner);
     }
 }
