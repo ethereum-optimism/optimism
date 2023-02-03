@@ -19,13 +19,8 @@ const deployFn: DeployFunction = async (hre) => {
   await deploy({
     hre,
     name: 'BatchInbox',
-    args: [hre.deployConfig.batchSenderAddress, hre.deployConfig.batchInboxAddress],
+    args: [hre.deployConfig.batchInboxAddress],
     postDeployAction: async (contract) => {
-      await assertContractVariable(
-        contract,
-        'proposer',
-        hre.deployConfig.batchSenderAddress
-      )
       await assertContractVariable(
         contract,
         'owner',

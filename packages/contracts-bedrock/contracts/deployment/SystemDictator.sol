@@ -68,7 +68,6 @@ contract SystemDictator is OwnableUpgradeable {
     }
     // SYSCOIN
     struct BatchInboxConfig {
-        address batchInboxProposer;
         address batchInboxOwner;
     }
     /**
@@ -322,7 +321,6 @@ contract SystemDictator is OwnableUpgradeable {
             abi.encodeCall(
                 BatchInbox.initialize,
                 (
-                    config.batchInboxConfig.batchInboxProposer,
                     config.batchInboxConfig.batchInboxOwner
                 )
             )

@@ -99,7 +99,6 @@ const deployFn: DeployFunction = async (hre) => {
     },
     // SYSCOIN
     batchInboxConfig: {
-      batchInboxProposer: hre.deployConfig.batchSenderAddress,
       batchInboxOwner: hre.deployConfig.batchInboxAddress,
     },
     systemConfigConfig: {

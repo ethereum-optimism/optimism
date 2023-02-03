@@ -14,34 +14,14 @@ import { Semver } from "../universal/Semver.sol";
 // slither-disable-next-line locked-ether
 contract BatchInbox is OwnableUpgradeable, Semver {
     /**
-     * @notice The address of the proposer;
-     */
-    address public proposer;
-    /**
-     * @notice Emitted when the proposer address is changed.
-     *
-     * @param previousProposer The previous proposer address.
-     * @param newProposer      The new proposer address.
-     */
-    event ProposerChanged(address indexed previousProposer, address indexed newProposer);
-
-    /**
-     * @notice Reverts if called by any account other than the proposer.
-     */
-    modifier onlyProposer() {
-        require(proposer == msg.sender, "BatchInbox: function can only be called by proposer");
-        _;
-    }
-    /**
      * @custom:semver 0.0.1
      *
      * @param _owner                 The address of the owner.
      */
     constructor(
-        address _proposer,
         address _owner
     ) Semver(0, 0, 1) {
-        initialize(_proposer, _owner);
+        initialize(_owner);
     }
 
     /**
@@ -50,12 +30,9 @@ contract BatchInbox is OwnableUpgradeable, Semver {
      * @param _owner               The address of the owner.
      */
     function initialize(
-        address _proposer,
         address _owner
     ) public initializer {
-        require(_proposer != _owner, "BatchInbox: proposer cannot be the same as the owner");
         __Ownable_init();
-        changeProposer(_proposer);
         _transferOwnership(_owner);
     }
     /**
@@ -63,7 +40,7 @@ contract BatchInbox is OwnableUpgradeable, Semver {
      * the calldata should be contingious set of 32 byte version hashes to check via precompile. Will consume memory for 1 hash and check that the a hash value was parrtoed back to indicate validity.
      *
      */
-    function appendSequencerBatch() external view onlyProposer {
+    function appendSequencerBatch() external view {
         // Revert if the provided calldata does not consist of the 4 byte selector and segments of 32 bytes.
         require((msg.data.length - 4)%32 == 0);
         // Start reading calldata after the function selector.
@@ -91,23 +68,5 @@ contract BatchInbox is OwnableUpgradeable, Semver {
             }
             cursorPosition += 32;
         }
-    }
-    /**
-     * @notice Transfers the proposer role to a new account (`newProposer`).
-     *         Can only be called by the current owner.
-     */
-    function changeProposer(address _newProposer) public onlyOwner {
-        require(
-            _newProposer != address(0),
-            "BatchInbox: new proposer cannot be the zero address"
-        );
-
-        require(
-            _newProposer != owner(),
-            "BatchInbox: proposer cannot be the same as the owner"
-        );
-
-        emit ProposerChanged(proposer, _newProposer);
-        proposer = _newProposer;
     }
 }

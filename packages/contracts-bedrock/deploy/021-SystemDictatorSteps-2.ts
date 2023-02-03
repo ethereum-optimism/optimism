@@ -229,11 +229,6 @@ const deployFn: DeployFunction = async (hre) => {
       // SYSCOIN Check BatchInbox was initialized properly.
       await assertContractVariable(
         BatchInbox,
-        'proposer',
-        hre.deployConfig.batchSenderAddress
-      )
-      await assertContractVariable(
-        BatchInbox,
         'owner',
         hre.deployConfig.batchInboxAddress
       )
