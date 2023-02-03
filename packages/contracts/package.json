@@ -2,9 +2,8 @@
   "name": "@eth-optimism/contracts",
   "version": "0.5.40",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
-  "main": "dist/index.js",
-  "module": "dist/index.mjs",
-  "types": "src/index.ts",
+  "main": "dist/index",
+  "types": "dist/index",
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
@@ -34,7 +33,6 @@
     "test:slither": "slither .",
     "pretest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat && ln -s ../../node_modules/@openzeppelin @openzeppelin && ln -s ../../node_modules/@ens @ens && ln -s ../../node_modules/hardhat hardhat",
     "posttest:slither": "rm -f @openzeppelin && rm -f @ens && rm -f hardhat",
-    "prelint:ts:check": "yarn typecheck",
     "lint:ts:check": "eslint . --max-warnings=0",
     "lint:contracts:check": "yarn solhint -f table 'contracts/**/*.sol'",
     "lint:check": "yarn lint:contracts:check && yarn lint:ts:check",
@@ -43,7 +41,6 @@
     "lint:fix": "yarn lint:contracts:fix && yarn lint:ts:fix",
     "lint": "yarn lint:fix && yarn lint:check",
     "clean": "rm -rf ./dist ./artifacts ./cache ./coverage ./tsconfig.tsbuildinfo ./chugsplash ./L1 ./L2 ./libraries ./standards",
-    "typecheck": "tsc --noEmit",
     "pre-commit": "lint-staged",
     "validateDocs": "hardhat validateOutput"
   },
@@ -115,7 +112,6 @@
     "squirrelly": "^8.0.8",
     "ts-generator": "0.0.8",
     "ts-node": "^10.9.1",
-    "tsup": "^6.5.0",
     "typechain": "^8.1.0",
     "typescript": "^4.9.3"
   },
