@@ -63,7 +63,7 @@ contract BatchInbox is OwnableUpgradeable, Semver {
      * the calldata should be contingious set of 32 byte version hashes to check via precompile. Will consume memory for 1 hash and check that the a hash value was parrtoed back to indicate validity.
      *
      */
-    function appendSequencerBatch() external onlyProposer {
+    function appendSequencerBatch() external view onlyProposer {
         // Revert if the provided calldata does not consist of the 4 byte selector and segments of 32 bytes.
         require((msg.data.length - 4)%32 == 0);
         // Start reading calldata after the function selector.
