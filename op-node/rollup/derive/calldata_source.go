@@ -83,7 +83,7 @@ func NewDataSource(ctx context.Context, log log.Logger, cfg *rollup.Config, fetc
 		return &DataSource{
 			open: true,
 			// SYSCOIN
-			data: DataFromEVMTransactions(ctx, fetcher, cfg, receipts, txs, log.New("origin", block)),
+			data: DataFromEVMTransactions(ctx, fetcher, cfg, batcherAddr, receipts, txs, log.New("origin", block)),
 		}
 	}
 }
@@ -96,7 +96,7 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 		// SYSCOIN
 		if _, receipts, txs, err := ds.fetcher.FetchReceipts(ctx, ds.id.Hash); err == nil {
 			ds.open = true
-			ds.data = DataFromEVMTransactions(ctx, ds.fetcher, ds.cfg, receipts, txs, log.New("origin", ds.id))
+			ds.data = DataFromEVMTransactions(ctx, ds.fetcher, ds.cfg, ds.batcherAddr, receipts, txs, log.New("origin", ds.id))
 		} else if errors.Is(err, ethereum.NotFound) {
 			return nil, NewResetError(fmt.Errorf("failed to open calldata source: %w", err))
 		} else {
@@ -115,8 +115,9 @@ func (ds *DataSource) Next(ctx context.Context) (eth.Data, error) {
 // SYSCOIN DataFromEVMTransactions filters all of the transactions and returns the calldata from transactions
 // that are sent to the batch inbox address from the batch sender address.
 // This will return an empty array if no valid transactions are found.
-func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, config *rollup.Config, receipts types.Receipts, txs types.Transactions, log log.Logger) []eth.Data {
+func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, config *rollup.Config, batcherAddr common.Address, receipts types.Receipts, txs types.Transactions, log log.Logger) []eth.Data {
 	var out []eth.Data
+	l1Signer := config.L1Signer()
 	for i, receipt := range receipts {
 		if to := txs[i].To(); to == nil || *to != config.BatchInboxAddress {
 			continue
@@ -124,6 +125,16 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 		if(receipt.Status != types.ReceiptStatusSuccessful) {
 			log.Warn("DataFromEVMTransactions: transaction was not successful", "index", i, "status", receipt.Status)
 			continue // reverted, ignore
+		}
+		seqDataSubmitter, err := l1Signer.Sender(txs[i]) // optimization: only derive sender if To is correct
+		if err != nil {
+			log.Warn("tx in inbox with invalid signature", "index", i, "err", err)
+			continue // bad signature, ignore
+		}
+		// some random L1 user might have sent a transaction to our batch inbox, ignore them
+		if seqDataSubmitter != batcherAddr {
+			log.Warn("tx in inbox with unauthorized submitter", "index", i, "err", err)
+			continue // not an authorized batch submitter, ignore
 		}
 		calldata := txs[receipt.TransactionIndex].Data()
 		// remove function hash
