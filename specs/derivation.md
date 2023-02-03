@@ -710,6 +710,8 @@ enact the change, as linear rewinds of the tip of the chain may not be supported
 
 #### L1-sync: payload attributes processing
 
+[exec-engine-comm]: exec-engine.md#engine-api
+
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the L2 payload
 attributes to the execution engine to be constructed into a proper L2 block.
 This L2 block will then become both the new L2 safe and unsafe head.
@@ -728,6 +730,7 @@ The payload attributes are then processed with a sequence of:
 - `engine_forkchoiceUpdatedV1` with current forkchoice state of the stage, and the attributes to start block building.
   - Non-deterministic sources, like the tx-pool, must be disabled to reconstruct the expected block.
 - `engine_getPayload` to retrieve the payload, by the payload-ID in the result of the previous step.
+- `engine_newPayload` to import the new payload into the execution engine.
 - `engine_forkchoiceUpdatedV1` to make the new payload canonical,
    now with a change of both `safe` and `unsafe` fields to refer to the payload, and no payload attributes.
 
