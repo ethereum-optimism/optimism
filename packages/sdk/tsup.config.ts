@@ -17,6 +17,7 @@ export default defineConfig({
   // we must use our .ts files as "types" in package.json
   // this is better dx since it means the types take you to
   // the source code instead of just the .d.ts file in editors
+  noExternal: [/^.*$/],
   dts: false,
   splitting: false,
   sourcemap: true,
