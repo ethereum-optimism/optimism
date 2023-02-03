@@ -217,15 +217,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, updateGasPrice UpdateGasPric
 	}
 }
 // SYSCOIN
-func (m *SimpleTxManager) SendBlob(
-	ctx context.Context,
-	createBlob CreateBlobFunc,
-	backend ReceiptSource,
-	data []byte,
-) (*types.Receipt, error) {
-
-	name := m.name
-
+func (m *SimpleTxManager) SendBlob(ctx context.Context, createBlob CreateBlobFunc, backend ReceiptSource, data []byte) (*types.Receipt, error) {
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
 	// We assert that this is the case thoroughly in our unit tests.
@@ -265,7 +257,7 @@ func (m *SimpleTxManager) SendBlob(
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
-		receipt, err := m.waitMinedBlob(ctx, vh, sendState)
+		receipt, err := m.waitMinedBlob(ctx, backend, vh, sendState)
 		if err != nil {
 			log.Debug("send blob failed", "vh", vh,
 				"err", err)
@@ -275,7 +267,7 @@ func (m *SimpleTxManager) SendBlob(
 			// if more than one receipt is discovered.
 			select {
 			case receiptChan <- receipt:
-				log.Trace(name+" send blob succeeded", "vh", vh)
+				log.Trace("send blob succeeded", "vh", vh)
 			default:
 			}
 		}
@@ -379,11 +371,11 @@ func (m *SimpleTxManager) waitMined(ctx context.Context, tx *types.Transaction, 
 	}
 }
 // SYSCOIN
-func (m *SimpleTxManager) waitMinedBlob(ctx context.Context, vh common.Hash, sendState *SendState) (*types.Receipt, error) {
+func (m *SimpleTxManager) waitMinedBlob(ctx context.Context, backend ReceiptSource, vh common.Hash, sendState *SendState) (*types.Receipt, error) {
 	queryTicker := time.NewTicker(m.ReceiptQueryInterval)
 	defer queryTicker.Stop()
 	for {
-		receipt, err := m.backend.TransactionReceipt(ctx, vh)
+		receipt, err := backend.TransactionReceipt(ctx, vh)
 		switch {
 		case receipt != nil:
 			if sendState != nil {
