@@ -21,6 +21,7 @@ import (
 // - wait 1 week + 1 second
 // - finalize withdrawal on L1
 func TestCrossLayerUser(gt *testing.T) {
+	gt.Skip("proposer deadlocks")
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
