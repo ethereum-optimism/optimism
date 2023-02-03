@@ -2,6 +2,7 @@
   "name": "@eth-optimism/contracts-bedrock",
   "version": "0.11.3",
   "description": "Contracts for Optimism Specs",
+  "type": "commonjs",
   "main": "dist/index",
   "types": "dist/index",
   "license": "MIT",
