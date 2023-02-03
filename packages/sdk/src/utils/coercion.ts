@@ -1,5 +1,3 @@
-import assert from 'assert'
-
 import {
   Provider,
   TransactionReceipt,
@@ -8,6 +6,7 @@ import {
 import { Signer } from '@ethersproject/abstract-signer'
 import { ethers, BigNumber } from 'ethers'
 
+import { assert } from './assert'
 import {
   SignerOrProviderLike,
   ProviderLike,
