@@ -48,7 +48,8 @@
     "hardhat-deploy": "^0.11.4",
     "nyc": "^15.1.0",
     "typedoc": "^0.22.13",
-    "mocha": "^10.0.0"
+    "mocha": "^10.0.0",
+    "tsup": "^6.5.0"
   },
   "dependencies": {
     "@eth-optimism/contracts": "0.5.40",
@@ -56,8 +57,7 @@
     "@eth-optimism/contracts-bedrock": "0.13.1",
     "lodash": "^4.17.21",
     "merkletreejs": "^0.2.27",
-    "rlp": "^2.2.7",
-    "tsup": "^6.5.0"
+    "rlp": "^2.2.7"
   },
   "peerDependencies": {
     "ethers": "^5"
