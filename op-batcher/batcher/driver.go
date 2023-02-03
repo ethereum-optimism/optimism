@@ -79,8 +79,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 	}
 
 	txManagerConfig := txmgr.Config{
-		Log:                       l,
-		Name:                      "Batch Submitter",
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
