@@ -133,8 +133,8 @@ The Optimism Portal serves as both the entry and exit point to the Optimism L2. 
 the [DepositFeed](./deposits.md#deposit-contract) contract, and in addition provides the following interface for
 withdrawals:
 
-- [WithdrawalTransaction type](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/Types.sol#L46-L56)
-- [OutputRootProof type](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/Types.sol#L20-L29)
+- [`WithdrawalTransaction` type](https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L76-L83)
+- [`OutputRootProof` type](https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L33-L38)
 
 ```js
 interface OptimismPortal {
@@ -184,7 +184,7 @@ These inputs must satisfy the following conditions:
 
 ### Key Properties of Withdrawal Verification
 
-1. It should not be possible 'double spend' a withdrawal, ie. to relay a withdrawal on L1 which does not
+1. It should not be possible to 'double spend' a withdrawal, ie. to relay a withdrawal on L1 which does not
    correspond to a message initiated on L2. For reference, see [this writeup][polygon-dbl-spend] of a vulnerability
    of this type found on Polygon.
 
