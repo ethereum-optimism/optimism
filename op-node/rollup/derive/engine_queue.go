@@ -547,7 +547,7 @@ func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPa
 		return nil, BlockInsertPrestateErr, fmt.Errorf("cannot complete payload building: not currently building a payload")
 	}
 	if eq.buildingOnto.Hash != eq.unsafeHead.Hash { // E.g. when safe-attributes consolidation fails, it will drop the existing work.
-		eq.log.Warn("engine is building block that reorgs previous usafe head", "onto", eq.buildingOnto, "unsafe", eq.unsafeHead)
+		eq.log.Warn("engine is building block that reorgs previous unsafe head", "onto", eq.buildingOnto, "unsafe", eq.unsafeHead)
 	}
 	fc := eth.ForkchoiceState{
 		HeadBlockHash:      common.Hash{}, // gets overridden
