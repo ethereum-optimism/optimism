@@ -59,14 +59,28 @@ contract L2StandardBridge is StandardBridge, Semver {
     );
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      *
      * @param _otherBridge Address of the L1StandardBridge.
      */
     constructor(address payable _otherBridge)
-        Semver(1, 0, 0)
+        Semver(1, 1, 0)
         StandardBridge(payable(Predeploys.L2_CROSS_DOMAIN_MESSENGER), _otherBridge)
     {}
+
+    /**
+     * @notice Allows EOAs to bridge ETH by sending directly to the bridge.
+     */
+    receive() external payable override onlyEOA {
+        _initiateWithdrawal(
+            Predeploys.LEGACY_ERC20_ETH,
+            msg.sender,
+            msg.sender,
+            msg.value,
+            RECEIVE_DEFAULT_GAS_LIMIT,
+            bytes("")
+        );
+    }
 
     /**
      * @custom:legacy
@@ -134,8 +148,6 @@ contract L2StandardBridge is StandardBridge, Semver {
         } else {
             finalizeBridgeERC20(_l2Token, _l1Token, _from, _to, _amount, _extraData);
         }
-
-        emit DepositFinalized(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -165,7 +177,7 @@ contract L2StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _extraData
+        bytes memory _extraData
     ) internal {
         address l1Token = OptimismMintableERC20(_l2Token).l1Token();
         if (_l2Token == Predeploys.LEGACY_ERC20_ETH) {
@@ -173,7 +185,87 @@ contract L2StandardBridge is StandardBridge, Semver {
         } else {
             _initiateBridgeERC20(_l2Token, l1Token, _from, _to, _amount, _minGasLimit, _extraData);
         }
+    }
 
-        emit WithdrawalInitiated(l1Token, _l2Token, _from, _to, _amount, _extraData);
+    /**
+     * @notice Emits the legacy WithdrawalInitiated event followed by the ETHBridgeInitiated event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
+     * @inheritdoc StandardBridge
+     */
+    function _emitETHBridgeInitiated(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit WithdrawalInitiated(
+            address(0),
+            Predeploys.LEGACY_ERC20_ETH,
+            _from,
+            _to,
+            _amount,
+            _extraData
+        );
+        super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Emits the legacy DepositFinalized event followed by the ETHBridgeFinalized event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
+     * @inheritdoc StandardBridge
+     */
+    function _emitETHBridgeFinalized(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit DepositFinalized(
+            address(0),
+            Predeploys.LEGACY_ERC20_ETH,
+            _from,
+            _to,
+            _amount,
+            _extraData
+        );
+        super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Emits the legacy WithdrawalInitiated event followed by the ERC20BridgeInitiated
+     *         event. This is necessary for backwards compatibility with the legacy bridge.
+     *
+     * @inheritdoc StandardBridge
+     */
+    function _emitERC20BridgeInitiated(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit WithdrawalInitiated(_remoteToken, _localToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Emits the legacy DepositFinalized event followed by the ERC20BridgeFinalized event.
+     *         This is necessary for backwards compatibility with the legacy bridge.
+     *
+     * @inheritdoc StandardBridge
+     */
+    function _emitERC20BridgeFinalized(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal override {
+        emit DepositFinalized(_remoteToken, _localToken, _from, _to, _amount, _extraData);
+        super._emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 }

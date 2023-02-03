@@ -1,0 +1,492 @@
+{
+  "address": "0x50F5dC573e61B128026Ee54B0C38492425d0E1ec",
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_messenger",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_otherBridge",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "localToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "remoteToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "ERC721BridgeFinalized",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "localToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "remoteToken",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "from",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "bytes",
+          "name": "extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "ERC721BridgeInitiated",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "MESSENGER",
+      "outputs": [
+        {
+          "internalType": "contract CrossDomainMessenger",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "OTHER_BRIDGE",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_localToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_remoteToken",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint32",
+          "name": "_minGasLimit",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "bridgeERC721",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_localToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_remoteToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint32",
+          "name": "_minGasLimit",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "bridgeERC721To",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "name": "deposits",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_localToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_remoteToken",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_from",
+          "type": "address"
+        },
+        {
+          "internalType": "address",
+          "name": "_to",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_tokenId",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "_extraData",
+          "type": "bytes"
+        }
+      ],
+      "name": "finalizeBridgeERC721",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "messenger",
+      "outputs": [
+        {
+          "internalType": "contract CrossDomainMessenger",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "otherBridge",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0xf475e7007cea1ccdffdb1e94631c1c95306b54f48f1e74364d05cca4474f7714",
+  "receipt": {
+    "to": null,
+    "from": "0x2d30335B0b807bBa1682C487BaAFD2Ad6da5D675",
+    "contractAddress": "0x50F5dC573e61B128026Ee54B0C38492425d0E1ec",
+    "transactionIndex": 11,
+    "gasUsed": "1115422",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xd421b5b2b1b8d9c317a0128e9d85253882d1ccde98f4706bb101ff9bd1c642f1",
+    "transactionHash": "0xf475e7007cea1ccdffdb1e94631c1c95306b54f48f1e74364d05cca4474f7714",
+    "logs": [],
+    "blockNumber": 8364201,
+    "cumulativeGasUsed": "1824226",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [
+    "0x71A046D793C71af209960DCb8bD5388d2c5D2a78",
+    "0x4200000000000000000000000000000000000014"
+  ],
+  "numDeployments": 1,
+  "solcInputHash": "46b1d8460586c4660b2379cf0ba282ef",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_messenger\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_otherBridge\",\"type\":\"address\"}],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"localToken\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"remoteToken\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"tokenId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"extraData\",\"type\":\"bytes\"}],\"name\":\"ERC721BridgeFinalized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"localToken\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"remoteToken\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"from\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"to\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"tokenId\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bytes\",\"name\":\"extraData\",\"type\":\"bytes\"}],\"name\":\"ERC721BridgeInitiated\",\"type\":\"event\"},{\"inputs\":[],\"name\":\"MESSENGER\",\"outputs\":[{\"internalType\":\"contract CrossDomainMessenger\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"OTHER_BRIDGE\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_localToken\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_remoteToken\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"bridgeERC721\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_localToken\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_remoteToken\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"internalType\":\"uint32\",\"name\":\"_minGasLimit\",\"type\":\"uint32\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"bridgeERC721To\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"deposits\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_localToken\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_remoteToken\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_from\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_to\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_tokenId\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"_extraData\",\"type\":\"bytes\"}],\"name\":\"finalizeBridgeERC721\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"messenger\",\"outputs\":[{\"internalType\":\"contract CrossDomainMessenger\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"otherBridge\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"kind\":\"dev\",\"methods\":{\"bridgeERC721(address,address,uint256,uint32,bytes)\":{\"params\":{\"_extraData\":\"Optional data to forward to the other chain. Data supplied here will not                     be used to execute any code on the other chain and is only emitted as                     extra data for the convenience of off-chain tooling.\",\"_localToken\":\"Address of the ERC721 on this domain.\",\"_minGasLimit\":\"Minimum gas limit for the bridge message on the other domain.\",\"_remoteToken\":\"Address of the ERC721 on the remote domain.\",\"_tokenId\":\"Token ID to bridge.\"}},\"bridgeERC721To(address,address,address,uint256,uint32,bytes)\":{\"params\":{\"_extraData\":\"Optional data to forward to the other chain. Data supplied here will not                     be used to execute any code on the other chain and is only emitted as                     extra data for the convenience of off-chain tooling.\",\"_localToken\":\"Address of the ERC721 on this domain.\",\"_minGasLimit\":\"Minimum gas limit for the bridge message on the other domain.\",\"_remoteToken\":\"Address of the ERC721 on the remote domain.\",\"_to\":\"Address to receive the token on the other domain.\",\"_tokenId\":\"Token ID to bridge.\"}},\"constructor\":{\"custom:semver\":\"1.0.0\",\"params\":{\"_messenger\":\"Address of the CrossDomainMessenger on this network.\",\"_otherBridge\":\"Address of the ERC721 bridge on the other network.\"}},\"finalizeBridgeERC721(address,address,address,address,uint256,bytes)\":{\"params\":{\"_extraData\":\"Optional data to forward to L2. Data supplied here will not be used to                     execute any code on L2 and is only emitted as extra data for the                     convenience of off-chain tooling.\",\"_from\":\"Address that triggered the bridge on the other domain.\",\"_localToken\":\"Address of the ERC721 token on this domain.\",\"_remoteToken\":\"Address of the ERC721 token on the other domain.\",\"_to\":\"Address to receive the token on this domain.\",\"_tokenId\":\"ID of the token being deposited.\"}},\"messenger()\":{\"custom:legacy\":\"@notice Legacy getter for messenger contract.\",\"returns\":{\"_0\":\"Messenger contract on this domain.\"}},\"otherBridge()\":{\"custom:legacy\":\"@notice Legacy getter for other bridge address.\",\"returns\":{\"_0\":\"Address of the bridge on the other network.\"}},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"title\":\"L1ERC721Bridge\",\"version\":1},\"userdoc\":{\"events\":{\"ERC721BridgeFinalized(address,address,address,address,uint256,bytes)\":{\"notice\":\"Emitted when an ERC721 bridge from the other network is finalized.\"},\"ERC721BridgeInitiated(address,address,address,address,uint256,bytes)\":{\"notice\":\"Emitted when an ERC721 bridge to the other network is initiated.\"}},\"kind\":\"user\",\"methods\":{\"MESSENGER()\":{\"notice\":\"Messenger contract on this domain.\"},\"OTHER_BRIDGE()\":{\"notice\":\"Address of the bridge on the other network.\"},\"bridgeERC721(address,address,uint256,uint32,bytes)\":{\"notice\":\"Initiates a bridge of an NFT to the caller's account on the other chain. Note that         this function can only be called by EOAs. Smart contract wallets should use the         `bridgeERC721To` function after ensuring that the recipient address on the remote         chain exists. Also note that the current owner of the token on this chain must         approve this contract to operate the NFT before it can be bridged.         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This         bridge only supports ERC721s originally deployed on Ethereum. Users will need to         wait for the one-week challenge period to elapse before their Optimism-native NFT         can be refunded on L2.\"},\"bridgeERC721To(address,address,address,uint256,uint32,bytes)\":{\"notice\":\"Initiates a bridge of an NFT to some recipient's account on the other chain. Note         that the current owner of the token on this chain must approve this contract to         operate the NFT before it can be bridged.         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This         bridge only supports ERC721s originally deployed on Ethereum. Users will need to         wait for the one-week challenge period to elapse before their Optimism-native NFT         can be refunded on L2.\"},\"deposits(address,address,uint256)\":{\"notice\":\"Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token         by ID was deposited for a given L2 token.\"},\"finalizeBridgeERC721(address,address,address,address,uint256,bytes)\":{\"notice\":\"Completes an ERC721 bridge from the other domain and sends the ERC721 token to the         recipient on this domain.\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract         acts as an escrow for ERC721 tokens deposited into L2.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L1/L1ERC721Bridge.sol\":\"L1ERC721Bridge\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\"]},\"sources\":{\"contracts/L1/L1ERC721Bridge.sol\":{\"keccak256\":\"0x9a410440dad639aa9b8facb8d99ad5a74e868fa20d75274f545a539cfd965745\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://dd46b6bb8428d2e17ff15664a46e23b9e93188520b047dd406800792dd928118\",\"dweb:/ipfs/QmYode1mDZdLj7UdA8QqD8dDQFgst52DeFh8kn33njZJqh\"]},\"contracts/L2/L2ERC721Bridge.sol\":{\"keccak256\":\"0x2ab1b8168d443b8c5fb6806fca9396d9ac8d0371c05b15992e1b38be22c4ca48\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://c2df3e2944950a83eb9d6b7217a21a7d557ee08620962f9db4c6e53fb76cf7af\",\"dweb:/ipfs/QmZ124uFjoyK6pWiHRYVRhF5tr2wcUcGgsTF4G355ntL5N\"]},\"contracts/libraries/Constants.sol\":{\"keccak256\":\"0x50a2b69a5e9246945ee1588278753feae90285ff7e675369f0cc5b64acea333c\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://75153213766bd271cce59d5284a4a0d2f6283e3c6a9dc31b8ce20a3a4c28c066\",\"dweb:/ipfs/QmcbpwMLYuKUPahVYJ3W7sfntQgHk9RTuR2DUzFMrfPMQr\"]},\"contracts/libraries/Encoding.sol\":{\"keccak256\":\"0x170cd0821cec37976a6391da20f1dcdcb1ea9ffada96ccd3c57ff2e357589418\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://f18156216c1f9457c2e032a812ad70f2babbc5b89997554ff014d64c483fb2ff\",\"dweb:/ipfs/Qmc5rjMaBFn3jV7XqDrEvRbmatQvJxeVJYA5B5rdcKPkcJ\"]},\"contracts/libraries/Hashing.sol\":{\"keccak256\":\"0x5d4988987899306d2785b3de068194a39f8e829a7864762a07a0016db5189f5e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6746ed0d26d603568818cc52a29d0209effd69f7e55bd0017a6b91bd6cf319fe\",\"dweb:/ipfs/QmPebCmCELMBRtDDxt5ziEPfRXUh6tfm2qJdwz3iyrDdWN\"]},\"contracts/libraries/SafeCall.sol\":{\"keccak256\":\"0xbb0621c028c18e9d5a54cf1a8136cf2e77f161de48aeb8d911e230f6b280c9ed\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://924ecc629c7642bc19e2f8a390f1b946d22862c8889453da681b5bc1a45d7703\",\"dweb:/ipfs/QmbNknQ8pzssXDXGVjXxzZ8zh1YnNCWtRJVepiM1TnqoqQ\"]},\"contracts/libraries/Types.sol\":{\"keccak256\":\"0x822e7c7ac5d45eac20551ba602d8bff3d22db3538fb32be42c1ab12d7bfca110\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://970823854723de895ca7a24d34269e886a20824c75f706cb41541893b7c78838\",\"dweb:/ipfs/QmSQbEECeTxgUT65pK7Czc4ovAv2FdQ9EHyi5Z8mZgNkXc\"]},\"contracts/libraries/rlp/RLPWriter.sol\":{\"keccak256\":\"0x5aa9d21c5b41c9786f23153f819d561ae809a1d55c7b0d423dfeafdfbacedc78\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://921c44e6a0982b9a4011900fda1bda2c06b7a85894967de98b407a83fe9f90c0\",\"dweb:/ipfs/QmSsHLKDUQ82kpKdqB6VntVGKuPDb4W9VdotsubuqWBzio\"]},\"contracts/universal/CrossDomainMessenger.sol\":{\"keccak256\":\"0xa8efcda6e2fec4edc379fa9128d9ae9c257c278f94c6b265fc267764d4006213\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://56f739b6a7ed1d2eda132365c112edbf5646c36ffbac1d85f753311d11df421b\",\"dweb:/ipfs/QmaCXcw3tSKHuQm3VqAggSEAGqr3k6Ru5cfLZyGpCShhQz\"]},\"contracts/universal/ERC721Bridge.sol\":{\"keccak256\":\"0xb47389fbec63e85b2d04fce538fe1b8e048278d631729458b70e32a31971c092\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://7133f38e3d8d1911738057b1d4523989abd7cd029797b1d3b59cda29d42e9704\",\"dweb:/ipfs/QmUN31CLssESHrBwWA3WYP5L2xESo9Q4aq2Exua1e8UtUW\"]},\"contracts/universal/IOptimismMintableERC721.sol\":{\"keccak256\":\"0xf1a3dd4452df8882a65a31c5e2e8de7872b08cf078be7a5a7da51e6f75c53ad3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://b09a2560cae35ca4789fe1ff5edb2bae9fa7dcda115a55f7ccdcc974a2e37526\",\"dweb:/ipfs/QmPQeTvrJ4SJpng5VGZNMf1u85NWxrdus4gGn8xYkHddKM\"]},\"contracts/universal/Semver.sol\":{\"keccak256\":\"0x979b13465de4996a1105850abbf48abe7f71d5e18a8d4af318597ee14c165fdf\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d0881ed7d8371fe1c12b931334e107746fa97d9ecd6aa3c0fca0c0db8581474e\",\"dweb:/ipfs/QmQ9UFwZgWkyFAHrzTtS7m6rghZ8nP9QybEuJ5y9vux5Gv\"]},\"node_modules/@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol\":{\"keccak256\":\"0x247c62047745915c0af6b955470a72d1696ebad4352d7d3011aef1a2463cd888\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d7fc8396619de513c96b6e00301b88dd790e83542aab918425633a5f7297a15a\",\"dweb:/ipfs/QmXbP4kiZyp7guuS7xe8KaybnwkRPGrBc2Kbi3vhcTfpxb\"]},\"node_modules/@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol\":{\"keccak256\":\"0x0203dcadc5737d9ef2c211d6fa15d18ebc3b30dfa51903b64870b01a062b0b4e\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6eb2fd1e9894dbe778f4b8131adecebe570689e63cf892f4e21257bfe1252497\",\"dweb:/ipfs/QmXgUGNfZvrn6N2miv3nooSs7Jm34A41qz94fu2GtDFcx8\"]},\"node_modules/@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol\":{\"keccak256\":\"0x40c636b4572ff5f1dc50cf22097e93c0723ee14eff87e99ac2b02636eeca1250\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9c7d1f5e15633ab912b74c2f57e24559e66b03232300d4b27ff0f25bc452ecad\",\"dweb:/ipfs/QmYTJkc1cntYkKQ1Tu11nBcJLakiy93Tjytc4XHELo4GmR\"]},\"node_modules/@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol\":{\"keccak256\":\"0x8cc03c5ac17e8a7396e487cda41fc1f1dfdb91db7d528e6da84bee3b6dd7e167\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://607818f1b44548c2d8268176f73cdb290e1faed971b1061930d92698366e2a11\",\"dweb:/ipfs/QmQibMe3r5no95b6q7isGT5R75V8xSofWEDLXzp95b7LgZ\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol\":{\"keccak256\":\"0x611aa3f23e59cfdd1863c536776407b3e33d695152a266fa7cfb34440a29a8a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9b4b2110b7f2b3eb32951bc08046fa90feccffa594e1176cb91cdfb0e94726b4\",\"dweb:/ipfs/QmSxLwYjicf9zWFuieRc8WQwE4FisA1Um5jp1iSa731TGt\"]},\"node_modules/@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol\":{\"keccak256\":\"0x963ea7f0b48b032eef72fe3a7582edf78408d6f834115b9feadd673a4d5bd149\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://d6520943ea55fdf5f0bafb39ed909f64de17051bc954ff3e88c9e5621412c79c\",\"dweb:/ipfs/QmWZ4rAKTQbNG2HxGs46AcTXShsVytKeLs7CUCdCSv5N7a\"]},\"node_modules/@openzeppelin/contracts/token/ERC721/IERC721.sol\":{\"keccak256\":\"0xed6a749c5373af398105ce6ee3ac4763aa450ea7285d268c85d9eeca809cdb1f\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://20a97f891d06f0fe91560ea1a142aaa26fdd22bed1b51606b7d48f670deeb50f\",\"dweb:/ipfs/QmTbCtZKChpaX5H2iRiTDMcSz29GSLCpTCDgJpcMR4wg8x\"]},\"node_modules/@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol\":{\"keccak256\":\"0xd1556954440b31c97a142c6ba07d5cade45f96fafd52091d33a14ebe365aecbf\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://26fef835622b46a5ba08b3ef6b46a22e94b5f285d0f0fb66b703bd30217d2c34\",\"dweb:/ipfs/QmZ548qdwfL1qF7aXz3xh1GCdTiST81kGGuKRqVUfYmPZR\"]},\"node_modules/@openzeppelin/contracts/utils/Address.sol\":{\"keccak256\":\"0xd6153ce99bcdcce22b124f755e72553295be6abcd63804cfdffceb188b8bef10\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://35c47bece3c03caaa07fab37dd2bb3413bfbca20db7bd9895024390e0a469487\",\"dweb:/ipfs/QmPGWT2x3QHcKxqe6gRmAkdakhbaRgx3DLzcakHz5M4eXG\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]},\"node_modules/@openzeppelin/contracts/utils/introspection/ERC165Checker.sol\":{\"keccak256\":\"0xc65c83c1039508fa7a42a09a3c6a32babd1c438ba4dbb23581255e784b5d5eed\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://a1b3b38db0f76429db899909025e534c366415e9ea8b5ddc4c8901e6a7fc1461\",\"dweb:/ipfs/QmYv1KxyHjLEky9JWNSsSfpGJbiCxFyzVFgTwQKpiqYGUg\"]},\"node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol\":{\"keccak256\":\"0x447a5f3ddc18419d41ff92b3773fb86471b1db25773e07f877f548918a185bf1\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://be161e54f24e5c6fae81a12db1a8ae87bc5ae1b0ddc805d82a1440a68455088f\",\"dweb:/ipfs/QmP7C3CHdY9urF4dEMb9wmsp1wMxHF6nhA2yQE5SKiPAdy\"]}},\"version\":1}",
+  "bytecode": "0x6101206040523480156200001257600080fd5b506040516200154f3803806200154f833981016040819052620000359162000162565b600160008084846001600160a01b038216620000ad5760405162461bcd60e51b815260206004820152602c60248201527f4552433732314272696467653a206d657373656e6765722063616e6e6f74206260448201526b65206164647265737328302960a01b60648201526084015b60405180910390fd5b6001600160a01b0381166200011d5760405162461bcd60e51b815260206004820152602f60248201527f4552433732314272696467653a206f74686572206272696467652063616e6e6f60448201526e74206265206164647265737328302960881b6064820152608401620000a4565b6001600160a01b039182166080521660a05260c09290925260e05261010052506200019a9050565b80516001600160a01b03811681146200015d57600080fd5b919050565b600080604083850312156200017657600080fd5b620001818362000145565b9150620001916020840162000145565b90509250929050565b60805160a05160c05160e051610100516113406200020f6000396000610301015260006102d8015260006102af01526000818161017a015281816101d80152818161038d0152610b1401526000818160bf015281816101a101528181610363015281816103c40152610ae501526113406000f3fe608060405234801561001057600080fd5b50600436106100a35760003560e01c8063761f449311610076578063927ede2d1161005b578063927ede2d1461019c578063aa557452146101c3578063c89701a2146101d657600080fd5b8063761f4493146101625780637f46ddb21461017557600080fd5b80633687011a146100a85780633cb747bf146100bd57806354fd4d50146101095780635d93a3fc1461011e575b600080fd5b6100bb6100b6366004610dc3565b6101fc565b005b7f00000000000000000000000000000000000000000000000000000000000000005b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6101116102a8565b6040516101009190610ec0565b61015261012c366004610eda565b603160209081526000938452604080852082529284528284209052825290205460ff1681565b6040519015158152602001610100565b6100bb610170366004610f1b565b61034b565b6100df7f000000000000000000000000000000000000000000000000000000000000000081565b6100df7f000000000000000000000000000000000000000000000000000000000000000081565b6100bb6101d1366004610fb3565b6107cc565b7f00000000000000000000000000000000000000000000000000000000000000006100df565b333b15610290576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602d60248201527f4552433732314272696467653a206163636f756e74206973206e6f742065787460448201527f65726e616c6c79206f776e65640000000000000000000000000000000000000060648201526084015b60405180910390fd5b6102a08686333388888888610888565b505050505050565b60606102d37f0000000000000000000000000000000000000000000000000000000000000000610bff565b6102fc7f0000000000000000000000000000000000000000000000000000000000000000610bff565b6103257f0000000000000000000000000000000000000000000000000000000000000000610bff565b6040516020016103379392919061102a565b604051602081830303815290604052905090565b3373ffffffffffffffffffffffffffffffffffffffff7f00000000000000000000000000000000000000000000000000000000000000001614801561046957507f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff167f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16636e296e456040518163ffffffff1660e01b8152600401602060405180830381865afa15801561042d573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061045191906110a0565b73ffffffffffffffffffffffffffffffffffffffff16145b6104f5576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603f60248201527f4552433732314272696467653a2066756e6374696f6e2063616e206f6e6c792060448201527f62652063616c6c65642066726f6d20746865206f7468657220627269646765006064820152608401610287565b3073ffffffffffffffffffffffffffffffffffffffff88160361059a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602a60248201527f4c314552433732314272696467653a206c6f63616c20746f6b656e2063616e6e60448201527f6f742062652073656c66000000000000000000000000000000000000000000006064820152608401610287565b73ffffffffffffffffffffffffffffffffffffffff8088166000908152603160209081526040808320938a1683529281528282208683529052205460ff161515600114610669576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603960248201527f4c314552433732314272696467653a20546f6b656e204944206973206e6f742060448201527f657363726f77656420696e20746865204c3120427269646765000000000000006064820152608401610287565b73ffffffffffffffffffffffffffffffffffffffff87811660008181526031602090815260408083208b8616845282528083208884529091529081902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169055517f42842e0e000000000000000000000000000000000000000000000000000000008152306004820152918616602483015260448201859052906342842e0e90606401600060405180830381600087803b15801561072957600080fd5b505af115801561073d573d6000803e3d6000fd5b505050508473ffffffffffffffffffffffffffffffffffffffff168673ffffffffffffffffffffffffffffffffffffffff168873ffffffffffffffffffffffffffffffffffffffff167f1f39bf6707b5d608453e0ae4c067b562bcc4c85c0f562ef5d2c774d2e7f131ac878787876040516107bb9493929190611106565b60405180910390a450505050505050565b73ffffffffffffffffffffffffffffffffffffffff851661086f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603060248201527f4552433732314272696467653a206e667420726563697069656e742063616e6e60448201527f6f742062652061646472657373283029000000000000000000000000000000006064820152608401610287565b61087f8787338888888888610888565b50505050505050565b73ffffffffffffffffffffffffffffffffffffffff871661092b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602f60248201527f4552433732314272696467653a2072656d6f746520746f6b656e2063616e6e6f60448201527f74206265206164647265737328302900000000000000000000000000000000006064820152608401610287565b600063761f449360e01b888a89898988886040516024016109529796959493929190611146565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152918152602080830180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fffffffff00000000000000000000000000000000000000000000000000000000959095169490941790935273ffffffffffffffffffffffffffffffffffffffff8c81166000818152603186528381208e8416825286528381208b82529095529382902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905590517f23b872dd000000000000000000000000000000000000000000000000000000008152908a166004820152306024820152604481018890529092506323b872dd90606401600060405180830381600087803b158015610a9257600080fd5b505af1158015610aa6573d6000803e3d6000fd5b50506040517f3dbb202b00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff7f0000000000000000000000000000000000000000000000000000000000000000169250633dbb202b9150610b40907f000000000000000000000000000000000000000000000000000000000000000090859089906004016111a3565b600060405180830381600087803b158015610b5a57600080fd5b505af1158015610b6e573d6000803e3d6000fd5b505050508673ffffffffffffffffffffffffffffffffffffffff168873ffffffffffffffffffffffffffffffffffffffff168a73ffffffffffffffffffffffffffffffffffffffff167fb7460e2a880f256ebef3406116ff3eee0cee51ebccdc2a40698f87ebb2e9c1a589898888604051610bec9493929190611106565b60405180910390a4505050505050505050565b606081600003610c4257505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b8115610c6c5780610c5681611217565b9150610c659050600a8361127e565b9150610c46565b60008167ffffffffffffffff811115610c8757610c87611292565b6040519080825280601f01601f191660200182016040528015610cb1576020820181803683370190505b5090505b8415610d3457610cc66001836112c1565b9150610cd3600a866112d8565b610cde9060306112ec565b60f81b818381518110610cf357610cf3611304565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610d2d600a8661127e565b9450610cb5565b949350505050565b73ffffffffffffffffffffffffffffffffffffffff81168114610d5e57600080fd5b50565b803563ffffffff81168114610d7557600080fd5b919050565b60008083601f840112610d8c57600080fd5b50813567ffffffffffffffff811115610da457600080fd5b602083019150836020828501011115610dbc57600080fd5b9250929050565b60008060008060008060a08789031215610ddc57600080fd5b8635610de781610d3c565b95506020870135610df781610d3c565b945060408701359350610e0c60608801610d61565b9250608087013567ffffffffffffffff811115610e2857600080fd5b610e3489828a01610d7a565b979a9699509497509295939492505050565b60005b83811015610e61578181015183820152602001610e49565b83811115610e70576000848401525b50505050565b60008151808452610e8e816020860160208601610e46565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b602081526000610ed36020830184610e76565b9392505050565b600080600060608486031215610eef57600080fd5b8335610efa81610d3c565b92506020840135610f0a81610d3c565b929592945050506040919091013590565b600080600080600080600060c0888a031215610f3657600080fd5b8735610f4181610d3c565b96506020880135610f5181610d3c565b95506040880135610f6181610d3c565b94506060880135610f7181610d3c565b93506080880135925060a088013567ffffffffffffffff811115610f9457600080fd5b610fa08a828b01610d7a565b989b979a50959850939692959293505050565b600080600080600080600060c0888a031215610fce57600080fd5b8735610fd981610d3c565b96506020880135610fe981610d3c565b95506040880135610ff981610d3c565b94506060880135935061100e60808901610d61565b925060a088013567ffffffffffffffff811115610f9457600080fd5b6000845161103c818460208901610e46565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551611078816001850160208a01610e46565b60019201918201528351611093816002840160208801610e46565b0160020195945050505050565b6000602082840312156110b257600080fd5b8151610ed381610d3c565b8183528181602085013750600060208284010152600060207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f840116840101905092915050565b73ffffffffffffffffffffffffffffffffffffffff8516815283602082015260606040820152600061113c6060830184866110bd565b9695505050505050565b600073ffffffffffffffffffffffffffffffffffffffff808a1683528089166020840152808816604084015280871660608401525084608083015260c060a083015261119660c0830184866110bd565b9998505050505050505050565b73ffffffffffffffffffffffffffffffffffffffff841681526060602082015260006111d26060830185610e76565b905063ffffffff83166040830152949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203611248576112486111e8565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261128d5761128d61124f565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156112d3576112d36111e8565b500390565b6000826112e7576112e761124f565b500690565b600082198211156112ff576112ff6111e8565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100a35760003560e01c8063761f449311610076578063927ede2d1161005b578063927ede2d1461019c578063aa557452146101c3578063c89701a2146101d657600080fd5b8063761f4493146101625780637f46ddb21461017557600080fd5b80633687011a146100a85780633cb747bf146100bd57806354fd4d50146101095780635d93a3fc1461011e575b600080fd5b6100bb6100b6366004610dc3565b6101fc565b005b7f00000000000000000000000000000000000000000000000000000000000000005b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020015b60405180910390f35b6101116102a8565b6040516101009190610ec0565b61015261012c366004610eda565b603160209081526000938452604080852082529284528284209052825290205460ff1681565b6040519015158152602001610100565b6100bb610170366004610f1b565b61034b565b6100df7f000000000000000000000000000000000000000000000000000000000000000081565b6100df7f000000000000000000000000000000000000000000000000000000000000000081565b6100bb6101d1366004610fb3565b6107cc565b7f00000000000000000000000000000000000000000000000000000000000000006100df565b333b15610290576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602d60248201527f4552433732314272696467653a206163636f756e74206973206e6f742065787460448201527f65726e616c6c79206f776e65640000000000000000000000000000000000000060648201526084015b60405180910390fd5b6102a08686333388888888610888565b505050505050565b60606102d37f0000000000000000000000000000000000000000000000000000000000000000610bff565b6102fc7f0000000000000000000000000000000000000000000000000000000000000000610bff565b6103257f0000000000000000000000000000000000000000000000000000000000000000610bff565b6040516020016103379392919061102a565b604051602081830303815290604052905090565b3373ffffffffffffffffffffffffffffffffffffffff7f00000000000000000000000000000000000000000000000000000000000000001614801561046957507f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff167f000000000000000000000000000000000000000000000000000000000000000073ffffffffffffffffffffffffffffffffffffffff16636e296e456040518163ffffffff1660e01b8152600401602060405180830381865afa15801561042d573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061045191906110a0565b73ffffffffffffffffffffffffffffffffffffffff16145b6104f5576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603f60248201527f4552433732314272696467653a2066756e6374696f6e2063616e206f6e6c792060448201527f62652063616c6c65642066726f6d20746865206f7468657220627269646765006064820152608401610287565b3073ffffffffffffffffffffffffffffffffffffffff88160361059a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602a60248201527f4c314552433732314272696467653a206c6f63616c20746f6b656e2063616e6e60448201527f6f742062652073656c66000000000000000000000000000000000000000000006064820152608401610287565b73ffffffffffffffffffffffffffffffffffffffff8088166000908152603160209081526040808320938a1683529281528282208683529052205460ff161515600114610669576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603960248201527f4c314552433732314272696467653a20546f6b656e204944206973206e6f742060448201527f657363726f77656420696e20746865204c3120427269646765000000000000006064820152608401610287565b73ffffffffffffffffffffffffffffffffffffffff87811660008181526031602090815260408083208b8616845282528083208884529091529081902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff00169055517f42842e0e000000000000000000000000000000000000000000000000000000008152306004820152918616602483015260448201859052906342842e0e90606401600060405180830381600087803b15801561072957600080fd5b505af115801561073d573d6000803e3d6000fd5b505050508473ffffffffffffffffffffffffffffffffffffffff168673ffffffffffffffffffffffffffffffffffffffff168873ffffffffffffffffffffffffffffffffffffffff167f1f39bf6707b5d608453e0ae4c067b562bcc4c85c0f562ef5d2c774d2e7f131ac878787876040516107bb9493929190611106565b60405180910390a450505050505050565b73ffffffffffffffffffffffffffffffffffffffff851661086f576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603060248201527f4552433732314272696467653a206e667420726563697069656e742063616e6e60448201527f6f742062652061646472657373283029000000000000000000000000000000006064820152608401610287565b61087f8787338888888888610888565b50505050505050565b73ffffffffffffffffffffffffffffffffffffffff871661092b576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152602f60248201527f4552433732314272696467653a2072656d6f746520746f6b656e2063616e6e6f60448201527f74206265206164647265737328302900000000000000000000000000000000006064820152608401610287565b600063761f449360e01b888a89898988886040516024016109529796959493929190611146565b604080517fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0818403018152918152602080830180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff167fffffffff00000000000000000000000000000000000000000000000000000000959095169490941790935273ffffffffffffffffffffffffffffffffffffffff8c81166000818152603186528381208e8416825286528381208b82529095529382902080547fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0016600117905590517f23b872dd000000000000000000000000000000000000000000000000000000008152908a166004820152306024820152604481018890529092506323b872dd90606401600060405180830381600087803b158015610a9257600080fd5b505af1158015610aa6573d6000803e3d6000fd5b50506040517f3dbb202b00000000000000000000000000000000000000000000000000000000815273ffffffffffffffffffffffffffffffffffffffff7f0000000000000000000000000000000000000000000000000000000000000000169250633dbb202b9150610b40907f000000000000000000000000000000000000000000000000000000000000000090859089906004016111a3565b600060405180830381600087803b158015610b5a57600080fd5b505af1158015610b6e573d6000803e3d6000fd5b505050508673ffffffffffffffffffffffffffffffffffffffff168873ffffffffffffffffffffffffffffffffffffffff168a73ffffffffffffffffffffffffffffffffffffffff167fb7460e2a880f256ebef3406116ff3eee0cee51ebccdc2a40698f87ebb2e9c1a589898888604051610bec9493929190611106565b60405180910390a4505050505050505050565b606081600003610c4257505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b8115610c6c5780610c5681611217565b9150610c659050600a8361127e565b9150610c46565b60008167ffffffffffffffff811115610c8757610c87611292565b6040519080825280601f01601f191660200182016040528015610cb1576020820181803683370190505b5090505b8415610d3457610cc66001836112c1565b9150610cd3600a866112d8565b610cde9060306112ec565b60f81b818381518110610cf357610cf3611304565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a905350610d2d600a8661127e565b9450610cb5565b949350505050565b73ffffffffffffffffffffffffffffffffffffffff81168114610d5e57600080fd5b50565b803563ffffffff81168114610d7557600080fd5b919050565b60008083601f840112610d8c57600080fd5b50813567ffffffffffffffff811115610da457600080fd5b602083019150836020828501011115610dbc57600080fd5b9250929050565b60008060008060008060a08789031215610ddc57600080fd5b8635610de781610d3c565b95506020870135610df781610d3c565b945060408701359350610e0c60608801610d61565b9250608087013567ffffffffffffffff811115610e2857600080fd5b610e3489828a01610d7a565b979a9699509497509295939492505050565b60005b83811015610e61578181015183820152602001610e49565b83811115610e70576000848401525b50505050565b60008151808452610e8e816020860160208601610e46565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169290920160200192915050565b602081526000610ed36020830184610e76565b9392505050565b600080600060608486031215610eef57600080fd5b8335610efa81610d3c565b92506020840135610f0a81610d3c565b929592945050506040919091013590565b600080600080600080600060c0888a031215610f3657600080fd5b8735610f4181610d3c565b96506020880135610f5181610d3c565b95506040880135610f6181610d3c565b94506060880135610f7181610d3c565b93506080880135925060a088013567ffffffffffffffff811115610f9457600080fd5b610fa08a828b01610d7a565b989b979a50959850939692959293505050565b600080600080600080600060c0888a031215610fce57600080fd5b8735610fd981610d3c565b96506020880135610fe981610d3c565b95506040880135610ff981610d3c565b94506060880135935061100e60808901610d61565b925060a088013567ffffffffffffffff811115610f9457600080fd5b6000845161103c818460208901610e46565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551611078816001850160208a01610e46565b60019201918201528351611093816002840160208801610e46565b0160020195945050505050565b6000602082840312156110b257600080fd5b8151610ed381610d3c565b8183528181602085013750600060208284010152600060207fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0601f840116840101905092915050565b73ffffffffffffffffffffffffffffffffffffffff8516815283602082015260606040820152600061113c6060830184866110bd565b9695505050505050565b600073ffffffffffffffffffffffffffffffffffffffff808a1683528089166020840152808816604084015280871660608401525084608083015260c060a083015261119660c0830184866110bd565b9998505050505050505050565b73ffffffffffffffffffffffffffffffffffffffff841681526060602082015260006111d26060830185610e76565b905063ffffffff83166040830152949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8203611248576112486111e8565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b60008261128d5761128d61124f565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156112d3576112d36111e8565b500390565b6000826112e7576112e761124f565b500690565b600082198211156112ff576112ff6111e8565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+  "devdoc": {
+    "version": 1,
+    "kind": "dev",
+    "methods": {
+      "bridgeERC721(address,address,uint256,uint32,bytes)": {
+        "params": {
+          "_extraData": "Optional data to forward to the other chain. Data supplied here will not                     be used to execute any code on the other chain and is only emitted as                     extra data for the convenience of off-chain tooling.",
+          "_localToken": "Address of the ERC721 on this domain.",
+          "_minGasLimit": "Minimum gas limit for the bridge message on the other domain.",
+          "_remoteToken": "Address of the ERC721 on the remote domain.",
+          "_tokenId": "Token ID to bridge."
+        }
+      },
+      "bridgeERC721To(address,address,address,uint256,uint32,bytes)": {
+        "params": {
+          "_extraData": "Optional data to forward to the other chain. Data supplied here will not                     be used to execute any code on the other chain and is only emitted as                     extra data for the convenience of off-chain tooling.",
+          "_localToken": "Address of the ERC721 on this domain.",
+          "_minGasLimit": "Minimum gas limit for the bridge message on the other domain.",
+          "_remoteToken": "Address of the ERC721 on the remote domain.",
+          "_to": "Address to receive the token on the other domain.",
+          "_tokenId": "Token ID to bridge."
+        }
+      },
+      "constructor": {
+        "params": {
+          "_messenger": "Address of the CrossDomainMessenger on this network.",
+          "_otherBridge": "Address of the ERC721 bridge on the other network."
+        }
+      },
+      "finalizeBridgeERC721(address,address,address,address,uint256,bytes)": {
+        "params": {
+          "_extraData": "Optional data to forward to L2. Data supplied here will not be used to                     execute any code on L2 and is only emitted as extra data for the                     convenience of off-chain tooling.",
+          "_from": "Address that triggered the bridge on the other domain.",
+          "_localToken": "Address of the ERC721 token on this domain.",
+          "_remoteToken": "Address of the ERC721 token on the other domain.",
+          "_to": "Address to receive the token on this domain.",
+          "_tokenId": "ID of the token being deposited."
+        }
+      },
+      "messenger()": {
+        "returns": {
+          "_0": "Messenger contract on this domain."
+        }
+      },
+      "otherBridge()": {
+        "returns": {
+          "_0": "Address of the bridge on the other network."
+        }
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "title": "L1ERC721Bridge"
+  },
+  "userdoc": {
+    "version": 1,
+    "kind": "user",
+    "methods": {
+      "MESSENGER()": {
+        "notice": "Messenger contract on this domain."
+      },
+      "OTHER_BRIDGE()": {
+        "notice": "Address of the bridge on the other network."
+      },
+      "bridgeERC721(address,address,uint256,uint32,bytes)": {
+        "notice": "Initiates a bridge of an NFT to the caller's account on the other chain. Note that         this function can only be called by EOAs. Smart contract wallets should use the         `bridgeERC721To` function after ensuring that the recipient address on the remote         chain exists. Also note that the current owner of the token on this chain must         approve this contract to operate the NFT before it can be bridged.         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This         bridge only supports ERC721s originally deployed on Ethereum. Users will need to         wait for the one-week challenge period to elapse before their Optimism-native NFT         can be refunded on L2."
+      },
+      "bridgeERC721To(address,address,address,uint256,uint32,bytes)": {
+        "notice": "Initiates a bridge of an NFT to some recipient's account on the other chain. Note         that the current owner of the token on this chain must approve this contract to         operate the NFT before it can be bridged.         **WARNING**: Do not bridge an ERC721 that was originally deployed on Optimism. This         bridge only supports ERC721s originally deployed on Ethereum. Users will need to         wait for the one-week challenge period to elapse before their Optimism-native NFT         can be refunded on L2."
+      },
+      "deposits(address,address,uint256)": {
+        "notice": "Mapping of L1 token to L2 token to ID to boolean, indicating if the given L1 token         by ID was deposited for a given L2 token."
+      },
+      "finalizeBridgeERC721(address,address,address,address,uint256,bytes)": {
+        "notice": "Completes an ERC721 bridge from the other domain and sends the ERC721 token to the         recipient on this domain."
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "events": {
+      "ERC721BridgeFinalized(address,address,address,address,uint256,bytes)": {
+        "notice": "Emitted when an ERC721 bridge from the other network is finalized."
+      },
+      "ERC721BridgeInitiated(address,address,address,address,uint256,bytes)": {
+        "notice": "Emitted when an ERC721 bridge to the other network is initiated."
+      }
+    },
+    "notice": "The L1 ERC721 bridge is a contract which works together with the L2 ERC721 bridge to         make it possible to transfer ERC721 tokens from Ethereum to Optimism. This contract         acts as an escrow for ERC721 tokens deposited into L2."
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 38821,
+        "contract": "contracts/L1/L1ERC721Bridge.sol:L1ERC721Bridge",
+        "label": "__gap",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_array(t_uint256)49_storage"
+      },
+      {
+        "astId": 159,
+        "contract": "contracts/L1/L1ERC721Bridge.sol:L1ERC721Bridge",
+        "label": "deposits",
+        "offset": 0,
+        "slot": "49",
+        "type": "t_mapping(t_address,t_mapping(t_address,t_mapping(t_uint256,t_bool)))"
+      }
+    ],
+    "types": {
+      "t_address": {
+        "encoding": "inplace",
+        "label": "address",
+        "numberOfBytes": "20"
+      },
+      "t_array(t_uint256)49_storage": {
+        "encoding": "inplace",
+        "label": "uint256[49]",
+        "numberOfBytes": "1568",
+        "base": "t_uint256"
+      },
+      "t_bool": {
+        "encoding": "inplace",
+        "label": "bool",
+        "numberOfBytes": "1"
+      },
+      "t_mapping(t_address,t_mapping(t_address,t_mapping(t_uint256,t_bool)))": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => mapping(address => mapping(uint256 => bool)))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_address,t_mapping(t_uint256,t_bool))"
+      },
+      "t_mapping(t_address,t_mapping(t_uint256,t_bool))": {
+        "encoding": "mapping",
+        "key": "t_address",
+        "label": "mapping(address => mapping(uint256 => bool))",
+        "numberOfBytes": "32",
+        "value": "t_mapping(t_uint256,t_bool)"
+      },
+      "t_mapping(t_uint256,t_bool)": {
+        "encoding": "mapping",
+        "key": "t_uint256",
+        "label": "mapping(uint256 => bool)",
+        "numberOfBytes": "32",
+        "value": "t_bool"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      }
+    }
+  }
+}

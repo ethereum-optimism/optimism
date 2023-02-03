@@ -1,5 +1,18 @@
 # data transport layer
 
+## 0.5.52
+
+### Patch Changes
+
+- Updated dependencies [f04e5db2d]
+  - @eth-optimism/common-ts@0.7.1
+
+## 0.5.51
+
+### Patch Changes
+
+- 4396e187d: Fixes a bug in the DTL that would cause it to not be able to sync beyond the deposit shutoff block.
+
 ## 0.5.50
 
 ### Patch Changes

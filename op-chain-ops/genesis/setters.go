@@ -92,7 +92,17 @@ func WipePredeployStorage(db vm.StateDB) error {
 		}
 
 		log.Info("wiping storage", "name", name, "address", *addr)
+
+		// We need to make sure that we preserve nonces.
+		oldNonce := db.GetNonce(*addr)
+		oldBalance := db.GetBalance(*addr)
 		db.CreateAccount(*addr)
+		if oldNonce > 0 {
+			db.SetNonce(*addr, oldNonce)
+		}
+		if oldBalance.Cmp(common.Big0) != 0 {
+			db.AddBalance(*addr, oldBalance)
+		}
 	}
 
 	return nil

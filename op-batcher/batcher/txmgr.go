@@ -6,17 +6,18 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
+
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
-
-type SignerFn func(ctx context.Context, rawTx types.TxData) (*types.Transaction, error)
 
 // TransactionManager wraps the simple txmgr package to make it easy to send & wait for transactions
 type TransactionManager struct {
@@ -27,16 +28,16 @@ type TransactionManager struct {
 	// Outside world
 	txMgr    txmgr.TxManager
 	l1Client *ethclient.Client
-	signerFn SignerFn
+	signerFn opcrypto.SignerFn
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
-		txMgr:             txmgr.NewSimpleTxManager("batcher", txMgrConfg, l1Client),
+		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
 		l1Client:          l1Client,
 		signerFn:          signerFn,
 		log:               log,
@@ -78,11 +79,19 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 		return nil, nil, fmt.Errorf("failed to get suggested gas tip cap: %w", err)
 	}
 
+	if gasTipCap == nil {
+		t.log.Warn("unexpected unset gasTipCap, using default 2 gwei")
+		gasTipCap = new(big.Int).SetUint64(params.GWei * 2)
+	}
+
 	childCtx, cancel = context.WithTimeout(ctx, networkTimeout)
 	head, err := t.l1Client.HeaderByNumber(childCtx, nil)
 	cancel()
-	if err != nil {
+	if err != nil || head == nil {
 		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
+	}
+	if head.BaseFee == nil {
+		return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
 	}
 	gasFeeCap = txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
 
@@ -123,7 +132,8 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 
 	ctx, cancel = context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	return t.signerFn(ctx, rawTx)
+	tx := types.NewTx(rawTx)
+	return t.signerFn(ctx, t.senderAddress, tx)
 }
 
 // UpdateGasPrice signs an otherwise identical txn to the one provided but with
@@ -148,5 +158,6 @@ func (t *TransactionManager) UpdateGasPrice(ctx context.Context, tx *types.Trans
 	// Only log the new tip/fee cap because the updateGasPrice closure reuses the same initial transaction
 	t.log.Trace("updating gas price", "tip_cap", gasTipCap, "fee_cap", gasFeeCap)
 
-	return t.signerFn(ctx, rawTx)
+	finalTx := types.NewTx(rawTx)
+	return t.signerFn(ctx, t.senderAddress, finalTx)
 }

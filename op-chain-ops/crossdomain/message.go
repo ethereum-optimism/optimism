@@ -14,12 +14,12 @@ import (
 // version 1 messages have a value and the most significant
 // byte of the nonce is a 1
 type CrossDomainMessage struct {
-	Nonce    *big.Int
-	Sender   *common.Address
-	Target   *common.Address
-	Value    *big.Int
-	GasLimit *big.Int
-	Data     []byte
+	Nonce    *big.Int        `json:"nonce"`
+	Sender   *common.Address `json:"sender"`
+	Target   *common.Address `json:"target"`
+	Value    *big.Int        `json:"value"`
+	GasLimit *big.Int        `json:"gasLimit"`
+	Data     []byte          `json:"data"`
 }
 
 // NewCrossDomainMessage creates a CrossDomainMessage.
@@ -70,6 +70,12 @@ func (c *CrossDomainMessage) Hash() (common.Hash, error) {
 	default:
 		return common.Hash{}, fmt.Errorf("unknown version %d", version)
 	}
+}
+
+// HashV1 forces using the V1 hash even if its a legacy hash. This is used
+// for the migration process.
+func (c *CrossDomainMessage) HashV1() (common.Hash, error) {
+	return HashCrossDomainMessageV1(c.Nonce, c.Sender, c.Target, c.Value, c.GasLimit, c.Data)
 }
 
 // ToWithdrawal will turn a CrossDomainMessage into a Withdrawal.

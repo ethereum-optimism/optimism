@@ -48,26 +48,31 @@ task('wait-for-final-batch', 'Waits for the final batch to be submitted')
     const wait = async (contract: Contract) => {
       let height = await l2Provider.getBlockNumber()
       let totalElements = await contract.getTotalElements()
-      // The genesis block was not batch submitted so subtract 1 from the height
-      // when comparing with the total elements
-      while (totalElements !== height - 1) {
+      console.log(`  - height: ${height}`)
+      console.log(`  - totalElements: ${totalElements}`)
+
+      while (totalElements.toNumber() !== height) {
         console.log('Total elements does not match')
-        console.log(`  - real height: ${height}`)
-        console.log(`  - height: ${height - 1}`)
+        console.log(`  - height: ${height}`)
         console.log(`  - totalElements: ${totalElements}`)
+        console.log(
+          `Waiting for ${height - totalElements} elements to be submitted`
+        )
         totalElements = await contract.getTotalElements()
         height = await l2Provider.getBlockNumber()
-        await sleep(2 * 1000)
+        await sleep(5 * 1000)
       }
     }
 
     console.log('Waiting for the CanonicalTransactionChain...')
     await wait(CanonicalTransactionChain)
     console.log('All transaction batches have been submitted')
+    console.log()
 
     console.log('Waiting for the StateCommitmentChain...')
     await wait(StateCommitmentChain)
     console.log('All state root batches have been submitted')
+    console.log()
 
     console.log('All batches have been submitted')
   })

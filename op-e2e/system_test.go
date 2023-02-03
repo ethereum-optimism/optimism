@@ -883,7 +883,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Get l2BlockNumber for proof generation
-	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 	require.Nil(t, err)
@@ -933,7 +933,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 
 	// Wait for finalization and then create the Finalized Withdrawal Transaction
-	ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
 	require.Nil(t, err)
@@ -1052,10 +1052,10 @@ func TestFees(t *testing.T) {
 	err = l2Seq.SendTransaction(context.Background(), tx)
 	require.Nil(t, err, "Sending L2 tx to sequencer")
 
-	_, err = waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	_, err = waitForTransaction(tx.Hash(), l2Seq, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	receipt, err := waitForTransaction(tx.Hash(), l2Verif, 4*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for L2 tx on verifier")
 	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "TX should have succeeded")
 
@@ -1129,6 +1129,58 @@ func TestFees(t *testing.T) {
 	require.Equal(t, balanceDiff, totalFee, "balances should add up")
 }
 
+func TestStopStartSequencer(t *testing.T) {
+	parallel(t)
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	l2Seq := sys.Clients["sequencer"]
+	rollupNode := sys.RollupNodes["sequencer"]
+
+	nodeRPC, err := rpc.DialContext(context.Background(), rollupNode.HTTPEndpoint())
+	require.Nil(t, err, "Error dialing node")
+
+	blockBefore := latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter := latestBlock(t, l2Seq)
+	require.Greaterf(t, blockAfter, blockBefore, "Chain did not advance")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	blockHash := common.Hash{}
+	err = nodeRPC.CallContext(ctx, &blockHash, "admin_stopSequencer")
+	require.Nil(t, err, "Error stopping sequencer")
+
+	blockBefore = latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter = latestBlock(t, l2Seq)
+	require.Equal(t, blockAfter, blockBefore, "Chain advanced after stopping sequencer")
+
+	ctx, cancel = context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = nodeRPC.CallContext(ctx, nil, "admin_startSequencer", blockHash)
+	require.Nil(t, err, "Error starting sequencer")
+
+	blockBefore = latestBlock(t, l2Seq)
+	time.Sleep(time.Duration(cfg.DeployConfig.L2BlockTime+1) * time.Second)
+	blockAfter = latestBlock(t, l2Seq)
+	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
+}
+
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
+}
+
+func latestBlock(t *testing.T, client *ethclient.Client) uint64 {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	blockAfter, err := client.BlockNumber(ctx)
+	require.Nil(t, err, "Error getting latest block")
+	return blockAfter
 }

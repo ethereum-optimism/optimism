@@ -55,7 +55,7 @@ We first describe the end to end flow of initiating and finalizing a withdrawal:
 ### On L2
 
 An L2 account sends a withdrawal message (and possibly also ETH) to the `L2ToL1MessagePasser` predeploy contract.
-This is a very simple contract that stores the a hash of the withdrawal data.
+This is a very simple contract that stores the hash of the withdrawal data.
 
 ### On L1
 
@@ -65,9 +65,8 @@ This is a very simple contract that stores the a hash of the withdrawal data.
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
 1. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
    `getL2OutputAfter()` function, and performs the remainder of the verification process internally.
-1. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
-   prevent it from being re-proven. Note that the withdrawal can be proven more than once if the corresponding
-   output root changes.
+1. If proof verification fails, the call reverts. Otherwise the hash is recorded to prevent it from being re-proven.
+   Note that the withdrawal can be proven more than once if the corresponding output root changes.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
    to challenge the integrity of the corresponding output root.
 1. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the

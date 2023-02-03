@@ -319,12 +319,14 @@ func TestMigration(t *testing.T) {
 		require.NoError(t, rollupNode.Close())
 	})
 
-	batcher, err := bss.NewBatchSubmitter(bss.Config{
+	batcher, err := bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
-		MinL1TxSize:               1,
-		MaxL1TxSize:               120000,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            1,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          1.0,
 		ChannelTimeout:            deployCfg.ChannelTimeout,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
@@ -342,7 +344,7 @@ func TestMigration(t *testing.T) {
 		batcher.Stop()
 	})
 
-	proposer, err := l2os.NewL2OutputSubmitter(l2os.Config{
+	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
 		L2OOAddress:               l2OS.Address.String(),
@@ -356,7 +358,7 @@ func TestMigration(t *testing.T) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(secrets.Proposer),
-	}, "", lgr.New("module", "proposer"))
+	}, lgr.New("module", "proposer"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

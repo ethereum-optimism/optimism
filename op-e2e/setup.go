@@ -498,7 +498,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// L2Output Submitter
-	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.Config{
+	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
@@ -512,7 +512,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(cfg.Secrets.Proposer),
-	}, "", sys.cfg.Loggers["proposer"])
+	}, sys.cfg.Loggers["proposer"])
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
@@ -522,12 +522,14 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// Batch Submitter
-	sys.BatchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
+	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MinL1TxSize:               1,
-		MaxL1TxSize:               120000,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            1,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          1.0,
 		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,

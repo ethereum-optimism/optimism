@@ -164,11 +164,10 @@ abstract contract StandardBridge {
     }
 
     /**
-     * @notice Allows EOAs to deposit ETH by sending directly to the bridge.
+     * @notice Allows EOAs to bridge ETH by sending directly to the bridge.
+     *         Must be implemented by contracts that inherit.
      */
-    receive() external payable onlyEOA {
-        _initiateBridgeETH(msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes(""));
-    }
+    receive() external payable virtual;
 
     /**
      * @custom:legacy
@@ -302,7 +301,9 @@ abstract contract StandardBridge {
         require(_to != address(this), "StandardBridge: cannot send to self");
         require(_to != address(MESSENGER), "StandardBridge: cannot send to messenger");
 
-        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+        // Emit the correct events. By default this will be _amount, but child
+        // contracts may override this function in order to emit legacy events as well.
+        _emitETHBridgeFinalized(_from, _to, _amount, _extraData);
 
         bool success = SafeCall.call(_to, gasleft(), _amount, hex"");
         require(success, "StandardBridge: ETH transfer failed");
@@ -341,7 +342,9 @@ abstract contract StandardBridge {
             IERC20(_localToken).safeTransfer(_to, _amount);
         }
 
-        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        // Emit the correct events. By default this will be ERC20BridgeFinalized, but child
+        // contracts may override this function in order to emit legacy events as well.
+        _emitERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 
     /**
@@ -367,7 +370,9 @@ abstract contract StandardBridge {
             "StandardBridge: bridging ETH must include sufficient ETH value"
         );
 
-        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+        // Emit the correct events. By default this will be _amount, but child
+        // contracts may override this function in order to emit legacy events as well.
+        _emitETHBridgeInitiated(_from, _to, _amount, _extraData);
 
         MESSENGER.sendMessage{ value: _amount }(
             address(OTHER_BRIDGE),
@@ -401,7 +406,7 @@ abstract contract StandardBridge {
         address _to,
         uint256 _amount,
         uint32 _minGasLimit,
-        bytes calldata _extraData
+        bytes memory _extraData
     ) internal {
         if (_isOptimismMintableERC20(_localToken)) {
             require(
@@ -415,7 +420,9 @@ abstract contract StandardBridge {
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
         }
 
-        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+        // Emit the correct events. By default this will be ERC20BridgeInitiated, but child
+        // contracts may override this function in order to emit legacy events as well.
+        _emitERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
 
         MESSENGER.sendMessage(
             address(OTHER_BRIDGE),
@@ -463,5 +470,84 @@ abstract contract StandardBridge {
         returns (bool)
     {
         return _otherToken == OptimismMintableERC20(_mintableToken).l1Token();
+    }
+
+    /** @notice Emits the ETHBridgeInitiated event and if necessary the appropriate legacy event
+     *          when an ETH bridge is finalized on this chain.
+     *
+     * @param _from      Address of the sender.
+     * @param _to        Address of the receiver.
+     * @param _amount    Amount of ETH sent.
+     * @param _extraData Extra data sent with the transaction.
+     */
+    function _emitETHBridgeInitiated(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal virtual {
+        emit ETHBridgeInitiated(_from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Emits the ETHBridgeFinalized and if necessary the appropriate legacy event when an
+     *         ETH bridge is finalized on this chain.
+     *
+     * @param _from      Address of the sender.
+     * @param _to        Address of the receiver.
+     * @param _amount    Amount of ETH sent.
+     * @param _extraData Extra data sent with the transaction.
+     */
+    function _emitETHBridgeFinalized(
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal virtual {
+        emit ETHBridgeFinalized(_from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Emits the ERC20BridgeInitiated event and if necessary the appropriate legacy
+     *         event when an ERC20 bridge is initiated to the other chain.
+     *
+     * @param _localToken  Address of the ERC20 on this chain.
+     * @param _remoteToken Address of the ERC20 on the remote chain.
+     * @param _from        Address of the sender.
+     * @param _to          Address of the receiver.
+     * @param _amount      Amount of the ERC20 sent.
+     * @param _extraData   Extra data sent with the transaction.
+     */
+    function _emitERC20BridgeInitiated(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal virtual {
+        emit ERC20BridgeInitiated(_localToken, _remoteToken, _from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @notice Emits the ERC20BridgeFinalized event and if necessary the appropriate legacy
+     *         event when an ERC20 bridge is initiated to the other chain.
+     *
+     * @param _localToken  Address of the ERC20 on this chain.
+     * @param _remoteToken Address of the ERC20 on the remote chain.
+     * @param _from        Address of the sender.
+     * @param _to          Address of the receiver.
+     * @param _amount      Amount of the ERC20 sent.
+     * @param _extraData   Extra data sent with the transaction.
+     */
+    function _emitERC20BridgeFinalized(
+        address _localToken,
+        address _remoteToken,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes memory _extraData
+    ) internal virtual {
+        emit ERC20BridgeFinalized(_localToken, _remoteToken, _from, _to, _amount, _extraData);
     }
 }

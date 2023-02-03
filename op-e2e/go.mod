@@ -10,12 +10,12 @@ require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum-optimism/optimism/op-batcher v0.10.8
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.8
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.8
-	github.com/ethereum-optimism/optimism/op-node v0.10.8
-	github.com/ethereum-optimism/optimism/op-proposer v0.10.8
-	github.com/ethereum-optimism/optimism/op-service v0.10.8
+	github.com/ethereum-optimism/optimism/op-batcher v0.10.12
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.12
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.12
+	github.com/ethereum-optimism/optimism/op-node v0.10.12
+	github.com/ethereum-optimism/optimism/op-proposer v0.10.12
+	github.com/ethereum-optimism/optimism/op-service v0.10.12
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/google/gofuzz v1.2.1-0.20220503160820-4a35382e8fc8
 	github.com/libp2p/go-libp2p v0.23.3
@@ -44,10 +44,13 @@ require (
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/docker/go-units v0.5.0 // indirect
+	github.com/dyson/certman v0.3.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
+	github.com/ethereum-optimism/optimism/op-signer v0.1.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
+	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
@@ -73,7 +76,6 @@ require (
 	github.com/influxdata/line-protocol v0.0.0-20210311194329-9aa0e372d097 // indirect
 	github.com/ipfs/go-cid v0.3.2 // indirect
 	github.com/ipfs/go-datastore v0.6.0 // indirect
-	github.com/ipfs/go-ds-leveldb v0.5.0 // indirect
 	github.com/ipfs/go-log v1.0.5 // indirect
 	github.com/ipfs/go-log/v2 v2.5.1 // indirect
 	github.com/jackpal/go-nat-pmp v1.0.2 // indirect
@@ -158,7 +160,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
 	golang.org/x/mod v0.6.0-dev.0.20220419223038-86c51ed26bb4 // indirect
 	golang.org/x/net v0.0.0-20220920183852-bf014ff85ad5 // indirect
-	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
+	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.0.0-20221013171732-95e765b1cc43 // indirect
 	golang.org/x/term v0.0.0-20220722155259-a9ba230a4035 // indirect
 	golang.org/x/text v0.3.7 // indirect

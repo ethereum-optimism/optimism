@@ -48,8 +48,10 @@ Deposited transactions MUST never be consumed from the transaction pool.
 
 ## Engine API
 
+<!--
 *Note: the [Engine API][l1-api-spec] is in alpha, `v1.0.0-alpha.5`.
 There may be subtle tweaks, beta starts in a few weeks*
+-->
 
 ### `engine_forkchoiceUpdatedV1`
 

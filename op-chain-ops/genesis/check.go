@@ -93,6 +93,7 @@ func PostCheckMigratedDB(
 	l1XDM *common.Address,
 	l1ChainID uint64,
 	finalSystemOwner common.Address,
+	proxyAdminOwner common.Address,
 	info *derive.L1BlockInfo,
 ) error {
 	log.Info("Validating database migration")
@@ -118,12 +119,17 @@ func PostCheckMigratedDB(
 		Preimages: true,
 	})
 
+	prevDB, err := state.New(prevHeader.Root, underlyingDB, nil)
+	if err != nil {
+		return fmt.Errorf("cannot open historical StateDB: %w", err)
+	}
+
 	db, err := state.New(header.Root, underlyingDB, nil)
 	if err != nil {
 		return fmt.Errorf("cannot open StateDB: %w", err)
 	}
 
-	if err := PostCheckPredeployStorage(db, finalSystemOwner); err != nil {
+	if err := PostCheckPredeployStorage(db, finalSystemOwner, proxyAdminOwner); err != nil {
 		return err
 	}
 	log.Info("checked predeploy storage")
@@ -133,7 +139,7 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked untouchables")
 
-	if err := PostCheckPredeploys(db); err != nil {
+	if err := PostCheckPredeploys(prevDB, db); err != nil {
 		return err
 	}
 	log.Info("checked predeploys")
@@ -208,13 +214,13 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 
 // PostCheckPredeploys will check that there is code at each predeploy
 // address
-func PostCheckPredeploys(db *state.StateDB) error {
+func PostCheckPredeploys(prevDB, currDB *state.StateDB) error {
 	for i := uint64(0); i <= 2048; i++ {
 		// Compute the predeploy address
 		bigAddr := new(big.Int).Or(bigL2PredeployNamespace, new(big.Int).SetUint64(i))
 		addr := common.BigToAddress(bigAddr)
 		// Get the code for the predeploy
-		code := db.GetCode(addr)
+		code := currDB.GetCode(addr)
 		// There must be code for the predeploy
 		if len(code) == 0 {
 			return fmt.Errorf("no code found at predeploy %s", addr)
@@ -226,10 +232,22 @@ func PostCheckPredeploys(db *state.StateDB) error {
 		}
 
 		// There must be an admin
-		admin := db.GetState(addr, AdminSlot)
+		admin := currDB.GetState(addr, AdminSlot)
 		adminAddr := common.BytesToAddress(admin.Bytes())
 		if addr != predeploys.ProxyAdminAddr && addr != predeploys.GovernanceTokenAddr && adminAddr != predeploys.ProxyAdminAddr {
 			return fmt.Errorf("expected admin for %s to be %s but got %s", addr, predeploys.ProxyAdminAddr, adminAddr)
+		}
+
+		// Balances and nonces should match legacy
+		oldNonce := prevDB.GetNonce(addr)
+		oldBalance := prevDB.GetBalance(addr)
+		newNonce := currDB.GetNonce(addr)
+		newBalance := currDB.GetBalance(addr)
+		if oldNonce != newNonce {
+			return fmt.Errorf("expected nonce for %s to be %d but got %d", addr, oldNonce, newNonce)
+		}
+		if oldBalance.Cmp(newBalance) != 0 {
+			return fmt.Errorf("expected balance for %s to be %d but got %d", addr, oldBalance, newBalance)
 		}
 	}
 
@@ -247,7 +265,7 @@ func PostCheckPredeploys(db *state.StateDB) error {
 		}
 
 		if *proxyAddr == predeploys.ProxyAdminAddr {
-			implCode := db.GetCode(*proxyAddr)
+			implCode := currDB.GetCode(*proxyAddr)
 			if len(implCode) == 0 {
 				return errors.New("no code found at proxy admin")
 			}
@@ -259,12 +277,12 @@ func PostCheckPredeploys(db *state.StateDB) error {
 			return fmt.Errorf("error converting to code namespace: %w", err)
 		}
 
-		implCode := db.GetCode(expImplAddr)
+		implCode := currDB.GetCode(expImplAddr)
 		if len(implCode) == 0 {
 			return fmt.Errorf("no code found at predeploy impl %s", *proxyAddr)
 		}
 
-		impl := db.GetState(*proxyAddr, ImplementationSlot)
+		impl := currDB.GetState(*proxyAddr, ImplementationSlot)
 		actImplAddr := common.BytesToAddress(impl.Bytes())
 		if expImplAddr != actImplAddr {
 			return fmt.Errorf("expected implementation for %s to be at %s, but got %s", *proxyAddr, expImplAddr, actImplAddr)
@@ -276,7 +294,7 @@ func PostCheckPredeploys(db *state.StateDB) error {
 
 // PostCheckPredeployStorage will ensure that the predeploys had their storage
 // wiped correctly.
-func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) error {
+func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, proxyAdminOwner common.Address) error {
 	for name, addr := range predeploys.Predeploys {
 		if addr == nil {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
@@ -315,8 +333,8 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address) e
 			// They are set to the final system owner in the config.
 			if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
 				actualOwner := common.BytesToAddress(slots[key].Bytes())
-				if actualOwner != finalSystemOwner {
-					return fmt.Errorf("expected owner for %s to be %s but got %s", name, finalSystemOwner, actualOwner)
+				if actualOwner != proxyAdminOwner {
+					return fmt.Errorf("expected owner for %s to be %s but got %s", name, proxyAdminOwner, actualOwner)
 				}
 				log.Debug("validated special case owner slot", "value", actualOwner, "name", name)
 				continue

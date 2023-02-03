@@ -8,8 +8,9 @@ COPY ./op-bindings /app/op-bindings
 COPY ./op-node /app/op-node
 COPY ./op-proposer /app/op-proposer
 COPY ./op-service /app/op-service
+COPY ./op-signer /app/op-signer
 COPY ./op-geth /app/op-geth
-# COPY ./.git /app/.git
+#COPY ./.git /app/.git
 
 WORKDIR /app/op-proposer
 

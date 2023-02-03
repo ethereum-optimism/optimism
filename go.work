@@ -17,6 +17,7 @@ use (
 	./op-node
 	./op-proposer
 	./op-service
+	./op-signer
 	./op-wheel
 	./packages/contracts-bedrock/test-case-generator
 	./proxyd

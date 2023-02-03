@@ -1,8 +1,18 @@
+// Package sources exports a number of clients used to access ethereum chain data.
+//
+// There are a number of these exported clients used by the op-node:
+// [L1Client] wraps an RPC client to retrieve L1 ethereum data.
+// [L2Client] wraps an RPC client to retrieve L2 ethereum data.
+// [RollupClient] wraps an RPC client to retrieve rollup data.
+// [EngineClient] extends the [L2Client] providing engine API bindings.
+//
+// Internally, the listed clients wrap an [EthClient] which itself wraps a specified RPC client.
 package sources
 
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -126,8 +136,8 @@ func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
 	}
 }
 
-// NewEthClient wraps a RPC with bindings to fetch ethereum data,
-// while logging errors, parallel-requests constraint, tracking metrics (optional), and caching.
+// NewEthClient returns an [EthClient], wrapping an RPC with bindings to fetch ethereum data with added error logging,
+// metric tracking, and caching. The [EthClient] uses a [LimitRPC] wrapper to limit the number of concurrent RPC requests.
 func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *EthClientConfig) (*EthClient, error) {
 	if err := config.Check(); err != nil {
 		return nil, fmt.Errorf("bad config, cannot create L1 source: %w", err)
@@ -205,6 +215,16 @@ func (s *EthClient) payloadCall(ctx context.Context, method string, id any) (*et
 	}
 	s.payloadsCache.Add(payload.BlockHash, payload)
 	return payload, nil
+}
+
+// ChainID fetches the chain id of the internal RPC.
+func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
+	var id hexutil.Big
+	err := s.client.CallContext(ctx, &id, "eth_chainId")
+	if err != nil {
+		return nil, err
+	}
+	return (*big.Int)(&id), nil
 }
 
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
@@ -340,7 +360,8 @@ func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, s
 	if err := result.Verify(block.Root()); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to verify retrieved proof against state root: %w", err)
 	}
-	return common.BytesToHash(result.StorageProof[0].Value), nil
+	value := result.StorageProof[0].Value.ToInt()
+	return common.BytesToHash(value.Bytes()), nil
 }
 
 func (s *EthClient) Close() {

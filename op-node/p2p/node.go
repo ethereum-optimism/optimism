@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
+// NodeP2P is a p2p node, which can be used to gossip messages.
 type NodeP2P struct {
 	host    host.Host           // p2p host (optional, may be nil)
 	gater   ConnectionGater     // p2p gater, to ban/unban peers with, may be nil even with p2p enabled
@@ -34,6 +35,8 @@ type NodeP2P struct {
 	gsOut    GossipOut        // p2p gossip application interface for publishing
 }
 
+// NewNodeP2P creates a new p2p node, and returns a reference to it. If the p2p is disabled, it returns nil.
+// If metrics are configured, a bandwidth monitor will be spawned in a goroutine.
 func NewNodeP2P(resourcesCtx context.Context, rollupCfg *rollup.Config, log log.Logger, setup SetupP2P, gossipIn GossipIn, runCfg GossipRuntimeConfig, metrics metrics.Metricer) (*NodeP2P, error) {
 	if setup == nil {
 		return nil, errors.New("p2p node cannot be created without setup")
@@ -75,7 +78,7 @@ func (n *NodeP2P) init(resourcesCtx context.Context, rollupCfg *rollup.Config, l
 		n.host.Network().Notify(NewNetworkNotifier(log, metrics))
 		// unregister identify-push handler. Only identifying on dial is fine, and more robust against spam
 		n.host.RemoveStreamHandler(identify.IDDelta)
-		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, metrics)
+		n.gs, err = NewGossipSub(resourcesCtx, n.host, rollupCfg, setup, metrics)
 		if err != nil {
 			return fmt.Errorf("failed to start gossipsub router: %w", err)
 		}

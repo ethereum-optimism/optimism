@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 
 	"github.com/urfave/cli"
 
@@ -19,7 +20,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/flags"
 	"github.com/ethereum-optimism/optimism/op-node/node"
-	"github.com/ethereum-optimism/optimism/op-node/p2p"
+	p2pcli "github.com/ethereum-optimism/optimism/op-node/p2p/cli"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 )
@@ -40,12 +41,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	p2pSignerSetup, err := p2p.LoadSignerSetup(ctx)
+	p2pSignerSetup, err := p2pcli.LoadSignerSetup(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load p2p signer: %w", err)
 	}
 
-	p2pConfig, err := p2p.NewConfig(ctx)
+	p2pConfig, err := p2pcli.NewConfig(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load p2p config: %w", err)
 	}
@@ -75,10 +76,10 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 			ListenAddr: ctx.GlobalString(flags.MetricsAddrFlag.Name),
 			ListenPort: ctx.GlobalInt(flags.MetricsPortFlag.Name),
 		},
-		Pprof: node.PprofConfig{
+		Pprof: oppprof.CLIConfig{
 			Enabled:    ctx.GlobalBool(flags.PprofEnabledFlag.Name),
 			ListenAddr: ctx.GlobalString(flags.PprofAddrFlag.Name),
-			ListenPort: ctx.GlobalString(flags.PprofPortFlag.Name),
+			ListenPort: ctx.GlobalInt(flags.PprofPortFlag.Name),
 		},
 		P2P:                 p2pConfig,
 		P2PSigner:           p2pSignerSetup,
@@ -138,6 +139,7 @@ func NewDriverConfig(ctx *cli.Context) (*driver.Config, error) {
 		VerifierConfDepth:  ctx.GlobalUint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth: ctx.GlobalUint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:   ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
+		SequencerStopped:   ctx.GlobalBool(flags.SequencerStoppedFlag.Name),
 	}, nil
 }
 

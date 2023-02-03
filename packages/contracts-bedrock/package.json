@@ -1,6 +1,6 @@
 {
   "name": "@eth-optimism/contracts-bedrock",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "Contracts for Optimism Specs",
   "main": "dist/index",
   "types": "dist/index",
@@ -14,6 +14,7 @@
     "contracts/**/*.sol"
   ],
   "scripts": {
+    "bindings": "cd ../../op-bindings && make",
     "build:forge": "forge build",
     "build:with-metadata": "FOUNDRY_PROFILE=echidna yarn build:forge",
     "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
@@ -29,7 +30,7 @@
     "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
     "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
-    "validate-spacers": "hardhat validate-spacers",
+    "validate-spacers": "hardhat compile && hardhat validate-spacers",
     "slither": "./scripts/slither.sh",
     "clean": "rm -rf ./dist ./artifacts ./forge-artifacts ./cache ./tsconfig.tsbuildinfo ./tsconfig.build.tsbuildinfo ./src/contract-artifacts.ts ./test-case-generator/fuzz",
     "lint:ts:check": "eslint . --max-warnings=0",

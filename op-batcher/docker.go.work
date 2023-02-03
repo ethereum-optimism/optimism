@@ -6,5 +6,6 @@ use (
 	./op-node
 	./op-proposer
 	./op-service
+	./op-signer
 )
 replace github.com/ethereum/go-ethereum v1.10.21 => /app/op-geth

@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	Version   = "v0.10.8"
+	Version   = "v0.10.12"
 	GitCommit = ""
 	GitDate   = ""
 )
@@ -28,9 +28,17 @@ func main() {
 	app.Usage = "L2Output Submitter"
 	app.Description = "Service for generating and submitting L2 Output checkpoints to the L2OutputOracle contract"
 
-	app.Action = proposer.Main(Version)
+	app.Action = curryMain(Version)
 	err := app.Run(os.Args)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
+	}
+}
+
+// curryMain transforms the proposer.Main function into an app.Action
+// This is done to capture the Version of the proposer.
+func curryMain(version string) func(ctx *cli.Context) error {
+	return func(ctx *cli.Context) error {
+		return proposer.Main(version, ctx)
 	}
 }

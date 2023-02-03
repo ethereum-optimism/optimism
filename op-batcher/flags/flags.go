@@ -8,12 +8,13 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 const envVarPrefix = "OP_BATCHER"
 
 var (
-	/* Required Flags */
+	/* Required flags */
 
 	L1EthRpcFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
@@ -33,21 +34,9 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
-	MinL1TxSizeBytesFlag = cli.Uint64Flag{
-		Name:     "min-l1-tx-size-bytes",
-		Usage:    "The minimum size of a batch tx submitted to L1.",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "MIN_L1_TX_SIZE_BYTES"),
-	}
-	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
-		Name:     "max-l1-tx-size-bytes",
-		Usage:    "The maximum size of a batch tx submitted to L1.",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "MAX_L1_TX_SIZE_BYTES"),
-	}
 	ChannelTimeoutFlag = cli.Uint64Flag{
 		Name:     "channel-timeout",
-		Usage:    "The maximum amount of time to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
+		Usage:    "The maximum duration (in seconds) to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "CHANNEL_TIMEOUT"),
 	}
@@ -80,6 +69,39 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
+	SequencerBatchInboxAddressFlag = cli.StringFlag{
+		Name:     "sequencer-batch-inbox-address",
+		Usage:    "L1 Address to receive batch transactions",
+		Required: true,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
+	}
+
+	/* Optional flags */
+
+	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
+		Name:   "max-l1-tx-size-bytes",
+		Usage:  "The maximum size of a batch tx submitted to L1.",
+		Value:  120_000,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_L1_TX_SIZE_BYTES"),
+	}
+	TargetL1TxSizeBytesFlag = cli.Uint64Flag{
+		Name:   "target-l1-tx-size-bytes",
+		Usage:  "The target size of a batch tx submitted to L1.",
+		Value:  100_000,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "TARGET_L1_TX_SIZE_BYTES"),
+	}
+	TargetNumFramesFlag = cli.IntFlag{
+		Name:   "target-num-frames",
+		Usage:  "The target number of frames to create per channel",
+		Value:  1,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "TARGET_NUM_FRAMES"),
+	}
+	ApproxComprRatioFlag = cli.Float64Flag{
+		Name:   "approx-compr-ratio",
+		Usage:  "The approximate compression ratio (<= 1.0)",
+		Value:  1.0,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "APPROX_COMPR_RATIO"),
+	}
 	MnemonicFlag = cli.StringFlag{
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
@@ -97,20 +119,12 @@ var (
 		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "PRIVATE_KEY"),
 	}
-	SequencerBatchInboxAddressFlag = cli.StringFlag{
-		Name:     "sequencer-batch-inbox-address",
-		Usage:    "L1 Address to receive batch transactions",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
-	}
 )
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
-	MinL1TxSizeBytesFlag,
-	MaxL1TxSizeBytesFlag,
 	ChannelTimeoutFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
@@ -120,6 +134,10 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	MaxL1TxSizeBytesFlag,
+	TargetL1TxSizeBytesFlag,
+	TargetNumFramesFlag,
+	ApproxComprRatioFlag,
 	MnemonicFlag,
 	SequencerHDPathFlag,
 	PrivateKeyFlag,
@@ -131,6 +149,7 @@ func init() {
 	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, opsigner.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

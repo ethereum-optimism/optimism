@@ -11,7 +11,7 @@ contract AssetReceiver_Initializer is Test {
     address bob = address(256);
     address sally = address(512);
 
-    function _setUp() public {
+    function setUp() public {
         // Give alice and bob some ETH
         vm.deal(alice_attestor, 1 ether);
 
@@ -22,8 +22,21 @@ contract AssetReceiver_Initializer is Test {
 }
 
 contract AssetReceiverTest is AssetReceiver_Initializer {
-    function setUp() public {
-        super._setUp();
+    event AttestationCreated(
+        address indexed creator,
+        address indexed about,
+        bytes32 indexed key,
+        bytes val
+    );
+
+    function test_attest_individual() external {
+        AttestationStation attestationStation = new AttestationStation();
+
+        vm.expectEmit(true, true, true, true);
+        emit AttestationCreated(alice_attestor, bob, bytes32("foo"), bytes("bar"));
+
+        vm.prank(alice_attestor);
+        attestationStation.attest({ _about: bob, _key: bytes32("foo"), _val: bytes("bar") });
     }
 
     function test_attest_single() external {
