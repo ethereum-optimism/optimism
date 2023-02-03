@@ -73,7 +73,7 @@ abstract contract CrossDomainOwnable2 is Ownable {
      * @notice Allows the localOwner to turn on the cross domain ownership check.
      */
     function flipTheSwitch() external onlyLocalOwner {
-        require(_msgSender() == localOwner, "CrossDomainOwnable2: caller is not the localOwner");
+        require(_msgSender() == _localOwner, "CrossDomainOwnable2: caller is not the localOwner");
         crossDomainSwitch = !crossDomainSwitch;
     }
 
@@ -87,8 +87,8 @@ abstract contract CrossDomainOwnable2 is Ownable {
             "CrossDomainOwnable2: cross domain ownership turned on"
         );
         require(newOwner != address(0), "Ownable: new owner is the zero address");
-        address oldOwner = localOwner;
-        localOwner = newOwner;
+        address oldOwner = _localOwner;
+        _localOwner = newOwner;
 
         emit LocalOwnershipTransferred(oldOwner, newOwner);
     }

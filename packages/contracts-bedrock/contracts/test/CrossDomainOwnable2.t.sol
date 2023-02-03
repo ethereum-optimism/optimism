@@ -26,11 +26,16 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
     }
 
     function test_onlyOwner_notMessenger_reverts() external {
+        vm.prank(alice);
+        setter.flipTheSwitch();
         vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
         setter.set(1);
     }
 
     function test_onlyOwner_notOwner_reverts() external {
+        vm.prank(alice);
+        setter.flipTheSwitch();
+
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
         bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(alice));
@@ -78,6 +83,9 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
 
     function test_onlyOwner_succeeds() external {
         address owner = setter.owner();
+
+        vm.prank(alice);
+        setter.flipTheSwitch();
 
         // Simulate the L2 execution where the call is coming from
         // the L1CrossDomainMessenger
