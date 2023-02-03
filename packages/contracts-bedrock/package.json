@@ -21,7 +21,7 @@
     "build:fuzz": "go build -o test-case-generator test-case-generator/cmd/fuzz.go",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
-    "build:ts": "tsc -p tsconfig.build.json",
+    "build:ts": "tsup && tsc -p tsconfig.build.json",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts",
     "autogen:invariant-docs": "ts-node scripts/invariant-doc-gen.ts",
     "deploy": "hardhat deploy",
@@ -85,6 +85,7 @@
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.9.1",
+    "tsup": "^6.5.0",
     "typechain": "^8.1.0",
     "typescript": "^4.9.3"
   }
