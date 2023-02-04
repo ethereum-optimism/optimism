@@ -296,5 +296,5 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	if err != nil {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
-	return eth.L1BlockRefFromHeader(head), nil
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
 }
