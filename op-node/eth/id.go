@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type BlockID struct {
@@ -46,15 +45,6 @@ type L1BlockRef struct {
 	Number     uint64      `json:"number"`
 	ParentHash common.Hash `json:"parentHash"`
 	Time       uint64      `json:"timestamp"`
-}
-
-func L1BlockRefFromHeader(block *types.Header) L1BlockRef {
-	return L1BlockRef{
-		Hash:       block.Hash(),
-		Number:     block.Number.Uint64(),
-		ParentHash: block.ParentHash,
-		Time:       block.Time,
-	}
 }
 
 func (id L1BlockRef) String() string {
