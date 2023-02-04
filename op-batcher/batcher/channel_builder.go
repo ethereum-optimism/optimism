@@ -136,9 +136,9 @@ func (c *channelBuilder) TimedOut(blockNum uint64) bool {
 	return c.timeout != 0 && blockNum >= c.timeout
 }
 
-// TriggerTimeout checks if the channel is timed out at the given timestamp and
-// in this case sets the channel as full with reason ErrChannelTimedOut.
-func (c *channelBuilder) TriggerTimeout(blockNum uint64) {
+// CheckTimeout checks if the channel is timed out at the given block number and
+// in this case marks the channel as full with reason ErrChannelTimedOut.
+func (c *channelBuilder) CheckTimeout(blockNum uint64) {
 	if !c.IsFull() && c.TimedOut(blockNum) {
 		c.setFullErr(ErrChannelTimedOut)
 	}

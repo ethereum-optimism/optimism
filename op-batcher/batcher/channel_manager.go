@@ -211,7 +211,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 		return nil, txID{}, err
 	}
 
-	s.triggerTimeout(l1Head)
+	s.checkTimeout(l1Head)
 
 	if err := s.processBlocks(); err != nil {
 		return nil, txID{}, err
@@ -239,8 +239,9 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.BlockID) error {
 	return nil
 }
 
-func (s *channelManager) triggerTimeout(l1Head eth.BlockID) {
-	s.pendingChannel.TriggerTimeout(l1Head.Number)
+// checkTimeout checks the block timeout on the pending channel.
+func (s *channelManager) checkTimeout(l1Head eth.BlockID) {
+	s.pendingChannel.CheckTimeout(l1Head.Number)
 	ferr := s.pendingChannel.FullErr()
 	s.log.Debug("timeout triggered",
 		"l1Head", l1Head,
