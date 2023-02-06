@@ -37,11 +37,9 @@ export const makeMerkleTreeProof = (
     return fromHexString(ethers.utils.keccak256(el))
   })
 
-  const proof = tree
-    .getProof(bufLeaves[index] as any, index)
-    .map((element: any) => {
-      return toHexString(element.data)
-    })
+  const proof = tree.getProof(bufLeaves[index], index).map((element: any) => {
+    return toHexString(element.data)
+  })
 
   return proof
 }
