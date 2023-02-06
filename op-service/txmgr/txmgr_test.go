@@ -271,6 +271,8 @@ func TestTxMgrNeverConfirmCancel(t *testing.T) {
 func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	t.Parallel()
 
+	// TODO: This test fails
+
 	h := newTestHarness(t)
 
 	gasTipCap, gasFeeCap := h.gasPricer.sample()
@@ -287,7 +289,9 @@ func TestTxMgrConfirmsAtHigherGasPrice(t *testing.T) {
 	}
 	h.backend.setTxSender(sendTx)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	receipt, err := h.mgr.Send(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -328,6 +332,7 @@ func TestTxMgrBlocksOnFailingRpcCalls(t *testing.T) {
 // receipt so long as at least one of the publications is able to succeed with a
 // simulated rpc failure.
 func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
+	// todo: this test fails
 	t.Parallel()
 
 	h := newTestHarness(t)
@@ -350,7 +355,9 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 	}
 	h.backend.setTxSender(sendTx)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	receipt, err := h.mgr.Send(ctx, tx)
 	require.Nil(t, err)
 
@@ -362,6 +369,7 @@ func TestTxMgrOnlyOnePublicationSucceeds(t *testing.T) {
 // with the minimum gas price, and asserts that it's receipt is returned even
 // though if the gas price has been bumped in other goroutines.
 func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
+	//  TODO: This test fails
 	t.Parallel()
 
 	h := newTestHarness(t)
@@ -384,7 +392,9 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 	}
 	h.backend.setTxSender(sendTx)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	receipt, err := h.mgr.Send(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
@@ -394,6 +404,8 @@ func TestTxMgrConfirmsMinGasPriceAfterBumping(t *testing.T) {
 // TestTxMgrDoesntAbortNonceTooLowAfterMiningTx
 func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 	t.Parallel()
+
+	// TODO: This test is failing
 
 	h := newTestHarnessWithConfig(t, configWithNumConfs(2))
 
@@ -428,7 +440,9 @@ func TestTxMgrDoesntAbortNonceTooLowAfterMiningTx(t *testing.T) {
 	}
 	h.backend.setTxSender(sendTx)
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	receipt, err := h.mgr.Send(ctx, tx)
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
