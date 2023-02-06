@@ -4,14 +4,14 @@
   "description": "[Optimism] Tools for working with Optimism",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
-  "types": "src/index.ts",
+  "types": "dist/index.d.ts",
   "files": [
     "dist/*",
     "src/*"
   ],
   "scripts": {
     "all": "yarn clean && yarn build && yarn test && yarn lint:fix && yarn lint",
-    "build": "tsup",
+    "build": "tsup && yarn tsc",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
     "prelint:check": "yarn typecheck",
