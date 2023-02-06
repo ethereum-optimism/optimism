@@ -13,7 +13,6 @@ import (
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
 func dialEthClientWithTimeout(ctx context.Context, url string) (*ethclient.Client, error) {
-
 	ctxt, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 
