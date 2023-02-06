@@ -14,6 +14,7 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -284,7 +285,7 @@ func (l *BatchSubmitter) loop() {
 					if err != nil {
 						l.recordFailedTx(id, err)
 					} else {
-						l.recordConfirmedTx(id, receipt)
+						l.recordConfirmedTx(id, nreceipt)
 					}
 				}
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
