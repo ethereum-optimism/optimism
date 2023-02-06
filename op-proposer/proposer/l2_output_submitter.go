@@ -17,11 +17,11 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
@@ -122,7 +122,7 @@ type L2OutputSubmitter struct {
 	cancel context.CancelFunc
 
 	// L1Client is used to submit transactions to
-	l1Client *ethclient.Client
+	l1Client bind.ContractBackend
 	// RollupClient is used to retrieve output roots from
 	rollupClient *sources.RollupClient
 
@@ -156,10 +156,14 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
-	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+
+	cCtx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	l1RPCClient, err := client.NewRPC(cCtx, l, cfg.L1EthRpc)
+	cancel()
 	if err != nil {
 		return nil, err
 	}
+	l1Client := txmgr.NewMultiBackendEthClient(l1RPCClient)
 
 	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
 	if err != nil {
