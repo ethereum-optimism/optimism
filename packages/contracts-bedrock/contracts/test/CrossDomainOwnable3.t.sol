@@ -3,12 +3,12 @@ pragma solidity 0.8.15;
 
 import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 import { CommonTest, Messenger_Initializer } from "./CommonTest.t.sol";
-import { CrossDomainOwnable2 } from "../L2/CrossDomainOwnable2.sol";
+import { CrossDomainOwnable3 } from "../L2/CrossDomainOwnable3.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
-contract XDomainSetter2 is CrossDomainOwnable2 {
+contract XDomainSetter3 is CrossDomainOwnable3 {
     uint256 public value;
 
     function set(uint256 _value) external onlyOwner {
@@ -16,7 +16,7 @@ contract XDomainSetter2 is CrossDomainOwnable2 {
     }
 }
 
-contract CrossDomainOwnable2_Test is Messenger_Initializer {
+contract CrossDomainOwnable3_Test is Messenger_Initializer {
     XDomainSetter2 setter;
 
     function setUp() public override {
@@ -26,18 +26,23 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
     }
 
     function test_onlyOwner_notMessenger_reverts() external {
-        vm.expectRevert("CrossDomainOwnable2: caller is not the messenger");
+        vm.prank(alice);
+        setter.flipTheSwitch();
+        vm.expectRevert("CrossDomainOwnable3: caller is not the messenger");
         setter.set(1);
     }
 
     function test_onlyOwner_notOwner_reverts() external {
+        vm.prank(alice);
+        setter.flipTheSwitch();
+
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
         bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(alice));
         vm.store(address(L2Messenger), key, value);
 
         vm.prank(address(L2Messenger));
-        vm.expectRevert("CrossDomainOwnable2: caller is not the owner");
+        vm.expectRevert("CrossDomainOwnable3: caller is not the owner");
         setter.set(1);
     }
 
@@ -76,8 +81,17 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
         assertEq(setter.value(), 0);
     }
 
+    function test_notLocalOwner_transferLocalOwnership_reverts() external {
+        vm.prank(bob);
+        vm.expectRevert("CrossDomainOwnable3: caller is not the localOwner");
+        setter.transferLocalOwnership(bob);
+    }
+
     function test_onlyOwner_succeeds() external {
         address owner = setter.owner();
+
+        vm.prank(alice);
+        setter.flipTheSwitch();
 
         // Simulate the L2 execution where the call is coming from
         // the L1CrossDomainMessenger
@@ -88,9 +102,39 @@ contract CrossDomainOwnable2_Test is Messenger_Initializer {
             address(setter),
             0,
             0,
-            abi.encodeWithSelector(XDomainSetter2.set.selector, 2)
+            abi.encodeWithSelector(XDomainSetter3.set.selector, 2)
         );
 
         assertEq(setter.value(), 2);
+    }
+
+    /**
+     * @notice Thrown when the local owner changes.
+     */
+    event LocalOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    function test_onlyLocalOwner_transferLocalOwnership_succeeds(address newOwner) external {
+        vm.assume(newOwner != address(0));
+
+        vm.expectEmit(true, true, false, true);
+        emit LocalOwnershipTransferred(alice, newOwner);
+
+        vm.prank(alice);
+        setter.transferLocalOwnership(newOwner);
+    }
+
+    /**
+     * @notice Thrown when the cross domain owner changes.
+     */
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    function test_localOwner_transferOwnership_succeeds(address newOwner) external {
+        vm.assume(newOwner != address(0));
+
+        vm.expectEmit(true, true, false, true);
+        emit OwnershipTransferred(alice, newOwner);
+
+        vm.prank(alice);
+        setter.transferOwnership(newOwner);
     }
 }
