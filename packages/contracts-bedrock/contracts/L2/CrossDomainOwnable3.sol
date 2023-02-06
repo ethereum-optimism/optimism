@@ -51,9 +51,9 @@ abstract contract CrossDomainOwnable3 is Ownable {
      * @param _isLocal If false, the contract uses the cross domain _checkOwner function override.
      * If false it uses the standard Ownable _checkOwner function.
      */
-    function transferOwnership(address newOwner, bool _isLocal) external override {
-        isLocal = _isLocal;
-
+    function transferOwnership(address newOwner, bool _isLocal) external {
         super.transferOwnership(newOwner);
+
+        isLocal = _isLocal;
     }
 }
