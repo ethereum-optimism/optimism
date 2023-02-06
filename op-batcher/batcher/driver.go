@@ -44,6 +44,11 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 	if err != nil {
 		return nil, err
 	}
+	// SYSCOIN
+	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
+	if err != nil {
+		return nil, err
+	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
@@ -89,6 +94,8 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		TxManagerConfig:   txManagerConfig,
 		From:              fromAddress,
 		SignerFnFactory:   signer,
+		// SYSCOIN
+		BatchInboxAddress: batchInboxAddress,
 		Rollup:            rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:    rcfg.SeqWindowSize,
@@ -121,7 +128,8 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	return &BatchSubmitter{
 		Config: cfg,
 		txMgr: NewTransactionManager(l,
-			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
+			// SYSCOIN
+			cfg.TxManagerConfig, cfg.BatchInboxAddress, cfg.Rollup.L1ChainID,
 			cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.Rollup.L1ChainID)),
 		done: make(chan struct{}),
 		// TODO: this context only exists because the event loop doesn't reach done

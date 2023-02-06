@@ -71,7 +71,13 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
-
+	// SYSCOIN
+	SequencerBatchInboxAddressFlag = cli.StringFlag{
+		Name:     "sequencer-batch-inbox-address",
+		Usage:    "L1 Address to receive batch transactions",
+		Required: true,
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
+	}
 	/* Optional flags */
 
 	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
@@ -136,6 +142,8 @@ var requiredFlags = []cli.Flag{
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
+	// SYSCOIN
+	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{

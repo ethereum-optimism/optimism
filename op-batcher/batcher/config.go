@@ -31,7 +31,8 @@ type Config struct {
 	TxManagerConfig txmgr.Config
 	From            common.Address
 	SignerFnFactory opcrypto.SignerFactory
-
+	// SYSCOIN Where to send the batch txs to.
+	BatchInboxAddress common.Address
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
 
@@ -86,6 +87,9 @@ type CLIConfig struct {
 	PrivateKey string
 
 	// SYSCOIN
+	// SequencerBatchInboxAddress is the address in which to send batch
+	// transactions.
+	SequencerBatchInboxAddress string
 	SysDesc string
 	SysDescInternal string
 	RPCConfig oprpc.CLIConfig
@@ -156,6 +160,7 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
 		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
 		// SYSCOIN
+		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
 		SysDesc: 					ctx.GlobalString(flags.SysDescFlag.Name),
 		SysDescInternal: 			ctx.GlobalString(flags.SysDescInternalFlag.Name),
 		RPCConfig:                  oprpc.ReadCLIConfig(ctx),

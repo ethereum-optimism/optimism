@@ -42,4 +42,11 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.Roll
 func dialSyscoinClientWithTimeout(ctx context.Context, sysdesc string, sysdescinternal string) (sources.SyscoinClient, error) {
 	return sources.NewSyscoinClient(sysdesc, sysdescinternal)
 }
-
+// parseAddress parses an ETH address from a hex string. This method will fail if
+// the address is not a valid hexadecimal address.
+func parseAddress(address string) (common.Address, error) {
+	if common.IsHexAddress(address) {
+		return common.HexToAddress(address), nil
+	}
+	return common.Address{}, fmt.Errorf("invalid address: %v", address)
+}
