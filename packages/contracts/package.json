@@ -2,8 +2,9 @@
   "name": "@eth-optimism/contracts",
   "version": "0.5.40",
   "description": "[Optimism] L1 and L2 smart contracts for Optimism",
-  "main": "dist/index",
-  "types": "dist/index",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
   "files": [
     "dist/**/*.js",
     "dist/**/*.d.ts",
@@ -21,7 +22,7 @@
   ],
   "scripts": {
     "build": "yarn build:contracts && yarn copy:contracts && yarn autogen:artifacts && yarn build:typescript",
-    "build:typescript": "tsc -p ./tsconfig.json",
+    "build:typescript": "tsup && tsc -p ./tsconfig.json",
     "build:contracts": "hardhat compile --show-stack-traces",
     "autogen:markdown": "ts-node scripts/generate-markdown.ts",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts && ts-node scripts/generate-deployed-artifacts.ts",
@@ -111,6 +112,7 @@
     "squirrelly": "^8.0.8",
     "ts-generator": "0.0.8",
     "ts-node": "^10.9.1",
+    "tsup": "^6.5.0",
     "typechain": "^8.1.0",
     "typescript": "^4.9.3"
   },
