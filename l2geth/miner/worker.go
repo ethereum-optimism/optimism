@@ -636,10 +636,6 @@ func (w *worker) resultLoop() {
 			if block == nil {
 				continue
 			}
-			// Short circuit when receiving duplicate result caused by resubmitting.
-			if w.chain.HasBlock(block.Hash(), block.NumberU64()) {
-				continue
-			}
 			var (
 				sealhash = w.engine.SealHash(block.Header())
 				hash     = block.Hash()

@@ -6,6 +6,7 @@ const os = require('os')
 data = process.argv[2]
 data = JSON.parse(data)
 
+process.stdout.write(`::set-output name=l2geth::0.0.0-rc-l2g-init-deadlock` + os.EOL)
 for (const i of data) {
   const name = i.name.replace("@eth-optimism/", "")
   const version = i.version
