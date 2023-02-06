@@ -12,7 +12,6 @@ export default defineConfig({
   format: ['esm'],
   // don't generate .d.ts files
   dts: false,
-  bundle: false,
   splitting: false,
   sourcemap: true,
   // remove dist folder before building
