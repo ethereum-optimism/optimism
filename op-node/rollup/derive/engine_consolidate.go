@@ -5,13 +5,16 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
 // AttributesMatchBlock checks if the L2 attributes pre-inputs match the output
 // nil if it is a match. If err is not nil, the error contains the reason for the mismatch
-func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, block *eth.ExecutionPayload) error {
+func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, block *eth.ExecutionPayload, l log.Logger) error {
 	if parentHash != block.ParentHash {
 		return fmt.Errorf("parent hash field does not match. expected: %v. got: %v", parentHash, block.ParentHash)
 	}
@@ -26,6 +29,9 @@ func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 	}
 	for i, otx := range attrs.Transactions {
 		if expect := block.Transactions[i]; !bytes.Equal(otx, expect) {
+			if i == 0 {
+				logL1InfoTxns(l, otx, block.Transactions[i])
+			}
 			return fmt.Errorf("transaction %d does not match. expected: %v. got: %v", i, expect, otx)
 		}
 	}
@@ -36,4 +42,34 @@ func AttributesMatchBlock(attrs *eth.PayloadAttributes, parentHash common.Hash, 
 		return fmt.Errorf("gas limit does not match. expected %d. got: %d", *attrs.GasLimit, block.GasLimit)
 	}
 	return nil
+}
+
+// logL1InfoTxns reports the values from the L1 info tx when they differ to aid
+// debugging. This check is the one that has been most frequently triggered.
+func logL1InfoTxns(l log.Logger, safeTx, unsafeTx hexutil.Bytes) {
+	// First decode into *types.Transaction to get the tx data.
+	var safeTxValue, unsafeTxValue types.Transaction
+	errSafe := (&safeTxValue).UnmarshalBinary(safeTx)
+	errUnsafe := (&unsafeTxValue).UnmarshalBinary(unsafeTx)
+	if errSafe != nil || errUnsafe != nil {
+		l.Error("failed to umarshal tx", "errSafe", errSafe, "errUnsafe", errUnsafe)
+	}
+
+	// Then decode the ABI encoded parameters
+	var safeInfo, unsafeInfo L1BlockInfo
+	errSafe = (&safeInfo).UnmarshalBinary(safeTx.Data())
+	errUnsafe = (&unsafeInfo).UnmarshalBinary(unsafeTx.Data())
+	if errSafe != nil || errUnsafe != nil {
+		l.Error("failed to umarshal l1 info", "errSafe", errSafe, "errUnsafe", errUnsafe)
+	}
+
+	l.Error("L1 Info transaction differs", "number", uint64(block.BlockNumber), "time", uint64(block.Timestamp),
+		"safe_l1_number", safeInfo.Number, "safe_l1_hash", safeInfo.BlockHash,
+		"safe_l1_time", safeInfo.Time, "safe_seq_num", safeInfo.SequenceNumber,
+		"safe_l1_basefee", safeInfo.BaseFee, "safe_batcher_add", safeInfo.BlockHash,
+		"safe_gpo_scalar", safeInfo.L1FeeScalar, "safe_gpo_overhead", safeInfo.L1FeeOverhead,
+		"unsafe_l1_number", unsafeInfo.Number, "unsafe_l1_hash", unsafeInfo.BlockHash,
+		"unsafe_l1_time", unsafeInfo.Time, "unsafe_seq_num", unsafeInfo.SequenceNumber,
+		"unsafe_l1_basefee", unsafeInfo.BaseFee, "unsafe_batcher_add", unsafeInfo.BlockHash,
+		"unsafe_gpo_scalar", unsafeInfo.L1FeeScalar, "unsafe_gpo_overhead", unsafeInfo.L1FeeOverhead)
 }
