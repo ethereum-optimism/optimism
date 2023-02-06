@@ -14,13 +14,11 @@
     "build": "tsup && yarn tsc",
     "clean": "rimraf dist/ ./tsconfig.tsbuildinfo",
     "lint": "yarn lint:fix && yarn lint:check",
-    "prelint:check": "yarn typecheck",
     "lint:check": "eslint . --max-warnings=0",
     "lint:fix": "yarn lint:check --fix",
     "pre-commit": "lint-staged",
     "test": "hardhat test",
     "test:coverage": "nyc hardhat test && nyc merge .nyc_output coverage.json",
-    "typecheck": "tsc --noEmit",
     "autogen:docs": "typedoc --out docs src/index.ts"
   },
   "keywords": [
