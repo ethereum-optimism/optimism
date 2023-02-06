@@ -17,32 +17,7 @@ abstract contract CrossDomainOwnable3 is Ownable {
      * @notice If true, the contract uses the cross domain _checkOwner function override. If false
      *         it uses the standard Ownable _checkOwner function.
      */
-    bool internal crossDomainSwitch = false;
-
-    /**
-     * @notice The local owner of the contract.
-     */
-    address private _localOwner = _msgSender();
-
-    /**
-     * @notice Thrown when the local owner changes.
-     */
-    event LocalOwnershipTransferred(address indexed previousOwner, address indexed newOwner);
-
-    /**
-     * @notice Throws if called by any account other than the localOwner.
-     */
-    modifier onlyLocalOwner() {
-        _checkLocalOwner();
-        _;
-    }
-
-    /**
-     * @notice Throws if the sender is not the localOwner.
-     */
-    function _checkLocalOwner() internal view {
-        require(_msgSender() == _localOwner, "CrossDomainOwnable3: caller is not the localOwner");
-    }
+    bool internal isLocal = true;
 
     /**
      * @notice Overrides the implementation of the `onlyOwner` modifier to check that the unaliased
@@ -50,7 +25,9 @@ abstract contract CrossDomainOwnable3 is Ownable {
      *         of the L1CrossDomainMessenger.
      */
     function _checkOwner() internal view override {
-        if (crossDomainSwitch) {
+        if (isLocal) {
+            super._checkOwner();
+        } else {
             L2CrossDomainMessenger messenger = L2CrossDomainMessenger(
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER
             );
@@ -64,32 +41,19 @@ abstract contract CrossDomainOwnable3 is Ownable {
                 owner() == messenger.xDomainMessageSender(),
                 "CrossDomainOwnable3: caller is not the owner"
             );
-        } else {
-            _checkLocalOwner();
         }
     }
 
     /**
-     * @notice Allows the localOwner to turn on the cross domain ownership check.
+     * @notice Overrides the implementation of the `transferOwnership` function to allow
+     * for local ownership.
+     * @param newOwner The new owner of the contract.
+     * @param _isLocal If false, the contract uses the cross domain _checkOwner function override.
+     * If false it uses the standard Ownable _checkOwner function.
      */
-    function flipTheSwitch() external onlyLocalOwner {
-        require(_msgSender() == _localOwner, "CrossDomainOwnable3: caller is not the localOwner");
-        crossDomainSwitch = !crossDomainSwitch;
-    }
+    function transferOwnership(address newOwner, bool _isLocal) external override {
+        isLocal = _isLocal;
 
-    /**
-     * @notice Allows the localOwner to transfer ownership to a .
-     * @param newOwner The address of the new owner.
-     */
-    function transferLocalOwnership(address newOwner) external onlyLocalOwner {
-        require(
-            crossDomainSwitch == false,
-            "CrossDomainOwnable3: cross domain ownership turned on"
-        );
-        require(newOwner != address(0), "CrossDomainOwnable3: new owner is the zero address");
-        address oldOwner = _localOwner;
-        _localOwner = newOwner;
-
-        emit LocalOwnershipTransferred(oldOwner, newOwner);
+        super.transferOwnership(newOwner);
     }
 }
