@@ -2,11 +2,9 @@ package batcher
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/rpc"
 )
@@ -45,11 +43,3 @@ func dialSyscoinClientWithTimeout(ctx context.Context, sysdesc string, sysdescin
 	return sources.NewSyscoinClient(sysdesc, sysdescinternal)
 }
 
-// parseAddress parses an ETH address from a hex string. This method will fail if
-// the address is not a valid hexadecimal address.
-func parseAddress(address string) (common.Address, error) {
-	if common.IsHexAddress(address) {
-		return common.HexToAddress(address), nil
-	}
-	return common.Address{}, fmt.Errorf("invalid address: %v", address)
-}

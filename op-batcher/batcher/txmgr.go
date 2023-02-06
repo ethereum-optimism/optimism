@@ -61,16 +61,13 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, u
 	// SYSCOIN account for 150sec average block times
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Second) // TODO: Select a timeout that makes sense here.
 	defer cancel()
-	receipt, err := t.txMgr.Send(ctx, updateGasPrice, t.l1Client.SendTransaction)
-	if err != nil {
-		t.log.Warn("unable to publish tx", "err", err)
+	if receipt, err := t.txMgr.Send(ctx, updateGasPrice, t.l1Client.SendTransaction); err != nil {
+		t.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
 		return nil, err
+	} else {
+		t.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "data_size", len(data))
+		return receipt, nil
 	}
-	if(receipt.Status != types.ReceiptStatusSuccessful) {
-		return nil, fmt.Errorf("tx failed with status: %d", receipt.Status)
-	}
-	t.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
-	return receipt, nil
 }
 // SYSCOIN
 // SendTransaction creates & submits a transaction to the batch inbox address with the given `data`.

@@ -108,6 +108,7 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 	}
 	delete(s.pendingTransactions, id)
 	s.confirmedTransactions[id] = inclusionBlock
+	s.pendingChannel.FramePublished(inclusionBlock.Number)
 
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
@@ -190,7 +191,7 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 //
 // It currently ignores the l1Head provided and doesn't track channel timeouts
 // or the sequencer window span yet.
-func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
@@ -210,7 +211,9 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 		return nil, txID{}, err
 	}
 
-	if err := s.addBlocks(); err != nil {
+	s.checkTimeout(l1Head)
+
+	if err := s.processBlocks(); err != nil {
 		return nil, txID{}, err
 	}
 
@@ -221,7 +224,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	return s.nextTxData()
 }
 
-func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
+func (s *channelManager) ensurePendingChannel(l1Head eth.BlockID) error {
 	if s.pendingChannel != nil {
 		return nil
 	}
@@ -236,9 +239,20 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
 	return nil
 }
 
-// addBlocks adds blocks from the blocks queue to the pending channel until
+// checkTimeout checks the block timeout on the pending channel.
+func (s *channelManager) checkTimeout(l1Head eth.BlockID) {
+	s.pendingChannel.CheckTimeout(l1Head.Number)
+	ferr := s.pendingChannel.FullErr()
+	s.log.Debug("timeout triggered",
+		"l1Head", l1Head,
+		"timed_out", errors.Is(ferr, ErrChannelTimedOut),
+		"full_reason", ferr,
+	)
+}
+
+// processBlocks adds blocks from the blocks queue to the pending channel until
 // either the queue got exhausted or the channel is full.
-func (s *channelManager) addBlocks() error {
+func (s *channelManager) processBlocks() error {
 	var blocksAdded int
 	var _chFullErr *ChannelFullError // throw away, just for type checking
 	for i, block := range s.blocks {
@@ -271,9 +285,9 @@ func (s *channelManager) addBlocks() error {
 	return nil
 }
 
-// AddL2Block saves an L2 block to the internal state. It returns ErrReorg
-// if the block does not extend the last block loaded into the state.
-// If no blocks were added yet, the parent hash check is skipped.
+// AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
+// if the block does not extend the last block loaded into the state. If no
+// blocks were added yet, the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
 	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 		return ErrReorg
