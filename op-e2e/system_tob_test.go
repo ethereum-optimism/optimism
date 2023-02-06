@@ -423,6 +423,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 
 	// There are 7 different fields we try modifying to cause a failure, plus one "good" test result we test.
 	for i := 0; i <= 8; i++ {
+		i := i // avoid loop var capture
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
 			t.Parallel()
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
@@ -527,7 +528,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			ctx, cancel = context.WithTimeout(context.Background(), 20*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+			ctx, cancel = context.WithTimeout(context.Background(), 25*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 			blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 			cancel()
 			require.Nil(t, err)
