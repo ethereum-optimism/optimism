@@ -9,7 +9,7 @@ export default defineConfig({
   outDir: 'dist',
   target: 'es2017',
   // will create a .js file for commonjs and a .cjs file for esm
-  format: ['esm', 'cjs'],
+  format: ['esm'],
   // don't generate .d.ts files
   dts: false,
   bundle: false,
