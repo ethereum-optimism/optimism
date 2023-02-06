@@ -137,7 +137,7 @@ When merging commits to the `develop` branch you MUST include a changeset file i
 
 To add a changeset, run the command `yarn changeset` in the root of this monorepo.
 You will be presented with a small prompt to select the packages to be released, the scope of the release (major, minor, or patch), and the reason for the release.
-Comments with in changeset files will be automatically included in the changelog of the package.
+Comments with in changeset files will be automatically included in the changelog of the package.  Changesets are then compiled on release.  You can simulate it locally with `changeset publish` 
 
 ### Triggering Releases
 
