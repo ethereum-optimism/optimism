@@ -15,6 +15,10 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
+// Geth defaults the priceBump to 10
+// Set it to 15% to be more aggressive about including transactions
+const priceBump int64 = 15
+
 // UpdateGasPriceSendTxFunc defines a function signature for publishing a
 // desired tx with a specific gas price. Implementations of this signature
 // should also return promptly when the context is canceled.
@@ -104,12 +108,23 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 
 	var gasTipCap, gasFeeCap *big.Int
 
+	// new = old * (100 + priceBump) / 100
+	a := big.NewInt(100 + priceBump)
+	b := big.NewInt(100)
+
 	if tip, err := m.backend.SuggestGasTipCap(ctx); err != nil {
 		return nil, err
 	} else if tip == nil {
 		return nil, errors.New("the suggested tip was nil")
 	} else {
 		gasTipCap = tip
+	}
+
+	// Enforce a min priceBump on the tip. Do this before the feeCap is calculated
+	thresholdTip := new(big.Int).Mul(a, tx.GasTipCap())
+	thresholdTip = thresholdTip.Div(thresholdTip, b)
+	if thresholdTip.Cmp(gasTipCap) < 0 {
+		gasTipCap = thresholdTip
 	}
 
 	if head, err := m.backend.HeaderByNumber(ctx, nil); err != nil {
@@ -120,7 +135,12 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
 	}
 
-	// TODO (CLI-2630): Check for a large enough price bump
+	// Enforce a min priceBump on the feeCap
+	thresholdFeeCap := new(big.Int).Mul(a, tx.GasFeeCap())
+	thresholdFeeCap = thresholdFeeCap.Div(thresholdFeeCap, b)
+	if thresholdFeeCap.Cmp(gasFeeCap) < 0 {
+		gasFeeCap = thresholdFeeCap
+	}
 
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
