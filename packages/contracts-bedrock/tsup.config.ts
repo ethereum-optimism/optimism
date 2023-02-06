@@ -14,6 +14,4 @@ export default defineConfig({
   dts: false,
   splitting: false,
   sourcemap: true,
-  // remove dist folder before building
-  clean: true,
 })
