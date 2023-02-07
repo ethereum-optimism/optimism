@@ -19,10 +19,14 @@ contract XDomainSetter3 is CrossDomainOwnable3 {
 contract CrossDomainOwnable3_Test is Messenger_Initializer {
     XDomainSetter3 setter;
 
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
     function setUp() public override {
         super.setUp();
         vm.prank(alice);
         setter = new XDomainSetter3();
+
+        assertEq(setter.owner(), alice);
     }
 
     function test_localOnlyOwner_notOwner_reverts() public {
@@ -32,12 +36,15 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
     }
 
     function test_crossDomainOnlyOwner_notOwner_reverts() public {
-        vm.prank(alice);
-        setter.transferOwnership(alice, false);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(alice, alice);
+
+        vm.prank(setter.owner());
+        setter.transferOwnership({ _owner: alice, _isLocal: false });
 
         // set the xDomainMsgSender storage slot
         bytes32 key = bytes32(uint256(204));
-        bytes32 value = Bytes32AddressLib.fillLast12Bytes(address(bob));
+        bytes32 value = Bytes32AddressLib.fillLast12Bytes(bob);
         vm.store(address(L2Messenger), key, value);
 
         vm.prank(address(L2Messenger));
@@ -46,8 +53,11 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
     }
 
     function test_crossDomainOnlyOwner_notOwner2_reverts() public {
-        vm.prank(alice);
-        setter.transferOwnership(alice, false);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(alice, alice);
+
+        vm.prank(setter.owner());
+        setter.transferOwnership({ _owner: alice, _isLocal: false });
 
         uint240 nonce = 0;
         address sender = bob;
@@ -67,7 +77,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
         // It should be a failed message. The revert is caught,
         // so we cannot expectRevert here.
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, address(L2Messenger));
         emit FailedRelayedMessage(hash);
 
         vm.prank(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)));
@@ -84,8 +94,11 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
     }
 
     function test_crossDomainOnlyOwner_notMessenger_reverts() public {
-        vm.prank(alice);
-        setter.transferOwnership(alice, false);
+        vm.expectEmit(true, true, true, true);
+        emit OwnershipTransferred(alice, alice);
+
+        vm.prank(setter.owner());
+        setter.transferOwnership({ _owner: alice, _isLocal: false });
 
         vm.prank(bob);
         vm.expectRevert("CrossDomainOwnable3: caller is not the messenger");
@@ -93,19 +106,17 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
     }
 
     function test_localOnlyOwner_succeeds() public {
-        vm.prank(alice);
+        vm.prank(setter.owner());
         setter.set(1);
         assertEq(setter.value(), 1);
     }
-
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     function test_localTransferOwnership_succeeds() public {
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferred(alice, bob);
 
-        vm.prank(alice);
-        setter.transferOwnership(bob, true);
+        vm.prank(setter.owner());
+        setter.transferOwnership({ _owner: bob, _isLocal: true });
 
         vm.prank(bob);
         setter.set(2);
@@ -116,8 +127,8 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true);
         emit OwnershipTransferred(alice, bob);
 
-        vm.prank(alice);
-        setter.transferOwnership(bob, false);
+        vm.prank(setter.owner());
+        setter.transferOwnership({ _owner: bob, _isLocal: false });
 
         // Simulate the L2 execution where the call is coming from
         // the L1CrossDomainMessenger
