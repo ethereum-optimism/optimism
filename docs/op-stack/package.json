@@ -1,7 +1,7 @@
 {
-  "name": "optimism-hub",
+  "name": "@eth-optimism/op-stack-docs",
   "version": "0.0.2",
-  "description": "The Optimism Community Hub",
+  "description": "The OP Stack Docs",
   "main": "index.js",
   "scripts": {
     "dev": "vuepress dev src",
