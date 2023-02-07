@@ -16,30 +16,6 @@ declare module "@AlgoliaSearchBox" {
   export default vue;
 }
 
-declare module "@BlogHome" {
-  import vue from "vue";
-
-  export default vue;
-}
-
-declare module "@BlogInfo" {
-  import vue from "vue";
-
-  export default vue;
-}
-
-declare module "@BloggerInfo" {
-  import vue from "vue";
-
-  export default vue;
-}
-
-declare module "@BlogPage" {
-  import vue from "vue";
-
-  export default vue;
-}
-
 declare module "@Comment" {
   import vue from "vue";
 

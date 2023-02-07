@@ -43,9 +43,7 @@
     </template>
 
     <template #default="slotProps">
-      <BlogHome v-if="$frontmatter.blog && $themeConfig.blog !== false" />
-
-      <Home v-else-if="$frontmatter.home" />
+      <Home v-if="$frontmatter.home" />
 
       <Page
         v-else
