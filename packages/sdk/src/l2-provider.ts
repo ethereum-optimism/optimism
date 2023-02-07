@@ -1,11 +1,10 @@
-import assert from 'assert'
-
 import { Provider, TransactionRequest } from '@ethersproject/abstract-provider'
 import { serialize } from '@ethersproject/transactions'
 import { Contract, BigNumber } from 'ethers'
 import { predeploys, getContractInterface } from '@eth-optimism/contracts'
 import cloneDeep from 'lodash/cloneDeep'
 
+import { assert } from './utils/assert'
 import { L2Provider, ProviderLike, NumberLike } from './interfaces'
 import { toProvider, toNumber, toBigNumber } from './utils'
 

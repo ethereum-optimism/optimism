@@ -75,10 +75,27 @@ func (co *ChannelOut) AddBlock(block *types.Block) (uint64, error) {
 	if co.closed {
 		return 0, errors.New("already closed")
 	}
-	batch, err := blockToBatch(block)
+
+	batch, err := BlockToBatch(block)
 	if err != nil {
 		return 0, err
 	}
+	return co.AddBatch(batch)
+}
+
+// AddBatch adds a batch to the channel. It returns the RLP encoded byte size
+// and an error if there is a problem adding the batch. The only sentinel error
+// that it returns is ErrTooManyRLPBytes. If this error is returned, the channel
+// should be closed and a new one should be made.
+//
+// AddBatch should be used together with BlockToBatch if you need to access the
+// BatchData before adding a block to the channel. It isn't possible to access
+// the batch data with AddBlock.
+func (co *ChannelOut) AddBatch(batch *BatchData) (uint64, error) {
+	if co.closed {
+		return 0, errors.New("already closed")
+	}
+
 	// We encode to a temporary buffer to determine the encoded length to
 	// ensure that the total size of all RLP elements is less than or equal to MAX_RLP_BYTES_PER_CHANNEL
 	var buf bytes.Buffer
@@ -164,8 +181,8 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 	}
 }
 
-// blockToBatch transforms a block into a batch object that can easily be RLP encoded.
-func blockToBatch(block *types.Block) (*BatchData, error) {
+// BlockToBatch transforms a block into a batch object that can easily be RLP encoded.
+func BlockToBatch(block *types.Block) (*BatchData, error) {
 	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
 		if tx.Type() == types.DepositTxType {
