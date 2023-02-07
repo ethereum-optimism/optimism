@@ -4,7 +4,6 @@ const path = require('path')
 module.exports = {
   title: 'OP Stack Docs',
   description: description,
-
   head: [
     ['link', { rel: 'manifest', href: '/manifest.json' }],
     ['meta', { name: 'theme-color', content: '#3eaf7c' }],
@@ -12,9 +11,6 @@ module.exports = {
     ['meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' }],
     ['link', { rel: "icon", type: "image/png", sizes: "32x32", href: "/assets/logos/favicon.png"}],
   ],
-
-//  cache: false,
-
   theme: path.resolve(__dirname, './theme'),
   themeConfig: {
     contributor: false,
@@ -41,8 +37,7 @@ module.exports = {
       indexName: 'optimism'
     },
     nav: [
-      /* When you update here, don't forget to update the tiles
-         in src/README.md */
+      /* When you update here, don't forget to update the tiles src/README.md */
       {
         text: 'How Optimism Works',
         link: '/docs/how-optimism-works/'
@@ -148,14 +143,11 @@ module.exports = {
       ]
     }
   },
-
   plugins: [
     "@vuepress/pwa",
     [
       '@vuepress/plugin-medium-zoom',
       {
-        // When an image is inside a link, it means we don't to expand it
-        // when clicked
         selector: ':not(a) > img'
       }
     ],
