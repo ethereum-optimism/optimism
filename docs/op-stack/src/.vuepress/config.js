@@ -2,10 +2,10 @@ const { description } = require('../../package')
 const path = require('path')
 
 module.exports = {
-  title: 'OPStack Docs',
+  title: 'OP Stack Docs',
   description: description,
 
-  head: [ 
+  head: [
     ['link', { rel: 'manifest', href: '/manifest.json' }],
     ['meta', { name: 'theme-color', content: '#3eaf7c' }],
     ['meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }],
@@ -42,7 +42,7 @@ module.exports = {
     },
     nav: [
       /* When you update here, don't forget to update the tiles
-         in src/README.md */ 
+         in src/README.md */
       {
         text: 'How Optimism Works',
         link: '/docs/how-optimism-works/'
@@ -128,17 +128,17 @@ module.exports = {
       '/docs/security-model/': [
         '/docs/security-model/optimism-security-model.md',
         '/docs/security-model/bounties.md',
-      ],          
+      ],
       '/docs/developers/': [
         {
           title: "OP Stack: Bedrock",
           children: [
             '/docs/developers/opstack/explainer.md',
             '/docs/developers/opstack/differences.md',
-            '/docs/developers/opstack/public-testnets.md', 
-            '/docs/developers/opstack/node-operator-guide.md',    
-            '/docs/developers/opstack/upgrade-guide.md',   
-            '/docs/developers/opstack/metrics.md'    
+            '/docs/developers/opstack/public-testnets.md',
+            '/docs/developers/opstack/node-operator-guide.md',
+            '/docs/developers/opstack/upgrade-guide.md',
+            '/docs/developers/opstack/metrics.md'
           ]
         },
         '/docs/developers/releases.md'
@@ -162,5 +162,5 @@ module.exports = {
     "plausible-analytics"
   ]
 }
-  
+
 module.exports.themeConfig.sidebar["/docs/useful-tools/"] = module.exports.themeConfig.sidebar["/docs/developers/"]

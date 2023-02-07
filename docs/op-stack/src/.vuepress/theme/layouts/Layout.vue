@@ -1,5 +1,5 @@
 <template>
-  <Common :sidebar="$frontmatter.blog !== true">
+  <Common :sidebar="true">
     <template #navbar-start>
       <slot name="navbar-start">
         <NavbarStart />

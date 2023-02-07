@@ -1,16 +1,12 @@
+import Vue from "vue";
 import { getSidebarItems } from "@theme/utils/sidebar";
-import { globalEncryptMixin } from "@theme/mixins/globalEncrypt";
 import Navbar from "@theme/components/Navbar/Navbar.vue";
-import PageFooter from "@theme/components/PageFooter.vue";
-import Password from "@theme/components/Password.vue";
 import Sidebar from "@theme/components/Sidebar/Sidebar.vue";
 import throttle from "lodash.throttle";
-export default globalEncryptMixin.extend({
+export default Vue.extend({
     name: "Common",
     components: {
         Navbar,
-        PageFooter,
-        Password,
         Sidebar,
     },
     props: {
