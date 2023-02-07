@@ -5,9 +5,8 @@
     @touchstart="onTouchStart"
     @touchend="onTouchEnd"
   >
-    <Password v-if="isGlobalEncrypted" @password-verify="checkGlobalPassword" />
     <!-- Content -->
-    <template v-else>
+    <template>
       <Navbar v-if="enableNavbar" @toggle-sidebar="toggleSidebar">
         <template #start>
           <slot name="navbar-start" />
@@ -35,8 +34,6 @@
       </Sidebar>
 
       <slot :sidebar-items="sidebarItems" :headers="headers" />
-
-      <PageFooter :key="$route.path" />
     </template>
   </div>
 </template>

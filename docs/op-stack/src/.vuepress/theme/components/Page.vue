@@ -6,34 +6,18 @@
 
     <PageInfo :key="$route.path" />
 
-    <MyTransition v-if="pagePassword && !pageDescrypted" :delay="0.08" :disable="true">
-      <Password
-        :key="$route.path"
-        :page="true"
-        @password-verify="password = $event"
-      />
-    </MyTransition>
-
-    <MyTransition v-else-if="isPathEncrypted" :delay="0.08" :disable="true">
-      <Password
-        :key="$route.path"
-        :page="true"
-        @password-verify="checkPathPassword"
-      />
-    </MyTransition>
-
-    <template v-else>
+    <template>
       <MyTransition :delay="0.12" :disable="true">
         <Anchor :key="$route.path" />
       </MyTransition>
 
-      <slot v-if="!pagePassword || pageDescrypted" name="content-top" />
+      <slot name="content-top" />
 
-      <MyTransition v-show="!pagePassword || pageDescrypted" :delay="0.08" :disable="true">
+      <MyTransition :delay="0.08" :disable="true">
         <Content :key="$route.path" class="theme-default-content" />
       </MyTransition>
 
-      <slot v-if="!pagePassword || pageDescrypted" name="content-bottom" />
+      <slot name="content-bottom" />
 
       <MyTransition :delay="0.12" :disable="true">
         <PageMeta :key="$route.path" />
@@ -52,7 +36,7 @@
 
     <!-- Google tag (gtag.js) -->
     <!-- put here because the plugin didn't work -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9KLVB8X0ME">      
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9KLVB8X0ME">
     </script>
 
     <script>
