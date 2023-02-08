@@ -183,20 +183,20 @@ contract L2OutputOracle is Initializable, Semver {
             "L2OutputOracle: L2 output proposal cannot be the zero hash"
         );
 
-        if (_l1BlockHash != bytes32(0)) {
-            // This check allows the proposer to propose an output based on a given L1 block,
-            // without fear that it will be reorged out.
-            // It will also revert if the blockheight provided is more than 256 blocks behind the
-            // chain tip (as the hash will return as zero). This does open the door to a griefing
-            // attack in which the proposer's submission is censored until the block is no longer
-            // retrievable, if the proposer is experiencing this attack it can simply leave out the
-            // blockhash value, and delay submission until it is confident that the L1 block is
-            // finalized.
-            require(
-                blockhash(_l1BlockNumber) == _l1BlockHash,
-                "L2OutputOracle: block hash does not match the hash at the expected height"
-            );
-        }
+        // if (_l1BlockHash != bytes32(0)) {
+        //     // This check allows the proposer to propose an output based on a given L1 block,
+        //     // without fear that it will be reorged out.
+        //     // It will also revert if the blockheight provided is more than 256 blocks behind the
+        //     // chain tip (as the hash will return as zero). This does open the door to a griefing
+        //     // attack in which the proposer's submission is censored until the block is no longer
+        //     // retrievable, if the proposer is experiencing this attack it can simply leave out the
+        //     // blockhash value, and delay submission until it is confident that the L1 block is
+        //     // finalized.
+        //     require(
+        //         blockhash(_l1BlockNumber) == _l1BlockHash,
+        //         "L2OutputOracle: block hash does not match the hash at the expected height"
+        //     );
+        // }
 
         emit OutputProposed(_outputRoot, nextOutputIndex(), _l2BlockNumber, block.timestamp);
 

@@ -68,6 +68,10 @@ devnet-up:
 	@bash ./ops-bedrock/devnet-up.sh
 .PHONY: devnet-up
 
+bsc-qa-up:
+	@bash ./ops-bedrock/bsc-qa-up.sh
+.PHONY: bsc-qa-up
+
 devnet-up-deploy:
 	PYTHONPATH=./bedrock-devnet python3 ./bedrock-devnet/main.py --monorepo-dir=.
 .PHONY: devnet-up-deploy
@@ -76,6 +80,10 @@ devnet-down:
 	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
 .PHONY: devnet-down
 
+bsc-qa-down:
+	@(cd ./ops-bedrock && GENESIS_TIMESTAMP=$(shell date +%s) docker-compose stop)
+.PHONY: bsc-qa-down
+
 devnet-clean:
 	rm -rf ./packages/contracts-bedrock/deployments/devnetL1
 	rm -rf ./.devnet
@@ -83,6 +91,14 @@ devnet-clean:
 	docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
 	docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
 .PHONY: devnet-clean
+
+bsc-qa-clean:
+	# rm -rf ./packages/contracts-bedrock/deployments/devnetL1
+	# rm -rf ./.devnet
+	cd ./ops-bedrock && docker-compose down
+	# docker image ls 'ops-bedrock*' --format='{{.Repository}}' | xargs -r docker rmi
+	# docker volume ls --filter name=ops-bedrock --format='{{.Name}}' | xargs -r docker volume rm
+.PHONY: bsc-qa-clean
 
 devnet-logs:
 	@(cd ./ops-bedrock && docker-compose logs -f)

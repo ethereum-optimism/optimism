@@ -60,3 +60,5 @@ __pycache__
 
 # Ignore echidna artifacts
 crytic-export
+
+.buildt

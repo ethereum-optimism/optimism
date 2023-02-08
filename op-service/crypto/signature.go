@@ -21,7 +21,8 @@ import (
 
 func PrivateKeySignerFn(key *ecdsa.PrivateKey, chainID *big.Int) bind.SignerFn {
 	from := crypto.PubkeyToAddress(key.PublicKey)
-	signer := types.LatestSignerForChainID(chainID)
+	//signer := types.LatestSignerForChainID(chainID)
+	signer := types.NewEIP155Signer(chainID)
 	return func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 		if address != from {
 			return nil, bind.ErrNotAuthorized

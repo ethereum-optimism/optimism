@@ -191,7 +191,7 @@ func (payload *ExecutionPayload) CheckBlockHash() (actual common.Hash, ok bool) 
 }
 
 func BlockAsPayload(bl *types.Block) (*ExecutionPayload, error) {
-	baseFee, overflow := uint256.FromBig(bl.BaseFee())
+	baseFee, overflow := uint256.FromBig(big.NewInt(0))
 	if overflow {
 		return nil, fmt.Errorf("invalid base fee in block: %s", bl.BaseFee())
 	}

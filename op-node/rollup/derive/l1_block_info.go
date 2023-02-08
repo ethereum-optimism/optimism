@@ -51,10 +51,12 @@ func (info *L1BlockInfo) MarshalBinary() ([]byte, error) {
 	binary.BigEndian.PutUint64(data[offset+24:offset+32], info.Time)
 	offset += 32
 	// Ensure that the baseFee is not too large.
-	if info.BaseFee.BitLen() > 256 {
-		return nil, fmt.Errorf("base fee exceeds 256 bits: %d", info.BaseFee)
+	if info.BaseFee != nil {
+		if info.BaseFee.BitLen() > 256 {
+			return nil, fmt.Errorf("base fee exceeds 256 bits: %d", info.BaseFee)
+		}
+		info.BaseFee.FillBytes(data[offset : offset+32])
 	}
-	info.BaseFee.FillBytes(data[offset : offset+32])
 	offset += 32
 	copy(data[offset:offset+32], info.BlockHash.Bytes())
 	offset += 32
@@ -114,7 +116,8 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfi
 	infoDat := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
-		BaseFee:        block.BaseFee(),
+		// BaseFee:        block.BaseFee(),
+		BaseFee:        big.NewInt(0),
 		BlockHash:      block.Hash(),
 		SequenceNumber: seqNumber,
 		BatcherAddr:    sysCfg.BatcherAddr,

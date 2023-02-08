@@ -90,10 +90,11 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 	if err != nil || head == nil {
 		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
 	}
-	if head.BaseFee == nil {
-		return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
-	}
-	gasFeeCap = txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
+	// if head.BaseFee == nil {
+	// 	return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
+	// }
+	// gasFeeCap = txmgr.CalcGasFeeCap(head.BaseFee, gasTipCap)
+	gasFeeCap = txmgr.CalcGasFeeCap(big.NewInt(0), gasTipCap)
 
 	return gasTipCap, gasFeeCap, nil
 }
@@ -114,12 +115,10 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   t.chainID,
+	rawTx := &types.LegacyTx{
 		Nonce:     nonce,
 		To:        &t.batchInboxAddress,
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
+		GasPrice:  big.NewInt(0).Add(gasTipCap, gasFeeCap),
 		Data:      data,
 	}
 	t.log.Info("creating tx", "to", rawTx.To, "from", t.senderAddress)
@@ -146,12 +145,10 @@ func (t *TransactionManager) UpdateGasPrice(ctx context.Context, tx *types.Trans
 		return nil, err
 	}
 
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   t.chainID,
+	rawTx := &types.LegacyTx{
 		Nonce:     tx.Nonce(),
 		To:        tx.To(),
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
+		GasPrice:  big.NewInt(0).Add(gasTipCap, gasFeeCap),
 		Gas:       tx.Gas(),
 		Data:      tx.Data(),
 	}

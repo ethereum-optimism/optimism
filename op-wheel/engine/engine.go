@@ -253,7 +253,8 @@ func Status(ctx context.Context, client client.RPC) (*StatusData, error) {
 		Txs:       uint64(len(head.Transactions())),
 		Gas:       head.GasUsed(),
 		StateRoot: head.Root(),
-		BaseFee:   head.BaseFee(),
+		//BaseFee:   head.BaseFee(),
+		BaseFee:   big.NewInt(0),
 	}, nil
 }
 

@@ -30,7 +30,7 @@ services:
       - "9545:8545"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
+      - "${PWD}/../.bsc-qa-net/genesis-l2.json:/genesis.json"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
@@ -39,20 +39,21 @@ services:
 
   op-node:
     depends_on:
-      - l1
+      # - l1
       - l2
     build:
       context: ../
       dockerfile: ./op-node/Dockerfile
     command: >
       op-node
-      --l1=ws://l1:8546
+      --l1.trustrpc
+      --l1=https://data-seed-prebsc-2-s1.binance.org:8545
       --l2=http://l2:8551
       --l2.jwt-secret=/config/test-jwt-secret.txt
       --sequencer.enabled
       --sequencer.l1-confs=0
       --verifier.l1-confs=0
-      --p2p.sequencer.key=8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba
+      --p2p.sequencer.key=83115df60197a231076f25516db72cf0380e543e81e8c8f3188582a7492cbb39
       --rollup.config=/rollup.json
       --rpc.addr=0.0.0.0
       --rpc.port=8545
@@ -75,12 +76,12 @@ services:
       - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
       - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
       - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - "${PWD}/../.bsc-qa-net/rollup.json:/rollup.json"
       - op_log:/op_log
 
   op-proposer:
     depends_on:
-      - l1
+      # - l1
       - l2
       - op-node
     build:
@@ -90,13 +91,13 @@ services:
       - "6062:6060"
       - "7302:7300"
     environment:
-      OP_PROPOSER_L1_ETH_RPC: http://l1:8545
+      OP_PROPOSER_L1_ETH_RPC: https://data-seed-prebsc-2-s1.binance.org:8545
       OP_PROPOSER_ROLLUP_RPC: http://op-node:8545
       OP_PROPOSER_POLL_INTERVAL: 1s
       OP_PROPOSER_NUM_CONFIRMATIONS: 1
       OP_PROPOSER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: 3
       OP_PROPOSER_RESUBMISSION_TIMEOUT: 30s
-      OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
+      OP_PROPOSER_MNEMONIC: member develop major oblige blanket tissue radio car embrace relax potato spray
       OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
       OP_PROPOSER_LOG_TERMINAL: "true"
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
@@ -106,7 +107,7 @@ services:
 
   op-batcher:
     depends_on:
-      - l1
+      # - l1
       - l2
       - op-node
     build:
@@ -116,7 +117,7 @@ services:
       - "6061:6060"
       - "7301:7300"
     environment:
-      OP_BATCHER_L1_ETH_RPC: http://l1:8545
+      OP_BATCHER_L1_ETH_RPC: https://data-seed-prebsc-2-s1.binance.org:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
       OP_BATCHER_MAX_L1_TX_SIZE_BYTES: 120000
@@ -128,9 +129,10 @@ services:
       OP_BATCHER_NUM_CONFIRMATIONS: 1
       OP_BATCHER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: 3
       OP_BATCHER_RESUBMISSION_TIMEOUT: 30s
-      OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
+      OP_BATCHER_MNEMONIC: member develop major oblige blanket tissue radio car embrace relax potato spray
       OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
       OP_BATCHER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
+      OP_BATCHER_LOG_Level: "debug"
       OP_BATCHER_LOG_TERMINAL: "true"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"

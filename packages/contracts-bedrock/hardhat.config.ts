@@ -25,6 +25,15 @@ const config: HardhatUserConfig = {
     mainnet: {
       url: process.env.RPC_URL || 'http://localhost:8545',
     },
+    'bsc-qa': {
+      live: false,
+      // url: 'http://tf-dex-qa-ec2-bsc-test-alb-1168080131.ap-northeast-1.elb.amazonaws.com:8545',
+      url: 'https://data-seed-prebsc-2-s1.binance.org:8545',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      // accounts: {
+      //   mnemonic: "test test test test test test test test test test junk junk",
+      // }
+    },
     devnetL1: {
       live: false,
       url: 'http://localhost:8545',
