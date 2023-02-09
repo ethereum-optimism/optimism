@@ -7,6 +7,8 @@ require (
 	github.com/ethereum-optimism/optimism/op-node v0.10.12
 	github.com/ethereum-optimism/optimism/op-signer v0.1.0
 	github.com/ethereum/go-ethereum v1.10.26
+	github.com/fsnotify/fsnotify v1.6.0
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.13.0
 	github.com/stretchr/testify v1.8.1
 	github.com/urfave/cli v1.22.9
@@ -27,7 +29,6 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/dyson/certman v0.3.0 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
-	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
@@ -52,7 +53,6 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/pointerstructure v1.2.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.37.0 // indirect
