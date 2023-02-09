@@ -52,11 +52,11 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       },
       optionsSpec: {
         l1RpcProvider: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for interacting with L1',
         },
         l2RpcProvider: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for interacting with L2',
         },
         startBatchIndex: {

@@ -43,11 +43,11 @@ export class HealthcheckService extends BaseServiceV2<
       },
       optionsSpec: {
         referenceRpcProvider: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for interacting with L1',
         },
         targetRpcProvider: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for interacting with L2',
         },
         onDivergenceWaitMs: {

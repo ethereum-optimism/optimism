@@ -1,7 +1,5 @@
-import { ValidatorSpec, Spec } from 'envalid'
-
 import { LogLevel } from '../common/logger'
-import { validators } from './validators'
+import { Validator, validators } from './validators'
 
 /**
  * Options for a service.
@@ -15,7 +13,7 @@ export type Options = {
  */
 export type OptionsSpec<TOptions extends Options> = {
   [P in keyof Required<TOptions>]: {
-    validator: (spec?: Spec<TOptions[P]>) => ValidatorSpec<TOptions[P]>
+    validator: Validator<TOptions[P]>
     desc: string
     default?: TOptions[P]
     public?: boolean
@@ -57,7 +55,7 @@ export const stdOptionsSpec: OptionsSpec<StandardOptions> = {
     public: true,
   },
   logLevel: {
-    validator: validators.logLevel,
+    validator: validators.LogLevel,
     desc: 'Log level',
     default: 'debug',
     public: true,

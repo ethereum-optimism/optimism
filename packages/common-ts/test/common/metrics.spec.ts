@@ -1,13 +1,11 @@
 import request from 'supertest'
-// Setup
-import chai = require('chai')
-const expect = chai.expect
 
-import { Logger, Metrics, createMetricsServer } from '../src'
+import { expect } from '../setup'
+import { Logger, LegacyMetrics, createMetricsServer } from '../../src'
 
 describe('Metrics', () => {
   it('shoud serve metrics', async () => {
-    const metrics = new Metrics({
+    const metrics = new LegacyMetrics({
       prefix: 'test_metrics',
     })
     const registry = metrics.registry

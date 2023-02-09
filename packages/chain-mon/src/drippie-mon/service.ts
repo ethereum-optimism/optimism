@@ -42,7 +42,7 @@ export class DrippieMonService extends BaseServiceV2<
       },
       optionsSpec: {
         rpc: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for network where Drippie is deployed',
         },
         drippieAddress: {

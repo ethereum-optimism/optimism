@@ -44,15 +44,15 @@ export class MessageRelayerService extends BaseServiceV2<
       options,
       optionsSpec: {
         l1RpcProvider: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for interacting with L1.',
         },
         l2RpcProvider: {
-          validator: validators.provider,
+          validator: validators.Provider,
           desc: 'Provider for interacting with L2.',
         },
         l1Wallet: {
-          validator: validators.wallet,
+          validator: validators.Wallet,
           desc: 'Wallet used to interact with L1.',
         },
         fromL2TransactionIndex: {

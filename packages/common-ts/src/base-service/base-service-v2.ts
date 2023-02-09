@@ -3,7 +3,6 @@ import { Server } from 'net'
 import Config from 'bcfg'
 import * as dotenv from 'dotenv'
 import { Command, Option } from 'commander'
-import { cleanEnv } from 'envalid'
 import snakeCase from 'lodash/snakeCase'
 import express from 'express'
 import prometheus, { Registry } from 'prom-client'
@@ -13,6 +12,7 @@ import morgan from 'morgan'
 
 import { ExpressRouter } from './router'
 import { Logger } from '../common/logger'
+import { cleanConfig } from './config'
 import {
   Metrics,
   MetricsSpec,
@@ -79,7 +79,7 @@ export abstract class BaseServiceV2<
   /**
    * Service options.
    */
-  protected readonly options: TOptions & StandardOptions
+  public readonly options: TOptions & StandardOptions
 
   /**
    * Metrics.
@@ -211,16 +211,13 @@ export abstract class BaseServiceV2<
     // Since BCFG turns everything into lower case, we're required to turn all of the input option
     // names into lower case for the validation step. We'll turn the names back into their original
     // names when we're done.
-    const cleaned = cleanEnv<TOptions>(
+    const cleaned: TOptions = cleanConfig(
       { ...config.env, ...config.args, ...(params.options || {}) },
       Object.entries(params.optionsSpec || {}).reduce((acc, [key, val]) => {
-        acc[key.toLowerCase()] = val.validator({
-          desc: val.desc,
-          default: val.default,
-        })
+        acc[key.toLowerCase()] = val.validator
         return acc
-      }, {}) as any
-    )
+      }) as any
+    ) as TOptions
 
     // Turn the lowercased option names back into camelCase.
     this.options = Object.keys(params.optionsSpec || {}).reduce((acc, key) => {
@@ -230,11 +227,12 @@ export abstract class BaseServiceV2<
 
     // Make sure all options are defined.
     for (const [optionName, optionSpec] of Object.entries(params.optionsSpec)) {
-      if (
-        optionSpec.default === undefined &&
-        this.options[optionName] === undefined
-      ) {
-        throw new Error(`missing required option: ${optionName}`)
+      if (this.options[optionName] === undefined) {
+        if (optionSpec.default === undefined) {
+          throw new Error(`missing required option: ${optionName}`)
+        } else {
+          ;(this.options as any)[optionName] = optionSpec.default
+        }
       }
     }
 
