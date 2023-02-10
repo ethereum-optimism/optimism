@@ -137,7 +137,7 @@ const config: HardhatUserConfig = {
       },
     ],
     deployments: {
-      goerli: ['../contracts/deployments/goerli-forked'],
+      goerli: ['../contracts/deployments/goerli'],
       mainnet: ['../contracts/deployments/mainnet'],
     },
   },
