@@ -123,8 +123,6 @@ github.com/decred/dcrd/lru v1.0.0/go.mod h1:mxKOwFd7lFjN2GZYsiz/ecgqR6kkYAl+0pz0
 github.com/dgrijalva/jwt-go v3.2.0+incompatible/go.mod h1:E3ru+11k8xSBh+hMPgOLZmtrrCbhqsmaPHjLKYnJCaQ=
 github.com/dgryski/go-sip13 v0.0.0-20181026042036-e10d5fee7954/go.mod h1:vAd38F8PWV+bWy6jNmig1y/TA+kYO4g3RSRF0IAv0no=
 github.com/dustin/go-humanize v0.0.0-20171111073723-bb3d318650d4/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
-github.com/dyson/certman v0.3.0 h1:S7WCUim5faT/OiBhiY3u5cMaiC9MNKiA+8PJDXLaIYQ=
-github.com/dyson/certman v0.3.0/go.mod h1:RMWlyA9op6D9SxOBRRX3sxnParehv9gf52WWUJPd1JA=
 github.com/eapache/go-resiliency v1.1.0/go.mod h1:kFI+JgMyC7bLPUVY133qvEBtVayf5mFgVsvEsIPBvNs=
 github.com/eapache/go-xerial-snappy v0.0.0-20180814174437-776d5712da21/go.mod h1:+020luEh2TKB4/GOp8oxxtq0Daoen/Cii55CzbTV6DU=
 github.com/eapache/queue v1.1.0/go.mod h1:6eCeP0CKFpHLu8blIFXhExK/dRa7WDZfr6jVFPTqq+I=
@@ -141,8 +139,8 @@ github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468 h1:7KgjB
 github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468/go.mod h1:p0Yox74PhYlq1HvijrCBCD9A3cI7rXco7hT6KrQr+rY=
 github.com/ethereum-optimism/optimism/op-node v0.10.12 h1:yOxMThwwz1rEDDM0xTjS+6jqJwgKRtrYM6h4Pdf0zno=
 github.com/ethereum-optimism/optimism/op-node v0.10.12/go.mod h1:z+DiFb82Vnn5zM3VEwc2OXK2V/JBg6MLg7ejTbsxye8=
-github.com/ethereum-optimism/optimism/op-signer v0.1.0 h1:wH44Deai43YQWO0pEd44pDm3BahdAtSmrOHKiPvTB8Y=
-github.com/ethereum-optimism/optimism/op-signer v0.1.0/go.mod h1:u8sN6X/c20pP9F1Ey7jH3fi19D08Y+T9ep3PGJfdyi8=
+github.com/ethereum-optimism/optimism/op-signer v0.1.1 h1:Ts6aWd5/nTQ8ZRFZhpOrrcWpnVmdp4fRfff1mvybnGs=
+github.com/ethereum-optimism/optimism/op-signer v0.1.1/go.mod h1:HK+9do1IJmDr9aEc44ECweYbCLDfGGYO7PBwTqDNrqI=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fjl/memsize v0.0.1 h1:+zhkb+dhUgx0/e+M8sF0QqiouvMQUiKR+QYvdxIOKcQ=
 github.com/fjl/memsize v0.0.1/go.mod h1:VvhXpOYNQvB+uIk2RvXzuaQtkQJzzIx6lSBe1xv7hi0=
