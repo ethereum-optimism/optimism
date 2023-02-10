@@ -19,7 +19,11 @@ contract XDomainSetter3 is CrossDomainOwnable3 {
 contract CrossDomainOwnable3_Test is Messenger_Initializer {
     XDomainSetter3 setter;
 
-    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner,
+        bool isLocal
+    );
 
     function setUp() public override {
         super.setUp();
@@ -31,13 +35,13 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_localOnlyOwner_notOwner_reverts() public {
         vm.prank(bob);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert("CrossDomainOwnable3: caller is not the owner");
         setter.set(1);
     }
 
     function test_crossDomainOnlyOwner_notOwner_reverts() public {
         vm.expectEmit(true, true, true, true);
-        emit OwnershipTransferred(alice, alice);
+        emit OwnershipTransferred(alice, alice, false);
 
         vm.prank(setter.owner());
         setter.transferOwnership({ _owner: alice, _isLocal: false });
@@ -54,7 +58,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_crossDomainOnlyOwner_notOwner2_reverts() public {
         vm.expectEmit(true, true, true, true);
-        emit OwnershipTransferred(alice, alice);
+        emit OwnershipTransferred(alice, alice, false);
 
         vm.prank(setter.owner());
         setter.transferOwnership({ _owner: alice, _isLocal: false });
@@ -95,7 +99,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_crossDomainOnlyOwner_notMessenger_reverts() public {
         vm.expectEmit(true, true, true, true);
-        emit OwnershipTransferred(alice, alice);
+        emit OwnershipTransferred(alice, alice, false);
 
         vm.prank(setter.owner());
         setter.transferOwnership({ _owner: alice, _isLocal: false });
@@ -113,7 +117,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_localTransferOwnership_succeeds() public {
         vm.expectEmit(true, true, true, true);
-        emit OwnershipTransferred(alice, bob);
+        emit OwnershipTransferred(alice, bob, true);
 
         vm.prank(setter.owner());
         setter.transferOwnership({ _owner: bob, _isLocal: true });
@@ -125,7 +129,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_crossDomainTransferOwnership_succeeds() public {
         vm.expectEmit(true, true, true, true);
-        emit OwnershipTransferred(alice, bob);
+        emit OwnershipTransferred(alice, bob, false);
 
         vm.prank(setter.owner());
         setter.transferOwnership({ _owner: bob, _isLocal: false });

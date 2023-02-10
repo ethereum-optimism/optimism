@@ -19,6 +19,12 @@ abstract contract CrossDomainOwnable3 is Ownable {
      */
     bool internal isLocal = true;
 
+    event OwnershipTransferred(
+        address indexed previousOwner,
+        address indexed newOwner,
+        bool isLocal
+    );
+
     /**
      * @notice Overrides the implementation of the `onlyOwner` modifier to check that the unaliased
      *         `xDomainMessageSender` is the owner of the contract. This value is set to the caller
@@ -26,7 +32,7 @@ abstract contract CrossDomainOwnable3 is Ownable {
      */
     function _checkOwner() internal view override {
         if (isLocal) {
-            super._checkOwner();
+            require(owner() == _msgSender(), "CrossDomainOwnable3: caller is not the owner");
         } else {
             L2CrossDomainMessenger messenger = L2CrossDomainMessenger(
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER
@@ -52,6 +58,8 @@ abstract contract CrossDomainOwnable3 is Ownable {
      * If false it uses the standard Ownable _checkOwner function.
      */
     function transferOwnership(address _owner, bool _isLocal) external {
+        emit OwnershipTransferred(owner(), _owner, _isLocal);
+
         super.transferOwnership(_owner);
 
         isLocal = _isLocal;
