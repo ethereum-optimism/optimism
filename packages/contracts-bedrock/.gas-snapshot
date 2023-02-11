@@ -404,3 +404,5 @@ SystemConfig_Setters_TestFail:test_setBatcherHash_notOwner_reverts() (gas: 10545
 SystemConfig_Setters_TestFail:test_setGasConfig_notOwner_reverts() (gas: 10532)
 SystemConfig_Setters_TestFail:test_setGasLimit_notOwner_reverts() (gas: 10636)
 SystemConfig_Setters_TestFail:test_setUnsafeBlockSigner_notOwner_reverts() (gas: 10638)
+TransferOnionTest:test_constructor_succeeds() (gas: 564833)
+TransferOnionTest:test_unwrap_succeeds() (gas: 724936)
