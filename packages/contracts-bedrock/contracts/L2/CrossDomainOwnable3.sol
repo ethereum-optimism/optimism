@@ -58,9 +58,13 @@ abstract contract CrossDomainOwnable3 is Ownable {
      * If false it uses the standard Ownable _checkOwner function.
      */
     function transferOwnership(address _owner, bool _isLocal) external {
-        emit OwnershipTransferred(owner(), _owner, _isLocal);
+        require(_owner != address(0), "CrossDomainOwnable3: new owner is the zero address");
+
+        address oldOwner = owner();
 
         super.transferOwnership(_owner);
+
+        emit OwnershipTransferred(oldOwner, _owner, _isLocal);
 
         isLocal = _isLocal;
     }

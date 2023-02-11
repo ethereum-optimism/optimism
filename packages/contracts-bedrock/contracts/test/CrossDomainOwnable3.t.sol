@@ -19,6 +19,10 @@ contract XDomainSetter3 is CrossDomainOwnable3 {
 contract CrossDomainOwnable3_Test is Messenger_Initializer {
     XDomainSetter3 setter;
 
+    /// @notice OpenZeppelin Ownable.sol transferOwnership event
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    /// @notice CrossDomainOwnable3.sol transferOwnership event
     event OwnershipTransferred(
         address indexed previousOwner,
         address indexed newOwner,
@@ -39,8 +43,19 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         setter.set(1);
     }
 
+    function test_transferOwnership_notOwner_reverts() public {
+        vm.prank(bob);
+        vm.expectRevert("CrossDomainOwnable3: caller is not the owner");
+        setter.transferOwnership({ _owner: bob, _isLocal: true });
+    }
+
     function test_crossDomainOnlyOwner_notOwner_reverts() public {
         vm.expectEmit(true, true, true, true);
+
+        // OpenZeppelin Ownable.sol transferOwnership event
+        emit OwnershipTransferred(alice, alice);
+
+        // CrossDomainOwnable3.sol transferOwnership event
         emit OwnershipTransferred(alice, alice, false);
 
         vm.prank(setter.owner());
@@ -58,6 +73,11 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_crossDomainOnlyOwner_notOwner2_reverts() public {
         vm.expectEmit(true, true, true, true);
+
+        // OpenZeppelin Ownable.sol transferOwnership event
+        emit OwnershipTransferred(alice, alice);
+
+        // CrossDomainOwnable3.sol transferOwnership event
         emit OwnershipTransferred(alice, alice, false);
 
         vm.prank(setter.owner());
@@ -99,6 +119,11 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_crossDomainOnlyOwner_notMessenger_reverts() public {
         vm.expectEmit(true, true, true, true);
+
+        // OpenZeppelin Ownable.sol transferOwnership event
+        emit OwnershipTransferred(alice, alice);
+
+        // CrossDomainOwnable3.sol transferOwnership event
         emit OwnershipTransferred(alice, alice, false);
 
         vm.prank(setter.owner());
@@ -109,6 +134,12 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         setter.set(1);
     }
 
+    function test_transferOwnership_zeroAddress_reverts() public {
+        vm.prank(setter.owner());
+        vm.expectRevert("CrossDomainOwnable3: new owner is the zero address");
+        setter.transferOwnership({ _owner: address(0), _isLocal: true });
+    }
+
     function test_localOnlyOwner_succeeds() public {
         vm.prank(setter.owner());
         setter.set(1);
@@ -117,6 +148,11 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_localTransferOwnership_succeeds() public {
         vm.expectEmit(true, true, true, true);
+
+        // OpenZeppelin Ownable.sol transferOwnership event
+        emit OwnershipTransferred(alice, bob);
+
+        // CrossDomainOwnable3.sol transferOwnership event
         emit OwnershipTransferred(alice, bob, true);
 
         vm.prank(setter.owner());
@@ -129,6 +165,11 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
 
     function test_crossDomainTransferOwnership_succeeds() public {
         vm.expectEmit(true, true, true, true);
+
+        // OpenZeppelin Ownable.sol transferOwnership event
+        emit OwnershipTransferred(alice, bob);
+
+        // CrossDomainOwnable3.sol transferOwnership event
         emit OwnershipTransferred(alice, bob, false);
 
         vm.prank(setter.owner());
