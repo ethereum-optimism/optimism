@@ -30,7 +30,7 @@ func SigningHash(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common
 	}
 	chainID.FillBytes(msgInput[32:64])
 	// payload_hash: third 32 bytes, hash of encoded payload
-	copy(msgInput[32:], crypto.Keccak256(payloadBytes))
+	copy(msgInput[64:], crypto.Keccak256(payloadBytes))
 
 	return crypto.Keccak256Hash(msgInput[:]), nil
 }
