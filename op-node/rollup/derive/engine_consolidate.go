@@ -53,6 +53,7 @@ func logL1InfoTxns(l log.Logger, l2Number, l2Timestamp uint64, safeTx, unsafeTx 
 	errUnsafe := (&unsafeTxValue).UnmarshalBinary(unsafeTx)
 	if errSafe != nil || errUnsafe != nil {
 		l.Error("failed to umarshal tx", "errSafe", errSafe, "errUnsafe", errUnsafe)
+		return
 	}
 
 	// Then decode the ABI encoded parameters
@@ -61,6 +62,7 @@ func logL1InfoTxns(l log.Logger, l2Number, l2Timestamp uint64, safeTx, unsafeTx 
 	errUnsafe = (&unsafeInfo).UnmarshalBinary(unsafeTxValue.Data())
 	if errSafe != nil || errUnsafe != nil {
 		l.Error("failed to umarshal l1 info", "errSafe", errSafe, "errUnsafe", errUnsafe)
+		return
 	}
 
 	l.Error("L1 Info transaction differs", "number", l2Number, "time", l2Timestamp,
