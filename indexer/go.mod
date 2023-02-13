@@ -2,11 +2,13 @@ module github.com/ethereum-optimism/optimism/indexer
 
 go 1.17
 
+replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468
+
 require (
-	github.com/ethereum-optimism/optimism/op-bindings v0.10.12
-	github.com/ethereum-optimism/optimism/op-e2e v0.10.12
-	github.com/ethereum-optimism/optimism/op-node v0.10.12
-	github.com/ethereum-optimism/optimism/op-service v0.10.12
+	github.com/ethereum-optimism/optimism/op-bindings v0.10.14
+	github.com/ethereum-optimism/optimism/op-e2e v0.10.14
+	github.com/ethereum-optimism/optimism/op-node v0.10.14
+	github.com/ethereum-optimism/optimism/op-service v0.10.14
 	github.com/ethereum/go-ethereum v1.10.26
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/mux v1.8.0
@@ -37,14 +39,13 @@ require (
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.1.0 // indirect
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
-	github.com/dyson/certman v0.3.0 // indirect
 	github.com/edsrzf/mmap-go v1.1.0 // indirect
 	github.com/elastic/gosigar v0.14.2 // indirect
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 // indirect
-	github.com/ethereum-optimism/optimism/op-batcher v0.10.12 // indirect
-	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.12 // indirect
-	github.com/ethereum-optimism/optimism/op-proposer v0.10.12 // indirect
-	github.com/ethereum-optimism/optimism/op-signer v0.1.0 // indirect
+	github.com/ethereum-optimism/optimism/op-batcher v0.10.14 // indirect
+	github.com/ethereum-optimism/optimism/op-chain-ops v0.10.14 // indirect
+	github.com/ethereum-optimism/optimism/op-proposer v0.10.14 // indirect
+	github.com/ethereum-optimism/optimism/op-signer v0.1.1 // indirect
 	github.com/fjl/memsize v0.0.1 // indirect
 	github.com/flynn/noise v1.0.0 // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
@@ -63,6 +64,7 @@ require (
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d // indirect
+	github.com/holiman/big v0.0.0-20221017200358-a027dc42d04e // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/holiman/uint256 v1.2.0 // indirect
 	github.com/huin/goupnp v1.0.3 // indirect
