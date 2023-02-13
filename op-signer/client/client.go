@@ -10,8 +10,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/dyson/certman"
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
+	"github.com/ethereum-optimism/optimism/op-service/tls/certman"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -24,11 +24,6 @@ type SignerClient struct {
 	logger log.Logger
 }
 
-// ethLogger wraps a geth style logger for certman.
-type ethLogger struct{ logger log.Logger }
-
-func (l ethLogger) Printf(format string, v ...interface{}) { l.logger.Info(fmt.Sprintf(format, v...)) }
-
 func NewSignerClient(logger log.Logger, endpoint string, tlsConfig optls.CLIConfig) (*SignerClient, error) {
 	caCert, err := os.ReadFile(tlsConfig.TLSCaCert)
 	if err != nil {
@@ -38,8 +33,7 @@ func NewSignerClient(logger log.Logger, endpoint string, tlsConfig optls.CLIConf
 	caCertPool.AppendCertsFromPEM(caCert)
 
 	// certman watches for newer client certifictes and automatically reloads them
-	cm, err := certman.New(tlsConfig.TLSCert, tlsConfig.TLSKey)
-	cm.Logger(ethLogger{logger: logger})
+	cm, err := certman.New(logger, tlsConfig.TLSCert, tlsConfig.TLSKey)
 	if err != nil {
 		logger.Error("failed to read tls cert or key", "err", err)
 		return nil, err

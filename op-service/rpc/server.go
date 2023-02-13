@@ -183,7 +183,7 @@ func (b *Server) Start() error {
 	errCh := make(chan error, 1)
 	go func() {
 		if b.tls != nil {
-			if err := b.httpServer.ListenAndServeTLS(b.tls.CLIConfig.TLSCert, b.tls.CLIConfig.TLSKey); err != nil {
+			if err := b.httpServer.ListenAndServeTLS("", ""); err != nil {
 				errCh <- err
 			}
 		} else {
