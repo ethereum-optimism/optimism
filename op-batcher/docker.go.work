@@ -8,4 +8,4 @@ use (
 	./op-service
 	./op-signer
 )
-replace github.com/ethereum/go-ethereum v1.10.21 => /app/op-geth
+replace github.com/ethereum/go-ethereum v1.10.26 => /app/op-geth
