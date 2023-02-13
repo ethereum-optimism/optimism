@@ -92,7 +92,7 @@ func (e *extraHost) monitorStaticPeers() {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 			var wg sync.WaitGroup
 
-			e.log.Debug("polling static peers")
+			e.log.Debug("polling static peers", "peers", len(e.staticPeers))
 			for _, addr := range e.staticPeers {
 				connectedness := e.Network().Connectedness(addr.ID)
 				e.log.Trace("static peer connectedness", "peer", addr.ID, "connectedness", connectedness)
