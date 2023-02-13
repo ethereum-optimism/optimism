@@ -2,7 +2,15 @@ package derive
 
 import (
 	"bytes"
+	"io"
+	"math"
+	"math/rand"
+	"strconv"
 	"testing"
+	"time"
+
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	"github.com/stretchr/testify/require"
 )
 
 func FuzzFrameUnmarshalBinary(f *testing.F) {
@@ -22,4 +30,123 @@ func FuzzParseFrames(f *testing.F) {
 			t.Fatal("must return data with a non-nil error")
 		}
 	})
+}
+
+func TestFrameMarshaling(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < 16; i++ {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
+			frame := randomFrame(rng)
+			var data bytes.Buffer
+			require.NoError(t, frame.MarshalBinary(&data))
+
+			frame0 := new(Frame)
+			require.NoError(t, frame0.UnmarshalBinary(&data))
+			require.Equal(t, frame, frame0)
+		})
+	}
+}
+
+func TestFrameUnmarshalTruncated(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	for _, tr := range []struct {
+		desc     string
+		truncate func([]byte) []byte
+	}{
+		{
+			desc: "truncate-frame_data_length-full",
+			truncate: func(data []byte) []byte {
+				return data[:18] // truncate full frame_data_length
+			},
+		},
+		{
+			desc: "truncate-frame_data_length-half",
+			truncate: func(data []byte) []byte {
+				return data[:20] // truncate half-way frame_data_length
+			},
+		},
+		{
+			desc: "truncate-data-full",
+			truncate: func(data []byte) []byte {
+				return data[:22] // truncate after frame_data_length
+			},
+		},
+		{
+			desc: "truncate-data-last-byte",
+			truncate: func(data []byte) []byte {
+				return data[:len(data)-2]
+			},
+		},
+		{
+			desc: "truncate-is_last",
+			truncate: func(data []byte) []byte {
+				return data[:len(data)-1]
+			},
+		},
+	} {
+		t.Run(tr.desc, func(t *testing.T) {
+			frame := randomFrame(rng)
+			var data bytes.Buffer
+			require.NoError(t, frame.MarshalBinary(&data))
+
+			// truncate last data byte & is_last
+			tdata := tr.truncate(data.Bytes())
+
+			frame0 := new(Frame)
+			err := frame0.UnmarshalBinary(bytes.NewReader(tdata))
+			require.Error(t, err)
+			require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		})
+	}
+}
+
+func TestFrameUnmarshalInvalidIsLast(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	frame := randomFrame(rng, frameWithDataLen(16))
+	var data bytes.Buffer
+	require.NoError(t, frame.MarshalBinary(&data))
+
+	idata := data.Bytes()
+	idata[len(idata)-1] = 2 // invalid is_last
+
+	frame0 := new(Frame)
+	err := frame0.UnmarshalBinary(bytes.NewReader(idata))
+	require.Error(t, err)
+	require.ErrorContains(t, err, "invalid byte")
+}
+
+func randomFrame(rng *rand.Rand, opts ...frameOpt) *Frame {
+	var id ChannelID
+	_, err := rng.Read(id[:])
+	if err != nil {
+		panic(err)
+	}
+
+	frame := &Frame{
+		ID:          id,
+		FrameNumber: uint16(rng.Int31n(math.MaxUint16 + 1)),
+		IsLast:      testutils.RandomBool(rng),
+	}
+
+	// evaulaute options
+	for _, opt := range opts {
+		opt(rng, frame)
+	}
+
+	// default if no option set field
+	if frame.Data == nil {
+		datalen := int(rng.Intn(MaxFrameLen + 1))
+		frame.Data = testutils.RandomData(rng, datalen)
+	}
+
+	return frame
+}
+
+type frameOpt func(*rand.Rand, *Frame)
+
+func frameWithDataLen(l int) frameOpt {
+	return func(rng *rand.Rand, frame *Frame) {
+		frame.Data = testutils.RandomData(rng, l)
+	}
 }

@@ -68,30 +68,41 @@ type ByteReader interface {
 // UnmarshalBinary consumes a full frame from the reader.
 // If `r` fails a read, it returns the error from the reader
 // The reader will be left in a partially read state.
+//
+// If r doesn't return any bytes, returns io.EOF.
+// If r unexpectedly stops returning data half-way, returns io.ErrUnexpectedEOF.
 func (f *Frame) UnmarshalBinary(r ByteReader) error {
 	if _, err := io.ReadFull(r, f.ID[:]); err != nil {
 		return fmt.Errorf("error reading ID: %w", err)
 	}
-	if err := binary.Read(r, binary.BigEndian, &f.FrameNumber); err != nil {
-		return fmt.Errorf("error reading frame number: %w", err)
+	if err := binary.Read(r, binary.BigEndian, &f.FrameNumber); err == io.EOF {
+		return fmt.Errorf("frame_number missing: %w", io.ErrUnexpectedEOF)
+	} else if err != nil {
+		return fmt.Errorf("reading frame_number: %w", err)
 	}
 
 	var frameLength uint32
-	if err := binary.Read(r, binary.BigEndian, &frameLength); err != nil {
-		return fmt.Errorf("error reading frame length: %w", err)
+	if err := binary.Read(r, binary.BigEndian, &frameLength); err == io.EOF {
+		return fmt.Errorf("frame_data_length missing: %w", io.ErrUnexpectedEOF)
+	} else if err != nil {
+		return fmt.Errorf("reading frame_data_length: %w", err)
 	}
 
 	// Cap frame length to MaxFrameLen (currently 1MB)
 	if frameLength > MaxFrameLen {
-		return fmt.Errorf("frameLength is too large: %d", frameLength)
+		return fmt.Errorf("frame_data_length is too large: %d", frameLength)
 	}
 	f.Data = make([]byte, int(frameLength))
-	if _, err := io.ReadFull(r, f.Data); err != nil {
-		return fmt.Errorf("error reading frame data: %w", err)
+	if _, err := io.ReadFull(r, f.Data); err == io.EOF {
+		return fmt.Errorf("frame_data missing: %w", io.ErrUnexpectedEOF)
+	} else if err != nil {
+		return fmt.Errorf("reading frame_data: %w", err)
 	}
 
-	if isLastByte, err := r.ReadByte(); err != nil && err != io.EOF {
-		return fmt.Errorf("error reading final byte: %w", err)
+	if isLastByte, err := r.ReadByte(); err == io.EOF {
+		return fmt.Errorf("final byte (is_last) missing: %w", io.ErrUnexpectedEOF)
+	} else if err != nil {
+		return fmt.Errorf("reading final byte (is_last): %w", err)
 	} else if isLastByte == 0 {
 		f.IsLast = false
 		return err
@@ -123,8 +134,8 @@ func ParseFrames(data []byte) ([]Frame, error) {
 	var frames []Frame
 	for buf.Len() > 0 {
 		var f Frame
-		if err := (&f).UnmarshalBinary(buf); err != io.EOF && err != nil {
-			return nil, err
+		if err := f.UnmarshalBinary(buf); err != nil {
+			return nil, fmt.Errorf("parsing frame %d: %w", len(frames), err)
 		}
 		frames = append(frames, f)
 	}
