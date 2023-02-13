@@ -12,6 +12,7 @@ import { expect } from './setup'
 import {
   findEventForStateBatch,
   findFirstUnfinalizedStateBatchIndex,
+  OutputOracle,
 } from '../src'
 
 describe('helpers', () => {
@@ -28,6 +29,7 @@ describe('helpers', () => {
   let AddressManager: Contract
   let ChainStorageContainer: Contract
   let StateCommitmentChain: Contract
+  let oracle: OutputOracle<any>
   beforeEach(async () => {
     // Set up fakes
     FakeBondManager = await smock.fake(getContractInterface('BondManager'))
@@ -67,6 +69,13 @@ describe('helpers', () => {
     // Set up mock returns
     FakeCanonicalTransactionChain.getTotalElements.returns(1000000000) // just needs to be large
     FakeBondManager.isCollateralized.returns(true)
+
+    oracle = {
+      contract: StateCommitmentChain,
+      filter: StateCommitmentChain.filters.StateBatchAppended(),
+      getTotalElements: async () => StateCommitmentChain.getTotalBatches(),
+      getEventIndex: (args: any) => args._batchIndex,
+    }
   })
 
   describe('findEventForStateBatch', () => {
@@ -79,7 +88,7 @@ describe('helpers', () => {
       })
 
       it('should return the event', async () => {
-        const event = await findEventForStateBatch(StateCommitmentChain, 0)
+        const event = await findEventForStateBatch(oracle, 0)
 
         expect(event.args._batchIndex).to.equal(0)
       })
@@ -88,7 +97,7 @@ describe('helpers', () => {
     describe('when the event does not exist', () => {
       it('should throw an error', async () => {
         await expect(
-          findEventForStateBatch(StateCommitmentChain, 0)
+          findEventForStateBatch(oracle, 0)
         ).to.eventually.be.rejectedWith('unable to find event for batch')
       })
     })
@@ -119,7 +128,8 @@ describe('helpers', () => {
 
       it('should find the first batch older than the FPW', async () => {
         const first = await findFirstUnfinalizedStateBatchIndex(
-          StateCommitmentChain
+          oracle,
+          challengeWindowSeconds
         )
 
         expect(first).to.equal(1)
@@ -144,7 +154,8 @@ describe('helpers', () => {
 
       it('should return zero', async () => {
         const first = await findFirstUnfinalizedStateBatchIndex(
-          StateCommitmentChain
+          oracle,
+          challengeWindowSeconds
         )
 
         expect(first).to.equal(0)
@@ -177,7 +188,8 @@ describe('helpers', () => {
 
       it('should return undefined', async () => {
         const first = await findFirstUnfinalizedStateBatchIndex(
-          StateCommitmentChain
+          oracle,
+          challengeWindowSeconds
         )
 
         expect(first).to.equal(undefined)

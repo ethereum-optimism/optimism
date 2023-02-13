@@ -2,6 +2,8 @@
 
 🎈 Thanks for your help improving the project! We are so happy to have you!
 
+**No contribution is too small and all contributions are valued.**
+
 There are plenty of ways to contribute, in particular we appreciate support in the following areas:
 
 - Reporting issues. For security issues see [Security policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md).
