@@ -52,7 +52,7 @@
     "ethers": "^5.7.0",
     "express": "^4.17.1",
     "express-prom-bundle": "^6.3.6",
-    "level": "^6.0.1",
+    "level6": "npm:level@^6.0.1",
     "levelup": "^4.4.0"
   },
   "devDependencies": {
