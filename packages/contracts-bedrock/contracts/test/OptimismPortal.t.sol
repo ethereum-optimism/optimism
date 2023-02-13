@@ -441,7 +441,9 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
 
     // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash hash
     // already been proven AND the output root + output index + l2BlockNumber changes.
-    function test_proveWithdrawalTransaction_replayProveChangedOutputRootAndOutputIndex_succeeds() external {
+    function test_proveWithdrawalTransaction_replayProveChangedOutputRootAndOutputIndex_succeeds()
+        external
+    {
         vm.expectEmit(true, true, true, true);
         emit WithdrawalProven(_withdrawalHash, alice, bob);
         op.proveWithdrawalTransaction(
