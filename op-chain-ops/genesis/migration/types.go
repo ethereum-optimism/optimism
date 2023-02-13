@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -120,6 +122,9 @@ type MigrationData struct {
 func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error) {
 	messages := make([]*crossdomain.LegacyWithdrawal, 0)
 	for _, msg := range m.OvmMessages {
+		if msg.Who != predeploys.L2CrossDomainMessengerAddr {
+			continue
+		}
 		wd, err := msg.ToLegacyWithdrawal()
 		if err != nil {
 			return nil, err
@@ -130,6 +135,9 @@ func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error)
 		}
 	}
 	for _, msg := range m.EvmMessages {
+		if msg.Who != predeploys.L2CrossDomainMessengerAddr {
+			continue
+		}
 		wd, err := msg.ToLegacyWithdrawal()
 		if err != nil {
 			return nil, err
