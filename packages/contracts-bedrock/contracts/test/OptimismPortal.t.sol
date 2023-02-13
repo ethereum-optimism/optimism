@@ -439,7 +439,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertEq(timestamp, block.timestamp);
     }
 
-    // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash hash
+    // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash has
     // already been proven AND the output root + output index + l2BlockNumber changes.
     function test_proveWithdrawalTransaction_replayProveChangedOutputRootAndOutputIndex_succeeds()
         external
