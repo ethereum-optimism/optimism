@@ -217,112 +217,112 @@ func TestConfig_Check(t *testing.T) {
 	tests := []struct {
 		name        string
 		modifier    func(cfg *Config)
-		expectedErr string
+		expectedErr error
 	}{
 		{
 			name:        "BlockTimeZero",
 			modifier:    func(cfg *Config) { cfg.BlockTime = 0 },
-			expectedErr: "block time cannot be 0",
+			expectedErr: ErrBlockTimeZero,
 		},
 		{
 			name:        "ChannelTimeoutZero",
 			modifier:    func(cfg *Config) { cfg.ChannelTimeout = 0 },
-			expectedErr: "channel timeout must be set",
+			expectedErr: ErrMissingChannelTimeout,
 		},
 		{
 			name:        "SeqWindowSizeZero",
 			modifier:    func(cfg *Config) { cfg.SeqWindowSize = 0 },
-			expectedErr: "sequencing window size must at least be 2",
+			expectedErr: ErrInvalidSeqWindowSize,
 		},
 		{
 			name:        "SeqWindowSizeOne",
 			modifier:    func(cfg *Config) { cfg.SeqWindowSize = 1 },
-			expectedErr: "sequencing window size must at least be 2",
+			expectedErr: ErrInvalidSeqWindowSize,
 		},
 		{
 			name:        "NoL1Genesis",
 			modifier:    func(cfg *Config) { cfg.Genesis.L1.Hash = common.Hash{} },
-			expectedErr: "genesis l1 hash cannot be empty",
+			expectedErr: ErrMissingGenesisL1Hash,
 		},
 		{
 			name:        "NoL2Genesis",
 			modifier:    func(cfg *Config) { cfg.Genesis.L2.Hash = common.Hash{} },
-			expectedErr: "genesis l2 hash cannot be empty",
+			expectedErr: ErrMissingGenesisL2Hash,
 		},
 		{
 			name:        "GenesisHashesEqual",
 			modifier:    func(cfg *Config) { cfg.Genesis.L2.Hash = cfg.Genesis.L1.Hash },
-			expectedErr: "L1 and L2 genesis cannot be the same",
+			expectedErr: ErrGenesisHashesSame,
 		},
 		{
 			name:        "GenesisL2TimeZero",
 			modifier:    func(cfg *Config) { cfg.Genesis.L2Time = 0 },
-			expectedErr: "missing L2 genesis time",
+			expectedErr: ErrMissingGenesisL2Time,
 		},
 		{
 			name:        "NoBatcherAddr",
 			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.BatcherAddr = common.Address{} },
-			expectedErr: "missing genesis system config batcher address",
+			expectedErr: ErrMissingBatcherAddr,
 		},
 		{
 			name:        "NoOverhead",
 			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Overhead = eth.Bytes32{} },
-			expectedErr: "missing genesis system config overhead",
+			expectedErr: ErrMissingOverhead,
 		},
 		{
 			name:        "NoScalar",
 			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Scalar = eth.Bytes32{} },
-			expectedErr: "missing genesis system config scalar",
+			expectedErr: ErrMissingScalar,
 		},
 		{
 			name:        "NoGasLimit",
 			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.GasLimit = 0 },
-			expectedErr: "missing genesis system config gas limit",
+			expectedErr: ErrMissingGasLimit,
 		},
 		{
 			name:        "NoBatchInboxAddress",
 			modifier:    func(cfg *Config) { cfg.BatchInboxAddress = common.Address{} },
-			expectedErr: "missing batch inbox address",
+			expectedErr: ErrMissingBatchInboxAddress,
 		},
 		{
 			name:        "NoDepositContractAddress",
 			modifier:    func(cfg *Config) { cfg.DepositContractAddress = common.Address{} },
-			expectedErr: "missing deposit contract address",
+			expectedErr: ErrMissingDepositContractAddress,
 		},
 		{
 			name:        "NoL1ChainId",
 			modifier:    func(cfg *Config) { cfg.L1ChainID = nil },
-			expectedErr: "l1 chain ID must not be nil",
+			expectedErr: ErrMissingL1ChainID,
 		},
 		{
 			name:        "NoL2ChainId",
 			modifier:    func(cfg *Config) { cfg.L2ChainID = nil },
-			expectedErr: "l2 chain ID must not be nil",
+			expectedErr: ErrMissingL2ChainID,
 		},
 		{
 			name:        "ChainIDsEqual",
 			modifier:    func(cfg *Config) { cfg.L2ChainID = cfg.L1ChainID },
-			expectedErr: "l1 and l2 chain IDs must be different",
+			expectedErr: ErrChainIDsSame,
 		},
 		{
 			name:        "L1ChainIdNegative",
 			modifier:    func(cfg *Config) { cfg.L1ChainID = big.NewInt(-1) },
-			expectedErr: "l1 chain ID must be positive",
+			expectedErr: ErrL1ChainIDNotPositive,
 		},
 		{
 			name:        "L1ChainIdZero",
 			modifier:    func(cfg *Config) { cfg.L1ChainID = big.NewInt(0) },
-			expectedErr: "l1 chain ID must be positive",
+			expectedErr: ErrL1ChainIDNotPositive,
 		},
 		{
 			name:        "L2ChainIdNegative",
 			modifier:    func(cfg *Config) { cfg.L2ChainID = big.NewInt(-1) },
-			expectedErr: "l2 chain ID must be positive",
+			expectedErr: ErrL2ChainIDNotPositive,
 		},
 		{
 			name:        "L2ChainIdZero",
 			modifier:    func(cfg *Config) { cfg.L2ChainID = big.NewInt(0) },
-			expectedErr: "l2 chain ID must be positive",
+			expectedErr: ErrL2ChainIDNotPositive,
 		},
 	}
 	for _, test := range tests {
@@ -330,7 +330,7 @@ func TestConfig_Check(t *testing.T) {
 			cfg := randConfig()
 			test.modifier(cfg)
 			err := cfg.Check()
-			assert.ErrorContains(t, err, test.expectedErr)
+			assert.Same(t, err, test.expectedErr)
 		})
 	}
 }
