@@ -34,7 +34,8 @@ const (
 	globalValidateThrottle = 512
 	gossipHeartbeat        = 500 * time.Millisecond
 	// seenMessagesTTL limits the duration that message IDs are remembered for gossip deduplication purposes
-	seenMessagesTTL  = 80 * gossipHeartbeat
+	// 130 * gossipHeartbeat
+	seenMessagesTTL  = 130 * gossipHeartbeat
 	DefaultMeshD     = 8  // topic stable mesh target count
 	DefaultMeshDlo   = 6  // topic stable mesh low watermark
 	DefaultMeshDhi   = 12 // topic stable mesh high watermark
