@@ -102,8 +102,10 @@ type SimpleTxManager struct {
 }
 
 // IncreaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
-// If the basefee + priority fee did not increase by a minimum percent (geth's replacement percent) an
-// error will be returned.
+// If the tip + basefee suggested by the network are not greater than the previous values, the same transaction
+// will be returned. If they are greater, this function will ensure that they are at least greater by 15% than
+// the previous transaction's value to ensure that the price bump is large enough.
+//
 // We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
 // act of including the transaction renders the repeat of the transaction invalid.
 func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
@@ -124,7 +126,10 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 	// Enforce a min priceBump on the tip. Do this before the feeCap is calculated
 	thresholdTip := new(big.Int).Mul(priceBumpPercent, tx.GasTipCap())
 	thresholdTip = thresholdTip.Div(thresholdTip, oneHundred)
-	if thresholdTip.Cmp(gasTipCap) > 0 {
+	if tx.GasTipCapIntCmp(gasTipCap) >= 0 {
+		m.l.Debug("Reusing the previous tip", "previous", tx.GasTipCap(), "suggested", gasTipCap)
+		gasTipCap = tx.GasTipCap()
+	} else if thresholdTip.Cmp(gasTipCap) > 0 {
 		m.l.Debug("Overriding the tip to enforce a price bump", "previous", tx.GasTipCap(), "suggested", gasTipCap, "new", thresholdTip)
 		gasTipCap = thresholdTip
 	}
@@ -142,7 +147,10 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 	// Enforce a min priceBump on the feeCap
 	thresholdFeeCap := new(big.Int).Mul(priceBumpPercent, tx.GasFeeCap())
 	thresholdFeeCap = thresholdFeeCap.Div(thresholdFeeCap, oneHundred)
-	if thresholdFeeCap.Cmp(gasFeeCap) > 0 {
+	if tx.GasFeeCapIntCmp(gasFeeCap) >= 0 {
+		m.l.Debug("Reusing the previous fee cap", "previous", tx.GasFeeCap(), "suggested", gasFeeCap)
+		gasFeeCap = tx.GasFeeCap()
+	} else if thresholdFeeCap.Cmp(gasFeeCap) > 0 {
 		m.l.Debug("Overriding the fee cap to enforce a price bump", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
 		gasFeeCap = thresholdFeeCap
 	}

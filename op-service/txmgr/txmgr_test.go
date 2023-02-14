@@ -613,8 +613,8 @@ func TestIncreaseGasPriceEnforcesMinBump(t *testing.T) {
 	t.Parallel()
 
 	borkedBackend := failingBackend{
-		gasTip:  common.Big0,
-		baseFee: common.Big0,
+		gasTip:  big.NewInt(101),
+		baseFee: big.NewInt(460),
 	}
 
 	mgr := &SimpleTxManager{
@@ -634,8 +634,8 @@ func TestIncreaseGasPriceEnforcesMinBump(t *testing.T) {
 	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(100),
+		GasTipCap: big.NewInt(100),
+		GasFeeCap: big.NewInt(1000),
 	})
 
 	ctx := context.Background()
@@ -643,6 +643,49 @@ func TestIncreaseGasPriceEnforcesMinBump(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
 	require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+}
+
+// TestIncreaseGasPriceNotExponential asserts that if the L1 basefee & tip remain the
+// same, repeated calls to IncreaseGasPrice do not continually increase the gas price.
+func TestIncreaseGasPriceNotExponential(t *testing.T) {
+	t.Parallel()
+
+	borkedBackend := failingBackend{
+		gasTip:  big.NewInt(10),
+		baseFee: big.NewInt(45),
+	}
+	feeCap := CalcGasFeeCap(borkedBackend.baseFee, borkedBackend.gasTip)
+
+	mgr := &SimpleTxManager{
+		Config: Config{
+			ResubmissionTimeout:       time.Second,
+			ReceiptQueryInterval:      50 * time.Millisecond,
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+				return tx, nil
+			},
+			From: common.Address{},
+		},
+		name:    "TEST",
+		backend: &borkedBackend,
+		l:       testlog.Logger(t, log.LvlCrit),
+	}
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: big.NewInt(10),
+		GasFeeCap: big.NewInt(100),
+	})
+
+	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
+	for i := 0; i < 20; i++ {
+		ctx := context.Background()
+		newTx, err := mgr.IncreaseGasPrice(ctx, tx)
+		require.NoError(t, err)
+		require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
+		require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
+		tx = newTx
+	}
+
 }
 
 // TestIncreaseGasPriceUseLargeIncrease asserts that if the suggest gas tip
