@@ -266,8 +266,8 @@ github.com/envoyproxy/go-control-plane v0.9.4/go.mod h1:6rpuAdCZL397s3pYoYcLgu1m
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
-github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468 h1:7KgjBYDji5AKi42eRYI+n8Gs+ZJVilSASL3WBu82c3M=
-github.com/ethereum-optimism/op-geth v0.0.0-20221216190603-60b51d600468/go.mod h1:p0Yox74PhYlq1HvijrCBCD9A3cI7rXco7hT6KrQr+rY=
+github.com/ethereum-optimism/op-geth v0.0.0-20230214215134-401b7fd3309b h1:qpsJ9tFppQOwO0rHrggOrSXW5XIx4G3DBEV6jrf9gU0=
+github.com/ethereum-optimism/op-geth v0.0.0-20230214215134-401b7fd3309b/go.mod h1:p0Yox74PhYlq1HvijrCBCD9A3cI7rXco7hT6KrQr+rY=
 github.com/ethereum-optimism/optimism/op-batcher v0.10.14 h1:4C8hR2ut4kfzY9Lk7IZ8Utyw3P5rgiSabfech57nHP8=
 github.com/ethereum-optimism/optimism/op-batcher v0.10.14/go.mod h1:j+uvhHcyqifm+IjpIKMSrdGRVyjjdmtLnYazZGt+ti4=
 github.com/ethereum-optimism/optimism/op-bindings v0.10.1/go.mod h1:UeTZlpZyhOL3y9Sogzvbn8Z3q1tDmZEv1VmGxMiZYCg=
