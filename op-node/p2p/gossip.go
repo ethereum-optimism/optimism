@@ -235,7 +235,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
-	blockHeightLRU, err := lru.New(100)
+	blockHeightLRU, err := lru.New(1000)
 	if err != nil {
 		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}
