@@ -117,7 +117,7 @@ func eofAsUnexpectedMissing(err error) error {
 	return err
 }
 
-// Frames on stored in L1 transactions with the following format:
+// Frames are stored in L1 transactions with the following format:
 // data = DerivationVersion0 ++ Frame(s)
 // Where there is one or more frames concatenated together.
 

@@ -152,6 +152,66 @@ func TestFrameUnmarshalInvalidIsLast(t *testing.T) {
 	require.ErrorContains(t, err, "invalid byte")
 }
 
+func TestParseFramesNoData(t *testing.T) {
+	frames, err := ParseFrames(nil)
+	require.Empty(t, frames)
+	require.Error(t, err)
+}
+
+func TestParseFramesInvalidVer(t *testing.T) {
+	frames, err := ParseFrames([]byte{42})
+	require.Empty(t, frames)
+	require.Error(t, err)
+}
+
+func TestParseFrames(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	numFrames := rng.Intn(16) + 1
+	frames := make([]Frame, 0, numFrames)
+	for i := 0; i < numFrames; i++ {
+		frames = append(frames, *randomFrame(rng))
+	}
+	data, err := txMarshalFrames(frames)
+	require.NoError(t, err)
+
+	frames0, err := ParseFrames(data)
+	require.NoError(t, err)
+	require.Equal(t, frames, frames0)
+}
+
+func TestParseFramesTruncated(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	numFrames := rng.Intn(16) + 1
+	frames := make([]Frame, 0, numFrames)
+	for i := 0; i < numFrames; i++ {
+		frames = append(frames, *randomFrame(rng))
+	}
+	data, err := txMarshalFrames(frames)
+	require.NoError(t, err)
+	data = data[:len(data)-2] // truncate last 2 bytes
+
+	frames0, err := ParseFrames(data)
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+	require.Empty(t, frames0)
+}
+
+// txMarshalFrames creates the tx payload for the given frames, i.e., it first
+// writes the version byte to a buffer and then appends all binary-marshaled
+// frames.
+func txMarshalFrames(frames []Frame) ([]byte, error) {
+	var data bytes.Buffer
+	if err := data.WriteByte(DerivationVersion0); err != nil {
+		return nil, err
+	}
+	for _, frame := range frames {
+		if err := frame.MarshalBinary(&data); err != nil {
+			return nil, err
+		}
+	}
+	return data.Bytes(), nil
+}
+
 func randomFrame(rng *rand.Rand, opts ...frameOpt) *Frame {
 	var id ChannelID
 	_, err := rng.Read(id[:])
