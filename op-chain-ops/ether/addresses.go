@@ -102,7 +102,7 @@ func IterateAllowanceList(r io.Reader, cb AllowanceCB) error {
 
 // IterateMintEvents iterates over each mint event in the database starting
 // from head and stopping at genesis.
-func IterateMintEvents(db ethdb.Database, headNum uint64, cb AddressCBWithHead) error {
+func IterateMintEvents(db ethdb.Database, headNum uint64, cb AddressCBWithHead, progressCb func(uint64)) error {
 	for headNum > 0 {
 		hash := rawdb.ReadCanonicalHash(db, headNum)
 		receipts, err := migration.ReadLegacyReceipts(db, hash, headNum)
@@ -129,6 +129,7 @@ func IterateMintEvents(db ethdb.Database, headNum uint64, cb AddressCBWithHead) 
 			}
 		}
 
+		progressCb(headNum)
 		headNum--
 	}
 	return nil
