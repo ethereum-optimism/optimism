@@ -47,46 +47,82 @@ func TestFrameMarshaling(t *testing.T) {
 	}
 }
 
+func TestFrameUnmarshalNoData(t *testing.T) {
+	frame0 := new(Frame)
+	err := frame0.UnmarshalBinary(bytes.NewReader([]byte{}))
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.EOF)
+}
+
 func TestFrameUnmarshalTruncated(t *testing.T) {
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 
+	// 16 (channel_id) ++ 2 (frame_number) ++ 4 (frame_data_length) ++
+	// frame_data_length (frame_data) ++ 1 (is_last)
 	for _, tr := range []struct {
 		desc     string
 		truncate func([]byte) []byte
+		genData  bool // whether data should be generated
 	}{
+		{
+			desc: "truncate-channel_id-half",
+			truncate: func(data []byte) []byte {
+				return data[:8]
+			},
+		},
+		{
+			desc: "truncate-frame_number-full",
+			truncate: func(data []byte) []byte {
+				return data[:16]
+			},
+		},
+		{
+			desc: "truncate-frame_number-half",
+			truncate: func(data []byte) []byte {
+				return data[:17]
+			},
+		},
 		{
 			desc: "truncate-frame_data_length-full",
 			truncate: func(data []byte) []byte {
-				return data[:18] // truncate full frame_data_length
+				return data[:18]
 			},
 		},
 		{
 			desc: "truncate-frame_data_length-half",
 			truncate: func(data []byte) []byte {
-				return data[:20] // truncate half-way frame_data_length
+				return data[:20]
 			},
+			genData: true, // for non-zero frame_data_length
 		},
 		{
-			desc: "truncate-data-full",
+			desc: "truncate-frame_data-full",
 			truncate: func(data []byte) []byte {
-				return data[:22] // truncate after frame_data_length
+				return data[:22]
 			},
+			genData: true, // for non-zero frame_data_length
 		},
 		{
-			desc: "truncate-data-last-byte",
+			desc: "truncate-frame_data-last-byte",
 			truncate: func(data []byte) []byte {
 				return data[:len(data)-2]
 			},
+			genData: true,
 		},
 		{
 			desc: "truncate-is_last",
 			truncate: func(data []byte) []byte {
 				return data[:len(data)-1]
 			},
+			genData: true,
 		},
 	} {
 		t.Run(tr.desc, func(t *testing.T) {
-			frame := randomFrame(rng)
+			var opts []frameOpt
+			if !tr.genData {
+				opts = []frameOpt{frameWithDataLen(0)}
+			}
+			frame := randomFrame(rng, opts...)
 			var data bytes.Buffer
 			require.NoError(t, frame.MarshalBinary(&data))
 
