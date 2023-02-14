@@ -34,7 +34,8 @@ const (
 	globalValidateThrottle = 512
 	gossipHeartbeat        = 500 * time.Millisecond
 	// seenMessagesTTL limits the duration that message IDs are remembered for gossip deduplication purposes
-	seenMessagesTTL  = 80 * gossipHeartbeat
+	// 130 * gossipHeartbeat
+	seenMessagesTTL  = 130 * gossipHeartbeat
 	DefaultMeshD     = 8  // topic stable mesh target count
 	DefaultMeshDlo   = 6  // topic stable mesh low watermark
 	DefaultMeshDhi   = 12 // topic stable mesh high watermark
@@ -234,7 +235,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
-	blockHeightLRU, err := lru.New(100)
+	blockHeightLRU, err := lru.New(1000)
 	if err != nil {
 		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}
