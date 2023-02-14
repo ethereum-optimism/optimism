@@ -15,6 +15,14 @@ import (
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
 
+// Geth defaults the priceBump to 10
+// Set it to 15% to be more aggressive about including transactions
+const priceBump int64 = 15
+
+// new = old * (100 + priceBump) / 100
+var priceBumpPercent = big.NewInt(100 + priceBump)
+var oneHundred = big.NewInt(100)
+
 // UpdateGasPriceSendTxFunc defines a function signature for publishing a
 // desired tx with a specific gas price. Implementations of this signature
 // should also return promptly when the context is canceled.
@@ -112,15 +120,32 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		gasTipCap = tip
 	}
 
+	// new = old * (100 + priceBump) / 100
+	// Enforce a min priceBump on the tip. Do this before the feeCap is calculated
+	thresholdTip := new(big.Int).Mul(priceBumpPercent, tx.GasTipCap())
+	thresholdTip = thresholdTip.Div(thresholdTip, oneHundred)
+	if thresholdTip.Cmp(gasTipCap) > 0 {
+		m.l.Debug("Overriding the tip to enforce a price bump", "previous", tx.GasTipCap(), "suggested", gasTipCap, "new", thresholdTip)
+		gasTipCap = thresholdTip
+	}
+
 	if head, err := m.backend.HeaderByNumber(ctx, nil); err != nil {
 		return nil, err
 	} else if head.BaseFee == nil {
 		return nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
 	} else {
+		// CalcGasFeeCap ensure that the fee cap is large enough for the tip.
 		gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
 	}
 
-	// TODO (CLI-2630): Check for a large enough price bump
+	// new = old * (100 + priceBump) / 100
+	// Enforce a min priceBump on the feeCap
+	thresholdFeeCap := new(big.Int).Mul(priceBumpPercent, tx.GasFeeCap())
+	thresholdFeeCap = thresholdFeeCap.Div(thresholdFeeCap, oneHundred)
+	if thresholdFeeCap.Cmp(gasFeeCap) > 0 {
+		m.l.Debug("Overriding the fee cap to enforce a price bump", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
+		gasFeeCap = thresholdFeeCap
+	}
 
 	rawTx := &types.DynamicFeeTx{
 		ChainID:    tx.ChainId(),
