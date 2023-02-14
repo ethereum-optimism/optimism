@@ -102,6 +102,10 @@ func MakeDeployParams(t require.TestingT, tp *TestParams) *DeployParams {
 		GasPriceOracleScalar:        1000_000,
 		DeploymentWaitConfirmations: 1,
 
+		SequencerFeeVaultRecipient: common.Address{19: 1},
+		BaseFeeVaultRecipient:      common.Address{19: 2},
+		L1FeeVaultRecipient:        common.Address{19: 3},
+
 		EIP1559Elasticity:  10,
 		EIP1559Denominator: 50,
 
