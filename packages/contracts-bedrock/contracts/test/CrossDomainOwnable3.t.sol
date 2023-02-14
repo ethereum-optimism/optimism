@@ -181,7 +181,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
      * @notice The existing transferOwnership(address) method
      *         still exists on the contract
      */
-    function test_transferOwnership_noLocal_succeeds() public {
+    function test_transferOwnershipNoLocal_succeeds() public {
         bool isLocal = setter.isLocal();
 
         vm.expectEmit(true, true, true, true, address(setter));

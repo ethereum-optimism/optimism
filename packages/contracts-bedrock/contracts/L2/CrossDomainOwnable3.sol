@@ -8,8 +8,9 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 /**
  * @title CrossDomainOwnable3
  * @notice This contract extends the OpenZeppelin `Ownable` contract for L2 contracts to be owned
- *         by contracts on either L1 or L2. Note that this contract is meant to be used with systems that use
- *         the CrossDomainMessenger system. It will not work if the OptimismPortal is used directly.
+ *         by contracts on either L1 or L2. Note that this contract is meant to be used with systems
+ *         that use the CrossDomainMessenger system. It will not work if the OptimismPortal is
+ *         used directly.
  */
 abstract contract CrossDomainOwnable3 is Ownable {
     /**
@@ -27,6 +28,21 @@ abstract contract CrossDomainOwnable3 is Ownable {
         address indexed newOwner,
         bool isLocal
     );
+
+    /**
+     * @notice Allows for ownership to be transferred with specifying the locality.
+     * @param _owner   The new owner of the contract.
+     * @param _isLocal Configures the locality of the ownership.
+     */
+    function transferOwnership(address _owner, bool _isLocal) external onlyOwner {
+        require(_owner != address(0), "CrossDomainOwnable3: new owner is the zero address");
+
+        address oldOwner = owner();
+        _transferOwnership(_owner);
+        isLocal = _isLocal;
+
+        emit OwnershipTransferred(oldOwner, _owner, _isLocal);
+    }
 
     /**
      * @notice Overrides the implementation of the `onlyOwner` modifier to check that the unaliased
@@ -51,20 +67,5 @@ abstract contract CrossDomainOwnable3 is Ownable {
                 "CrossDomainOwnable3: caller is not the owner"
             );
         }
-    }
-
-    /**
-     * @notice Allows for ownership to be transferred with specifying the locality.
-     * @param _owner   The new owner of the contract.
-     * @param _isLocal Configures the locality of the ownership.
-     */
-    function transferOwnership(address _owner, bool _isLocal) external onlyOwner {
-        require(_owner != address(0), "CrossDomainOwnable3: new owner is the zero address");
-
-        address oldOwner = owner();
-        _transferOwnership(_owner);
-        isLocal = _isLocal;
-
-        emit OwnershipTransferred(oldOwner, _owner, _isLocal);
     }
 }
