@@ -3,11 +3,10 @@ FROM golang:1.18.0-alpine3.15 as builder
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 # build op-heartbeat with local monorepo go modules
-COPY ./op-heartbeat/docker.go.work /app/go.work
 COPY ./op-heartbeat /app/op-heartbeat
-COPY ./op-node /app/op-node
-COPY ./op-service /app/op-service
 COPY ./.git /app/.git
+COPY ./op-heartbeat/go.mod /app/go.mod
+COPY ./op-heartbeat/go.sum /app/go.sum
 
 WORKDIR /app/op-heartbeat
 

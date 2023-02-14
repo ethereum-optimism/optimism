@@ -271,30 +271,9 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		signatureBytes, payloadBytes := data[:65], data[65:]
 
 		// [REJECT] if the signature by the sequencer is not valid
-		signingHash, err := BlockSigningHash(cfg, payloadBytes)
-		if err != nil {
-			log.Warn("failed to compute block signing hash", "err", err, "peer", id)
-			return pubsub.ValidationReject
-		}
-
-		pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
-		if err != nil {
-			log.Warn("invalid block signature", "err", err, "peer", id)
-			return pubsub.ValidationReject
-		}
-		addr := crypto.PubkeyToAddress(*pub)
-
-		// In the future we may load & validate block metadata before checking the signature.
-		// And then check the signer based on the metadata, to support e.g. multiple p2p signers at the same time.
-		// For now we only have one signer at a time and thus check the address directly.
-		// This means we may drop old payloads upon key rotation,
-		// but this can be recovered from like any other missed unsafe payload.
-		if expected := runCfg.P2PSequencerAddress(); expected == (common.Address{}) {
-			log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
-			return pubsub.ValidationIgnore
-		} else if addr != expected {
-			log.Warn("unexpected block author", "err", err, "peer", id, "addr", addr, "expected", expected)
-			return pubsub.ValidationReject
+		result := verifyBlockSignature(log, cfg, runCfg, id, signatureBytes, payloadBytes)
+		if result != pubsub.ValidationAccept {
+			return result
 		}
 
 		// [REJECT] if the block encoding is not valid
@@ -349,6 +328,43 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 		message.ValidatorData = &payload
 		return pubsub.ValidationAccept
 	}
+}
+
+func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte) pubsub.ValidationResult {
+	result := verifyBlockSignatureWithHasher(log, cfg, runCfg, id, signatureBytes, payloadBytes, BlockSigningHash)
+	if result != pubsub.ValidationAccept {
+		return verifyBlockSignatureWithHasher(log, cfg, runCfg, id, signatureBytes, payloadBytes, LegacyBlockSigningHash)
+	}
+	return result
+}
+
+func verifyBlockSignatureWithHasher(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte, hasher func(cfg *rollup.Config, payloadBytes []byte) (common.Hash, error)) pubsub.ValidationResult {
+	signingHash, err := hasher(cfg, payloadBytes)
+	if err != nil {
+		log.Warn("failed to compute block signing hash", "err", err, "peer", id)
+		return pubsub.ValidationReject
+	}
+
+	pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
+	if err != nil {
+		log.Warn("invalid block signature", "err", err, "peer", id)
+		return pubsub.ValidationReject
+	}
+	addr := crypto.PubkeyToAddress(*pub)
+
+	// In the future we may load & validate block metadata before checking the signature.
+	// And then check the signer based on the metadata, to support e.g. multiple p2p signers at the same time.
+	// For now we only have one signer at a time and thus check the address directly.
+	// This means we may drop old payloads upon key rotation,
+	// but this can be recovered from like any other missed unsafe payload.
+	if expected := runCfg.P2PSequencerAddress(); expected == (common.Address{}) {
+		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
+		return pubsub.ValidationIgnore
+	} else if addr != expected {
+		log.Warn("unexpected block author", "err", err, "peer", id, "addr", addr, "expected", expected)
+		return pubsub.ValidationReject
+	}
+	return pubsub.ValidationAccept
 }
 
 type GossipIn interface {
