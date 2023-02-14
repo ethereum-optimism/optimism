@@ -56,7 +56,10 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
-    function testFuzz_constructor_submissionIntervalLteL2BlockTime_reverts(uint256 _submissionInterval, uint256 _l2BlockTime) external {
+    function testFuzz_constructor_submissionIntervalLteL2BlockTime_reverts(
+        uint256 _submissionInterval,
+        uint256 _l2BlockTime
+    ) external {
         // Bound the _l2blockTime to be in the range of [1, type(uint256).max]
         _l2BlockTime = bound(_l2BlockTime, 1, type(uint256).max);
         // Roll the block number to _l2blockTime (the starting L2 timestamp must be less than or equal to the current time)
