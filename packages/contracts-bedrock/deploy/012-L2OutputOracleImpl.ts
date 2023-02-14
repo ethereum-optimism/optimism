@@ -6,9 +6,16 @@ import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   if (hre.deployConfig.l2BlockTime === 0) {
-    throw new Error('L2OutputOracle deployment: l2BlockTime must be greater than 0')
-  } else if (hre.deployConfig.l2OutputOracleSubmissionInterval <= hre.deployConfig.l2BlockTime) {
-    throw new Error('L2OutputOracle deployment: submissionInterval must be greater than the l2BlockTime')
+    throw new Error(
+      'L2OutputOracle deployment: l2BlockTime must be greater than 0'
+    )
+  } else if (
+    hre.deployConfig.l2OutputOracleSubmissionInterval <=
+    hre.deployConfig.l2BlockTime
+  ) {
+    throw new Error(
+      'L2OutputOracle deployment: submissionInterval must be greater than the l2BlockTime'
+    )
   }
 
   await deploy({
