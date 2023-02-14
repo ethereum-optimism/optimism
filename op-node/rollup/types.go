@@ -194,6 +194,12 @@ func (cfg *Config) Check() error {
 	if cfg.L1ChainID.Cmp(cfg.L2ChainID) == 0 {
 		return errors.New("l1 and l2 chain IDs must be different")
 	}
+	if cfg.L1ChainID.Sign() < 1 {
+		return errors.New("l1 chain ID must be positive")
+	}
+	if cfg.L2ChainID.Sign() < 1 {
+		return errors.New("l2 chain ID must be positive")
+	}
 	return nil
 }
 

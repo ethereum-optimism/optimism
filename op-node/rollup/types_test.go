@@ -212,3 +212,125 @@ func TestCheckL2BlockRefByNumber(t *testing.T) {
 	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
 	assert.Error(t, err)
 }
+
+func TestConfig_Check(t *testing.T) {
+	tests := []struct {
+		name        string
+		modifier    func(cfg *Config)
+		expectedErr string
+	}{
+		{
+			name:        "BlockTimeZero",
+			modifier:    func(cfg *Config) { cfg.BlockTime = 0 },
+			expectedErr: "block time cannot be 0",
+		},
+		{
+			name:        "ChannelTimeoutZero",
+			modifier:    func(cfg *Config) { cfg.ChannelTimeout = 0 },
+			expectedErr: "channel timeout must be set",
+		},
+		{
+			name:        "SeqWindowSizeZero",
+			modifier:    func(cfg *Config) { cfg.SeqWindowSize = 0 },
+			expectedErr: "sequencing window size must at least be 2",
+		},
+		{
+			name:        "SeqWindowSizeOne",
+			modifier:    func(cfg *Config) { cfg.SeqWindowSize = 1 },
+			expectedErr: "sequencing window size must at least be 2",
+		},
+		{
+			name:        "NoL1Genesis",
+			modifier:    func(cfg *Config) { cfg.Genesis.L1.Hash = common.Hash{} },
+			expectedErr: "genesis l1 hash cannot be empty",
+		},
+		{
+			name:        "NoL2Genesis",
+			modifier:    func(cfg *Config) { cfg.Genesis.L2.Hash = common.Hash{} },
+			expectedErr: "genesis l2 hash cannot be empty",
+		},
+		{
+			name:        "GenesisHashesEqual",
+			modifier:    func(cfg *Config) { cfg.Genesis.L2.Hash = cfg.Genesis.L1.Hash },
+			expectedErr: "L1 and L2 genesis cannot be the same",
+		},
+		{
+			name:        "GenesisL2TimeZero",
+			modifier:    func(cfg *Config) { cfg.Genesis.L2Time = 0 },
+			expectedErr: "missing L2 genesis time",
+		},
+		{
+			name:        "NoBatcherAddr",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.BatcherAddr = common.Address{} },
+			expectedErr: "missing genesis system config batcher address",
+		},
+		{
+			name:        "NoOverhead",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Overhead = eth.Bytes32{} },
+			expectedErr: "missing genesis system config overhead",
+		},
+		{
+			name:        "NoScalar",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Scalar = eth.Bytes32{} },
+			expectedErr: "missing genesis system config scalar",
+		},
+		{
+			name:        "NoGasLimit",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.GasLimit = 0 },
+			expectedErr: "missing genesis system config gas limit",
+		},
+		{
+			name:        "NoBatchInboxAddress",
+			modifier:    func(cfg *Config) { cfg.BatchInboxAddress = common.Address{} },
+			expectedErr: "missing batch inbox address",
+		},
+		{
+			name:        "NoDepositContractAddress",
+			modifier:    func(cfg *Config) { cfg.DepositContractAddress = common.Address{} },
+			expectedErr: "missing deposit contract address",
+		},
+		{
+			name:        "NoL1ChainId",
+			modifier:    func(cfg *Config) { cfg.L1ChainID = nil },
+			expectedErr: "l1 chain ID must not be nil",
+		},
+		{
+			name:        "NoL2ChainId",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = nil },
+			expectedErr: "l2 chain ID must not be nil",
+		},
+		{
+			name:        "ChainIDsEqual",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = cfg.L1ChainID },
+			expectedErr: "l1 and l2 chain IDs must be different",
+		},
+		{
+			name:        "L1ChainIdNegative",
+			modifier:    func(cfg *Config) { cfg.L1ChainID = big.NewInt(-1) },
+			expectedErr: "l1 chain ID must be positive",
+		},
+		{
+			name:        "L1ChainIdZero",
+			modifier:    func(cfg *Config) { cfg.L1ChainID = big.NewInt(0) },
+			expectedErr: "l1 chain ID must be positive",
+		},
+		{
+			name:        "L2ChainIdNegative",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = big.NewInt(-1) },
+			expectedErr: "l2 chain ID must be positive",
+		},
+		{
+			name:        "L2ChainIdZero",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = big.NewInt(0) },
+			expectedErr: "l2 chain ID must be positive",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := randConfig()
+			test.modifier(cfg)
+			err := cfg.Check()
+			assert.ErrorContains(t, err, test.expectedErr)
+		})
+	}
+}
