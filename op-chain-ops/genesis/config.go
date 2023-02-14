@@ -22,7 +22,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
 
-var ErrInvalidDeployConfig = errors.New("invalid deploy config")
+var (
+	ErrInvalidDeployConfig     = errors.New("invalid deploy config")
+	ErrInvalidImmutablesConfig = errors.New("invalid immutables config")
+)
 
 // DeployConfig represents the deployment configuration for Optimism
 type DeployConfig struct {
@@ -344,12 +347,27 @@ func NewDeployConfigWithNetwork(network, path string) (*DeployConfig, error) {
 }
 
 // NewL2ImmutableConfig will create an ImmutableConfig given an instance of a
-// Hardhat and a DeployConfig.
+// DeployConfig and a block.
 func NewL2ImmutableConfig(config *DeployConfig, block *types.Block) (immutables.ImmutableConfig, error) {
 	immutable := make(immutables.ImmutableConfig)
 
+	if config.L1StandardBridgeProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1StandardBridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1CrossDomainMessengerProxy == (common.Address{}) {
+		return immutable, fmt.Errorf("L1CrossDomainMessengerProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
 	if config.L1ERC721BridgeProxy == (common.Address{}) {
-		return immutable, errors.New("L1ERC721BridgeProxy cannot be address(0)")
+		return immutable, fmt.Errorf("L1ERC721BridgeProxy cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.SequencerFeeVaultRecipient == (common.Address{}) {
+		return immutable, fmt.Errorf("SequencerFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.BaseFeeVaultRecipient == (common.Address{}) {
+		return immutable, fmt.Errorf("BaseFeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
+	}
+	if config.L1FeeVaultRecipient == (common.Address{}) {
+		return immutable, fmt.Errorf("L1FeeVaultRecipient cannot be address(0): %w", ErrInvalidImmutablesConfig)
 	}
 
 	immutable["L2StandardBridge"] = immutables.ImmutableValues{
