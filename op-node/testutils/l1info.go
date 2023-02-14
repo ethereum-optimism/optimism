@@ -21,6 +21,7 @@ type MockBlockInfo struct {
 	InfoMixDigest   [32]byte
 	InfoBaseFee     *big.Int
 	InfoReceiptRoot common.Hash
+	InfoGasUsed     uint64
 }
 
 func (l *MockBlockInfo) Hash() common.Hash {
@@ -59,6 +60,10 @@ func (l *MockBlockInfo) ReceiptHash() common.Hash {
 	return l.InfoReceiptRoot
 }
 
+func (l *MockBlockInfo) GasUsed() uint64 {
+	return l.InfoGasUsed
+}
+
 func (l *MockBlockInfo) ID() eth.BlockID {
 	return eth.BlockID{Hash: l.InfoHash, Number: l.InfoNum}
 }
@@ -81,6 +86,7 @@ func RandomBlockInfo(rng *rand.Rand) *MockBlockInfo {
 		InfoBaseFee:     big.NewInt(rng.Int63n(1000_000 * 1e9)), // a million GWEI
 		InfoReceiptRoot: types.EmptyRootHash,
 		InfoRoot:        RandomHash(rng),
+		InfoGasUsed:     rng.Uint64(),
 	}
 }
 
