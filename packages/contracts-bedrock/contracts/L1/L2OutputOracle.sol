@@ -90,6 +90,9 @@ contract L2OutputOracle is Initializable, Semver {
         address _proposer,
         address _challenger
     ) Semver(1, 0, 0) {
+        require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
+        require(_submissionInterval > _l2BlockTime, "L2OutputOracle: submission interval must be greater than L2 block time");
+
         SUBMISSION_INTERVAL = _submissionInterval;
         L2_BLOCK_TIME = _l2BlockTime;
         PROPOSER = _proposer;
