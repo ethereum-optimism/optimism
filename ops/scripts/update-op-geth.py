@@ -10,7 +10,7 @@ GETH_VERSION='v1.10.26'
 
 
 def main():
-	for project in ('.', 'op-wheel'):
+	for project in ('.', 'op-wheel', 'indexer'):
 		print(f'Updating {project}...')
 		update_mod(project)
 
