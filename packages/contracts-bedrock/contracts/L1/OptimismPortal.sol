@@ -193,8 +193,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // output index has been updated.
         require(
             provenWithdrawal.timestamp == 0 ||
-                (_l2OutputIndex == provenWithdrawal.l2OutputIndex &&
-                    outputRoot != provenWithdrawal.outputRoot),
+                L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
+                provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
