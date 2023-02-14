@@ -23,6 +23,8 @@
   "l1FeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "sequencerFeeVaultRecipient": "0x71bE63f3384f5fb98995898A86B02Fb2426c5788",
   "l1ERC721BridgeProxy": "0xff000000000000000000000000000000000000ff",
+  "l1StandardBridgeProxy": "0xff000000000000000000000000000000000000fd",
+  "l1CrossDomainMessengerProxy": "0xff000000000000000000000000000000000000dd",
 
   "deploymentWaitConfirmations": 1,
   "fundDevAccounts": true
