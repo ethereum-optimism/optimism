@@ -148,7 +148,7 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 		lenData := len(calldata)
 		if (lenData%32) != 0 {
 			log.Warn("DataFromEVMTransactions", "Invalid length of calldata, not mod of 32", len(calldata))
-			return nil
+			continue
 		}
 		numVHs := lenData/32
 		for i := 0; i < numVHs; i++ {
@@ -162,13 +162,13 @@ func DataFromEVMTransactions(ctx context.Context, fetcher L1TransactionFetcher, 
 				data, err = fetcher.GetBlobFromCloud(vh)
 				if err != nil {
 					log.Warn("DataFromEVMTransactions", "failed to fetch L1 block info and receipts", err)
-					return nil
+					continue
 				}
 				// check data is valid locally
 				vhData := crypto.Keccak256Hash(data)
 				if vh != vhData {
 					log.Warn("DataFromEVMTransactions", "blob data hash mismatch want", vh, "have", vhData)
-					return nil
+					continue
 				}
 				log.Warn("GetBlobFromCloud", "len", len(data), "vh", vh)
 			} else {
