@@ -1,5 +1,15 @@
 # @eth-optimism/common-ts
 
+## 0.8.0
+
+### Minor Changes
+
+- 4ae94b412: Add option to configure body parser
+
+### Patch Changes
+
+- 0e179781b: Fixes a minor bug where the provider name was incorrectly logged when using waitForProvider
+
 ## 0.7.1
 
 ### Patch Changes
