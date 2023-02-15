@@ -50,6 +50,8 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 			ReceiptQueryInterval:      time.Second,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 4,
+			From:                      from,
+			// Signer is loaded in `proposer.NewL2OutputSubmitter`
 		},
 		L1Client:          l1,
 		RollupClient:      rollupCl,
@@ -85,7 +87,9 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 	tx, err := p.driver.CreateProposalTx(t.Ctx(), output)
 	require.NoError(t, err)
 
-	err = p.driver.SendTransaction(t.Ctx(), tx)
+	// Note: Use L1 instead of the output submitter's transaction manager because
+	// this is non-blocking while the txmgr is blocking & deadlocks the tests
+	err = p.l1.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err)
 
 	p.lastTx = tx.Hash()

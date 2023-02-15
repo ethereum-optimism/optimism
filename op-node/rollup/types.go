@@ -12,6 +12,27 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
 
+var (
+	ErrBlockTimeZero                 = errors.New("block time cannot be 0")
+	ErrMissingChannelTimeout         = errors.New("channel timeout must be set, this should cover at least a L1 block time")
+	ErrInvalidSeqWindowSize          = errors.New("sequencing window size must at least be 2")
+	ErrMissingGenesisL1Hash          = errors.New("genesis L1 hash cannot be empty")
+	ErrMissingGenesisL2Hash          = errors.New("genesis L2 hash cannot be empty")
+	ErrGenesisHashesSame             = errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
+	ErrMissingGenesisL2Time          = errors.New("missing L2 genesis time")
+	ErrMissingBatcherAddr            = errors.New("missing genesis system config batcher address")
+	ErrMissingOverhead               = errors.New("missing genesis system config overhead")
+	ErrMissingScalar                 = errors.New("missing genesis system config scalar")
+	ErrMissingGasLimit               = errors.New("missing genesis system config gas limit")
+	ErrMissingBatchInboxAddress      = errors.New("missing batch inbox address")
+	ErrMissingDepositContractAddress = errors.New("missing deposit contract address")
+	ErrMissingL1ChainID              = errors.New("L1 chain ID must not be nil")
+	ErrMissingL2ChainID              = errors.New("L2 chain ID must not be nil")
+	ErrChainIDsSame                  = errors.New("L1 and L2 chain IDs must be different")
+	ErrL1ChainIDNotPositive          = errors.New("L1 chain ID must be non-zero and positive")
+	ErrL2ChainIDNotPositive          = errors.New("L2 chain ID must be non-zero and positive")
+)
+
 type Genesis struct {
 	// The L1 block that the rollup starts *after* (no derived transactions)
 	L1 eth.BlockID `json:"l1"`
@@ -149,57 +170,63 @@ func (cfg *Config) CheckL2GenesisBlockHash(ctx context.Context, client L2Client)
 // Check verifies that the given configuration makes sense
 func (cfg *Config) Check() error {
 	if cfg.BlockTime == 0 {
-		return fmt.Errorf("block time cannot be 0, got %d", cfg.BlockTime)
+		return ErrBlockTimeZero
 	}
 	if cfg.ChannelTimeout == 0 {
-		return fmt.Errorf("channel timeout must be set, this should cover at least a L1 block time")
+		return ErrMissingChannelTimeout
 	}
 	if cfg.SeqWindowSize < 2 {
-		return fmt.Errorf("sequencing window size must at least be 2, got %d", cfg.SeqWindowSize)
+		return ErrInvalidSeqWindowSize
 	}
 	if cfg.Genesis.L1.Hash == (common.Hash{}) {
-		return errors.New("genesis l1 hash cannot be empty")
+		return ErrMissingGenesisL1Hash
 	}
 	if cfg.Genesis.L2.Hash == (common.Hash{}) {
-		return errors.New("genesis l2 hash cannot be empty")
+		return ErrMissingGenesisL2Hash
 	}
 	if cfg.Genesis.L2.Hash == cfg.Genesis.L1.Hash {
-		return errors.New("achievement get! rollup inception: L1 and L2 genesis cannot be the same")
+		return ErrGenesisHashesSame
 	}
 	if cfg.Genesis.L2Time == 0 {
-		return errors.New("missing L2 genesis time")
+		return ErrMissingGenesisL2Time
 	}
 	if cfg.Genesis.SystemConfig.BatcherAddr == (common.Address{}) {
-		return errors.New("missing genesis system config batcher address")
+		return ErrMissingBatcherAddr
 	}
 	if cfg.Genesis.SystemConfig.Overhead == (eth.Bytes32{}) {
-		return errors.New("missing genesis system config overhead")
+		return ErrMissingOverhead
 	}
 	if cfg.Genesis.SystemConfig.Scalar == (eth.Bytes32{}) {
-		return errors.New("missing genesis system config scalar")
+		return ErrMissingScalar
 	}
 	if cfg.Genesis.SystemConfig.GasLimit == 0 {
-		return errors.New("missing genesis system config gas limit")
+		return ErrMissingGasLimit
 	}
 	// SYSCOIN
 	if cfg.BatchInboxAddress == (common.Address{}) {
-		return errors.New("missing batch inbox address")
+		return ErrMissingBatchInboxAddress
 	}
 	// SYSCOIN
 	if cfg.L2OutputOracleAddress == (common.Address{}) {
 		return errors.New("missing output oracle contract address")
 	}
 	if cfg.DepositContractAddress == (common.Address{}) {
-		return errors.New("missing deposit contract address")
+		return ErrMissingDepositContractAddress
 	}
 	if cfg.L1ChainID == nil {
-		return errors.New("l1 chain ID must not be nil")
+		return ErrMissingL1ChainID
 	}
 	if cfg.L2ChainID == nil {
-		return errors.New("l2 chain ID must not be nil")
+		return ErrMissingL2ChainID
 	}
 	if cfg.L1ChainID.Cmp(cfg.L2ChainID) == 0 {
-		return errors.New("l1 and l2 chain IDs must be different")
+		return ErrChainIDsSame
+	}
+	if cfg.L1ChainID.Sign() < 1 {
+		return ErrL1ChainIDNotPositive
+	}
+	if cfg.L2ChainID.Sign() < 1 {
+		return ErrL2ChainIDNotPositive
 	}
 	return nil
 }

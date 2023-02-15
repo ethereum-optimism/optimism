@@ -84,6 +84,8 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
+		From:                      fromAddress,
+		Signer:                    signer(rcfg.L1ChainID),
 	}
 
 	batcherCfg := Config{

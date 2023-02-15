@@ -20,6 +20,7 @@ type BlockInfo interface {
 	MixDigest() common.Hash
 	BaseFee() *big.Int
 	ReceiptHash() common.Hash
+	GasUsed() uint64
 }
 
 func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
@@ -77,6 +78,10 @@ func (h headerBlockInfo) BaseFee() *big.Int {
 
 func (h headerBlockInfo) ReceiptHash() common.Hash {
 	return h.Header.ReceiptHash
+}
+
+func (h headerBlockInfo) GasUsed() uint64 {
+	return h.Header.GasUsed
 }
 
 // HeaderBlockInfo returns h as a BlockInfo implementation.
