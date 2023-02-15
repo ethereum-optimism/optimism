@@ -19,9 +19,11 @@ func TestBuildOptimism(t *testing.T) {
 		},
 		"L2ERC721Bridge": {
 			"otherBridge": common.HexToAddress("0x1234567890123456789012345678901234567890"),
+			"messenger":   common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"OptimismMintableERC721Factory": {
 			"remoteChainId": big.NewInt(1),
+			"bridge":        common.HexToAddress("0x1234567890123456789012345678901234567890"),
 		},
 		"SequencerFeeVault": {
 			"recipient": common.HexToAddress("0x1234567890123456789012345678901234567890"),

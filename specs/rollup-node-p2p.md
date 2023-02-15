@@ -211,7 +211,7 @@ GossipSub [parameters][gossip-parameters]:
 - `fanout_ttl` (ttl for fanout maps for topics we are not subscribed to but have published to, in seconds): 24
 - `mcache_len` (number of windows to retain full messages in cache for `IWANT` responses): 12
 - `mcache_gossip` (number of windows to gossip about): 3
-- `seen_ttl` (number of heartbeat intervals to retain message IDs): 80 (= 40 seconds)
+- `seen_ttl` (number of heartbeat intervals to retain message IDs): 130 (= 65 seconds)
 
 Notable differences from L1 consensus (Eth2):
 

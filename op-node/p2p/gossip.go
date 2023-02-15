@@ -34,7 +34,8 @@ const (
 	globalValidateThrottle = 512
 	gossipHeartbeat        = 500 * time.Millisecond
 	// seenMessagesTTL limits the duration that message IDs are remembered for gossip deduplication purposes
-	seenMessagesTTL  = 80 * gossipHeartbeat
+	// 130 * gossipHeartbeat
+	seenMessagesTTL  = 130 * gossipHeartbeat
 	DefaultMeshD     = 8  // topic stable mesh target count
 	DefaultMeshDlo   = 6  // topic stable mesh low watermark
 	DefaultMeshDhi   = 12 // topic stable mesh high watermark
@@ -234,7 +235,7 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 
 	// Seen block hashes per block height
 	// uint64 -> *seenBlocks
-	blockHeightLRU, err := lru.New(100)
+	blockHeightLRU, err := lru.New(1000)
 	if err != nil {
 		panic(fmt.Errorf("failed to set up block height LRU cache: %w", err))
 	}
@@ -328,9 +329,9 @@ func BuildBlocksValidator(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 }
 
 func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte) pubsub.ValidationResult {
-	result := verifyBlockSignatureWithHasher(log, cfg, runCfg, id, signatureBytes, payloadBytes, BlockSigningHash)
+	result := verifyBlockSignatureWithHasher(nil, cfg, runCfg, id, signatureBytes, payloadBytes, LegacyBlockSigningHash)
 	if result != pubsub.ValidationAccept {
-		return verifyBlockSignatureWithHasher(log, cfg, runCfg, id, signatureBytes, payloadBytes, LegacyBlockSigningHash)
+		return verifyBlockSignatureWithHasher(log, cfg, runCfg, id, signatureBytes, payloadBytes, BlockSigningHash)
 	}
 	return result
 }
@@ -338,13 +339,17 @@ func verifyBlockSignature(log log.Logger, cfg *rollup.Config, runCfg GossipRunti
 func verifyBlockSignatureWithHasher(log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, id peer.ID, signatureBytes []byte, payloadBytes []byte, hasher func(cfg *rollup.Config, payloadBytes []byte) (common.Hash, error)) pubsub.ValidationResult {
 	signingHash, err := hasher(cfg, payloadBytes)
 	if err != nil {
-		log.Warn("failed to compute block signing hash", "err", err, "peer", id)
+		if log != nil {
+			log.Warn("failed to compute block signing hash", "err", err, "peer", id)
+		}
 		return pubsub.ValidationReject
 	}
 
 	pub, err := crypto.SigToPub(signingHash[:], signatureBytes)
 	if err != nil {
-		log.Warn("invalid block signature", "err", err, "peer", id)
+		if log != nil {
+			log.Warn("invalid block signature", "err", err, "peer", id)
+		}
 		return pubsub.ValidationReject
 	}
 	addr := crypto.PubkeyToAddress(*pub)
@@ -355,10 +360,14 @@ func verifyBlockSignatureWithHasher(log log.Logger, cfg *rollup.Config, runCfg G
 	// This means we may drop old payloads upon key rotation,
 	// but this can be recovered from like any other missed unsafe payload.
 	if expected := runCfg.P2PSequencerAddress(); expected == (common.Address{}) {
-		log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
+		if log != nil {
+			log.Warn("no configured p2p sequencer address, ignoring gossiped block", "peer", id, "addr", addr)
+		}
 		return pubsub.ValidationIgnore
 	} else if addr != expected {
-		log.Warn("unexpected block author", "err", err, "peer", id, "addr", addr, "expected", expected)
+		if log != nil {
+			log.Warn("unexpected block author", "err", err, "peer", id, "addr", addr, "expected", expected)
+		}
 		return pubsub.ValidationReject
 	}
 	return pubsub.ValidationAccept
