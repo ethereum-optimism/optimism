@@ -361,6 +361,7 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 	// receipt is received it's likely our gas price was too low.
 	cCtx, cancel := context.WithTimeout(ctx, 100*time.Second)
 	defer cancel()
+	l.log.Info("Sending transaction", "tx_hash", tx.Hash())
 	receipt, err := l.txMgr.Send(cCtx, tx)
 	if err != nil {
 		l.log.Error("proposer unable to publish tx", "err", err)
