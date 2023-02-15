@@ -30,8 +30,6 @@ type UpdateGasPriceFunc = func(ctx context.Context) (*types.Transaction, error)
 
 type SendTransactionFunc = func(ctx context.Context, tx *types.Transaction) error
 
-// SYSCOIN
-type CreateBlobFunc = func(data []byte) (common.Hash, error)
 
 // Config houses parameters for altering the behavior of a SimpleTxManager.
 type Config struct {
@@ -72,7 +70,7 @@ type TxManager interface {
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
 		// SYSCOIN
-	SendBlob(ctx context.Context, createBlob CreateBlobFunc,receiptSource ReceiptSource, data []byte) (*types.Receipt, error)
+	SendBlob(ctx context.Context, data []byte) (*types.Receipt, error)
 	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
 }
 
@@ -96,6 +94,15 @@ type ETHBackend interface {
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
 }
 
+// SYSCOIN
+type SyscoinBackend interface {
+	// TransactionReceipt queries the backend for a receipt associated with
+	// txHash. If lookup does not fail, but the transaction is not found,
+	// nil should be returned for both values.
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	CreateBlob(data []byte) (common.Hash, error)
+
+}
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
@@ -103,6 +110,7 @@ type SimpleTxManager struct {
 	name   string
 
 	backend ETHBackend
+	sysbackend SyscoinBackend
 	l       log.Logger
 }
 
@@ -175,7 +183,7 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBackend) *SimpleTxManager {
+func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBackend, sysbackend SyscoinBackend) *SimpleTxManager {
 	if cfg.NumConfirmations == 0 {
 		panic("txmgr: NumConfirmations cannot be zero")
 	}
@@ -184,6 +192,7 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBacken
 		name:    name,
 		Config:  cfg,
 		backend: backend,
+		sysbackend: sysbackend,
 		l:       l.New("service", name),
 	}
 }
@@ -313,7 +322,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction) (*typ
 	}
 }
 // SYSCOIN
-func (m *SimpleTxManager) SendBlob(ctx context.Context, createBlob CreateBlobFunc, backend ReceiptSource, data []byte) (*types.Receipt, error) {
+func (m *SimpleTxManager) SendBlob(ctx context.Context, data []byte) (*types.Receipt, error) {
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
 	// We assert that this is the case thoroughly in our unit tests.
@@ -328,26 +337,26 @@ func (m *SimpleTxManager) SendBlob(ctx context.Context, createBlob CreateBlobFun
 
 	sendState := NewSendState(m.SafeAbortNonceTooLowCount)
 
-	// Create a closure that will block on passed sendTx function in the
+	// Create a closure that will block on submitting the tx in the
 	// background, returning the first successfully mined receipt back to
 	// the main event loop via receiptChan.
 	receiptChan := make(chan *types.Receipt, 1)
 	sendTxAsync := func() {
 		defer wg.Done()
-		// Sign and publish transaction with current gas price.
-		vh, err := createBlob(data)
+
+		vh, err := m.sysbackend.CreateBlob(data)
 		sendState.ProcessSendError(err)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				return
 			}
 			if errors.Is(err, txpool.ErrAlreadyKnown) {
-				log.Info("resubmitted already known transaction")
+				log.Info("resubmitted already known blob")
 				return
 			}
-			log.Error("unable to publish transaction", "err", err)
+			log.Error("unable to publish blob", "err", err)
 			if sendState.ShouldAbortImmediately() {
-				log.Warn("Aborting transaction submission")
+				log.Warn("Aborting blob submission")
 				cancel()
 			}
 			// TODO(conner): add retry?
@@ -358,17 +367,16 @@ func (m *SimpleTxManager) SendBlob(ctx context.Context, createBlob CreateBlobFun
 
 		// Wait for the transaction to be mined, reporting the receipt
 		// back to the main event loop if found.
-		receipt, err := m.waitMinedBlob(ctx, backend, vh, sendState)
+		receipt, err := m.waitMinedBlob(ctx, vh, sendState)
 		if err != nil {
-			log.Debug("send blob failed", "vh", vh,
-				"err", err)
+			log.Debug("blob tx failed", "err", err)
 		}
 		if receipt != nil {
 			// Use non-blocking select to ensure function can exit
 			// if more than one receipt is discovered.
 			select {
 			case receiptChan <- receipt:
-				log.Trace("send blob succeeded", "vh", vh)
+				log.Trace("blob tx succeeded")
 			default:
 			}
 		}
@@ -397,7 +405,6 @@ func (m *SimpleTxManager) SendBlob(ctx context.Context, createBlob CreateBlobFun
 				continue
 			}
 
-			// Submit and wait for the bumped traction to confirm.
 			wg.Add(1)
 			go sendTxAsync()
 
@@ -473,11 +480,12 @@ func (m *SimpleTxManager) waitMined(ctx context.Context, tx *types.Transaction, 
 	}
 }
 // SYSCOIN
-func (m *SimpleTxManager) waitMinedBlob(ctx context.Context, backend ReceiptSource, vh common.Hash, sendState *SendState) (*types.Receipt, error) {
+func (m *SimpleTxManager) waitMinedBlob(ctx context.Context, vh common.Hash, sendState *SendState) (*types.Receipt, error) {
 	queryTicker := time.NewTicker(m.ReceiptQueryInterval)
 	defer queryTicker.Stop()
+
 	for {
-		receipt, err := backend.TransactionReceipt(ctx, vh)
+		receipt, err := m.sysbackend.TransactionReceipt(ctx, vh)
 		switch {
 		case receipt != nil:
 			if sendState != nil {
@@ -491,19 +499,20 @@ func (m *SimpleTxManager) waitMinedBlob(ctx context.Context, backend ReceiptSour
 				}
 			}
 			m.l.Info("Blob not confirmed yet", "vh", vh)
+
 		case err != nil:
-			m.l.Trace("Receipt retrievel failed", "vh", vh,
-				"err", err)
+			m.l.Trace("Receipt retrievel failed", "vh", vh, "err", err)
 
 		default:
 			if sendState != nil {
 				sendState.TxNotMined(vh)
 			}
-			m.l.Trace("Blob not yet mined", "vh", vh)
+			m.l.Trace("blob not yet mined", "vh", vh)
 		}
 
 		select {
 		case <-ctx.Done():
+			m.l.Warn("context cancelled in waitMinedBlob")
 			return nil, ctx.Err()
 		case <-queryTicker.C:
 		}

@@ -92,6 +92,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		L1Client:          l1Client,
 		L2Client:          l2Client,
 		RollupNode:        rollupClient,
+		// SYSCOIN
 		SyscoinNode:       syscoinClient,
 		PollInterval:      cfg.PollInterval,
 		TxManagerConfig:   txManagerConfig,
@@ -133,7 +134,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		txMgr: NewTransactionManager(l,
 			// SYSCOIN
 			cfg.TxManagerConfig, cfg.BatchInboxAddress, cfg.Rollup.L1ChainID,
-			cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.Rollup.L1ChainID)),
+			cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.Rollup.L1ChainID), cfg.SyscoinNode),
 		done: make(chan struct{}),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
@@ -271,7 +272,7 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
-				receipt, err := l.txMgr.SendBlobTransaction(l.ctx, l.SyscoinNode.CreateBlob, &l.SyscoinNode, data)
+				receipt, err := l.txMgr.SendBlobTransaction(l.ctx, data)
 				if err != nil {
 					l.log.Error("Failed to send blob", "err", err)
 					l.state.TxFailed(id)
@@ -283,7 +284,7 @@ func (l *BatchSubmitter) loop() {
 					// we avoid changing Receipt object and just reuse TxHash for VH
 					calldata := append(sig, receipt.TxHash.Bytes()...)
 
-					nreceipt, err := l.txMgr.SendTransaction(l.ctx, calldata, 7500)
+					nreceipt, err := l.txMgr.SendTransaction(l.ctx, calldata)
 					if err != nil {
 						l.recordFailedTx(id, err)
 					} else {

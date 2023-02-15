@@ -40,7 +40,7 @@ type SyscoinRPC struct {
 type SyscoinClient struct {
 	client *SyscoinRPC
 }
-func NewSyscoinClient(sysdesc string, sysdescinternal string) (SyscoinClient, error) {
+func NewSyscoinClient(sysdesc string, sysdescinternal string) (*SyscoinClient, error) {
 	transport := &http.Transport{
 		Dial:                (&net.Dialer{KeepAlive: 600 * time.Second}).Dial,
 		MaxIdleConns:        100,
@@ -58,19 +58,19 @@ func NewSyscoinClient(sysdesc string, sysdescinternal string) (SyscoinClient, er
 		walletName := "wallet"
 		err := client.CreateOrLoadWallet(walletName)
 		if err != nil {
-			return client, err
+			return &client, err
 		}
 		err = client.ImportDescriptor(sysdesc)
 		if err != nil {
-			return client, err
+			return &client, err
 		}
 		err = client.ImportDescriptor(sysdescinternal)
 		if err != nil {
-			return client, err
+			return &client, err
 		}
 		client.client.rpcURL += "/wallet/" + walletName
 	}
-	return client, nil
+	return &client, nil
 }
 // RPCError defines rpc error returned by backend
 type RPCError struct {

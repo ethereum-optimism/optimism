@@ -26,7 +26,7 @@ type Config struct {
 	L2Client        *ethclient.Client
 	RollupNode      *sources.RollupClient
 	// SYSCOIN
-	SyscoinNode sources.SyscoinClient
+	SyscoinNode     *sources.SyscoinClient
 	PollInterval    time.Duration
 	TxManagerConfig txmgr.Config
 	From            common.Address

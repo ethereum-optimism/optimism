@@ -41,7 +41,7 @@ func dialRollupClientWithTimeout(ctx context.Context, url string) (*sources.Roll
 // dialRollupClientWithTimeout attempts to dial the RPC provider using the provided
 // URL. If the dial doesn't complete within defaultDialTimeout seconds, this
 // method will return an error.
-func dialSyscoinClientWithTimeout(ctx context.Context, sysdesc string, sysdescinternal string) (sources.SyscoinClient, error) {
+func dialSyscoinClientWithTimeout(ctx context.Context, sysdesc string, sysdescinternal string) (*sources.SyscoinClient, error) {
 	return sources.NewSyscoinClient(sysdesc, sysdescinternal)
 }
 // parseAddress parses an ETH address from a hex string. This method will fail if

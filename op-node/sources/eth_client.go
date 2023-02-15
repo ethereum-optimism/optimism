@@ -87,7 +87,7 @@ func (c *EthClientConfig) Check() error {
 type EthClient struct {
 	client client.RPC
 	// SYSCOIN
-	syscoinClient SyscoinClient
+	syscoinClient *SyscoinClient
 
 	maxBatchSize int
 

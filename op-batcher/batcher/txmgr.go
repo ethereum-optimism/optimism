@@ -13,6 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	// SYSCOIN
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
@@ -31,13 +33,14 @@ type TransactionManager struct {
 	signerFn opcrypto.SignerFn
 	log      log.Logger
 }
-
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn) *TransactionManager {
+// SYSCOIN
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn, syscoinClient* sources.SyscoinClient) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
-		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
+		// SYSCOIN
+		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client, syscoinClient),
 		l1Client:          l1Client,
 		signerFn:          signerFn,
 		log:               log,
@@ -49,7 +52,7 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
-func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, updateGasPriceExtra uint64) (*types.Receipt, error) {
+func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
 	tx, err := t.CraftTx(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
@@ -70,11 +73,11 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, u
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
-func (t *TransactionManager) SendBlobTransaction(ctx context.Context, createBlob txmgr.CreateBlobFunc, backend txmgr.ReceiptSource, data []byte) (*types.Receipt, error) {
+func (t *TransactionManager) SendBlobTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
 	// SYSCOIN account for 150sec average block times
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Second) // TODO: Select a timeout that makes sense here.
 	defer cancel()
-	if receipt, err := t.txMgr.SendBlob(ctx, createBlob, backend, data); err != nil {
+	if receipt, err := t.txMgr.SendBlob(ctx, data); err != nil {
 		t.log.Warn("unable to publish blob", "err", err)
 		return nil, err
 	} else {
