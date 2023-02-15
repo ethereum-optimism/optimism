@@ -363,7 +363,8 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 	cCtx, cancel := context.WithTimeout(ctx, 100*time.Second)
 	defer cancel()
 	l.log.Info("Sending transaction", "tx_hash", tx.Hash())
-	receipt, err := l.txMgr.Send(cCtx, tx)
+	// SYSCOIN
+	receipt, err := l.txMgr.Send(cCtx, tx, 0)
 	if err != nil {
 		l.log.Error("proposer unable to publish tx", "err", err)
 		return err

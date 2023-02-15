@@ -52,7 +52,7 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
-func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, additionalGas uint64) (*types.Receipt, error) {
 	tx, err := t.CraftTx(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
@@ -60,7 +60,8 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (
 	// SYSCOIN account for 150sec average block times
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Second) // TODO: Select a timeout that makes sense here.
 	defer cancel()
-	if receipt, err := t.txMgr.Send(ctx, tx); err != nil {
+	// SYSCOIN
+	if receipt, err := t.txMgr.Send(ctx, tx, additionalGas); err != nil {
 		t.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
 		return nil, err
 	} else {

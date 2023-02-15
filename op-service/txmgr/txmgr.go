@@ -71,7 +71,7 @@ type TxManager interface {
 	// NOTE: Send should be called by AT MOST one caller at a time.
 		// SYSCOIN
 	SendBlob(ctx context.Context, data []byte) (*types.Receipt, error)
-	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
+	Send(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Receipt, error)
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -121,7 +121,7 @@ type SimpleTxManager struct {
 //
 // We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
 // act of including the transaction renders the repeat of the transaction invalid.
-func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -173,7 +173,7 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		Nonce:      tx.Nonce(),
 		GasTipCap:  gasTipCap,
 		GasFeeCap:  gasFeeCap,
-		Gas:        tx.Gas(),
+		Gas:        tx.Gas() + additionalGas,
 		To:         tx.To(),
 		Value:      tx.Value(),
 		Data:       tx.Data(),
@@ -207,7 +207,8 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBacken
 // but retain the gas used, the nonce, and the data.
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
-func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
+// SYSCOIN
+func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Receipt, error) {
 
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
@@ -298,8 +299,8 @@ func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction) (*typ
 				continue
 			}
 
-			// Increase the gas price & submit the new transaction
-			newTx, err := m.IncreaseGasPrice(ctx, tx)
+			// SYSCOIN Increase the gas price & submit the new transaction
+			newTx, err := m.IncreaseGasPrice(ctx, tx, additionalGas)
 			if err != nil {
 				m.l.Error("Failed to increase the gas price for the tx", "err", err)
 				// Don't `continue` here so we resubmit the transaction with the same gas price.
