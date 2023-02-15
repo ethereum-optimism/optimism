@@ -92,6 +92,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 
+		SequencerFeeVaultRecipient: common.Address{19: 1},
+		BaseFeeVaultRecipient:      common.Address{19: 2},
+		L1FeeVaultRecipient:        common.Address{19: 3},
+
 		DeploymentWaitConfirmations: 1,
 
 		EIP1559Elasticity:  2,
@@ -459,7 +463,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled {
-				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
+				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLegacyLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
 
