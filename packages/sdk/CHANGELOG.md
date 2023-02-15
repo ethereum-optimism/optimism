@@ -1,5 +1,13 @@
 # @eth-optimism/sdk
 
+## 1.10.2
+
+### Patch Changes
+
+- 5372c9f5b: Remove assert node builtin from sdk
+- Updated dependencies [3c22333b8]
+  - @eth-optimism/contracts-bedrock@0.11.4
+
 ## 1.10.1
 
 ### Patch Changes
