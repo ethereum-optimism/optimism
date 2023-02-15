@@ -68,42 +68,56 @@ type ByteReader interface {
 // UnmarshalBinary consumes a full frame from the reader.
 // If `r` fails a read, it returns the error from the reader
 // The reader will be left in a partially read state.
+//
+// If r doesn't return any bytes, returns io.EOF.
+// If r unexpectedly stops returning data half-way, returns io.ErrUnexpectedEOF.
 func (f *Frame) UnmarshalBinary(r ByteReader) error {
 	if _, err := io.ReadFull(r, f.ID[:]); err != nil {
-		return fmt.Errorf("error reading ID: %w", err)
+		// Forward io.EOF here ok, would mean not a single byte from r.
+		return fmt.Errorf("reading channel_id: %w", err)
 	}
 	if err := binary.Read(r, binary.BigEndian, &f.FrameNumber); err != nil {
-		return fmt.Errorf("error reading frame number: %w", err)
+		return fmt.Errorf("reading frame_number: %w", eofAsUnexpectedMissing(err))
 	}
 
 	var frameLength uint32
 	if err := binary.Read(r, binary.BigEndian, &frameLength); err != nil {
-		return fmt.Errorf("error reading frame length: %w", err)
+		return fmt.Errorf("reading frame_data_length: %w", eofAsUnexpectedMissing(err))
 	}
 
 	// Cap frame length to MaxFrameLen (currently 1MB)
 	if frameLength > MaxFrameLen {
-		return fmt.Errorf("frameLength is too large: %d", frameLength)
+		return fmt.Errorf("frame_data_length is too large: %d", frameLength)
 	}
 	f.Data = make([]byte, int(frameLength))
 	if _, err := io.ReadFull(r, f.Data); err != nil {
-		return fmt.Errorf("error reading frame data: %w", err)
+		return fmt.Errorf("reading frame_data: %w", eofAsUnexpectedMissing(err))
 	}
 
-	if isLastByte, err := r.ReadByte(); err != nil && err != io.EOF {
-		return fmt.Errorf("error reading final byte: %w", err)
+	if isLastByte, err := r.ReadByte(); err != nil {
+		return fmt.Errorf("reading final byte (is_last): %w", eofAsUnexpectedMissing(err))
 	} else if isLastByte == 0 {
 		f.IsLast = false
-		return err
 	} else if isLastByte == 1 {
 		f.IsLast = true
-		return err
 	} else {
 		return errors.New("invalid byte as is_last")
 	}
+	return nil
 }
 
-// Frames on stored in L1 transactions with the following format:
+// eofAsUnexpectedMissing converts an io.EOF in the error chain of err into an
+// io.ErrUnexpectedEOF. It should be used to convert intermediate io.EOF errors
+// in unmarshaling code to achieve idiomatic error behavior.
+// Other errors are passed through unchanged.
+func eofAsUnexpectedMissing(err error) error {
+	if errors.Is(err, io.EOF) {
+		return fmt.Errorf("fully missing: %w", io.ErrUnexpectedEOF)
+	}
+	return err
+}
+
+// Frames are stored in L1 transactions with the following format:
 // data = DerivationVersion0 ++ Frame(s)
 // Where there is one or more frames concatenated together.
 
@@ -123,8 +137,8 @@ func ParseFrames(data []byte) ([]Frame, error) {
 	var frames []Frame
 	for buf.Len() > 0 {
 		var f Frame
-		if err := (&f).UnmarshalBinary(buf); err != io.EOF && err != nil {
-			return nil, err
+		if err := f.UnmarshalBinary(buf); err != nil {
+			return nil, fmt.Errorf("parsing frame %d: %w", len(frames), err)
 		}
 		frames = append(frames, f)
 	}
