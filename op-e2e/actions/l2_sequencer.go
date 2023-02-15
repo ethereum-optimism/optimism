@@ -1,37 +1,53 @@
 package actions
 
 import (
+	"context"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 )
+
+// MockL1OriginSelector is a shim to override the origin as sequencer, so we can force it to stay on an older origin.
+type MockL1OriginSelector struct {
+	actual         *driver.L1OriginSelector
+	originOverride eth.L1BlockRef // override which origin gets picked
+}
+
+func (m *MockL1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	if m.originOverride != (eth.L1BlockRef{}) {
+		return m.originOverride, nil
+	}
+	return m.actual.FindL1Origin(ctx, l2Head)
+}
 
 // L2Sequencer is an actor that functions like a rollup node,
 // without the full P2P/API/Node stack, but just the derivation state, and simplified driver with sequencing ability.
 type L2Sequencer struct {
 	L2Verifier
 
-	sequencer        *driver.Sequencer
-	l1OriginSelector *driver.L1OriginSelector
-
-	seqOldOrigin bool // stay on current L1 origin when sequencing a block, unless forced to adopt the next origin
+	sequencer *driver.Sequencer
 
 	failL2GossipUnsafeBlock error // mock error
+
+	mockL1OriginSelector *MockL1OriginSelector
 }
 
 func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, cfg *rollup.Config, seqConfDepth uint64) *L2Sequencer {
 	ver := NewL2Verifier(t, log, l1, eng, cfg)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, eng)
+	seqConfDepthL1 := driver.NewConfDepth(seqConfDepth, ver.l1State.L1Head, l1)
+	l1OriginSelector := &MockL1OriginSelector{
+		actual: driver.NewL1OriginSelector(log, cfg, seqConfDepthL1),
+	}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, eng, ver.derivation, attrBuilder, metrics.NoopMetrics),
-		l1OriginSelector:        driver.NewL1OriginSelector(log, cfg, l1, seqConfDepth),
-		seqOldOrigin:            false,
+		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector),
+		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}
 }
@@ -47,22 +63,7 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 		return
 	}
 
-	parent := s.derivation.UnsafeL2Head()
-	var origin eth.L1BlockRef
-	if s.seqOldOrigin {
-		// force old origin, for testing purposes
-		oldOrigin, err := s.l1.L1BlockRefByHash(t.Ctx(), parent.L1Origin.Hash)
-		require.NoError(t, err, "failed to get current origin: %s", parent.L1Origin)
-		origin = oldOrigin
-		s.seqOldOrigin = false // don't repeat this
-	} else {
-		// select origin the real way
-		l1Origin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), parent)
-		require.NoError(t, err)
-		origin = l1Origin
-	}
-
-	err := s.sequencer.StartBuildingBlock(t.Ctx(), origin)
+	err := s.sequencer.StartBuildingBlock(t.Ctx())
 	require.NoError(t, err, "failed to start block building")
 
 	s.l2Building = true
@@ -76,24 +77,21 @@ func (s *L2Sequencer) ActL2EndBlock(t Testing) {
 	}
 	s.l2Building = false
 
-	payload, err := s.sequencer.CompleteBuildingBlock(t.Ctx())
+	_, err := s.sequencer.CompleteBuildingBlock(t.Ctx())
 	// TODO: there may be legitimate temporary errors here, if we mock engine API RPC-failure.
 	// For advanced tests we can catch those and print a warning instead.
 	require.NoError(t, err)
 
-	ref, err := derive.PayloadToBlockRef(payload, &s.rollupCfg.Genesis)
-	require.NoError(t, err, "payload must convert to block ref")
-	s.derivation.SetUnsafeHead(ref)
 	// TODO: action-test publishing of payload on p2p
 }
 
 // ActL2KeepL1Origin makes the sequencer use the current L1 origin, even if the next origin is available.
 func (s *L2Sequencer) ActL2KeepL1Origin(t Testing) {
-	if s.seqOldOrigin { // don't do this twice
-		t.InvalidAction("already decided to keep old L1 origin")
-		return
-	}
-	s.seqOldOrigin = true
+	parent := s.derivation.UnsafeL2Head()
+	// force old origin, for testing purposes
+	oldOrigin, err := s.l1.L1BlockRefByHash(t.Ctx(), parent.L1Origin.Hash)
+	require.NoError(t, err, "failed to get current origin: %s", parent.L1Origin)
+	s.mockL1OriginSelector.originOverride = oldOrigin
 }
 
 // ActBuildToL1Head builds empty blocks until (incl.) the L1 head becomes the L2 origin
@@ -109,7 +107,7 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 	for {
 		s.ActL2PipelineFull(t)
-		nextOrigin, err := s.l1OriginSelector.FindL1Origin(t.Ctx(), s.l1State.L1Head(), s.derivation.UnsafeL2Head())
+		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
 		require.NoError(t, err)
 		if nextOrigin.Number >= s.l1State.L1Head().Number {
 			break

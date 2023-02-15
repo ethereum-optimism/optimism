@@ -2,7 +2,10 @@ package driver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -19,63 +22,49 @@ type L1OriginSelector struct {
 	log log.Logger
 	cfg *rollup.Config
 
-	l1                  L1Blocks
-	sequencingConfDepth uint64
+	l1 L1Blocks
 }
 
-func NewL1OriginSelector(log log.Logger, cfg *rollup.Config, l1 L1Blocks, sequencingConfDepth uint64) *L1OriginSelector {
+func NewL1OriginSelector(log log.Logger, cfg *rollup.Config, l1 L1Blocks) *L1OriginSelector {
 	return &L1OriginSelector{
-		log:                 log,
-		cfg:                 cfg,
-		l1:                  l1,
-		sequencingConfDepth: sequencingConfDepth,
+		log: log,
+		cfg: cfg,
+		l1:  l1,
 	}
 }
 
 // FindL1Origin determines what the next L1 Origin should be.
 // The L1 Origin is either the L2 Head's Origin, or the following L1 block
 // if the next L2 block's time is greater than or equal to the L2 Head's Origin.
-func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
-	// If we are at the head block, don't do a lookup.
-	if l2Head.L1Origin.Hash == l1Head.Hash {
-		return l1Head, nil
-	}
-
-	// Grab a reference to the current L1 origin block.
+func (los *L1OriginSelector) FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error) {
+	// Grab a reference to the current L1 origin block. This call is by hash and thus easily cached.
 	currentOrigin, err := los.l1.L1BlockRefByHash(ctx, l2Head.L1Origin.Hash)
 	if err != nil {
 		return eth.L1BlockRef{}, err
 	}
+	log := los.log.New("current", currentOrigin, "current_time", currentOrigin.Time,
+		"l2_head", l2Head, "l2_head_time", l2Head.Time)
 
 	// If we are past the sequencer depth, we may want to advance the origin, but need to still
 	// check the time of the next origin.
 	pastSeqDrift := l2Head.Time+los.cfg.BlockTime > currentOrigin.Time+los.cfg.MaxSequencerDrift
 	if pastSeqDrift {
-		log.Info("Next L2 block time is past the sequencer drift + current origin time",
-			"current", currentOrigin, "current_time", currentOrigin.Time,
-			"l1_head", l1Head, "l1_head_time", l1Head.Time,
-			"l2_head", l2Head, "l2_head_time", l2Head.Time,
-			"depth", los.sequencingConfDepth)
-	}
-
-	if !pastSeqDrift && currentOrigin.Number+1+los.sequencingConfDepth > l1Head.Number {
-		// TODO: we can decide to ignore confirmation depth if we would be forced
-		//  to make an empty block (only deposits) by staying on the current origin.
-		log.Info("sequencing with old origin to preserve conf depth",
-			"current", currentOrigin, "current_time", currentOrigin.Time,
-			"l1_head", l1Head, "l1_head_time", l1Head.Time,
-			"l2_head", l2Head, "l2_head_time", l2Head.Time,
-			"depth", los.sequencingConfDepth)
-		return currentOrigin, nil
+		log.Warn("Next L2 block time is past the sequencer drift + current origin time")
 	}
 
 	// Attempt to find the next L1 origin block, where the next origin is the immediate child of
 	// the current origin block.
+	// The L1 source can be shimmed to hide new L1 blocks and enforce a sequencer confirmation distance.
 	nextOrigin, err := los.l1.L1BlockRefByNumber(ctx, currentOrigin.Number+1)
 	if err != nil {
-		// TODO: this could result in a bad origin being selected if we are past the seq
-		// drift & should instead advance to the next origin.
-		log.Error("Failed to get next origin. Falling back to current origin", "err", err)
+		if pastSeqDrift {
+			return eth.L1BlockRef{}, fmt.Errorf("cannot build next L2 block past current L1 origin %s by more than sequencer time drift, and failed to find next L1 origin: %w", currentOrigin, err)
+		}
+		if errors.Is(err, ethereum.NotFound) {
+			log.Debug("No next L1 block found, repeating current origin")
+		} else {
+			log.Error("Failed to get next origin. Falling back to current origin", "err", err)
+		}
 		return currentOrigin, nil
 	}
 

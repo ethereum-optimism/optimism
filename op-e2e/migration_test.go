@@ -319,13 +319,15 @@ func TestMigration(t *testing.T) {
 		require.NoError(t, rollupNode.Close())
 	})
 
-	batcher, err := bss.NewBatchSubmitter(bss.Config{
+	batcher, err := bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
-		MinL1TxSize:               1,
-		MaxL1TxSize:               120000,
-		ChannelTimeout:            deployCfg.ChannelTimeout,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            624,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          1.0,
+		SubSafetyMargin:           testSafetyMargin(deployCfg),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -334,15 +336,14 @@ func TestMigration(t *testing.T) {
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey:                 hexPriv(secrets.Batcher),
-		SequencerBatchInboxAddress: deployCfg.BatchSenderAddress.String(),
+		PrivateKey: hexPriv(secrets.Batcher),
 	}, lgr.New("module", "batcher"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		batcher.Stop()
 	})
 
-	proposer, err := l2os.NewL2OutputSubmitter(l2os.CLIConfig{
+	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:                  forkedL1URL,
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
 		L2OOAddress:               l2OS.Address.String(),

@@ -238,7 +238,7 @@ jobs:
       - run:
           name: test and generate coverage
           command: yarn coverage:lcov
-          no_output_timeout: 15m
+          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -846,9 +846,9 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: drippie-mon-tests
-          coverage_flag: drippie-mon-tests
-          package_name: drippie-mon
+          name: chain-mon-tests
+          coverage_flag: chain-mon-tests
+          package_name: chain-mon
           dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
           requires:
             - yarn-monorepo

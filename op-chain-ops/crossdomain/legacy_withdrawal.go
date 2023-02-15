@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -17,7 +18,7 @@ import (
 type LegacyWithdrawal struct {
 	Target *common.Address `json:"target"`
 	Sender *common.Address `json:"sender"`
-	Data   []byte          `json:"data"`
+	Data   hexutil.Bytes   `json:"data"`
 	Nonce  *big.Int        `json:"nonce"`
 }
 
@@ -38,7 +39,7 @@ func NewLegacyWithdrawal(target, sender *common.Address, data []byte, nonce *big
 // through the standard optimism cross domain messaging system by hashing in
 // the L2CrossDomainMessenger address.
 func (w *LegacyWithdrawal) Encode() ([]byte, error) {
-	enc, err := EncodeCrossDomainMessageV0(w.Target, w.Sender, w.Data, w.Nonce)
+	enc, err := EncodeCrossDomainMessageV0(w.Target, w.Sender, []byte(w.Data), w.Nonce)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode LegacyWithdrawal: %w", err)
 	}
@@ -98,7 +99,7 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 
 	w.Target = &target
 	w.Sender = &sender
-	w.Data = msgData
+	w.Data = hexutil.Bytes(msgData)
 	w.Nonce = nonce
 	return nil
 }

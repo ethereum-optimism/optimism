@@ -12,6 +12,7 @@ package sources
 import (
 	"context"
 	"fmt"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -216,6 +217,16 @@ func (s *EthClient) payloadCall(ctx context.Context, method string, id any) (*et
 	return payload, nil
 }
 
+// ChainID fetches the chain id of the internal RPC.
+func (s *EthClient) ChainID(ctx context.Context) (*big.Int, error) {
+	var id hexutil.Big
+	err := s.client.CallContext(ctx, &id, "eth_chainId")
+	if err != nil {
+		return nil, err
+	}
+	return (*big.Int)(&id), nil
+}
+
 func (s *EthClient) InfoByHash(ctx context.Context, hash common.Hash) (eth.BlockInfo, error) {
 	if header, ok := s.headersCache.Get(hash); ok {
 		return header.(*HeaderInfo), nil
@@ -348,7 +359,8 @@ func (s *EthClient) ReadStorageAt(ctx context.Context, address common.Address, s
 	if err := result.Verify(block.Root()); err != nil {
 		return common.Hash{}, fmt.Errorf("failed to verify retrieved proof against state root: %w", err)
 	}
-	return common.BytesToHash(result.StorageProof[0].Value), nil
+	value := result.StorageProof[0].Value.ToInt()
+	return common.BytesToHash(value.Bytes()), nil
 }
 
 func (s *EthClient) Close() {

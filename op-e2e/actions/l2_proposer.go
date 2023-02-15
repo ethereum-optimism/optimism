@@ -15,8 +15,8 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	"github.com/ethereum-optimism/optimism/op-proposer/txmgr"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 type ProposerCfg struct {
@@ -34,7 +34,7 @@ type L2Proposer struct {
 }
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
-	signer := func(chainID *big.Int) proposer.SignerFn {
+	signer := func(chainID *big.Int) opcrypto.SignerFn {
 		s := opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID)
 		return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return s(addr, tx)
@@ -46,12 +46,12 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		PollInterval:       time.Second,
 		TxManagerConfig: txmgr.Config{
-			Log:                       log,
-			Name:                      "action-proposer",
 			ResubmissionTimeout:       5 * time.Second,
 			ReceiptQueryInterval:      time.Second,
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 4,
+			From:                      from,
+			// Signer is loaded in `proposer.NewL2OutputSubmitter`
 		},
 		L1Client:          l1,
 		RollupClient:      rollupCl,
@@ -60,7 +60,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		SignerFnFactory:   signer,
 	}
 
-	dr, err := proposer.NewL2OutputSubmitterWithSigner(proposerCfg, log)
+	dr, err := proposer.NewL2OutputSubmitter(proposerCfg, log)
 	require.NoError(t, err)
 
 	return &L2Proposer{
@@ -87,7 +87,9 @@ func (p *L2Proposer) ActMakeProposalTx(t Testing) {
 	tx, err := p.driver.CreateProposalTx(t.Ctx(), output)
 	require.NoError(t, err)
 
-	err = p.driver.SendTransaction(t.Ctx(), tx)
+	// Note: Use L1 instead of the output submitter's transaction manager because
+	// this is non-blocking while the txmgr is blocking & deadlocks the tests
+	err = p.l1.SendTransaction(t.Ctx(), tx)
 	require.NoError(t, err)
 
 	p.lastTx = tx.Hash()

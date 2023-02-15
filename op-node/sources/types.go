@@ -46,6 +46,7 @@ type HeaderInfo struct {
 	baseFee     *big.Int
 	txHash      common.Hash
 	receiptHash common.Hash
+	gasUsed     uint64
 }
 
 var _ eth.BlockInfo = (*HeaderInfo)(nil)
@@ -88,6 +89,10 @@ func (info *HeaderInfo) ID() eth.BlockID {
 
 func (info *HeaderInfo) ReceiptHash() common.Hash {
 	return info.receiptHash
+}
+
+func (info *HeaderInfo) GasUsed() uint64 {
+	return info.gasUsed
 }
 
 type rpcHeader struct {
@@ -182,6 +187,7 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (*HeaderInfo, 
 		baseFee:     (*big.Int)(hdr.BaseFee),
 		txHash:      hdr.TxHash,
 		receiptHash: hdr.ReceiptHash,
+		gasUsed:     uint64(hdr.GasUsed),
 	}
 	return &info, nil
 }

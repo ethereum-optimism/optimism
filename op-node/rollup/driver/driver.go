@@ -14,7 +14,6 @@ import (
 
 type Metrics interface {
 	RecordPipelineReset()
-	RecordSequencingError()
 	RecordPublishingError()
 	RecordDerivationError()
 
@@ -28,9 +27,8 @@ type Metrics interface {
 	SetDerivationIdle(idle bool)
 
 	RecordL1ReorgDepth(d uint64)
-	CountSequencedTxs(count int)
 
-	SequencerMetrics
+	EngineMetrics
 }
 
 type L1Chain interface {
@@ -48,7 +46,6 @@ type L2Chain interface {
 type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
-	SetUnsafeHead(head eth.L2BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
@@ -68,14 +65,12 @@ type L1StateIface interface {
 	L1Finalized() eth.L1BlockRef
 }
 
-type L1OriginSelectorIface interface {
-	FindL1Origin(ctx context.Context, l1Head eth.L1BlockRef, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
-}
-
 type SequencerIface interface {
-	StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error
+	StartBuildingBlock(ctx context.Context) error
 	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
-	PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID)
+	PlanNextSequencerAction() time.Duration
+	RunNextSequencerAction(ctx context.Context) *eth.ExecutionPayload
+	BuildingOnto() eth.L2BlockRef
 }
 
 type Network interface {
@@ -86,11 +81,15 @@ type Network interface {
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
 func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	l1State := NewL1State(log, metrics)
-	findL1Origin := NewL1OriginSelector(log, cfg, l1, driverCfg.SequencerConfDepth)
+	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
+	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
 	verifConfDepth := NewConfDepth(driverCfg.VerifierConfDepth, l1State.L1Head, l1)
 	derivationPipeline := derive.NewDerivationPipeline(log, cfg, verifConfDepth, l2, metrics)
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
-	sequencer := NewSequencer(log, cfg, l2, derivationPipeline, attrBuilder, metrics)
+	engine := derivationPipeline
+	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
+	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin)
+
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
@@ -106,7 +105,6 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 		snapshotLog:      snapshotLog,
 		l1:               l1,
 		l2:               l2,
-		l1OriginSelector: findL1Origin,
 		sequencer:        sequencer,
 		network:          network,
 		metrics:          metrics,

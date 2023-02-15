@@ -23,7 +23,6 @@ The `L2StandardBridge` is a predeploy contract located at
 ```solidity
 interface StandardBridge {
     event ERC20BridgeFinalized(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData);
-    event ERC20BridgeFinalized(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData);
     event ERC20BridgeInitiated(address indexed localToken, address indexed remoteToken, address indexed from, address to, uint256 amount, bytes extraData);
     event ETHBridgeFinalized(address indexed from, address indexed to, uint256 amount, bytes extraData);
     event ETHBridgeInitiated(address indexed from, address indexed to, uint256 amount, bytes extraData);

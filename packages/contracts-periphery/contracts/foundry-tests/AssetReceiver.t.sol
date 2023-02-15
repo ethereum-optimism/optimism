@@ -17,7 +17,22 @@ contract AssetReceiver_Initializer is Test {
     TestERC721 testERC721;
     AssetReceiver assetReceiver;
 
-    function _setUp() public {
+    event ReceivedETH(address indexed from, uint256 amount);
+    event WithdrewETH(address indexed withdrawer, address indexed recipient, uint256 amount);
+    event WithdrewERC20(
+        address indexed withdrawer,
+        address indexed recipient,
+        address indexed asset,
+        uint256 amount
+    );
+    event WithdrewERC721(
+        address indexed withdrawer,
+        address indexed recipient,
+        address indexed asset,
+        uint256 id
+    );
+
+    function setUp() public {
         // Deploy ERC20 and ERC721 tokens
         testERC20 = new TestERC20();
         testERC721 = new TestERC721();
@@ -38,10 +53,6 @@ contract AssetReceiver_Initializer is Test {
 }
 
 contract AssetReceiverTest is AssetReceiver_Initializer {
-    function setUp() public {
-        super._setUp();
-    }
-
     // Tests if the owner was set correctly during deploy
     function test_constructor() external {
         assertEq(address(alice), assetReceiver.owner());
@@ -52,6 +63,8 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         // Check that contract balance is 0 initially
         assertEq(address(assetReceiver).balance, 0);
 
+        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        emit ReceivedETH(alice, 100);
         // Send funds
         vm.prank(alice);
         (bool success, ) = address(assetReceiver).call{ value: 100 }(hex"");
@@ -70,6 +83,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         assertEq(address(assetReceiver).balance, 1 ether);
 
         assertEq(address(alice).balance, 1 ether);
+
+        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        emit WithdrewETH(alice, alice, 1 ether);
 
         // call withdrawETH
         vm.prank(alice);
@@ -96,6 +112,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
 
         assertEq(address(alice).balance, 1 ether);
 
+        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        emit WithdrewETH(alice, alice, 0.5 ether);
+
         // call withdrawETH
         vm.prank(alice);
         assetReceiver.withdrawETH(payable(alice), 0.5 ether);
@@ -120,6 +139,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         deal(address(testERC20), address(assetReceiver), 100_000);
         assertEq(testERC20.balanceOf(address(assetReceiver)), 100_000);
         assertEq(testERC20.balanceOf(alice), 0);
+
+        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        emit WithdrewERC20(alice, alice, address(testERC20), 100_000);
 
         // call withdrawERC20
         vm.prank(alice);
@@ -146,6 +168,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         assertEq(testERC20.balanceOf(address(assetReceiver)), 100_000);
         assertEq(testERC20.balanceOf(alice), 0);
 
+        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        emit WithdrewERC20(alice, alice, address(testERC20), 50_000);
+
         // call withdrawERC20
         vm.prank(alice);
         assetReceiver.withdrawERC20(testERC20, alice, 50_000);
@@ -171,6 +196,9 @@ contract AssetReceiverTest is AssetReceiver_Initializer {
         vm.prank(alice);
         testERC721.transferFrom(alice, address(assetReceiver), DEFAULT_TOKEN_ID);
         assertEq(testERC721.ownerOf(DEFAULT_TOKEN_ID), address(assetReceiver));
+
+        vm.expectEmit(true, true, true, true, address(assetReceiver));
+        emit WithdrewERC721(alice, alice, address(testERC721), DEFAULT_TOKEN_ID);
 
         // Call withdrawERC721
         vm.prank(alice);

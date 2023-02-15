@@ -14,6 +14,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
+func RandomBool(rng *rand.Rand) bool {
+	if b := rng.Intn(2); b == 0 {
+		return false
+	}
+	return true
+}
+
 func RandomHash(rng *rand.Rand) (out common.Hash) {
 	rng.Read(out[:])
 	return
