@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.11.4
+
+### Patch Changes
+
+- 3c22333b8: Loosens the requirements for re-proving a withdrawal transaction in the `OptimismPortal`
+
 ## 0.11.3
 
 ### Patch Changes
