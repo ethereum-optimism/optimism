@@ -8,9 +8,9 @@ import (
 
 	"github.com/holiman/uint256"
 
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
-	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -123,7 +123,7 @@ type Uint256Quantity = uint256.Int
 
 type Data = hexutil.Bytes
 
-type PayloadID = beacon.PayloadID
+type PayloadID = engine.PayloadID
 
 type ExecutionPayload struct {
 	ParentHash    common.Hash     `json:"parentHash"`

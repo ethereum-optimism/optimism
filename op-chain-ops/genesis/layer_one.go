@@ -216,7 +216,10 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 
 	for _, dep := range deployments {
-		st := stateDB.StorageTrie(dep.Address)
+		st, err := stateDB.StorageTrie(dep.Address)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open storage trie of %s: %w", dep.Address, err)
+		}
 		iter := trie.NewIterator(st.NodeIterator(nil))
 
 		depAddr := dep.Address

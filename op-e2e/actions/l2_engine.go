@@ -3,18 +3,18 @@ package actions
 import (
 	"errors"
 
-	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	geth "github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
@@ -53,7 +53,7 @@ type L2Engine struct {
 	l2ForceEmpty     bool                      // when no additional txs may be processed (i.e. when sequencer drift runs out)
 	l2TxFailed       []*types.Transaction      // log of failed transactions which could not be included
 
-	payloadID beacon.PayloadID // ID of payload that is currently being built
+	payloadID engine.PayloadID // ID of payload that is currently being built
 
 	failL2RPC error // mock error
 }
@@ -182,7 +182,7 @@ func (e *L2Engine) ActL2IncludeTx(from common.Address) Action {
 			return
 		}
 		e.pendingIndices[from] = i + 1 // won't retry the tx
-		e.l2BuildingState.Prepare(tx.Hash(), len(e.l2Transactions))
+		e.l2BuildingState.SetTxContext(tx.Hash(), len(e.l2Transactions))
 		receipt, err := core.ApplyTransaction(e.l2Cfg.Config, e.l2Chain, &e.l2BuildingHeader.Coinbase,
 			e.l2GasPool, e.l2BuildingState, e.l2BuildingHeader, tx, &e.l2BuildingHeader.GasUsed, *e.l2Chain.GetVMConfig())
 		if err != nil {

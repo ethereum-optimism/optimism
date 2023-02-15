@@ -255,7 +255,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Otherwise we need to write the changes to disk. First we commit the state changes.
 	log.Info("Committing trie DB")
-	if err := db.Database().TrieDB().Commit(newRoot, true, nil); err != nil {
+	if err := db.Database().TrieDB().Commit(newRoot, true); err != nil {
 		return nil, err
 	}
 
