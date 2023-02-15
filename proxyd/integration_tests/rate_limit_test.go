@@ -139,6 +139,19 @@ func TestFrontendMaxRPSLimit(t *testing.T) {
 		require.Nil(t, res[1].Error)
 		require.Nil(t, res[2].Error)
 	})
+
+	time.Sleep(time.Second)
+
+	t.Run("global RPC override", func(t *testing.T) {
+		h := make(http.Header)
+		h.Set("User-Agent", "exempt_agent")
+		client := NewProxydClientWithHeaders("http://127.0.0.1:8545", h)
+		limitedRes, codes := spamReqs(t, client, "eth_baz", 429, 2)
+		// use 1 and 1 here since the limit for eth_baz is 1
+		require.Equal(t, 1, codes[429])
+		require.Equal(t, 1, codes[200])
+		RequireEqualJSON(t, []byte(frontendOverLimitResponseWithID), limitedRes)
+	})
 }
 
 func spamReqs(t *testing.T, client *ProxydHTTPClient, method string, limCode int, n int) ([]byte, map[int]int) {

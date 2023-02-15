@@ -39,27 +39,28 @@ const (
 var emptyArrayResponse = json.RawMessage("[]")
 
 type Server struct {
-	backendGroups        map[string]*BackendGroup
-	wsBackendGroup       *BackendGroup
-	wsMethodWhitelist    *StringSet
-	rpcMethodMappings    map[string]string
-	maxBodySize          int64
-	enableRequestLog     bool
-	maxRequestBodyLogLen int
-	authenticatedPaths   map[string]string
-	timeout              time.Duration
-	maxUpstreamBatchSize int
-	maxBatchSize         int
-	upgrader             *websocket.Upgrader
-	mainLim              FrontendRateLimiter
-	overrideLims         map[string]FrontendRateLimiter
-	senderLim            FrontendRateLimiter
-	limExemptOrigins     []*regexp.Regexp
-	limExemptUserAgents  []*regexp.Regexp
-	rpcServer            *http.Server
-	wsServer             *http.Server
-	cache                RPCCache
-	srvMu                sync.Mutex
+	backendGroups          map[string]*BackendGroup
+	wsBackendGroup         *BackendGroup
+	wsMethodWhitelist      *StringSet
+	rpcMethodMappings      map[string]string
+	maxBodySize            int64
+	enableRequestLog       bool
+	maxRequestBodyLogLen   int
+	authenticatedPaths     map[string]string
+	timeout                time.Duration
+	maxUpstreamBatchSize   int
+	maxBatchSize           int
+	upgrader               *websocket.Upgrader
+	mainLim                FrontendRateLimiter
+	overrideLims           map[string]FrontendRateLimiter
+	senderLim              FrontendRateLimiter
+	limExemptOrigins       []*regexp.Regexp
+	limExemptUserAgents    []*regexp.Regexp
+	globallyLimitedMethods map[string]bool
+	rpcServer              *http.Server
+	wsServer               *http.Server
+	cache                  RPCCache
+	srvMu                  sync.Mutex
 }
 
 type limiterFunc func(method string) bool
@@ -133,11 +134,16 @@ func NewServer(
 	}
 
 	overrideLims := make(map[string]FrontendRateLimiter)
+	globalMethodLims := make(map[string]bool)
 	for method, override := range rateLimitConfig.MethodOverrides {
 		var err error
 		overrideLims[method] = limiterFactory(time.Duration(override.Interval), override.Limit, method)
 		if err != nil {
 			return nil, err
+		}
+
+		if override.Global {
+			globalMethodLims[method] = true
 		}
 	}
 	var senderLim FrontendRateLimiter
@@ -161,11 +167,12 @@ func NewServer(
 		upgrader: &websocket.Upgrader{
 			HandshakeTimeout: 5 * time.Second,
 		},
-		mainLim:             mainLim,
-		overrideLims:        overrideLims,
-		senderLim:           senderLim,
-		limExemptOrigins:    limExemptOrigins,
-		limExemptUserAgents: limExemptUserAgents,
+		mainLim:                mainLim,
+		overrideLims:           overrideLims,
+		globallyLimitedMethods: globalMethodLims,
+		senderLim:              senderLim,
+		limExemptOrigins:       limExemptOrigins,
+		limExemptUserAgents:    limExemptUserAgents,
 	}, nil
 }
 
@@ -243,7 +250,9 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 	}
 
 	isLimited := func(method string) bool {
-		if isUnlimitedOrigin || isUnlimitedUserAgent {
+		isGloballyLimitedMethod := s.isGlobalLimit(method)
+		fmt.Println(method, isGloballyLimitedMethod)
+		if !isGloballyLimitedMethod && (isUnlimitedOrigin || isUnlimitedUserAgent) {
 			return false
 		}
 
@@ -595,6 +604,10 @@ func (s *Server) isUnlimitedUserAgent(origin string) bool {
 		}
 	}
 	return false
+}
+
+func (s *Server) isGlobalLimit(method string) bool {
+	return s.globallyLimitedMethods[method]
 }
 
 func (s *Server) rateLimitSender(ctx context.Context, req *RPCReq) error {
