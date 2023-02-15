@@ -126,7 +126,6 @@ func TestFrameUnmarshalTruncated(t *testing.T) {
 			var data bytes.Buffer
 			require.NoError(t, frame.MarshalBinary(&data))
 
-			// truncate last data byte & is_last
 			tdata := tr.truncate(data.Bytes())
 
 			frame0 := new(Frame)
