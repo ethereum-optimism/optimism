@@ -13,7 +13,6 @@ require (
 	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/prometheus/client_golang v1.11.0
 	github.com/rs/cors v1.8.2
-	github.com/sethvargo/go-limiter v0.7.2
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 )
