@@ -53,15 +53,15 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
 func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte, additionalGas uint64) (*types.Receipt, error) {
-	tx, err := t.CraftTx(ctx, data)
+	// SYSCOIN
+	tx, err := t.CraftTx(ctx, data, additionalGas)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
 	// SYSCOIN account for 150sec average block times
 	ctx, cancel := context.WithTimeout(ctx, 1200*time.Second) // TODO: Select a timeout that makes sense here.
 	defer cancel()
-	// SYSCOIN
-	if receipt, err := t.txMgr.Send(ctx, tx, additionalGas); err != nil {
+	if receipt, err := t.txMgr.Send(ctx, tx); err != nil {
 		t.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
 		return nil, err
 	} else {
@@ -118,7 +118,8 @@ func (t *TransactionManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap
 // CraftTx creates the signed transaction to the batchInboxAddress.
 // It queries L1 for the current fee market conditions as well as for the nonce.
 // NOTE: This method SHOULD NOT publish the resulting transaction.
-func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.Transaction, error) {
+// SYSCOIN
+func (t *TransactionManager) CraftTx(ctx context.Context, data []byte, additionalGas uint64) (*types.Transaction, error) {
 	gasTipCap, gasFeeCap, err := t.calcGasTipAndFeeCap(ctx)
 	if err != nil {
 		return nil, err
@@ -145,7 +146,8 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}
-	rawTx.Gas = gas
+	// SYSCOIN
+	rawTx.Gas = gas + additionalGas
 
 	ctx, cancel = context.WithTimeout(ctx, networkTimeout)
 	defer cancel()

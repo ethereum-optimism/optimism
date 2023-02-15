@@ -69,9 +69,9 @@ type TxManager interface {
 	// The initial transaction MUST be signed & ready to submit.
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
-		// SYSCOIN
+	// SYSCOIN
 	SendBlob(ctx context.Context, data []byte) (*types.Receipt, error)
-	Send(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Receipt, error)
+	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -121,7 +121,7 @@ type SimpleTxManager struct {
 //
 // We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
 // act of including the transaction renders the repeat of the transaction invalid.
-func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Transaction, error) {
+func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
@@ -173,7 +173,7 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		Nonce:      tx.Nonce(),
 		GasTipCap:  gasTipCap,
 		GasFeeCap:  gasFeeCap,
-		Gas:        tx.Gas() + additionalGas,
+		Gas:        tx.Gas(),
 		To:         tx.To(),
 		Value:      tx.Value(),
 		Data:       tx.Data(),
@@ -207,8 +207,7 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBacken
 // but retain the gas used, the nonce, and the data.
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
-// SYSCOIN
-func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction, additionalGas uint64) (*types.Receipt, error) {
+func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
 
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
@@ -300,7 +299,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction, addit
 			}
 
 			// SYSCOIN Increase the gas price & submit the new transaction
-			newTx, err := m.IncreaseGasPrice(ctx, tx, additionalGas)
+			newTx, err := m.IncreaseGasPrice(ctx, tx)
 			if err != nil {
 				m.l.Error("Failed to increase the gas price for the tx", "err", err)
 				// Don't `continue` here so we resubmit the transaction with the same gas price.
