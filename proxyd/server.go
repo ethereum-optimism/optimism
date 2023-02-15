@@ -251,7 +251,6 @@ func (s *Server) HandleRPC(w http.ResponseWriter, r *http.Request) {
 
 	isLimited := func(method string) bool {
 		isGloballyLimitedMethod := s.isGlobalLimit(method)
-		fmt.Println(method, isGloballyLimitedMethod)
 		if !isGloballyLimitedMethod && (isUnlimitedOrigin || isUnlimitedUserAgent) {
 			return false
 		}
