@@ -31,6 +31,7 @@ services:
     stop_grace_period: 30s
     ports:
       - "9545:8545"
+      - "8546:8546"
     volumes:
       - "l2_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
