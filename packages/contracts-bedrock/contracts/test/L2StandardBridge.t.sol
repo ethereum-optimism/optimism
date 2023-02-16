@@ -123,7 +123,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
      * @notice Use the legacy `withdraw` interface on the L2StandardBridge to
      *         withdraw ether from L2 to L1.
      */
-    function test_withdraw_ether_success() external {
+    function test_withdraw_ether_succeeds() external {
         assertTrue(alice.balance >= 100);
         assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
 
