@@ -220,10 +220,11 @@ batchLoop:
 	// i.e. if the sequence window expired, we create empty batches for the current epoch
 	expiryEpoch := epoch.Number + bq.config.SeqWindowSize
 	forceEmptyBatches := (expiryEpoch == bq.origin.Number && outOfData) || expiryEpoch < bq.origin.Number
+	firstOfEpoch := epoch.Number == l2SafeHead.L1Origin.Number+1
 
 	bq.log.Trace("Potentially generating an empty batch",
 		"expiryEpoch", expiryEpoch, "forceEmptyBatches", forceEmptyBatches, "nextTimestamp", nextTimestamp,
-		"epoch_time", epoch.Time, "len_l1_blocks", len(bq.l1Blocks))
+		"epoch_time", epoch.Time, "len_l1_blocks", len(bq.l1Blocks), "firstOfEpoch", firstOfEpoch)
 
 	if !forceEmptyBatches {
 		// sequence window did not expire yet, still room to receive batches for the current epoch,
@@ -237,8 +238,9 @@ batchLoop:
 
 	nextEpoch := bq.l1Blocks[1]
 	// Fill with empty L2 blocks of the same epoch until we meet the time of the next L1 origin,
-	// to preserve that L2 time >= L1 time
-	if nextTimestamp < nextEpoch.Time {
+	// to preserve that L2 time >= L1 time. If this is the first block of the epoch, always generate a
+	// batch to ensure that we at least have one batch per epoch.
+	if nextTimestamp < nextEpoch.Time || firstOfEpoch {
 		bq.log.Trace("Generating next batch", "epoch", epoch, "timestamp", nextTimestamp)
 		return &BatchData{
 			BatchV1{

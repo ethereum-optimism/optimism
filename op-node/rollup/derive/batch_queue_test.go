@@ -183,7 +183,8 @@ func TestBatchQueueEager(t *testing.T) {
 	}
 }
 
-// Tests CLI-3378
+// TestBatchQueueInvalidInternalAdvance asserts that we do not miss an epoch when generating batches.
+// This is a regression test for CLI-3378.
 func TestBatchQueueInvalidInternalAdvance(t *testing.T) {
 	log := testlog.Logger(t, log.LvlTrace)
 	l1 := L1Chain([]uint64{10, 15, 20, 25, 30})
@@ -245,28 +246,30 @@ func TestBatchQueueInvalidInternalAdvance(t *testing.T) {
 
 	// Advance to origin 3. Should generate one empty batch.
 	input.origin = l1[3]
-	// b, e = bq.NextBatch(context.Background(), safeHead)
-	// require.Nil(t, e)
-	// require.NotNil(t, b)
-	// require.Equal(t, safeHead.Time+2, b.Timestamp)
-	// safeHead.Number += 1
-	// safeHead.Time += 2
-	// safeHead.Hash = mockHash(b.Timestamp, 2)
-	// safeHead.L1Origin = b.Epoch()
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, e)
+	require.NotNil(t, b)
+	require.Equal(t, safeHead.Time+2, b.Timestamp)
+	require.Equal(t, rollup.Epoch(1), b.EpochNum)
+	safeHead.Number += 1
+	safeHead.Time += 2
+	safeHead.Hash = mockHash(b.Timestamp, 2)
+	safeHead.L1Origin = b.Epoch()
 	b, e = bq.NextBatch(context.Background(), safeHead)
 	require.ErrorIs(t, e, io.EOF)
 	require.Nil(t, b)
 
 	// Advance to origin 4. Should generate one empty batch.
 	input.origin = l1[4]
-	// b, e = bq.NextBatch(context.Background(), safeHead)
-	// require.Nil(t, e)
-	// require.NotNil(t, b)
-	// require.Equal(t, safeHead.Time+2, b.Timestamp)
-	// safeHead.Number += 1
-	// safeHead.Time += 2
-	// safeHead.Hash = mockHash(b.Timestamp, 2)
-	// safeHead.L1Origin = b.Epoch()
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, e)
+	require.NotNil(t, b)
+	require.Equal(t, rollup.Epoch(2), b.EpochNum)
+	require.Equal(t, safeHead.Time+2, b.Timestamp)
+	safeHead.Number += 1
+	safeHead.Time += 2
+	safeHead.Hash = mockHash(b.Timestamp, 2)
+	safeHead.L1Origin = b.Epoch()
 	b, e = bq.NextBatch(context.Background(), safeHead)
 	require.ErrorIs(t, e, io.EOF)
 	require.Nil(t, b)
