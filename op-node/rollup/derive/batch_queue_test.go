@@ -183,6 +183,99 @@ func TestBatchQueueEager(t *testing.T) {
 	}
 }
 
+// TestBatchQueueInvalidInternalAdvance asserts that we do not miss an epoch when generating batches.
+// This is a regression test for CLI-3378.
+func TestBatchQueueInvalidInternalAdvance(t *testing.T) {
+	log := testlog.Logger(t, log.LvlTrace)
+	l1 := L1Chain([]uint64{10, 15, 20, 25, 30})
+	safeHead := eth.L2BlockRef{
+		Hash:           mockHash(10, 2),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           10,
+		L1Origin:       l1[0].ID(),
+		SequenceNumber: 0,
+	}
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L2Time: 10,
+		},
+		BlockTime:         2,
+		MaxSequencerDrift: 600,
+		SeqWindowSize:     2,
+	}
+
+	batches := []*BatchData{b(12, l1[0]), b(14, l1[0]), b(16, l1[0]), b(18, l1[0]), b(20, l1[0]), b(22, l1[0]), nil}
+	errors := []error{nil, nil, nil, nil, nil, nil, io.EOF}
+
+	input := &fakeBatchQueueInput{
+		batches: batches,
+		errors:  errors,
+		origin:  l1[0],
+	}
+
+	bq := NewBatchQueue(log, cfg, input)
+	_ = bq.Reset(context.Background(), l1[0], eth.SystemConfig{})
+
+	// Load continuous batches for epoch 0
+	for i := 0; i < len(batches); i++ {
+		b, e := bq.NextBatch(context.Background(), safeHead)
+		require.ErrorIs(t, e, errors[i])
+		require.Equal(t, batches[i], b)
+
+		if b != nil {
+			safeHead.Number += 1
+			safeHead.Time += 2
+			safeHead.Hash = mockHash(b.Timestamp, 2)
+			safeHead.L1Origin = b.Epoch()
+		}
+	}
+
+	// Advance to origin 1. No forced batches yet.
+	input.origin = l1[1]
+	b, e := bq.NextBatch(context.Background(), safeHead)
+	require.ErrorIs(t, e, io.EOF)
+	require.Nil(t, b)
+
+	// Advance to origin 2. No forced batches yet because we are still on epoch 0
+	// & have batches for epoch 0.
+	input.origin = l1[2]
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.ErrorIs(t, e, io.EOF)
+	require.Nil(t, b)
+
+	// Advance to origin 3. Should generate one empty batch.
+	input.origin = l1[3]
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, e)
+	require.NotNil(t, b)
+	require.Equal(t, safeHead.Time+2, b.Timestamp)
+	require.Equal(t, rollup.Epoch(1), b.EpochNum)
+	safeHead.Number += 1
+	safeHead.Time += 2
+	safeHead.Hash = mockHash(b.Timestamp, 2)
+	safeHead.L1Origin = b.Epoch()
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.ErrorIs(t, e, io.EOF)
+	require.Nil(t, b)
+
+	// Advance to origin 4. Should generate one empty batch.
+	input.origin = l1[4]
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.Nil(t, e)
+	require.NotNil(t, b)
+	require.Equal(t, rollup.Epoch(2), b.EpochNum)
+	require.Equal(t, safeHead.Time+2, b.Timestamp)
+	safeHead.Number += 1
+	safeHead.Time += 2
+	safeHead.Hash = mockHash(b.Timestamp, 2)
+	safeHead.L1Origin = b.Epoch()
+	b, e = bq.NextBatch(context.Background(), safeHead)
+	require.ErrorIs(t, e, io.EOF)
+	require.Nil(t, b)
+
+}
+
 func TestBatchQueueMissing(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	l1 := L1Chain([]uint64{10, 15, 20, 25})

@@ -439,7 +439,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -523,7 +523,7 @@ jobs:
           patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
