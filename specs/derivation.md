@@ -617,6 +617,10 @@ then an empty batch can be derived with the following properties:
 - If `next_timestamp < next_epoch.time`: the current L1 origin is repeated, to preserve the L2 time invariant.
   - `epoch_num = epoch.number`
   - `epoch_hash = epoch.hash`
+- If the batch is the first batch of the epoch, that epoch is used instead of advancing the epoch to ensure that
+there is at least one L2 block per epoch.
+  - `epoch_num = epoch.number`
+  - `epoch_hash = epoch.hash`
 - Otherwise,
   - `epoch_num = next_epoch.number`
   - `epoch_hash = next_epoch.hash`
