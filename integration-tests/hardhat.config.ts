@@ -39,6 +39,20 @@ const config: HardhatUserConfig = {
           },
         },
       },
+      {
+        version: '0.8.15',
+        settings: {
+          optimizer: { enabled: true, runs: 200 },
+          metadata: {
+            bytecodeHash: 'none',
+          },
+          outputSelection: {
+            '*': {
+              '*': ['storageLayout'],
+            },
+          },
+        },
+      },
     ],
   },
   gasReporter: {
