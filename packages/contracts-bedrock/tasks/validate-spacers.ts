@@ -28,6 +28,8 @@ const parseVariableInfo = (
     variableLength = variable.type.match(/uint([0-9]+)/)?.[1]
   } else if (variable.type.startsWith('t_address')) {
     variableLength = 20
+  } else if (variable.type.startsWith('t_bool')) {
+    variableLength = 1
   } else {
     throw new Error('unsupported type, add it to the script')
   }

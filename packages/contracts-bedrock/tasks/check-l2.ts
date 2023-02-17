@@ -269,10 +269,6 @@ const check = {
     await checkProxy(hre, 'L2CrossDomainMessenger', signer.provider)
     await assertProxy(hre, 'L2CrossDomainMessenger', signer.provider)
 
-    const owner = await L2CrossDomainMessenger.owner()
-    assert(owner !== hre.ethers.constants.AddressZero)
-    yell(`  - owner: ${owner}`)
-
     const MESSAGE_VERSION = await L2CrossDomainMessenger.MESSAGE_VERSION()
     console.log(`  - MESSAGE_VERSION: ${MESSAGE_VERSION}`)
     const MIN_GAS_CALLDATA_OVERHEAD =
