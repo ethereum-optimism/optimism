@@ -18,16 +18,15 @@ import {
   sleep,
   remove0x,
   toHexString,
-  fromHexString,
   toRpcHexString,
   hashCrossDomainMessage,
   encodeCrossDomainMessageV0,
   encodeCrossDomainMessageV1,
-  L2OutputOracleParameters,
   BedrockOutputData,
   BedrockCrossChainMessageProof,
   decodeVersionedNonce,
   encodeVersionedNonce,
+  calldataCost,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
@@ -352,12 +351,13 @@ export class CrossChainMessenger {
       }
     }
 
-    const minGasLimit = fromHexString(resolved.message).length * 16 + 200_000
+    const dataCost = calldataCost(resolved.message)
+    const minGasLimit = dataCost.add(200_000)
 
     return {
       ...resolved,
       value,
-      minGasLimit: BigNumber.from(minGasLimit),
+      minGasLimit,
       messageNonce: encodeVersionedNonce(
         BigNumber.from(1),
         resolved.messageNonce

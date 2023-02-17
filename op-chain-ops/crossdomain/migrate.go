@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var (
@@ -82,8 +83,18 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)
 	}
 
+	// Compute the cost of the calldata
+	dataCost := uint64(0)
+	for _, b := range data {
+		if b == 0 {
+			dataCost += params.TxDataZeroGas
+		} else {
+			dataCost += params.TxDataNonZeroGasEIP2028
+		}
+	}
+
 	// Set the outer gas limit. This cannot be zero
-	gasLimit := uint64(len(data)*16 + 200_000)
+	gasLimit := dataCost + 200_000
 
 	w := NewWithdrawal(
 		versionedNonce,
