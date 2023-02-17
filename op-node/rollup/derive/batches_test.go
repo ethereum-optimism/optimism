@@ -151,6 +151,22 @@ func TestValidBatch(t *testing.T) {
 		SequenceNumber: 0,
 	}
 
+	l2A4 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         l2A3.Number + 1,
+		ParentHash:     l2A3.Hash,
+		Time:           l2A3.Time + conf.BlockTime, // 4*2 = 8, higher than seq time drift
+		L1Origin:       l1A.ID(),
+		SequenceNumber: 4,
+	}
+
+	l1BLate := eth.L1BlockRef{
+		Hash:       testutils.RandomHash(rng),
+		Number:     l1A.Number + 1,
+		ParentHash: l1A.Hash,
+		Time:       l2A4.Time + 1, // too late for l2A4 to adopt yet
+	}
+
 	testCases := []ValidBatchTestCase{
 		{
 			Name:       "missing L1 info",
@@ -249,16 +265,16 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchDrop,
 		},
 		{
-			Name:       "epoch too old", // repeat of now outdated l2A3 data
+			Name:       "epoch too old, but good parent hash and timestamp", // repeat of now outdated l2A3 data
 			L1Blocks:   []eth.L1BlockRef{l1B, l1C, l1D},
 			L2SafeHead: l2B0, // we already moved on to B
 			Batch: BatchWithL1InclusionBlock{
 				L1InclusionBlock: l1C,
 				Batch: &BatchData{BatchV1{
-					ParentHash:   l2A3.ParentHash,
+					ParentHash:   l2B0.Hash,                          // build on top of safe head to continue
 					EpochNum:     rollup.Epoch(l2A3.L1Origin.Number), // epoch A is no longer valid
 					EpochHash:    l2A3.L1Origin.Hash,
-					Timestamp:    l2A3.Time,
+					Timestamp:    l2B0.Time + conf.BlockTime, // pass the timestamp check to get too epoch check
 					Transactions: nil,
 				}},
 			},
@@ -313,23 +329,55 @@ func TestValidBatch(t *testing.T) {
 			Expected: BatchDrop,
 		},
 		{
-			Name:       "sequencer time drift on same epoch",
+			Name:       "sequencer time drift on same epoch with non-empty txs",
 			L1Blocks:   []eth.L1BlockRef{l1A, l1B},
 			L2SafeHead: l2A3,
 			Batch: BatchWithL1InclusionBlock{
 				L1InclusionBlock: l1B,
 				Batch: &BatchData{BatchV1{ // we build l2A4, which has a timestamp of 2*4 = 8 higher than l2A0
-					ParentHash:   l2A3.Hash,
-					EpochNum:     rollup.Epoch(l2A3.L1Origin.Number),
-					EpochHash:    l2A3.L1Origin.Hash,
-					Timestamp:    l2A3.Time + conf.BlockTime,
-					Transactions: nil,
+					ParentHash:   l2A4.ParentHash,
+					EpochNum:     rollup.Epoch(l2A4.L1Origin.Number),
+					EpochHash:    l2A4.L1Origin.Hash,
+					Timestamp:    l2A4.Time,
+					Transactions: []hexutil.Bytes{[]byte("sequencer should not include this tx")},
 				}},
 			},
 			Expected: BatchDrop,
 		},
 		{
-			Name:       "sequencer time drift on changing epoch",
+			Name:       "sequencer time drift on changing epoch with non-empty txs",
+			L1Blocks:   []eth.L1BlockRef{l1X, l1Y, l1Z},
+			L2SafeHead: l2X0,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1Z,
+				Batch: &BatchData{BatchV1{
+					ParentHash:   l2Y0.ParentHash,
+					EpochNum:     rollup.Epoch(l2Y0.L1Origin.Number),
+					EpochHash:    l2Y0.L1Origin.Hash,
+					Timestamp:    l2Y0.Time, // valid, but more than 6 ahead of l1Y.Time
+					Transactions: []hexutil.Bytes{[]byte("sequencer should not include this tx")},
+				}},
+			},
+			Expected: BatchDrop,
+		},
+		{
+			Name:       "sequencer time drift on same epoch with empty txs and late next epoch",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1BLate},
+			L2SafeHead: l2A3,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1BLate,
+				Batch: &BatchData{BatchV1{ // l2A4 time < l1BLate time, so we cannot adopt origin B yet
+					ParentHash:   l2A4.ParentHash,
+					EpochNum:     rollup.Epoch(l2A4.L1Origin.Number),
+					EpochHash:    l2A4.L1Origin.Hash,
+					Timestamp:    l2A4.Time,
+					Transactions: nil,
+				}},
+			},
+			Expected: BatchAccept, // accepted because empty & preserving L2 time invariant
+		},
+		{
+			Name:       "sequencer time drift on changing epoch with empty txs",
 			L1Blocks:   []eth.L1BlockRef{l1X, l1Y, l1Z},
 			L2SafeHead: l2X0,
 			Batch: BatchWithL1InclusionBlock{
@@ -342,7 +390,39 @@ func TestValidBatch(t *testing.T) {
 					Transactions: nil,
 				}},
 			},
-			Expected: BatchDrop,
+			Expected: BatchAccept, // accepted because empty & still advancing epoch
+		},
+		{
+			Name:       "sequencer time drift on same epoch with empty txs and no next epoch in sight yet",
+			L1Blocks:   []eth.L1BlockRef{l1A},
+			L2SafeHead: l2A3,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1B,
+				Batch: &BatchData{BatchV1{ // we build l2A4, which has a timestamp of 2*4 = 8 higher than l2A0
+					ParentHash:   l2A4.ParentHash,
+					EpochNum:     rollup.Epoch(l2A4.L1Origin.Number),
+					EpochHash:    l2A4.L1Origin.Hash,
+					Timestamp:    l2A4.Time,
+					Transactions: nil,
+				}},
+			},
+			Expected: BatchUndecided, // we have to wait till the next epoch is in sight to check the time
+		},
+		{
+			Name:       "sequencer time drift on same epoch with empty txs and but in-sight epoch that invalidates it",
+			L1Blocks:   []eth.L1BlockRef{l1A, l1B, l1C},
+			L2SafeHead: l2A3,
+			Batch: BatchWithL1InclusionBlock{
+				L1InclusionBlock: l1C,
+				Batch: &BatchData{BatchV1{ // we build l2A4, which has a timestamp of 2*4 = 8 higher than l2A0
+					ParentHash:   l2A4.ParentHash,
+					EpochNum:     rollup.Epoch(l2A4.L1Origin.Number),
+					EpochHash:    l2A4.L1Origin.Hash,
+					Timestamp:    l2A4.Time,
+					Transactions: nil,
+				}},
+			},
+			Expected: BatchDrop, // dropped because it could have advanced the epoch to B
 		},
 		{
 			Name:       "empty tx included",
