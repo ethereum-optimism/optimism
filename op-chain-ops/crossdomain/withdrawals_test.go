@@ -146,8 +146,8 @@ func sendCrossDomainMessage(
 		// Parse the legacy event
 		if event.Name == "SentMessage" {
 			e, _ := l2xdm.ParseSentMessage(*log)
-			msg.Target = &e.Target
-			msg.Sender = &e.Sender
+			msg.Target = e.Target
+			msg.Sender = e.Sender
 			msg.Data = e.Message
 			msg.Nonce = e.MessageNonce
 			msg.GasLimit = e.GasLimit
@@ -272,7 +272,7 @@ func TestGetPendingWithdrawals(t *testing.T) {
 	for i, msg := range msgs[3:] {
 		withdrawal := withdrawals[i]
 
-		require.Equal(t, msg.Target, *withdrawal.Target)
-		require.Equal(t, msg.Message, []byte(withdrawal.Data))
+		require.Equal(t, msg.Target, withdrawal.XDomainTarget)
+		require.Equal(t, msg.Message, []byte(withdrawal.XDomainData))
 	}
 }

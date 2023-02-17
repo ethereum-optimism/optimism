@@ -19,7 +19,7 @@ var (
 )
 
 // MigrateWithdrawals will migrate a list of pending withdrawals given a StateDB.
-func MigrateWithdrawals(withdrawals []*LegacyWithdrawal, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
+func MigrateWithdrawals(withdrawals SafeFilteredWithdrawals, db vm.StateDB, l1CrossDomainMessenger *common.Address, noCheck bool) error {
 	for i, legacy := range withdrawals {
 		legacySlot, err := legacy.StorageSlot()
 		if err != nil {
@@ -66,17 +66,17 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 	// Migrated withdrawals are specified as version 0. Both the
 	// L2ToL1MessagePasser and the CrossDomainMessenger use the same
 	// versioning scheme. Both should be set to version 0
-	versionedNonce := EncodeVersionedNonce(withdrawal.Nonce, new(big.Int))
+	versionedNonce := EncodeVersionedNonce(withdrawal.XDomainNonce, new(big.Int))
 	// Encode the call to `relayMessage` on the `CrossDomainMessenger`.
 	// The minGasLimit can safely be 0 here.
 	data, err := abi.Pack(
 		"relayMessage",
 		versionedNonce,
-		withdrawal.Sender,
-		withdrawal.Target,
+		withdrawal.XDomainSender,
+		withdrawal.XDomainTarget,
 		value,
 		new(big.Int),
-		[]byte(withdrawal.Data),
+		[]byte(withdrawal.XDomainData),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)

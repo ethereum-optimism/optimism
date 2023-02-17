@@ -10,8 +10,8 @@ import (
 // HashCrossDomainMessageV0 computes the pre bedrock cross domain messaging
 // hashing scheme.
 func HashCrossDomainMessageV0(
-	target *common.Address,
-	sender *common.Address,
+	target common.Address,
+	sender common.Address,
 	data []byte,
 	nonce *big.Int,
 ) (common.Hash, error) {
@@ -27,8 +27,8 @@ func HashCrossDomainMessageV0(
 // messaging hashing scheme.
 func HashCrossDomainMessageV1(
 	nonce *big.Int,
-	sender *common.Address,
-	target *common.Address,
+	sender common.Address,
+	target common.Address,
 	value *big.Int,
 	gasLimit *big.Int,
 	data []byte,

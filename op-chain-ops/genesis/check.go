@@ -461,7 +461,8 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 	// First, make a mapping between old withdrawal slots and new ones.
 	// This list can be a superset of what was actually migrated, since
 	// some witness data may references withdrawals that reverted.
-	oldToNew := make(map[common.Hash]common.Hash)
+	oldToNewSlots := make(map[common.Hash]common.Hash)
+	wdsByOldSlot := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
 	for _, wd := range wds {
 		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
 		if err != nil {
@@ -477,7 +478,8 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 			return fmt.Errorf("cannot compute migrated storage slot: %w", err)
 		}
 
-		oldToNew[legacySlot] = migratedSlot
+		oldToNewSlots[legacySlot] = migratedSlot
+		wdsByOldSlot[legacySlot] = wd
 	}
 
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
@@ -498,17 +500,29 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		}
 
 		// Grab the migrated slot.
-		migratedSlot := oldToNew[key]
+		migratedSlot := oldToNewSlots[key]
 		if migratedSlot == (common.Hash{}) {
 			innerErr = fmt.Errorf("no migrated slot found for legacy slot %s", key)
 			return false
 		}
 
-		// Look up the migrated slot in the DB, and make sure it is abiTrue.
+		// Look up the migrated slot in the DB.
 		migratedValue := db.GetState(predeploys.L2ToL1MessagePasserAddr, migratedSlot)
-		if migratedValue != abiTrue {
-			innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
-			return false
+
+		// If the sender is _not_ the L2XDM, the value should not be migrated.
+		wd := wdsByOldSlot[key]
+		if wd.XDomainSender == predeploys.L2CrossDomainMessengerAddr {
+			// Make sure the value is abiTrue if this withdrawal should be migrated.
+			if migratedValue != abiTrue {
+				innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
+				return false
+			}
+		} else {
+			// Otherwise, ensure that withdrawals from senders other than the L2XDM are _not_ migrated.
+			if migratedValue != abiFalse {
+				innerErr = fmt.Errorf("a migration from a sender other than the L2XDM was migrated")
+				return false
+			}
 		}
 
 		return true
