@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";
+import { Messenger_Initializer, Reverter, ConfigurableCaller } from "./CommonTest.t.sol";
 
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
@@ -99,9 +99,7 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
         // Expect a revert.
-        vm.expectRevert(
-            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
-        );
+        vm.expectRevert("Hashing: unknown cross domain message version");
 
         // Try to relay a v2 message.
         vm.prank(caller);
@@ -255,20 +253,14 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         assertEq(L2Messenger.failedMessages(hash), true);
     }
 
-    // relayMessage: should revert if recipient is trying to reenter
-    function test_relayMessage_reentrancy_reverts() external {
-        address target = address(0xabcd);
+    // relayMessage: Should revert if the recipient is trying to reenter with the
+    // same message.
+    function test_relayMessage_reentrancySameMessage_reverts() external {
+        ConfigurableCaller caller = new ConfigurableCaller();
+        address target = address(caller);
         address sender = address(L1Messenger);
-        address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
-        bytes memory message = abi.encodeWithSelector(
-            L2Messenger.relayMessage.selector,
-            Encoding.encodeVersionedNonce(0, 1),
-            sender,
-            target,
-            0,
-            0,
-            hex"1111"
-        );
+        address l1XDMAlias = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+        bytes memory callMessage = abi.encodeWithSelector(caller.call.selector);
 
         bytes32 hash = Hashing.hashCrossDomainMessage(
             Encoding.encodeVersionedNonce(0, 1),
@@ -276,30 +268,152 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
             target,
             0,
             0,
-            message
+            callMessage
         );
 
-        vm.etch(target, address(new CallerCaller()).code);
+        // Act as the L1XDM and call the `relayMessage` function with the `innerMessage`.
+        vm.prank(l1XDMAlias);
+        vm.expectCall(target, callMessage);
+        L2Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 1),
+            sender,
+            target,
+            0,
+            0,
+            callMessage
+        );
 
+        // Assert that the message failed to be relayed
+        assertFalse(L2Messenger.successfulMessages(hash));
+        assertTrue(L2Messenger.failedMessages(hash));
+
+        // Set the configurable caller's target to `L2Messenger` and set the payload to `relayMessage(...)`.
+        caller.setDoRevert(false);
+        caller.setTarget(address(L2Messenger));
+        caller.setPayload(
+            abi.encodeWithSelector(
+                L2Messenger.relayMessage.selector,
+                Encoding.encodeVersionedNonce(0, 1),
+                sender,
+                target,
+                0,
+                0,
+                callMessage
+            )
+        );
+
+        // Attempt to replay the failed message, which will *not* immediately revert this time around,
+        // but attempt to reenter `relayMessage` with the same message hash. The reentrancy attempt should
+        // revert.
         vm.expectEmit(true, true, true, true, target);
-
         emit WhatHappened(
             false,
             abi.encodeWithSignature("Error(string)", "ReentrancyGuard: reentrant call")
         );
-
-        vm.prank(caller);
-        vm.expectCall(target, message);
         L2Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1), // nonce
+            Encoding.encodeVersionedNonce(0, 1),
             sender,
             target,
-            0, // value
             0,
-            message
+            0,
+            callMessage
         );
 
-        assertEq(L2Messenger.successfulMessages(hash), false);
-        assertEq(L2Messenger.failedMessages(hash), true);
+        // Assert that the message still failed to be relayed.
+        assertFalse(L2Messenger.successfulMessages(hash));
+        assertTrue(L2Messenger.failedMessages(hash));
+    }
+
+    // relayMessage: should not revert if the recipient reenters `relayMessage` with a different
+    // message hash.
+    function test_relayMessage_reentrancyDiffMessage_succeeds() external {
+        ConfigurableCaller caller = new ConfigurableCaller();
+        address target = address(caller);
+        address sender = address(L1Messenger);
+        address l1XDMAlias = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
+
+        bytes memory messageA = abi.encodeWithSelector(caller.call.selector);
+        bytes memory messageB = hex"";
+
+        bytes32 hashA = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce(0, 1),
+            sender,
+            target,
+            0,
+            0,
+            messageA
+        );
+        bytes32 hashB = Hashing.hashCrossDomainMessage(
+            Encoding.encodeVersionedNonce(0, 1),
+            sender,
+            target,
+            0,
+            0,
+            messageB
+        );
+
+        // Act as the L1XDM and call the `relayMessage` function with both `messageA` and `messageB`.
+        vm.startPrank(l1XDMAlias);
+
+        vm.expectCall(target, messageA);
+        L2Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 1),
+            sender,
+            target,
+            0,
+            0,
+            messageA
+        );
+        vm.expectCall(target, messageB);
+        L2Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 1),
+            sender,
+            target,
+            0,
+            0,
+            messageB
+        );
+
+        // Stop acting as the L1XDM
+        vm.stopPrank();
+
+        // Assert that both messages failed to be relayed
+        assertFalse(L2Messenger.successfulMessages(hashA));
+        assertFalse(L2Messenger.successfulMessages(hashB));
+        assertTrue(L2Messenger.failedMessages(hashA));
+        assertTrue(L2Messenger.failedMessages(hashB));
+
+        // Set the configurable caller's target to `L2Messenger` and set the payload to `relayMessage(...)`.
+        caller.setDoRevert(false);
+        caller.setTarget(address(L2Messenger));
+        caller.setPayload(
+            abi.encodeWithSelector(
+                L2Messenger.relayMessage.selector,
+                Encoding.encodeVersionedNonce(0, 1),
+                sender,
+                target,
+                0,
+                0,
+                messageB
+            )
+        );
+
+        // Attempt to replay the failed message, which will *not* immediately revert this time around,
+        // but attempt to reenter `relayMessage` with messageB. The reentrancy attempt should succeed
+        // because the message hashes are different.
+        vm.expectEmit(true, true, true, true, target);
+        emit WhatHappened(true, hex"");
+        L2Messenger.relayMessage(
+            Encoding.encodeVersionedNonce(0, 1),
+            sender,
+            target,
+            0,
+            0,
+            messageA
+        );
+
+        // Assert that both messages are now in the `successfulMessages` mapping.
+        assertTrue(L2Messenger.successfulMessages(hashA));
+        assertTrue(L2Messenger.successfulMessages(hashB));
     }
 }

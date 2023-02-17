@@ -177,6 +177,45 @@ abstract contract CrossDomainMessenger is
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
     /**
+     * @notice Modifier for a per-message reentrancy guard.
+     */
+    modifier perMessageNonReentrant(bytes32 _msgHash) {
+        bytes32 _hashMsgHash;
+        assembly {
+            // Re-hash the `_msgHash` with the `0xcafebabe` salt to reduce the possibility
+            // of collisions.
+            mstore(0x00, _msgHash)
+            mstore(0x20, 0xcafebabe)
+            _hashMsgHash := keccak256(0x00, 0x40)
+
+            // Check if the reentrancy lock for the `_msgHash` is set. If so, revert.
+            if sload(_hashMsgHash) {
+                // SAFETY: We're reverting, so it's fine that we're clobbering the free memory
+                // pointer.
+
+                // Store selector for "Error(string)" in scratch space
+                mstore(0x00, 0x08c379a0)
+                // Store pointer to the string in scratch space
+                mstore(0x20, 0x20)
+                // Zero-out the free memory pointer (prevents corruption of the length word)
+                mstore(0x40, 0x00)
+                // 31 length + "ReentrancyGuard: reentrant call"
+                // Note that we do not need to zero-out the memory at 0x60, as it is the zero slot.
+                mstore(0x5f, 0x1f5265656e7472616e637947756172643a207265656e7472616e742063616c6c)
+                // Revert with 'Error("ReentrancyGuard: reentrant call")'
+                revert(0x1c, 0x64)
+            }
+            // Trigger the reentrancy lock for `_msgHash`.
+            sstore(_hashMsgHash, 0x01)
+        }
+        _;
+        assembly {
+            // Clear the reentrancy lock for `_msgHash`
+            sstore(_hashMsgHash, 0x00)
+        }
+    }
+
+    /**
      * @param _otherMessenger Address of the messenger on the paired chain.
      */
     constructor(address _otherMessenger) {
@@ -260,13 +299,15 @@ abstract contract CrossDomainMessenger is
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) external payable nonReentrant whenNotPaused {
+    )
+        external
+        payable
+        perMessageNonReentrant(
+            Hashing.hashCrossDomainMessage(_nonce, _sender, _target, _value, _minGasLimit, _message)
+        )
+        whenNotPaused
+    {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-        require(
-            version < 2,
-            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
-        );
-
         // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
         // to check that the legacy version of the message has not already been relayed.
         if (version == 0) {
