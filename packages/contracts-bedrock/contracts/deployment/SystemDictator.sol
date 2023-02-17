@@ -335,7 +335,7 @@ contract SystemDictator is OwnableUpgradeable {
         // Try to initialize the L1CrossDomainMessenger, only fail if it's already been initialized.
         try
             L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
-                .initialize(address(this))
+                .initialize()
         {
             // L1CrossDomainMessenger is the one annoying edge case difference between existing
             // networks and fresh networks because in existing networks it'll already be
@@ -375,27 +375,12 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
-
-        // Pause the L1CrossDomainMessenger, chance to check that everything is OK.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).pause();
-    }
-
-    /**
-     * @notice Unpauses the system at which point the system should be fully operational.
-     */
-    function step6() external onlyOwner step(6) {
-        // Unpause the L1CrossDomainMessenger.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy).unpause();
     }
 
     /**
      * @notice Tranfers admin ownership to the final owner.
      */
     function finalize() external onlyOwner {
-        // Transfer ownership of the L1CrossDomainMessenger to the final owner.
-        L1CrossDomainMessenger(config.proxyAddressConfig.l1CrossDomainMessengerProxy)
-            .transferOwnership(config.globalConfig.finalOwner);
-
         // Transfer ownership of the ProxyAdmin to the final owner.
         config.globalConfig.proxyAdmin.transferOwnership(config.globalConfig.finalOwner);
 

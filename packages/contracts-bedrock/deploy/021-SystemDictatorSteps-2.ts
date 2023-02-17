@@ -116,7 +116,7 @@ const deployFn: DeployFunction = async (hre) => {
       for (const dead of deads) {
         assert(
           (await AddressManager.getAddress(dead)) ===
-            ethers.constants.AddressZero
+          ethers.constants.AddressZero
         )
       }
     },
@@ -204,16 +204,15 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  // Step 5 initializes all contracts and pauses the new L1CrossDomainMessenger.
+  // Step 5 initializes all contracts.
   await doStep({
     isLiveDeployer,
     SystemDictator,
     step: 5,
     message: `
-      Step 5 will initialize all Bedrock contracts but will leave the new L1CrossDomainMessenger
-      paused. After this step is executed, users will be able to deposit and withdraw assets via
-      the OptimismPortal but not via the L1CrossDomainMessenger. The Proposer will also be able to
-      submit L2 outputs to the L2OutputOracle.
+      Step 5 will initialize all Bedrock contracts After this step is executed, the OptimismPortal
+      will be open for deposits but withdrawals will be paused if deploying a production network.
+      The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
     `,
     checks: async () => {
       // Check L2OutputOracle was initialized properly.
@@ -253,7 +252,6 @@ const deployFn: DeployFunction = async (hre) => {
       }
 
       // Check L1CrossDomainMessenger was initialized properly.
-      await assertContractVariable(L1CrossDomainMessenger, 'paused', true)
       try {
         await L1CrossDomainMessenger.xDomainMessageSender()
         assert(false, `L1CrossDomainMessenger was not initialized properly`)
@@ -292,6 +290,7 @@ const deployFn: DeployFunction = async (hre) => {
     },
   })
 
+  // Step 6 unpauses the OptimismPortal.
   if (await isStep(SystemDictator, 6)) {
     console.log(`
       Unpause the OptimismPortal. The GUARDIAN account should be used. In practice
@@ -320,21 +319,6 @@ const deployFn: DeployFunction = async (hre) => {
       1000
     )
   }
-
-  // Step 6 unpauses the new L1CrossDomainMessenger.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 6,
-    message: `
-      Step 6 will unpause the new L1CrossDomainMessenger. After this step is executed, users will
-      be able to deposit and withdraw assets via the L1CrossDomainMessenger and the system will be
-      fully operational.
-    `,
-    checks: async () => {
-      await assertContractVariable(L1CrossDomainMessenger, 'paused', false)
-    },
-  })
 
   // At the end we finalize the upgrade.
   if (await isStep(SystemDictator, 7)) {
