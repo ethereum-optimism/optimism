@@ -44,11 +44,15 @@ contract OptimismMintableERC20Factory is Semver {
     );
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
+     *
+     * @notice The semver MUST be bumped any time that there is a change in
+     *         the OptimismMintableERC20 token contract since this contract
+     *         is responsible for deploying OptimismMintableERC20 contracts.
      *
      * @param _bridge Address of the StandardBridge on this chain.
      */
-    constructor(address _bridge) Semver(1, 0, 0) {
+    constructor(address _bridge) Semver(1, 1, 0) {
         BRIDGE = _bridge;
     }
 
