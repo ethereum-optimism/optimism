@@ -362,7 +362,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.prank(address(op));
         vm.expectCall(target, callMessage);
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -380,7 +380,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         caller.setPayload(
             abi.encodeWithSelector(
                 L1Messenger.relayMessage.selector,
-                Encoding.encodeVersionedNonce(0, 1),
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
                 sender,
                 target,
                 0,
@@ -421,7 +421,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         bytes memory messageB = hex"";
 
         bytes32 hashA = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -429,7 +429,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
             messageA
         );
         bytes32 hashB = Hashing.hashCrossDomainMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -445,7 +445,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectCall(target, messageA);
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -454,7 +454,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         );
         vm.expectCall(target, messageB);
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
@@ -477,7 +477,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         caller.setPayload(
             abi.encodeWithSelector(
                 L1Messenger.relayMessage.selector,
-                Encoding.encodeVersionedNonce(0, 1),
+                Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
                 sender,
                 target,
                 0,
@@ -492,7 +492,7 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.expectEmit(true, true, true, true, target);
         emit WhatHappened(true, hex"");
         L1Messenger.relayMessage(
-            Encoding.encodeVersionedNonce(0, 1),
+            Encoding.encodeVersionedNonce({ _nonce: 0, _version: 1 }),
             sender,
             target,
             0,
