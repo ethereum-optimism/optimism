@@ -183,7 +183,7 @@ abstract contract CrossDomainMessenger is
         bytes32 _hashMsgHash;
         assembly {
             // Re-hash the `_msgHash` with the `0xcafebabe` salt to reduce the possibility
-            // of collisions.
+            // of collisions with existing storage slots.
             mstore(0x00, _msgHash)
             mstore(0x20, 0xcafebabe)
             _hashMsgHash := keccak256(0x00, 0x40)
@@ -197,11 +197,10 @@ abstract contract CrossDomainMessenger is
                 mstore(0x00, 0x08c379a0)
                 // Store pointer to the string in scratch space
                 mstore(0x20, 0x20)
-                // Zero-out the free memory pointer (prevents corruption of the length word)
-                mstore(0x40, 0x00)
-                // 31 length + "ReentrancyGuard: reentrant call"
-                // Note that we do not need to zero-out the memory at 0x60, as it is the zero slot.
-                mstore(0x5f, 0x1f5265656e7472616e637947756172643a207265656e7472616e742063616c6c)
+                // Add the length of the "ReentrancyGuard: reentrant call" string (31 bytes)
+                mstore(0x40, 0x1f)
+                // Store "ReentrancyGuard: reentrant call" in the zero slot (plus a 0 byte for padding)
+                mstore(0x60, 0x5265656e7472616e637947756172643a207265656e7472616e742063616c6c00)
                 // Revert with 'Error("ReentrancyGuard: reentrant call")'
                 revert(0x1c, 0x64)
             }

@@ -242,7 +242,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2CrossDomainMessenger, 'L2CrossDomainMessenger')
+    await assertSemver(L2CrossDomainMessenger, 'L2CrossDomainMessenger', '1.1.0')
 
     const xDomainMessageSenderSlot = await signer.provider.getStorageAt(
       predeploys.L2CrossDomainMessenger,
