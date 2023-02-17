@@ -46,6 +46,8 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
     }
 
     /**
+     * @custom:semver 1.0.0
+     *
      * @param _bridge        Address of the bridge on this network.
      * @param _remoteChainId Chain ID where the remote token is deployed.
      * @param _remoteToken   Address of the corresponding token on the other network.

@@ -50,6 +50,8 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
     }
 
     /**
+     * @custom:semver 1.0.0
+     *
      * @param _bridge      Address of the L2 standard bridge.
      * @param _remoteToken Address of the corresponding L1 token.
      * @param _name        ERC20 name.
