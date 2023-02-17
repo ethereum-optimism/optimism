@@ -16,6 +16,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
     function setUp() public override {
         super.setUp();
         vm.etch(Predeploys.SEQUENCER_FEE_WALLET, address(new SequencerFeeVault(recipient)).code);
+        vm.label(Predeploys.SEQUENCER_FEE_WALLET, "SequencerFeeVault");
     }
 
     function test_minWithdrawalAmount_succeeds() external {
@@ -52,7 +53,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         // No ether has been withdrawn yet
         assertEq(vault.totalProcessed(), 0);
 
-        vm.expectEmit(true, true, true, true);
+        vm.expectEmit(true, true, true, true, address(Predeploys.SEQUENCER_FEE_WALLET));
         emit Withdrawal(address(vault).balance, vault.RECIPIENT(), address(this));
 
         // The entire vault's balance is withdrawn

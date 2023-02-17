@@ -19,6 +19,9 @@ contract FeeVault_Test is Bridge_Initializer {
         super.setUp();
         vm.etch(Predeploys.BASE_FEE_VAULT, address(new BaseFeeVault(recipient)).code);
         vm.etch(Predeploys.L1_FEE_VAULT, address(new L1FeeVault(recipient)).code);
+
+        vm.label(Predeploys.BASE_FEE_VAULT, "BaseFeeVault");
+        vm.label(Predeploys.L1_FEE_VAULT, "L1FeeVault");
     }
 
     function test_constructor_succeeds() external {
