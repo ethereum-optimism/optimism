@@ -138,12 +138,7 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         });
 
         vm.expectEmit(true, true, true, true, address(L2Bridge));
-        emit ETHBridgeInitiated({
-            from: alice,
-            to: alice,
-            amount: 100,
-            data: hex""
-        });
+        emit ETHBridgeInitiated({ from: alice, to: alice, amount: 100, data: hex"" });
 
         vm.prank(alice, alice);
         L2Bridge.withdraw{ value: 100 }({
