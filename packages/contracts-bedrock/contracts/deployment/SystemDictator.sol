@@ -127,6 +127,11 @@ contract SystemDictator is OwnableUpgradeable {
     bool public finalized;
 
     /**
+     * @notice Whether or not the deployment has been exited.
+     */
+    bool public exited;
+
+    /**
      * @notice Address of the old L1CrossDomainMessenger implementation.
      */
     address public oldL1CrossDomainMessenger;
@@ -137,7 +142,9 @@ contract SystemDictator is OwnableUpgradeable {
      * @param _step Current step.
      */
     modifier step(uint8 _step) {
-        require(currentStep == _step, "BaseSystemDictator: incorrect step");
+        require(!finalized, "SystemDictator: already finalized");
+        require(!exited, "SystemDictator: already exited");
+        require(currentStep == _step, "SystemDictator: incorrect step");
         _;
         currentStep++;
     }
@@ -402,6 +409,7 @@ contract SystemDictator is OwnableUpgradeable {
             );
         }
 
+        // Mark the deployment as finalized.
         finalized = true;
     }
 
@@ -422,5 +430,8 @@ contract SystemDictator is OwnableUpgradeable {
 
         // Unset the DTL shutoff block which will allow the DTL to sync again.
         config.globalConfig.addressManager.setAddress("DTL_SHUTOFF_BLOCK", address(0));
+
+        // Mark the deployment as exited.
+        exited = true;
     }
 }
