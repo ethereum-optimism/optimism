@@ -26,7 +26,6 @@ const deployFn: DeployFunction = async (hre) => {
     L1CrossDomainMessenger,
     L1StandardBridgeProxy,
     L1StandardBridge,
-    L2OutputOracle,
     OptimismPortal,
     OptimismMintableERC20Factory,
     L1ERC721Bridge,
@@ -55,11 +54,6 @@ const deployFn: DeployFunction = async (hre) => {
     {
       name: 'Proxy__OVM_L1StandardBridge',
       iface: 'L1StandardBridge',
-      signerOrProvider: deployer,
-    },
-    {
-      name: 'L2OutputOracleProxy',
-      iface: 'L2OutputOracle',
       signerOrProvider: deployer,
     },
     {
@@ -213,13 +207,6 @@ const deployFn: DeployFunction = async (hre) => {
       submit L2 outputs to the L2OutputOracle.
     `,
     checks: async () => {
-      // Check L2OutputOracle was initialized properly.
-      await assertContractVariable(
-        L2OutputOracle,
-        'latestBlockNumber',
-        hre.deployConfig.l2OutputOracleStartingBlockNumber
-      )
-
       // Check OptimismPortal was initialized properly.
       await assertContractVariable(
         OptimismPortal,
