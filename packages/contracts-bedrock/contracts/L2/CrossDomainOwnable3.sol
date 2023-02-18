@@ -51,7 +51,7 @@ abstract contract CrossDomainOwnable3 is Ownable {
      */
     function _checkOwner() internal view override {
         if (isLocal) {
-            require(owner() == _msgSender(), "CrossDomainOwnable3: caller is not the owner");
+            require(owner() == msg.sender, "CrossDomainOwnable3: caller is not the owner");
         } else {
             L2CrossDomainMessenger messenger = L2CrossDomainMessenger(
                 Predeploys.L2_CROSS_DOMAIN_MESSENGER
