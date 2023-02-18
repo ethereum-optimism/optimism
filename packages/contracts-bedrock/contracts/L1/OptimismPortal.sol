@@ -85,7 +85,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *         deposits and withdrawals are paused. This may be removed in the
      *         future.
      */
-    bool public paused = false;
+    bool public paused;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
@@ -145,21 +145,23 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
+     * @param _paused                    Sets the contract's pausability state.
      */
     constructor(
         L2OutputOracle _l2Oracle,
         address _guardian,
-        uint256 _finalizationPeriodSeconds
+        uint256 _finalizationPeriodSeconds,
+        bool _paused
     ) Semver(1, 1, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        initialize(true);
+        initialize(_paused);
     }
 
     /**

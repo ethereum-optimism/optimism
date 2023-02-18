@@ -63,6 +63,7 @@
 | l2Sender             | address                                                    | 50   | 0      | 20    | contracts/L1/OptimismPortal.sol:OptimismPortal |
 | finalizedWithdrawals | mapping(bytes32 => bool)                                   | 51   | 0      | 32    | contracts/L1/OptimismPortal.sol:OptimismPortal |
 | provenWithdrawals    | mapping(bytes32 => struct OptimismPortal.ProvenWithdrawal) | 52   | 0      | 32    | contracts/L1/OptimismPortal.sol:OptimismPortal |
+| paused               | bool                                                       | 53   | 0      | 1     | contracts/L1/OptimismPortal.sol:OptimismPortal |
 
 =======================
 ➡ contracts/L1/SystemConfig.sol:SystemConfig

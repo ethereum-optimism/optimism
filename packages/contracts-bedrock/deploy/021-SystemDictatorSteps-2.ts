@@ -294,11 +294,15 @@ const deployFn: DeployFunction = async (hre) => {
 
   if (await isStep(SystemDictator, 6)) {
     console.log(`
-      Unpause the OptimismPortal
+      Unpause the OptimismPortal. The GUARDIAN account should be used. In practice
+      this is the multisig. In test networks, the OptimismPortal is initialized
+      without being paused.
     `)
 
     if (isLiveDeployer) {
-      console.log('OptimismPortal already not paused.')
+      console.log('WARNING: OptimismPortal configured to not be paused')
+      console.log('This should only happen for test environments')
+      await assertContractVariable(OptimismPortal, 'paused', false)
     } else {
       const tx = await OptimismPortal.populateTransaction.unpause()
       console.log(`Please unpause the OptimismPortal...`)
@@ -309,7 +313,8 @@ const deployFn: DeployFunction = async (hre) => {
 
     await awaitCondition(
       async () => {
-        return !OptimismPortal.paused()
+        const paused = await OptimismPortal.paused()
+        return !paused
       },
       30000,
       1000

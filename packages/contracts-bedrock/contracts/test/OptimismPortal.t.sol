@@ -21,6 +21,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.paused(), false);
     }
 
+    /**
+     * @notice The OptimismPortal can be paused by the GUARDIAN
+     */
     function test_pause_succeeds() external {
         address guardian = op.GUARDIAN();
 
@@ -35,6 +38,10 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.paused(), true);
     }
 
+    /**
+     * @notice The OptimismPortal reverts when an account that is not the
+     *         GUARDIAN calls `pause()`
+     */
     function test_pause_onlyOwner_reverts() external {
         assertEq(op.paused(), false);
 
@@ -46,6 +53,9 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.paused(), false);
     }
 
+    /**
+     * @notice The OptimismPortal can be unpaused by the GUARDIAN
+     */
     function test_unpause_succeeds() external {
         address guardian = op.GUARDIAN();
 
@@ -61,6 +71,10 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(op.paused(), false);
     }
 
+    /**
+     * @notice The OptimismPortal reverts when an account that is not
+     *         the GUARDIAN calls `unpause()`
+     */
     function test_unpause_onlyOwner_reverts() external {
         address guardian = op.GUARDIAN();
 
