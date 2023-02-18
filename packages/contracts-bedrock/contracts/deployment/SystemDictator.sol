@@ -310,11 +310,11 @@ contract SystemDictator is OwnableUpgradeable {
             )
         );
 
-        // Upgrade and initialize the OptimismPortal.
+        // Upgrade and initialize the OptimismPortal as paused.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.optimismPortalProxy),
             address(config.implementationAddressConfig.optimismPortalImpl),
-            abi.encodeCall(OptimismPortal.initialize, ())
+            abi.encodeCall(OptimismPortal.initialize, (true))
         );
 
         // Upgrade the L1CrossDomainMessenger.

@@ -159,14 +159,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        initialize();
+        initialize(true);
     }
 
     /**
      * @notice Initializer.
      */
-    function initialize() public initializer {
+    function initialize(bool _paused) public initializer {
         l2Sender = Constants.DEFAULT_L2_SENDER;
+        paused = _paused;
         __ResourceMetering_init();
     }
 

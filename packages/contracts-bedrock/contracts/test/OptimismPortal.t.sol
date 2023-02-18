@@ -1059,12 +1059,12 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
     function test_initialize_cannotInitProxy_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(payable(proxy)).initialize();
+        OptimismPortal(payable(proxy)).initialize(false);
     }
 
     function test_initialize_cannotInitImpl_reverts() external {
         vm.expectRevert("Initializable: contract is already initialized");
-        OptimismPortal(opImpl).initialize();
+        OptimismPortal(opImpl).initialize(false);
     }
 
     function test_upgradeToAndCall_upgrading_succeeds() external {

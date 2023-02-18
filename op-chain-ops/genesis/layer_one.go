@@ -123,7 +123,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err = portalABI.Pack("initialize")
+	data, err = portalABI.Pack("initialize", false)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
 	}

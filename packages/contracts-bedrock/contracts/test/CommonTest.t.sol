@@ -175,7 +175,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(opImpl),
-            abi.encodeWithSelector(OptimismPortal.initialize.selector)
+            abi.encodeWithSelector(OptimismPortal.initialize.selector, false)
         );
         op = OptimismPortal(payable(address(proxy)));
     }
@@ -235,6 +235,8 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             _finalizationPeriodSeconds: 7 days
         });
         vm.label(address(op), "OptimismPortal");
+        vm.prank(op.GUARDIAN());
+        op.unpause();
 
         // Deploy the address manager
         vm.prank(multisig);
