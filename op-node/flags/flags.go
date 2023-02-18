@@ -112,7 +112,7 @@ var (
 		EnvVar:   prefixEnvVar("L1_EPOCH_POLL_INTERVAL"),
 		Required: false,
 		// SYSCOIN
-		Value:    time.Second * 60,
+		Value: time.Second * 60,
 	}
 	LogLevelFlag = cli.StringFlag{
 		Name:   "log.level",
@@ -170,6 +170,9 @@ var (
 		Usage:  "Path to the snapshot log file",
 		EnvVar: prefixEnvVar("SNAPSHOT_LOG"),
 	}
+
+	/** Configuration for heartbeat service that monitors the state of the rollup **/
+
 	HeartbeatEnabledFlag = cli.BoolFlag{
 		Name:   "heartbeat.enabled",
 		Usage:  "Enables or disables heartbeating",
@@ -184,7 +187,6 @@ var (
 		Name:   "heartbeat.url",
 		Usage:  "Sets the URL to heartbeat to",
 		EnvVar: prefixEnvVar("HEARTBEAT_URL"),
-		Value:  "https://heartbeat.optimism.io",
 	}
 )
 

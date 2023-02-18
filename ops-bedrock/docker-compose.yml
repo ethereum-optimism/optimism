@@ -72,6 +72,9 @@ services:
       --metrics.port=7300
       --pprof.enabled
       --rpc.enable-admin
+      --heartbeat.enabled
+      --heartbeat.moniker=sequencer
+      --heartbeat.url=http://op-heartbeat:8080
     ports:
       - "7545:8545"
       - "9003:9003"
@@ -164,6 +167,16 @@ services:
       - "9090:8080"
     volumes:
       - op_log:/op_log:ro
+
+  op-heartbeat:
+    build:
+      context: ../
+      dockerfile: ./op-heartbeat/Dockerfile
+    environment:
+      OP_HEARTBEAT_HTTP_ADDR: 0.0.0.0
+      OP_HEARTBEAT_HTTP_PORT: 8080
+    ports:
+      - "8080:8080"
 
 networks:
   default:
