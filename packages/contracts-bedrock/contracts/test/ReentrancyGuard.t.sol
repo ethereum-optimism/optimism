@@ -14,7 +14,11 @@ contract ReentrancyGuard_Test is Test {
         reentrant = new NonReentrant();
     }
 
-    function test_perMessageNonReentrant_reverts() public {
+    function test_perMessageNonReentrant_diffHash_succeeds() public {
+        reentrant.noReentrance(bytes32(0));
+    }
+
+    function test_perMessageNonReentrant_sameHash_reverts() public {
         vm.expectRevert("ReentrancyGuard: reentrant call");
         reentrant.noReentrance(MSG_HASH);
     }
@@ -25,17 +29,15 @@ contract ReentrancyGuard_Test is Test {
 }
 
 contract NonReentrant is ReentrancyGuard {
+    bool onlyOnce;
+
     function noReentrance(bytes32 _hash) external perMessageNonReentrant(_hash) {
+        // Only allow the following call back to the sender occur once.
+        if (onlyOnce) return;
+        onlyOnce = true;
+
         assembly {
-            let success := call(
-                gas(),
-                caller(),
-                0,
-                0,
-                0,
-                0,
-                0
-            )
+            let success := call(gas(), caller(), 0, 0, 0, 0, 0)
             returndatacopy(0x00, 0x00, returndatasize())
             switch success
             case 0 {

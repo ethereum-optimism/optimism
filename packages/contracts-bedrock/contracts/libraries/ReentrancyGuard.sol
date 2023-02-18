@@ -20,8 +20,8 @@ contract ReentrancyGuard {
 
             // Check if the reentrancy lock for the `_msgHash` is set. If so, revert.
             if sload(_hashMsgHash) {
-                // MEMORY SAFETY: We're reverting, so it's fine that we're clobbering the free memory
-                // pointer.
+                // MEMORY SAFETY: We're reverting, so it's fine that we're clobbering the free
+                // memory pointer.
 
                 // Store selector for "Error(string)" in scratch space
                 mstore(0x00, 0x08c379a0)

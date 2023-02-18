@@ -149,7 +149,7 @@ contract CrossDomainOwnable3_Test is Messenger_Initializer {
         setter.transferOwnership({ _owner: address(0), _isLocal: true });
     }
 
-    function test_transferOwnership_noLocal_zeroAddress_reverts() public {
+    function test_transferOwnership_noLocalZeroAddress_reverts() public {
         vm.prank(setter.owner());
         vm.expectRevert("Ownable: new owner is the zero address");
         setter.transferOwnership(address(0));
