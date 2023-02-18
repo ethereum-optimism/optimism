@@ -167,7 +167,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice
+     * @notice Pause deposits and withdrawals.
      */
     function pause() external {
         require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
@@ -176,7 +176,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @notice
+     * @notice Unpause deposits and withdrawals.
      */
     function unpause() external {
         require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
