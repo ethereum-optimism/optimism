@@ -171,21 +171,24 @@ const deployFn: DeployFunction = async (hre) => {
         deployL2StartingTimestamp = l1StartingBlock.timestamp
       }
 
-      await SystemDictator.updateL2OutputOracleDynamicConfig({
-        l2OutputOracleStartingBlockNumber:
-          hre.deployConfig.l2OutputOracleStartingBlockNumber,
-        l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
-      })
+      await SystemDictator.updateDynamicConfig(
+        {
+          l2OutputOracleStartingBlockNumber:
+            hre.deployConfig.l2OutputOracleStartingBlockNumber,
+          l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+        },
+        false // do not pause the the OptimismPortal when initializing
+      )
     } else {
-      const tx =
-        await SystemDictator.populateTransaction.updateL2OutputOracleDynamicConfig(
-          {
-            l2OutputOracleStartingBlockNumber:
-              hre.deployConfig.l2OutputOracleStartingBlockNumber,
-            l2OutputOracleStartingTimestamp:
-              hre.deployConfig.l2OutputOracleStartingTimestamp,
-          }
-        )
+      const tx = await SystemDictator.populateTransaction.updateDynamicConfig(
+        {
+          l2OutputOracleStartingBlockNumber:
+            hre.deployConfig.l2OutputOracleStartingBlockNumber,
+          l2OutputOracleStartingTimestamp:
+            hre.deployConfig.l2OutputOracleStartingTimestamp,
+        },
+        true
+      )
       console.log(`Please update dynamic oracle config...`)
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
@@ -243,6 +246,12 @@ const deployFn: DeployFunction = async (hre) => {
         (await hre.ethers.provider.getBalance(L1StandardBridge.address)).eq(0)
       )
 
+      if (isLiveDeployer) {
+        await assertContractVariable(OptimismPortal, 'paused', false)
+      } else {
+        await assertContractVariable(OptimismPortal, 'paused', true)
+      }
+
       // Check L1CrossDomainMessenger was initialized properly.
       await assertContractVariable(L1CrossDomainMessenger, 'paused', true)
       try {
@@ -282,6 +291,30 @@ const deployFn: DeployFunction = async (hre) => {
       )
     },
   })
+
+  if (await isStep(SystemDictator, 6)) {
+    console.log(`
+      Unpause the OptimismPortal
+    `)
+
+    if (isLiveDeployer) {
+      console.log('OptimismPortal already not paused.')
+    } else {
+      const tx = await OptimismPortal.populateTransaction.unpause()
+      console.log(`Please unpause the OptimismPortal...`)
+      console.log(`OptimismPortal address: ${OptimismPortal.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
+    }
+
+    await awaitCondition(
+      async () => {
+        return !OptimismPortal.paused()
+      },
+      30000,
+      1000
+    )
+  }
 
   // Step 6 unpauses the new L1CrossDomainMessenger.
   await doStep({

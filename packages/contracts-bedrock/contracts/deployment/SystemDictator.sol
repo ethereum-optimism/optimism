@@ -112,6 +112,12 @@ contract SystemDictator is OwnableUpgradeable {
     L2OutputOracleDynamicConfig public l2OutputOracleDynamicConfig;
 
     /**
+     * @notice Dynamic configuration for the OptimismPortal. Determines
+     *         if the system should be paused when initialized.
+     */
+    bool public optimismPortalDynamicConfig;
+
+    /**
      * @notice Current step;
      */
     uint8 public currentStep;
@@ -160,14 +166,17 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
-     * @notice Allows the owner to update dynamic L2OutputOracle config.
+     * @notice Allows the owner to update dynamic config.
      *
      * @param _l2OutputOracleDynamicConfig Dynamic L2OutputOracle config.
+     * @param _optimismPortalDynamicConfig Dynamic OptimismPortal config.
      */
-    function updateL2OutputOracleDynamicConfig(
-        L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig
+    function updateDynamicConfig(
+        L2OutputOracleDynamicConfig memory _l2OutputOracleDynamicConfig,
+        bool _optimismPortalDynamicConfig
     ) external onlyOwner {
         l2OutputOracleDynamicConfig = _l2OutputOracleDynamicConfig;
+        optimismPortalDynamicConfig = _optimismPortalDynamicConfig;
         dynamicConfigSet = true;
     }
 
@@ -314,7 +323,7 @@ contract SystemDictator is OwnableUpgradeable {
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.optimismPortalProxy),
             address(config.implementationAddressConfig.optimismPortalImpl),
-            abi.encodeCall(OptimismPortal.initialize, (true))
+            abi.encodeCall(OptimismPortal.initialize, (optimismPortalDynamicConfig))
         );
 
         // Upgrade the L1CrossDomainMessenger.
