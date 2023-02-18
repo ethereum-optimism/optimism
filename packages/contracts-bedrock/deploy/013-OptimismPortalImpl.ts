@@ -19,6 +19,7 @@ const deployFn: DeployFunction = async (hre) => {
     args: [
       L2OutputOracleProxy.address,
       hre.deployConfig.finalizationPeriodSeconds,
+      hre.deployConfig.finalSystemOwner,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -30,6 +31,11 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'FINALIZATION_PERIOD_SECONDS',
         hre.deployConfig.finalizationPeriodSeconds
+      )
+      await assertContractVariable(
+        contract,
+        'GUARDIAN',
+        hre.deployConfig.finalSystemOwner
       )
     },
   })

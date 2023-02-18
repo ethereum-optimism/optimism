@@ -59,6 +59,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
+     * @notice Address that has the ability to pause and unpause deposits and withdrawals.
+     */
+    address public immutable GUARDIAN;
+
+    /**
      * @notice Address of the L2 account which initiated a withdrawal in this transaction. If the
      *         of this variable is the default L2 sender address, then we are NOT inside of a call
      *         to finalizeWithdrawalTransaction.
@@ -74,6 +79,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
      */
     mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
+
+    /**
+     * @notice Determines if cross domain messaging is paused. When set to true,
+     *         deposits and withdrawals are paused. This may be removed in the
+     *         future.
+     */
+    bool public paused = false;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
@@ -111,13 +123,37 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
     /**
+     * @notice Emitted when the pause is triggered.
+     *
+     * @param account Address of the account triggering the pause.
+     */
+    event Paused(address account);
+
+    /**
+     * @notice Emitted when the pause is lifted.
+     *
+     * @param account Address of the account triggering the unpause.
+     */
+    event Unpaused(address account);
+
+    /**
+     * @notice Reverts when paused.
+     */
+    modifier whenNotPaused() {
+        require(paused == false, "OptimismPortal: paused");
+        _;
+    }
+
+    /**
      * @custom:semver 1.0.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
+     * @param _guardian                  Address that can pause deposits and withdrawals.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(1, 0, 0) {
+    constructor(L2OutputOracle _l2Oracle, address _guardian, uint256 _finalizationPeriodSeconds) Semver(1, 1, 0) {
         L2_ORACLE = _l2Oracle;
+        GUARDIAN = _guardian;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         initialize();
     }
@@ -128,6 +164,24 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     function initialize() public initializer {
         l2Sender = Constants.DEFAULT_L2_SENDER;
         __ResourceMetering_init();
+    }
+
+    /**
+     * @notice
+     */
+    function pause() external {
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice
+     */
+    function unpause() external {
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 
     /**
@@ -162,7 +216,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
-    ) external {
+    ) external whenNotPaused {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
@@ -240,7 +294,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _tx Withdrawal transaction to finalize.
      */
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -361,7 +415,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) public payable metered(_gasLimit) {
+    ) public payable whenNotPaused metered(_gasLimit) {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation) {

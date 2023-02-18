@@ -99,6 +99,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
+    address guardian;
 
     // Test data
     uint256 initL1Time;
@@ -118,7 +119,8 @@ contract L2OutputOracle_Initializer is CommonTest {
     }
 
     function setUp() public virtual override {
-        super.setUp();
+        guardian = makeAddr("guardian");
+
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
         initL1Time = startingTimestamp + 1;
@@ -164,7 +166,11 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        opImpl = new OptimismPortal(oracle, 7 days);
+        opImpl = new OptimismPortal({
+            _l2Oracle: oracle,
+            _guardian: guardian,
+            _finalizationPeriodSeconds: 7 days
+        });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
@@ -223,7 +229,11 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         super.setUp();
 
         // Deploy the OptimismPortal
-        op = new OptimismPortal(oracle, 7 days);
+        op = new OptimismPortal({
+            _l2Oracle: oracle,
+            _guardian: guardian,
+            _finalizationPeriodSeconds: 7 days
+        });
         vm.label(address(op), "OptimismPortal");
 
         // Deploy the address manager

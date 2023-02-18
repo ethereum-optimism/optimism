@@ -11,10 +11,70 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
+
+    event Paused(address);
+    event Unpaused(address);
+
     function test_constructor_succeeds() external {
         assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
+        assertEq(op.paused(), false);
+    }
+
+    function test_pause_succeeds() external {
+        address guardian = op.GUARDIAN();
+
+        assertEq(op.paused(), false);
+
+        vm.expectEmit(true, true, true, true, address(op));
+        emit Paused(guardian);
+
+        vm.prank(guardian);
+        op.pause();
+
+        assertEq(op.paused(), true);
+    }
+
+    function test_pause_onlyOwner_reverts() external {
+        assertEq(op.paused(), false);
+
+        assertTrue(op.GUARDIAN() != alice);
+        vm.expectRevert("OptimismPortal: only guardian can pause");
+        vm.prank(alice);
+        op.pause();
+
+        assertEq(op.paused(), false);
+    }
+
+    function test_unpause_succeeds() external {
+        address guardian = op.GUARDIAN();
+
+        vm.prank(guardian);
+        op.pause();
+        assertEq(op.paused(), true);
+
+        vm.expectEmit(true, true, true, true, address(op));
+        emit Unpaused(guardian);
+        vm.prank(guardian);
+        op.unpause();
+
+        assertEq(op.paused(), false);
+    }
+
+    function test_unpause_onlyOwner_reverts() external {
+        address guardian = op.GUARDIAN();
+
+        vm.prank(guardian);
+        op.pause();
+        assertEq(op.paused(), true);
+
+        assertTrue(op.GUARDIAN() != alice);
+        vm.expectRevert("OptimismPortal: only guardian can unpause");
+        vm.prank(alice);
+        op.unpause();
+
+        assertEq(op.paused(), true);
     }
 
     function test_receive_succeeds() external {
@@ -28,6 +88,23 @@ contract OptimismPortal_Test is Portal_Initializer {
 
         assert(s);
         assertEq(address(op).balance, 100);
+    }
+
+    /**
+     * @notice Deposit transactions should revert when paused
+     */
+    function test_depositTransaction_paused_reverts() external {
+        vm.prank(op.GUARDIAN());
+        op.pause();
+
+        vm.expectRevert("OptimismPortal: paused");
+        op.depositTransaction({
+            _to: address(1),
+            _value: 100,
+            _gasLimit: 200_000,
+            _isCreation: false,
+            _data: hex""
+        });
     }
 
     // Test: depositTransaction fails when contract creation has a non-zero destination address
@@ -343,6 +420,22 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         assertFalse(op.finalizedWithdrawals(Hashing.hashWithdrawal(_defaultTx)));
     }
 
+    /**
+     * @notice Proving withdrawal transactions should revert when paused
+     */
+    function test_proveWithdrawalTransaction_paused_reverts() external {
+        vm.prank(op.GUARDIAN());
+        op.pause();
+
+        vm.expectRevert("OptimismPortal: paused");
+        op.proveWithdrawalTransaction({
+            _tx: _defaultTx,
+            _l2OutputIndex: _proposedOutputIndex,
+            _outputRootProof: _outputRootProof,
+            _withdrawalProof: _withdrawalProof
+        });
+    }
+
     // Test: proveWithdrawalTransaction cannot prove a withdrawal with itself (the OptimismPortal) as the target.
     function test_proveWithdrawalTransaction_onSelfCall_reverts() external {
         _defaultTx.target = address(op);
@@ -537,6 +630,17 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.finalizeWithdrawalTransaction(_defaultTx);
 
         assert(address(bob).balance == bobBalanceBefore + 100);
+    }
+
+    /**
+     * @notice Finalizing withdrawal transactions should revert when paused
+     */
+    function test_finalizeWithdrawalTransaction_paused_reverts() external {
+        vm.prank(op.GUARDIAN());
+        op.pause();
+
+        vm.expectRevert("OptimismPortal: paused");
+        op.finalizeWithdrawalTransaction(_defaultTx);
     }
 
     // Test: finalizeWithdrawalTransaction reverts if the withdrawal has not been proven.
