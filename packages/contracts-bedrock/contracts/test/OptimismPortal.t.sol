@@ -11,7 +11,6 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
-
     event Paused(address);
     event Unpaused(address);
 

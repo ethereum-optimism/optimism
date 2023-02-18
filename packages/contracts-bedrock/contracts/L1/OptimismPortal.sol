@@ -151,7 +151,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @param _guardian                  Address that can pause deposits and withdrawals.
      * @param _finalizationPeriodSeconds Output finalization time in seconds.
      */
-    constructor(L2OutputOracle _l2Oracle, address _guardian, uint256 _finalizationPeriodSeconds) Semver(1, 1, 0) {
+    constructor(
+        L2OutputOracle _l2Oracle,
+        address _guardian,
+        uint256 _finalizationPeriodSeconds
+    ) Semver(1, 1, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
@@ -294,7 +298,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _tx Withdrawal transaction to finalize.
      */
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external whenNotPaused {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx)
+        external
+        whenNotPaused
+    {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
