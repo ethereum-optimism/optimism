@@ -99,7 +99,9 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
         address caller = AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger));
 
         // Expect a revert.
-        vm.expectRevert("Hashing: unknown cross domain message version");
+        vm.expectRevert(
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
+        );
 
         // Try to relay a v2 message.
         vm.prank(caller);

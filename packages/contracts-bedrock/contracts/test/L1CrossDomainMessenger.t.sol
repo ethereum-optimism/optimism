@@ -148,7 +148,9 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
         vm.store(address(op), bytes32(senderSlotIndex), bytes32(abi.encode(sender)));
 
         // Expect a revert.
-        vm.expectRevert("Hashing: unknown cross domain message version");
+        vm.expectRevert(
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
+        );
 
         // Try to relay a v2 message.
         vm.prank(address(op));

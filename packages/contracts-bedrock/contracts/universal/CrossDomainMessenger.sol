@@ -182,21 +182,6 @@ abstract contract CrossDomainMessenger is
     event FailedRelayedMessage(bytes32 indexed msgHash);
 
     /**
-     * @notice Modifier for a per-message reentrancy guard.
-     */
-    modifier perMessageNonReentrant(bytes32 _msgHash) {
-        // Check if the reentrancy lock for the `_msgHash` is already set.
-        if (reentrancyLocks[_msgHash]) {
-            revert("ReentrancyGuard: reentrant call");
-        }
-        // Trigger the reentrancy lock for the `_msgHash`.
-        reentrancyLocks[_msgHash] = true;
-        _;
-        // Clear the reentrancy lock for the `_msgHash`.
-        reentrancyLocks[_msgHash] = false;
-    }
-
-    /**
      * @param _otherMessenger Address of the messenger on the paired chain.
      */
     constructor(address _otherMessenger) {
@@ -280,15 +265,13 @@ abstract contract CrossDomainMessenger is
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    )
-        external
-        payable
-        perMessageNonReentrant(
-            Hashing.hashCrossDomainMessage(_nonce, _sender, _target, _value, _minGasLimit, _message)
-        )
-        whenNotPaused
-    {
+    ) external payable whenNotPaused {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
+        require(
+            version < 2,
+            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
+        );
+
         // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
         // to check that the legacy version of the message has not already been relayed.
         if (version == 0) {
@@ -309,6 +292,13 @@ abstract contract CrossDomainMessenger is
             _minGasLimit,
             _message
         );
+
+        // Check if the reentrancy lock for the `versionedHash` is already set.
+        if (reentrancyLocks[versionedHash]) {
+            revert("ReentrancyGuard: reentrant call");
+        }
+        // Trigger the reentrancy lock for `versionedHash`
+        reentrancyLocks[versionedHash] = true;
 
         if (_isOtherMessenger()) {
             // These properties should always hold when the message is first submitted (as
@@ -362,6 +352,9 @@ abstract contract CrossDomainMessenger is
                 revert("CrossDomainMessenger: failed to relay message");
             }
         }
+
+        // Clear the reentrancy lock for `versionedHash`
+        reentrancyLocks[versionedHash] = false;
     }
 
     /**
