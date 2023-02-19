@@ -14,7 +14,6 @@ import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 import { Constants } from "../libraries/Constants.sol";
-import { ReentrancyGuard } from "../libraries/ReentrancyGuard.sol";
 
 /**
  * @custom:legacy
@@ -45,8 +44,7 @@ abstract contract CrossDomainMessenger is
     CrossDomainMessengerLegacySpacer,
     OwnableUpgradeable,
     PausableUpgradeable,
-    ReentrancyGuardUpgradeable,
-    ReentrancyGuard
+    ReentrancyGuardUpgradeable
 {
     /**
      * @notice Current message version identifier.
@@ -132,11 +130,16 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public failedMessages;
 
     /**
+     * @notice A mapping of hashes to reentrancy locks.
+     */
+    mapping(bytes32 => bool) internal reentrancyLocks;
+
+    /**
      * @notice Reserve extra slots in the storage layout for future upgrades.
      *         A gap size of 41 was chosen here, so that the first slot used in a child contract
      *         would be a multiple of 50.
      */
-    uint256[42] private __gap;
+    uint256[41] private __gap;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
@@ -177,6 +180,21 @@ abstract contract CrossDomainMessenger is
      * @param msgHash Hash of the message that failed to be relayed.
      */
     event FailedRelayedMessage(bytes32 indexed msgHash);
+
+    /**
+     * @notice Modifier for a per-message reentrancy guard.
+     */
+    modifier perMessageNonReentrant(bytes32 _msgHash) {
+        // Check if the reentrancy lock for the `_msgHash` is already set.
+        if (reentrancyLocks[_msgHash]) {
+            revert("ReentrancyGuard: reentrant call");
+        }
+        // Trigger the reentrancy lock for the `_msgHash`.
+        reentrancyLocks[_msgHash] = true;
+        _;
+        // Clear the reentrancy lock for the `_msgHash`.
+        reentrancyLocks[_msgHash] = false;
+    }
 
     /**
      * @param _otherMessenger Address of the messenger on the paired chain.
