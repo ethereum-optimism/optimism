@@ -974,6 +974,9 @@ workflows:
       - go-lint:
           name: op-service-lint
           module: op-service
+      - go-lint:
+          name: op-wheel-lint
+          module: op-wheel
       - go-test:
           name: op-batcher-tests
           module: op-batcher
