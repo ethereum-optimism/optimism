@@ -1,10 +1,9 @@
 pragma solidity 0.8.15;
 
-import { InvariantTest } from "forge-std/InvariantTest.sol";
+import { Test } from "forge-std/Test.sol";
 import { L2OutputOracle_Initializer } from "../CommonTest.t.sol";
 
 contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is
-    InvariantTest,
     L2OutputOracle_Initializer
 {
     function setUp() public override {

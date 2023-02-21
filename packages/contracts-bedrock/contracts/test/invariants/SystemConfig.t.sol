@@ -1,10 +1,9 @@
 pragma solidity 0.8.15;
 
-import { InvariantTest } from "forge-std/InvariantTest.sol";
-import { StdAssertions } from "forge-std/StdAssertions.sol";
+import { Test } from "forge-std/Test.sol";
 import { SystemConfig } from "../../L1/SystemConfig.sol";
 
-contract SystemConfig_GasLimitLowerBound_Invariant is InvariantTest, StdAssertions {
+contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
 
     function setUp() public {

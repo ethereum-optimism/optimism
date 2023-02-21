@@ -1,10 +1,9 @@
 pragma solidity 0.8.15;
 
-import { InvariantTest } from "forge-std/InvariantTest.sol";
 import { Portal_Initializer } from "../CommonTest.t.sol";
 import { Types } from "../../libraries/Types.sol";
 
-contract OptimismPortal_Invariant_Harness is Portal_Initializer, InvariantTest {
+contract OptimismPortal_Invariant_Harness is Portal_Initializer {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
