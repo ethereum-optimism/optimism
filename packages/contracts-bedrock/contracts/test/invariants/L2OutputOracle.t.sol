@@ -1,11 +1,8 @@
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
 import { L2OutputOracle_Initializer } from "../CommonTest.t.sol";
 
-contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is
-    L2OutputOracle_Initializer
-{
+contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_Initializer {
     function setUp() public override {
         super.setUp();
 
