@@ -7,9 +7,6 @@ import {
 import {
     PausableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import {
-    ReentrancyGuardUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
@@ -43,8 +40,7 @@ contract CrossDomainMessengerLegacySpacer {
 abstract contract CrossDomainMessenger is
     CrossDomainMessengerLegacySpacer,
     OwnableUpgradeable,
-    PausableUpgradeable,
-    ReentrancyGuardUpgradeable
+    PausableUpgradeable
 {
     /**
      * @notice Current message version identifier.
@@ -85,6 +81,12 @@ abstract contract CrossDomainMessenger is
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
     address public immutable OTHER_MESSENGER;
+
+    /**
+     * @custom:spacer ReentrancyGuardUpgradeable
+     * @notice Spacer for backwards compatibility
+     */
+    uint256[50] private __gap_reentrancy_guard;
 
     /**
      * @custom:legacy
@@ -418,7 +420,6 @@ abstract contract CrossDomainMessenger is
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();
-        __ReentrancyGuard_init_unchained();
     }
 
     /**
