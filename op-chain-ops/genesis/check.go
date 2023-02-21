@@ -452,8 +452,12 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	return nil
 }
 
+// CheckWithdrawalsAfter checks that all of the legacy withdrawals were migrated
+// correctly. It calls `ToWithdrawals()` with strict mode enabled so that only
+// the LegacyWithdrawals that came from the L2CrossDomainMessenger will be
+// included.
 func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
-	wds, err := data.ToWithdrawals()
+	wds, err := data.ToWithdrawals(true)
 	if err != nil {
 		return err
 	}

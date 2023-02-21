@@ -2,6 +2,7 @@ package migration
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -119,15 +120,20 @@ type MigrationData struct {
 	EvmMessages []*SentMessage
 }
 
-func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error) {
+// ToWithdrawals will turn the MigrationData into a set of LegacyWithdrawals.
+// Strict mode will filter out unexpected callers of the LegacyMessagePasser.
+func (m *MigrationData) ToWithdrawals(strict bool) ([]*crossdomain.LegacyWithdrawal, error) {
 	messages := make([]*crossdomain.LegacyWithdrawal, 0)
 	for _, msg := range m.OvmMessages {
-		if msg.Who != predeploys.L2CrossDomainMessengerAddr {
-			continue
-		}
 		wd, err := msg.ToLegacyWithdrawal()
 		if err != nil {
 			return nil, err
+		}
+
+		check := wd.Check()
+		// Skip over ErrUnexpectedMessagePasserCaller errors in strict mode
+		if strict && errors.Is(check, crossdomain.ErrUnexpectedMessagePasserCaller) {
+			continue
 		}
 		messages = append(messages, wd)
 		if err != nil {

@@ -790,7 +790,8 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 		EvmMessages: evmMessages,
 	}
 
-	wds, err := migrationData.ToWithdrawals()
+	// Filter for withdrawals coming from the L2CrossDomainMessenger
+	wds, err := migrationData.ToWithdrawals(true)
 	if err != nil {
 		return nil, err
 	}

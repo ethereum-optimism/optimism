@@ -16,13 +16,23 @@ import (
 
 // LegacyWithdrawal represents a pre bedrock upgrade withdrawal.
 type LegacyWithdrawal struct {
+	// Target is the L1 target of the withdrawal message
 	Target *common.Address `json:"target"`
+	// Sender is the L2 withdrawing account
 	Sender *common.Address `json:"sender"`
-	Data   hexutil.Bytes   `json:"data"`
-	Nonce  *big.Int        `json:"nonce"`
+	// Data represents the calldata of the withdrawal message
+	Data hexutil.Bytes `json:"data"`
+	// Nonce represents the nonce of the withdrawal
+	Nonce *big.Int `json:"nonce"`
+	// MessageSender represents the caller of the LegacyMessagePasser
+	MessageSender common.Address `json:"messageSender"`
 }
 
-var _ WithdrawalMessage = (*LegacyWithdrawal)(nil)
+var (
+	_                                WithdrawalMessage = (*LegacyWithdrawal)(nil)
+	relayMessageSelector                               = crypto.Keccak256([]byte("relayMessage(address,address,bytes,uint256)"))[0:4]
+	ErrUnexpectedMessagePasserCaller                   = errors.New("unexpected message passer caller")
+)
 
 // NewLegacyWithdrawal will construct a LegacyWithdrawal
 func NewLegacyWithdrawal(target, sender *common.Address, data []byte, nonce *big.Int) *LegacyWithdrawal {
@@ -56,15 +66,13 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 		return fmt.Errorf("withdrawal data too short: %d", len(data))
 	}
 
-	selector := crypto.Keccak256([]byte("relayMessage(address,address,bytes,uint256)"))[0:4]
-	if !bytes.Equal(data[0:4], selector) {
+	// Check to make sure that the selector matches
+	if !bytes.Equal(data[0:4], relayMessageSelector) {
 		return fmt.Errorf("invalid selector: 0x%x", data[0:4])
 	}
 
 	msgSender := data[len(data)-len(predeploys.L2CrossDomainMessengerAddr):]
-	if !bytes.Equal(msgSender, predeploys.L2CrossDomainMessengerAddr.Bytes()) {
-		return errors.New("invalid msg.sender")
-	}
+	w.MessageSender = common.BytesToAddress(msgSender)
 
 	raw := data[4 : len(data)-len(predeploys.L2CrossDomainMessengerAddr)]
 
@@ -101,6 +109,17 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 	w.Sender = &sender
 	w.Data = hexutil.Bytes(msgData)
 	w.Nonce = nonce
+	return nil
+}
+
+// Check will error if the MessageSender is not the L2CrossDomainMessengerAddr.
+// This is important during the withdrawal process as only calls from the
+// L2CrossDomainMessenger to the LegacyMessagePasser should be considered for
+// migration.
+func (w *LegacyWithdrawal) Check() error {
+	if w.MessageSender != predeploys.L2CrossDomainMessengerAddr {
+		return ErrUnexpectedMessagePasserCaller
+	}
 	return nil
 }
 

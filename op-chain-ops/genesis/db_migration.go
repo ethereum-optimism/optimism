@@ -113,7 +113,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Convert all input messages into legacy messages. Note that this list is not yet filtered and
 	// may be missing some messages or have some extra messages.
-	unfilteredWithdrawals, err := migrationData.ToWithdrawals()
+	unfilteredWithdrawals, err := migrationData.ToWithdrawals(false)
 	if err != nil {
 		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
