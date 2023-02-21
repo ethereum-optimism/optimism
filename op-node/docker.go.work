@@ -1,8 +1,0 @@
-go 1.18
-
-use (
-	./op-bindings
-	./op-node
-	./op-chain-ops
-	./op-service
-)

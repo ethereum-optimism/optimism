@@ -3,10 +3,10 @@ FROM golang:1.18.0-alpine3.15 as builder
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 COPY ./indexer /go/indexer
-COPY ./op-bindings /go/op-bindings
-COPY ./op-node /go/op-node
+COPY ./.git /go/.git
+COPY ./indexer/go.mod /go/indexer/go.mod
+COPY ./indexer/go.sum /go/indexer/go.sum
 
-COPY ./indexer/docker.go.work /go/go.work
 
 WORKDIR /go/indexer
 RUN make

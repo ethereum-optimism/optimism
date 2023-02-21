@@ -193,8 +193,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // output index has been updated.
         require(
             provenWithdrawal.timestamp == 0 ||
-                (_l2OutputIndex == provenWithdrawal.l2OutputIndex &&
-                    outputRoot != provenWithdrawal.outputRoot),
+                L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
+                provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
@@ -370,6 +370,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
                 "OptimismPortal: must send to address(0) when creating a contract"
             );
         }
+
+        // Prevent depositing transactions that have too small of a gas limit.
+        require(_gasLimit >= 21_000, "OptimismPortal: gas limit must cover instrinsic gas cost");
 
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;

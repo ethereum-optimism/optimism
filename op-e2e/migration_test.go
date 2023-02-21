@@ -324,10 +324,10 @@ func TestMigration(t *testing.T) {
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
 		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            1,
+		TargetL1TxSize:            624,
 		TargetNumFrames:           1,
 		ApproxComprRatio:          1.0,
-		ChannelTimeout:            deployCfg.ChannelTimeout,
+		SubSafetyMargin:           testSafetyMargin(deployCfg),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -336,8 +336,7 @@ func TestMigration(t *testing.T) {
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey:                 hexPriv(secrets.Batcher),
-		SequencerBatchInboxAddress: deployCfg.BatchSenderAddress.String(),
+		PrivateKey: hexPriv(secrets.Batcher),
 	}, lgr.New("module", "batcher"))
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -9,21 +9,23 @@ import {
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
 import { Provider } from '@ethersproject/abstract-provider'
-import { Contract, ethers, Transaction } from 'ethers'
+import { ethers, Transaction } from 'ethers'
 import dateformat from 'dateformat'
 
 import { version } from '../package.json'
 import {
   findFirstUnfinalizedStateBatchIndex,
   findEventForStateBatch,
-  updateStateBatchEventCache,
   PartialEvent,
+  OutputOracle,
+  updateOracleCache,
 } from './helpers'
 
 type Options = {
   l1RpcProvider: Provider
   l2RpcProvider: Provider
   startBatchIndex: number
+  bedrock: boolean
 }
 
 type Metrics = {
@@ -34,7 +36,7 @@ type Metrics = {
 
 type State = {
   fpw: number
-  scc: Contract
+  oo: OutputOracle<any>
   messenger: CrossChainMessenger
   highestCheckedBatchIndex: number
   diverged: boolean
@@ -63,6 +65,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           validator: validators.num,
           default: -1,
           desc: 'Batch index to start checking from',
+          public: true,
+        },
+        bedrock: {
+          validator: validators.bool,
+          default: false,
+          desc: 'Whether or not the service is running against a Bedrock chain',
           public: true,
         },
       },
@@ -103,24 +111,42 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       l2SignerOrProvider: this.options.l2RpcProvider,
       l1ChainId: await getChainId(this.options.l1RpcProvider),
       l2ChainId: await getChainId(this.options.l2RpcProvider),
+      bedrock: this.options.bedrock,
     })
 
     // Not diverged by default.
     this.state.diverged = false
 
     // We use this a lot, a bit cleaner to pull out to the top level of the state object.
-    this.state.scc = this.state.messenger.contracts.l1.StateCommitmentChain
-    this.state.fpw = (await this.state.scc.FRAUD_PROOF_WINDOW()).toNumber()
+    this.state.fpw = await this.state.messenger.getChallengePeriodSeconds()
+    if (this.options.bedrock) {
+      const oo = this.state.messenger.contracts.l1.L2OutputOracle
+      this.state.oo = {
+        contract: oo,
+        filter: oo.filters.OutputProposed(),
+        getTotalElements: async () => oo.latestOutputIndex(),
+        getEventIndex: (args) => args.l2OutputIndex,
+      }
+    } else {
+      const oo = this.state.messenger.contracts.l1.StateCommitmentChain
+      this.state.oo = {
+        contract: oo,
+        filter: oo.filters.StateBatchAppended(),
+        getTotalElements: async () => oo.getTotalBatches(),
+        getEventIndex: (args) => args._batchIndex,
+      }
+    }
 
     // Populate the event cache.
     this.logger.info(`warming event cache, this might take a while...`)
-    await updateStateBatchEventCache(this.state.scc)
+    await updateOracleCache(this.state.oo)
 
     // Figure out where to start syncing from.
     if (this.options.startBatchIndex === -1) {
       this.logger.info(`finding appropriate starting height`)
       const firstUnfinalized = await findFirstUnfinalizedStateBatchIndex(
-        this.state.scc
+        this.state.oo,
+        this.state.fpw
       )
 
       // We may not have an unfinalized batches in the case where no batches have been submitted
@@ -129,7 +155,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       if (firstUnfinalized === undefined) {
         this.logger.info(`no unfinalized batches found, starting from latest`)
         this.state.highestCheckedBatchIndex = (
-          await this.state.scc.getTotalBatches()
+          await this.state.oo.getTotalElements()
         ).toNumber()
       } else {
         this.state.highestCheckedBatchIndex = firstUnfinalized
@@ -141,6 +167,14 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     this.logger.info(`starting height`, {
       startBatchIndex: this.state.highestCheckedBatchIndex,
     })
+
+    // Set the initial metrics.
+    this.metrics.highestBatchIndex.set(
+      {
+        type: 'checked',
+      },
+      this.state.highestCheckedBatchIndex
+    )
   }
 
   async routes(router: ExpressRouter): Promise<void> {
@@ -154,7 +188,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
   async main(): Promise<void> {
     let latestBatchIndex: number
     try {
-      latestBatchIndex = (await this.state.scc.getTotalBatches()).toNumber()
+      latestBatchIndex = (await this.state.oo.getTotalElements()).toNumber()
     } catch (err) {
       this.logger.error(`got error when connecting to node`, {
         error: err,
@@ -189,7 +223,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
     let event: PartialEvent
     try {
       event = await findEventForStateBatch(
-        this.state.scc,
+        this.state.oo,
         this.state.highestCheckedBatchIndex
       )
     } catch (err) {
@@ -205,34 +239,6 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       await sleep(15000)
       return
     }
-
-    let batchTransaction: Transaction
-    try {
-      batchTransaction = await this.options.l1RpcProvider.getTransaction(
-        event.transactionHash
-      )
-    } catch (err) {
-      this.logger.error(`got error when connecting to node`, {
-        error: err,
-        node: 'l1',
-        section: 'getTransaction',
-      })
-      this.metrics.nodeConnectionFailures.inc({
-        layer: 'l1',
-        section: 'getTransaction',
-      })
-      await sleep(15000)
-      return
-    }
-
-    const [stateRoots] = this.state.scc.interface.decodeFunctionData(
-      'appendStateBatch',
-      batchTransaction.data
-    )
-
-    const batchStart = event.args._prevTotalElements.toNumber() + 1
-    const batchSize = event.args._batchSize.toNumber()
-    const batchEnd = batchStart + batchSize
 
     let latestBlock: number
     try {
@@ -251,55 +257,80 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       return
     }
 
-    if (latestBlock < batchEnd) {
-      this.logger.info(`node is behind, waiting for sync`, {
-        batchEnd,
-        latestBlock,
-      })
-      return
-    }
+    if (this.options.bedrock) {
+      if (latestBlock < event.args.l2BlockNumber.toNumber()) {
+        this.logger.info(`node is behind, waiting for sync`, {
+          batchEnd: event.args.l2BlockNumber.toNumber(),
+          latestBlock,
+        })
+        return
+      }
 
-    // `getBlockRange` has a limit of 1000 blocks, so we have to break this request out into
-    // multiple requests of maximum 1000 blocks in the case that batchSize > 1000.
-    let blocks: any[] = []
-    for (let i = 0; i < batchSize; i += 1000) {
-      let newBlocks: any[]
+      let targetBlock: any
       try {
-        newBlocks = await (
+        targetBlock = await (
           this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
-        ).send('eth_getBlockRange', [
-          toRpcHexString(batchStart + i),
-          toRpcHexString(batchStart + i + Math.min(batchSize - i, 1000) - 1),
+        ).send('eth_getBlockByNumber', [
+          toRpcHexString(event.args.l2BlockNumber.toNumber()),
           false,
         ])
       } catch (err) {
         this.logger.error(`got error when connecting to node`, {
           error: err,
           node: 'l2',
-          section: 'getBlockRange',
+          section: 'getBlock',
         })
         this.metrics.nodeConnectionFailures.inc({
           layer: 'l2',
-          section: 'getBlockRange',
+          section: 'getBlock',
         })
         await sleep(15000)
         return
       }
 
-      blocks = blocks.concat(newBlocks)
-    }
+      let messagePasserProofResponse: any
+      try {
+        messagePasserProofResponse = await (
+          this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
+        ).send('eth_getProof', [
+          this.state.messenger.contracts.l2.BedrockMessagePasser.address,
+          [],
+          toRpcHexString(event.args.l2BlockNumber.toNumber()),
+        ])
+      } catch (err) {
+        this.logger.error(`got error when connecting to node`, {
+          error: err,
+          node: 'l2',
+          section: 'getProof',
+        })
+        this.metrics.nodeConnectionFailures.inc({
+          layer: 'l2',
+          section: 'getProof',
+        })
+        await sleep(15000)
+        return
+      }
 
-    for (const [i, stateRoot] of stateRoots.entries()) {
-      if (blocks[i].stateRoot !== stateRoot) {
+      const outputRoot = ethers.utils.solidityKeccak256(
+        ['uint256', 'bytes32', 'bytes32', 'bytes32'],
+        [
+          0,
+          targetBlock.stateRoot,
+          messagePasserProofResponse.storageHash,
+          targetBlock.hash,
+        ]
+      )
+
+      if (outputRoot !== event.args.outputRoot) {
         this.state.diverged = true
         this.metrics.isCurrentlyMismatched.set(1)
         this.logger.error(`state root mismatch`, {
-          blockNumber: blocks[i].number,
-          expectedStateRoot: blocks[i].stateRoot,
-          actualStateRoot: stateRoot,
+          blockNumber: targetBlock.number,
+          expectedStateRoot: event.args.outputRoot,
+          actualStateRoot: outputRoot,
           finalizationTime: dateformat(
             new Date(
-              (ethers.BigNumber.from(blocks[i].timestamp).toNumber() +
+              (ethers.BigNumber.from(targetBlock.timestamp).toNumber() +
                 this.state.fpw) *
                 1000
             ),
@@ -308,7 +339,98 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         })
         return
       }
+    } else {
+      let batchTransaction: Transaction
+      try {
+        batchTransaction = await this.options.l1RpcProvider.getTransaction(
+          event.transactionHash
+        )
+      } catch (err) {
+        this.logger.error(`got error when connecting to node`, {
+          error: err,
+          node: 'l1',
+          section: 'getTransaction',
+        })
+        this.metrics.nodeConnectionFailures.inc({
+          layer: 'l1',
+          section: 'getTransaction',
+        })
+        await sleep(15000)
+        return
+      }
+
+      const [stateRoots] = this.state.oo.contract.interface.decodeFunctionData(
+        'appendStateBatch',
+        batchTransaction.data
+      )
+
+      const batchStart = event.args._prevTotalElements.toNumber() + 1
+      const batchSize = event.args._batchSize.toNumber()
+      const batchEnd = batchStart + batchSize
+
+      if (latestBlock < batchEnd) {
+        this.logger.info(`node is behind, waiting for sync`, {
+          batchEnd,
+          latestBlock,
+        })
+        return
+      }
+
+      // `getBlockRange` has a limit of 1000 blocks, so we have to break this request out into
+      // multiple requests of maximum 1000 blocks in the case that batchSize > 1000.
+      let blocks: any[] = []
+      for (let i = 0; i < batchSize; i += 1000) {
+        let newBlocks: any[]
+        try {
+          newBlocks = await (
+            this.options.l2RpcProvider as ethers.providers.JsonRpcProvider
+          ).send('eth_getBlockRange', [
+            toRpcHexString(batchStart + i),
+            toRpcHexString(batchStart + i + Math.min(batchSize - i, 1000) - 1),
+            false,
+          ])
+        } catch (err) {
+          this.logger.error(`got error when connecting to node`, {
+            error: err,
+            node: 'l2',
+            section: 'getBlockRange',
+          })
+          this.metrics.nodeConnectionFailures.inc({
+            layer: 'l2',
+            section: 'getBlockRange',
+          })
+          await sleep(15000)
+          return
+        }
+
+        blocks = blocks.concat(newBlocks)
+      }
+
+      for (const [i, stateRoot] of stateRoots.entries()) {
+        if (blocks[i].stateRoot !== stateRoot) {
+          this.state.diverged = true
+          this.metrics.isCurrentlyMismatched.set(1)
+          this.logger.error(`state root mismatch`, {
+            blockNumber: blocks[i].number,
+            expectedStateRoot: blocks[i].stateRoot,
+            actualStateRoot: stateRoot,
+            finalizationTime: dateformat(
+              new Date(
+                (ethers.BigNumber.from(blocks[i].timestamp).toNumber() +
+                  this.state.fpw) *
+                  1000
+              ),
+              'mmmm dS, yyyy, h:MM:ss TT'
+            ),
+          })
+          return
+        }
+      }
     }
+
+    this.logger.info(`checked batch ok`, {
+      batchIndex: this.state.highestCheckedBatchIndex,
+    })
 
     this.state.highestCheckedBatchIndex++
     this.metrics.highestBatchIndex.set(

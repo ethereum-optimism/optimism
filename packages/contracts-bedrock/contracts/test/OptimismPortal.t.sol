@@ -37,6 +37,21 @@ contract OptimismPortal_Test is Portal_Initializer {
         op.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
+    /**
+     * @notice Prevent gasless deposits from being force processed in L2 by
+     *         ensuring that they have a large enough gas limit set.
+     */
+    function test_depositTransaction_smallGasLimit_reverts() external {
+        vm.expectRevert("OptimismPortal: gas limit must cover instrinsic gas cost");
+        op.depositTransaction({
+            _to: address(1),
+            _value: 0,
+            _gasLimit: 0,
+            _isCreation: false,
+            _data: hex""
+        });
+    }
+
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
     function test_depositTransaction_noValueEOA_succeeds() external {
         // EOA emulation
@@ -412,7 +427,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         bytes32 slot;
         assembly {
             mstore(0x00, sload(_withdrawalHash.slot))
-            mstore(0x20, 52) // 52 is the slot of the `provenWithdrawals` mapping in OptimismPortal
+            mstore(0x20, 52) // 52 is the slot of the `provenWithdrawals` mapping in the OptimismPortal
             slot := keccak256(0x00, 0x40)
         }
 
@@ -430,6 +445,65 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         op.proveWithdrawalTransaction(
             _defaultTx,
             _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Ensure that the withdrawal was updated within the mapping
+        (, uint128 timestamp, ) = op.provenWithdrawals(_withdrawalHash);
+        assertEq(timestamp, block.timestamp);
+    }
+
+    // Test: proveWithdrawalTransaction succeeds if the passed transaction's withdrawalHash has
+    // already been proven AND the output root + output index + l2BlockNumber changes.
+    function test_proveWithdrawalTransaction_replayProveChangedOutputRootAndOutputIndex_succeeds()
+        external
+    {
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Compute the storage slot of the outputRoot corresponding to the `withdrawalHash`
+        // inside of the `provenWithdrawal`s mapping.
+        bytes32 slot;
+        assembly {
+            mstore(0x00, sload(_withdrawalHash.slot))
+            mstore(0x20, 52) // 52 is the slot of the `provenWithdrawals` mapping in OptimismPortal
+            slot := keccak256(0x00, 0x40)
+        }
+
+        // Store a dummy output root within the `provenWithdrawals` mapping without touching the
+        // l2BlockNumber or timestamp.
+        vm.store(address(op), slot, bytes32(0));
+
+        // Fetch the output proposal at `_proposedOutputIndex` from the L2OutputOracle
+        Types.OutputProposal memory proposal = op.L2_ORACLE().getL2Output(_proposedOutputIndex);
+
+        // Propose the same output root again, creating the same output at a different index + l2BlockNumber.
+        vm.startPrank(op.L2_ORACLE().PROPOSER());
+        op.L2_ORACLE().proposeL2Output(
+            proposal.outputRoot,
+            op.L2_ORACLE().nextBlockNumber(),
+            blockhash(block.number),
+            block.number
+        );
+        vm.stopPrank();
+
+        // Warp ahead 1 second
+        vm.warp(block.timestamp + 1);
+
+        // Even though we have already proven this withdrawalHash, we should be allowed to re-submit
+        // our proof with a changed outputRoot + a different output index
+        vm.expectEmit(true, true, true, true);
+        emit WithdrawalProven(_withdrawalHash, alice, bob);
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex + 1,
             _outputRootProof,
             _withdrawalProof
         );

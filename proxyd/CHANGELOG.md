@@ -1,5 +1,16 @@
 # @eth-optimism/proxyd
 
+## 3.14.0
+
+### Minor Changes
+
+- 9cc39bcfa: Add support for global method override rate limit
+- 30db32862: Include nonce in sender rate limit
+
+### Patch Changes
+
+- b9bb1a98a: proxyd: Add req_id to log
+
 ## 3.13.0
 
 ### Minor Changes

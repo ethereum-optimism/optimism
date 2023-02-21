@@ -34,11 +34,13 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
-	ChannelTimeoutFlag = cli.Uint64Flag{
-		Name:     "channel-timeout",
-		Usage:    "The maximum duration (in seconds) to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
+	SubSafetyMarginFlag = cli.Uint64Flag{
+		Name: "sub-safety-margin",
+		Usage: "The batcher tx submission safety margin (in #L1-blocks) to subtract " +
+			"from a channel's timeout and sequencing window, to guarantee safe inclusion " +
+			"of a channel on L1.",
 		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "CHANNEL_TIMEOUT"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SUB_SAFETY_MARGIN"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -68,12 +70,6 @@ var (
 			"transaction to L1",
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
-	}
-	SequencerBatchInboxAddressFlag = cli.StringFlag{
-		Name:     "sequencer-batch-inbox-address",
-		Usage:    "L1 Address to receive batch transactions",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
 	}
 
 	/* Optional flags */
@@ -125,12 +121,11 @@ var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
-	ChannelTimeoutFlag,
+	SubSafetyMarginFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
-	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{

@@ -92,6 +92,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 
+		SequencerFeeVaultRecipient: common.Address{19: 1},
+		BaseFeeVaultRecipient:      common.Address{19: 2},
+		L1FeeVaultRecipient:        common.Address{19: 3},
+
 		DeploymentWaitConfirmations: 1,
 
 		EIP1559Elasticity:  2,
@@ -459,7 +463,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			c.P2P = p
 
 			if c.Driver.SequencerEnabled {
-				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
+				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLegacyLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
 
@@ -527,10 +531,10 @@ func (cfg SystemConfig) Start() (*System, error) {
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            1,
+		TargetL1TxSize:            160, //624,
 		TargetNumFrames:           1,
 		ApproxComprRatio:          1.0,
-		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
+		SubSafetyMargin:           testSafetyMargin(cfg.DeployConfig),
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -539,8 +543,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey:                 hexPriv(cfg.Secrets.Batcher),
-		SequencerBatchInboxAddress: cfg.DeployConfig.BatchInboxAddress.String(),
+		PrivateKey: hexPriv(cfg.Secrets.Batcher),
 	}, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
@@ -570,4 +573,25 @@ func uint642big(in uint64) *hexutil.Big {
 func hexPriv(in *ecdsa.PrivateKey) string {
 	b := e2eutils.EncodePrivKey(in)
 	return hexutil.Encode(b)
+}
+
+// returns a safety margin that heuristically leads to a short channel lifetime
+// of netChannelDuration. In current testing setups, we want channels to close
+// quickly to have a low latency. We don't optimize for gas consumption.
+func testSafetyMargin(cfg *genesis.DeployConfig) uint64 {
+	// target channel duration after first frame is included on L1
+	const netChannelDuration = 2
+	// The sequencing window timeout starts from the L1 origin, whereas the
+	// channel timeout starts from the first L1 inclusion block of any frame.
+	// So to have comparable values, the sws is converted to an effective
+	// sequencing window from the first L1 inclusion block, assuming that L2
+	// blocks are quickly included on L1.
+	// So we subtract 1 block distance from the origin block and 1 block for
+	// minging the first frame.
+	openChannelSeqWindow := cfg.SequencerWindowSize - 2
+	if openChannelSeqWindow > cfg.ChannelTimeout {
+		return cfg.ChannelTimeout - netChannelDuration
+	} else {
+		return openChannelSeqWindow - netChannelDuration
+	}
 }

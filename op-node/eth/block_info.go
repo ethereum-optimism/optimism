@@ -20,6 +20,7 @@ type BlockInfo interface {
 	MixDigest() common.Hash
 	BaseFee() *big.Int
 	ReceiptHash() common.Hash
+	GasUsed() uint64
 }
 
 func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
@@ -41,4 +42,49 @@ func ToBlockID(b NumberAndHash) BlockID {
 		Hash:   b.Hash(),
 		Number: b.NumberU64(),
 	}
+}
+
+// headerBlockInfo is a conversion type of types.Header turning it into a
+// BlockInfo.
+type headerBlockInfo struct{ *types.Header }
+
+func (h headerBlockInfo) ParentHash() common.Hash {
+	return h.Header.ParentHash
+}
+
+func (h headerBlockInfo) Coinbase() common.Address {
+	return h.Header.Coinbase
+}
+
+func (h headerBlockInfo) Root() common.Hash {
+	return h.Header.Root
+}
+
+func (h headerBlockInfo) NumberU64() uint64 {
+	return h.Header.Number.Uint64()
+}
+
+func (h headerBlockInfo) Time() uint64 {
+	return h.Header.Time
+}
+
+func (h headerBlockInfo) MixDigest() common.Hash {
+	return h.Header.MixDigest
+}
+
+func (h headerBlockInfo) BaseFee() *big.Int {
+	return h.Header.BaseFee
+}
+
+func (h headerBlockInfo) ReceiptHash() common.Hash {
+	return h.Header.ReceiptHash
+}
+
+func (h headerBlockInfo) GasUsed() uint64 {
+	return h.Header.GasUsed
+}
+
+// HeaderBlockInfo returns h as a BlockInfo implementation.
+func HeaderBlockInfo(h *types.Header) BlockInfo {
+	return headerBlockInfo{h}
 }

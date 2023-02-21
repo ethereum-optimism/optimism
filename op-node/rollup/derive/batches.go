@@ -100,11 +100,31 @@ func CheckBatch(cfg *rollup.Config, log log.Logger, l1Blocks []eth.L1BlockRef, l
 		return BatchDrop
 	}
 
-	// If we ran out of sequencer time drift, then we drop the batch and produce an empty batch instead,
-	// as the sequencer is not allowed to include anything past this point without moving to the next epoch.
+	// Check if we ran out of sequencer time drift
 	if max := batchOrigin.Time + cfg.MaxSequencerDrift; batch.Batch.Timestamp > max {
-		log.Warn("batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again", "max_time", max)
-		return BatchDrop
+		if len(batch.Batch.Transactions) == 0 {
+			// If the sequencer is co-operating by producing an empty batch,
+			// then allow the batch if it was the right thing to do to maintain the L2 time >= L1 time invariant.
+			// We only check batches that do not advance the epoch, to ensure epoch advancement regardless of time drift is allowed.
+			if epoch.Number == batchOrigin.Number {
+				if len(l1Blocks) < 2 {
+					log.Info("without the next L1 origin we cannot determine yet if this empty batch that exceeds the time drift is still valid")
+					return BatchUndecided
+				}
+				nextOrigin := l1Blocks[1]
+				if batch.Batch.Timestamp >= nextOrigin.Time { // check if the next L1 origin could have been adopted
+					log.Info("batch exceeded sequencer time drift without adopting next origin, and next L1 origin would have been valid")
+					return BatchDrop
+				} else {
+					log.Info("continuing with empty batch before late L1 block to preserve L2 time invariant")
+				}
+			}
+		} else {
+			// If the sequencer is ignoring the time drift rule, then drop the batch and force an empty batch instead,
+			// as the sequencer is not allowed to include anything past this point without moving to the next epoch.
+			log.Warn("batch exceeded sequencer time drift, sequencer must adopt new L1 origin to include transactions again", "max_time", max)
+			return BatchDrop
+		}
 	}
 
 	// We can do this check earlier, but it's a more intensive one, so we do this last.

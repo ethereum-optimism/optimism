@@ -65,9 +65,8 @@ This is a very simple contract that stores the hash of the withdrawal data.
    must be one for which an L2 output root exists, which commits to the withdrawal as registered on L2.
 1. The `OptimismPortal` contract retrieves the output root for the given block number from the `L2OutputOracle`'s
    `getL2OutputAfter()` function, and performs the remainder of the verification process internally.
-1. If proof verification fails, the call reverts. Otherwise the call is forwarded, and the hash is recorded to
-   prevent it from being re-proven. Note that the withdrawal can be proven more than once if the corresponding
-   output root changes.
+1. If proof verification fails, the call reverts. Otherwise the hash is recorded to prevent it from being re-proven.
+   Note that the withdrawal can be proven more than once if the corresponding output root changes.
 1. After the withdrawal is proven, it enters a 7 day challenge period, allowing time for other network participants
    to challenge the integrity of the corresponding output root.
 1. Once the challenge period has passed, a relayer submits the withdrawal transaction once again to the
@@ -134,8 +133,8 @@ The Optimism Portal serves as both the entry and exit point to the Optimism L2. 
 the [DepositFeed](./deposits.md#deposit-contract) contract, and in addition provides the following interface for
 withdrawals:
 
-- [WithdrawalTransaction type](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/Types.sol#L46-L56)
-- [OutputRootProof type](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/libraries/Types.sol#L20-L29)
+- [`WithdrawalTransaction` type]
+- [`OutputRootProof` type]
 
 ```js
 interface OptimismPortal {
@@ -185,7 +184,7 @@ These inputs must satisfy the following conditions:
 
 ### Key Properties of Withdrawal Verification
 
-1. It should not be possible 'double spend' a withdrawal, ie. to relay a withdrawal on L1 which does not
+1. It should not be possible to 'double spend' a withdrawal, ie. to relay a withdrawal on L1 which does not
    correspond to a message initiated on L2. For reference, see [this writeup][polygon-dbl-spend] of a vulnerability
    of this type found on Polygon.
 
@@ -218,3 +217,6 @@ contracts if desired.
 | `FINALIZATION_PERIOD` | `604_800` | seconds |
 
 This `FINALIZATION_PERIOD` value is equivalent to 7 days.
+
+[`WithdrawalTransaction` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L76-L83
+[`OutputRootProof` type]: https://github.com/ethereum-optimism/optimism/blob/6c6d142d7bb95faa11066aab5d8aed7187abfe38/packages/contracts-bedrock/contracts/libraries/Types.sol#L33-L38
