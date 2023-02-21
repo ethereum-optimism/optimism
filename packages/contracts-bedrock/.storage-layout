@@ -16,7 +16,7 @@
 | __gap                  | uint256[49]              | 52   | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | _paused                | bool                     | 101  | 0      | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | __gap                  | uint256[49]              | 102  | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| _status                | uint256                  | 151  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer_151_0_32        | uint256                  | 151  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | __gap_reentrancy_guard | uint256[49]              | 152  | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | spacer_201_0_32        | mapping(bytes32 => bool) | 201  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | spacer_202_0_32        | mapping(bytes32 => bool) | 202  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
@@ -125,7 +125,7 @@
 | __gap                  | uint256[49]              | 52   | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | _paused                | bool                     | 101  | 0      | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | __gap                  | uint256[49]              | 102  | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| _status                | uint256                  | 151  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer_151_0_32        | uint256                  | 151  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | __gap_reentrancy_guard | uint256[49]              | 152  | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | spacer_201_0_32        | mapping(bytes32 => bool) | 201  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | spacer_202_0_32        | mapping(bytes32 => bool) | 202  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |

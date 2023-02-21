@@ -5,6 +5,11 @@
       "offset": 0,
       "length": 20
     },
+    "spacer_151_0_32": {
+      "slot": 151,
+      "offset": 0,
+      "length": 32
+    },
     "spacer_201_0_32": {
       "slot": 201,
       "offset": 0,
@@ -21,6 +26,11 @@
       "slot": 0,
       "offset": 0,
       "length": 20
+    },
+    "spacer_151_0_32": {
+      "slot": 151,
+      "offset": 0,
+      "length": 32
     },
     "spacer_201_0_32": {
       "slot": 201,

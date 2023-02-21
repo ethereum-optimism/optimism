@@ -83,10 +83,10 @@ abstract contract CrossDomainMessenger is
     address public immutable OTHER_MESSENGER;
 
     /**
-     * @custom:spacer ReentrancyGuardUpgradeable
+     * @custom:spacer ReentrancyGuardUpgradeable's `_status` field.
      * @notice Spacer for backwards compatibility
      */
-    uint256 private _status;
+    uint256 private spacer_151_0_32;
 
     /**
      * @custom:spacer ReentrancyGuardUpgradeable
