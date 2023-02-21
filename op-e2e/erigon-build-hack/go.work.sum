@@ -1,3 +1,5 @@
+github.com/bobanetwork/v3-erigon v1.9.7-0.20230217204021-9e5a37b6f728 h1:94LdZiQPSLrLbZUhkAdfrDq1o3AnBockpv1ArZ4MQP4=
+github.com/bobanetwork/v3-erigon v1.9.7-0.20230217204021-9e5a37b6f728/go.mod h1:TynCwPzs2fwI13t9vdwyAn4fOEkkAQ4+nWYZ+bpiFeU=
 github.com/cespare/xxhash v1.1.0 h1:a6HrQnmkObjyL+Gs60czilIUGqrzKutQD6XZog3p+ko=
 github.com/coreos/go-systemd v0.0.0-20181012123002-c6f51f82210d h1:t5Wuyh53qYyg9eqn4BbnlIT+vmhyww0TatL+zT3uWgI=
 github.com/russross/blackfriday v1.5.2 h1:HyvC0ARfnZBqnXwABFeSZHpKvJHJJfPz81GNueLj0oo=

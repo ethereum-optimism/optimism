@@ -2,11 +2,11 @@ package op_e2e
 
 import (
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"testing"
 	"time"
 
@@ -36,7 +36,6 @@ type ErigonRunner struct {
 	Name    string
 	BinPath string
 	DataDir string
-	WebPort int
 	JWTPath string
 	ChainID uint64
 	Genesis *core.Genesis
@@ -95,13 +94,13 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		"--mine",
 		// "--miner.etherbase=0x123463a4B065722E99115D6c222f267d9cABb524",
 		// "--miner.sigfile", "/home/boba/datadir/nodekey",
-		"--http.port", strconv.Itoa(er.WebPort),
+		"--http.port", "0",
 		"--http.addr", "127.0.0.1",
 		"--http.api", "eth,debug,net,engine,erigon,web3",
-		"--private.api.addr=127.0.0.1:9090",
+		"--private.api.addr=127.0.0.1:0",
 		"--allow-insecure-unlock",
 		"--authrpc.addr=127.0.0.1",
-		"--authrpc.port=8551",
+		"--authrpc.port=0",
 		"--authrpc.vhosts=*",
 		"--authrpc.jwtsecret", er.JWTPath,
 		"--networkid", "901",
@@ -112,17 +111,26 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		gexec.NewPrefixedWriter(er.Name, os.Stderr),
 	)
 	gt.Expect(err).NotTo(gomega.HaveOccurred())
+	var enginePort, httpPort int
+	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened for Engine API\\s*url=127.0.0.1:"))
+	fmt.Fscanf(sess.Err, "%d", &enginePort)
+	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("HTTP endpoint opened\\s*url=127.0.0.1:"))
+	fmt.Fscanf(sess.Err, "%d", &httpPort)
 	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("\\[15/15 Finish\\] DONE"))
 
 	return ErigonInstance{
-		Session: sess,
-		Runner:  er,
+		Session:    sess,
+		HTTPPort:   httpPort,
+		EnginePort: enginePort,
+		Runner:     er,
 	}
 }
 
 type ErigonInstance struct {
-	Session *gexec.Session
-	Runner  *ErigonRunner
+	Session    *gexec.Session
+	HTTPPort   int
+	EnginePort int
+	Runner     *ErigonRunner
 }
 
 func (ei *ErigonInstance) Shutdown() {

@@ -238,7 +238,7 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 )
 
-replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon v1.9.7-0.20230217144944-6ed1559c2b40
+replace github.com/ledgerwatch/erigon => github.com/bobanetwork/v3-erigon jason-dev
 
 replace github.com/ledgerwatch/erigon-lib => github.com/bobanetwork/v3-erigon-lib v0.0.0-20230213212510-53d08d6e12bb
 
