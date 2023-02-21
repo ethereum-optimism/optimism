@@ -1014,6 +1014,7 @@ export class CrossChainMessenger {
    * Queries the OptimismPortal contract's `provenWithdrawals` mapping
    * for a ProvenWithdrawal that matches the passed withdrawalHash
    *
+   * @bedrock
    * Note: This function is bedrock-specific.
    *
    * @returns A ProvenWithdrawal object
