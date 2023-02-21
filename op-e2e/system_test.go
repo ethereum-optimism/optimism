@@ -68,7 +68,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	cfg.NonFinalizedProposals = true // speed up the time till we see output proposals
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -141,7 +141,7 @@ func TestSystemE2E(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -256,7 +256,7 @@ func TestConfirmationDepth(t *testing.T) {
 	cfg.Nodes["sequencer"].Driver.VerifierConfDepth = 0
 	cfg.Nodes["verifier"].Driver.VerifierConfDepth = verConfDepth
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -315,7 +315,7 @@ func TestPendingGasLimit(t *testing.T) {
 		},
 	}
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -360,7 +360,7 @@ func TestFinalize(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -387,7 +387,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	}
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -397,7 +397,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 	// Find deposit contract
 	depositContract, err := bindings.NewOptimismPortal(predeploys.DevOptimismPortalAddr, l1Client)
 	require.Nil(t, err)
-	l1Node := sys.Nodes["l1"]
+	l1Node := sys.EthInstances["l1"].GethInstance.Node
 
 	// create signer
 	ks := l1Node.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
@@ -470,7 +470,7 @@ func TestMissingBatchE2E(t *testing.T) {
 	// Specifically set batch submitter balance to stop batches from being included
 	cfg.Premine[cfg.Secrets.Addresses().Batcher] = big.NewInt(0)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -590,7 +590,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
-		"verifier": []string{"sequencer"},
+		"verifier": {"sequencer"},
 	}
 
 	var published, received []common.Hash
@@ -604,7 +604,7 @@ func TestSystemMockP2P(t *testing.T) {
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -654,7 +654,7 @@ func TestL1InfoContract(t *testing.T) {
 
 	cfg := DefaultSystemConfig(t)
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -739,7 +739,6 @@ func TestL1InfoContract(t *testing.T) {
 	checkInfoList("On sequencer with state", l1InfosFromSequencerState)
 	checkInfoList("On verifier with tx", l1InfosFromVerifierTransactions)
 	checkInfoList("On verifier with state", l1InfosFromVerifierState)
-
 }
 
 // calcGasFees determines the actual cost of the transaction given a specific basefee
@@ -783,7 +782,7 @@ func TestWithdrawals(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FinalizationPeriodSeconds = 2 // 2s finalization period
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -893,7 +892,7 @@ func TestWithdrawals(t *testing.T) {
 	header, err = l2Verif.HeaderByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	require.Nil(t, err)
 
-	rpcClient, err := rpc.Dial(sys.Nodes["verifier"].WSEndpoint())
+	rpcClient, err := rpc.Dial(sys.EthInstances["verifier"].WSEndpoint())
 	require.Nil(t, err)
 	proofCl := gethclient.New(rpcClient)
 	receiptCl := ethclient.NewClient(rpcClient)
@@ -990,7 +989,7 @@ func TestFees(t *testing.T) {
 	cfg.DeployConfig.GasPriceOracleOverhead = 2100
 	cfg.DeployConfig.GasPriceOracleScalar = 1000_000
 
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -1136,7 +1135,7 @@ func TestStopStartSequencer(t *testing.T) {
 	}
 
 	cfg := DefaultSystemConfig(t)
-	sys, err := cfg.Start()
+	sys, err := cfg.Start(t)
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 

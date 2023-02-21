@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -80,7 +81,11 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		"--datadir", er.DataDir,
 		"init", genesisPath,
 	)
-	sess, err := gexec.Start(cmd, os.Stdout, os.Stderr)
+	sess, err := gexec.Start(
+		cmd,
+		gexec.NewPrefixedWriter(er.Name, os.Stdout),
+		gexec.NewPrefixedWriter(er.Name, os.Stderr),
+	)
 	gt.Expect(err).NotTo(gomega.HaveOccurred())
 	gt.Eventually(sess.Err, time.Minute).Should(gbytes.Say("Successfully wrote genesis state"))
 
@@ -103,7 +108,7 @@ func (er *ErigonRunner) Run(t *testing.T) ErigonInstance {
 		"--authrpc.port=0",
 		"--authrpc.vhosts=*",
 		"--authrpc.jwtsecret", er.JWTPath,
-		"--networkid", "901",
+		"--networkid", strconv.FormatUint(er.ChainID, 10),
 	)
 	sess, err = gexec.Start(
 		cmd,
