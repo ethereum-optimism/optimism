@@ -9,6 +9,7 @@ import { SafeCall } from "../libraries/SafeCall.sol";
 import { IOptimismMintableERC20, ILegacyMintableERC20 } from "./IOptimismMintableERC20.sol";
 import { CrossDomainMessenger } from "./CrossDomainMessenger.sol";
 import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
+import { Permit2Lib } from "../libraries/Permit2Lib.sol";
 
 /**
  * @custom:upgradeable
@@ -19,6 +20,7 @@ import { OptimismMintableERC20 } from "./OptimismMintableERC20.sol";
  */
 abstract contract StandardBridge {
     using SafeERC20 for IERC20;
+    using Permit2Lib for IERC20;
 
     /**
      * @notice The L2 gas limit set when eth is depoisited using the receive() function.
@@ -416,7 +418,7 @@ abstract contract StandardBridge {
 
             OptimismMintableERC20(_localToken).burn(_from, _amount);
         } else {
-            IERC20(_localToken).safeTransferFrom(_from, address(this), _amount);
+            IERC20(_localToken).transferFrom2(_from, address(this), _amount);
             deposits[_localToken][_remoteToken] = deposits[_localToken][_remoteToken] + _amount;
         }
 

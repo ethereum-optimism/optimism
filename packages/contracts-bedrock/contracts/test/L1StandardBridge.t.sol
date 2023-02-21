@@ -428,6 +428,32 @@ contract L1StandardBridge_DepositERC20_Test is Bridge_Initializer {
     }
 }
 
+contract L1StandardBridge_DepositERC20Permit2_Test is Bridge_Initializer {
+    function test_depositERC20_succeeds() external {
+        // Give alice some tokens
+        deal(address(L1Token), alice, 100000, true);
+        // Approve permit2
+        vm.prank(alice);
+        L1Token.approve(address(PERMIT2), type(uint256).max);
+        // Approve the bridge to spend from permit2
+        vm.prank(alice);
+        PERMIT2.approve(address(L1Token), address(L1Bridge), type(uint160).max, type(uint48).max);
+
+        // The bridge does not have an approval
+        assertEq(L1Token.allowance(alice, address(L1Token)), 0);
+
+        // permit2 has the approval
+        (uint160 allowance, uint48 expiration, uint48 nonce) = PERMIT2.allowance(alice, address(L1Token), address(L1Bridge));
+        assertEq(allowance, type(uint160).max);
+        assertEq(expiration, type(uint48).max);
+        assertEq(nonce, 0);
+
+        vm.prank(alice);
+        L1Bridge.depositERC20(address(L1Token), address(L2Token), 100, 10000, hex"");
+        assertEq(L1Bridge.deposits(address(L1Token), address(L2Token)), 100);
+    }
+}
+
 contract L1StandardBridge_DepositERC20_TestFail is Bridge_Initializer {
     function test_depositERC20_notEoa_reverts() external {
         // turn alice into a contract
