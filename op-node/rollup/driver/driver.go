@@ -69,7 +69,7 @@ type SequencerIface interface {
 	StartBuildingBlock(ctx context.Context) error
 	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
 	PlanNextSequencerAction() time.Duration
-	RunNextSequencerAction(ctx context.Context) *eth.ExecutionPayload
+	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error)
 	BuildingOnto() eth.L2BlockRef
 }
 
@@ -93,7 +93,6 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
-		idleDerivation:   false,
 		stateReq:         make(chan chan struct{}),
 		forceReset:       make(chan chan struct{}, 10),
 		startSequencer:   make(chan hashAndErrorChannel, 10),

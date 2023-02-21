@@ -25,6 +25,11 @@ type L1Fetcher interface {
 	L1TransactionFetcher
 }
 
+type ResettableEngineControl interface {
+	EngineControl
+	Reset()
+}
+
 type ResetableStage interface {
 	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
