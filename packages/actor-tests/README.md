@@ -127,7 +127,7 @@ It's useful to use `expect`/`assert` to make sure that actors are executing prop
 The test runner is responsible for executing actor tests and managing their lifecycle. It can run in one of two modes:
 
 1. Fixed run mode, which will execute the `run` method a fixed number of times.
-2. Timed mode, which will will execute the `run` method as many times as possible until a period of time has elapsed.
+2. Timed mode, which will execute the `run` method as many times as possible until a period of time has elapsed.
 
 Test lifecycle is as follows:
 

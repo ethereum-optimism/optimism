@@ -34,7 +34,7 @@ There are two ways that this can be achieved: integrated via Qubes or integrated
 
 #### 1. Qubes Integrated
 
-Qubes provdes a facility for inter-qubes communication via `qrexec`. A qube can request to make a cross-qube RPC request 
+Qubes provides a facility for inter-qubes communication via `qrexec`. A qube can request to make a cross-qube RPC request 
 to another qube. The OS then asks the user if the call is permitted. 
 
 ![Example](qubes/qrexec-example.png)
