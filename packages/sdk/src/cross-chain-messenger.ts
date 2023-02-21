@@ -351,8 +351,12 @@ export class CrossChainMessenger {
       }
     }
 
+    // Compute the gas limit and cap at 25 million
     const dataCost = calldataCost(resolved.message)
-    const minGasLimit = dataCost.add(200_000)
+    let minGasLimit = dataCost.add(200_000)
+    if (minGasLimit.gt(25_000_000)) {
+      minGasLimit = BigNumber.from(25_000_000)
+    }
 
     return {
       ...resolved,

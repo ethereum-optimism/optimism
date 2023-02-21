@@ -95,6 +95,11 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 
 	// Set the outer gas limit. This cannot be zero
 	gasLimit := dataCost + 200_000
+	// Cap the gas limit to be 25 million to prevent creating withdrawals
+	// that go over the block gas limit.
+	if gasLimit > 25_000_000 {
+		gasLimit = 25_000_000
+	}
 
 	w := NewWithdrawal(
 		versionedNonce,
