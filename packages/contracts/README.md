@@ -4,7 +4,7 @@
 
 `@eth-optimism/contracts` contains the various Solidity smart contracts used within the Optimism system.
 Some of these contracts are [meant to be deployed to Ethereum ("Layer 1")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L1), while others are [meant to be deployed to Optimism ("Layer 2")](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts/contracts/L2).
-Within each contract file you'll find the network upon which the contract is meant to be deloyed, listed as either `EVM` (for Ethereum) or `OVM` (for Optimism).
+Within each contract file you'll find the network upon which the contract is meant to be deployed, listed as either `EVM` (for Ethereum) or `OVM` (for Optimism).
 If neither `EVM` nor `OVM` are listed, the contract is likely intended to be used on either network.
 
 ## Usage (npm)
