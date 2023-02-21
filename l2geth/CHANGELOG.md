@@ -444,7 +444,7 @@
 
 ### Patch Changes
 
-- 9231063: Prevent montonicity errors in the miner
+- 9231063: Prevent monotonicity errors in the miner
 
 ## 0.3.0
 
