@@ -86,7 +86,13 @@ abstract contract CrossDomainMessenger is
      * @custom:spacer ReentrancyGuardUpgradeable
      * @notice Spacer for backwards compatibility
      */
-    uint256[50] private __gap_reentrancy_guard;
+    uint256 private _status;
+
+    /**
+     * @custom:spacer ReentrancyGuardUpgradeable
+     * @notice Spacer for backwards compatibility
+     */
+    uint256[49] private __gap_reentrancy_guard;
 
     /**
      * @custom:legacy
