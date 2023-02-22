@@ -7,7 +7,6 @@ import (
 	"math/big"
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -36,7 +35,6 @@ var (
 // It provides useful functions for advancing and querying the chain
 type L2Geth struct {
 	node          *gn.Node
-	cancel        context.CancelFunc
 	l2Engine      *sources.EngineClient
 	L2Client      *ethclient.Client
 	SystemConfig  eth.SystemConfig
@@ -47,7 +45,7 @@ type L2Geth struct {
 	sequenceNum   uint64
 }
 
-func NewL2Geth(t *testing.T, cfg *SystemConfig) (*L2Geth, error) {
+func NewL2Geth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*L2Geth, error) {
 	logger := testlog.Logger(t, log.LvlCrit)
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
 	require.Nil(t, err)
@@ -75,7 +73,6 @@ func NewL2Geth(t *testing.T, cfg *SystemConfig) (*L2Geth, error) {
 	require.Nil(t, node.Start())
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), auth)
 	require.Nil(t, err)
 
@@ -95,7 +92,6 @@ func NewL2Geth(t *testing.T, cfg *SystemConfig) (*L2Geth, error) {
 
 	require.Nil(t, err)
 	return &L2Geth{
-		cancel:        cancel,
 		node:          node,
 		L2Client:      l2Client,
 		l2Engine:      l2Engine,
@@ -109,7 +105,6 @@ func NewL2Geth(t *testing.T, cfg *SystemConfig) (*L2Geth, error) {
 
 func (d *L2Geth) Close() {
 	d.node.Close()
-	d.cancel()
 	d.l2Engine.Close()
 	d.L2Client.Close()
 }

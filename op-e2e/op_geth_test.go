@@ -20,11 +20,10 @@ import (
 func TestMissingGasLimit(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
-	l2Geth, err := NewL2Geth(t, &cfg)
-	require.NoError(t, err)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	l2Geth, err := NewL2Geth(t, ctx, &cfg)
+	require.NoError(t, err)
 
 	attrs, err := l2Geth.CreatePayloadAttributes()
 	require.NoError(t, err)
@@ -42,11 +41,10 @@ func TestMissingGasLimit(t *testing.T) {
 func TestInvalidDepositInFCU(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
-	l2Geth, err := NewL2Geth(t, &cfg)
-	require.NoError(t, err)
-
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	l2Geth, err := NewL2Geth(t, ctx, &cfg)
+	require.NoError(t, err)
 
 	// Create a deposit from alice that will always fail (not enough funds)
 	fromAddr := cfg.Secrets.Addresses().Alice
@@ -82,7 +80,10 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	l2Geth, err := NewL2Geth(t, &cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	l2Geth, err := NewL2Geth(t, ctx, &cfg)
 	require.NoError(t, err)
 	defer l2Geth.Close()
 
@@ -107,10 +108,6 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 		Data:                []byte{},
 		IsSystemTransaction: false,
 	})
-
-	// Add a new block with these transactions
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	payload, err := l2Geth.AddL2Block(ctx, depositTx, contractCreateTx)
 	require.NoError(t, err)
@@ -144,7 +141,10 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 	regolithTime := hexutil.Uint64(4)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	l2Geth, err := NewL2Geth(t, &cfg)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	l2Geth, err := NewL2Geth(t, ctx, &cfg)
 	require.NoError(t, err)
 	defer l2Geth.Close()
 
@@ -169,10 +169,6 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 		Data:                []byte{},
 		IsSystemTransaction: false,
 	})
-
-	// Add a new block with these transactions
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
 
 	// First block is still in bedrock
 	payload, err := l2Geth.AddL2Block(ctx, depositTx, contractCreateTx)
@@ -251,12 +247,12 @@ func TestRegolithDepositTxUnusedGas(t *testing.T) {
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	l2Geth, err := NewL2Geth(t, &cfg)
-	require.NoError(t, err)
-	defer l2Geth.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	l2Geth, err := NewL2Geth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer l2Geth.Close()
 
 	fromAddr := cfg.Secrets.Addresses().Alice
 
@@ -301,12 +297,12 @@ func TestRegolithRejectsSystemTx(t *testing.T) {
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	l2Geth, err := NewL2Geth(t, &cfg)
-	require.NoError(t, err)
-	defer l2Geth.Close()
-
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+
+	l2Geth, err := NewL2Geth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer l2Geth.Close()
 
 	systemTx, err := derive.L1InfoDeposit(1, l2Geth.L1Head, l2Geth.SystemConfig)
 	systemTx.IsSystemTransaction = true
