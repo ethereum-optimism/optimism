@@ -210,8 +210,8 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	// Setup an L2 EE and create a client connection to the engine.
 	// We also need to setup a L1 Genesis to create the rollup genesis.
 	cfg := DefaultSystemConfig(t)
-	regolithTime := uint64(0)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(&regolithTime)
+	regolithTime := hexutil.Uint64(0)
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
 	devnet, err := NewDevnet(t, cfg.DeployConfig)
 	require.NoError(t, err)
@@ -272,8 +272,8 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 // TestActivateRegolithAtGenesis runs deposit transactions on a chain with Regolith enabled from block 2
 func TestActivateRegolithAfterGenesis(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
-	regolithTime := uint64(4)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(&regolithTime)
+	regolithTime := hexutil.Uint64(4)
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
 	devnet, err := NewDevnet(t, cfg.DeployConfig)
 	require.NoError(t, err)
@@ -379,8 +379,8 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 // Also checks the user is not refunded for unused gas.
 func TestRegolithDepositTxUnusedGas(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
-	regolithTime := uint64(0)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(&regolithTime)
+	regolithTime := hexutil.Uint64(0)
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
 	devnet, err := NewDevnet(t, cfg.DeployConfig)
 	require.NoError(t, err)
@@ -423,4 +423,25 @@ func TestRegolithDepositTxUnusedGas(t *testing.T) {
 
 	newAliceBalance, err := devnet.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Equal(t, aliceBalance, newAliceBalance, "should not refund fee for unused gas")
+}
+
+// TestRegolithRejectsSystemTx checks that IsSystemTx must be false after Regolith
+func TestRegolithRejectsSystemTx(t *testing.T) {
+	t.Skip("Need to wait for op-node to have Regolith support before this requirement can be enforced")
+	cfg := DefaultSystemConfig(t)
+	regolithTime := hexutil.Uint64(0)
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
+
+	devnet, err := NewDevnet(t, cfg.DeployConfig)
+	require.NoError(t, err)
+	defer devnet.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	systemTx, err := derive.L1InfoDeposit(1, devnet.L1Head, devnet.SystemConfig)
+	require.NoError(t, err)
+
+	_, err = devnet.AddL2Block(ctx, types.NewTx(systemTx))
+	require.ErrorIs(t, err, ErrNewPayloadNotValid)
 }

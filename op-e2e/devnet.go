@@ -27,6 +27,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	ErrForkChoiceUpdatedNotValid = errors.New("forkChoiceUpdated status was not valid")
+	ErrNewPayloadNotValid        = errors.New("newPayload status was not valid")
+)
+
 type Devnet struct {
 	node          *gn.Node
 	cancel        context.CancelFunc
@@ -122,7 +127,7 @@ func (d *Devnet) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, fmt.Errorf("forkChoiceUpdated gave unexpected status: %s", res.PayloadStatus.Status)
+		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)
 	}
 	if res.PayloadID == nil {
 		return nil, errors.New("forkChoiceUpdated returned nil PayloadID")
@@ -141,7 +146,7 @@ func (d *Devnet) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 	if status.Status != eth.ExecutionValid {
-		return nil, fmt.Errorf("newPayload returned unexpected status: %s", status.Status)
+		return nil, fmt.Errorf("%w: %s", ErrNewPayloadNotValid, status.Status)
 	}
 
 	fc.HeadBlockHash = payload.BlockHash
@@ -150,7 +155,7 @@ func (d *Devnet) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, err
 	}
 	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, fmt.Errorf("forkChoiceUpdated gave unexpected status: %s", res.PayloadStatus.Status)
+		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)
 	}
 	d.L2Head = payload
 	d.sequenceNum = d.sequenceNum + 1
