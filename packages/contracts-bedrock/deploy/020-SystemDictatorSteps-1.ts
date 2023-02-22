@@ -29,6 +29,7 @@ const deployFn: DeployFunction = async (hre) => {
     L1ERC721BridgeProxy,
     L1ERC721BridgeProxyWithSigner,
     SystemConfigProxy,
+    L2OutputOracleProxy,
   ] = await getContractsFromArtifacts(hre, [
     {
       name: 'SystemDictatorProxy',
@@ -65,6 +66,11 @@ const deployFn: DeployFunction = async (hre) => {
     {
       name: 'SystemConfigProxy',
       iface: 'SystemConfig',
+      signerOrProvider: deployer,
+    },
+    {
+      name: 'L2OutputOracleProxy',
+      iface: 'L2OutputOracle',
       signerOrProvider: deployer,
     },
   ])
@@ -286,6 +292,13 @@ const deployFn: DeployFunction = async (hre) => {
         SystemConfigProxy,
         'gasLimit',
         hre.deployConfig.l2GenesisBlockGasLimit
+      )
+
+      // Check L2OutputOracle was initialized properly.
+      await assertContractVariable(
+        L2OutputOracleProxy,
+        'latestBlockNumber',
+        hre.deployConfig.l2OutputOracleStartingBlockNumber
       )
     },
   })

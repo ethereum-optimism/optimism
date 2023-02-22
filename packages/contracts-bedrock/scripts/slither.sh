@@ -6,6 +6,6 @@ rm -rf artifacts forge-artifacts
 TEMP=$(mktemp -d)
 mv contracts/test $TEMP/test
 
-slither .
+slither . --foundry-out-directory artifacts
 
 mv $TEMP/test contracts/test

@@ -7,9 +7,6 @@ import {
 import {
     PausableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import {
-    ReentrancyGuardUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
@@ -43,8 +40,7 @@ contract CrossDomainMessengerLegacySpacer {
 abstract contract CrossDomainMessenger is
     CrossDomainMessengerLegacySpacer,
     OwnableUpgradeable,
-    PausableUpgradeable,
-    ReentrancyGuardUpgradeable
+    PausableUpgradeable
 {
     /**
      * @notice Current message version identifier.
@@ -85,6 +81,18 @@ abstract contract CrossDomainMessenger is
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
     address public immutable OTHER_MESSENGER;
+
+    /**
+     * @custom:spacer ReentrancyGuardUpgradeable's `_status` field.
+     * @notice Spacer for backwards compatibility
+     */
+    uint256 private spacer_151_0_32;
+
+    /**
+     * @custom:spacer ReentrancyGuardUpgradeable
+     * @notice Spacer for backwards compatibility
+     */
+    uint256[49] private __gap_reentrancy_guard;
 
     /**
      * @custom:legacy
@@ -130,11 +138,16 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public failedMessages;
 
     /**
+     * @notice A mapping of hashes to reentrancy locks.
+     */
+    mapping(bytes32 => bool) internal reentrancyLocks;
+
+    /**
      * @notice Reserve extra slots in the storage layout for future upgrades.
      *         A gap size of 41 was chosen here, so that the first slot used in a child contract
      *         would be a multiple of 50.
      */
-    uint256[42] private __gap;
+    uint256[41] private __gap;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
@@ -260,7 +273,7 @@ abstract contract CrossDomainMessenger is
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) external payable nonReentrant whenNotPaused {
+    ) external payable whenNotPaused {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
         require(
             version < 2,
@@ -287,6 +300,13 @@ abstract contract CrossDomainMessenger is
             _minGasLimit,
             _message
         );
+
+        // Check if the reentrancy lock for the `versionedHash` is already set.
+        if (reentrancyLocks[versionedHash]) {
+            revert("ReentrancyGuard: reentrant call");
+        }
+        // Trigger the reentrancy lock for `versionedHash`
+        reentrancyLocks[versionedHash] = true;
 
         if (_isOtherMessenger()) {
             // These properties should always hold when the message is first submitted (as
@@ -340,6 +360,9 @@ abstract contract CrossDomainMessenger is
                 revert("CrossDomainMessenger: failed to relay message");
             }
         }
+
+        // Clear the reentrancy lock for `versionedHash`
+        reentrancyLocks[versionedHash] = false;
     }
 
     /**
@@ -403,7 +426,6 @@ abstract contract CrossDomainMessenger is
         __Context_init_unchained();
         __Ownable_init_unchained();
         __Pausable_init_unchained();
-        __ReentrancyGuard_init_unchained();
     }
 
     /**

@@ -52,13 +52,13 @@ contract CrossDomainOwnableThroughPortal_Test is Portal_Initializer {
         vm.recordLogs();
 
         vm.prank(alice);
-        op.depositTransaction(
-            address(setter),
-            0,
-            10000,
-            false,
-            abi.encodeWithSelector(XDomainSetter.set.selector, 1)
-        );
+        op.depositTransaction({
+            _to: address(setter),
+            _value: 0,
+            _gasLimit: 21_000,
+            _isCreation: false,
+            _data: abi.encodeWithSelector(XDomainSetter.set.selector, 1)
+        });
 
         // Simulate the operation of the `op-node` by parsing data
         // from logs

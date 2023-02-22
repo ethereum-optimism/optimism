@@ -118,6 +118,38 @@ contract L2StandardBridge_Test is Bridge_Initializer {
         vm.prank(alice, alice);
         L2Bridge.withdraw(address(Predeploys.LEGACY_ERC20_ETH), 100, 1000, hex"");
     }
+
+    /**
+     * @notice Use the legacy `withdraw` interface on the L2StandardBridge to
+     *         withdraw ether from L2 to L1.
+     */
+    function test_withdraw_ether_succeeds() external {
+        assertTrue(alice.balance >= 100);
+        assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 0);
+
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit WithdrawalInitiated({
+            l1Token: address(0),
+            l2Token: Predeploys.LEGACY_ERC20_ETH,
+            from: alice,
+            to: alice,
+            amount: 100,
+            data: hex""
+        });
+
+        vm.expectEmit(true, true, true, true, address(L2Bridge));
+        emit ETHBridgeInitiated({ from: alice, to: alice, amount: 100, data: hex"" });
+
+        vm.prank(alice, alice);
+        L2Bridge.withdraw{ value: 100 }({
+            _l2Token: Predeploys.LEGACY_ERC20_ETH,
+            _amount: 100,
+            _minGasLimit: 1000,
+            _extraData: hex""
+        });
+
+        assertEq(Predeploys.L2_TO_L1_MESSAGE_PASSER.balance, 100);
+    }
 }
 
 contract PreBridgeERC20 is Bridge_Initializer {

@@ -11,12 +11,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
-	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
@@ -34,9 +33,6 @@ import (
 func TestingConfig(t *testing.T) *Config {
 	p, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err, "failed to generate new p2p priv key")
-	mtpt, err := lconf.MuxerConstructor(yamux.DefaultTransport)
-	require.NoError(t, err)
-	mux := lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}
 
 	return &Config{
 		Priv:                (p).(*crypto.Secp256k1PrivateKey),
@@ -45,7 +41,7 @@ func TestingConfig(t *testing.T) *Config {
 		ListenIP:            net.IP{127, 0, 0, 1},
 		ListenTCPPort:       0, // bind to any available port
 		StaticPeers:         nil,
-		HostMux:             []lconf.MsMuxC{mux},
+		HostMux:             []libp2p.Option{YamuxC()},
 		NoTransportSecurity: true,
 		PeersLo:             1,
 		PeersHi:             10,
@@ -96,15 +92,6 @@ func TestP2PFull(t *testing.T) {
 	pB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err, "failed to generate new p2p priv key")
 
-	mplexC, err := MplexC()
-	require.NoError(t, err)
-	yamuxC, err := YamuxC()
-	require.NoError(t, err)
-	noiseC, err := NoiseC()
-	require.NoError(t, err)
-	tlsC, err := TlsC()
-	require.NoError(t, err)
-
 	confA := Config{
 		Priv:                (pA).(*crypto.Secp256k1PrivateKey),
 		DisableP2P:          false,
@@ -112,8 +99,8 @@ func TestP2PFull(t *testing.T) {
 		ListenIP:            net.IP{127, 0, 0, 1},
 		ListenTCPPort:       0, // bind to any available port
 		StaticPeers:         nil,
-		HostMux:             []lconf.MsMuxC{yamuxC, mplexC},
-		HostSecurity:        []lconf.MsSecC{noiseC, tlsC},
+		HostMux:             []libp2p.Option{YamuxC(), MplexC()},
+		HostSecurity:        []libp2p.Option{NoiseC(), TlsC()},
 		NoTransportSecurity: false,
 		PeersLo:             1,
 		PeersHi:             10,
@@ -242,15 +229,6 @@ func TestDiscovery(t *testing.T) {
 	logB := testlog.Logger(t, log.LvlError).New("host", "B")
 	logC := testlog.Logger(t, log.LvlError).New("host", "C")
 
-	mplexC, err := MplexC()
-	require.NoError(t, err)
-	yamuxC, err := YamuxC()
-	require.NoError(t, err)
-	noiseC, err := NoiseC()
-	require.NoError(t, err)
-	tlsC, err := TlsC()
-	require.NoError(t, err)
-
 	discDBA, err := enode.OpenDB("") // "" = memory db
 	require.NoError(t, err)
 	discDBB, err := enode.OpenDB("")
@@ -269,8 +247,8 @@ func TestDiscovery(t *testing.T) {
 		ListenIP:            net.IP{127, 0, 0, 1},
 		ListenTCPPort:       0, // bind to any available port
 		StaticPeers:         nil,
-		HostMux:             []lconf.MsMuxC{yamuxC, mplexC},
-		HostSecurity:        []lconf.MsSecC{noiseC, tlsC},
+		HostMux:             []libp2p.Option{YamuxC(), MplexC()},
+		HostSecurity:        []libp2p.Option{NoiseC(), TlsC()},
 		NoTransportSecurity: false,
 		PeersLo:             1,
 		PeersHi:             10,
