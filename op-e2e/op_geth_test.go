@@ -213,15 +213,15 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	devnet, err := NewDevnet(t, cfg.DeployConfig)
+	l2Geth, err := NewL2Geth(t, &cfg)
 	require.NoError(t, err)
-	defer devnet.Close()
+	defer l2Geth.Close()
 
 	fromAddr := cfg.Secrets.Addresses().Alice
 
 	// Simple transfer deposit tx
 	depositTx := types.NewTx(&types.DepositTx{
-		SourceHash:          devnet.L1Head.Hash(),
+		SourceHash:          l2Geth.L1Head.Hash(),
 		From:                fromAddr,
 		To:                  &fromAddr, // send it to ourselves
 		Value:               big.NewInt(params.Ether),
@@ -231,7 +231,7 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 
 	// Contract creation deposit tx
 	contractCreateTx := types.NewTx(&types.DepositTx{
-		SourceHash:          devnet.L1Head.Hash(),
+		SourceHash:          l2Geth.L1Head.Hash(),
 		From:                fromAddr,
 		Value:               big.NewInt(params.Ether),
 		Gas:                 1000000,
@@ -243,28 +243,28 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	payload, err := devnet.AddL2Block(ctx, depositTx, contractCreateTx)
+	payload, err := l2Geth.AddL2Block(ctx, depositTx, contractCreateTx)
 	require.NoError(t, err)
 
 	// Check the deposit tx show actual gas used, not gas limit
-	receipt, err := devnet.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	receipt, err := l2Geth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
 	require.NoError(t, err)
 	require.NotEqual(t, depositTx.Gas(), receipt.GasUsed)
 	require.Equal(t, uint64(0), *receipt.DepositNonce)
 
-	infoTx, err := devnet.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
+	infoTx, err := l2Geth.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
 	require.NoError(t, err)
-	infoRcpt, err := devnet.L2Client.TransactionReceipt(ctx, infoTx.Hash())
+	infoRcpt, err := l2Geth.L2Client.TransactionReceipt(ctx, infoTx.Hash())
 	require.NoError(t, err)
 	require.NotZero(t, infoRcpt.GasUsed)
 
 	expectedContractAddress := crypto.CreateAddress(fromAddr, uint64(1))
-	createRcpt, err := devnet.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
+	createRcpt, err := l2Geth.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, createRcpt.Status)
 	require.Equal(t, expectedContractAddress, createRcpt.ContractAddress)
 	require.Equal(t, uint64(1), *createRcpt.DepositNonce)
-	contractBalance, err := devnet.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
+	contractBalance, err := l2Geth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, contractCreateTx.Value(), contractBalance)
 }
@@ -275,15 +275,15 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 	regolithTime := hexutil.Uint64(4)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	devnet, err := NewDevnet(t, cfg.DeployConfig)
+	l2Geth, err := NewL2Geth(t, &cfg)
 	require.NoError(t, err)
-	defer devnet.Close()
+	defer l2Geth.Close()
 
 	fromAddr := cfg.Secrets.Addresses().Alice
 
 	// Simple transfer deposit tx
 	depositTx := types.NewTx(&types.DepositTx{
-		SourceHash:          devnet.L1Head.Hash(),
+		SourceHash:          l2Geth.L1Head.Hash(),
 		From:                fromAddr,
 		To:                  &fromAddr, // send it to ourselves
 		Value:               big.NewInt(params.Ether),
@@ -293,7 +293,7 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 
 	// Contract creation deposit tx
 	contractCreateTx := types.NewTx(&types.DepositTx{
-		SourceHash:          devnet.L1Head.Hash(),
+		SourceHash:          l2Geth.L1Head.Hash(),
 		From:                fromAddr,
 		Value:               big.NewInt(params.Ether),
 		Gas:                 1000000,
@@ -306,34 +306,34 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 	defer cancel()
 
 	// First block is still in bedrock
-	payload, err := devnet.AddL2Block(ctx, depositTx, contractCreateTx)
+	payload, err := l2Geth.AddL2Block(ctx, depositTx, contractCreateTx)
 	require.NoError(t, err)
 
 	// Check the deposit tx show actual gas used, not gas limit
-	receipt, err := devnet.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	receipt, err := l2Geth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
 	require.NoError(t, err)
 	require.Equal(t, depositTx.Gas(), receipt.GasUsed)
 
-	infoTx, err := devnet.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
+	infoTx, err := l2Geth.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
 	require.NoError(t, err)
-	infoRcpt, err := devnet.L2Client.TransactionReceipt(ctx, infoTx.Hash())
+	infoRcpt, err := l2Geth.L2Client.TransactionReceipt(ctx, infoTx.Hash())
 	require.NoError(t, err)
 	require.Zero(t, infoRcpt.GasUsed)
 
 	expectedContractAddress := crypto.CreateAddress(fromAddr, uint64(0)) // Expected to be wrong
-	createRcpt, err := devnet.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
+	createRcpt, err := l2Geth.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, createRcpt.Status)
 	require.Equal(t, expectedContractAddress, createRcpt.ContractAddress)
 
-	contractBalance, err := devnet.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
+	contractBalance, err := l2Geth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, uint64(0), contractBalance.Uint64())
 
 	// Second block is in regolith
 	// Simple transfer deposit tx
 	depositTx = types.NewTx(&types.DepositTx{
-		SourceHash:          devnet.L1Head.Hash(),
+		SourceHash:          l2Geth.L1Head.Hash(),
 		From:                fromAddr,
 		To:                  &fromAddr, // send it to ourselves
 		Value:               big.NewInt(params.Ether),
@@ -343,34 +343,34 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 
 	// Contract creation deposit tx
 	contractCreateTx = types.NewTx(&types.DepositTx{
-		SourceHash:          devnet.L1Head.Hash(),
+		SourceHash:          l2Geth.L1Head.Hash(),
 		From:                fromAddr,
 		Value:               big.NewInt(params.Ether),
 		Gas:                 1000001,
 		Data:                []byte{},
 		IsSystemTransaction: false,
 	})
-	payload, err = devnet.AddL2Block(ctx, depositTx, contractCreateTx)
+	payload, err = l2Geth.AddL2Block(ctx, depositTx, contractCreateTx)
 	require.NoError(t, err)
 
 	// Check the deposit tx show actual gas used, not gas limit
-	receipt, err = devnet.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	receipt, err = l2Geth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
 	require.NoError(t, err)
 	require.NotEqual(t, depositTx.Gas(), receipt.GasUsed)
 
-	infoTx, err = devnet.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
+	infoTx, err = l2Geth.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
 	require.NoError(t, err)
-	infoRcpt, err = devnet.L2Client.TransactionReceipt(ctx, infoTx.Hash())
+	infoRcpt, err = l2Geth.L2Client.TransactionReceipt(ctx, infoTx.Hash())
 	require.NoError(t, err)
 	require.NotZero(t, infoRcpt.GasUsed)
 
 	expectedContractAddress = crypto.CreateAddress(fromAddr, uint64(3))
-	createRcpt, err = devnet.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
+	createRcpt, err = l2Geth.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, createRcpt.Status)
 	require.Equal(t, expectedContractAddress, createRcpt.ContractAddress)
 
-	contractBalance, err = devnet.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
+	contractBalance, err = l2Geth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, contractCreateTx.Value(), contractBalance)
 }
@@ -382,21 +382,21 @@ func TestRegolithDepositTxUnusedGas(t *testing.T) {
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	devnet, err := NewDevnet(t, cfg.DeployConfig)
+	l2Geth, err := NewL2Geth(t, &cfg)
 	require.NoError(t, err)
-	defer devnet.Close()
+	defer l2Geth.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	fromAddr := cfg.Secrets.Addresses().Alice
 
-	aliceBalance, err := devnet.L2Client.BalanceAt(ctx, fromAddr, nil)
+	aliceBalance, err := l2Geth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.NoError(t, err)
 
 	// Deposit TX with a high gas limit but using very little actual gas
 	depositTx := types.NewTx(&types.DepositTx{
-		SourceHash: devnet.L1Head.Hash(),
+		SourceHash: l2Geth.L1Head.Hash(),
 		From:       fromAddr,
 		To:         &fromAddr, // send it to ourselves
 		Value:      big.NewInt(params.Ether),
@@ -405,7 +405,7 @@ func TestRegolithDepositTxUnusedGas(t *testing.T) {
 		IsSystemTransaction: false,
 	})
 
-	signer := types.LatestSigner(devnet.L2ChainConfig)
+	signer := types.LatestSigner(l2Geth.L2ChainConfig)
 	// Second deposit tx with a gas limit that will fit in regolith but not bedrock
 	tx := types.MustSignNewTx(cfg.Secrets.Bob, signer, &types.DynamicFeeTx{
 		ChainID:   big.NewInt(int64(cfg.DeployConfig.L2ChainID)),
@@ -418,10 +418,10 @@ func TestRegolithDepositTxUnusedGas(t *testing.T) {
 		Data:      nil,
 	})
 
-	_, err = devnet.AddL2Block(ctx, depositTx, tx)
+	_, err = l2Geth.AddL2Block(ctx, depositTx, tx)
 	require.NoError(t, err)
 
-	newAliceBalance, err := devnet.L2Client.BalanceAt(ctx, fromAddr, nil)
+	newAliceBalance, err := l2Geth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Equal(t, aliceBalance, newAliceBalance, "should not refund fee for unused gas")
 }
 
@@ -432,16 +432,17 @@ func TestRegolithRejectsSystemTx(t *testing.T) {
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
 
-	devnet, err := NewDevnet(t, cfg.DeployConfig)
+	l2Geth, err := NewL2Geth(t, &cfg)
 	require.NoError(t, err)
-	defer devnet.Close()
+	defer l2Geth.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	systemTx, err := derive.L1InfoDeposit(1, devnet.L1Head, devnet.SystemConfig)
+	systemTx, err := derive.L1InfoDeposit(1, l2Geth.L1Head, l2Geth.SystemConfig)
+	systemTx.IsSystemTransaction = true
 	require.NoError(t, err)
 
-	_, err = devnet.AddL2Block(ctx, types.NewTx(systemTx))
+	_, err = l2Geth.AddL2Block(ctx, types.NewTx(systemTx))
 	require.ErrorIs(t, err, ErrNewPayloadNotValid)
 }

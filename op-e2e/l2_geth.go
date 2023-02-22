@@ -32,7 +32,9 @@ var (
 	ErrNewPayloadNotValid        = errors.New("newPayload status was not valid")
 )
 
-type Devnet struct {
+// L2Geth is an actor that functions as a l2 op-geth node
+// It provides useful functions for advancing and querying the chain
+type L2Geth struct {
 	node          *gn.Node
 	cancel        context.CancelFunc
 	l2Engine      *sources.EngineClient
@@ -40,18 +42,18 @@ type Devnet struct {
 	SystemConfig  eth.SystemConfig
 	L1ChainConfig *params.ChainConfig
 	L2ChainConfig *params.ChainConfig
-	L1Head        *types.Block
+	L1Head        eth.BlockInfo
 	L2Head        *eth.ExecutionPayload
 	sequenceNum   uint64
 }
 
-func NewDevnet(t *testing.T, cfg *genesis.DeployConfig) (*Devnet, error) {
-	log := testlog.Logger(t, log.LvlCrit)
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg)
+func NewL2Geth(t *testing.T, cfg *SystemConfig) (*L2Geth, error) {
+	logger := testlog.Logger(t, log.LvlCrit)
+	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
 	require.Nil(t, err)
 	l1Block := l1Genesis.ToBlock()
 
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg, l1Block)
+	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	require.Nil(t, err)
 	l2GenesisBlock := l2Genesis.ToBlock()
 
@@ -65,22 +67,22 @@ func NewDevnet(t *testing.T, cfg *genesis.DeployConfig) (*Devnet, error) {
 			Number: l2GenesisBlock.NumberU64(),
 		},
 		L2Time:       l2GenesisBlock.Time(),
-		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg),
+		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
 	}
 
-	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.L2ChainID)), l2Genesis, writeDefaultJWT(t))
+	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath)
 	require.Nil(t, err)
 	require.Nil(t, node.Start())
 
-	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(testingJWTSecret))
+	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	l2Node, err := client.NewRPC(ctx, log, node.WSAuthEndpoint(), auth)
+	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), auth)
 	require.Nil(t, err)
 
 	// Finally create the engine client
 	l2Engine, err := sources.NewEngineClient(
 		l2Node,
-		log,
+		logger,
 		nil,
 		sources.EngineClientDefaultConfig(&rollup.Config{Genesis: rollupGenesis}),
 	)
@@ -92,7 +94,7 @@ func NewDevnet(t *testing.T, cfg *genesis.DeployConfig) (*Devnet, error) {
 	genesisPayload, err := eth.BlockAsPayload(l2GenesisBlock)
 
 	require.Nil(t, err)
-	return &Devnet{
+	return &L2Geth{
 		cancel:        cancel,
 		node:          node,
 		L2Client:      l2Client,
@@ -105,15 +107,17 @@ func NewDevnet(t *testing.T, cfg *genesis.DeployConfig) (*Devnet, error) {
 	}, nil
 }
 
-func (d *Devnet) Close() {
+func (d *L2Geth) Close() {
 	d.node.Close()
 	d.cancel()
 	d.l2Engine.Close()
 	d.L2Client.Close()
 }
 
-func (d *Devnet) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayload, error) {
-	attrs, err := d.CreatePayloadAttributes(txs)
+// AddL2Block Appends a new L2 block to the current chain including the specified transactions
+// The L1Info transaction is automatically prepended to the created block
+func (d *L2Geth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayload, error) {
+	attrs, err := d.createPayloadAttributes(txs)
 	if err != nil {
 		return nil, err
 	}
@@ -162,7 +166,7 @@ func (d *Devnet) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	return payload, nil
 }
 
-func (d *Devnet) CreatePayloadAttributes(txs []*types.Transaction) (*eth.PayloadAttributes, error) {
+func (d *L2Geth) createPayloadAttributes(txs []*types.Transaction) (*eth.PayloadAttributes, error) {
 	l1Info, err := derive.L1InfoDepositBytes(d.sequenceNum, d.L1Head, d.SystemConfig)
 	if err != nil {
 		return nil, err
