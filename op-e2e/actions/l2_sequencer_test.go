@@ -108,12 +108,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 // while the verifier-codepath only ever sees the valid post-reorg L1 chain.
 func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
 	t := NewDefaultTesting(gt)
-	p := &e2eutils.TestParams{
-		MaxSequencerDrift:   20, // larger than L1 block time we simulate in this test (12)
-		SequencerWindowSize: 24,
-		ChannelTimeout:      20,
-	}
-	dp := e2eutils.MakeDeployParams(t, p)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 	miner, _, sequencer := setupSequencerTest(t, sd, log)

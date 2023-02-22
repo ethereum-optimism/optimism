@@ -24,6 +24,11 @@ type L1OriginSelectorIface interface {
 	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 }
 
+type SequencerMetrics interface {
+	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
+	RecordSequencerReset()
+}
+
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.
 type Sequencer struct {
 	log    log.Logger
@@ -34,13 +39,15 @@ type Sequencer struct {
 	attrBuilder      derive.AttributesBuilder
 	l1OriginSelector L1OriginSelectorIface
 
+	metrics SequencerMetrics
+
 	// timeNow enables sequencer testing to mock the time
 	timeNow func() time.Time
 
 	nextAction time.Time
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
 		log:              log,
 		config:           cfg,
@@ -48,6 +55,7 @@ func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEn
 		timeNow:          time.Now,
 		attrBuilder:      attributesBuilder,
 		l1OriginSelector: l1OriginSelector,
+		metrics:          metrics,
 	}
 }
 
@@ -63,6 +71,7 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
 	}
 
 	if !(l2Head.L1Origin.Hash == l1Origin.ParentHash || l2Head.L1Origin.Hash == l1Origin.Hash) {
+		d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
 		return derive.NewResetError(fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s", l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin))
 	}
 
@@ -169,6 +178,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 				return nil, err // bubble up critical errors.
 			} else if errors.Is(err, derive.ErrReset) {
 				d.log.Error("sequencer failed to seal new block, requiring derivation reset", "err", err)
+				d.metrics.RecordSequencerReset()
 				d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime)) // hold off from sequencing for a full block
 				if buildingID != (eth.PayloadID{}) {                                            // cancel what we were doing
 					d.CancelBuildingBlock(ctx)
@@ -180,6 +190,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 				// Any unfinished block building work eventually times out, and will be cleaned up that way.
 			} else {
 				d.log.Error("sequencer failed to seal block with unclassified error", "err", err)
+				d.nextAction = d.timeNow().Add(time.Second)
 				if buildingID != (eth.PayloadID{}) { // don't keep stale block building jobs around, try to cancel them
 					d.CancelBuildingBlock(ctx)
 				}
@@ -196,6 +207,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 				return nil, err
 			} else if errors.Is(err, derive.ErrReset) {
 				d.log.Error("sequencer failed to seal new block, requiring derivation reset", "err", err)
+				d.metrics.RecordSequencerReset()
 				d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime)) // hold off from sequencing for a full block
 				d.engine.Reset()
 			} else if errors.Is(err, derive.ErrTemporary) {

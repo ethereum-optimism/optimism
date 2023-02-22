@@ -30,7 +30,7 @@ type MeteredEngine struct {
 	buildingStartTime time.Time
 }
 
-// MeteredEngine implements derive.EngineControl
+// MeteredEngine implements derive.ResettableEngineControl
 var _ derive.ResettableEngineControl = (*MeteredEngine)(nil)
 
 func NewMeteredEngine(cfg *rollup.Config, inner derive.ResettableEngineControl, metrics EngineMetrics, log log.Logger) *MeteredEngine {

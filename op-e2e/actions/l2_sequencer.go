@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -47,7 +48,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 	}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector),
+		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}
@@ -121,7 +122,7 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 // ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1HeadUnsafe(t Testing) {
 	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
-		// Note: the
+		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		s.ActL2StartBlock(t)
 		s.ActL2EndBlock(t)
 	}
@@ -144,6 +145,7 @@ func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 // ActBuildToL1HeadExclUnsafe builds empty blocks until (excl.) the L1 head becomes the L1 origin of the L2 head, without safe-head progression.
 func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
 	for {
+		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
 		require.NoError(t, err)
 		if nextOrigin.Number >= s.l1State.L1Head().Number {

@@ -25,6 +25,9 @@ type L1Fetcher interface {
 	L1TransactionFetcher
 }
 
+// ResettableEngineControl wraps EngineControl with reset-functionality,
+// which handles reorgs like the derivation pipeline:
+// by determining the last valid block references to continue from.
 type ResettableEngineControl interface {
 	EngineControl
 	Reset()

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -301,7 +302,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		}
 	})
 
-	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector)
+	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics)
 	seq.timeNow = clockFn
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems
