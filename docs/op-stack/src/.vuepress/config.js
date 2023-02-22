@@ -43,7 +43,7 @@ module.exports = {
       },
       {
         text: 'OP Stack Docs',
-        link: '/docs/'
+        link: '/'
       },
       {
         text: 'Optimism Docs',
@@ -107,67 +107,64 @@ module.exports = {
       }
     ],
     searchPlaceholder: 'Search the docs',
-    sidebar: {
-      '/': [
-        {
-          title: "OP Stack",
-          collapsable: false,
-          children: [        
-          '/docs/understand/intro.md',
-          [
-            '/docs/understand/design-principles.md',
-            'Design Principles'
-          ],
-          '/docs/understand/landscape.md',
-          ]
-        }, 
-        {
-          title: "Releases",
-          collapsable: false,          
-          children: [
-            '/docs/releases/',
-            '/docs/releases/bedrock.md',
-          ]
-        },
-        {
-          title: "Building OP Stack Rollups",
-          collapsable: false,
-          children: [
-            '/docs/build/getting-started.md',
-            '/docs/build/conf.md',
-            {
-              title: "OP Stack Hacks",
-              sidebardDepth: 3,
-              collapsable: true,
-              children: [
-                '/docs/build/hacks.md',
-                '/docs/build/featured.md',
-                '/docs/build/data-avail.md',            
-                '/docs/build/derivation.md',
-                '/docs/build/execution.md',
-                '/docs/build/settlement.md',                  
-                {
-                  title: "Sample Hacks",
-                  children: [
-                    "/docs/build/tutorials/add-attr.md",
-                    "/docs/build/tutorials/new-precomp.md",                
-                  ]
-                }  // End of tutorials                      
-              ], 
-            },    // End of OP Stack hacks
-          ],
-        },      // End of Building OP Stack Rollups
-        '/docs/contribute.md',
-        {
-          title: "Security",
-          collapsable: false,          
-          children: [
-            '/docs/security/faq.md',
-            '/docs/security/policy.md',
-          ]
-        },        
-      ],  // end of '/'
-    },    // end of sidebar
+    sidebar: [
+      {
+        title: "OP Stack",
+        collapsable: false,
+        children: [        
+        '/',
+        [
+          '/docs/understand/design-principles.md',
+          'Design Principles'
+        ],
+        '/docs/understand/landscape.md',
+        ]
+      }, 
+      {
+        title: "Releases",
+        collapsable: false,          
+        children: [
+          '/docs/releases/',
+          '/docs/releases/bedrock.md',
+        ]
+      },
+      {
+        title: "Building OP Stack Rollups",
+        collapsable: false,
+        children: [
+          '/docs/build/getting-started.md',
+          '/docs/build/conf.md',
+          {
+            title: "OP Stack Hacks",
+            collapsable: true,
+            children: [
+              '/docs/build/hacks.md',
+              '/docs/build/featured.md',
+              '/docs/build/data-avail.md',            
+              '/docs/build/derivation.md',
+              '/docs/build/execution.md',
+              '/docs/build/settlement.md',                  
+              {
+                title: "Sample Hacks",
+                children: [
+                  "/docs/build/tutorials/add-attr.md",
+                  "/docs/build/tutorials/new-precomp.md",                
+                ]
+              }  // End of tutorials                      
+            ], 
+          },    // End of OP Stack hacks
+        ],
+      },      // End of Building OP Stack Rollups
+      '/docs/contribute.md',
+      {
+        title: "Security",
+        collapsable: false,          
+        children: [
+          '/docs/security/faq.md',
+          '/docs/security/policy.md',
+        ]
+      },        
+    ],  // end of sidebar
   plugins: [
     "@vuepress/pwa",
     [
