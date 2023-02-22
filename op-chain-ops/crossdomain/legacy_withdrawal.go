@@ -16,21 +16,28 @@ import (
 
 // LegacyWithdrawal represents a pre bedrock upgrade withdrawal.
 type LegacyWithdrawal struct {
-	Target *common.Address `json:"target"`
-	Sender *common.Address `json:"sender"`
-	Data   hexutil.Bytes   `json:"data"`
-	Nonce  *big.Int        `json:"nonce"`
+	// MessageSender is the caller of the message passer
+	MessageSender common.Address `json:"who"`
+	// XDomainTarget is the L1 target of the withdrawal message
+	XDomainTarget common.Address `json:"target"`
+	// XDomainSender is the L2 withdrawing account
+	XDomainSender common.Address `json:"sender"`
+	// XDomainData represents the calldata of the withdrawal message
+	XDomainData hexutil.Bytes `json:"data"`
+	// XDomainNonce represents the nonce of the withdrawal
+	XDomainNonce *big.Int `json:"nonce"`
 }
 
 var _ WithdrawalMessage = (*LegacyWithdrawal)(nil)
 
 // NewLegacyWithdrawal will construct a LegacyWithdrawal
-func NewLegacyWithdrawal(target, sender *common.Address, data []byte, nonce *big.Int) *LegacyWithdrawal {
+func NewLegacyWithdrawal(msgSender, target, sender common.Address, data []byte, nonce *big.Int) *LegacyWithdrawal {
 	return &LegacyWithdrawal{
-		Target: target,
-		Sender: sender,
-		Data:   data,
-		Nonce:  nonce,
+		MessageSender: msgSender,
+		XDomainTarget: target,
+		XDomainSender: sender,
+		XDomainData:   data,
+		XDomainNonce:  nonce,
 	}
 }
 
@@ -39,7 +46,7 @@ func NewLegacyWithdrawal(target, sender *common.Address, data []byte, nonce *big
 // through the standard optimism cross domain messaging system by hashing in
 // the L2CrossDomainMessenger address.
 func (w *LegacyWithdrawal) Encode() ([]byte, error) {
-	enc, err := EncodeCrossDomainMessageV0(w.Target, w.Sender, []byte(w.Data), w.Nonce)
+	enc, err := EncodeCrossDomainMessageV0(w.XDomainTarget, w.XDomainSender, []byte(w.XDomainData), w.XDomainNonce)
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode LegacyWithdrawal: %w", err)
 	}
@@ -62,9 +69,6 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 	}
 
 	msgSender := data[len(data)-len(predeploys.L2CrossDomainMessengerAddr):]
-	if !bytes.Equal(msgSender, predeploys.L2CrossDomainMessengerAddr.Bytes()) {
-		return errors.New("invalid msg.sender")
-	}
 
 	raw := data[4 : len(data)-len(predeploys.L2CrossDomainMessengerAddr)]
 
@@ -97,10 +101,11 @@ func (w *LegacyWithdrawal) Decode(data []byte) error {
 		return errors.New("cannot abi decode nonce")
 	}
 
-	w.Target = &target
-	w.Sender = &sender
-	w.Data = hexutil.Bytes(msgData)
-	w.Nonce = nonce
+	w.MessageSender = common.BytesToAddress(msgSender)
+	w.XDomainTarget = target
+	w.XDomainSender = sender
+	w.XDomainData = msgData
+	w.XDomainNonce = nonce
 	return nil
 }
 
@@ -142,19 +147,15 @@ func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 	value := new(big.Int)
 
 	// Parse the 4byte selector
-	method, err := abi.MethodById(w.Data)
+	method, err := abi.MethodById(w.XDomainData)
 	// If it is an unknown selector, there is no value
 	if err != nil {
 		return value, nil
 	}
 
-	if w.Sender == nil {
-		return nil, errors.New("sender is nil")
-	}
-
-	isFromL2StandardBridge := *w.Sender == predeploys.L2StandardBridgeAddr
+	isFromL2StandardBridge := w.XDomainSender == predeploys.L2StandardBridgeAddr
 	if isFromL2StandardBridge && method.Name == "finalizeETHWithdrawal" {
-		data, err := method.Inputs.Unpack(w.Data[4:])
+		data, err := method.Inputs.Unpack(w.XDomainData[4:])
 		if err != nil {
 			return nil, err
 		}
@@ -177,11 +178,11 @@ func (w *LegacyWithdrawal) Value() (*big.Int, error) {
 // the concept of value or gaslimit, so set them to 0.
 func (w *LegacyWithdrawal) CrossDomainMessage() *CrossDomainMessage {
 	return &CrossDomainMessage{
-		Nonce:    w.Nonce,
-		Sender:   w.Sender,
-		Target:   w.Target,
+		Nonce:    w.XDomainNonce,
+		Sender:   w.XDomainSender,
+		Target:   w.XDomainTarget,
 		Value:    new(big.Int),
 		GasLimit: new(big.Int),
-		Data:     []byte(w.Data),
+		Data:     []byte(w.XDomainData),
 	}
 }

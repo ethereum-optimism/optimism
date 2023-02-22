@@ -5,6 +5,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// DangerousUnfilteredWithdrawals is a list of raw withdrawal witness
+// data. It has not been filtered for messages from sources other than
+// the
+type DangerousUnfilteredWithdrawals []*LegacyWithdrawal
+
+// SafeFilteredWithdrawals is a list of withdrawals that have been filtered to only include
+// withdrawals that were from the L2XDM.
+type SafeFilteredWithdrawals []*LegacyWithdrawal
+
 var (
 	// Standard ABI types
 	Uint256Type, _ = abi.NewType("uint256", "", nil)

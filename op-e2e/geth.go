@@ -112,6 +112,7 @@ func initL1Geth(cfg *SystemConfig, genesis *core.Genesis, opts ...GethOption) (*
 	ethConfig := &ethconfig.Config{
 		NetworkId: cfg.DeployConfig.L1ChainID,
 		Genesis:   genesis,
+		Miner:     miner.Config{Etherbase: cfg.DeployConfig.CliqueSignerAddress},
 	}
 	nodeConfig := &node.Config{
 		Name:        "l1-geth",

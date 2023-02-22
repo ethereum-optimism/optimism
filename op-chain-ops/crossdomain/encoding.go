@@ -37,8 +37,8 @@ func init() {
 // EncodeCrossDomainMessageV0 will encode the calldata for
 // "relayMessage(address,address,bytes,uint256)",
 func EncodeCrossDomainMessageV0(
-	target *common.Address,
-	sender *common.Address,
+	target common.Address,
+	sender common.Address,
 	message []byte,
 	nonce *big.Int,
 ) ([]byte, error) {
@@ -49,8 +49,8 @@ func EncodeCrossDomainMessageV0(
 // "relayMessage(uint256,address,address,uint256,uint256,bytes)",
 func EncodeCrossDomainMessageV1(
 	nonce *big.Int,
-	sender *common.Address,
-	target *common.Address,
+	sender common.Address,
+	target common.Address,
 	value *big.Int,
 	gasLimit *big.Int,
 	data []byte,
