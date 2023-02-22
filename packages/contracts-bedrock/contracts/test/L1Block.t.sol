@@ -9,7 +9,8 @@ contract L1BlockTest is CommonTest {
     address depositor;
     bytes32 immutable NON_ZERO_HASH = keccak256(abi.encode(1));
 
-    function setUp() external {
+    function setUp() virtual override public {
+        super.setUp();
         lb = new L1Block();
         depositor = lb.DEPOSITOR_ACCOUNT();
         vm.prank(depositor);

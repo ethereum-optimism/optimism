@@ -7,7 +7,7 @@ import { DeployerWhitelist } from "../legacy/DeployerWhitelist.sol";
 contract DeployerWhitelist_Test is CommonTest {
     DeployerWhitelist list;
 
-    function setUp() external {
+    function setUp() virtual override public {
         list = new DeployerWhitelist();
     }
 

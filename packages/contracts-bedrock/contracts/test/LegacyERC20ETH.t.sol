@@ -8,7 +8,8 @@ import { Predeploys } from "../libraries/Predeploys.sol";
 contract LegacyERC20ETH_Test is CommonTest {
     LegacyERC20ETH eth;
 
-    function setUp() external {
+    function setUp() virtual override public {
+        super.setUp();
         eth = new LegacyERC20ETH();
     }
 

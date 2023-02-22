@@ -50,7 +50,7 @@ contract CommonTest is Test {
 
     FFIInterface ffi;
 
-    function _setUp() public {
+    function setUp() public virtual {
         // Give alice and bob some ETH
         vm.deal(alice, 1 << 16);
         vm.deal(bob, 1 << 16);
@@ -117,9 +117,8 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 
-    function setUp() public virtual {
-        _setUp();
-
+    function setUp() virtual override public {
+        super.setUp();
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
         initL1Time = startingTimestamp + 1;
@@ -163,7 +162,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     );
 
     function setUp() public virtual override {
-        L2OutputOracle_Initializer.setUp();
+        super.setUp();
 
         opImpl = new OptimismPortal(oracle, 7 days);
         Proxy proxy = new Proxy(multisig);

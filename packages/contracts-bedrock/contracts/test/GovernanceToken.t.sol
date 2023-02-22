@@ -9,7 +9,8 @@ contract GovernanceToken_Test is CommonTest {
     address constant rando = address(0x5678);
     GovernanceToken internal gov;
 
-    function setUp() external {
+    function setUp() virtual override public {
+        super.setUp();
         vm.prank(owner);
         gov = new GovernanceToken();
     }

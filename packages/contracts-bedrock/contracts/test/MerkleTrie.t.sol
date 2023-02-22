@@ -5,10 +5,6 @@ import { CommonTest } from "./CommonTest.t.sol";
 import { MerkleTrie } from "../libraries/trie/MerkleTrie.sol";
 
 contract MerkleTrie_get_Test is CommonTest {
-    function setUp() public {
-        _setUp();
-    }
-
     function test_get_validProof1_succeeds() external {
         bytes32 root = 0xd582f99275e227a1cf4284899e5ff06ee56da8859be71b553397c69151bc942f;
         bytes memory key = hex"6b6579326262";
