@@ -1,5 +1,5 @@
 ---
-title: Contributing
+title: Contribute to OP Stack
 lang: en-US
 ---
 

@@ -155,7 +155,13 @@ module.exports = {
           },    // End of OP Stack hacks
         ],
       },      // End of Building OP Stack Rollups
-      '/docs/contribute.md',
+      {
+        title: "Contributing",
+        collapsable: false,          
+        children: [
+          '/docs/contribute.md',
+        ]        
+      },     
       {
         title: "Security",
         collapsable: false,          
