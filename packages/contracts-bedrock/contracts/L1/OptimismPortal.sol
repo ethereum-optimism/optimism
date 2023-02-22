@@ -48,8 +48,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
-    // TODO
-    uint256 internal constant CALL_GAS_BUFFER = 14_888;
+    /**
+     * @notice
+     */
+    uint256 internal constant CALL_GAS_BUFFER = 15_000;
 
     /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
@@ -311,7 +313,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         finalizedWithdrawals[withdrawalHash] = true;
 
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
-        // l2Sender = _tx.sender;
+        l2Sender = _tx.sender;
 
         // Make the call.
         bool success = _safeCall(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
@@ -349,15 +351,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             "OptimismPortal: insufficient gas to finalize withdrawal"
         );
 
-        l2Sender = address(1);
-
         // Trigger the call to the target contract. We use SafeCall because we don't
         // care about the returndata and we don't want target contracts to be able to force this
         // call to run out of gas via a returndata bomb.
         bool success = SafeCall.call(
             _target,
-            //gasleft() - CALL_GAS_BUFFER,
-            gasleft() - FINALIZE_GAS_BUFFER,
+            gasleft() - CALL_GAS_BUFFER,
             _value,
             _data
         );

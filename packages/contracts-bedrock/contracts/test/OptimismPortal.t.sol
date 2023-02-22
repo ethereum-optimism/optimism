@@ -9,6 +9,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
     function test_constructor_succeeds() external {
@@ -316,9 +317,22 @@ contract OptimismPortalCall_Test is CommonTest {
         assertEq(gu.s(0), 1);
     }
 
-    function _makeCall(uint256 gas) internal {
-        portal.safeCall{gas: gas}({
+    function _makeCall(uint256 _gas) internal {
+        portal.safeCall{gas: _gas}({
             _target: address(gu),
+            _gasLimit: defaultGas,
+            _value: 0,
+            _data: abi.encodeWithSignature("store(uint256)", 1)
+        });
+    }
+
+    function _makeCall(
+        uint256 gas,
+        OptimismPortalTester _portal,
+        GasUser _gu
+    ) internal {
+        _portal.safeCall{gas: gas}({
+            _target: address(_gu),
             _gasLimit: defaultGas,
             _value: 0,
             _data: abi.encodeWithSignature("store(uint256)", 1)
@@ -327,8 +341,8 @@ contract OptimismPortalCall_Test is CommonTest {
 
     function test_gasTooSmall() external {
         vm.expectRevert(bytes("OptimismPortal: insufficient gas to finalize withdrawal"));
-        //_makeCall(62781);
-        _makeCall(65681);
+        // adding 1 gas to this makes it fail
+        _makeCall(65_534);
     }
 
     // The transaction requires 44_602 gas
@@ -337,15 +351,35 @@ contract OptimismPortalCall_Test is CommonTest {
     // This is with setting the l2Sender after the require statement
     // in _safeCall
 
+    // [65_535, 65_568]
+
+    function test_full() external {
+        uint256 start = 65_535;
+        uint256 end =   65_568;
+        for (uint256 i = start; i <= end + 1000; i++) {
+            OptimismPortalTester _portal = new OptimismPortalTester();
+            GasUser _gu = new GasUser();
+            _makeCall(i, _portal, _gu);
+            try _gu.s(0) returns (uint256) {
+                // do nothing
+            } catch (bytes memory) {
+                assertTrue(
+                    false,
+                    string.concat("Failed at ", Strings.toString(i))
+                );
+            }
+        }
+    }
+
     function test_gasInBetweenLow() external {
-        // Subtracting 1 hits the portal revert
         _makeCall(65_535);
+        // this reverts
         assertEq(gu.s(0), 1);
     }
 
     function test_gasInBetweenHigh() external {
-        // Adding 1 passes this check
-        _makeCall(70_589);
+        // subtracting 1 gas from this call makes it revert
+        _makeCall(65_569);
         assertEq(gu.s(0), 1);
     }
 }
