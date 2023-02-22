@@ -1,5 +1,5 @@
 ---
-title: You should not be here
+title: Docs
 lang: en-US
 ---
 
