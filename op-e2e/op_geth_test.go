@@ -251,6 +251,7 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	receipt, err := devnet.L2Client.TransactionReceipt(ctx, depositTx.Hash())
 	require.NoError(t, err)
 	require.NotEqual(t, depositTx.Gas(), receipt.GasUsed)
+	require.Equal(t, uint64(0), *receipt.DepositNonce)
 
 	infoTx, err := devnet.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
 	require.NoError(t, err)
@@ -263,7 +264,7 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, types.ReceiptStatusSuccessful, createRcpt.Status)
 	require.Equal(t, expectedContractAddress, createRcpt.ContractAddress)
-
+	require.Equal(t, uint64(1), *createRcpt.DepositNonce)
 	contractBalance, err := devnet.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, contractCreateTx.Value(), contractBalance)
