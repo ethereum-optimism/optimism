@@ -212,19 +212,6 @@ contract SystemDictator is OwnableUpgradeable {
                 )
             )
         );
-
-        // Upgrade and initialize the L2OutputOracle so the Proposer can start up.
-        config.globalConfig.proxyAdmin.upgradeAndCall(
-            payable(config.proxyAddressConfig.l2OutputOracleProxy),
-            address(config.implementationAddressConfig.l2OutputOracleImpl),
-            abi.encodeCall(
-                L2OutputOracle.initialize,
-                (
-                    l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
-                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp
-                )
-            )
-        );
     }
 
     /**
@@ -309,6 +296,19 @@ contract SystemDictator is OwnableUpgradeable {
     function step5() external onlyOwner step(5) {
         // Dynamic config must be set before we can initialize the L2OutputOracle.
         require(dynamicConfigSet, "SystemDictator: dynamic oracle config is not yet initialized");
+
+        // Upgrade and initialize the L2OutputOracle.
+        config.globalConfig.proxyAdmin.upgradeAndCall(
+            payable(config.proxyAddressConfig.l2OutputOracleProxy),
+            address(config.implementationAddressConfig.l2OutputOracleImpl),
+            abi.encodeCall(
+                L2OutputOracle.initialize,
+                (
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingBlockNumber,
+                    l2OutputOracleDynamicConfig.l2OutputOracleStartingTimestamp
+                )
+            )
+        );
 
         // Upgrade and initialize the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
