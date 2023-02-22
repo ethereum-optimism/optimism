@@ -16,12 +16,13 @@ import (
 )
 
 func randConfig() *Config {
+	rng := rand.New(rand.NewSource(1234))
 	randHash := func() (out [32]byte) {
-		rand.Read(out[:])
+		rng.Read(out[:])
 		return
 	}
 	randAddr := func() (out common.Address) { // we need generics...
-		rand.Read(out[:])
+		rng.Read(out[:])
 		return
 	}
 	return &Config{
