@@ -68,7 +68,7 @@ func TestPreCheckWithdrawals_InvalidSlotInStorage(t *testing.T) {
 	root, err := stateDB.Commit(false)
 	require.NoError(t, err)
 
-	err = stateDB.Database().TrieDB().Commit(root, true, nil)
+	err = stateDB.Database().TrieDB().Commit(root, true)
 	require.NoError(t, err)
 
 	_, err = PreCheckWithdrawals(stateDB, nil)
@@ -127,7 +127,7 @@ func runPrecheck(t *testing.T, dbWds []*LegacyWithdrawal, witnessWds []*LegacyWi
 	root, err := stateDB.Commit(false)
 	require.NoError(t, err)
 
-	err = stateDB.Database().TrieDB().Commit(root, true, nil)
+	err = stateDB.Database().TrieDB().Commit(root, true)
 	require.NoError(t, err)
 
 	return PreCheckWithdrawals(stateDB, witnessWds)
