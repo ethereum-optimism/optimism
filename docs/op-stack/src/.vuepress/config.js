@@ -113,7 +113,7 @@ module.exports = {
     ], */
     searchPlaceholder: 'Search the docs',
     sidebar: {
-      '/docs': [
+      '/': [
         {
           title: "Understanding the OP Stack",
           collapsable: false,
