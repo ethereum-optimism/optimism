@@ -102,7 +102,7 @@ func regolithTime(config *DeployConfig, block *types.Block) *uint64 {
 	}
 	v := uint64(0)
 	if *config.L2GenesisRegolithTimeOffset > 0 {
-		v = block.Time() + *config.L2GenesisRegolithTimeOffset
+		v = block.Time() + uint64(*config.L2GenesisRegolithTimeOffset)
 	}
 	return &v
 }

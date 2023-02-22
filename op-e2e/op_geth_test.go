@@ -23,7 +23,6 @@ import (
 	gn "github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/stretchr/testify/require"
 )
 
@@ -212,7 +211,7 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 	// We also need to setup a L1 Genesis to create the rollup genesis.
 	cfg := DefaultSystemConfig(t)
 	regolithTime := uint64(0)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(&regolithTime)
 
 	devnet, err := NewDevnet(t, cfg.DeployConfig)
 	require.NoError(t, err)
@@ -274,7 +273,7 @@ func TestActivateRegolithAtGenesis(t *testing.T) {
 func TestActivateRegolithAfterGenesis(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	regolithTime := uint64(4)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(&regolithTime)
 
 	devnet, err := NewDevnet(t, cfg.DeployConfig)
 	require.NoError(t, err)
@@ -381,7 +380,7 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 func TestRegolithDepositTxUnusedGas(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	regolithTime := uint64(0)
-	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
+	cfg.DeployConfig.L2GenesisRegolithTimeOffset = (*hexutil.Uint64)(&regolithTime)
 
 	devnet, err := NewDevnet(t, cfg.DeployConfig)
 	require.NoError(t, err)
