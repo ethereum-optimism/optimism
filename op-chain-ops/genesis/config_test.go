@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rpc"
 
 	"github.com/stretchr/testify/require"
@@ -32,4 +34,18 @@ func TestUnmarshalL1StartingBlockTag(t *testing.T) {
 	h := "0x86c7263d87140ca7cd9bf1bc9e95a435a7a0efc0ae2afaf64920c5b59a6393d4"
 	require.NoError(t, json.Unmarshal([]byte(fmt.Sprintf(`{"l1StartingBlockTag": "%s"}`, h)), decoded))
 	require.EqualValues(t, common.HexToHash(h), *decoded.L1StartingBlockTag.BlockHash)
+}
+
+func TestRegolithTimeZero(t *testing.T) {
+	regolithOffset := hexutil.Uint64(0)
+	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
+	block := types.NewBlockWithHeader(&types.Header{Time: 1234})
+	require.Equal(t, uint64(0), *config.RegolithTime(block))
+}
+
+func TestRegolithTimeAsOffset(t *testing.T) {
+	regolithOffset := hexutil.Uint64(1500)
+	config := &DeployConfig{L2GenesisRegolithTimeOffset: &regolithOffset}
+	block := types.NewBlockWithHeader(&types.Header{Time: 5000})
+	require.Equal(t, uint64(1500+5000), *config.RegolithTime(block))
 }

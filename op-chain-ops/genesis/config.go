@@ -70,7 +70,7 @@ type DeployConfig struct {
 	L2GenesisBlockBaseFeePerGas *hexutil.Big   `json:"l2GenesisBlockBaseFeePerGas"`
 
 	// Seconds after genesis block that Regolith hard fork activates. 0 to activate at genesis. Nil to disable regolith
-	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset"`
+	L2GenesisRegolithTimeOffset *hexutil.Uint64 `json:"l2GenesisRegolithTimeOffset,omitempty"`
 
 	// Owner of the ProxyAdmin predeploy
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
@@ -285,6 +285,17 @@ func (d *DeployConfig) InitDeveloperDeployedAddresses() error {
 	d.OptimismPortalProxy = predeploys.DevOptimismPortalAddr
 	d.SystemConfigProxy = predeploys.DevSystemConfigAddr
 	return nil
+}
+
+func (d *DeployConfig) RegolithTime(block *types.Block) *uint64 {
+	if d.L2GenesisRegolithTimeOffset == nil {
+		return nil
+	}
+	v := uint64(0)
+	if *d.L2GenesisRegolithTimeOffset > 0 {
+		v = block.Time() + uint64(*d.L2GenesisRegolithTimeOffset)
+	}
+	return &v
 }
 
 // RollupConfig converts a DeployConfig to a rollup.Config

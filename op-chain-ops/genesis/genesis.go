@@ -54,7 +54,7 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		TerminalTotalDifficulty:       big.NewInt(0),
 		TerminalTotalDifficultyPassed: true,
 		BedrockBlock:                  new(big.Int).SetUint64(uint64(config.L2GenesisBlockNumber)),
-		RegolithTime:                  regolithTime(config, block),
+		RegolithTime:                  config.RegolithTime(block),
 		Optimism: &params.OptimismConfig{
 			EIP1559Denominator: eip1559Denom,
 			EIP1559Elasticity:  eip1559Elasticity,
@@ -94,17 +94,6 @@ func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, erro
 		BaseFee:    baseFee.ToInt(),
 		Alloc:      map[common.Address]core.GenesisAccount{},
 	}, nil
-}
-
-func regolithTime(config *DeployConfig, block *types.Block) *uint64 {
-	if config.L2GenesisRegolithTimeOffset == nil {
-		return nil
-	}
-	v := uint64(0)
-	if *config.L2GenesisRegolithTimeOffset > 0 {
-		v = block.Time() + uint64(*config.L2GenesisRegolithTimeOffset)
-	}
-	return &v
 }
 
 // NewL1Genesis will create a new L1 genesis config
