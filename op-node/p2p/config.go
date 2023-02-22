@@ -8,8 +8,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
-	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -18,8 +19,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
-
-	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -64,8 +63,8 @@ type Config struct {
 
 	StaticPeers []core.Multiaddr
 
-	HostMux             []lconf.MsMuxC
-	HostSecurity        []lconf.MsSecC
+	HostMux             []libp2p.Option
+	HostSecurity        []libp2p.Option
 	NoTransportSecurity bool
 
 	PeersLo    uint

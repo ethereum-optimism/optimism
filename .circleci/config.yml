@@ -439,7 +439,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -523,7 +523,7 @@ jobs:
           patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
@@ -668,6 +668,31 @@ jobs:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: Dump op-node logs
+                command: |
+                  docker logs ops-bedrock-op-node-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-geth logs
+                command: |
+                  docker logs ops-bedrock-l2-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump l1 logs
+                command: |
+                  docker logs ops-bedrock-l1-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-batcher logs
+                command: |
+                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-proposer logs
+                command: |
+                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+                when: on_fail
 
   integration-tests:
     machine:
@@ -949,6 +974,9 @@ workflows:
       - go-lint:
           name: op-service-lint
           module: op-service
+      - go-lint:
+          name: op-wheel-lint
+          module: op-wheel
       - go-test:
           name: op-batcher-tests
           module: op-batcher

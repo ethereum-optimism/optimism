@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"math/big"
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/db"
+	"github.com/mattn/go-isatty"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -15,7 +17,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/core/types"
 
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
@@ -24,7 +25,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/mattn/go-isatty"
 	"github.com/urfave/cli"
 )
 
@@ -36,45 +36,55 @@ func main() {
 		Usage: "Migrate a legacy database",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
-				Name:  "l1-rpc-url",
-				Value: "http://127.0.0.1:8545",
-				Usage: "RPC URL for an L1 Node",
+				Name:     "l1-rpc-url",
+				Value:    "http://127.0.0.1:8545",
+				Usage:    "RPC URL for an L1 Node",
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "ovm-addresses",
-				Usage: "Path to ovm-addresses.json",
+				Name:     "ovm-addresses",
+				Usage:    "Path to ovm-addresses.json",
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "evm-addresses",
-				Usage: "Path to evm-addresses.json",
+				Name:     "evm-addresses",
+				Usage:    "Path to evm-addresses.json",
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "ovm-allowances",
-				Usage: "Path to ovm-allowances.json",
+				Name:     "ovm-allowances",
+				Usage:    "Path to ovm-allowances.json",
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "ovm-messages",
-				Usage: "Path to ovm-messages.json",
+				Name:     "ovm-messages",
+				Usage:    "Path to ovm-messages.json",
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "evm-messages",
-				Usage: "Path to evm-messages.json",
+				Name:     "evm-messages",
+				Usage:    "Path to evm-messages.json",
+				Required: true,
 			},
 			&cli.StringFlag{
-				Name:  "db-path",
-				Usage: "Path to database",
+				Name:     "db-path",
+				Usage:    "Path to database",
+				Required: true,
 			},
 			cli.StringFlag{
-				Name:  "deploy-config",
-				Usage: "Path to hardhat deploy config file",
+				Name:     "deploy-config",
+				Usage:    "Path to hardhat deploy config file",
+				Required: true,
 			},
 			cli.StringFlag{
-				Name:  "network",
-				Usage: "Name of hardhat deploy network",
+				Name:     "network",
+				Usage:    "Name of hardhat deploy network",
+				Required: true,
 			},
 			cli.StringFlag{
-				Name:  "hardhat-deployments",
-				Usage: "Comma separated list of hardhat deployment directories",
+				Name:     "hardhat-deployments",
+				Usage:    "Comma separated list of hardhat deployment directories",
+				Required: true,
 			},
 			cli.BoolFlag{
 				Name:  "dry-run",
@@ -95,9 +105,10 @@ func main() {
 				Value: 60,
 			},
 			cli.StringFlag{
-				Name:  "rollup-config-out",
-				Usage: "Path that op-node config will be written to disk",
-				Value: "rollup.json",
+				Name:     "rollup-config-out",
+				Usage:    "Path that op-node config will be written to disk",
+				Value:    "rollup.json",
+				Required: true,
 			},
 		},
 		Action: func(ctx *cli.Context) error {
@@ -164,10 +175,7 @@ func main() {
 
 			dbCache := ctx.Int("db-cache")
 			dbHandles := ctx.Int("db-handles")
-
-			chaindataPath := filepath.Join(ctx.String("db-path"), "geth", "chaindata")
-			ancientPath := filepath.Join(chaindataPath, "ancient")
-			ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
+			ldb, err := db.Open(ctx.String("db-path"), dbCache, dbHandles)
 			if err != nil {
 				return err
 			}
@@ -194,7 +202,7 @@ func main() {
 				return err
 			}
 
-			postLDB, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, dbCache, dbHandles, ancientPath, "", false)
+			postLDB, err := db.Open(ctx.String("db-path"), dbCache, dbHandles)
 			if err != nil {
 				return err
 			}

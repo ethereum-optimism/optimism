@@ -13,7 +13,6 @@ import (
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
 	leveldb "github.com/ipfs/go-ds-leveldb"
-	lconf "github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/multiformats/go-multiaddr"
 
@@ -171,27 +170,19 @@ func loadLibp2pOpts(conf *p2p.Config, ctx *cli.Context) error {
 
 	for _, v := range strings.Split(ctx.GlobalString(flags.HostMux.Name), ",") {
 		v = strings.ToLower(strings.TrimSpace(v))
-		var mc lconf.MsMuxC
-		var err error
 		switch v {
 		case "yamux":
-			mc, err = p2p.YamuxC()
+			conf.HostMux = append(conf.HostMux, p2p.YamuxC())
 		case "mplex":
-			mc, err = p2p.MplexC()
+			conf.HostMux = append(conf.HostMux, p2p.MplexC())
 		default:
 			return fmt.Errorf("could not recognize mux %s", v)
 		}
-		if err != nil {
-			return fmt.Errorf("failed to make %s constructor: %w", v, err)
-		}
-		conf.HostMux = append(conf.HostMux, mc)
 	}
 
 	secArr := strings.Split(ctx.GlobalString(flags.HostSecurity.Name), ",")
 	for _, v := range secArr {
 		v = strings.ToLower(strings.TrimSpace(v))
-		var sc lconf.MsSecC
-		var err error
 		switch v {
 		case "none": // no security, for debugging etc.
 			if len(conf.HostSecurity) > 0 || len(secArr) > 1 {
@@ -199,16 +190,12 @@ func loadLibp2pOpts(conf *p2p.Config, ctx *cli.Context) error {
 			}
 			conf.NoTransportSecurity = true
 		case "noise":
-			sc, err = p2p.NoiseC()
+			conf.HostSecurity = append(conf.HostSecurity, p2p.NoiseC())
 		case "tls":
-			sc, err = p2p.TlsC()
+			conf.HostSecurity = append(conf.HostSecurity, p2p.TlsC())
 		default:
 			return fmt.Errorf("could not recognize security %s", v)
 		}
-		if err != nil {
-			return fmt.Errorf("failed to make %s constructor: %w", v, err)
-		}
-		conf.HostSecurity = append(conf.HostSecurity, sc)
 	}
 
 	conf.PeersLo = ctx.GlobalUint(flags.PeersLo.Name)

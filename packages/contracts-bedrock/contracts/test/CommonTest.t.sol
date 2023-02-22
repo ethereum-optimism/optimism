@@ -103,6 +103,15 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Test data
     uint256 initL1Time;
 
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
+    );
+
+    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
+
     // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
@@ -145,6 +154,13 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target
     OptimismPortal opImpl;
     OptimismPortal op;
+
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+    event WithdrawalProven(
+        bytes32 indexed withdrawalHash,
+        address indexed from,
+        address indexed to
+    );
 
     function setUp() public virtual override {
         L2OutputOracle_Initializer.setUp();
@@ -681,6 +697,67 @@ contract CallerCaller {
             default {
                 return(add(returndata, 0x20), mload(returndata))
             }
+        }
+    }
+}
+
+// Used for testing the `CrossDomainMessenger`'s per-message reentrancy guard.
+contract ConfigurableCaller {
+    bool doRevert = true;
+    address target;
+    bytes payload;
+
+    event WhatHappened(bool success, bytes returndata);
+
+    /**
+     * @notice Call the configured target with the configured payload OR revert.
+     */
+    function call() external {
+        if (doRevert) {
+            revert("ConfigurableCaller: revert");
+        } else {
+            (bool success, bytes memory returndata) = address(target).call(payload);
+            emit WhatHappened(success, returndata);
+            assembly {
+                switch success
+                case 0 {
+                    revert(add(returndata, 0x20), mload(returndata))
+                }
+                default {
+                    return(add(returndata, 0x20), mload(returndata))
+                }
+            }
+        }
+    }
+
+    /**
+     * @notice Set whether or not to have `call` revert.
+     */
+    function setDoRevert(bool _doRevert) external {
+        doRevert = _doRevert;
+    }
+
+    /**
+     * @notice Set the target for the call made in `call`.
+     */
+    function setTarget(address _target) external {
+        target = _target;
+    }
+
+    /**
+     * @notice Set the payload for the call made in `call`.
+     */
+    function setPayload(bytes calldata _payload) external {
+        payload = _payload;
+    }
+
+    /**
+     * @notice Fallback function that reverts if `doRevert` is true.
+     *         Otherwise, it does nothing.
+     */
+    fallback() external {
+        if (doRevert) {
+            revert("ConfigurableCaller: revert");
         }
     }
 }

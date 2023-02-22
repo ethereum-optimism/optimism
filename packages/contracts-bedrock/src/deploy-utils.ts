@@ -53,6 +53,7 @@ export const deploy = async ({
       log: true,
       waitConfirmations: hre.deployConfig.numDeployConfirmations,
     })
+    console.log(`Deployed ${name} at ${result.address}`)
   }
 
   // Always wait for the transaction to be mined, just in case.
