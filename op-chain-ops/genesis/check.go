@@ -5,23 +5,22 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/types"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-
-	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
-	"github.com/ethereum/go-ethereum/crypto"
-
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
+
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
 // MaxSlotChecks is the maximum number of storage slots to check
