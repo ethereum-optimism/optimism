@@ -9,7 +9,7 @@ require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum/go-ethereum v1.11.1
+	github.com/ethereum/go-ethereum v1.11.2
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.9
@@ -191,6 +191,6 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.11.1 => github.com/ethereum-optimism/op-geth v0.0.0-20230217195918-a8348f9f5aa7
+replace github.com/ethereum/go-ethereum v1.11.2 => github.com/ethereum-optimism/op-geth v0.0.0-20230222154945-12d211246519
 
-//replace github.com/ethereum/go-ethereum v1.11.1 => ../go-ethereum
+//replace github.com/ethereum/go-ethereum v1.11.2 => ../go-ethereum
