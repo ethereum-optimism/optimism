@@ -12,11 +12,11 @@ The Bedrock release primarily consists of the core software required to run L2 b
 
 ### Rollup Protocol
 
-Learn about the basics of the Rollup protocol used by Bedrock on the Rollup Protocol page.
+Learn about the basics of the Rollup protocol used by Bedrock on the [Rollup Protocol](https://community.optimism.io/docs/protocol/2-rollup-protocol/) page.
 
 ### Bedrock Explainer
 
-Learn all about the Bedrock release of the OP Stack by reading the Bedrock Explainer.
+Learn all about the Bedrock release of the OP Stack by reading the [Bedrock Explainer](https://community.optimism.io/docs/developers/bedrock/explainer/).
 
 ### Specifications
 
