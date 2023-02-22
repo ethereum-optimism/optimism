@@ -11,7 +11,7 @@ contract MintManager_Initializer is CommonTest {
     GovernanceToken internal gov;
     MintManager internal manager;
 
-    function setUp() virtual override public {
+    function setUp() public virtual override {
         super.setUp();
 
         vm.prank(owner);

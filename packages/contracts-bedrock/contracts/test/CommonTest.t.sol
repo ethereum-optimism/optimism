@@ -117,7 +117,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 
-    function setUp() virtual override public {
+    function setUp() public virtual override {
         super.setUp();
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.

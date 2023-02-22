@@ -18,7 +18,7 @@ contract XDomainSetter is CrossDomainOwnable {
 contract CrossDomainOwnable_Test is CommonTest {
     XDomainSetter setter;
 
-    function setUp() override public {
+    function setUp() public override {
         super.setUp();
         setter = new XDomainSetter();
     }

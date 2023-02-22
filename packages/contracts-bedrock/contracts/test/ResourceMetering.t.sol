@@ -21,7 +21,7 @@ contract ResourceMetering_Test is CommonTest {
     MeterUser internal meter;
     uint64 initialBlockNum;
 
-    function setUp() virtual override public {
+    function setUp() public virtual override {
         super.setUp();
         meter = new MeterUser();
         initialBlockNum = uint64(block.number);

@@ -7,7 +7,7 @@ import { SystemConfig } from "../L1/SystemConfig.sol";
 contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
 
-    function setUp() virtual override public {
+    function setUp() public virtual override {
         super.setUp();
         sysConf = new SystemConfig({
             _owner: alice,

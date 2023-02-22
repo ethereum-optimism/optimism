@@ -8,7 +8,7 @@ import { Predeploys } from "../libraries/Predeploys.sol";
 contract LegacyMessagePasser_Test is CommonTest {
     LegacyMessagePasser messagePasser;
 
-    function setUp() virtual override public {
+    function setUp() public virtual override {
         super.setUp();
         messagePasser = new LegacyMessagePasser();
     }

@@ -25,7 +25,7 @@ contract GasPriceOracle_Test is CommonTest {
     uint256 constant l1FeeOverhead = 310;
     uint256 constant l1FeeScalar = 10;
 
-    function setUp() virtual override public {
+    function setUp() public virtual override {
         super.setUp();
         // place the L1Block contract at the predeploy address
         vm.etch(Predeploys.L1_BLOCK_ATTRIBUTES, address(new L1Block()).code);
