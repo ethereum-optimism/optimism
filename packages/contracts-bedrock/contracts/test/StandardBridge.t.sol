@@ -37,8 +37,8 @@ contract LegacyMintable is ERC20, ILegacyMintableERC20  {
         return address(0);
     }
 
-    function mint(address _to, uint256 _amount) external {}
-    function burn(address _from, uint256 _amount) external {}
+    function mint(address _to, uint256 _amount) external pure {}
+    function burn(address _from, uint256 _amount) external pure {}
 
     /**
      * @notice Implements ERC165. This implementation should not be changed as
