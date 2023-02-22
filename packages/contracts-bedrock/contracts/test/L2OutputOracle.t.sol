@@ -10,17 +10,6 @@ import { Types } from "../libraries/Types.sol";
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
 
-    event OutputProposed(
-        bytes32 indexed outputRoot,
-        uint256 indexed l2OutputIndex,
-        uint256 indexed l2BlockNumber,
-        uint256 l1Timestamp
-    );
-
-    function setUp() public override {
-        super.setUp();
-    }
-
     function test_constructor_succeeds() external {
         assertEq(oracle.PROPOSER(), proposer);
         assertEq(oracle.CHALLENGER(), owner);
@@ -334,8 +323,6 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     /*****************************
      * Delete Tests - Happy Path *
      *****************************/
-
-    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     function test_deleteOutputs_singleOutput_succeeds() external {
         test_proposeL2Output_proposeAnotherOutput_succeeds();

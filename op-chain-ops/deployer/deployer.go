@@ -63,8 +63,6 @@ func NewBackendWithGenesisTimestamp(ts uint64) *backends.SimulatedBackend {
 		LondonBlock:         big.NewInt(0),
 		ArrowGlacierBlock:   big.NewInt(0),
 		GrayGlacierBlock:    big.NewInt(0),
-		ShanghaiBlock:       nil,
-		CancunBlock:         nil,
 		// Activated proof of stake. We manually build/commit blocks in the simulator anyway,
 		// and the timestamp verification of PoS is not against the wallclock,
 		// preventing blocks from getting stuck temporarily in the future-blocks queue, decreasing setup time a lot.

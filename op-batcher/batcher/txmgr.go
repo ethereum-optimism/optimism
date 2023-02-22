@@ -32,14 +32,14 @@ type TransactionManager struct {
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
 		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
 		l1Client:          l1Client,
-		signerFn:          signerFn,
+		signerFn:          txMgrConfg.Signer,
 		log:               log,
 	}
 	return t
@@ -120,7 +120,7 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	}
 	t.log.Info("creating tx", "to", rawTx.To, "from", t.senderAddress)
 
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}

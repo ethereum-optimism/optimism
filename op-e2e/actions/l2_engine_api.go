@@ -9,16 +9,15 @@ import (
 	"math/big"
 	"time"
 
-	"github.com/ethereum/go-ethereum/consensus/misc"
-	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/trie"
-
+	"github.com/ethereum/go-ethereum/beacon/engine"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/beacon"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 )
@@ -35,7 +34,7 @@ var (
 )
 
 // computePayloadId computes a pseudo-random payloadid, based on the parameters.
-func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) beacon.PayloadID {
+func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) engine.PayloadID {
 	// Hash
 	hasher := sha256.New()
 	hasher.Write(headBlockHash[:])
@@ -49,7 +48,7 @@ func computePayloadId(headBlockHash common.Hash, params *eth.PayloadAttributes) 
 		hasher.Write(tx)
 	}
 	_ = binary.Write(hasher, binary.BigEndian, *params.GasLimit)
-	var out beacon.PayloadID
+	var out engine.PayloadID
 	copy(out[:], hasher.Sum(nil)[:8])
 	return out
 }
@@ -96,7 +95,7 @@ func (ea *L2EngineAPI) startBlock(parent common.Hash, params *eth.PayloadAttribu
 		if err := tx.UnmarshalBinary(otx); err != nil {
 			return fmt.Errorf("transaction %d is not valid: %w", i, err)
 		}
-		ea.l2BuildingState.Prepare(tx.Hash(), i)
+		ea.l2BuildingState.SetTxContext(tx.Hash(), i)
 		receipt, err := core.ApplyTransaction(ea.l2Cfg.Config, ea.l2Chain, &ea.l2BuildingHeader.Coinbase,
 			ea.l2GasPool, ea.l2BuildingState, ea.l2BuildingHeader, &tx, &ea.l2BuildingHeader.GasUsed, *ea.l2Chain.GetVMConfig())
 		if err != nil {
@@ -125,7 +124,7 @@ func (ea *L2EngineAPI) endBlock() (*types.Block, error) {
 	if err != nil {
 		return nil, fmt.Errorf("l2 state write error: %w", err)
 	}
-	if err := ea.l2BuildingState.Database().TrieDB().Commit(root, false, nil); err != nil {
+	if err := ea.l2BuildingState.Database().TrieDB().Commit(root, false); err != nil {
 		return nil, fmt.Errorf("l2 trie write error: %w", err)
 	}
 	return block, nil
@@ -135,12 +134,12 @@ func (ea *L2EngineAPI) GetPayloadV1(ctx context.Context, payloadId eth.PayloadID
 	ea.log.Trace("L2Engine API request received", "method", "GetPayload", "id", payloadId)
 	if ea.payloadID != payloadId {
 		ea.log.Warn("unexpected payload ID requested for block building", "expected", ea.payloadID, "got", payloadId)
-		return nil, beacon.UnknownPayload
+		return nil, engine.UnknownPayload
 	}
 	bl, err := ea.endBlock()
 	if err != nil {
 		ea.log.Error("failed to finish block building", "err", err)
-		return nil, beacon.UnknownPayload
+		return nil, engine.UnknownPayload
 	}
 	return eth.BlockAsPayload(bl)
 }
@@ -180,7 +179,7 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 			return &eth.ForkchoiceUpdatedResult{PayloadStatus: INVALID_TERMINAL_BLOCK, PayloadID: nil}, nil
 		}
 	}
-	valid := func(id *beacon.PayloadID) *eth.ForkchoiceUpdatedResult {
+	valid := func(id *engine.PayloadID) *eth.ForkchoiceUpdatedResult {
 		return &eth.ForkchoiceUpdatedResult{
 			PayloadStatus: eth.PayloadStatusV1{Status: eth.ExecutionValid, LatestValidHash: &state.HeadBlockHash},
 			PayloadID:     id,
@@ -206,10 +205,10 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 		finalBlock := ea.l2Chain.GetBlockByHash(state.FinalizedBlockHash)
 		if finalBlock == nil {
 			ea.log.Warn("Final block not available in database", "hash", state.FinalizedBlockHash)
-			return STATUS_INVALID, beacon.InvalidForkChoiceState.With(errors.New("final block not available in database"))
+			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not available in database"))
 		} else if rawdb.ReadCanonicalHash(ea.l2Database, finalBlock.NumberU64()) != state.FinalizedBlockHash {
 			ea.log.Warn("Final block not in canonical chain", "number", block.NumberU64(), "hash", state.HeadBlockHash)
-			return STATUS_INVALID, beacon.InvalidForkChoiceState.With(errors.New("final block not in canonical chain"))
+			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not in canonical chain"))
 		}
 		// Set the finalized block
 		ea.l2Chain.SetFinalized(finalBlock)
@@ -219,11 +218,11 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 		safeBlock := ea.l2Chain.GetBlockByHash(state.SafeBlockHash)
 		if safeBlock == nil {
 			ea.log.Warn("Safe block not available in database")
-			return STATUS_INVALID, beacon.InvalidForkChoiceState.With(errors.New("safe block not available in database"))
+			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not available in database"))
 		}
 		if rawdb.ReadCanonicalHash(ea.l2Database, safeBlock.NumberU64()) != state.SafeBlockHash {
 			ea.log.Warn("Safe block not in canonical chain")
-			return STATUS_INVALID, beacon.InvalidForkChoiceState.With(errors.New("safe block not in canonical chain"))
+			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not in canonical chain"))
 		}
 		// Set the safe block
 		ea.l2Chain.SetSafe(safeBlock)
@@ -235,7 +234,7 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 		err := ea.startBlock(state.HeadBlockHash, attr)
 		if err != nil {
 			ea.log.Error("Failed to start block building", "err", err, "noTxPool", attr.NoTxPool, "txs", len(attr.Transactions), "timestamp", attr.Timestamp)
-			return STATUS_INVALID, beacon.InvalidPayloadAttributes.With(err)
+			return STATUS_INVALID, engine.InvalidPayloadAttributes.With(err)
 		}
 
 		return valid(&ea.payloadID), nil
@@ -249,7 +248,7 @@ func (ea *L2EngineAPI) NewPayloadV1(ctx context.Context, payload *eth.ExecutionP
 	for i, tx := range payload.Transactions {
 		txs[i] = tx
 	}
-	block, err := beacon.ExecutableDataToBlock(beacon.ExecutableDataV1{
+	block, err := engine.ExecutableDataToBlock(engine.ExecutableData{
 		ParentHash:    payload.ParentHash,
 		FeeRecipient:  payload.FeeRecipient,
 		StateRoot:     common.Hash(payload.StateRoot),

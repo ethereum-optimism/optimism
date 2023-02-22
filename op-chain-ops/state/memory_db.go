@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 var _ vm.StateDB = (*MemoryStateDB)(nil)
@@ -311,4 +312,16 @@ func (db *MemoryStateDB) ForEachStorage(addr common.Address, cb func(common.Hash
 		}
 	}
 	return nil
+}
+
+func (db *MemoryStateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
+	panic("transient state is unsupported")
+}
+
+func (db *MemoryStateDB) SetTransientState(addr common.Address, key, value common.Hash) {
+	panic("transient state is unsupported")
+}
+
+func (db *MemoryStateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {
+	// no-op, no transient state to prepare, nor any access-list to set/prepare
 }

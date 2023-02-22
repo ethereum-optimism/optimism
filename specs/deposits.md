@@ -89,7 +89,7 @@ The `sourceHash` of a deposit transaction is computed based on the origin:
   Where the `l1BlockHash`, and `l1LogIndex` all refer to the inclusion of the deposit log event on L1.
   `l1LogIndex` is the index of the deposit event log in the combined list of log events of the block.
 - L1 attributes deposited:
-  `keccak256(bytes32(uint256(1)), keccak256(l1BlockHash), bytes32(uint256(seqNumber)))`.
+  `keccak256(bytes32(uint256(1)), keccak256(l1BlockHash, bytes32(uint256(seqNumber))))`.
   Where `l1BlockHash` refers to the L1 block hash of which the info attributes are deposited.
   And `seqNumber = l2BlockNum - l2EpochStartBlockNum`,
   where `l2BlockNum` is the L2 block number of the inclusion of the deposit tx in L2,
