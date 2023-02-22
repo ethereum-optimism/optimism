@@ -36,27 +36,27 @@ module.exports = {
       apiKey: '2c1a86142192f96dab9a5066ad0c1d50',
       indexName: 'optimism'
     },
-    nav: [
-      /* When you update here, don't forget to update the tiles src/README.md */
+    nav: false, /* [
+
       {
-        text: 'How Optimism Works',
-        link: '/docs/how-optimism-works/'
+        text: 'Understanding the OP Stack',
+        link: '/docs/understand/'
       },
       {
-        text: 'Protocol Specs',
-        link: '/docs/protocol/'
+        text: 'Releases',
+        link: '/docs/releases/'
       },
       {
-        text: 'Security',
-        link: '/docs/security-model/',
-      },
-      {
-        text: 'Developer Docs',
-        link: '/docs/developers/',
+        text: 'Building',
+        link: '/docs/build/'
       },
       {
         text: 'Contribute',
-        link: '/docs/contribute/',
+        link: '/docs/CONTRIB.md'
+      },
+      {
+        text: 'Security',
+        link: '/docs/security/'
       },
       {
         text: 'Community',
@@ -110,39 +110,70 @@ module.exports = {
           }
         ]
       }
-    ],
+    ], */
     searchPlaceholder: 'Search the docs',
     sidebar: {
-      '/docs/how-optimism-works': [
-        '/docs/how-optimism-works/design-philosophy.md',
-        '/docs/how-optimism-works/rollup-protocol.md',
-      ],
-      '/docs/protocol/': [
-        '/docs/protocol/contract-overview.md',
-      ],
-      '/docs/security-model/': [
-        '/docs/security-model/optimism-security-model.md',
-        '/docs/security-model/bounties.md',
-      ],
-      '/docs/developers/': [
+      '/docs': [
         {
-          title: "OP Stack: Bedrock",
+          title: "Understanding the OP Stack",
+          collapsable: false,
+          children: [        
+          '/docs/understand/intro.md',
+          '/docs/understand/design-principles.md',
+          '/docs/understand/landscape.md',
+          ]
+        }, 
+        {
+          title: "Releases",
+          collapsable: false,          
           children: [
-            '/docs/developers/opstack/explainer.md',
-            '/docs/developers/opstack/differences.md',
-            '/docs/developers/opstack/public-testnets.md',
-            '/docs/developers/opstack/node-operator-guide.md',
-            '/docs/developers/opstack/upgrade-guide.md',
-            '/docs/developers/opstack/metrics.md'
+            '/docs/releases/releases.md',
+            '/docs/releases/bedrock.md',
           ]
         },
-        '/docs/developers/releases.md'
-      ],
-      '/docs/contribute/': [
-        '/docs/contribute/README.md'
-      ]
-    }
-  },
+        {
+          title: "Building OP Stack Rollups",
+          collapsable: false,
+          children: [
+            {
+              title: "Running a Bedrock Rollup",
+              children: [
+                '/docs/build/getting-started.md',
+                '/docs/build/conf.md'
+              ]
+            },
+            {
+              title: "OP Stack Hacks",
+              collapsable: true,
+              children: [
+                '/docs/build/hacks.md',
+                '/docs/build/featured.md',
+                '/docs/build/data-avail.md',            
+                '/docs/build/derivation.md',
+                '/docs/build/execution.md',
+                '/docs/build/settlement.md',                  
+                {
+                  title: "Tutorials",
+                  children: [
+                    "/docs/build/tutorials/add-attr.md",
+                    "/docs/build/tutorials/new-precomp.md",                
+                  ]
+                }  // End of tutorials                      
+              ], 
+            },    // End of OP Stack hacks
+          ],
+        },      // End of Building OP Stack Rollups
+        '/docs/CONTRIB.md',
+        {
+          title: "Security",
+          collapsable: false,          
+          children: [
+            '/docs/security/faq.md',
+            '/docs/security/policy.md',
+          ]
+        },        
+      ],  // end of '/docs'
+    },    // end of sidebar
   plugins: [
     "@vuepress/pwa",
     [
@@ -154,5 +185,6 @@ module.exports = {
     "plausible-analytics"
   ]
 }
+}
 
-module.exports.themeConfig.sidebar["/docs/useful-tools/"] = module.exports.themeConfig.sidebar["/docs/developers/"]
+// module.exports.themeConfig.sidebar["/docs/useful-tools/"] = module.exports.themeConfig.sidebar["/docs/developers/"]
