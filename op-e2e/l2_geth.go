@@ -117,24 +117,13 @@ func (d *L2Geth) Close() {
 // AddL2Block Appends a new L2 block to the current chain including the specified transactions
 // The L1Info transaction is automatically prepended to the created block
 func (d *L2Geth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*eth.ExecutionPayload, error) {
-	attrs, err := d.createPayloadAttributes(txs)
+	attrs, err := d.CreatePayloadAttributes(txs...)
 	if err != nil {
 		return nil, err
 	}
-	parentHash := d.L2Head.BlockHash
-	fc := eth.ForkchoiceState{
-		HeadBlockHash: parentHash,
-		SafeBlockHash: parentHash,
-	}
-	res, err := d.l2Engine.ForkchoiceUpdate(ctx, &fc, attrs)
+	res, err := d.StartBlockBuilding(ctx, attrs)
 	if err != nil {
 		return nil, err
-	}
-	if res.PayloadStatus.Status != eth.ExecutionValid {
-		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)
-	}
-	if res.PayloadID == nil {
-		return nil, errors.New("forkChoiceUpdated returned nil PayloadID")
 	}
 
 	payload, err := d.l2Engine.GetPayload(ctx, *res.PayloadID)
@@ -153,7 +142,10 @@ func (d *L2Geth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 		return nil, fmt.Errorf("%w: %s", ErrNewPayloadNotValid, status.Status)
 	}
 
-	fc.HeadBlockHash = payload.BlockHash
+	fc := eth.ForkchoiceState{
+		HeadBlockHash: payload.BlockHash,
+		SafeBlockHash: payload.BlockHash,
+	}
 	res, err = d.l2Engine.ForkchoiceUpdate(ctx, &fc, nil)
 	if err != nil {
 		return nil, err
@@ -166,7 +158,25 @@ func (d *L2Geth) AddL2Block(ctx context.Context, txs ...*types.Transaction) (*et
 	return payload, nil
 }
 
-func (d *L2Geth) createPayloadAttributes(txs []*types.Transaction) (*eth.PayloadAttributes, error) {
+func (d *L2Geth) StartBlockBuilding(ctx context.Context, attrs *eth.PayloadAttributes) (*eth.ForkchoiceUpdatedResult, error) {
+	fc := eth.ForkchoiceState{
+		HeadBlockHash: d.L2Head.BlockHash,
+		SafeBlockHash: d.L2Head.BlockHash,
+	}
+	res, err := d.l2Engine.ForkchoiceUpdate(ctx, &fc, attrs)
+	if err != nil {
+		return nil, err
+	}
+	if res.PayloadStatus.Status != eth.ExecutionValid {
+		return nil, fmt.Errorf("%w: %s", ErrForkChoiceUpdatedNotValid, res.PayloadStatus.Status)
+	}
+	if res.PayloadID == nil {
+		return nil, errors.New("forkChoiceUpdated returned nil PayloadID")
+	}
+	return res, nil
+}
+
+func (d *L2Geth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.PayloadAttributes, error) {
 	l1Info, err := derive.L1InfoDepositBytes(d.sequenceNum, d.L1Head, d.SystemConfig)
 	if err != nil {
 		return nil, err
