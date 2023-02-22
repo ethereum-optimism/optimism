@@ -162,7 +162,7 @@ module.exports = {
             },    // End of OP Stack hacks
           ],
         },      // End of Building OP Stack Rollups
-        '/docs/CONTRIB.md',
+        '/docs/contribute.md',
         {
           title: "Security",
           collapsable: false,          
@@ -171,7 +171,7 @@ module.exports = {
             '/docs/security/policy.md',
           ]
         },        
-      ],  // end of '/docs'
+      ],  // end of '/'
     },    // end of sidebar
   plugins: [
     "@vuepress/pwa",

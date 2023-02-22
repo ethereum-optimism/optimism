@@ -55,6 +55,6 @@ Extensibility is a key design principle that unlocks the superpower of collabora
 ## Contributing to the OP Stack
 
 The OP Stack is a decentralized software stack that anyone can contribute to. 
-If you're interested in contributing to the OP Stack, check out [the Contributing section of these docs](../CONTRIB.md).
+If you're interested in contributing to the OP Stack, check out [the Contributing section of these docs](../contribute.md).
 Of course, software that has impact for the Optimism Collective can receive [Retroactive Public Goods Funding](https://app.optimism.io/retropgf). 
 Build for the OP Stack — get rewarded for writing great open source software. What's not to love?
