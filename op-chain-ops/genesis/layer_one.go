@@ -220,6 +220,9 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to open storage trie of %s: %w", dep.Address, err)
 		}
+		if st == nil {
+			return nil, fmt.Errorf("missing account %s in state, address: %s", dep.Name, dep.Address)
+		}
 		iter := trie.NewIterator(st.NodeIterator(nil))
 
 		depAddr := dep.Address

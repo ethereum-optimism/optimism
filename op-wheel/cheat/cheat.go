@@ -190,6 +190,9 @@ func StorageReadAll(address common.Address, w io.Writer) HeadFn {
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr %s: %w", address, err)
 		}
+		if storage == nil {
+			return fmt.Errorf("no storage trie in state for account %s", address)
+		}
 		iter := trie.NewIterator(storage.NodeIterator(nil))
 		for iter.Next() {
 			if _, err := fmt.Fprintf(w, "+ %x = %x\n", iter.Key, dbValueToHash(iter.Value)); err != nil {
@@ -220,9 +223,15 @@ func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr A %s: %w", addressA, err)
 		}
+		if aStorage == nil {
+			return fmt.Errorf("no storage trie in state for account A %s", addressA)
+		}
 		bStorage, err := headState.StorageTrie(addressB)
 		if err != nil {
 			return fmt.Errorf("failed to open storage trie of addr B %s: %w", addressB, err)
+		}
+		if bStorage == nil {
+			return fmt.Errorf("no storage trie in state for account B %s", addressB)
 		}
 		aIter := trie.NewIterator(aStorage.NodeIterator(nil))
 		bIter := trie.NewIterator(bStorage.NodeIterator(nil))

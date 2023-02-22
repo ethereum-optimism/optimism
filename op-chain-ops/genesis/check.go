@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/types"
 	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -181,16 +182,25 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 		log.Info("checked code hash", "address", addr, "hash", hash)
 
 		// Ensure that the current/previous roots match
+		var prevRoot, currRoot common.Hash
 		prevStorage, err := prevDB.StorageTrie(addr)
 		if err != nil {
 			return fmt.Errorf("failed to open previous-db storage trie of %s: %w", addr, err)
+		}
+		if prevStorage == nil {
+			prevRoot = types.EmptyRootHash
+		} else {
+			prevRoot = prevStorage.Hash()
 		}
 		currStorage, err := currDB.StorageTrie(addr)
 		if err != nil {
 			return fmt.Errorf("failed to open current-db storage trie of %s: %w", addr, err)
 		}
-		prevRoot := prevStorage.Hash()
-		currRoot := currStorage.Hash()
+		if currStorage == nil {
+			currRoot = types.EmptyRootHash
+		} else {
+			currRoot = currStorage.Hash()
+		}
 		if prevRoot != currRoot {
 			return fmt.Errorf("expected storage root for %s to be %s, but got %s", addr, prevRoot, currRoot)
 		}
