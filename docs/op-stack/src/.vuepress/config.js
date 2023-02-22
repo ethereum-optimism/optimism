@@ -36,27 +36,23 @@ module.exports = {
       apiKey: '2c1a86142192f96dab9a5066ad0c1d50',
       indexName: 'optimism'
     },
-    nav: false, /* [
+    nav: [
 
       {
-        text: 'Understanding the OP Stack',
-        link: '/docs/understand/'
+        text: 'Home',
+        link: 'https://www.optimism.io/'
       },
       {
-        text: 'Releases',
-        link: '/docs/releases/'
+        text: 'OP Stack Docs',
+        link: '/docs/'
       },
       {
-        text: 'Building',
-        link: '/docs/build/'
+        text: 'Optimism Docs',
+        link: 'https://community.optimism.io/'
       },
       {
-        text: 'Contribute',
-        link: '/docs/CONTRIB.md'
-      },
-      {
-        text: 'Security',
-        link: '/docs/security/'
+        text: 'Governance',
+        link: 'https://community.optimism.io/docs/governance/'
       },
       {
         text: 'Community',
@@ -110,16 +106,19 @@ module.exports = {
           }
         ]
       }
-    ], */
+    ],
     searchPlaceholder: 'Search the docs',
     sidebar: {
       '/': [
         {
-          title: "Understanding the OP Stack",
+          title: "OP Stack",
           collapsable: false,
           children: [        
           '/docs/understand/intro.md',
-          '/docs/understand/design-principles.md',
+          [
+            '/docs/understand/design-principles.md',
+            'Design Principles'
+          ],
           '/docs/understand/landscape.md',
           ]
         }, 

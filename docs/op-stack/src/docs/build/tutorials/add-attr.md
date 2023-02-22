@@ -264,6 +264,6 @@ cast call <YOUR_BURN_CONTRACT_HERE> "total()" | cast --from-wei
 
 ## Conclusion
 
-With just a few tiny changes to the `op-node`, you were just able to implement a change to the OP Stack that allows you to keep track of the L1 ETH burn on L2. Once the Cannon fault proof system is live you’ll not only be able to track the L1 burn on L2, you’ll be able to *prove* the burn to contracts back on L1. You could build a trustless prediction market on the amount of ETH burned. That’s crazy!
+With just a few tiny changes to the `op-node`, you were just able to implement a change to the OP Stack that allows you to keep track of the L1 ETH burn on L2. With a live Cannon fault proof system, you should not only be able to track the L1 burn on L2, you should be able to *prove* the burn to contracts back on L1. You could build a trustless prediction market on the amount of ETH burned. That’s crazy!
 
 The OP Stack is an extremely powerful platform that allows you to perform a large amount of computation trustlessly. It’s a superpower for smart contracts. Tracking the L1 burn is just one of the many, many wild things you can do with the OP Stack. If you’re looking for inspiration or you want to see what others are building on the OP Stack, check out our OP Stack Hacks page. Maybe you’ll find a project you want to work on, or maybe you’ll get the inspiration you need to build the next killer smart contract.

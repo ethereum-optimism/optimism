@@ -29,7 +29,7 @@ As with anything, modify the OP Stack at your own risk. There is no guarantee th
 
 **Not yet.** The OP Stack does not currently have a fault proof system. **Note that fault proofs do not meaningfully improve the security of a system if that system can be upgraded within the 7 day challenge window (”fast upgrade keys”)**. A system with fast upgrade keys is fully dependent on the upgrade keys for security. 
 
-Fault proofs are a key roadmap item and top priority for the OP Stack. In the meantime, the OP Stack can be shipped with several other excellent security options for systems that want to improve security before fault proofs are available in production.
+Fault proofs are a key milestone and top priority for the OP Stack. In the meantime, the OP Stack can be shipped with several other excellent security options for systems that want to improve security before fault proofs are available in production.
 
 ### How can I help make the OP Stack more secure?
 
@@ -39,4 +39,4 @@ Don’t forget that the OP Stack is a decentralized development stack. Anyone ca
 
 ### Where do I report bugs?
 
-[See here](./policy.md)
+[View the Security Policy for details about reporting vulnerabilities and available bug bounty programs](./policy.md)

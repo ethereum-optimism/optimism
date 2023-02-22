@@ -92,9 +92,9 @@ An Attestation-based Fault Proof mechanism uses an optimistic protocol to establ
 - [Specifications](https://github.com/ethereum-optimism/optimism/blob/develop/specs/withdrawals.md) (called [withdrawal transactions](https://community.optimism.io/docs/developers/bridge/messaging/#))
 - [Source code](https://github.com/ethereum-optimism/optimism/tree/develop/packages/contracts-bedrock/contracts)
 
-#### Fault Proof Optimistic Settlement (proposed & in development)
+#### Fault Proof Optimistic Settlement (proposed)
 
-A Fault Proof Optimistic Settlement mechanism is mostly identical to the Attestation-based Fault Proof mechanism used today but it replaces the MultiSig challenger with a permissionless fault proving process. A correctly constructed fault proof should be able to invalidate any incorrect proposals during the allocated challenge period. This places a trust assumption on the correctness of the fault proof construction.
+A Fault Proof Optimistic Settlement mechanism is mostly identical to the Attestation-based Fault Proof mechanism used today but it replaces the MultiSig challenger with a permissionless fault proving process. A correctly constructed fault proof should be able to invalidate any incorrect proposals during the allocated challenge period. This places a trust assumption on the correctness of the fault proof construction. At this time, work on the development of a Fault Proof  mechanism is well underway. 
 
 #### Validity Proof Settlement (proposed)
 
