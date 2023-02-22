@@ -1,5 +1,5 @@
 ---
-title: Docs
+title: OP Stack Docs
 lang: en-US
 ---
 
