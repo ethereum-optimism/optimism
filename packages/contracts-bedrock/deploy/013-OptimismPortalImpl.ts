@@ -8,6 +8,10 @@ import {
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
+  const { deployer } = await hre.getNamedAccounts()
+  const isLiveDeployer =
+    deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
+
   const L2OutputOracleProxy = await getContractFromArtifact(
     hre,
     'L2OutputOracleProxy'
@@ -21,6 +25,11 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(
       `WARNING: setting OptimismPortal.GUARDIAN to ${finalSystemOwner} and it has no code`
     )
+    if (!isLiveDeployer) {
+      throw new Error(
+        'Do not deploy to production networks without the GUARDIAN being a contract'
+      )
+    }
   }
 
   // Deploy the OptimismPortal implementation as paused to
