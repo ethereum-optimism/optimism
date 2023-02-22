@@ -9518,6 +9518,10 @@ forever-agent@~0.6.1:
   version "1.2.0"
   resolved "https://github.com/foundry-rs/forge-std.git#53331f4cb2e313466f72440f3e73af048c454d02"
 
+"forge-std@https://github.com/foundry-rs/forge-std.git#a2edd39db95df7e9dd3f9ef9edc8c55fefddb6df":
+  version "1.4.0"
+  resolved "https://github.com/foundry-rs/forge-std.git#a2edd39db95df7e9dd3f9ef9edc8c55fefddb6df"
+
 form-data@^2.2.0:
   version "2.5.1"
   resolved "https://registry.yarnpkg.com/form-data/-/form-data-2.5.1.tgz#f2cbec57b5e59e23716e128fe44d4e5dd23895f4"
