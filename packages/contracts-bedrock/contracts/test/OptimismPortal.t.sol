@@ -103,23 +103,6 @@ contract OptimismPortal_Test is Portal_Initializer {
         assertEq(address(op).balance, 100);
     }
 
-    /**
-     * @notice Deposit transactions should revert when paused
-     */
-    function test_depositTransaction_paused_reverts() external {
-        vm.prank(op.GUARDIAN());
-        op.pause();
-
-        vm.expectRevert("OptimismPortal: paused");
-        op.depositTransaction({
-            _to: address(1),
-            _value: 100,
-            _gasLimit: 200_000,
-            _isCreation: false,
-            _data: hex""
-        });
-    }
-
     // Test: depositTransaction fails when contract creation has a non-zero destination address
     function test_depositTransaction_contractCreation_reverts() external {
         // contract creation must have a target of address(0)

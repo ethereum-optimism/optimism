@@ -154,8 +154,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     constructor(
         L2OutputOracle _l2Oracle,
-        address _guardian,
         uint256 _finalizationPeriodSeconds,
+        address _guardian,
         bool _paused
     ) Semver(1, 1, 0) {
         L2_ORACLE = _l2Oracle;
@@ -425,7 +425,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint64 _gasLimit,
         bool _isCreation,
         bytes memory _data
-    ) public payable whenNotPaused metered(_gasLimit) {
+    ) public payable metered(_gasLimit) {
         // Just to be safe, make sure that people specify address(0) as the target when doing
         // contract creations.
         if (_isCreation) {

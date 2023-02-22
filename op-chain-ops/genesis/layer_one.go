@@ -362,8 +362,8 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			opts,
 			backend,
 			deployment.Args[0].(common.Address),
-			deployment.Args[1].(common.Address),
 			deployment.Args[2].(*big.Int),
+			deployment.Args[1].(common.Address),
 			deployment.Args[3].(bool),
 		)
 	case "L1CrossDomainMessenger":
