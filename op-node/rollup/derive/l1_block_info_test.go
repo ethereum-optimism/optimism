@@ -92,4 +92,14 @@ func TestParseL1InfoDepositTxData(t *testing.T) {
 		_, err := L1InfoDepositTxData(make([]byte, 4+32+32+32+32+32+1))
 		assert.Error(t, err)
 	})
+	t.Run("invalid selector", func(t *testing.T) {
+		rng := rand.New(rand.NewSource(1234))
+		info := testutils.MakeBlockInfo(nil)(rng)
+		depTx, err := L1InfoDeposit(randomSeqNr(rng), info, randomL1Cfg(rng, info))
+		require.NoError(t, err)
+		_, err = rand.Read(depTx.Data[0:4])
+		require.NoError(t, err)
+		_, err = L1InfoDepositTxData(depTx.Data)
+		require.ErrorContains(t, err, "function signature")
+	})
 }
