@@ -83,7 +83,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		PollInterval:    cfg.PollInterval,
 		TxManagerConfig: txManagerConfig,
 		From:            fromAddress,
-		SignerFnFactory: signer,
 		Rollup:          rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:    rcfg.SeqWindowSize,
@@ -117,7 +116,7 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		Config: cfg,
 		txMgr: NewTransactionManager(l,
 			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
-			cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.Rollup.L1ChainID)),
+			cfg.From, cfg.L1Client),
 		done: make(chan struct{}),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
