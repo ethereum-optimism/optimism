@@ -276,6 +276,80 @@ contract OptimismPortal_Test is Portal_Initializer {
     }
 }
 
+import { console } from "forge-std/console.sol";
+
+contract GasUser {
+    uint[] public s;
+
+    function store(uint i) public {
+        for (uint j = 0; j < i; j++) {
+            s.push(1);
+        }
+    }
+}
+
+contract OptimismPortalTester is OptimismPortal {
+    constructor() OptimismPortal(L2OutputOracle(address(0)), 0) {}
+
+    function safeCall(
+        address _target,
+        uint256 _gasLimit,
+        uint256 _value,
+        bytes memory _data
+    ) external returns (bool) {
+        return _safeCall(_target, _gasLimit, _value, _data);
+    }
+}
+
+contract OptimismPortalCall_Test is CommonTest {
+    OptimismPortalTester internal portal;
+    GasUser internal gu;
+    uint256 internal constant defaultGas = 44_602;
+
+    function setUp() external {
+        portal = new OptimismPortalTester();
+        gu = new GasUser();
+    }
+
+    function test_foo() external {
+        gu.store{gas: defaultGas}(1);
+        assertEq(gu.s(0), 1);
+    }
+
+    function _makeCall(uint256 gas) internal {
+        portal.safeCall{gas: gas}({
+            _target: address(gu),
+            _gasLimit: defaultGas,
+            _value: 0,
+            _data: abi.encodeWithSignature("store(uint256)", 1)
+        });
+    }
+
+    function test_gasTooSmall() external {
+        vm.expectRevert(bytes("OptimismPortal: insufficient gas to finalize withdrawal"));
+        //_makeCall(62781);
+        _makeCall(65681);
+    }
+
+    // The transaction requires 44_602 gas
+    // Sending along 65_534 gas hits the portal revert
+    // Sending along 70_589 gas has the call revert
+    // This is with setting the l2Sender after the require statement
+    // in _safeCall
+
+    function test_gasInBetweenLow() external {
+        // Subtracting 1 hits the portal revert
+        _makeCall(65_535);
+        assertEq(gu.s(0), 1);
+    }
+
+    function test_gasInBetweenHigh() external {
+        // Adding 1 passes this check
+        _makeCall(70_589);
+        assertEq(gu.s(0), 1);
+    }
+}
+
 contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;

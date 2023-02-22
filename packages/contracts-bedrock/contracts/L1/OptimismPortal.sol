@@ -48,6 +48,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
+    // TODO
+    uint256 internal constant CALL_GAS_BUFFER = 14_888;
+
     /**
      * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
      */
@@ -307,26 +310,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
-        // We want to maintain the property that the amount of gas supplied to the call to the
-        // target contract is at least the gas limit specified by the user. We can do this by
-        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
-        require(
-            gasleft() >= _tx.gasLimit + FINALIZE_GAS_BUFFER,
-            "OptimismPortal: insufficient gas to finalize withdrawal"
-        );
-
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
-        l2Sender = _tx.sender;
+        // l2Sender = _tx.sender;
 
-        // Trigger the call to the target contract. We use SafeCall because we don't
-        // care about the returndata and we don't want target contracts to be able to force this
-        // call to run out of gas via a returndata bomb.
-        bool success = SafeCall.call(
-            _tx.target,
-            gasleft() - FINALIZE_GAS_BUFFER,
-            _tx.value,
-            _tx.data
-        );
+        // Make the call.
+        bool success = _safeCall(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
 
         // Reset the l2Sender back to the default value.
         l2Sender = Constants.DEFAULT_L2_SENDER;
@@ -341,6 +329,40 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         if (success == false && tx.origin == Constants.ESTIMATION_ADDRESS) {
             revert("OptimismPortal: withdrawal failed");
         }
+    }
+
+    /**
+     * @notice
+     */
+    function _safeCall(
+        address _target,
+        uint256 _gasLimit,
+        uint256 _value,
+        bytes memory _data
+    ) internal returns (bool) {
+
+        // We want to maintain the property that the amount of gas supplied to the call to the
+        // target contract is at least the gas limit specified by the user. We can do this by
+        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
+        require(
+            gasleft() >= _gasLimit + FINALIZE_GAS_BUFFER,
+            "OptimismPortal: insufficient gas to finalize withdrawal"
+        );
+
+        l2Sender = address(1);
+
+        // Trigger the call to the target contract. We use SafeCall because we don't
+        // care about the returndata and we don't want target contracts to be able to force this
+        // call to run out of gas via a returndata bomb.
+        bool success = SafeCall.call(
+            _target,
+            //gasleft() - CALL_GAS_BUFFER,
+            gasleft() - FINALIZE_GAS_BUFFER,
+            _value,
+            _data
+        );
+
+        return success;
     }
 
     /**
