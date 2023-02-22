@@ -37,7 +37,6 @@ module.exports = {
       indexName: 'optimism'
     },
     nav: [
-
       {
         text: 'Home',
         link: 'https://www.optimism.io/'
@@ -126,7 +125,7 @@ module.exports = {
           title: "Releases",
           collapsable: false,          
           children: [
-            '/docs/releases/releases.md',
+            '/docs/releases/',
             '/docs/releases/bedrock.md',
           ]
         },
@@ -134,15 +133,11 @@ module.exports = {
           title: "Building OP Stack Rollups",
           collapsable: false,
           children: [
-            {
-              title: "Running a Bedrock Rollup",
-              children: [
-                '/docs/build/getting-started.md',
-                '/docs/build/conf.md'
-              ]
-            },
+            '/docs/build/getting-started.md',
+            '/docs/build/conf.md',
             {
               title: "OP Stack Hacks",
+              sidebardDepth: 3,
               collapsable: true,
               children: [
                 '/docs/build/hacks.md',
@@ -152,7 +147,7 @@ module.exports = {
                 '/docs/build/execution.md',
                 '/docs/build/settlement.md',                  
                 {
-                  title: "Tutorials",
+                  title: "Sample Hacks",
                   children: [
                     "/docs/build/tutorials/add-attr.md",
                     "/docs/build/tutorials/new-precomp.md",                

@@ -60,13 +60,13 @@ export default Vue.extend({
                             h("a", { attrs: { href: "https://discord.optimism.io", target: "_blank" } }, [
                                 h("div", [
                                     h("i", { attrs: { class: "fab fa-discord" } }),
-                                    " Discord community"
+                                    " Discord community "
                                 ])
                             ]),
-                            h("a", { attrs: { href: "https://oplabs.typeform.com/get-in-touch", target: "_blank" } }, [
+                            h("a", { attrs: { href: "https://forms.monday.com/forms/055862bfb7f4091be3db2567288296f8?r=use1", target: "_blank" } }, [
                                 h("div", [
                                     h("i", { attrs: { class: "far fa-comment-dots" } }),
-                                    " Get support for going live"
+                                    " Join the Superchain "
                                 ])
                             ]),
                             h("a", { attrs: { href: "https://github.com/ethereum-optimism/optimism/issues", target: "_blank" } }, [

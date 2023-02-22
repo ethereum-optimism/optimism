@@ -1,5 +1,5 @@
 ---
-title: Releases
+title: Release History
 lang: en-US
 ---
 
