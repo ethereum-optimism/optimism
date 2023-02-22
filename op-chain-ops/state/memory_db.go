@@ -315,16 +315,13 @@ func (db *MemoryStateDB) ForEachStorage(addr common.Address, cb func(common.Hash
 }
 
 func (db *MemoryStateDB) GetTransientState(addr common.Address, key common.Hash) common.Hash {
-	//TODO implement me
-	panic("implement me")
+	panic("transient state is unsupported")
 }
 
 func (db *MemoryStateDB) SetTransientState(addr common.Address, key, value common.Hash) {
-	//TODO implement me
-	panic("implement me")
+	panic("transient state is unsupported")
 }
 
 func (db *MemoryStateDB) Prepare(rules params.Rules, sender, coinbase common.Address, dest *common.Address, precompiles []common.Address, txAccesses types.AccessList) {
-	//TODO implement me
-	panic("implement me")
+	// no-op, no transient state to prepare, nor any access-list to set/prepare
 }
