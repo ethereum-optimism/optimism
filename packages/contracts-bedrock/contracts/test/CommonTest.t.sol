@@ -103,6 +103,15 @@ contract L2OutputOracle_Initializer is CommonTest {
     // Test data
     uint256 initL1Time;
 
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
+    );
+
+    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
+
     // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
@@ -145,6 +154,13 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target
     OptimismPortal opImpl;
     OptimismPortal op;
+
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+    event WithdrawalProven(
+        bytes32 indexed withdrawalHash,
+        address indexed from,
+        address indexed to
+    );
 
     function setUp() public virtual override {
         L2OutputOracle_Initializer.setUp();

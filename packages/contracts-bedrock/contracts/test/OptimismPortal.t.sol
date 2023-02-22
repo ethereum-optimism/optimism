@@ -289,13 +289,6 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
     bytes[] _withdrawalProof;
     Types.OutputRootProof internal _outputRootProof;
 
-    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
-    event WithdrawalProven(
-        bytes32 indexed withdrawalHash,
-        address indexed from,
-        address indexed to
-    );
-
     // Use a constructor to set the storage vars above, so as to minimize the number of ffi calls.
     constructor() {
         super.setUp();
