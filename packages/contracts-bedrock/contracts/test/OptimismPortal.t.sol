@@ -37,6 +37,21 @@ contract OptimismPortal_Test is Portal_Initializer {
         op.depositTransaction(address(1), 1, 0, true, hex"");
     }
 
+    /**
+     * @notice Prevent gasless deposits from being force processed in L2 by
+     *         ensuring that they have a large enough gas limit set.
+     */
+    function test_depositTransaction_smallGasLimit_reverts() external {
+        vm.expectRevert("OptimismPortal: gas limit must cover instrinsic gas cost");
+        op.depositTransaction({
+            _to: address(1),
+            _value: 0,
+            _gasLimit: 0,
+            _isCreation: false,
+            _data: hex""
+        });
+    }
+
     // Test: depositTransaction should emit the correct log when an EOA deposits a tx with 0 value
     function test_depositTransaction_noValueEOA_succeeds() external {
         // EOA emulation
