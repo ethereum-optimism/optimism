@@ -17,7 +17,7 @@ The Settlement Layer includes modules that are used by third-party chains to est
 
 ## Default
 
-The default Settlement Layer module is currently the Attestation Proof Optimistic Settlement module. This module allows a third-party chain to become aware of the state of an OP Stack chain through an Optimistic protocol where challenges can be executed alongside a threshold of attestations from a pre-defined set of addresses over a state that differs from the proposed state. Once the Cannon fault proof is shipped to production, this default module will be replaced with a module that allows anyone to challenge proposals by playing the Cannon dispute game.
+The default Settlement Layer module is currently the Attestation Proof Optimistic Settlement module. This module allows a third-party chain to become aware of the state of an OP Stack chain through an Optimistic protocol where challenges can be executed alongside a threshold of attestations from a pre-defined set of addresses over a state that differs from the proposed state. With a Cannon fault proof shipped to production, this default module can be replaced with a module that allows anyone to challenge proposals by playing the Cannon dispute game.
 
 ## Security
 

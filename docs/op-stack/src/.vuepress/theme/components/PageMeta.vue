@@ -32,11 +32,6 @@
               <i class="fab fa-discord"></i> Discord community
             </a>
           </li>
-          <li>
-            <a href="https://oplabs.typeform.com/get-in-touch" target="_blank" rel="noopener noreferrer">
-              <i class="far fa-comment-dots"></i> Get support for going live
-            </a>
-          </li>
         </ul>
       </div>
     </div>
