@@ -175,6 +175,9 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Configures the ProxyAdmin contract.
      */
     function step1() external onlyOwner step(1) {
+        // Dynamic config must be set before we can initialize the L2OutputOracle.
+        require(dynamicConfigSet, "SystemDictator: dynamic oracle config is not yet initialized");
+
         // Set the AddressManager in the ProxyAdmin.
         config.globalConfig.proxyAdmin.setAddressManager(config.globalConfig.addressManager);
 
@@ -307,9 +310,6 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Upgrades and initializes proxy contracts.
      */
     function step5() external onlyOwner step(5) {
-        // Dynamic config must be set before we can initialize the L2OutputOracle.
-        require(dynamicConfigSet, "SystemDictator: dynamic oracle config is not yet initialized");
-
         // Upgrade and initialize the OptimismPortal.
         config.globalConfig.proxyAdmin.upgradeAndCall(
             payable(config.proxyAddressConfig.optimismPortalProxy),
