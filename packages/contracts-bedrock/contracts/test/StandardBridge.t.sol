@@ -3,7 +3,10 @@ pragma solidity 0.8.15;
 
 import { StandardBridge } from "../universal/StandardBridge.sol";
 import { CommonTest } from "./CommonTest.t.sol";
-import { OptimismMintableERC20, ILegacyMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import {
+    OptimismMintableERC20,
+    ILegacyMintableERC20
+} from "../universal/OptimismMintableERC20.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 /**
@@ -13,24 +16,29 @@ import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
  */
 contract StandardBridgeTester is StandardBridge {
     constructor(address payable _messenger, address payable _otherBridge)
-      StandardBridge(_messenger, _otherBridge) {}
+        StandardBridge(_messenger, _otherBridge)
+    {}
 
     function isOptimismMintableERC20(address _token) external view returns (bool) {
         return _isOptimismMintableERC20(_token);
     }
 
-    function isCorrectTokenPair(address _mintableToken, address _otherToken) external view returns (bool) {
+    function isCorrectTokenPair(address _mintableToken, address _otherToken)
+        external
+        view
+        returns (bool)
+    {
         return _isCorrectTokenPair(_mintableToken, _otherToken);
     }
 
-    receive() external override payable {}
+    receive() external payable override {}
 }
 
 /**
  * @title LegacyMintable
  * @notice Simple implementation of the legacy OptimismMintableERC20.
  */
-contract LegacyMintable is ERC20, ILegacyMintableERC20  {
+contract LegacyMintable is ERC20, ILegacyMintableERC20 {
     constructor(string memory _name, string memory _ticker) ERC20(_name, _ticker) {}
 
     function l1Token() external view returns (address) {
@@ -38,6 +46,7 @@ contract LegacyMintable is ERC20, ILegacyMintableERC20  {
     }
 
     function mint(address _to, uint256 _amount) external pure {}
+
     function burn(address _from, uint256 _amount) external pure {}
 
     /**
@@ -108,27 +117,17 @@ contract StandardBridge_Stateless_Test is CommonTest {
      */
     function test_isCorrectTokenPair_succeeds() external {
         // Modern + known to be correct remote token
-        assertTrue(
-            bridge.isCorrectTokenPair(address(mintable), mintable.remoteToken())
-        );
+        assertTrue(bridge.isCorrectTokenPair(address(mintable), mintable.remoteToken()));
         // Modern + known to be correct l1Token (legacy interface)
-        assertTrue(
-            bridge.isCorrectTokenPair(address(mintable), mintable.l1Token())
-        );
+        assertTrue(bridge.isCorrectTokenPair(address(mintable), mintable.l1Token()));
         // Modern + known to be incorrect remote token
         assertTrue(mintable.remoteToken() != address(0x20));
-        assertFalse(
-            bridge.isCorrectTokenPair(address(mintable), address(0x20))
-        );
+        assertFalse(bridge.isCorrectTokenPair(address(mintable), address(0x20)));
         // Legacy + known to be correct l1Token
-        assertTrue(
-            bridge.isCorrectTokenPair(address(legacy), legacy.l1Token())
-        );
+        assertTrue(bridge.isCorrectTokenPair(address(legacy), legacy.l1Token()));
         // Legacy + known to be incorrect l1Token
         assertTrue(legacy.l1Token() != address(0x20));
-        assertFalse(
-            bridge.isCorrectTokenPair(address(legacy), address(0x20))
-        );
+        assertFalse(bridge.isCorrectTokenPair(address(legacy), address(0x20)));
         // A token that doesn't support either modern or legacy interface
         // will revert
         vm.expectRevert();

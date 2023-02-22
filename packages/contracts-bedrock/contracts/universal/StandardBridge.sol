@@ -471,7 +471,9 @@ abstract contract StandardBridge {
         view
         returns (bool)
     {
-        if (ERC165Checker.supportsInterface(_mintableToken, type(ILegacyMintableERC20).interfaceId)) {
+        if (
+            ERC165Checker.supportsInterface(_mintableToken, type(ILegacyMintableERC20).interfaceId)
+        ) {
             return _otherToken == ILegacyMintableERC20(_mintableToken).l1Token();
         } else {
             return _otherToken == IOptimismMintableERC20(_mintableToken).remoteToken();
