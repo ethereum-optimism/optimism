@@ -20,7 +20,7 @@ Software that follows these principles is **USE**ful software for the Optimism C
 
 For something to be part of the OP Stack, it should help power the Optimism Collective. 
 This condition helps guide the type of software that can be included in the stack. 
-For instance, a powerful open-source block explorer that makes it easier for users to inspect the Superchain would be a great addition to the OP Stack.
+For instance, a powerful open-source block explorer that makes it easier for users to inspect [the Superchain](https://app.optimism.io/superchain/) would be a great addition to the OP Stack.
 
 Although utility is important for inclusion in the OP Stack, you shouldn’t be afraid to experiment. 
 Do something crazy. 
