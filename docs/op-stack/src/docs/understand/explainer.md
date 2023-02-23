@@ -3,9 +3,7 @@ title: Superchain Explainer
 lang: en-US
 ---
 
-A :person:personal: barks.
-
-The next major scalability improvement to the OP Stack after [Bedrock](./bedrock/) is to introduce the concept of *a Superchain* a network of chains that share bridging, decentralized governance, upgrades, a communication communication layer and more—all built on the OP Stack.
+The next major scalability improvement to the OP Stack after [Bedrock](../releases/bedrock/) is to introduce the concept of *a Superchain* a network of chains that share bridging, decentralized governance, upgrades, a communication communication layer and more—all built on the OP Stack.
 
 The launch of the Superchain would merge Optimism Mainnet and other chains into a single unified network of OP Chains (i.e., chains within the Superchain), and mark a major step towards bringing scalable and decentralized compute to the world. The goal of this document is to describe the scalability vision, the Superchain concept, and some changes to the OP Stack required to make this vision a reality.
 
