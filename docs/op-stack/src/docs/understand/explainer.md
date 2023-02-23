@@ -52,7 +52,7 @@ With the support of the industry, we think a clear picture for how to architect 
 Horizontal blockchain scalability fundamentally requires multiple chains. This is because the hardware requirements to sync a chain increase linearly with the amount of compute the chain performs. Therefore, to achieve horizontal scalability we must run chains in parallel.
 
 
-::: details chains
+::: details Chain
 
 A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
 
@@ -65,23 +65,43 @@ Traditional approaches to ‘multi-chain’ architectures suffer from two fundam
 1. Each chain introduces a new security model, resulting in compounding systemic risk as new chains are introduced into the ecosystem. (related [link](https://twitter.com/VitalikButerin/status/1479501366192132099?s=20))
 2. New chains are costly to spin up because they require new validator sets & block producers.
 
-These issues come from a lack of a single shared blockchain (an “L1” chain) which serves as a shared source of truth for all of the chains (”L2” chains”) within the multi-chain system. By using the shared source of truth it is possible to: a) enforce standard security models across all chains; and b) remove the requirement that chain deployments require a new set of validators because each L2 chain uses L1 consensus.
+These issues come from a lack of a single shared blockchain (an “L1” chain) which serves as a shared source of truth for all of the chains (”L2” chains) within the multi-chain system. By using the shared source of truth it is possible to: a) enforce standard security models across all chains; and b) remove the requirement that chain deployments require a new set of validators because each L2 chain uses L1 consensus.
 
-### Not multi-chain, not mono-chain… *********************************Superchain*********************************
+### Not multi-chain, not mono-chain… Superchain
 
-By using L2 chains to comprise the multi-chain ecosystem, it becomes possible to begin to treat chains as commodities—interchangeable compute resources. This commodification of chains enables developers to build cross-chain applications without introducing systemic risk and without incurring large overhead as new chains are deployed for their application. The concept of a chain itself can become abstracted, and at this point it will become possible to treat this network of interoperable chains as a single unit: the [Superchain](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6).
+By using L2 chains to comprise the multi-chain ecosystem, it becomes possible to begin to treat chains as commodities—interchangeable compute resources. This commodification of chains enables developers to build cross-chain applications without introducing systemic risk and without incurring large overhead as new chains are deployed for their application. The concept of a chain itself can become abstracted, and at this point it will become possible to treat this network of interoperable chains as a single unit: the Superchain.
+
+::: details Superchain
+
+A decentralized blockchain platform which consists of many chains that share security and a technology stack (OP Stack). The interoperability and standardization enables individual chains to be treated identically by tools and wallets.
+
+:::
 
 ## Superchain Overview
 
 ### The Superchain at a glance
 
-The Superchain is a network of L2 chains, known as [OP Chains](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6), which share security, a communication layer, and an open source technology stack. However, unlike multi-chain designs, these chains are standardized and intended to be used as interchangeable resources. This enables developers to build applications which target the Superchain as a whole, and abstract away the underlying chains the apps are running on.
+The Superchain is a network of L2 chains, known as OP Chains, which share security, a communication layer, and an open source technology stack. However, unlike multi-chain designs, these chains are standardized and intended to be used as interchangeable resources. This enables developers to build applications which target the Superchain as a whole, and abstract away the underlying chains the apps are running on.
 
-![Superchain Explainer Diagram.png](https://s3-us-west-2.amazonaws.com/secure.notion-static.com/1200bc23-1c12-40b7-bb18-99c4ef31247b/Superchain_Explainer_Diagram.png)
+::: details OP Chain
+
+An individual chain within the Optimism Superchain. All chains, regardless of their specific properties are considered OP Chains if they are officially governed by the Optimism Collective, and therefore part of the Superchain.
+
+:::
+
+![Superchain Explainer Diagram.png](../../assets/docs/understand/superchain-diag.png)
 
 ### Properties of the Superchain
 
 In order for Optimism to upgraded to a Superchain, it must have the following properties:
+
+| Property | Purpose |
+| - | - |
+| Shared L1 blockchain | Provides a total ordering of transactions across all OP Chains.
+| Shared bridge for all OP Chains | Enables OP Chains to have standardized security properties.
+| Cheap OP Chain deployment | Enables deploying and transacting on OP Chains without the high fees of transacting on L1.
+| Configuration options for OP Chains | Enables OP Chains to configure their data availability provider, sequencer address, etc.
+| Secure transactions and cross-chain messages | Enables users to safely migrate assets between OP Chains.
 
 Once Optimism has satisfied these properties it may be considered a Superchain.
 
@@ -91,18 +111,19 @@ We believe the following changes (after the Bedrock release) are required to cre
 
 ### Upgrade the Bedrock bridge to be a chain factory
 
-Bedrock introduced the [SystemConfig contract](https://github.com/ethereum-optimism/optimism/blob/74a63c94d881442b4edd4df6492513e0113eb064/packages/contracts-bedrock/contracts/L1/SystemConfig.sol) which began to define the L2 chain directly with L1 smart contracts. This can be extended to put ***************all information*************** defining the L2 chain, on-chain. Including generating a unique chain ID, key configuration values such as block gas limit, etc.
+Bedrock introduced the [SystemConfig contract](https://github.com/ethereum-optimism/optimism/blob/74a63c94d881442b4edd4df6492513e0113eb064/packages/contracts-bedrock/contracts/L1/SystemConfig.sol) which began to define the L2 chain directly with L1 smart contracts. This can be extended to put *all information* defining the L2 chain, on-chain. Including generating a unique chain ID, key configuration values such as block gas limit, etc.
 
 Once the chain data is entirely on-chain, we can create a factory which deploys the configuration and all other required contracts for each chain. This can be extended further by making the contract addresses deterministic with CREATE2, meaning that given a chain config it is possible to determine all bridge addresses associated with that chain. This also enables chains to be interacted with without having to deploy their bridge contracts, making (counterfactual) chain deployment virtually free, and allowing chains to inherit standard security properties. 
 
 ### Derive OP Chain data using the chain factory
 
-[Bedrock introduced L2 chain derivation from an L1 chain](https://community.optimism.io/docs/developers/bedrock/#block-derivation), where all chain data can be synced based on L1 blocks. With the L1 chain factory extending this to put all configuration on-chain, it should become possible for Optimism nodes to sync ***any*** OP Chain deterministically given a single L1 address plus a connection to L1.
+[Bedrock introduced L2 chain derivation from an L1 chain](../releases/bedrock/explainer/#block-derivation), where all chain data can be synced based on L1 blocks. With the L1 chain factory extending this to put all configuration on-chain, it should become possible for Optimism nodes to sync *any* OP Chain deterministically given a single L1 address plus a connection to L1.
 
-<aside>
-📌 When the OP Chain is synced, the chain state is locally computed. This means determining the state of the OP Chain is fully permissionless & secure. No proof system is required for chain derivation because all invalid transactions are simply ignored by the local computation process performed by the node. A proof system is, however, still required to enable Superchain withdrawals.
+::: tip 📌 
 
-</aside>
+When the OP Chain is synced, the chain state is locally computed. This means determining the state of the OP Chain is fully permissionless & secure. No proof system is required for chain derivation because all invalid transactions are simply ignored by the local computation process performed by the node. A proof system is, however, still required to enable Superchain withdrawals.
+
+:::
 
 ### Permissionless proof system to enable withdrawals
 
@@ -110,8 +131,14 @@ In Bedrock, there is a permissioned entity (the proposer) who is required for us
 
 In order to address these issues, we can introduce two features:
 
-1. [Withdrawal claims](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6) (aka Permissionless proposals) — allow anyone to submit a withdrawal (aka a proposal), not just a designated proposer. This removes the permissioned entity from the system, enabling users to submit their own withdrawal messages.
-2. Remove proposal submission interval — enable withdrawal claims to be made ****only**** when a user needs to withdraw. This removes the overhead incurred when deploying a new OP Chain.
+1. Withdrawal claims (a.k.a. Permissionless proposals) — allow anyone to submit a withdrawal (aka a proposal), not just a designated proposer. This removes the permissioned entity from the system, enabling users to submit their own withdrawal messages.
+2. Remove proposal submission interval — enable withdrawal claims to be made *only* when a user needs to withdraw. This removes the overhead incurred when deploying a new OP Chain.
+
+::: details Withdrawal claims
+
+A claim about the state of one chain made on another chain. For instance, I can claim that in OP Mainnet I have burned my tokens with the intent to withdraw those tokens back to L1.
+
+:::
 
 We can enable these two features first by introducing a permissionless proof system to the Optimism bridge contracts. With the modular proof design introduced in Bedrock, proofs may come in the form of fault proofs or validity proofs (e.g. zero knowledge proofs). However, until validity proofs are productionized, we assume withdrawals will use a fault proof system.
 
@@ -125,11 +152,23 @@ In the future, the attestation proof will be incrementally phased out and replac
 
 ### Configurable sequencer per OP Chain
 
-Bedrock introduced the ability to set the sequencer address in the SystemConfig contract. As we introduce multiple chains with their own SystemConfig contracts, we can enable the sequencer address to be configured by the OP Chain deployer. We call this configurable sequencer design “[modular sequencing](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6)”. This enables OP Chains to be sequenced by different entities while retaining the standard [Superchain bridge](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6) security model—a critical step towards sequencer decentralization.
+Bedrock introduced the ability to set the sequencer address in the SystemConfig contract. As we introduce multiple chains with their own SystemConfig contracts, we can enable the sequencer address to be configured by the OP Chain deployer. We call this configurable sequencer design modular sequencing. This enables OP Chains to be sequenced by different entities while retaining the standard [Superchain bridge] security model—a critical step towards sequencer decentralization.
 
-Within the Superchain bridge security model, chain safety (i.e. validity) as well as chain liveness (i.e. censorship resistance) is guaranteed. Safety is guaranteed by the proof system, and liveness is guaranteed by the ability to submit [transactions directly to L1](https://community.optimism.io/docs/developers/bedrock/explainer/#deposits). The combination of safety and liveness means that if an OP Chain sequencer were to misbehave, users can always submit transactions to L1 that migrates their usage to a new OP Chain with a correctly functioning sequencer.
+::: details Modular sequencing
 
-Modular sequencing also enables permissionless experimentation with different sequencing models. Developers can envision implementing sequencing protocols such as~~:~~ round robin sequencing, sequencer consensus protocols, PGA ordering, or FIFO ordering. We can expect that over time user friendly sequencing standards will emerge from the competition between competing sequencing protocols.
+The ability to configure the sequencer address during OP Chain deployment. This value can be configured by the OP Chain deployer.
+
+:::
+
+::: details Superchain bridge
+
+The L1 bridge contracts which govern all OP Chains in the Superchain. This bridge can be upgraded by the Optimism Collective.
+
+:::
+
+Within the Superchain bridge security model, chain safety (i.e. validity) as well as chain liveness (i.e. censorship resistance) is guaranteed. Safety is guaranteed by the proof system, and liveness is guaranteed by the ability to submit [transactions directly to L1](../releases/bedrock/explainer/#deposits). The combination of safety and liveness means that if an OP Chain sequencer were to misbehave, users can always submit transactions to L1 that migrates their usage to a new OP Chain with a correctly functioning sequencer.
+
+Modular sequencing also enables permissionless experimentation with different sequencing models. Developers can envision implementing sequencing protocols such as: round robin sequencing, sequencer consensus protocols, PGA ordering, or FIFO ordering. We can expect that over time user friendly sequencing standards will emerge from the competition between competing sequencing protocols.
 
 ### One shared upgrade path for all OP Chains
 
@@ -137,11 +176,11 @@ To ship the initial Superchain with high confidence in security and decentraliza
 
 The ability to pause the bridge in case of emergency means that in the worst case, where the requisite threshold of the security council participants had their private keys leaked, the result would be that withdrawals are indefinitely paused and bridge upgrades would be perpetually canceled. In other words, the L1 funds would be frozen. This follows the design principle of safety over liveness—the principle that one should always prevent the loss of funds (i.e. enforce safety) even if it means the funds get locked (i.e. sacrifice liveness).
 
-**************************************************************Unfreezing the bridge via L1 soft fork**************************************************************
+#### Unfreezing the bridge via L1 soft fork
 
 In order to address the frozen funds, there is a potential final recovery mechanism we call the “L1 Soft Fork Upgrade Recovery” mechanism. This mechanism enables L1 to initiate a bridge upgrade with a soft fork, bypassing all other permissions within the Superchain bridge contracts. The mechanism is as follows:
 
-*Anyone* may propose an upgrade by submitting a transaction to a special bridge contract, along with a very large bond. This begins a two week challenge period. During this challenge period, ******anyone****** may submit a challenge which immediately *******cancels******* the upgrade and claims the bond. Under normal circumstances, it is impossible that an upgrade would go uncancelled for the required two weeks due to the large incentive provided for anyone to cancel the upgrade. However, if the upgrade is accompanied by a modification to Ethereum L1 validator software (the L1 soft fork), which ignores blocks that contain the cancellation transaction then it may succeed.
+*Anyone* may propose an upgrade by submitting a transaction to a special bridge contract, along with a very large bond. This begins a two week challenge period. During this challenge period, *anyone* may submit a challenge which immediately *cancels* the upgrade and claims the bond. Under normal circumstances, it is impossible that an upgrade would go uncancelled for the required two weeks due to the large incentive provided for anyone to cancel the upgrade. However, if the upgrade is accompanied by a modification to Ethereum L1 validator software (the L1 soft fork), which ignores blocks that contain the cancellation transaction then it may succeed.
 
 While a successful upgrade of this type would represent a soft fork of Ethereum L1, it would not incur long term technical debt to the Ethereum codebase because the soft fork logic can be removed once the upgrade has completed. 
 
@@ -168,27 +207,27 @@ The following is an overview of potential future enhancements, which when combin
 
 ### Multi-Proof Security
 
-**********************Pain Point:**********************
+#### Pain Point:
 
 1) Withdrawal claims rely on a trusted set of chain attestors.
 
-************************Proposed Solution:**
+#### Proposed Solution:
 
 It is possible to replace the trusted set of chain attestors by introducing permissionless proofs—such as Cannon—where dispute resolution is entirely on-chain. However, the challenge with entirely on-chain proofs is there is no fallback mechanism if they were to break. To ensure that they will never fail, it is possible to introduce a multi-proof system which provides safety through redundancy. For more information on the multi-proof design click [here](https://medium.com/ethereum-optimism/our-pragmatic-path-to-decentralization-cb5805ca43c1).
 
 ### Low Latency L2 to L2 Message Passing
 
-**********************Pain Point:**********************
+#### Pain Point:
 
 2) Cross-Chain transactions are slow because they require waiting a challenge period.
 
-************************Proposed Solution:**
+#### Proposed Solution:
 
 Fault proofs introduce a UX burden because they require waiting a challenge period in order to safely finalize. This means that, depending on your challenge period length, users need to wait a long time before their assets are migrated from one OP Chain to the next.
 
-On the other hand, validity proofs do not have this problem. Validity proofs don’t have a challenge period and therefore provide instant withdrawals from one OP Chain to the next. This is extremely important if users are expected to migrate between chains frequently, even during normal dApp execution. However, validity proofs ~~~~are commonly implemented using zero-knowledge proofs (ZKPs), which are expensive and bug-prone. It will likely take years to truly productionize ZKPs enough such that they can be the primary cross-chain communication protocol.
+On the other hand, validity proofs do not have this problem. Validity proofs don’t have a challenge period and therefore provide instant withdrawals from one OP Chain to the next. This is extremely important if users are expected to migrate between chains frequently, even during normal dApp execution. However, validity proofs are commonly implemented using zero-knowledge proofs (ZKPs), which are expensive and bug-prone. It will likely take years to truly productionize ZKPs enough such that they can be the primary cross-chain communication protocol.
 
-However, while ZKPs are being productionized, it is possible to achieve low latency L2 to L2 message passing using the OP Stack’s modular proof system. With modular proofs it is possible to use two proof systems for the same chain. This opens up the possibility to provide low latency bridging which trades off security while ****also**** providing high security high latency bridging.
+However, while ZKPs are being productionized, it is possible to achieve low latency L2 to L2 message passing using the OP Stack’s modular proof system. With modular proofs it is possible to use two proof systems for the same chain. This opens up the possibility to provide low latency bridging which trades off security while *also* providing high security high latency bridging.
 
 This heterogeneous bridging system means that developers can build their applications using one of many bridge types, such as:
 
@@ -201,13 +240,13 @@ Mixing multiple proof systems enables developers to provide low latency bridging
 
 ### Synchronous Cross-Chain Transactions
 
-**********************Pain Point:**********************
+#### Pain Point:
 
 3) Cross-Chain transactions are asynchronous, breaking the ability to perform atomic cross-chain transactions (like flash loans).
 
-************************Proposed Solution:**
+#### Proposed Solution:
 
-Traditional cross-chain messaging is done asynchronously, which means that cross-chain transactions are ***not*** atomic. For example, if a user would would like to execute a cross-chain arbitrage transaction—buying token A on chain A, and selling token B on chain B—there is no guarantee that their transaction executes in its entirety. The user might end up buying token A without having sold token B.
+Traditional cross-chain messaging is done asynchronously, which means that cross-chain transactions are *not* atomic. For example, if a user would would like to execute a cross-chain arbitrage transaction—buying token A on chain A, and selling token B on chain B—there is no guarantee that their transaction executes in its entirety. The user might end up buying token A without having sold token B.
 
 It is possible to introduce synchronous cross-chain messaging and enable atomic cross-chain interactions by using a shared sequencing protocol on both OP Chains. In our example, the sequencers on chain A and chain B would each receive the arbitrage transaction, come to consensus on when they will include it, and then atomically include each transaction in the linked block. Fees would only be paid if the transaction was indeed included on each chain, meaning the sequencers take the synchronization risk as opposed to the user in our initial example. These shared sequencing protocols can be implemented permissionlessly on top of the modular sequencing layer of the post-Bedrock Superchain.
 
@@ -215,15 +254,21 @@ With the combination of low latency L2 to L2 message passing as well as shared s
 
 ### Alt-Data Availability Layer — Plasma Protocol
 
-**********************Pain Point:**********************
+#### Pain Point:
 
 4) Posting transactions to the Superchain is not-scalable because the transaction data must be submitted to L1 which has limited capacity.
 
-************************Proposed Solution:**
+#### Proposed Solution:
 
 Today L1 data availability (DA) does not scale nearly enough to be able to support internet-level scale. However, it is possible to extend the amount of data availability accessible to OP Chains by using a Plasma protocol which enables alternative DA providers to supplement the more limited L1 DA.
 
-A generic Plasma protocol is able to scale beyond what is possible on L1 because only the users who are interested in the transaction data will download the Plasma data, whereas on L1 every Ethereum node downloads all of the transaction data on L1. This means that Plasma data is extremely cheap. However, where Plasma has a worse security model than L1—it is possible for [Plasma chain](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6) data to temporarily become unavailable, meaning users must withdraw from the chain. Note, this security model still guarantees safety of the Plasma chains, just not liveness.
+A generic Plasma protocol is able to scale beyond what is possible on L1 because only the users who are interested in the transaction data will download the Plasma data, whereas on L1 every Ethereum node downloads all of the transaction data on L1. This means that Plasma data is extremely cheap. However, where Plasma has a worse security model than L1—it is possible for Plasma chain data to temporarily become unavailable, meaning users must withdraw from the chain. Note, this security model still guarantees safety of the Plasma chains, just not liveness.
+
+::: details Plasma chain
+
+A chain where transaction data is committed to on L1 but not supplied to L1 directly, with a data availability challenge fallback.
+
+:::
 
 **Plasma protocol overview:**
 
@@ -239,13 +284,13 @@ Because of the ability for hashes to reduce arbitrary size data into a constant 
 
 ### Multi-Chain dApp Frameworks
 
-**********************Pain Points:**
+#### Pain Points:
 
 5) There are no easy frameworks for building scalable dApps which utilize many OP Chains.
 
 6) There is no easy wallet for managing assets and dApps across many OP Chains.
 
-************************Proposed Solution (Sketch):**
+#### Proposed Solution (Sketch):
 
 This is not a core protocol change, but instead tooling which can be built on top of the core Superchain protocols. The suggestions here are intended to give rough intuitions for how to build tools which improve the experience of deploying to the Superchain.
 
@@ -254,10 +299,11 @@ These are some tools which could make developing on the Superchain a better expe
 1. Content-addressable smart contracts — this enables contracts to have the same address on all chains. This way developers can write smart contracts which are counterfactually deployed to all OP Chains at the same address. If a user on an OP Chain would like to use the smart contract that is not yet available on their chain, they can independently deploy the code.
 2. Cross-chain contract state management standards — creating standards for how smart contract state can migrate from one chain to the next enables developers to shard their applications on many chains. Additionally, this logic can be used in wallets to display user state as if it is all on the same chain. For instance, if a user has tokens split across many chains, the wallet can use the cross-chain state management logic to know that it should display the user balance as a sum of all of their token balances across all chains.
     
-    <aside>
-    📌 For the Ethereum scalability nerds: the state growth problem can be addressed in these frameworks by making it easy to migrate user state from bloated chains into fresh chains. Old bloated chains can be maintained with a low gas limit or deprecated entirely.
-    
-    </aside>
+    ::: tip 📌 
+
+    For the Ethereum scalability nerds: the state growth problem can be addressed in these frameworks by making it easy to migrate user state from bloated chains into fresh chains. Old bloated chains can be maintained with a low gas limit or deprecated entirely.
+        
+    :::
     
 3. Superchain RPC endpoint — creating a single RPC endpoint where users can send their Superchain transactions regardless of which OP Chain they are intended to enables users to avoid constantly switching their network.
 
@@ -275,40 +321,40 @@ Stay Optimistic 🔴✨
 
 ## Glossary
 
-- **Chain**: A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
-
-- **Superchain**: A decentralized blockchain platform which consists of many chains that share security and a technology stack (OP Stack). The interoperability and standardization enables individual chains to be treated identically by tools and wallets.
-
-- **OP Chain**: An individual chain within the Optimism Superchain. All chains, regardless of their specific properties are considered OP Chains if they are officially governed by the Optimism Collective, and therefore part of the Superchain.
-
-- **Superchain Bridge**: The L1 bridge contracts which govern all OP Chains in the Superchain. This bridge can be upgraded by the Optimism Collective.
-
-- **Sequencer**: The specific entity or smart contract which has priority when submitting transactions to an OP Chain.
-
-- **Modular Sequencing**: The ability to configure the sequencer address during OP Chain deployment. This value can be configured by the OP Chain deployer.
-
-- **Withdrawal Claim**: A claim about the state of one chain made on another chain. For instance, I can claim that in OP Mainnet I have burned my tokens with the intent to withdraw those tokens back to L1.
-
-- **Chain Proof**: Difficult to forge evidence of the validity of a particular withdrawal claim. Proofs are commonly used to enable chains to communicate with each other.
-
-- **Modular Proof**: The ability to use multiple proof systems for the same OP Chain. For instance, it should be possible to prove an OP Chain using a fault proof or a validity proof.
-
-- **Fault Proof**: A proof which relies on the absence of counter-evidence to prove correctness.
-
-- **Challenge Period**: The window of time in which a challenge can be made to disprove a fault proof.
-
-- **Attestation Proof**: A proof which consists of some number of signatures from a pre-agreed upon set of chain attestors.
-
 - **Attestation-Based Fault Proof**: A fault proof where challenges can be successfully made by supplying an attestation proof which disagrees with the original withdrawal claim.
-
-- **Cannon Fault Proof**: A fault proof where challenges are evaluated using an on-chain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
-
-- **Validity Proof**: A proof of a withdrawal claim which can be immediately validated, without a challenge period.
 
 - **Attestation-Based Validity Proof**: A validity proof which can be verified by supplying an attestation proof which agrees with the withdrawal claim.
 
-- **Zero Knowledge Proof**: A validity proof which relies on cryptographic properties and low error margins.
+- **Attestation Proof**: A proof which consists of some number of signatures from a pre-agreed upon set of chain attestors.
+
+- **Cannon Fault Proof**: A fault proof where challenges are evaluated using an on-chain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
+
+- **Chain**: A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
+
+- **Chain Proof**: Difficult to forge evidence of the validity of a particular withdrawal claim. Proofs are commonly used to enable chains to communicate with each other.
+
+- **Challenge Period**: The window of time in which a challenge can be made to disprove a fault proof.
+
+- **Fault Proof**: A proof which relies on the absence of counter-evidence to prove correctness.
+
+- **Modular Proof**: The ability to use multiple proof systems for the same OP Chain. For instance, it should be possible to prove an OP Chain using a fault proof or a validity proof.
+
+- **Modular Sequencing**: The ability to configure the sequencer address during OP Chain deployment. This value can be configured by the OP Chain deployer.
+
+- **OP Chain**: An individual chain within the Optimism Superchain. All chains, regardless of their specific properties are considered OP Chains if they are officially governed by the Optimism Collective, and therefore part of the Superchain.
+
+- **Plasma Chain**: A chain where transaction data is committed to on L1 but not supplied to L1 directly, with a data availability challenge fallback.
 
 - **Rollup Chain**: A chain where all transaction data is submitted to L1.
 
-- **Plasma Chain**: A chain where transaction data is committed to on L1 but not supplied to L1 directly, with a data availability challenge fallback.
+- **Sequencer**: The specific entity or smart contract which has priority when submitting transactions to an OP Chain.
+
+- **Superchain**: A decentralized blockchain platform which consists of many chains that share security and a technology stack (OP Stack). The interoperability and standardization enables individual chains to be treated identically by tools and wallets.
+
+- **Superchain Bridge**: The L1 bridge contracts which govern all OP Chains in the Superchain. This bridge can be upgraded by the Optimism Collective.
+
+- **Validity Proof**: A proof of a withdrawal claim which can be immediately validated, without a challenge period.
+
+- **Withdrawal Claim**: A claim about the state of one chain made on another chain. For instance, I can claim that in OP Mainnet I have burned my tokens with the intent to withdraw those tokens back to L1.
+
+- **Zero Knowledge Proof**: A validity proof which relies on cryptographic properties and low error margins.
