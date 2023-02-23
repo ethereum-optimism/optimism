@@ -12,7 +12,7 @@ You should be aware of these descrepancies when building apps on top of Optimism
 | Opcode  | Solidity equivalent | Behavior |
 | - | - | - |
 | `COINBASE`	| `block.coinbase`   | Undefined |
-| `DIFFICULTY` | `block.difficulty` | Random value. As this value is set by the sequencer, it is not as reliably random as the L1 equivalent. [You can use an oracle for randomness](https://community.optimism.io/docs/useful-tools/oracles/#verifiable-randomness-function-vrf). |
+| `DIFFICULTY` | `block.difficulty` | Random value. As this value is set by the sequencer, it is not as reliably random as the L1 equivalent. |
 | `NUMBER`     | `block.number`     | L2 block number
 | `TIMESTAMP`  | `block.timestamp`  | Timestamp of the L2 block
 | `ORIGIN`     | `tx.origin`        | If the transaction is an L1 ⇒ L2 transaction, then `tx.origin` is set to the [aliased address](#address-aliasing) of the address that triggered the L1 ⇒ L2 transaction. Otherwise, this opcode behaves normally. |
@@ -125,25 +125,18 @@ There are several differences in the way blocks are produced between L1 Ethereum
 
 ### JSON-RPC differences
 
-Optimism uses the same [JSON-RPC API](https://eth.wiki/json-rpc/API) as Ethereum.
-Some additional Optimism specific methods have been introduced.
+OP Stack uses the same [JSON-RPC API](https://eth.wiki/json-rpc/API) as Ethereum.
+Some additional OP Stack specific methods have been introduced.
 See the full list of [custom JSON-RPC methods](https://community.optimism.io/docs/developers/build/json-rpc/) for more information.
 
 
 ### Pre-EIP-155 support
 
 [Pre-EIP-155](https://eips.ethereum.org/EIPS/eip-155) transactions do not have a chain ID, which means a transaction on one Ethereum blockchain can be replayed on others.
-This is a security risk.
-Starting in November 2022, pre-EIP-155 transactions are no longer supported on Optimism.
+This is a security risk, so pre-EIP-155 transactions are not supported on OP Stack by default.
 
 
 ## Transaction costs
 
-[Transaction costs on Optimism](https://community.optimism.io/docs/developers/build/transaction-fees/) include an [L2 execution fee](https://community.optimism.io/docs/developers/build/transaction-fees#the-l2-execution-fee) and an [L1 data fee](https://community.optimism.io/docs/developers/build/transaction-fees#the-l1-data-fee). 
+[By default, transaction costs on OP Stack chains](https://community.optimism.io/docs/developers/build/transaction-fees/) include an [L2 execution fee](https://community.optimism.io/docs/developers/build/transaction-fees#the-l2-execution-fee) and an [L1 data fee](https://community.optimism.io/docs/developers/build/transaction-fees#the-l1-data-fee). 
 
-
-## Contract addresses
-
-The addresses in which various infrastructure contracts are installed are different between L1 Ethereum and Optimism.
-For example, [WETH9](https://github.com/gnosis/canonical-weth/blob/master/contracts/WETH9.sol) is installed on L1 Ethereum on [address `0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2`](https://etherscan.io/address/0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2). 
-On Optimism the same contract is installed on [address `0x4200000000000000000000000000000000000006`](https://explorer.optimism.io/address/0x4200000000000000000000000000000000000006).
