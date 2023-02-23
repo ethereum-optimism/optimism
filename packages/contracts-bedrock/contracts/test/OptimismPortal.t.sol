@@ -42,7 +42,7 @@ contract OptimismPortal_Test is Portal_Initializer {
      * @notice The OptimismPortal reverts when an account that is not the
      *         GUARDIAN calls `pause()`
      */
-    function test_pause_onlyOwner_reverts() external {
+    function test_pause_onlyGuardian_reverts() external {
         assertEq(op.paused(), false);
 
         assertTrue(op.GUARDIAN() != alice);
@@ -75,7 +75,7 @@ contract OptimismPortal_Test is Portal_Initializer {
      * @notice The OptimismPortal reverts when an account that is not
      *         the GUARDIAN calls `unpause()`
      */
-    function test_unpause_onlyOwner_reverts() external {
+    function test_unpause_onlyGuardian_reverts() external {
         address guardian = op.GUARDIAN();
 
         vm.prank(guardian);
