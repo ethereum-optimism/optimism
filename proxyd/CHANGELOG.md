@@ -1,5 +1,12 @@
 # @eth-optimism/proxyd
 
+## 3.14.1
+
+### Patch Changes
+
+- 5602deec7: chore(deps): bump github.com/prometheus/client_golang from 1.11.0 to 1.11.1 in /proxyd
+- 6b3cf2070: Remove useless logging
+
 ## 3.14.0
 
 ### Minor Changes
