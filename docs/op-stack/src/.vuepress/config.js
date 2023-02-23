@@ -125,7 +125,15 @@ module.exports = {
         collapsable: false,          
         children: [
           '/docs/releases/',
-          '/docs/releases/bedrock.md',
+          {
+            title: "Bedrock",
+            collapsable: true,
+            children: [
+              '/docs/releases/bedrock/',
+              '/docs/understand/bedrock/',
+              '/docs/releases/bedrock/differences.md'
+            ]
+          }
         ]
       },
       {

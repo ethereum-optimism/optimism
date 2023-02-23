@@ -12,7 +12,7 @@ Only the software components included within the Current Release of the OP Stack
 
 ## Current Release
 
-[OP Stack V1: Bedrock](./bedrock.md)
+[OP Stack V1: Bedrock](./bedrock/)
 
 ## Past Releases
 
