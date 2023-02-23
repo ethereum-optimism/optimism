@@ -9,12 +9,16 @@ module.exports = {
     ['meta', { name: 'theme-color', content: '#3eaf7c' }],
     ['meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }],
     ['meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' }],
+    ['meta', { property: 'og:image', content: 'https://stack.optimism.io/assets/logos/twitter-logo.png' }],
+    ['meta', { name: 'twitter:title', content: 'OP Stack Docs' }],
+    ['meta', { name: 'twitter:image', content: 'https://stack.optimism.io/assets/logos/twitter-logo.png' }],
+    ['meta', { name: 'twitter:card', content: 'summary' } ],
     ['link', { rel: "icon", type: "image/png", sizes: "32x32", href: "/assets/logos/favicon.png"}],
   ],
   theme: path.resolve(__dirname, './theme'),
   themeConfig: {
     contributor: false,
-    hostname: 'https://community.optimism.io',
+    hostname: 'https://stack.optimism.io',
     logo: '/assets/logos/logo.png',
     docsDir: 'src',
     docsRepo: 'https://github.com/ethereum-optimism/opstack-docs',
@@ -111,7 +115,7 @@ module.exports = {
       {
         title: "OP Stack",
         collapsable: false,
-        children: [        
+        children: [
           '/',
           [
             '/docs/understand/design-principles.md',
@@ -120,10 +124,10 @@ module.exports = {
           '/docs/understand/landscape.md',
           '/docs/understand/explainer.md'
         ]
-      }, 
+      },
       {
         title: "Releases",
-        collapsable: false,          
+        collapsable: false,
         children: [
           '/docs/releases/',
           {
@@ -149,36 +153,36 @@ module.exports = {
             children: [
               '/docs/build/hacks.md',
               '/docs/build/featured.md',
-              '/docs/build/data-avail.md',            
+              '/docs/build/data-avail.md',
               '/docs/build/derivation.md',
               '/docs/build/execution.md',
-              '/docs/build/settlement.md',                  
+              '/docs/build/settlement.md',
               {
                 title: "Sample Hacks",
                 children: [
                   "/docs/build/tutorials/add-attr.md",
-                  "/docs/build/tutorials/new-precomp.md",                
+                  "/docs/build/tutorials/new-precomp.md",
                 ]
-              }  // End of tutorials                      
-            ], 
+              }  // End of tutorials
+            ],
           },    // End of OP Stack hacks
         ],
       },      // End of Building OP Stack Rollups
       {
         title: "Contributing",
-        collapsable: false,          
+        collapsable: false,
         children: [
           '/docs/contribute.md',
-        ]        
-      },     
+        ]
+      },
       {
         title: "Security",
-        collapsable: false,          
+        collapsable: false,
         children: [
           '/docs/security/faq.md',
           '/docs/security/policy.md',
         ]
-      },        
+      },
     ],  // end of sidebar
   plugins: [
     "@vuepress/pwa",

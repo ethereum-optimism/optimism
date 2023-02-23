@@ -8,7 +8,7 @@ meta:
 
 ![Bedrock](https://dev.optimism.io/content/images/size/w2000/2022/12/bedrock-BLUE.jpg)
 
-Bedrock is the name of the first ever official release of the OP Stack, which is a set of free and open-source modular components that work together to power Optimism.
+Bedrock is the name of the first ever official release of the OP Stack codebase, which is a set of free and open-source modular components that work together to power Optimism.
 
 - To understand what is in the Bedrock release, keep reading.
 - To develop on Optimism Mainnet, which will upgrade its infrastructure to the Bedrock release, read the docs.
@@ -55,7 +55,7 @@ Bedrock was built to be modular & upgradeable, to reuse existing code from Ether
 
 ### Modularity
 
-Bedrock makes it easy to swap out different components in the OP Stack and add new capabilities by using well-defined interfaces and versioning schemes. This allows for a flexible architecture that can adapt to future developments in the Ethereum ecosystem.
+Bedrock makes it easy to swap out different components in the OP Stack codebase and add new capabilities by using well-defined interfaces and versioning schemes. This allows for a flexible architecture that can adapt to future developments in the Ethereum ecosystem.
 
 Examples:
 - Separation of [rollup node](#rollup-node) and execution client
@@ -192,13 +192,13 @@ After a sequencer processes one or more L2 blocks, the outputs computed from exe
 
 In Bedrock, outputs are hashed in a tree-structured form which minimizes the cost of proving any piece of data captured by the outputs. Proposers periodically submit **output roots** that are Merkle roots of the entire [canonical L2 chain](#protocol) to the L1.
 
-Future upgrades of the OP Stack should include a specification for a variation of a fault proof with bonding included to create incentives for proposers to propose correct output roots.
+Future upgrades of the OP Stack codebase should include a specification for a variation of a fault proof with bonding included to create incentives for proposers to propose correct output roots.
 
 For full details, read the [L2 Output Root Proposals section](https://github.com/ethereum-optimism/optimism/blob/develop/specs/proposals.md#l2-output-root-proposals-specification) of the protocol specifications.
 
 ## Implementation
 
-With Bedrock, the OP Stack leans heavily into the technical separation of concerns specified by Ethereum by mirroring the separation between the Ethereum execution layer and consensus layer. Bedrock introduces separation of execution client and rollup node in this same way.
+With Bedrock, the OP Stack codebase leans heavily into the technical separation of concerns specified by Ethereum by mirroring the separation between the Ethereum execution layer and consensus layer. Bedrock introduces separation of execution client and rollup node in this same way.
 
 ### Execution Client
 
@@ -281,7 +281,7 @@ Although fault proof construction and verification is implemented in the [Cannon
 
 ### Protocol Specification
 
-The protocol specification defines the technical details of the OP Stack. It is the most up-to-date source of truth for the inner workings of the protocol. The protocol specification is located in the ethereum-optimism [monorepo](https://github.com/ethereum-optimism/optimism/blob/develop/specs/README.md).
+The protocol specification defines the technical details of the OP Stack codebase. It is the most up-to-date source of truth for the inner workings of the protocol. The protocol specification is located in the ethereum-optimism [monorepo](https://github.com/ethereum-optimism/optimism/blob/develop/specs/README.md).
 
 ### Bedrock Differences
 

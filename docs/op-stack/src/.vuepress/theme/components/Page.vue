@@ -45,6 +45,7 @@
       gtag('js', new Date());
       gtag('config', 'G-9KLVB8X0ME');
     </script>
+
   </main>
 </template>
 
