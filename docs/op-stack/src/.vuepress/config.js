@@ -9,7 +9,7 @@ module.exports = {
     ['meta', { name: 'theme-color', content: '#3eaf7c' }],
     ['meta', { name: 'apple-mobile-web-app-capable', content: 'yes' }],
     ['meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' }],
-    ['meta', { property: 'og:image', content: 'https://stack.optimism.io/assets/logos/logo.png' }],
+    ['meta', { property: 'og:image', content: 'https://stack.optimism.io/assets/logos/twitter-logo.png' }],
     ['meta', { name: 'twitter:title', content: 'OP Stack Docs' }],
     ['meta', { name: 'twitter:image', content: 'https://stack.optimism.io/assets/logos/twitter-logo.png' }],
     ['meta', { name: 'twitter:card', content: 'summary' } ],
@@ -18,7 +18,7 @@ module.exports = {
   theme: path.resolve(__dirname, './theme'),
   themeConfig: {
     contributor: false,
-    hostname: 'https://community.optimism.io',
+    hostname: 'https://stack.optimism.io',
     logo: '/assets/logos/logo.png',
     docsDir: 'src',
     docsRepo: 'https://github.com/ethereum-optimism/opstack-docs',
