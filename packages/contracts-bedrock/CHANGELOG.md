@@ -1,5 +1,17 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.12.0
+
+### Minor Changes
+
+- efc98d261: Change the `relayMessage` reentrancy guard in the XDMs to be per-message.
+
+### Patch Changes
+
+- 7c0a2cc37: add is IERC165 to IOptimismMintableERC20
+- 2865dd9b4: Minor comment updates and cleanup to the SystemConfig contract.
+- 388f2c25a: Trigger a release including CrossDomainOwnable3
+
 ## 0.11.4
 
 ### Patch Changes
