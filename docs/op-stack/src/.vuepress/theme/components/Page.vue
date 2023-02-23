@@ -36,7 +36,7 @@
 
     <!-- Google tag (gtag.js) -->
     <!-- put here because the plugin didn't work -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9KLVB8X0ME">
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-22HX148PZF">
     </script>
 
     <script>
