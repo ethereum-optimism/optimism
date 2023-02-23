@@ -46,9 +46,6 @@
       gtag('config', 'G-9KLVB8X0ME');
     </script>
 
-    <!-- Social sharing image -->
-    <meta property="og:image" content="https://stack.optimism.io/assets/logos/logo.png" />
-
   </main>
 </template>
 
