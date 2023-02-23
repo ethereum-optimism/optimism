@@ -240,10 +240,9 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, contractCreateTx.Value(), contractBalance)
 
-	// TODO: Check nonce is returned in deposit transaction
-	//tx, _, err := l2Geth.L2Client.TransactionByHash(ctx, contractCreateTx.Hash())
-	//require.NoError(t, err)
-	//require.Equal(t, uint64(3), tx.Nonce())
+	tx, _, err := l2Geth.L2Client.TransactionByHash(ctx, contractCreateTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, uint64(3), tx.Nonce())
 }
 
 // TestRegolithDepositTxUnusedGas checks that unused gas from deposit transactions is returned to the block gas pool
