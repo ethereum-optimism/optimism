@@ -21,7 +21,7 @@ Featured Hacks is a compilation of some of the cool stuff people are building on
 
 ### Description
 
-OPCraft was an OP Stack chain that ran a modified EVM as the backend for a fully on-chain 3D voxel game built with [MUD](https://mud.dev/).
+OPCraft was an OP Stack chain that ran a modified EVM as the backend for a fully onchain 3D voxel game built with [MUD](https://mud.dev/).
 
 ### OP Stack Configuration
 
@@ -45,7 +45,7 @@ OPCraft was an OP Stack chain that ran a modified EVM as the backend for a fully
 
 ### Description
 
-Ticking Optimism is a proof-of-concept implementation of an OP Stack chain that calls a `tick` function every block. By using the OP Stack, Ticking Optimism avoids the need for off-chain infrastructure to execute a function on a regular basis. Ticking Conway is a system that uses Ticking Optimism to build [Conway’s Game of Life](https://conwaylife.com/) on-chain.
+Ticking Optimism is a proof-of-concept implementation of an OP Stack chain that calls a `tick` function every block. By using the OP Stack, Ticking Optimism avoids the need for off-chain infrastructure to execute a function on a regular basis. Ticking Conway is a system that uses Ticking Optimism to build [Conway’s Game of Life](https://conwaylife.com/) onchain.
 
 ### OP Stack Configuration
 
