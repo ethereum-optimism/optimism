@@ -1083,3 +1083,208 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
         assertEq(slot21Expected, slot21After);
     }
 }
+
+interface IMessageReceiver {
+    function receivedGas() external returns (uint256);
+
+    function receiveMessage() external payable;
+}
+
+contract MessageReceiverCheckGap is IMessageReceiver {
+    uint256 public receivedGas;
+
+    function receiveMessage() external payable {
+        receivedGas = gasleft();
+    }
+}
+
+contract MessageReceiverEIP150 is IMessageReceiver {
+    uint256 internal immutable MIN_GAS_LIMIT;
+
+    uint256 public receivedGas;
+
+    constructor(uint256 _minGasLimit) {
+        MIN_GAS_LIMIT = _minGasLimit;
+    }
+
+    function receiveMessage() external payable {
+        uint256 _receivedGas = gasleft();
+
+        require(_receivedGas >= MIN_GAS_LIMIT);
+
+        receivedGas = _receivedGas;
+    }
+}
+
+contract OptimismPortal_MinGasLimit_Test is Portal_Initializer {
+    // Reusable default values for a test withdrawal
+    Types.WithdrawalTransaction _defaultTx;
+    uint256 _proposedOutputIndex;
+    uint256 _proposedBlockNumber;
+    bytes32 _stateRoot;
+    bytes32 _storageRoot;
+    bytes32 _outputRoot;
+    bytes32 _withdrawalHash;
+    bytes[] _withdrawalProof;
+    Types.OutputRootProof internal _outputRootProof;
+
+    // The receiver of the withdrawal message.
+    IMessageReceiver internal receiver;
+
+    function test_finalizeWithdrawalTransaction_minGasLimitCheckGap_succeeds() public {
+        // Prepare the test with a withdrawal transaction that has a minimum gas limit of
+        // 22_203. This is the exact amount of gas required to execute `receiveMessage` in
+        // the `MessageReceiverCheckGap` contract.
+        uint256 minGasLimit = 22_203;
+        _prep(minGasLimit, IMessageReceiver(address(new MessageReceiverCheckGap())));
+
+        // Prove the withdrawal transaction
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Loop through a range of gas values, and ensure that the external call *always* receives
+        // at LEAST the minimum gas limit each time the call to `finalizeWithdrawalTransaction`
+        // succeeds.
+        //
+        // The range [75_483, 85_483] was chosen because it's a range that includes the minimum amount
+        // of gas required to execute this `finalizeWithdrawalTransaction` call, 80_483, +/- 10_000.
+        for (uint256 gas = 70_483; gas <= 90_483; gas++) {
+            // Take a state snapshot.
+            uint256 snapshotId = vm.snapshot();
+
+            // Attempt to finalize the withdrawal.
+            (bool success, bytes memory returndata) = address(op).call{ gas: gas }(
+                abi.encodeWithSelector(op.finalizeWithdrawalTransaction.selector, _defaultTx)
+            );
+
+            // If the call was successful, then the gas supplied to the external call MUST be greater than the
+            // minimum gas limit. Otherwise, the call MUST revert with the expected error message.
+            if (success) {
+                // This assertion doubles as a check that the sub-call succeeded AND that the gas
+                // supplied was greater than or equal to the `minGasLimit`.
+                assertTrue(receiver.receivedGas() >= minGasLimit);
+            } else {
+                assertEq(
+                    returndata,
+                    abi.encodeWithSignature(
+                        "Error(string)",
+                        "OptimismPortal: insufficient gas to finalize withdrawal"
+                    )
+                );
+            }
+
+            // Revert back to the snapshot state (before the withdrawal was finalized).
+            assertTrue(vm.revertTo(snapshotId));
+        }
+    }
+
+    function test_finalizeWithdrawalTransaction_minGasLimitEIP150_succeeds() public {
+        // Prepare the test with a withdrawal transaction that has a minimum gas limit of
+        // 1_300_000.
+        uint256 minGasLimit = 1_300_000;
+        _prep(minGasLimit, IMessageReceiver(address(new MessageReceiverEIP150(minGasLimit))));
+
+        // Prove the withdrawal transaction
+        op.proveWithdrawalTransaction(
+            _defaultTx,
+            _proposedOutputIndex,
+            _outputRootProof,
+            _withdrawalProof
+        );
+
+        // Warp past the finalization period
+        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+
+        // Loop through a range of gas values, and ensure that the external call *always* receives
+        // at LEAST the minimum gas limit each time the call to `finalizeWithdrawalTransaction`
+        // succeeds.
+        //
+        // The range [1_387_136, 1_407_136] was chosen because it's a range that includes the minimum amount
+        // of gas required to execute this `finalizeWithdrawalTransaction` call, 1_397_136, +/- 10_000.
+        for (uint256 gas = 1_387_136; gas <= 1_407_136; gas++) {
+            // Take a state snapshot.
+            uint256 snapshotId = vm.snapshot();
+
+            // Attempt to finalize the withdrawal.
+            (bool success, bytes memory returndata) = address(op).call{ gas: gas }(
+                abi.encodeWithSelector(op.finalizeWithdrawalTransaction.selector, _defaultTx)
+            );
+
+            // If the call was successful, then the gas supplied to the external call MUST be greater than the
+            // minimum gas limit. Otherwise, the call MUST revert with the expected error message.
+            if (success) {
+                // This assertion doubles as a check that the sub-call succeeded AND that the gas
+                // supplied was greater than or equal to the `minGasLimit`.
+                assertTrue(receiver.receivedGas() >= minGasLimit);
+            } else {
+                assertEq(
+                    returndata,
+                    abi.encodeWithSignature(
+                        "Error(string)",
+                        "OptimismPortal: insufficient gas to finalize withdrawal"
+                    )
+                );
+            }
+
+            // Revert back to the snapshot state (before the withdrawal was finalized).
+            assertTrue(vm.revertTo(snapshotId));
+        }
+    }
+
+    /**
+     * @dev Prepares the test by setting up a withdrawal transaction with the specified
+     *      `_minGasLimit` and `_receiver`.
+     */
+    function _prep(uint256 _minGasLimit, IMessageReceiver _receiver) internal {
+        // Assign the message receiver
+        receiver = _receiver;
+
+        // Create a mock withdrawal transaction with the specified `_minGasLimit`.
+        // This withdrawal transaction triggers a call to the `receiver`'s
+        // `receiveMessage` function.
+        _defaultTx = Types.WithdrawalTransaction({
+            nonce: 0,
+            sender: alice,
+            target: address(receiver),
+            value: 100,
+            gasLimit: _minGasLimit,
+            data: abi.encodeWithSelector(receiver.receiveMessage.selector)
+        });
+
+        // Get withdrawal proof data we can use for testing.
+        (_stateRoot, _storageRoot, _outputRoot, _withdrawalHash, _withdrawalProof) = ffi
+            .getProveWithdrawalTransactionInputs(_defaultTx);
+
+        // Setup a dummy output root proof for reuse.
+        _outputRootProof = Types.OutputRootProof({
+            version: bytes32(uint256(0)),
+            stateRoot: _stateRoot,
+            messagePasserStorageRoot: _storageRoot,
+            latestBlockhash: bytes32(uint256(0))
+        });
+        _proposedBlockNumber = oracle.nextBlockNumber();
+        _proposedOutputIndex = oracle.nextOutputIndex();
+
+        // Configure the oracle to return the output root we've prepared.
+        vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
+        vm.prank(oracle.PROPOSER());
+        oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
+
+        // Warp beyond the finalization period for the block we've proposed.
+        vm.warp(
+            oracle.getL2Output(_proposedOutputIndex).timestamp +
+                op.FINALIZATION_PERIOD_SECONDS() +
+                1
+        );
+
+        // Fund the portal so that we can withdraw ETH.
+        vm.deal(address(op), 0xFFFFFFFF);
+    }
+}
