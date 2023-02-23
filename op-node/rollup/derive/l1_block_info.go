@@ -26,6 +26,10 @@ var (
 	L1BlockAddress         = predeploys.L1BlockAddr
 )
 
+const (
+	RegolithSystemTxGas = 1_000_000
+)
+
 // L1BlockInfo presents the information stored in a L1Block.setL1BlockValues call
 type L1BlockInfo struct {
 	Number    uint64
@@ -115,7 +119,7 @@ func L1InfoDepositTxData(data []byte) (L1BlockInfo, error) {
 
 // L1InfoDeposit creates a L1 Info deposit transaction based on the L1 block,
 // and the L2 block-height difference with the start of the epoch.
-func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfig) (*types.DepositTx, error) {
+func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfig, regolith bool) (*types.DepositTx, error) {
 	infoDat := L1BlockInfo{
 		Number:         block.NumberU64(),
 		Time:           block.Time(),
@@ -137,7 +141,7 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfi
 	}
 	// Set a very large gas limit with `IsSystemTransaction` to ensure
 	// that the L1 Attributes Transaction does not run out of gas.
-	return &types.DepositTx{
+	out := &types.DepositTx{
 		SourceHash:          source.SourceHash(),
 		From:                L1InfoDepositerAddress,
 		To:                  &L1BlockAddress,
@@ -146,12 +150,18 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfi
 		Gas:                 150_000_000,
 		IsSystemTransaction: true,
 		Data:                data,
-	}, nil
+	}
+	// With the regolith fork we disable the IsSystemTx functionality, and allocate real gas
+	if regolith {
+		out.IsSystemTransaction = false
+		out.Gas = RegolithSystemTxGas
+	}
+	return out, nil
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig) ([]byte, error) {
-	dep, err := L1InfoDeposit(seqNumber, l1Info, sysCfg)
+func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig, regolith bool) ([]byte, error) {
+	dep, err := L1InfoDeposit(seqNumber, l1Info, sysCfg, regolith)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
 	}
