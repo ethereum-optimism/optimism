@@ -525,7 +525,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge')
+    await assertSemver(L2ERC721Bridge, 'L2ERC721Bridge', '1.1.0')
 
     const MESSENGER = await L2ERC721Bridge.MESSENGER()
     assert(MESSENGER !== hre.ethers.constants.AddressZero)
