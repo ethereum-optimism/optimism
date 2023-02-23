@@ -147,7 +147,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Nil(t, err)
 
 	// Create the test data (L1 Info Tx and then always failing deposit)
-	l1Info, err := derive.L1InfoDepositBytes(1, l1Block, rollupGenesis.SystemConfig)
+	l1Info, err := derive.L1InfoDepositBytes(1, l1Block, rollupGenesis.SystemConfig, false)
 	require.Nil(t, err)
 
 	// Create a deposit from alice that will always fail (not enough funds)
