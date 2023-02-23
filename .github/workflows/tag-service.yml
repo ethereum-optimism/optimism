@@ -1,0 +1,59 @@
+name: Tag Service
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'How much to bump the version by'
+        required: true
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+          - prerelease
+          - finalize-prerelease
+      service:
+        description: 'Which service to release'
+        required: true
+        type: choice
+        options:
+          - op-node
+          - op-batcher
+          - op-proposer
+          - proxyd
+          - indexer
+      prerelease:
+        description: Increment major/minor/patch as prerelease?
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: op-stack-production
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Fetch tags
+        run: git fetch --tags origin
+      - name: Setup Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10"
+      - name: Install deps
+        run: pip install -r requirements.txt
+        working-directory: ops/tag-service
+      - run: ops/tag-service/tag-service.py --bump="$BUMP" --service="$SERVICE"
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          BUMP: ${{ github.event.inputs.bump }}
+          SERVICE: ${{ github.event.inputs.service }}
+        if: ${{ github.event.inputs.prerelease == 'false' }}
+      - run: ops/tag-service/tag-service.py --bump="$BUMP" --service="$SERVICE" --pre-release
+        env:
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+          BUMP: ${{ github.event.inputs.bump }}
+          SERVICE: ${{ github.event.inputs.service }}
+        if: ${{ github.event.inputs.prerelease == 'true' }}
