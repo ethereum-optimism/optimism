@@ -284,11 +284,11 @@ func main() {
 
 				if !isFinalized {
 					// Get the ETH balance of the withdrawal target *before* the finalization
-					targetBalBefore, err := clients.L1Client.BalanceAt(context.Background(), *wd.Target, nil)
+					targetBalBefore, err := clients.L1Client.BalanceAt(context.Background(), wd.XDomainTarget, nil)
 					if err != nil {
 						return err
 					}
-					log.Debug("Balance before finalization", "balance", targetBalBefore, "account", *wd.Target)
+					log.Debug("Balance before finalization", "balance", targetBalBefore, "account", wd.XDomainTarget)
 
 					log.Info("Finalizing withdrawal")
 					receipt, err := finalizeWithdrawalTransaction(contracts, clients, opts, wd, withdrawal)
@@ -369,14 +369,14 @@ func main() {
 					if method != nil {
 						log.Info("withdrawal action", "function", method.Name, "value", wdValue)
 					} else {
-						log.Info("unknown method", "to", wd.Target, "data", hexutil.Encode(wd.Data))
+						log.Info("unknown method", "to", wd.XDomainTarget, "data", hexutil.Encode(wd.XDomainData))
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "unknown method"); err != nil {
 							return err
 						}
 					}
 
 					// check that the user's intents are actually executed
-					if common.HexToAddress(callFrame.To) != *wd.Target {
+					if common.HexToAddress(callFrame.To) != wd.XDomainTarget {
 						log.Info("target mismatch", "index", i)
 
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "target mismatch"); err != nil {
@@ -384,7 +384,7 @@ func main() {
 						}
 						continue
 					}
-					if !bytes.Equal(hexutil.MustDecode(callFrame.Input), wd.Data) {
+					if !bytes.Equal(hexutil.MustDecode(callFrame.Input), wd.XDomainData) {
 						log.Info("calldata mismatch", "index", i)
 
 						if err := writeSuspicious(f, withdrawal, wd, finalizationTrace, i, "calldata mismatch"); err != nil {
@@ -401,7 +401,7 @@ func main() {
 					}
 
 					// Get the ETH balance of the withdrawal target *after* the finalization
-					targetBalAfter, err := clients.L1Client.BalanceAt(context.Background(), *wd.Target, nil)
+					targetBalAfter, err := clients.L1Client.BalanceAt(context.Background(), wd.XDomainTarget, nil)
 					if err != nil {
 						return err
 					}
@@ -621,7 +621,7 @@ func finalizeWithdrawalTransaction(
 	wd *crossdomain.LegacyWithdrawal,
 	withdrawal *crossdomain.Withdrawal,
 ) (*types.Receipt, error) {
-	if wd.Target == nil {
+	if wd.XDomainTarget == (common.Address{}) {
 		return nil, errors.New("withdrawal target is nil, should never happen")
 	}
 
@@ -833,7 +833,7 @@ func newTransactor(ctx *cli.Context) (*bind.TransactOpts, error) {
 // represents the user's intent.
 func findWithdrawalCall(trace *callFrame, wd *crossdomain.LegacyWithdrawal, l1xdm common.Address) *callFrame {
 	isCall := trace.Type == "CALL"
-	isTarget := common.HexToAddress(trace.To) == *wd.Target
+	isTarget := common.HexToAddress(trace.To) == wd.XDomainTarget
 	isFrom := common.HexToAddress(trace.From) == l1xdm
 	if isCall && isTarget && isFrom {
 		return trace

@@ -108,19 +108,19 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 			info.NodeID = enode.PubkeyToIDV4((*decredSecp.PublicKey)(typedPub).ToECDSA())
 		}
 	}
-	if dat, err := pstore.Get(id, "ProtocolVersion"); err != nil {
+	if dat, err := pstore.Get(id, "ProtocolVersion"); err == nil {
 		protocolVersion, ok := dat.(string)
 		if ok {
 			info.ProtocolVersion = protocolVersion
 		}
 	}
-	if dat, err := pstore.Get(id, "AgentVersion"); err != nil {
+	if dat, err := pstore.Get(id, "AgentVersion"); err == nil {
 		agentVersion, ok := dat.(string)
 		if ok {
 			info.UserAgent = agentVersion
 		}
 	}
-	if dat, err := pstore.Get(id, "ENR"); err != nil {
+	if dat, err := pstore.Get(id, "ENR"); err == nil {
 		enodeData, ok := dat.(*enode.Node)
 		if ok {
 			info.ENR = enodeData.String()
@@ -134,15 +134,17 @@ func dumpPeer(id peer.ID, nw network.Network, pstore peerstore.Peerstore, connMg
 		}
 	}
 	info.Connectedness = nw.Connectedness(id)
-	if protocols, err := pstore.GetProtocols(id); err != nil {
-		info.Protocols = protocols
+	if protocols, err := pstore.GetProtocols(id); err == nil {
+		for _, id := range protocols {
+			info.Protocols = append(info.Protocols, string(id))
+		}
 	}
 	// get the first connection direction, if any (will default to unknown when there are no connections)
 	for _, c := range nw.ConnsToPeer(id) {
 		info.Direction = c.Stat().Direction
 		break
 	}
-	if dat, err := pstore.Get(id, "optimismChainID"); err != nil {
+	if dat, err := pstore.Get(id, "optimismChainID"); err == nil {
 		chID, ok := dat.(uint64)
 		if ok {
 			info.ChainID = chID

@@ -74,6 +74,11 @@ func (info *L1BlockInfo) UnmarshalBinary(data []byte) error {
 	}
 	var padding [24]byte
 	offset := 4
+
+	if !bytes.Equal(data[0:offset], L1InfoFuncBytes4) {
+		return fmt.Errorf("data does not match L1 info function signature: 0x%x", data[offset:4])
+	}
+
 	info.Number = binary.BigEndian.Uint64(data[offset+24 : offset+32])
 	if !bytes.Equal(data[offset:offset+24], padding[:]) {
 		return fmt.Errorf("l1 info number exceeds uint64 bounds: %x", data[offset:offset+32])

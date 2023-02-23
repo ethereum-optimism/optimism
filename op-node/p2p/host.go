@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/libp2p/go-libp2p/core/network"
-
+	libp2p "github.com/libp2p/go-libp2p"
 	lconf "github.com/libp2p/go-libp2p/config"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/metrics"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
+	"github.com/libp2p/go-libp2p/core/sec/insecure"
 	basichost "github.com/libp2p/go-libp2p/p2p/host/basic"
 	"github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
 	"github.com/libp2p/go-libp2p/p2p/muxer/mplex"
@@ -157,7 +158,7 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter) (host.Host, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to make listen addr: %w", err)
 	}
-	tcpTransport, err := lconf.TransportConstructor(
+	tcpTransport := libp2p.Transport(
 		tcp.NewTCPTransport,
 		tcp.WithConnectionTimeout(time.Minute*60)) // break unused connections
 	if err != nil {
@@ -170,50 +171,36 @@ func (conf *Config) Host(log log.Logger, reporter metrics.Reporter) (host.Host, 
 		nat = basichost.NewNATManager
 	}
 
-	p2pConf := &lconf.Config{
+	opts := []libp2p.Option{
+		libp2p.Identity(conf.Priv),
 		// Explicitly set the user-agent, so we can differentiate from other Go libp2p users.
-		UserAgent: conf.UserAgent,
-
-		PeerKey:            conf.Priv,
-		Transports:         []lconf.TptC{tcpTransport},
-		Muxers:             conf.HostMux,
-		SecurityTransports: conf.HostSecurity,
-		Insecure:           conf.NoTransportSecurity,
-		PSK:                nil, // TODO: expose private subnet option to CLI / testing
-		DialTimeout:        conf.TimeoutDial,
+		libp2p.UserAgent(conf.UserAgent),
+		tcpTransport,
+		libp2p.WithDialTimeout(conf.TimeoutDial),
 		// No relay services, direct connections between peers only.
-		RelayCustom:        false,
-		Relay:              false,
-		EnableRelayService: false,
-		RelayServiceOpts:   nil,
+		libp2p.DisableRelay(),
 		// host will start and listen to network directly after construction from config.
-		ListenAddrs: []ma.Multiaddr{listenAddr},
-
-		AddrsFactory:      nil,
-		ConnectionGater:   connGtr,
-		ConnManager:       connMngr,
-		ResourceManager:   nil, // TODO use resource manager interface to manage resources per peer better.
-		NATManager:        nat,
-		Peerstore:         ps,
-		Reporter:          reporter, // may be nil if disabled
-		MultiaddrResolver: madns.DefaultResolver,
+		libp2p.ListenAddrs(listenAddr),
+		libp2p.ConnectionGater(connGtr),
+		libp2p.ConnectionManager(connMngr),
+		//libp2p.ResourceManager(nil), // TODO use resource manager interface to manage resources per peer better.
+		libp2p.NATManager(nat),
+		libp2p.Peerstore(ps),
+		libp2p.BandwidthReporter(reporter), // may be nil if disabled
+		libp2p.MultiaddrResolver(madns.DefaultResolver),
 		// Ping is a small built-in libp2p protocol that helps us check/debug latency between peers.
-		DisablePing:     false,
-		Routing:         nil,
-		EnableAutoRelay: false, // don't act as auto relay service
+		libp2p.Ping(true),
 		// Help peers with their NAT reachability status, but throttle to avoid too much work.
-		AutoNATConfig: lconf.AutoNATConfig{
-			ForceReachability:   nil,
-			EnableService:       true,
-			ThrottleGlobalLimit: 10,
-			ThrottlePeerLimit:   5,
-			ThrottleInterval:    time.Second * 60,
-		},
-		// TODO: hole punching is new, need to review differences with NAT manager options
-		EnableHolePunching:  false,
-		HolePunchingOptions: nil,
+		libp2p.EnableNATService(),
+		libp2p.AutoNATServiceRateLimit(10, 5, time.Second*60),
 	}
-	h, err := p2pConf.NewNode()
+	opts = append(opts, conf.HostMux...)
+	if conf.NoTransportSecurity {
+		opts = append(opts, libp2p.Security(insecure.ID, insecure.NewWithIdentity))
+	} else {
+		opts = append(opts, conf.HostSecurity...)
+	}
+	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -257,34 +244,18 @@ func addrFromIPAndPort(ip net.IP, port uint16) (ma.Multiaddr, error) {
 	return ma.NewMultiaddr(fmt.Sprintf("/%s/%s/tcp/%d", ipScheme, ip.String(), port))
 }
 
-func YamuxC() (lconf.MsMuxC, error) {
-	mtpt, err := lconf.MuxerConstructor(yamux.DefaultTransport)
-	if err != nil {
-		return lconf.MsMuxC{}, err
-	}
-	return lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}, nil
+func YamuxC() libp2p.Option {
+	return libp2p.Muxer("/yamux/1.0.0", yamux.DefaultTransport)
 }
 
-func MplexC() (lconf.MsMuxC, error) {
-	mtpt, err := lconf.MuxerConstructor(mplex.DefaultTransport)
-	if err != nil {
-		return lconf.MsMuxC{}, err
-	}
-	return lconf.MsMuxC{MuxC: mtpt, ID: "/mplex/6.7.0"}, nil
+func MplexC() libp2p.Option {
+	return libp2p.Muxer("/mplex/6.7.0", mplex.DefaultTransport)
 }
 
-func NoiseC() (lconf.MsSecC, error) {
-	stpt, err := lconf.SecurityConstructor(noise.New)
-	if err != nil {
-		return lconf.MsSecC{}, err
-	}
-	return lconf.MsSecC{SecC: stpt, ID: noise.ID}, nil
+func NoiseC() libp2p.Option {
+	return libp2p.Security(noise.ID, noise.New)
 }
 
-func TlsC() (lconf.MsSecC, error) {
-	stpt, err := lconf.SecurityConstructor(tls.New)
-	if err != nil {
-		return lconf.MsSecC{}, err
-	}
-	return lconf.MsSecC{SecC: stpt, ID: tls.ID}, nil
+func TlsC() libp2p.Option {
+	return libp2p.Security(tls.ID, tls.New)
 }

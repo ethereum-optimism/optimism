@@ -11,7 +11,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -28,7 +27,6 @@ type Config struct {
 	PollInterval    time.Duration
 	TxManagerConfig txmgr.Config
 	From            common.Address
-	SignerFnFactory opcrypto.SignerFactory
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config

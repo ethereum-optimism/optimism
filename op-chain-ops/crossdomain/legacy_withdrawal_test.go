@@ -133,8 +133,7 @@ func TestWithdrawalLegacyStorageSlot(t *testing.T) {
 
 			// Cast the cross domain message to a withdrawal. Note that
 			// this only works for legacy style messages
-			withdrawal, err := msg.ToWithdrawal()
-			require.Nil(t, err)
+			withdrawal := toWithdrawal(t, common.HexToAddress(call.From), msg)
 
 			// Compute the legacy storage slot for the withdrawal
 			slot, err := withdrawal.StorageSlot()
@@ -160,12 +159,13 @@ func TestWithdrawalLegacyStorageSlot(t *testing.T) {
 }
 
 func FuzzEncodeDecodeLegacyWithdrawal(f *testing.F) {
-	f.Fuzz(func(t *testing.T, _target, _sender, _nonce, data []byte) {
+	f.Fuzz(func(t *testing.T, _msgSender, _target, _sender, _nonce, data []byte) {
+		msgSender := common.BytesToAddress(_msgSender)
 		target := common.BytesToAddress(_target)
 		sender := common.BytesToAddress(_sender)
 		nonce := new(big.Int).SetBytes(_nonce)
 
-		withdrawal := crossdomain.NewLegacyWithdrawal(&target, &sender, data, nonce)
+		withdrawal := crossdomain.NewLegacyWithdrawal(msgSender, target, sender, data, nonce)
 
 		encoded, err := withdrawal.Encode()
 		require.Nil(t, err)
@@ -174,10 +174,10 @@ func FuzzEncodeDecodeLegacyWithdrawal(f *testing.F) {
 		err = w.Decode(encoded)
 		require.Nil(t, err)
 
-		require.Equal(t, withdrawal.Nonce.Uint64(), w.Nonce.Uint64())
-		require.Equal(t, withdrawal.Sender, w.Sender)
-		require.Equal(t, withdrawal.Target, w.Target)
-		require.Equal(t, withdrawal.Data, w.Data)
+		require.Equal(t, withdrawal.XDomainNonce.Uint64(), w.XDomainNonce.Uint64())
+		require.Equal(t, withdrawal.XDomainSender, w.XDomainSender)
+		require.Equal(t, withdrawal.XDomainTarget, w.XDomainTarget)
+		require.Equal(t, withdrawal.XDomainData, w.XDomainData)
 	})
 }
 
@@ -221,8 +221,8 @@ func findCrossDomainMessage(receipt *types.Receipt) (*crossdomain.CrossDomainMes
 		// Parse the legacy event
 		if event.Name == "SentMessage" {
 			e, _ := l2xdm.ParseSentMessage(*log)
-			msg.Target = &e.Target
-			msg.Sender = &e.Sender
+			msg.Target = e.Target
+			msg.Sender = e.Sender
 			msg.Data = e.Message
 			msg.Nonce = e.MessageNonce
 			msg.GasLimit = e.GasLimit
@@ -335,4 +335,31 @@ func readStateDiff(hash string) (stateDiff, error) {
 		return nil, err
 	}
 	return diff, nil
+}
+
+// ToWithdrawal will turn a CrossDomainMessage into a Withdrawal.
+// This only works for version 0 CrossDomainMessages as not all of
+// the data is present for version 1 CrossDomainMessages to be turned
+// into Withdrawals.
+func toWithdrawal(t *testing.T, msgSender common.Address, c *crossdomain.CrossDomainMessage) *crossdomain.LegacyWithdrawal {
+	version := c.Version()
+	switch version {
+	case 0:
+		if c.Value != nil && c.Value.Cmp(common.Big0) != 0 {
+			t.Fatalf("version 0 messages must have 0 value")
+		}
+		w := &crossdomain.LegacyWithdrawal{
+			MessageSender: msgSender,
+			XDomainTarget: c.Target,
+			XDomainSender: c.Sender,
+			XDomainData:   c.Data,
+			XDomainNonce:  c.Nonce,
+		}
+		return w
+	case 1:
+		t.Fatalf("cannot convert version 1 messages to withdrawals")
+	default:
+		t.Fatalf("unknown message version: %d", version)
+	}
+	return nil
 }

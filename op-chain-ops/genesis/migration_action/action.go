@@ -76,7 +76,16 @@ func Migrate(cfg *Config) (*genesis.MigrationResult, error) {
 
 	chaindataPath := filepath.Join(cfg.L2DBPath, "geth", "chaindata")
 	ancientPath := filepath.Join(chaindataPath, "ancient")
-	ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, 4096, 120, ancientPath, "", false)
+	ldb, err := rawdb.Open(
+		rawdb.OpenOptions{
+			Type:              "leveldb",
+			Directory:         chaindataPath,
+			Cache:             4096,
+			Handles:           120,
+			AncientsDirectory: ancientPath,
+			Namespace:         "",
+			ReadOnly:          false,
+		})
 	if err != nil {
 		return nil, err
 	}

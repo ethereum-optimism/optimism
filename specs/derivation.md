@@ -146,6 +146,12 @@ The rationale is to maintain liveness in case of either a skipped slot on L1, or
 which requires longer epochs.
 Shorter epochs are then required to avoid L2 timestamps drifting further and further ahead of L1.
 
+Note that `min_l2_timestamp + l2_block_time` ensures that a new L2 batch can always be processed, even if the
+`max_sequencer_drift` is exceeded. However, when exceeding the `max_sequencer_drift`, progression to the next L1 origin
+is enforced, with an exception to ensure the minimum timestamp bound (based on this next L1 origin) can be met in the
+next L2 batch, and `len(batch.transactions) == 0` continues to be enforced while the `max_sequencer_drift` is exceeded.
+See [Batch Queue] for more details.
+
 ## Eager Block Derivation
 
 In practice, it is often not necessary to wait for a full sequencing window of L1 blocks in order to start deriving the
@@ -598,10 +604,18 @@ Rules, in validation order:
 - `batch.epoch_num > epoch.number+1` -> `drop`: i.e. the L1 origin cannot change by more than one L1 block per L2 block.
 - `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
   to prevent batches from being replayed onto unexpected L1 chains.
-- `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
-  within time will be dropped, in favor of an empty batch that can advance the L1 origin. This enforces the max L2
-  timestamp rule.
 - `batch.timestamp < batch_origin.time` -> `drop`: enforce the min L2 timestamp rule.
+- `batch.timestamp > batch_origin.time + max_sequencer_drift`: enforce the L2 timestamp drift rule,
+  but with exceptions to preserve above min L2 timestamp invariant:
+  - `len(batch.transactions) == 0`:
+    - `epoch.number == batch.epoch_num`:
+      this implies the batch does not already advance the L1 origin, and must thus be checked against `next_epoch`.
+      - If `next_epoch` is not known -> `undecided`:
+        without the next L1 origin we cannot yet determine if time invariant could have been kept.
+      - If `batch.timestamp >= next_epoch.time` -> `drop`:
+        the batch could have adopted the next L1 origin without breaking the `L2 time >= L1 time` invariant.
+  - `len(batch.transactions) > 0`: -> `drop`:
+    when exceeding the sequencer time drift, never allow the sequencer to include transactions.
 - `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
   that is invalid or derived by other means exclusively:
   - any transaction that is empty (zero length byte string)
@@ -615,6 +629,10 @@ then an empty batch can be derived with the following properties:
 - `timestamp = next_timestamp`
 - `transactions` is empty, i.e. no sequencer transactions. Deposited transactions may be added in the next stage.
 - If `next_timestamp < next_epoch.time`: the current L1 origin is repeated, to preserve the L2 time invariant.
+  - `epoch_num = epoch.number`
+  - `epoch_hash = epoch.hash`
+- If the batch is the first batch of the epoch, that epoch is used instead of advancing the epoch to ensure that
+there is at least one L2 block per epoch.
   - `epoch_num = epoch.number`
   - `epoch_hash = epoch.hash`
 - Otherwise,
