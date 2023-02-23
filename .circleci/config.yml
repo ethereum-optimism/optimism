@@ -475,6 +475,40 @@ jobs:
           command: npx depcheck
           working_directory: packages/two-step-monitor
 
+  atst-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: '.' }
+      - check-changed:
+          patterns: atst,contracts-periphery
+      - run:
+          name: anvil
+          background: true
+          command: anvil --fork-url $ANVIL_L2_FORK_URL
+      - run:
+          name: build
+          command: yarn build
+          working_directory: packages/atst
+      - run:
+          name: typecheck
+          command: yarn typecheck
+          working_directory: packages/atst
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/atst
+      - run:
+          name: make sure anvil is up
+          command: cast block-number --rpc-url http://localhost:8545
+      - run:
+          name: test
+          command: yarn test
+          no_output_timeout: 5m
+          working_directory: packages/atst
+
   go-lint:
     parameters:
       module:
@@ -891,6 +925,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - atst-tests:
           requires:
             - yarn-monorepo
       - op-bindings-build:
