@@ -73,6 +73,14 @@ var NetworksByName = map[string]rollup.Config{
 	"goerli": Goerli,
 }
 
+var L2ChainIDToNetworkName = func() map[string]string {
+	out := make(map[string]string)
+	for name, netCfg := range NetworksByName {
+		out[netCfg.L2ChainID.String()] = name
+	}
+	return out
+}()
+
 func AvailableNetworks() []string {
 	var networks []string
 	for name := range NetworksByName {

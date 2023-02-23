@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -61,9 +62,11 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
+	log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkName))
+
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
-		log.Error("Error intializing the rollup node", "err", err)
+		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
 			return nil, multierror.Append(err, closeErr)
