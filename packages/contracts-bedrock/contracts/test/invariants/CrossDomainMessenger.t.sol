@@ -94,7 +94,7 @@ contract RelayActor is StdUtils {
 contract XDM_MinGasLimits is Messenger_Initializer {
     RelayActor actor;
 
-    function setUp() public override {
+    function setUp() public virtual override {
         // Set up the `L1CrossDomainMessenger` and `OptimismPortal` contracts.
         super.setUp();
 

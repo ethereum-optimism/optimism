@@ -28,13 +28,13 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
     }
 
     function test_receive_succeeds() external {
-        assertEq(address(vault).balance, 0);
+        uint256 balance = address(vault).balance;
 
         vm.prank(alice);
         (bool success, ) = address(vault).call{ value: 100 }(hex"");
 
         assertEq(success, true);
-        assertEq(address(vault).balance, 100);
+        assertEq(address(vault).balance, balance + 100);
     }
 
     function test_withdraw_notEnough_reverts() external {

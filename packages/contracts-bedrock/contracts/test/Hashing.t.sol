@@ -7,10 +7,6 @@ import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
 
 contract Hashing_hashDepositSource_Test is CommonTest {
-    function setUp() external {
-        _setUp();
-    }
-
     /**
      * @notice Tests that hashDepositSource returns the correct hash in a simple case.
      */
@@ -26,10 +22,6 @@ contract Hashing_hashDepositSource_Test is CommonTest {
 }
 
 contract Hashing_hashCrossDomainMessage_Test is CommonTest {
-    function setUp() external {
-        _setUp();
-    }
-
     /**
      * @notice Tests that hashCrossDomainMessage returns the correct hash in a simple case.
      */
@@ -54,10 +46,6 @@ contract Hashing_hashCrossDomainMessage_Test is CommonTest {
 }
 
 contract Hashing_hashWithdrawal_Test is CommonTest {
-    function setUp() external {
-        _setUp();
-    }
-
     /**
      * @notice Tests that hashWithdrawal returns the correct hash in a simple case.
      */
@@ -79,10 +67,6 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
 }
 
 contract Hashing_hashOutputRootProof_Test is CommonTest {
-    function setUp() external {
-        _setUp();
-    }
-
     /**
      * @notice Tests that hashOutputRootProof returns the correct hash in a simple case.
      */
@@ -112,10 +96,6 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
 }
 
 contract Hashing_hashDepositTransaction_Test is CommonTest {
-    function setUp() external {
-        _setUp();
-    }
-
     /**
      * @notice Tests that hashDepositTransaction returns the correct hash in a simple case.
      */
