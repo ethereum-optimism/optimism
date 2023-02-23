@@ -188,8 +188,7 @@ module.exports = {
         selector: ':not(a) > img'
       }
     ],
-    "plausible-analytics",
-    "vuepress-plugin-glossary"
+    "plausible-analytics"
   ]
 }
 }
