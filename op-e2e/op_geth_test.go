@@ -181,6 +181,7 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 
 	infoTx, err := l2Geth.L2Client.TransactionInBlock(ctx, payload.BlockHash, 0)
 	require.NoError(t, err)
+	require.True(t, infoTx.IsSystemTx(), "should use system tx in bedrock")
 	infoRcpt, err := l2Geth.L2Client.TransactionReceipt(ctx, infoTx.Hash())
 	require.NoError(t, err)
 	require.Zero(t, infoRcpt.GasUsed)
@@ -238,6 +239,11 @@ func TestActivateRegolithAfterGenesis(t *testing.T) {
 	contractBalance, err = l2Geth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
 	require.NoError(t, err)
 	require.Equal(t, contractCreateTx.Value(), contractBalance)
+
+	// TODO: Check nonce is returned in deposit transaction
+	//tx, _, err := l2Geth.L2Client.TransactionByHash(ctx, contractCreateTx.Hash())
+	//require.NoError(t, err)
+	//require.Equal(t, uint64(3), tx.Nonce())
 }
 
 // TestRegolithDepositTxUnusedGas checks that unused gas from deposit transactions is returned to the block gas pool
@@ -292,7 +298,6 @@ func TestRegolithDepositTxUnusedGas(t *testing.T) {
 
 // TestRegolithRejectsSystemTx checks that IsSystemTx must be false after Regolith
 func TestRegolithRejectsSystemTx(t *testing.T) {
-	t.Skip("Need to wait for op-node to have Regolith support before this requirement can be enforced")
 	cfg := DefaultSystemConfig(t)
 	regolithTime := hexutil.Uint64(0)
 	cfg.DeployConfig.L2GenesisRegolithTimeOffset = &regolithTime
@@ -311,3 +316,5 @@ func TestRegolithRejectsSystemTx(t *testing.T) {
 	_, err = l2Geth.AddL2Block(ctx, types.NewTx(systemTx))
 	require.ErrorIs(t, err, ErrNewPayloadNotValid)
 }
+
+// TODO: Need a test to check that gas refunds (eg for selfdestruct) are included in the receipt gasUsed

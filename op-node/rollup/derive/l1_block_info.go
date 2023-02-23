@@ -145,10 +145,16 @@ func L1InfoDeposit(seqNumber uint64, block eth.BlockInfo, sysCfg eth.SystemConfi
 }
 
 // L1InfoDepositBytes returns a serialized L1-info attributes transaction.
-func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig) ([]byte, error) {
+func L1InfoDepositBytes(seqNumber uint64, l1Info eth.BlockInfo, sysCfg eth.SystemConfig, isRegolith bool) ([]byte, error) {
 	dep, err := L1InfoDeposit(seqNumber, l1Info, sysCfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create L1 info tx: %w", err)
+	}
+
+	// TODO: Passing a isRegolith bool here is nasty, but is a quick way to keep e2e tests passing before op-node is updated properly
+	if isRegolith {
+		dep.IsSystemTransaction = false
+		dep.Gas = 1_000_000
 	}
 	l1Tx := types.NewTx(dep)
 	opaqueL1Tx, err := l1Tx.MarshalBinary()

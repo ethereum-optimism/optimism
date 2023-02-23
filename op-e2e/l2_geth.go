@@ -172,7 +172,9 @@ func (d *L2Geth) StartBlockBuilding(ctx context.Context, attrs *eth.PayloadAttri
 }
 
 func (d *L2Geth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.PayloadAttributes, error) {
-	l1Info, err := derive.L1InfoDepositBytes(d.sequenceNum, d.L1Head, d.SystemConfig)
+	timestamp := d.L2Head.Timestamp + 2
+	isRegolith := d.L2ChainConfig.RegolithTime != nil && (uint64)(timestamp) >= *d.L2ChainConfig.RegolithTime
+	l1Info, err := derive.L1InfoDepositBytes(d.sequenceNum, d.L1Head, d.SystemConfig, isRegolith)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +189,7 @@ func (d *L2Geth) CreatePayloadAttributes(txs ...*types.Transaction) (*eth.Payloa
 		txBytes = append(txBytes, bin)
 	}
 	attrs := eth.PayloadAttributes{
-		Timestamp:    d.L2Head.Timestamp + 2,
+		Timestamp:    timestamp,
 		Transactions: txBytes,
 		NoTxPool:     true,
 		GasLimit:     (*eth.Uint64Quantity)(&d.SystemConfig.GasLimit),
