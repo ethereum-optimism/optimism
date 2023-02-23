@@ -16,7 +16,7 @@ Learn about the basics of the Rollup protocol used by Bedrock on the [Rollup Pro
 
 ### Bedrock Explainer
 
-Learn all about the Bedrock release of the OP Stack by reading the [Bedrock Explainer](../../understand/bedrock/).
+Learn all about the Bedrock release of the OP Stack by reading the [Bedrock Explainer](./explainer.md).
 
 ### Specifications
 
