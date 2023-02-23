@@ -4,7 +4,7 @@ lang: en-US
 ---
 
 It's important to note that there are various minor discrepancies between the behavior of Optimism and Ethereum.
-You should be aware of these descrepancies when building apps on top of Optimism or the OP Stack
+You should be aware of these descrepancies when building apps on top of Optimism or the OP Stack codebase.
 
 ## Opcode Differences
 
@@ -125,7 +125,7 @@ There are several differences in the way blocks are produced between L1 Ethereum
 
 ### JSON-RPC differences
 
-OP Stack uses the same [JSON-RPC API](https://eth.wiki/json-rpc/API) as Ethereum.
+OP Stack codebase uses the same [JSON-RPC API](https://eth.wiki/json-rpc/API) as Ethereum.
 Some additional OP Stack specific methods have been introduced.
 See the full list of [custom JSON-RPC methods](https://community.optimism.io/docs/developers/build/json-rpc/) for more information.
 

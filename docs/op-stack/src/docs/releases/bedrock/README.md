@@ -1,11 +1,11 @@
 ---
-title: OP Stack V1 - Bedrock
+title: OP Stack codebase V1 - Bedrock
 lang: en-US
 ---
 
 ## Overview
 
-The first release of the OP Stack is called **Bedrock**. 
+The first release of the OP Stack codebase is called **Bedrock**. 
 The Bedrock release primarily consists of the core software required to run L2 blockchains and was originally designed to power an upgrade to the Optimism Mainnet network.
 
 ## Resources
