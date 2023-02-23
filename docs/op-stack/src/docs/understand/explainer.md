@@ -51,6 +51,13 @@ With the support of the industry, we think a clear picture for how to architect 
 
 Horizontal blockchain scalability fundamentally requires multiple [chains](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6). This is because the hardware requirements to sync a chain increase linearly with the amount of compute the chain performs. Therefore, to achieve horizontal scalability we must run chains in parallel.
 
+
+::: details chains
+
+A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
+
+:::
+
 ### …but traditional multi-chain architectures are insufficient
 
 Traditional approaches to ‘multi-chain’ architectures suffer from two fundamental problems:
