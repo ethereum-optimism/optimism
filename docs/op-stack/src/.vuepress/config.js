@@ -112,12 +112,13 @@ module.exports = {
         title: "OP Stack",
         collapsable: false,
         children: [        
-        '/',
-        [
-          '/docs/understand/design-principles.md',
-          'Design Principles'
-        ],
-        '/docs/understand/landscape.md',
+          '/',
+          [
+            '/docs/understand/design-principles.md',
+            'Design Principles'
+          ],
+          '/docs/understand/landscape.md',
+          '/docs/understand/explainer.md'
         ]
       }, 
       {
@@ -130,7 +131,7 @@ module.exports = {
             collapsable: true,
             children: [
               '/docs/releases/bedrock/',
-              '/docs/understand/bedrock/',
+              '/docs/releases/bedrock/explainer.md',
               '/docs/releases/bedrock/differences.md'
             ]
           }
@@ -187,7 +188,8 @@ module.exports = {
         selector: ':not(a) > img'
       }
     ],
-    "plausible-analytics"
+    "plausible-analytics",
+    "vuepress-plugin-glossary"
   ]
 }
 }
