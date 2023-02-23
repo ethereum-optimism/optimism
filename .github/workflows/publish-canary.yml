@@ -26,11 +26,9 @@ jobs:
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
       hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
       canary-docker-tag: ${{ steps.docker-image-name.outputs.canary-docker-tag }}
-      proxyd: ${{ steps.packages.outputs.proxyd }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
       l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
       batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
-      indexer: ${{ steps.packages.outputs.indexer }}
       endpoint-monitor: ${{ steps.packages.outputs.l2geth-exporter }}
 
     steps:
@@ -393,43 +391,6 @@ jobs:
           push: true
           tags: ethereumoptimism/replica-healthcheck:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
-  proxyd:
-    name: Publish proxyd Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
-    needs: canary-publish
-    if: needs.canary-publish.outputs.proxyd != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./proxyd/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./proxyd/Dockerfile
-          push: true
-          tags: ethereumoptimism/proxyd:${{ needs.canary-publish.outputs.proxyd }}
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
-
   op-exporter:
     name: Publish op-exporter Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
     needs: canary-publish
@@ -529,43 +490,6 @@ jobs:
           file: ./batch-submitter/Dockerfile
           push: true
           tags: ethereumoptimism/batch-submitter-service:${{ needs.canary-publish.outputs.batch-submitter-service }}
-
-  indexer:
-    name: Publish indexer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
-    needs: canary-publish
-    if: needs.canary-publish.outputs.indexer != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./indexer/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./indexer/Dockerfile
-          push: true
-          tags: ethereumoptimism/indexer:${{ needs.canary-publish.outputs.indexer }}
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
