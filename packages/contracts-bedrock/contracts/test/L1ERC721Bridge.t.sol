@@ -135,7 +135,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
     function test_bridgeERC721_remoteTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert("ERC721Bridge: remote token cannot be address(0)");
+        vm.expectRevert("L1ERC721Bridge: remote token cannot be address(0)");
         bridge.bridgeERC721(address(localToken), address(0), tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -212,7 +212,7 @@ contract L1ERC721Bridge_Test is Messenger_Initializer {
     function test_bridgeERC721To_remoteTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert("ERC721Bridge: remote token cannot be address(0)");
+        vm.expectRevert("L1ERC721Bridge: remote token cannot be address(0)");
         bridge.bridgeERC721To(address(localToken), address(0), bob, tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.

@@ -144,7 +144,7 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
     function test_bridgeERC721_remoteTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert("ERC721Bridge: remote token cannot be address(0)");
+        vm.expectRevert("L2ERC721Bridge: remote token cannot be address(0)");
         bridge.bridgeERC721(address(localToken), address(0), tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -154,7 +154,7 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
     function test_bridgeERC721_wrongOwner_reverts() external {
         // Bridge the token.
         vm.prank(bob);
-        vm.expectRevert("Withdrawal is not being initiated by NFT owner");
+        vm.expectRevert("L2ERC721Bridge: Withdrawal is not being initiated by NFT owner");
         bridge.bridgeERC721(address(localToken), address(remoteToken), tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -218,7 +218,7 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
     function test_bridgeERC721To_remoteTokenZeroAddress_reverts() external {
         // Bridge the token.
         vm.prank(alice);
-        vm.expectRevert("ERC721Bridge: remote token cannot be address(0)");
+        vm.expectRevert("L2ERC721Bridge: remote token cannot be address(0)");
         bridge.bridgeERC721To(address(localToken), address(0), bob, tokenId, 1234, hex"5678");
 
         // Token is not locked in the bridge.
@@ -228,7 +228,7 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
     function test_bridgeERC721To_wrongOwner_reverts() external {
         // Bridge the token.
         vm.prank(bob);
-        vm.expectRevert("Withdrawal is not being initiated by NFT owner");
+        vm.expectRevert("L2ERC721Bridge: Withdrawal is not being initiated by NFT owner");
         bridge.bridgeERC721To(
             address(localToken),
             address(remoteToken),
