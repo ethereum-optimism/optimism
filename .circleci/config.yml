@@ -212,6 +212,42 @@ jobs:
             gcloud auth configure-docker <<parameters.registry>>
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
+  atst-tests:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: large
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: atst,contracts-periphery
+      - run:
+          name: typecheck
+          command: yarn typecheck
+          working_directory: packages/atst
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/atst
+      - run:
+          name: print forge version
+          command: forge --version
+          working_directory: packages/atst
+      - run:
+          name: start anvil
+          command: anvil --fork-url="${ANVIL_L2_FORK_URL:-https://mainnet.optimism.io}"
+          working_directory: packages/atst
+      - run:
+          name: test and generate coverage
+          command: yarn coverage:lcov
+          no_output_timeout: 18m
+          working_directory: packages/atst
+      - run:
+          name: upload coverage
+          command: codecov --verbose --clean --flags atst-tests
+          environment:
+            FOUNDRY_PROFILE: ci
+
   contracts-bedrock-tests:
     docker:
       - image: ethereumoptimism/ci-builder:latest
