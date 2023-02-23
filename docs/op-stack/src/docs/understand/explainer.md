@@ -17,7 +17,7 @@ Today, the Superchain is a concept and in-flight project, not a concrete reality
 
 ### Blockchain tech today is insufficient for the decentralized web
 
-The unfortunate truth is that the blockchain ecosystem has not realized the potential of creating the decentralized web, a re-architected internet where trusted entities are replaced by permissionless protocols. This is largely due to the fact that a majority of web applications are unable to be run on-chain due to scalability constraints inherent to the current state of blockchain technology—a problem which has plagued the industry since its inception.
+The unfortunate truth is that the blockchain ecosystem has not realized the potential of creating the decentralized web, a re-architected internet where trusted entities are replaced by permissionless protocols. This is largely due to the fact that a majority of web applications are unable to be run onchain due to scalability constraints inherent to the current state of blockchain technology—a problem which has plagued the industry since its inception.
 
 In fact, in a display of remarkable foresight, the very first response to the Bitcoin whitepaper was:
 
@@ -35,7 +35,7 @@ Imagine a world where we solved the blockchain scalability problem. Imagine if t
 
 The combination of these features would make it possible to program highly scalable web applications without having to touch the traditional backend software stack. Removing the need to worry about backends is a value proposition which extends beyond decentralization enthusiasts into regular application developers who just want to ship a product. With scalability, blockchains can go from a niche interest to becoming a core component of every developer’s toolkit.
 
-Additionally, in this world where most applications go on-chain more data becomes cryptographically verifiable. This cryptographic verifiability enables users to build reputations which transfer across all of their applications. The reputation can then be used for voting, loans, and collateral—facilitating trust on the internet. Plus there is no risk of losing access because users retain ownership of their data, applications, and reputation.
+Additionally, in this world where most applications go onchain more data becomes cryptographically verifiable. This cryptographic verifiability enables users to build reputations which transfer across all of their applications. The reputation can then be used for voting, loans, and collateral—facilitating trust on the internet. Plus there is no risk of losing access because users retain ownership of their data, applications, and reputation.
 
 There is no doubt that the promise of blockchains could change the internet as we know it.
 
@@ -111,13 +111,13 @@ We believe the following changes (after the Bedrock release) are required to cre
 
 ### Upgrade the Bedrock bridge to be a chain factory
 
-Bedrock introduced the [SystemConfig contract](https://github.com/ethereum-optimism/optimism/blob/74a63c94d881442b4edd4df6492513e0113eb064/packages/contracts-bedrock/contracts/L1/SystemConfig.sol) which began to define the L2 chain directly with L1 smart contracts. This can be extended to put *all information* defining the L2 chain, on-chain. Including generating a unique chain ID, key configuration values such as block gas limit, etc.
+Bedrock introduced the [SystemConfig contract](https://github.com/ethereum-optimism/optimism/blob/74a63c94d881442b4edd4df6492513e0113eb064/packages/contracts-bedrock/contracts/L1/SystemConfig.sol) which began to define the L2 chain directly with L1 smart contracts. This can be extended to put *all information* defining the L2 chain, onchain. Including generating a unique chain ID, key configuration values such as block gas limit, etc.
 
-Once the chain data is entirely on-chain, we can create a factory which deploys the configuration and all other required contracts for each chain. This can be extended further by making the contract addresses deterministic with CREATE2, meaning that given a chain config it is possible to determine all bridge addresses associated with that chain. This also enables chains to be interacted with without having to deploy their bridge contracts, making (counterfactual) chain deployment virtually free, and allowing chains to inherit standard security properties. 
+Once the chain data is entirely onchain, we can create a factory which deploys the configuration and all other required contracts for each chain. This can be extended further by making the contract addresses deterministic with CREATE2, meaning that given a chain config it is possible to determine all bridge addresses associated with that chain. This also enables chains to be interacted with without having to deploy their bridge contracts, making (counterfactual) chain deployment virtually free, and allowing chains to inherit standard security properties. 
 
 ### Derive OP Chain data using the chain factory
 
-[Bedrock introduced L2 chain derivation from an L1 chain](../releases/bedrock/explainer/#block-derivation), where all chain data can be synced based on L1 blocks. With the L1 chain factory extending this to put all configuration on-chain, it should become possible for Optimism nodes to sync *any* OP Chain deterministically given a single L1 address plus a connection to L1.
+[Bedrock introduced L2 chain derivation from an L1 chain](../releases/bedrock/explainer/#block-derivation), where all chain data can be synced based on L1 blocks. With the L1 chain factory extending this to put all configuration onchain, it should become possible for Optimism nodes to sync *any* OP Chain deterministically given a single L1 address plus a connection to L1.
 
 ::: tip 📌 
 
@@ -213,7 +213,7 @@ The following is an overview of potential future enhancements, which when combin
 
 #### Proposed Solution:
 
-It is possible to replace the trusted set of chain attestors by introducing permissionless proofs—such as Cannon—where dispute resolution is entirely on-chain. However, the challenge with entirely on-chain proofs is there is no fallback mechanism if they were to break. To ensure that they will never fail, it is possible to introduce a multi-proof system which provides safety through redundancy. For more information on the multi-proof design click [here](https://medium.com/ethereum-optimism/our-pragmatic-path-to-decentralization-cb5805ca43c1).
+It is possible to replace the trusted set of chain attestors by introducing permissionless proofs—such as Cannon—where dispute resolution is entirely onchain. However, the challenge with entirely onchain proofs is there is no fallback mechanism if they were to break. To ensure that they will never fail, it is possible to introduce a multi-proof system which provides safety through redundancy. For more information on the multi-proof design click [here](https://medium.com/ethereum-optimism/our-pragmatic-path-to-decentralization-cb5805ca43c1).
 
 ### Low Latency L2 to L2 Message Passing
 
@@ -275,7 +275,7 @@ A chain where transaction data is committed to on L1 but not supplied to L1 dire
 - Data Availability (DA) Providers receive transaction data from users.
 - DA Providers then hash the transaction data and submit the hash to the Plasma Contract.
 - Once the hash has been submitted, the DA Provider sends a proof to the user which proves inclusion of their transaction data in the hash. If the DA Provider is misbehaving, they will withhold the proof, not sending it to the user.
-- If the DA Provider does not send the proof to the user, the user may submit a DA challenge. This forces the DA Provider to post the transaction data on-chain. If the DA Provider does not submit the proof on-chain, the hash is deleted. This ensures the user can always (after the challenge period) sync the Plasma chain.
+- If the DA Provider does not send the proof to the user, the user may submit a DA challenge. This forces the DA Provider to post the transaction data onchain. If the DA Provider does not submit the proof onchain, the hash is deleted. This ensures the user can always (after the challenge period) sync the Plasma chain.
     - DA challenge periods may be extended in case of heavy L1 congestion.
 - The user may also submit an L1 transaction to withdraw from the Plasma chain in order to switch their DA Provider.
 - Settlement of Plasma chains use a near identical fault proof system to Rollup chains with the only difference being that additional data is derived from the chain using the hashes that are finalized in the Plasma Contract.
@@ -327,7 +327,7 @@ Stay Optimistic 🔴✨
 
 - **Attestation Proof**: A proof which consists of some number of signatures from a pre-agreed upon set of chain attestors.
 
-- **Cannon Fault Proof**: A fault proof where challenges are evaluated using an on-chain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
+- **Cannon Fault Proof**: A fault proof where challenges are evaluated using an onchain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
 
 - **Chain**: A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
 
