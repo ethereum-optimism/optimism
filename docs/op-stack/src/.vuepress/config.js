@@ -17,6 +17,7 @@ module.exports = {
   ],
   theme: path.resolve(__dirname, './theme'),
   themeConfig: {
+    "twitter:card": "summary",
     contributor: false,
     hostname: 'https://stack.optimism.io',
     logo: '/assets/logos/logo.png',

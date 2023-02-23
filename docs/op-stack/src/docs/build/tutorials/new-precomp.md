@@ -11,7 +11,7 @@ OP Stack Hacks are not for the faint of heart. You will not be able to receive s
 
 One possible use of OP Stack is to run an EVM with a new precompile for operations to speed up calculations that are not currently supported. In this case we’ll make a simple precompile that returns a constant value if it’s called with four or less bytes, or an error if it is called with more than that.
 
-To create a new precompile, the file to modify is `[op-geth/core/vm/contracts.go](https://github.com/ethereum-optimism/op-geth/blob/optimism-history/core/vm/contracts.go)`.
+To create a new precompile, the file to modify is [`op-geth/core/vm/contracts.go`](https://github.com/ethereum-optimism/op-geth/blob/optimism-history/core/vm/contracts.go).
 
 1. Add to `PrecompiledContractsBerlin` on line 82 (or a later fork, if the list of precompiles changes again) a structure named after your new precompile, with an address that is unlikely to ever clash with a standard precompile (0x100, for example):
 
