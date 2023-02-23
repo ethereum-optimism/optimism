@@ -49,7 +49,7 @@ With the support of the industry, we think a clear picture for how to architect 
 
 ### Horizontal scalability requires multiple chains…
 
-Horizontal blockchain scalability fundamentally requires multiple [chains](https://www.notion.so/Longform-technical-explainer-for-Superchain-5d8ced37a3e44d71a4b09d28c16358b6). This is because the hardware requirements to sync a chain increase linearly with the amount of compute the chain performs. Therefore, to achieve horizontal scalability we must run chains in parallel.
+Horizontal blockchain scalability fundamentally requires multiple chains. This is because the hardware requirements to sync a chain increase linearly with the amount of compute the chain performs. Therefore, to achieve horizontal scalability we must run chains in parallel.
 
 
 ::: details chains
@@ -273,80 +273,42 @@ Exciting times ahead.
 
 Stay Optimistic 🔴✨
 
-## Terminology
+## Glossary
 
-#### Chain
+- **Chain**: A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
 
-A state [transition system](https://en.wikipedia.org/wiki/Transition_system)—consisting of an initial state, a state transition function, and a list of inputs (transactions)—which is cryptographically committed to and can be independently replicated with commodity computer hardware and internet connection.
+- **Superchain**: A decentralized blockchain platform which consists of many chains that share security and a technology stack (OP Stack). The interoperability and standardization enables individual chains to be treated identically by tools and wallets.
 
-#### Superchain 
+- **OP Chain**: An individual chain within the Optimism Superchain. All chains, regardless of their specific properties are considered OP Chains if they are officially governed by the Optimism Collective, and therefore part of the Superchain.
 
-A decentralized blockchain platform which consists of many chains that share security and a technology stack (OP Stack). The interoperability and standardization enables individual chains to be treated identically by tools and wallets.
+- **Superchain Bridge**: The L1 bridge contracts which govern all OP Chains in the Superchain. This bridge can be upgraded by the Optimism Collective.
 
-#### OP Chain
+- **Sequencer**: The specific entity or smart contract which has priority when submitting transactions to an OP Chain.
 
-An individual chain within the Optimism Superchain. All chains, regardless of their specific properties are considered OP Chains if they are officially governed by the Optimism Collective, and therefore part of the Superchain.
+- **Modular Sequencing**: The ability to configure the sequencer address during OP Chain deployment. This value can be configured by the OP Chain deployer.
 
-#### Superchain Bridge 
+- **Withdrawal Claim**: A claim about the state of one chain made on another chain. For instance, I can claim that in OP Mainnet I have burned my tokens with the intent to withdraw those tokens back to L1.
 
-The L1 bridge contracts which govern all OP Chains in the Superchain. This bridge can be upgraded by the Optimism Collective.
+- **Chain Proof**: Difficult to forge evidence of the validity of a particular withdrawal claim. Proofs are commonly used to enable chains to communicate with each other.
 
-#### Sequencer 
+- **Modular Proof**: The ability to use multiple proof systems for the same OP Chain. For instance, it should be possible to prove an OP Chain using a fault proof or a validity proof.
 
-The specific entity or smart contract which has priority when submitting transactions to an OP Chain.
+- **Fault Proof**: A proof which relies on the absence of counter-evidence to prove correctness.
 
-#### Modular Sequencing 
+- **Challenge Period**: The window of time in which a challenge can be made to disprove a fault proof.
 
-The ability to configure the sequencer address during OP Chain deployment. This value can be configured by the OP Chain deployer.
+- **Attestation Proof**: A proof which consists of some number of signatures from a pre-agreed upon set of chain attestors.
 
-#### Withdrawal Claim
+- **Attestation-Based Fault Proof**: A fault proof where challenges can be successfully made by supplying an attestation proof which disagrees with the original withdrawal claim.
 
-A claim about the state of one chain made on another chain. For instance, I can claim that in OP Mainnet I have burned my tokens with the intent to withdraw those tokens back to L1.
+- **Cannon Fault Proof**: A fault proof where challenges are evaluated using an on-chain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
 
-#### Chain Proof
+- **Validity Proof**: A proof of a withdrawal claim which can be immediately validated, without a challenge period.
 
-Difficult to forge evidence of the validity of a particular withdrawal claim. Proofs are commonly used to enable chains to communicate with each other.
+- **Attestation-Based Validity Proof**: A validity proof which can be verified by supplying an attestation proof which agrees with the withdrawal claim.
 
-#### Modular Proof
+- **Zero Knowledge Proof**: A validity proof which relies on cryptographic properties and low error margins.
 
-The ability to use multiple proof systems for the same OP Chain. For instance, it should be possible to prove an OP Chain using a fault proof or a validity proof.
+- **Rollup Chain**: A chain where all transaction data is submitted to L1.
 
-#### Fault Proof
-
-A proof which relies on the absence of counter-evidence to prove correctness.
-
-#### Challenge Period 
-
-The window of time in which a challenge can be made to disprove a fault proof.
-
-#### Attestation Proof
-
-A proof which consists of some number of signatures from a pre-agreed upon set of chain attestors.
-
-#### Attestation-Based Fault Proof
-
-A fault proof where challenges can be successfully made by supplying an attestation proof which disagrees with the original withdrawal claim.
-
-#### Cannon Fault Proof
-
-A fault proof where challenges are evaluated using an on-chain game which is guaranteed to result in a truthful outcome, given economic rationality assumptions.
-
-#### Validity Proof
-
-A proof of a withdrawal claim which can be immediately validated, without a challenge period.
-
-#### Attestation-Based Validity Proof
-
-A validity proof which can be verified by supplying an attestation proof which agrees with the withdrawal claim.
-
-#### Zero Knowledge Proof
-
-A validity proof which relies on cryptographic properties and low error margins.
-
-#### Rollup Chain
-
-A chain where all transaction data is submitted to L1.
-
-#### Plasma Chain
-
-A chain where transaction data is committed to on L1 but not supplied to L1 directly, with a data availability challenge fallback.
+- **Plasma Chain**: A chain where transaction data is committed to on L1 but not supplied to L1 directly, with a data availability challenge fallback.
