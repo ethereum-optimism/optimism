@@ -169,7 +169,24 @@ func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
 // RunNextSequencerAction starts new block building work, or seals existing work,
 // and is best timed by first awaiting the delay returned by PlanNextSequencerAction.
 // If a new block is successfully sealed, it will be returned for publishing, nil otherwise.
+//
 // Only critical errors are bubbled up, other errors are handled internally.
+// Internally starting or sealing of a block may fail with a derivation-like error:
+//   - If it is a critical error, the error is bubbled up to the caller.
+//   - If it is a reset error, the ResettableEngineControl used to build blocks is requested to reset, and a backoff aplies.
+//     No attempt is made at completing the block building.
+//   - If it is a temporary error, a backoff is applied to reattempt building later.
+//   - If it is any other error, a backoff is applied and building is cancelled.
+//
+// Upon L1 reorgs that are deep enough to affect the L1 origin selection, a reset-error may occur,
+// to direct the engine to follow the new L1 chain before continuing to sequence blocks.
+// It is up to the EngineControl implementation to handle conflicting build jobs of the derivation
+// process (as verifier) and sequencing process.
+// Generally it is expected that the latest call interrupts any ongoing work,
+// and the derivation process does not interrupt in the happy case,
+// since it can consolidate previously sequenced blocks by comparing sequenced inputs with derived inputs.
+// If the derivation pipeline does force a conflicting block, then an ongoing sequencer task might still finish,
+// but the derivation can continue to reset until the chain is correct.
 func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error) {
 	if _, buildingID, _ := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) {
 		payload, err := d.CompleteBuildingBlock(ctx)
@@ -180,9 +197,8 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 				d.log.Error("sequencer failed to seal new block, requiring derivation reset", "err", err)
 				d.metrics.RecordSequencerReset()
 				d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime)) // hold off from sequencing for a full block
-				if buildingID != (eth.PayloadID{}) {                                            // cancel what we were doing
-					d.CancelBuildingBlock(ctx)
-				}
+				d.CancelBuildingBlock(ctx)
+				d.engine.Reset()
 			} else if errors.Is(err, derive.ErrTemporary) {
 				d.log.Error("sequencer failed temporarily to seal new block", "err", err)
 				d.nextAction = d.timeNow().Add(time.Second)
@@ -191,9 +207,7 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 			} else {
 				d.log.Error("sequencer failed to seal block with unclassified error", "err", err)
 				d.nextAction = d.timeNow().Add(time.Second)
-				if buildingID != (eth.PayloadID{}) { // don't keep stale block building jobs around, try to cancel them
-					d.CancelBuildingBlock(ctx)
-				}
+				d.CancelBuildingBlock(ctx)
 			}
 			return nil, nil
 		} else {
