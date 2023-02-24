@@ -21,12 +21,10 @@ jobs:
       balance-monitor: ${{ steps.packages.outputs.balance-monitor }}
       gas-oracle: ${{ steps.packages.outputs.gas-oracle }}
       replica-healthcheck: ${{ steps.packages.outputs.replica-healthcheck }}
-      proxyd: ${{ steps.packages.outputs.proxyd }}
       hardhat-node: ${{ steps.packages.outputs.hardhat-node }}
       op-exporter: ${{ steps.packages.outputs.op-exporter }}
       l2geth-exporter: ${{ steps.packages.outputs.l2geth-exporter }}
       batch-submitter-service: ${{ steps.packages.outputs.batch-submitter-service }}
-      indexer: ${{ steps.packages.outputs.indexer }}
       ci-builder: ${{ steps.packages.outputs.ci-builder }}
       foundry: ${{ steps.packages.outputs.foundry }}
       endpoint-monitor: ${{ steps.packages.outputs.endpoint-monitor }}
@@ -209,43 +207,6 @@ jobs:
           file: ./ops/docker/foundry/Dockerfile
           push: true
           tags: ethereumoptimism/foundry:${{ needs.release.outputs.foundry }},ethereumoptimism/foundry:latest
-
-  proxyd:
-    name: Publish proxyd Version ${{ needs.release.outputs.proxyd }}
-    needs: release
-    if: needs.release.outputs.proxyd != ''
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./proxyd/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Build and push
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./proxyd/Dockerfile
-          push: true
-          tags: ethereumoptimism/proxyd:${{ needs.release.outputs.proxyd }},ethereumoptimism/proxyd:latest
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   l2geth-exporter:
     name: Publish l2geth-exporter Version ${{ needs.release.outputs.l2geth-exporter}}
@@ -589,43 +550,6 @@ jobs:
           file: ./batch-submitter/Dockerfile
           push: true
           tags: ethereumoptimism/batch-submitter-service:${{ needs.release.outputs.batch-submitter-service }},ethereumoptimism/batch-submitter-service:latest
-
-  indexer:
-    name: Publish Indexer Version ${{ needs.release.outputs.indexer }}
-    needs: release
-    if: needs.release.outputs.indexer != ''
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Set build args
-        id: build_args
-        run: |
-          echo ::set-output name=GITDATE::"$(date +%d-%m-%Y)"
-          echo ::set-output name=GITVERSION::$(jq -r .version ./indexer/package.json)
-          echo ::set-output name=GITCOMMIT::"$GITHUB_SHA"
-
-      - name: Publish Indexer
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          file: ./indexer/Dockerfile
-          push: true
-          tags: ethereumoptimism/indexer:${{ needs.release.outputs.indexer }},ethereumoptimism/indexer:latest
-          build-args: |
-            GITDATE=${{ steps.build_args.outputs.GITDATE }}
-            GITCOMMIT=${{ steps.build_args.outputs.GITCOMMIT }}
-            GITVERSION=${{ steps.build_args.outputs.GITVERSION }}
 
   endpoint-monitor:
     name: Publish endpoint-monitor Version ${{ needs.release.outputs.endpoint-monitor}}

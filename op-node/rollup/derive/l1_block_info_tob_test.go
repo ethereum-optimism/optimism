@@ -27,7 +27,7 @@ func FuzzParseL1InfoDepositTxDataValid(f *testing.F) {
 		typeProvider.Fuzz(&sysCfg)
 
 		// Create our deposit tx from our info
-		depTx, err := L1InfoDeposit(seqNr, &l1Info, sysCfg)
+		depTx, err := L1InfoDeposit(seqNr, &l1Info, sysCfg, false)
 		require.NoError(t, err, "error creating deposit tx from L1 info")
 
 		// Get our info from out deposit tx
@@ -71,7 +71,7 @@ func FuzzDecodeDepositTxDataToL1Info(f *testing.F) {
 			GasLimit:    uint64(0),
 		}
 
-		depTx, err := L1InfoDeposit(res.SequenceNumber, &l1Info, sysCfg)
+		depTx, err := L1InfoDeposit(res.SequenceNumber, &l1Info, sysCfg, false)
 		require.NoError(t, err, "error creating deposit tx from L1 info")
 		require.Equal(t, depTx.Data, fuzzedData)
 	})

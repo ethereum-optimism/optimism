@@ -9,7 +9,12 @@ contract EchidnaFuzzOptimismPortal {
     bool internal failedToComplete;
 
     constructor() {
-        portal = new OptimismPortal(L2OutputOracle(address(0)), 10);
+        portal = new OptimismPortal({
+            _l2Oracle: L2OutputOracle(address(0)),
+            _guardian: address(0),
+            _finalizationPeriodSeconds: 10,
+            _paused: false
+        });
     }
 
     // A test intended to identify any unexpected halting conditions

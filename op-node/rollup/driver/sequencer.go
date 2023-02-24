@@ -179,7 +179,8 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) *eth.ExecutionPa
 			d.log.Error("sequencer failed to start building new block", "err", err)
 			d.nextAction = d.timeNow().Add(time.Second)
 		} else {
-			d.log.Info("sequencer started building new block", "payload_id", buildingID)
+			parent, buildingID, _ := d.engine.BuildingPayload() // we should have a new payload ID now that we're building a block
+			d.log.Info("sequencer started building new block", "payload_id", buildingID, "l2_parent_block", parent, "l2_parent_block_time", parent.Time)
 		}
 		return nil
 	}
