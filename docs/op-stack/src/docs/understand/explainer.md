@@ -3,15 +3,6 @@ title: Superchain Explainer
 lang: en-US
 image: /assets/logos/twitter-superchain.png
 meta:
-  - name: description
-    content: hello
-  - name: keywords
-    content: super duper SEO
----
-
-
-```yml
-meta:
 - name: twitter:image
   content: https://stack.optimism.io/assets/logos/twitter-superchain.png
 - property: og:image
@@ -22,9 +13,11 @@ meta:
   content: Superchain Explainer
 - name: twitter:card
   content: summary_large_image
-```
+---
 
-The next major scalability improvement to the OP Stack after [Bedrock](../releases/bedrock/) is to introduce the concept of *a Superchain* a network of chains that share bridging, decentralized governance, upgrades, a communication layer and more—all built on the OP Stack.
+
+
+The next major scalability improvement to the OP Stack after [Bedrock](../releases/bedrock/) is to introduce the concept of *a Superchain*: a network of chains that share bridging, decentralized governance, upgrades, a communication layer and more—all built on the OP Stack.
 
 The launch of the Superchain would merge Optimism Mainnet and other chains into a single unified network of OP Chains (i.e., chains within the Superchain), and mark a major step towards bringing scalable and decentralized compute to the world. The goal of this document is to describe the scalability vision, the Superchain concept, and some changes to the OP Stack required to make this vision a reality.
 
