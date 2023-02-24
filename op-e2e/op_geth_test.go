@@ -53,7 +53,6 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Equal(t, 0, balance.Cmp(common.Big0))
 
 	badDepositTx := types.NewTx(&types.DepositTx{
-		SourceHash:          opGeth.L1Head.Hash(),
 		From:                fromAddr,
 		To:                  &fromAddr, // send it to ourselves
 		Value:               big.NewInt(params.Ether),
@@ -103,7 +102,6 @@ func TestBedrockDepositTx(t *testing.T) {
 
 	// Deposit TX with a higher gas limit than required
 	depositTx := types.NewTx(&types.DepositTx{
-		SourceHash:          opGeth.L1Head.Hash(),
 		From:                aliceAddr,
 		To:                  &aliceAddr,
 		Value:               big.NewInt(0),
@@ -113,7 +111,6 @@ func TestBedrockDepositTx(t *testing.T) {
 
 	// Contract creation deposit tx
 	contractCreateTx := types.NewTx(&types.DepositTx{
-		SourceHash:          opGeth.L1Head.Hash(),
 		From:                aliceAddr,
 		Value:               big.NewInt(params.Ether),
 		Gas:                 1000001,
@@ -158,7 +155,6 @@ func TestBedrockShouldNotRefundDepositTxUnusedGas(t *testing.T) {
 
 	// Deposit TX with a higher gas limit than required
 	depositTx := types.NewTx(&types.DepositTx{
-		SourceHash:          opGeth.L1Head.Hash(),
 		From:                aliceAddr,
 		To:                  &aliceAddr,
 		Value:               big.NewInt(0),
