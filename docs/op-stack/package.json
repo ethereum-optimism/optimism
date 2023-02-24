@@ -16,6 +16,7 @@
     "vuepress-theme-hope": "^1.22.0"
   },
   "dependencies": {
-    "check-md": "^1.0.2"
+    "check-md": "^1.0.2",
+    "dayjs": "^1.11.7"
   }
 }

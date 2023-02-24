@@ -1,7 +1,28 @@
 ---
 title: Superchain Explainer
 lang: en-US
+image: /assets/logos/twitter-superchain.png
+meta:
+  - name: description
+    content: hello
+  - name: keywords
+    content: super duper SEO
 ---
+
+
+```yml
+meta:
+- name: twitter:image
+  content: https://stack.optimism.io/assets/logos/twitter-superchain.png
+- property: og:image
+  content: https://stack.optimism.io/assets/logos/twitter-superchain.png
+- name: twitter:title
+  content: Superchain Explainer  
+- property: og:title
+  content: Superchain Explainer
+- name: twitter:card
+  content: summary_large_image
+```
 
 The next major scalability improvement to the OP Stack after [Bedrock](../releases/bedrock/) is to introduce the concept of *a Superchain* a network of chains that share bridging, decentralized governance, upgrades, a communication layer and more—all built on the OP Stack.
 
