@@ -265,7 +265,7 @@ func ParseMessagePassed(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMe
 // StorageSlotOfWithdrawalHash determines the storage slot of the Withdrawer contract to look at
 // given a WithdrawalHash
 func StorageSlotOfWithdrawalHash(hash common.Hash) common.Hash {
-	// The withdrawals mapping is the second (0 indexed) storage element in the Withdrawer contract.
+	// The withdrawals mapping is the 0th storage slot in the L2ToL1MessagePasser contract.
 	// To determine the storage slot, use keccak256(withdrawalHash ++ p)
 	// Where p is the 32 byte value of the storage slot and ++ is concatenation
 	buf := make([]byte, 64)
