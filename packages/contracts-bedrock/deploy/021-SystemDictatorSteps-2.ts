@@ -210,7 +210,7 @@ const deployFn: DeployFunction = async (hre) => {
     SystemDictator,
     step: 5,
     message: `
-      Step 5 will initialize all Bedrock contracts After this step is executed, the OptimismPortal
+      Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
       will be open for deposits but withdrawals will be paused if deploying a production network.
       The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
     `,
@@ -315,10 +315,7 @@ const deployFn: DeployFunction = async (hre) => {
     )
 
     await assertContractVariable(OptimismPortal, 'paused', false)
-  }
 
-  // At the end we finalize the upgrade.
-  if (await isStep(SystemDictator, 6)) {
     console.log(`
       You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
       transfer ownership of the ProxyAdmin to the final system owner as specified in the deployment

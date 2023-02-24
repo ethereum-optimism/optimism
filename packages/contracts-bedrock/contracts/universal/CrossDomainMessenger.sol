@@ -34,7 +34,9 @@ contract CrossDomainMessengerLegacySpacer1 {
     /**
      * @custom:legacy
      * @custom:spacer __gap
-     * @notice Spacer for backwards compatibility.
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         ContextUpgradable via OwnableUpgradeable.
+     *
      */
     uint256[50] private spacer_1_0_1600;
 
@@ -42,29 +44,60 @@ contract CrossDomainMessengerLegacySpacer1 {
      * @custom:legacy
      * @custom:spacer _owner
      * @notice Spacer for backwards compatibility.
+     *         Come from OpenZeppelin OwnableUpgradeable.
      */
     address private spacer_51_0_20;
 
     /**
      * @custom:legacy
      * @custom:spacer __gap
-     * @notice Spacer for backwards compatibility.
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         ContextUpgradable via PausableUpgradable.
      */
     uint256[49] private spacer_52_0_1568;
 
     /**
      * @custom:legacy
      * @custom:spacer _paused
-     * @notice Spacer for backwards compatibility.
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         PausableUpgradable.
      */
     bool private spacer_101_0_1;
 
     /**
      * @custom:legacy
      * @custom:spacer __gap
-     * @notice
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         PausableUpgradable.
      */
     uint256[49] private spacer_102_0_1568;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer ReentrancyGuardUpgradeable's `_status` field.
+     * @notice Spacer for backwards compatibility
+     */
+    uint256 private spacer_151_0_32;
+
+    /**
+     * @custom:spacer ReentrancyGuardUpgradeable
+     * @notice Spacer for backwards compatibility
+     */
+    uint256[49] private __gap_reentrancy_guard;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer blockedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    mapping(bytes32 => bool) private spacer_201_0_32;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer relayedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    mapping(bytes32 => bool) private spacer_202_0_32;
 }
 
 /**
@@ -122,32 +155,6 @@ abstract contract CrossDomainMessenger is
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
     address public immutable OTHER_MESSENGER;
-
-    /**
-     * @custom:spacer ReentrancyGuardUpgradeable's `_status` field.
-     * @notice Spacer for backwards compatibility
-     */
-    uint256 private spacer_151_0_32;
-
-    /**
-     * @custom:spacer ReentrancyGuardUpgradeable
-     * @notice Spacer for backwards compatibility
-     */
-    uint256[49] private __gap_reentrancy_guard;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer blockedMessages
-     * @notice Spacer for backwards compatibility.
-     */
-    mapping(bytes32 => bool) private spacer_201_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer relayedMessages
-     * @notice Spacer for backwards compatibility.
-     */
-    mapping(bytes32 => bool) private spacer_202_0_32;
 
     /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
