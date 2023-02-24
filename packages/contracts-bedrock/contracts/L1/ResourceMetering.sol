@@ -92,8 +92,7 @@ abstract contract ResourceMetering is Initializable {
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
             int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
             int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
-                TARGET_RESOURCE_LIMIT /
-                BASE_FEE_MAX_CHANGE_DENOMINATOR;
+                (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
