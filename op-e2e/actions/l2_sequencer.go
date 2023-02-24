@@ -2,11 +2,13 @@ package actions
 
 import (
 	"context"
+	"errors"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
@@ -46,7 +48,7 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 	}
 	return &L2Sequencer{
 		L2Verifier:              *ver,
-		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector),
+		sequencer:               driver.NewSequencer(log, cfg, ver.derivation, attrBuilder, l1OriginSelector, metrics.NoopMetrics),
 		mockL1OriginSelector:    l1OriginSelector,
 		failL2GossipUnsafeBlock: nil,
 	}
@@ -54,6 +56,10 @@ func NewL2Sequencer(t Testing, log log.Logger, l1 derive.L1Fetcher, eng L2API, c
 
 // ActL2StartBlock starts building of a new L2 block on top of the head
 func (s *L2Sequencer) ActL2StartBlock(t Testing) {
+	s.ActL2StartBlockCheckErr(t, nil)
+}
+
+func (s *L2Sequencer) ActL2StartBlockCheckErr(t Testing, checkErr error) {
 	if !s.l2PipelineIdle {
 		t.InvalidAction("cannot start L2 build when derivation is not idle")
 		return
@@ -64,9 +70,19 @@ func (s *L2Sequencer) ActL2StartBlock(t Testing) {
 	}
 
 	err := s.sequencer.StartBuildingBlock(t.Ctx())
-	require.NoError(t, err, "failed to start block building")
+	if checkErr == nil {
+		require.NoError(t, err, "failed to start block building")
+	} else {
+		require.ErrorIs(t, err, checkErr, "expected typed error")
+	}
 
-	s.l2Building = true
+	if errors.Is(err, derive.ErrReset) {
+		s.derivation.Reset()
+	}
+
+	if err == nil {
+		s.l2Building = true
+	}
 }
 
 // ActL2EndBlock completes a new L2 block and applies it to the L2 chain as new canonical unsafe head
@@ -103,10 +119,33 @@ func (s *L2Sequencer) ActBuildToL1Head(t Testing) {
 	}
 }
 
-// ActBuildToL1HeadExcl builds empty blocks until (excl.) the L1 head becomes the L2 origin
+// ActBuildToL1HeadUnsafe builds empty blocks until (incl.) the L1 head becomes the L1 origin of the L2 head
+func (s *L2Sequencer) ActBuildToL1HeadUnsafe(t Testing) {
+	for s.derivation.UnsafeL2Head().L1Origin.Number < s.l1State.L1Head().Number {
+		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
+
+// ActBuildToL1HeadExcl builds empty blocks until (excl.) the L1 head becomes the L1 origin of the L2 head
 func (s *L2Sequencer) ActBuildToL1HeadExcl(t Testing) {
 	for {
 		s.ActL2PipelineFull(t)
+		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
+		require.NoError(t, err)
+		if nextOrigin.Number >= s.l1State.L1Head().Number {
+			break
+		}
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
+
+// ActBuildToL1HeadExclUnsafe builds empty blocks until (excl.) the L1 head becomes the L1 origin of the L2 head, without safe-head progression.
+func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
+	for {
+		// Note: the derivation pipeline does not run, we are just sequencing a block on top of the existing L2 chain.
 		nextOrigin, err := s.mockL1OriginSelector.FindL1Origin(t.Ctx(), s.derivation.UnsafeL2Head())
 		require.NoError(t, err)
 		if nextOrigin.Number >= s.l1State.L1Head().Number {

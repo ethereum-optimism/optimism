@@ -17,11 +17,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 )
+
+var mockResetErr = fmt.Errorf("mock reset err: %w", derive.ErrReset)
 
 type FakeEngineControl struct {
 	finalized eth.L2BlockRef
@@ -122,7 +125,11 @@ func (m *FakeEngineControl) resetBuildingState() {
 	m.buildingAttrs = nil
 }
 
-var _ derive.EngineControl = (*FakeEngineControl)(nil)
+func (m *FakeEngineControl) Reset() {
+	m.err = nil
+}
+
+var _ derive.ResettableEngineControl = (*FakeEngineControl)(nil)
 
 type testAttrBuilderFn func(ctx context.Context, l2Parent eth.L2BlockRef, epoch eth.BlockID) (attrs *eth.PayloadAttributes, err error)
 
@@ -295,7 +302,7 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		}
 	})
 
-	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector)
+	seq := NewSequencer(log, cfg, engControl, attrBuilder, originSelector, metrics.NoopMetrics)
 	seq.timeNow = clockFn
 
 	// try to build 1000 blocks, with 5x as many planning attempts, to handle errors and clock problems
@@ -319,25 +326,30 @@ func TestSequencerChaosMonkey(t *testing.T) {
 		// reset errors
 		originErr = nil
 		attrsErr = nil
-		engControl.err = nil
+		if engControl.err != mockResetErr { // the mockResetErr requires the sequencer to Reset() to recover.
+			engControl.err = nil
+		}
 		engControl.errTyp = derive.BlockInsertOK
 
 		// maybe make something maybe fail, or try a new L1 origin
-		switch rng.Intn(10) { // 40% chance to fail sequencer action (!!!)
-		case 0:
+		switch rng.Intn(20) { // 9/20 = 45% chance to fail sequencer action (!!!)
+		case 0, 1:
 			originErr = errors.New("mock origin error")
-		case 1:
+		case 2, 3:
 			attrsErr = errors.New("mock attributes error")
-		case 2:
+		case 4, 5:
 			engControl.err = errors.New("mock temporary engine error")
 			engControl.errTyp = derive.BlockInsertTemporaryErr
-		case 3:
+		case 6, 7:
 			engControl.err = errors.New("mock prestate engine error")
 			engControl.errTyp = derive.BlockInsertPrestateErr
+		case 8:
+			engControl.err = mockResetErr
 		default:
 			// no error
 		}
-		payload := seq.RunNextSequencerAction(context.Background())
+		payload, err := seq.RunNextSequencerAction(context.Background())
+		require.NoError(t, err)
 		if payload != nil {
 			require.Equal(t, engControl.UnsafeL2Head().ID(), payload.ID(), "head must stay in sync with emitted payloads")
 			var tx types.Transaction
