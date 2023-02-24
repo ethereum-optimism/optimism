@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.12.1
+
+### Patch Changes
+
+- 80f2271f5: Update foundry
+
 ## 0.12.0
 
 ### Minor Changes
