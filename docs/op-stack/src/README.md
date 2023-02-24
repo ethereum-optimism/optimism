@@ -31,7 +31,7 @@ Optimism Bedrock is the current iteration of the OP Stack.
 The Bedrock release provides the tools for launching a production-quality Optimistic Rollup blockchain. 
 At this point in time, the APIs for the different layers of the OP Stack are still tightly coupled to this Rollup configuration of the stack. 
 
-If you'd like to learn more about the current state of the OP Stack, check out [the page describing the Bedrock release](/docs/releases/bedrock/).
+If you'd like to learn more about the current state of the OP Stack, check out [the page describing the Bedrock release](/docs/releases/bedrock/README.md).
 
 The OP Stack of today was built to support the Optimism Superchain (link), a proposed network of L2s that share security, communication layers, and a common development stack (the OP Stack itself). 
 The Bedrock release of the OP Stack makes it easy to spin up an L2 that will be compatible with the Superchain when it launches. 
