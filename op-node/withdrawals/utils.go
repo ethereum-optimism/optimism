@@ -262,7 +262,7 @@ func ParseMessagePassed(receipt *types.Receipt) (*bindings.L2ToL1MessagePasserMe
 	return nil, errors.New("Unable to find MessagePassed event")
 }
 
-// StorageSlotOfWithdrawalHash determines the storage slot of the Withdrawer contract to look at
+// StorageSlotOfWithdrawalHash determines the storage slot of the L2ToL1MessagePasser contract to look at
 // given a WithdrawalHash
 func StorageSlotOfWithdrawalHash(hash common.Hash) common.Hash {
 	// The withdrawals mapping is the 0th storage slot in the L2ToL1MessagePasser contract.
