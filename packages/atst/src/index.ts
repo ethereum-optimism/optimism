@@ -7,6 +7,7 @@ export { prepareWriteAttestation } from './lib/prepareWriteAttestation'
 export { writeAttestation } from './lib/writeAttestation'
 export { abi } from './lib/abi'
 export { parseAttestationBytes } from './lib/parseAttestationBytes'
+export { stringifyAttestationBytes } from './lib/stringifyAttestationBytes'
 // types
 export type { AttestationReadParams } from './types/AttestationReadParams'
 export type { WagmiBytes } from './types/WagmiBytes'

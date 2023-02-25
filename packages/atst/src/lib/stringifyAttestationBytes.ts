@@ -5,8 +5,11 @@ import { isAddress, isHexString, toUtf8Bytes } from 'ethers/lib/utils.js'
 import { WagmiBytes } from '../types/WagmiBytes'
 
 export const stringifyAttestationBytes = (
-  bytes: WagmiBytes | string | Address | number | boolean
+  bytes: WagmiBytes | string | Address | number | boolean | BigNumber
 ) => {
+  if (BigNumber.isBigNumber(bytes)) {
+    return bytes.toHexString()
+  }
   if (typeof bytes === 'number') {
     return BigNumber.from(bytes).toHexString()
   }
