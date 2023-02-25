@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
+	"math"
 	"math/big"
 	"strings"
 
@@ -241,6 +242,12 @@ func (d *Driver) CraftBatchTx(
 			continue
 		}
 
+		// split calldata into an an array of byte arrays that each have length 520 or less
+		// this is the maximum size of a calldata chunk
+		_ = CreateChunks(520, calldata)
+
+		// now
+
 		// There are two specific cases in which we choose to ignore the minimum
 		// L1 tx size. These cases are permitted since they arise from
 		// situations where the difference between the configured MinTxSize and
@@ -395,4 +402,16 @@ func (d *Driver) SendTransaction(
 	tx *types.Transaction,
 ) error {
 	return d.cfg.L1Client.SendTransaction(ctx, tx)
+}
+
+func CreateChunks(chunkSize uint64, calldata []byte) [][]byte {
+	chunkArray := make([][]byte, 0)
+	for i := uint64(0); i < uint64(len(calldata)); i += chunkSize {
+		chunk := make([]byte, 0)
+		index := math.Min(float64(len(calldata)), float64(i+chunkSize))
+		calldataToAppend := calldata[i:int(index)]
+		chunk = append(chunk, calldataToAppend...)
+		chunkArray = append(chunkArray, chunk)
+	}
+	return chunkArray
 }

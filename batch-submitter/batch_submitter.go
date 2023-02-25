@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"time"
+
 	// "fmt"
 
 	"github.com/ethereum-optimism/optimism/batch-submitter/drivers/proposer"
