@@ -29,6 +29,7 @@ type Metrics interface {
 	RecordL1ReorgDepth(d uint64)
 
 	EngineMetrics
+	SequencerMetrics
 }
 
 type L1Chain interface {
@@ -69,7 +70,7 @@ type SequencerIface interface {
 	StartBuildingBlock(ctx context.Context) error
 	CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error)
 	PlanNextSequencerAction() time.Duration
-	RunNextSequencerAction(ctx context.Context) *eth.ExecutionPayload
+	RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error)
 	BuildingOnto() eth.L2BlockRef
 }
 
@@ -88,12 +89,11 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, ne
 	attrBuilder := derive.NewFetchingAttributesBuilder(cfg, l1, l2)
 	engine := derivationPipeline
 	meteredEngine := NewMeteredEngine(cfg, engine, metrics, log)
-	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin)
+	sequencer := NewSequencer(log, cfg, meteredEngine, attrBuilder, findL1Origin, metrics)
 
 	return &Driver{
 		l1State:          l1State,
 		derivation:       derivationPipeline,
-		idleDerivation:   false,
 		stateReq:         make(chan chan struct{}),
 		forceReset:       make(chan chan struct{}, 10),
 		startSequencer:   make(chan hashAndErrorChannel, 10),

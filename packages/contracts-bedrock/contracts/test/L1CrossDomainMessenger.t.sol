@@ -25,42 +25,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
     // Storage slot of the l2Sender
     uint256 constant senderSlotIndex = 50;
 
-    function setUp() public override {
-        super.setUp();
-    }
-
-    // pause: should pause the contract when called by the current owner
-    function test_pause_succeeds() external {
-        vm.prank(alice);
-        L1Messenger.pause();
-        assert(L1Messenger.paused());
-    }
-
-    // pause: should not pause the contract when called by account other than the owner
-    function test_pause_callerIsNotOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(address(0xABBA));
-        L1Messenger.pause();
-    }
-
-    // unpause: should unpause the contract when called by the current owner
-    function test_unpause_succeeds() external {
-        vm.prank(alice);
-        L1Messenger.pause();
-        assert(L1Messenger.paused());
-
-        vm.prank(alice);
-        L1Messenger.unpause();
-        assert(!L1Messenger.paused());
-    }
-
-    // unpause: should not unpause the contract when called by account other than the owner
-    function test_unpause_callerIsNotOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(address(0xABBA));
-        L1Messenger.unpause();
-    }
-
     // the version is encoded in the nonce
     function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L1Messenger.messageNonce());
@@ -272,15 +236,6 @@ contract L1CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L1Messenger.xDomainMessageSender();
-    }
-
-    // relayMessage: should revert if paused
-    function test_relayMessage_paused_reverts() external {
-        vm.prank(L1Messenger.owner());
-        L1Messenger.pause();
-
-        vm.expectRevert("Pausable: paused");
-        L1Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
     }
 
     // relayMessage: should send a successful call to the target contract after the first message

@@ -6,91 +6,30 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
-	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
-	"github.com/ethereum-optimism/optimism/op-node/testlog"
-
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/log"
-	gn "github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/rpc"
-
 	"github.com/stretchr/testify/require"
 )
 
 // TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
 func TestMissingGasLimit(t *testing.T) {
-	// Setup an L2 EE and create a client connection to the engine.
-	// We also need to setup a L1 Genesis to create the rollup genesis.
-	log := testlog.Logger(t, log.LvlCrit)
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
-
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
-	require.Nil(t, err)
-	l1Block := l1Genesis.ToBlock()
-
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
-	require.Nil(t, err)
-	l2GenesisBlock := l2Genesis.ToBlock()
-
-	rollupGenesis := rollup.Genesis{
-		L1: eth.BlockID{
-			Hash:   l1Block.Hash(),
-			Number: l1Block.NumberU64(),
-		},
-		L2: eth.BlockID{
-			Hash:   l2GenesisBlock.Hash(),
-			Number: l2GenesisBlock.NumberU64(),
-		},
-		L2Time:       l2GenesisBlock.Time(),
-		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
-	}
-
-	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t))
-	require.Nil(t, err)
-	require.Nil(t, node.Start())
-	defer node.Close()
-
-	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(testingJWTSecret))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	l2Node, err := client.NewRPC(ctx, log, node.WSAuthEndpoint(), auth)
-	require.Nil(t, err)
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
 
-	// Finally create the engine client
-	client, err := sources.NewEngineClient(
-		l2Node,
-		log,
-		nil,
-		sources.EngineClientDefaultConfig(&rollup.Config{Genesis: rollupGenesis}),
-	)
-	require.Nil(t, err)
+	attrs, err := opGeth.CreatePayloadAttributes()
+	require.NoError(t, err)
+	// Remove the GasLimit from the otherwise valid attributes
+	attrs.GasLimit = nil
 
-	attrs := eth.PayloadAttributes{
-		Timestamp:    hexutil.Uint64(l2GenesisBlock.Time() + 2),
-		Transactions: []hexutil.Bytes{},
-		NoTxPool:     true,
-		GasLimit:     nil, // no gas limit
-	}
-
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	fc := eth.ForkchoiceState{
-		HeadBlockHash: l2GenesisBlock.Hash(),
-		SafeBlockHash: l2GenesisBlock.Hash(),
-	}
-	res, err := client.ForkchoiceUpdate(ctx, &fc, &attrs)
+	res, err := opGeth.StartBlockBuilding(ctx, attrs)
 	require.ErrorIs(t, err, eth.InputError{})
 	require.Equal(t, eth.InvalidPayloadAttributes, err.(eth.InputError).Code)
 	require.Nil(t, res)
@@ -99,109 +38,137 @@ func TestMissingGasLimit(t *testing.T) {
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.
 // This tests that deposits must always allow the block to be built even if they are invalid.
 func TestInvalidDepositInFCU(t *testing.T) {
-	// Setup an L2 EE and create a client connection to the engine.
-	// We also need to setup a L1 Genesis to create the rollup genesis.
-	log := testlog.Logger(t, log.LvlCrit)
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
-
-	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
-	require.Nil(t, err)
-	l1Block := l1Genesis.ToBlock()
-
-	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
-	require.Nil(t, err)
-	l2GenesisBlock := l2Genesis.ToBlock()
-
-	rollupGenesis := rollup.Genesis{
-		L1: eth.BlockID{
-			Hash:   l1Block.Hash(),
-			Number: l1Block.NumberU64(),
-		},
-		L2: eth.BlockID{
-			Hash:   l2GenesisBlock.Hash(),
-			Number: l2GenesisBlock.NumberU64(),
-		},
-		L2Time:       l2GenesisBlock.Time(),
-		SystemConfig: e2eutils.SystemConfigFromDeployConfig(cfg.DeployConfig),
-	}
-
-	node, _, err := initL2Geth("l2", big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, writeDefaultJWT(t))
-	require.Nil(t, err)
-	require.Nil(t, node.Start())
-	defer node.Close()
-
-	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(testingJWTSecret))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	l2Node, err := client.NewRPC(ctx, log, node.WSAuthEndpoint(), auth)
-	require.Nil(t, err)
-
-	// Finally create the engine client
-	client, err := sources.NewEngineClient(
-		l2Node,
-		log,
-		nil,
-		sources.EngineClientDefaultConfig(&rollup.Config{Genesis: rollupGenesis}),
-	)
-	require.Nil(t, err)
-
-	// Create the test data (L1 Info Tx and then always failing deposit)
-	l1Info, err := derive.L1InfoDepositBytes(1, l1Block, rollupGenesis.SystemConfig)
-	require.Nil(t, err)
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
 
 	// Create a deposit from alice that will always fail (not enough funds)
 	fromAddr := cfg.Secrets.Addresses().Alice
-	l2Client, err := ethclient.Dial(node.HTTPEndpoint())
-	require.Nil(t, err)
-	balance, err := l2Client.BalanceAt(ctx, fromAddr, nil)
+	balance, err := opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 	require.Equal(t, 0, balance.Cmp(common.Big0))
 
 	badDepositTx := types.NewTx(&types.DepositTx{
-		// TODO: Source Hash
 		From:                fromAddr,
 		To:                  &fromAddr, // send it to ourselves
 		Value:               big.NewInt(params.Ether),
 		Gas:                 25000,
 		IsSystemTransaction: false,
 	})
-	badDeposit, err := badDepositTx.MarshalBinary()
-	require.Nil(t, err)
 
-	attrs := eth.PayloadAttributes{
-		Timestamp:    hexutil.Uint64(l2GenesisBlock.Time() + 2),
-		Transactions: []hexutil.Bytes{l1Info, badDeposit},
-		NoTxPool:     true,
-		GasLimit:     (*eth.Uint64Quantity)(&rollupGenesis.SystemConfig.GasLimit),
-	}
-
-	// Go through the flow of FCU, GetPayload, NewPayload, FCU
 	// We are inserting a block with an invalid deposit.
 	// The invalid deposit should still remain in the block.
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	_, err = opGeth.AddL2Block(ctx, badDepositTx)
+	require.NoError(t, err)
+
+	// Deposit tx was included, but Alice still shouldn't have any ETH
+	balance, err = opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
+	require.Nil(t, err)
+	require.Equal(t, 0, balance.Cmp(common.Big0))
+}
+
+func TestBedrockSystemTxUsesZeroGas(t *testing.T) {
+	cfg := DefaultSystemConfig(t)
+	cfg.DeployConfig.FundDevAccounts = false
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
 
-	fc := eth.ForkchoiceState{
-		HeadBlockHash: l2GenesisBlock.Hash(),
-		SafeBlockHash: l2GenesisBlock.Hash(),
-	}
-	res, err := client.ForkchoiceUpdate(ctx, &fc, &attrs)
-	require.Nil(t, err)
-	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
-	require.NotNil(t, res.PayloadID)
+	block, err := opGeth.AddL2Block(ctx)
+	require.NoError(t, err)
+	infoTx, err := opGeth.L2Client.TransactionInBlock(ctx, block.BlockHash, 0)
+	require.NoError(t, err)
+	require.True(t, infoTx.IsSystemTx())
+	receipt, err := opGeth.L2Client.TransactionReceipt(ctx, infoTx.Hash())
+	require.NoError(t, err)
+	require.Zero(t, receipt.GasUsed)
+}
 
-	payload, err := client.GetPayload(ctx, *res.PayloadID)
-	require.Nil(t, err)
-	require.NotNil(t, payload)
-	require.Equal(t, payload.Transactions, attrs.Transactions) // Ensure we don't drop the transactions
+func TestBedrockDepositTx(t *testing.T) {
+	cfg := DefaultSystemConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
 
-	status, err := client.NewPayload(ctx, payload)
-	require.Nil(t, err)
-	require.Equal(t, eth.ExecutionValid, status.Status)
+	aliceAddr := cfg.Secrets.Addresses().Alice
 
-	fc.HeadBlockHash = payload.BlockHash
-	res, err = client.ForkchoiceUpdate(ctx, &fc, nil)
-	require.Nil(t, err)
-	require.Equal(t, eth.ExecutionValid, res.PayloadStatus.Status)
+	// Deposit TX with a higher gas limit than required
+	depositTx := types.NewTx(&types.DepositTx{
+		From:                aliceAddr,
+		To:                  &aliceAddr,
+		Value:               big.NewInt(0),
+		Gas:                 50_000, // Simple transfer only requires 21,000
+		IsSystemTransaction: false,
+	})
+
+	// Contract creation deposit tx
+	contractCreateTx := types.NewTx(&types.DepositTx{
+		From:                aliceAddr,
+		Value:               big.NewInt(params.Ether),
+		Gas:                 1000001,
+		Data:                []byte{},
+		IsSystemTransaction: false,
+	})
+
+	_, err = opGeth.AddL2Block(ctx, depositTx, contractCreateTx)
+	require.NoError(t, err)
+	receipt, err := opGeth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx should succeed")
+	require.Equal(t, depositTx.Gas(), receipt.GasUsed, "should use all gas")
+
+	incorrectContractAddress := crypto.CreateAddress(aliceAddr, uint64(0)) // Expected to be wrong
+	correctContractAddress := crypto.CreateAddress(aliceAddr, uint64(1))
+	createRcpt, err := opGeth.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, createRcpt.Status, "create should succeed")
+	require.Equal(t, incorrectContractAddress, createRcpt.ContractAddress, "should report incorrect contract address")
+
+	contractBalance, err := opGeth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), contractBalance.Uint64(), "balance unchanged on incorrect contract address")
+
+	contractBalance, err = opGeth.L2Client.BalanceAt(ctx, correctContractAddress, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(params.Ether), contractBalance.Uint64(), "balance changed on correct contract address")
+}
+
+func TestBedrockShouldNotRefundDepositTxUnusedGas(t *testing.T) {
+	cfg := DefaultSystemConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
+
+	aliceAddr := cfg.Secrets.Addresses().Alice
+	origBalance, err := opGeth.L2Client.BalanceAt(ctx, aliceAddr, nil)
+	require.NoError(t, err)
+
+	// Deposit TX with a higher gas limit than required
+	depositTx := types.NewTx(&types.DepositTx{
+		From:                aliceAddr,
+		To:                  &aliceAddr,
+		Value:               big.NewInt(0),
+		Gas:                 50_000, // Simple transfer only requires 21,000
+		IsSystemTransaction: false,
+	})
+
+	_, err = opGeth.AddL2Block(ctx, depositTx)
+	require.NoError(t, err)
+	receipt, err := opGeth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx should succeed")
+
+	newBalance, err := opGeth.L2Client.BalanceAt(ctx, aliceAddr, nil)
+	require.NoError(t, err)
+	require.Equal(t, origBalance, newBalance, "should not refund cost of unused gas")
 }

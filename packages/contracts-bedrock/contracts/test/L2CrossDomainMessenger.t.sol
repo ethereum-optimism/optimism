@@ -16,21 +16,6 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
     // Receiver address for testing
     address recipient = address(0xabbaacdc);
 
-    function setUp() public override {
-        super.setUp();
-    }
-
-    function test_pause_succeeds() external {
-        L2Messenger.pause();
-        assert(L2Messenger.paused());
-    }
-
-    function test_pause_notOwner_reverts() external {
-        vm.expectRevert("Ownable: caller is not the owner");
-        vm.prank(address(0xABBA));
-        L2Messenger.pause();
-    }
-
     function test_messageVersion_succeeds() external {
         (, uint16 version) = Encoding.decodeVersionedNonce(L2Messenger.messageNonce());
         assertEq(version, L2Messenger.MESSAGE_VERSION());
@@ -189,15 +174,6 @@ contract L2CrossDomainMessenger_Test is Messenger_Initializer {
 
         vm.expectRevert("CrossDomainMessenger: xDomainMessageSender is not set");
         L2Messenger.xDomainMessageSender();
-    }
-
-    // relayMessage: should revert if paused
-    function test_relayMessage_paused_reverts() external {
-        vm.prank(L2Messenger.owner());
-        L2Messenger.pause();
-
-        vm.expectRevert("Pausable: paused");
-        L2Messenger.relayMessage(0, address(0), address(0), 0, 0, hex"");
     }
 
     // relayMessage: should send a successful call to the target contract after the first message

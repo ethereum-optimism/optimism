@@ -141,10 +141,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err = l1XDMABI.Pack(
-		"initialize",
-		config.FinalSystemOwner,
-	)
+	data, err = l1XDMABI.Pack("initialize")
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for L1CrossDomainMessenger: %w", err)
 	}

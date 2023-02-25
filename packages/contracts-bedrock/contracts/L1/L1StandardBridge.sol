@@ -109,28 +109,6 @@ contract L1StandardBridge is StandardBridge, Semver {
 
     /**
      * @custom:legacy
-     * @notice Finalizes a withdrawal of ERC20 tokens from L2.
-     *
-     * @param _l1Token   Address of the token on L1.
-     * @param _l2Token   Address of the corresponding token on L2.
-     * @param _from      Address of the withdrawer on L2.
-     * @param _to        Address of the recipient on L1.
-     * @param _amount    Amount of the ERC20 to withdraw.
-     * @param _extraData Optional data forwarded from L2.
-     */
-    function finalizeERC20Withdrawal(
-        address _l1Token,
-        address _l2Token,
-        address _from,
-        address _to,
-        uint256 _amount,
-        bytes calldata _extraData
-    ) external onlyOtherBridge {
-        finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _extraData);
-    }
-
-    /**
-     * @custom:legacy
      * @notice Deposits some amount of ETH into the sender's account on L2.
      *
      * @param _minGasLimit Minimum gas limit for the deposit message on L2.
@@ -240,8 +218,30 @@ contract L1StandardBridge is StandardBridge, Semver {
         address _to,
         uint256 _amount,
         bytes calldata _extraData
-    ) external payable onlyOtherBridge {
+    ) external payable {
         finalizeBridgeETH(_from, _to, _amount, _extraData);
+    }
+
+    /**
+     * @custom:legacy
+     * @notice Finalizes a withdrawal of ERC20 tokens from L2.
+     *
+     * @param _l1Token   Address of the token on L1.
+     * @param _l2Token   Address of the corresponding token on L2.
+     * @param _from      Address of the withdrawer on L2.
+     * @param _to        Address of the recipient on L1.
+     * @param _amount    Amount of the ERC20 to withdraw.
+     * @param _extraData Optional data forwarded from L2.
+     */
+    function finalizeERC20Withdrawal(
+        address _l1Token,
+        address _l2Token,
+        address _from,
+        address _to,
+        uint256 _amount,
+        bytes calldata _extraData
+    ) external {
+        finalizeBridgeERC20(_l1Token, _l2Token, _from, _to, _amount, _extraData);
     }
 
     /**
