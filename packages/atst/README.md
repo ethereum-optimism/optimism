@@ -23,7 +23,7 @@ atst is a typescript sdk and cli around the attestation station
 Install
 
 ```bash
-npm install @eth-optimism/atst @wagmi/core
+npm install @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0
 ```
 
 ## atst typescript sdk
