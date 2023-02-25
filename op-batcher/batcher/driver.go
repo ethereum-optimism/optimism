@@ -88,13 +88,14 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		From:            fromAddress,
 		Rollup:          rcfg,
 		Channel: ChannelConfig{
-			SeqWindowSize:    rcfg.SeqWindowSize,
-			ChannelTimeout:   rcfg.ChannelTimeout,
-			SubSafetyMargin:  cfg.SubSafetyMargin,
-			MaxFrameSize:     cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
-			TargetFrameSize:  cfg.TargetL1TxSize - 1, // subtract 1 byte for version
-			TargetNumFrames:  cfg.TargetNumFrames,
-			ApproxComprRatio: cfg.ApproxComprRatio,
+			SeqWindowSize:      rcfg.SeqWindowSize,
+			ChannelTimeout:     rcfg.ChannelTimeout,
+			MaxChannelDuration: cfg.MaxChannelDuration,
+			SubSafetyMargin:    cfg.SubSafetyMargin,
+			MaxFrameSize:       cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
+			TargetFrameSize:    cfg.TargetL1TxSize - 1, // subtract 1 byte for version
+			TargetNumFrames:    cfg.TargetNumFrames,
+			ApproxComprRatio:   cfg.ApproxComprRatio,
 		},
 	}
 
