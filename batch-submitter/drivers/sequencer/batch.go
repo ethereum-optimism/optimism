@@ -74,6 +74,7 @@ type groupedBlock struct {
 // GenSequencerBatchParams generates a valid AppendSequencerBatchParams from a
 // list of BatchElements. The BatchElements are assumed to be ordered in
 // ascending order by L2 block height.
+// @DEV THIS FUNCTION CREATES THE CALLDATA TO BE POSTED TO CTC, we need to find other instances of this to figure out where to post to BTc
 func GenSequencerBatchParams(
 	shouldStartAtElement uint64,
 	blockOffset uint64,

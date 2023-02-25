@@ -14,6 +14,15 @@ import (
 // L1EthClientWithTimeout attempts to dial the L1 provider using the
 // provided URL. If the dial doesn't complete within DefaultTimeout seconds,
 // this method will return an error.
+
+// @DEV Replace this with creating a new instance of HTTP POST "github.com/btcsuite/btcd/rpcclient" and returning it
+// connCfg := &rpcclient.ConnConfig{
+// 	Host:         "regtest.dctrl.wtf/",
+// 	User:         "test",
+// 	Pass:         "test",
+// 	HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
+// 	DisableTLS:   false,
+// }
 func L1EthClientWithTimeout(ctx context.Context, url string, disableHTTP2 bool) (
 	*ethclient.Client, error) {
 

@@ -259,6 +259,7 @@ func (d *Driver) CraftBatchTx(
 		// 2. When pruning a batch that exceeds the mac size below, and then
 		//    becomes too small as a result. This is avoided by only applying
 		//    the min size check when the pruneCount is zero.
+		// @DEV WE CHOOSE TO IGNORE MIN TX SIZE HERE
 		ignoreMinTxSize := pruneCount > 0 || hasLargeNextTx
 		if !ignoreMinTxSize && calldataSize < d.cfg.MinTxSize {
 			log.Info(name+" batch tx size below minimum",
@@ -284,10 +285,24 @@ func (d *Driver) CraftBatchTx(
 		opts.Nonce = nonce
 		opts.NoSend = true
 
+		// @DEV THIS IS THE TRANSACTION WHERE THEY POST DATA TO CTC ON L1
 		tx, err := d.rawCtcContract.RawTransact(opts, calldata)
 		switch {
 		case err == nil:
 			return tx, nil
+
+		// chunk calldata into 520 []byte chunks
+		// check that data is below 1mb
+		// construct a bitcoin script as follows
+		// _ = tapscript.addOp(txscript.OP_FALSE)
+		// _ = tapscript.addOp(txscript.OP_IF)
+		// for calldata[i] .....
+		// _ = tapscript.addData(calldata[i])
+		// // in our case we would continue to "addData" in 520 byte chunks until the calldata is complete
+		// _ = tapscript.addOp(txscript.OP_ENDIF)
+
+		// put this into taproot input witness
+		//
 
 		// If the transaction failed because the backend does not support
 		// eth_maxPriorityFeePerGas, fallback to using the default constant.
@@ -374,6 +389,7 @@ func (d *Driver) UpdateGasPrice(
 
 // SendTransaction injects a signed transaction into the pending pool for
 // execution.
+// INSTEAD OF
 func (d *Driver) SendTransaction(
 	ctx context.Context,
 	tx *types.Transaction,
