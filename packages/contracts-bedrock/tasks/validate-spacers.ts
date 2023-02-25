@@ -1,6 +1,17 @@
 import { task } from 'hardhat/config'
+import { parseFullyQualifiedName } from 'hardhat/utils/contract-names'
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
 
 import layoutLock from '../layout-lock.json'
+
+// Artifacts that should be skipped when inspecting their storage layout
+const skipped = {
+  // Both of these are skipped because they are meant to be inherited
+  // by the CrossDomainMessenger. It is the CrossDomainMessenger that
+  // should be inspected, not these contracts.
+  CrossDomainMessengerLegacySpacer0: true,
+  CrossDomainMessengerLegacySpacer1: true,
+}
 
 /**
  * Parses out variable info from the variable structure in standard compiler json output.
@@ -28,8 +39,25 @@ const parseVariableInfo = (
     variableLength = variable.type.match(/uint([0-9]+)/)?.[1]
   } else if (variable.type.startsWith('t_address')) {
     variableLength = 20
+  } else if (variable.type.startsWith('t_bool')) {
+    variableLength = 1
+  } else if (variable.type.startsWith('t_array')) {
+    // Figure out the size of the type inside of the array
+    // and then multiply that by the length of the array.
+    // This does not support recursion multiple times for simplicity
+    const type = variable.type.match(/^t_array\((\w+)\)/)?.[1]
+    const info = parseVariableInfo({
+      label: variable.label,
+      offset: variable.offset,
+      slot: variable.slot,
+      type,
+    })
+    const size = variable.type.match(/^t_array\(\w+\)([0-9]+)/)?.[1]
+    variableLength = info.length * parseInt(size, 10)
   } else {
-    throw new Error('unsupported type, add it to the script')
+    throw new Error(
+      `${variable.label}: unsupported type ${variable.type}, add it to the script`
+    )
   }
 
   return {
@@ -43,31 +71,50 @@ const parseVariableInfo = (
 task(
   'validate-spacers',
   'validates that spacer variables are in the correct positions'
-).setAction(async (args, hre) => {
+).setAction(async ({}, hre: HardhatRuntimeEnvironment) => {
   const accounted: string[] = []
 
   const names = await hre.artifacts.getAllFullyQualifiedNames()
-  for (const name of names) {
+  for (const fqn of names) {
     // Script is remarkably slow because of getBuildInfo, so better to skip test files since they
     // don't matter for this check.
-    if (name.includes('.t.sol')) {
+    if (fqn.includes('.t.sol')) {
+      continue
+    }
+
+    console.log(`Processing ${fqn}`)
+    const parsed = parseFullyQualifiedName(fqn)
+    const contractName = parsed.contractName
+
+    if (skipped[contractName] === true) {
+      console.log(`Skipping ${contractName} because it is marked as skippable`)
       continue
     }
 
     // Some files may not have buildInfo (certain libraries). We can safely skip these because we
     // make sure that everything is accounted for anyway.
-    const buildInfo = await hre.artifacts.getBuildInfo(name)
+    const buildInfo = await hre.artifacts.getBuildInfo(fqn)
     if (buildInfo === undefined) {
-      console.log(`Skipping ${name} because it has no buildInfo`)
+      console.log(`Skipping ${fqn} because it has no buildInfo`)
       continue
     }
 
-    for (const source of Object.values(buildInfo.output.contracts)) {
-      for (const [contractName, contract] of Object.entries(source)) {
+    const sources = buildInfo.output.contracts
+    for (const [sourceName, source] of Object.entries(sources)) {
+      // The source file may have our contract
+      if (sourceName.includes(parsed.sourceName)) {
+        const contract = source[contractName]
+        if (!contract) {
+          console.log(`Skipping ${contractName} as its not found in the source`)
+          continue
+        }
         const storageLayout = (contract as any).storageLayout
+        if (!storageLayout) {
+          continue
+        }
 
-        // Check that the layout lock is respected.
         if (layoutLock[contractName]) {
+          console.log(`Processing layout lock for ${contractName}`)
           const removed = Object.entries(layoutLock[contractName]).filter(
             ([key, val]: any) => {
               const storage = storageLayout?.storage || []
@@ -80,6 +127,7 @@ task(
 
                 // Make sure the variable matches **exactly**.
                 const variableInfo = parseVariableInfo(item)
+
                 return (
                   variableInfo.name === key &&
                   variableInfo.offset === val.offset &&
@@ -95,11 +143,10 @@ task(
               `variable(s) removed from ${contractName}: ${removed.join(', ')}`
             )
           }
-
+          console.log(`Valid layout lock for ${contractName}`)
           accounted.push(contractName)
         }
 
-        // Check that the positions have not changed.
         for (const variable of storageLayout?.storage || []) {
           if (variable.label.startsWith('spacer_')) {
             const [, slot, offset, length] = variable.label.split('_')
@@ -125,6 +172,8 @@ task(
                 `${contractName} ${variable.label} is ${variableInfo.length} bytes long but should be ${length}`
               )
             }
+
+            console.log(`${contractName}.${variable.label} is valid`)
           }
         }
       }

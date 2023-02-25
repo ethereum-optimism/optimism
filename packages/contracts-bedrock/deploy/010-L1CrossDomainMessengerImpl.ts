@@ -1,4 +1,3 @@
-import { ethers } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 
 import {
@@ -22,11 +21,6 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'PORTAL',
         OptimismPortalProxy.address
-      )
-      await assertContractVariable(
-        contract,
-        'owner',
-        ethers.constants.AddressZero
       )
     },
   })
