@@ -1,9 +1,15 @@
 # atst cli docs
 
+## Installation
+
+```bash
+npm install @eth-optimism/atst --global
+```
+
 ## Usage
 
 ```bash
-atst <command> [options]
+npx atst <command> [options]
 ```
 
 ## Commands
@@ -14,8 +20,8 @@ write write an attestation
 For more info, run any command with the `--help` flag:
 
 ```bash
-atst read --help
-atst write --help
+npx atst read --help
+npx atst write --help
 ```
 
 ## Options:
@@ -26,7 +32,7 @@ atst write --help
 ## Usage:
 
 ```bash
-atst <command> [options]
+npx atst <command> [options]
 ```
 
 Commands:
@@ -36,8 +42,8 @@ write write an attestation
 For more info, run any command with the `--help` flag:
 
 ```bash
-atst read --help
-atst write --help
+npx atst read --help
+npx atst write --help
 ```
 
 ### Read
@@ -53,7 +59,7 @@ atst write --help
 Example:
 
 ```bash
-atst read --key "optimist.base-uri" --about 0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5 --creator 0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3
+npx atst read --key "optimist.base-uri" --about 0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5 --creator 0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3
 ```
 
 ### write
