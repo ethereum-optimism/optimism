@@ -228,6 +228,7 @@ jobs:
             docker build \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
             -f <<parameters.docker_file>> \
+            --build-arg VERSION=$CIRCLE_TAG \ 
             <<parameters.docker_context>>
       - run:
           name: Configure Docker
@@ -1152,6 +1153,11 @@ workflows:
       - hold:
           type: approval
           context: oplabs-gcr-release
+          filters:
+            tags:
+              only: /^op-node\/v.*/
+            branches:
+              ignore: /.*/
       - docker-release:
           name: op-node-docker-release
           filters:
