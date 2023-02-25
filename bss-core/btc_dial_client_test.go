@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/bss-core/dial"
-	"github.com/stretchr/testify/require"
+	 "github.com/stretchr/testify/require"
 )
 
 // TestValidateConfig asserts the behavior of ValidateConfig by testing expected
@@ -22,8 +22,8 @@ func TestDialBtcClientConfig(t *testing.T) {
 			panic("oh no")
 		}
 		fmt.Printf("Block count: %d", blockCount)
-
-		require.IsType(uint64, blockCount)
+		// assert blockCount is of type int
+		require.IsType(t, int(1), int(blockCount))
 	})
 
 }
