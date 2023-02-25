@@ -21,16 +21,17 @@
   },
   "dependencies": {
     "cac": "^6.7.14",
-    "ethers": "^5.7.0",
     "picocolors": "^1.0.0",
     "ora": "^6.1.2",
     "zod": "^3.11.6"
   },
   "peerDependencies": {
-    "@wagmi/core": ">0.9.0"
+    "@wagmi/core": ">0.9.0",
+    "ethers": "^5.0.0"
   },
   "devDependencies": {
     "@testing-library/react-hooks": "^8.0.1",
+    "ethers": "^5.7.0",
     "jsdom": "^21.1.0",
     "react-dom": "^18.2.0",
     "react": "^18.2.0",
