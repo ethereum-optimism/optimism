@@ -1,12 +1,14 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/35039927/218812217-92f0f784-cb85-43b9-9ca6-e2b9effd9eb2.png">
-    <img alt="wagmi logo" src="https://user-images.githubusercontent.com/35039927/218812217-92f0f784-cb85-43b9-9ca6-e2b9effd9eb2.png" width="auto" height="300">
-  </picture>
-</p>
+<div align="center">
+  <br />
+  <br />
+  <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
+  <br />
+  <h3>@eth-optimism/atst</h3> The official SDK and cli for Optimism's attestation Station
+  <br />
+</div>
 
 <p align="center">
-  The official SDK for Optimism's attestation Station
+
 <p>
 <a href="https://www.npmjs.com/package/@eth-optimism/atst" target="\_parent">
 <img alt="" src="https://img.shields.io/npm/dm/@eth-optimism/atst.svg" />
