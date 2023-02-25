@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
+	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -20,9 +21,12 @@ import (
 )
 
 type Config struct {
+
+	// @DEV BEDROCK pass in instanciated BTC client here
 	log             log.Logger
 	L1Client        *ethclient.Client
 	L2Client        *ethclient.Client
+	BTCClient       *rpcclient.Client
 	RollupNode      *sources.RollupClient
 	PollInterval    time.Duration
 	TxManagerConfig txmgr.Config
@@ -43,6 +47,9 @@ type CLIConfig struct {
 
 	// L2EthRpc is the HTTP provider URL for the L2 execution engine.
 	L2EthRpc string
+
+	// BTCRPC is the HTTP provider URL for the BTC node
+	BTCRpc string
 
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string

@@ -44,6 +44,9 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the rollup node.
 	RollupRpc string
 
+	// BTCRPC is the HTTP provider URL for the BTC node
+	BTCRpc string
+
 	// L2OOAddress is the L2OutputOracle contract address.
 	L2OOAddress string
 

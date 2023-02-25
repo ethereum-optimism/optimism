@@ -57,6 +57,12 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
+	// @DEV BEDROCK USE THIS LATER
+	_, err = dialBTCClientWithoutTimeout(cfg.BTCRpc)
+	if err != nil {
+		return nil, err
+	}
+
 	rollupClient, err := dialRollupClientWithTimeout(ctx, cfg.RollupRpc)
 	if err != nil {
 		return nil, err
@@ -100,6 +106,8 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
+
+// @DEV - this is the main entry point for the batch submitter in bedrock
 func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 

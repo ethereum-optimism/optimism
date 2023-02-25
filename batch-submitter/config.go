@@ -57,6 +57,9 @@ type Config struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
+	// BTCRPC is the HTTP provider URL for the BTC node
+	BTCRpc string
+
 	// L2EthRpc is the HTTP provider URL for L1.
 	L2EthRpc string
 
@@ -202,6 +205,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		BuildEnv:                  ctx.GlobalString(flags.BuildEnvFlag.Name),
 		EthNetworkName:            ctx.GlobalString(flags.EthNetworkNameFlag.Name),
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		BTCRpc:                    ctx.GlobalString(flags.BTCRpcFlag.Name),
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		CTCAddress:                ctx.GlobalString(flags.CTCAddressFlag.Name),
 		SCCAddress:                ctx.GlobalString(flags.SCCAddressFlag.Name),

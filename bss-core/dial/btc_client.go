@@ -7,7 +7,6 @@ import (
 func BTCClientWithTimeout(url string, postModeHTTP bool) (
 	*rpcclient.Client, error) {
 
-
 	connCfg := &rpcclient.ConnConfig{
 		Host:         url,
 		User:         "test",

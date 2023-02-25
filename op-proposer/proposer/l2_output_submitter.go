@@ -166,6 +166,12 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		return nil, err
 	}
 
+	// @DEV BEDROCK USE THIS LATER
+	_, err = dialBTCClientWithoutTimeout(cfg.BTCRpc)
+	if err != nil {
+		return nil, err
+	}
+
 	txMgrConfg := txmgr.Config{
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ReceiptQueryInterval:      time.Second,

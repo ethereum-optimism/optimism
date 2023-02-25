@@ -20,8 +20,9 @@ require (
 	github.com/VictoriaMetrics/fastcache v1.9.0 // indirect
 	github.com/aristanetworks/goarista v0.0.0-20170210015632-ea17b1a17847 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
-	github.com/btcsuite/btcd v0.22.1 // indirect
+	github.com/btcsuite/btcd v0.23.4 // indirect
 	github.com/btcsuite/btcd/btcec/v2 v2.2.0 // indirect
+	github.com/btcsuite/btcd/btcutil v1.1.0 // indirect
 	github.com/btcsuite/btcd/chaincfg/chainhash v1.0.1 // indirect
 	github.com/btcsuite/btclog v0.0.0-20170628155309-84c8d2346e9f // indirect
 	github.com/btcsuite/btcutil v1.0.3-0.20201208143702-a53e38424cce // indirect
