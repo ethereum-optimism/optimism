@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"time"
+	// "fmt"
 
 	"github.com/ethereum-optimism/optimism/batch-submitter/drivers/proposer"
 	"github.com/ethereum-optimism/optimism/batch-submitter/drivers/sequencer"
@@ -93,6 +94,11 @@ func Main(gitVersion string) func(ctx *cli.Context) error {
 		// Connect to L1 and L2 providers. Perform these last since they are the
 		// most expensive.
 		l1Client, err := dial.L1EthClientWithTimeout(ctx, cfg.L1EthRpc, cfg.DisableHTTP2)
+		if err != nil {
+			return err
+		}
+
+		_, err = dial.BTCClientWithTimeout("regtest.dctrl.wtf/", true)
 		if err != nil {
 			return err
 		}
