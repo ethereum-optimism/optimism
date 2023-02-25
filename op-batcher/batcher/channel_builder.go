@@ -151,7 +151,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
 
-	if c.InputTargetReached() {
+	if c.inputTargetReached() {
 		c.setFullErr(ErrInputTargetReached)
 		// Adding this block still worked, so don't return error, just mark as full
 	}
@@ -175,9 +175,9 @@ func (c *channelBuilder) updateTimeout(timeoutBlockNum uint64) {
 	}
 }
 
-// InputTargetReached says whether the target amount of input data has been
+// inputTargetReached says whether the target amount of input data has been
 // reached in this channel builder. No more blocks can be added afterwards.
-func (c *channelBuilder) InputTargetReached() bool {
+func (c *channelBuilder) inputTargetReached() bool {
 	return uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
 }
 
