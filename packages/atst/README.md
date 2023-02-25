@@ -40,7 +40,9 @@ TODO put a gif here of using it
 
 ## React instructions
 
-For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station. See [example/react](http://todo.todo.todo) for an example
+For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station. See [example/react](http://todo.todo.todo) for an example.
+
+Use `parseAttestationBytes` and `stringifyAttestationBytes` to parse and stringify attestations before passing them into wagmi hooks.
 
 ## Contributing
 
