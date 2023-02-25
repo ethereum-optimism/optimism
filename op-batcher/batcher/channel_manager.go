@@ -208,11 +208,14 @@ func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 		return nil, txID{}, err
 	}
 
-	s.registerL1Block(l1Head)
-
 	if err := s.processBlocks(); err != nil {
 		return nil, txID{}, err
 	}
+
+	// Register current L1 head only after all pending blocks have been
+	// processed. Even if a timeout will be triggered now, it is better to have
+	// all pending blocks be included in this channel for submission.
+	s.registerL1Block(l1Head)
 
 	if err := s.pendingChannel.OutputFrames(); err != nil {
 		return nil, txID{}, fmt.Errorf("creating frames with channel builder: %w", err)
