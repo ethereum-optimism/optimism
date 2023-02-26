@@ -350,7 +350,7 @@ And `op-geth` should be running! You should see some output, but you won’t see
 
 Once we’ve got `op-geth` running we’ll need to run `op-node`. Like Ethereum, the OP Stack has a consensus client (the `op-node`) and an execution client (`op-geth`). The consensus client drives the execution client over the Engine API.
 
-Head over to the `op-node` package and start the `op-node` using the following command. Replace `<SEQUENCERKEY>` with the private key for the `Sequencer` account, replace `<RPC>` with the URL for your L1 node, and replace `<RPCKIND>` with the kind of RPC you’re connected to. Although the `l1.rpckind` argument is optional, setting it will help the `op-node` optimize requests and reduce the overall load on your endpoint. Available options for the `l1.rpckind` argument are `"alchemy"`, `"quicknode"`, `"quicknode"`, `"parity"`, `"nethermind"`, `"debug_geth"`, `"erigon"`, `"basic"`, and `"any"`.
+Head over to the `op-node` package and start the `op-node` using the following command. Replace `<SEQUENCERKEY>` with the private key for the `Sequencer` account, replace `<RPC>` with the URL for your L1 node, and replace `<RPCKIND>` with the kind of RPC you’re connected to. Although the `l1.rpckind` argument is optional, setting it will help the `op-node` optimize requests and reduce the overall load on your endpoint. Available options for the `l1.rpckind` argument are `"alchemy"`, `"quicknode"`, `"parity"`, `"nethermind"`, `"debug_geth"`, `"erigon"`, `"basic"`, and `"any"`.
 
 ```bash
 ./bin/op-node \
