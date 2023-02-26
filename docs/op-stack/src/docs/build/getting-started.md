@@ -160,7 +160,7 @@ Recommended funding amounts are as follows:
 
 These values assume a nomimal Gas Price of 7 Gwei.  If gas prices are higher at the time of your deployment, you will need to increase the funding you provide to `Admin`.  For instance, if Gas Price is 42 Gwei, you will need to provide `Admin` with 1.2 ETH.
 
-Failure to account for gas price fluctiations can cause deployment to fail, so when in doubt, err on the side of a little too much. You can retrieve the excess it later if needed.
+Failure to account for gas price fluctiations can cause deployment to fail, so when in doubt, err on the side of a little too much. You can retrieve the excess ETH later if needed.
 
 ::: danger Not for production deployments
 
