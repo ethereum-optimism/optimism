@@ -228,7 +228,7 @@ jobs:
             docker build \
             $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
             -f <<parameters.docker_file>> \
-            --build-arg VERSION=$CIRCLE_TAG \ 
+            --build-arg VERSION=$CIRCLE_TAG \
             <<parameters.docker_context>>
       - run:
           name: Configure Docker
