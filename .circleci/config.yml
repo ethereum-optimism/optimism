@@ -1152,10 +1152,9 @@ workflows:
     jobs:
       - hold:
           type: approval
-          context: oplabs-gcr-release
           filters:
             tags:
-              only: /^op-node\/v.*/
+              only: /^op-[a-z0-9\-]*\/v.*/
             branches:
               ignore: /.*/
       - docker-release:
