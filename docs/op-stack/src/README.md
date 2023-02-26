@@ -33,7 +33,7 @@ At this point in time, the APIs for the different layers of the OP Stack are sti
 
 If you'd like to learn more about the current state of the OP Stack, check out [the page describing the Bedrock release](/docs/releases/bedrock/README.md).
 
-The OP Stack of today was built to support the Optimism Superchain (link), a proposed network of L2s that share security, communication layers, and a common development stack (the OP Stack itself). 
+The OP Stack of today was built to support [the Optimism Superchain](./docs/understand/explainer.md), a proposed network of L2s that share security, communication layers, and a common development stack (the OP Stack itself). 
 The Bedrock release of the OP Stack makes it easy to spin up an L2 that will be compatible with the Superchain when it launches. 
 If you'd like to launch a Superchain-ready L2, check out our guide for running a chain based on the Bedrock release of the OP Stack.
 
