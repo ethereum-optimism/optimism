@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   go: circleci/go@1.5.0
-  gcp-cli: circleci/gcp-cli@2.4.1
+  gcp-cli: circleci/gcp-cli@3.0.1
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
