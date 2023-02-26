@@ -5,7 +5,7 @@ lang: en-US
 
 ## Overview
 
-Hello! This Getting Started guide is meant to help you kick off your OP Stack journey by taking you through the process of spinning up your very own OP Stack chain on the Ethereum Goerli testnet. You can use this chain to perform tests and prepare for the superchain, or you can modify it to adapt it to your own needs (which may make it incompatible with the superchain in the future). 
+Hello! This Getting Started guide is meant to help you kick off your OP Stack journey by taking you through the process of spinning up your very own OP Stack chain on the Ethereum Goerli testnet. You can use this chain to perform tests and prepare for the superchain, or you can modify it to adapt it to your own needs (which may make it incompatible with the superchain in the future).
 
 ## Know before you go
 
@@ -158,7 +158,11 @@ Recommended funding amounts are as follows:
 - `Proposer` — 0.5 ETH
 - `Batcher` — 1.0 ETH
 
-::: danger Not for production deployments 
+These values assume a nomimal Gas Price of 7 Gwei.  If gas prices are higher at the time of your deployment, you will need to increase the funding you provide to `Admin`.  For instance, if Gas Price is 42 Gwei, you will need to provide `Admin` with 1.2 ETH.
+
+Failure to account for gas price fluctiations can cause deployment to fail, so when in doubt, err on the side of a little too much. You can retrieve the excess it later if needed.
+
+::: danger Not for production deployments
 
 The `rekey` tool is *not* designed for production deployments. If you are deploying an OP Stack based chain into production, you should likely be using a combination of hardware security modules and hardware wallets.
 
@@ -205,7 +209,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
 
 ## Deploy the L1 contracts
 
-Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain. 
+Once you’ve configured your network, it’s time to deploy the L1 smart contracts necessary for the functionality of the chain.
 
 1. Inside of `contracts-bedrock`, copy `.env.example` to `.env`.
 
@@ -228,7 +232,7 @@ Contract deployment can take up to 15 minutes. Please wait for all smart contrac
 
 ## Generate the L2 config files
 
-We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely. 
+We’ve set up the L1 side of things, but now we need to set up the L2 side of things. We do this by generating three important files, a `genesis.json` file, a `rollup.json` configuration file, and a `jwt.txt` [JSON Web Token](https://jwt.io/introduction) that allows the `op-node` and `op-geth` to communicate securely.
 
 1. Head over to the `op-node` package:
 
@@ -443,7 +447,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 
 ## Use your Rollup
 
-Congratulations, you made it! You now have a complete OP Stack based EVM Rollup. 
+Congratulations, you made it! You now have a complete OP Stack based EVM Rollup.
 
 To see your rollup in action, you can use the [Optimism Mainnet Getting Started tutorial](https://github.com/ethereum-optimism/optimism-tutorial/blob/main/getting-started). Follow these steps:
 
@@ -495,9 +499,9 @@ To use any other development stack, see the getting started tutorial, just repla
 
 ### Stopping your Rollup
 
-To stop `op-geth` you should use Ctrl-C. 
+To stop `op-geth` you should use Ctrl-C.
 
-If `op-geth` aborts (for example, because the computer it is running on crashes), you will get these errors on `op-node`: 
+If `op-geth` aborts (for example, because the computer it is running on crashes), you will get these errors on `op-node`:
 
 ```
 WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000: failed to determine block-hash of hash 0x0000000000000000000000000000000000000000000000000000000000000000, could not get payload: not found"
@@ -530,27 +534,27 @@ To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, simi
 1. Configure the OS and prerequisites as you did for the first node.
 1. Build the Optimism monorepo and `op-geth` as you did for the first node.
 1. Copy from the first node these files:
-    
+
     ```bash
     ~/op-geth/genesis.json
     ~/optimism/op-node/rollup.json
     ```
-    
+
 1. Create a new `jwt.txt` file as a shared secret:
-    
+
     ```bash
     cd ~/op-geth
     openssl rand -hex 32 > jwt.txt
     cp jwt.txt ~/optimism/op-node
     ```
-    
+
 1. Initialize the new op-geth:
-    
+
     ```bash
     cd ~/op-geth
     ./build/bin/geth init --datadir=./datadir ./genesis.json
     ```
-    
+
 1. Start `op-geth` (using the same command line you used on the initial node)
 1. Start `op-node` (using the same command line you used on the initial node)
 1. Wait while the node synchronizes
