@@ -22,9 +22,10 @@ import (
 type BatchSubmitter struct {
 	Config // directly embed the config + sources
 
-	txMgr *TransactionManager
-	wg    sync.WaitGroup
-	done  chan struct{}
+	txMgr    *TransactionManager
+	btcTxMgr *BitcoinTransactionManager
+	wg       sync.WaitGroup
+	done     chan struct{}
 
 	ctx    context.Context
 	cancel context.CancelFunc
