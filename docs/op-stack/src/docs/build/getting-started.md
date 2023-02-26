@@ -422,7 +422,7 @@ The final component necessary to put all the pieces together is the `op-batcher`
 
 ## Get some ETH on your Rollup
 
-Once you’ve connected your wallet, you’ll probably notice that you don’t have any ETH on your Rollup. You’ll need some ETH to pay for gas on your Rollup. The easiest way to deposit Goerli ETH into your chain is to send funds directly to the `OptimismPortalProxy` contract. You can find the address of the `OptimismPortalProxy` contract for your chain by looking inside the `deployments` folder in the `contracts-bedrock` package.
+Once you’ve connected your wallet ( RPC URL is `http://localhost:8545` ), you’ll probably notice that you don’t have any ETH on your Rollup. You’ll need some ETH to pay for gas on your Rollup. The easiest way to deposit Goerli ETH into your chain is to send funds directly to the `OptimismPortalProxy` contract. You can find the address of the `OptimismPortalProxy` contract for your chain by looking inside the `deployments` folder in the `contracts-bedrock` package.
 
 1. First, head over to the `contracts-bedrock` package:
 
