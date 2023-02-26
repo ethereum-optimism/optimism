@@ -1,5 +1,7 @@
 FROM golang:1.18.0-alpine3.15 as builder
 
+ARG VERSION=v0.0.0
+
 RUN apk add --no-cache make gcc musl-dev linux-headers git jq bash
 
 # build op-node with the shared go.mod & go.sum files
@@ -13,7 +15,7 @@ COPY ./.git /app/.git
 
 WORKDIR /app/op-node
 
-RUN make op-node
+RUN make op-node VERSION="$VERSION"
 
 FROM alpine:3.15
 
