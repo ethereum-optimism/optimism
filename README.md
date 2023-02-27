@@ -1,8 +1,5 @@
 
 <div align="center">
-   <br />
-  <br />
-  <a href=https://www.ethdenver.com"><img alt="Optimism" src="https://user-images.githubusercontent.com/35039927/221507745-09336d41-a42c-48fc-b52b-239a7cb63471.png" width=600></a>
   <br />
   <br />
   <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
