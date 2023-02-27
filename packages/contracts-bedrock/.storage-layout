@@ -11,11 +11,11 @@
 | spacer_0_0_20          | address                  | 0    | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | _initialized           | uint8                    | 0    | 20     | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | _initializing          | bool                     | 0    | 21     | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| __gap                  | uint256[50]              | 1    | 0      | 1600  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| _owner                 | address                  | 51   | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| __gap                  | uint256[49]              | 52   | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| _paused                | bool                     | 101  | 0      | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
-| __gap                  | uint256[49]              | 102  | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer_1_0_1600        | uint256[50]              | 1    | 0      | 1600  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer_51_0_20         | address                  | 51   | 0      | 20    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer_52_0_1568       | uint256[49]              | 52   | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer_101_0_1         | bool                     | 101  | 0      | 1     | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
+| spacer_102_0_1568      | uint256[49]              | 102  | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | spacer_151_0_32        | uint256                  | 151  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | __gap_reentrancy_guard | uint256[49]              | 152  | 0      | 1568  | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
 | spacer_201_0_32        | mapping(bytes32 => bool) | 201  | 0      | 32    | contracts/L1/L1CrossDomainMessenger.sol:L1CrossDomainMessenger |
@@ -121,11 +121,11 @@
 | spacer_0_0_20          | address                  | 0    | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | _initialized           | uint8                    | 0    | 20     | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | _initializing          | bool                     | 0    | 21     | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| __gap                  | uint256[50]              | 1    | 0      | 1600  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| _owner                 | address                  | 51   | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| __gap                  | uint256[49]              | 52   | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| _paused                | bool                     | 101  | 0      | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
-| __gap                  | uint256[49]              | 102  | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer_1_0_1600        | uint256[50]              | 1    | 0      | 1600  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer_51_0_20         | address                  | 51   | 0      | 20    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer_52_0_1568       | uint256[49]              | 52   | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer_101_0_1         | bool                     | 101  | 0      | 1     | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
+| spacer_102_0_1568      | uint256[49]              | 102  | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | spacer_151_0_32        | uint256                  | 151  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | __gap_reentrancy_guard | uint256[49]              | 152  | 0      | 1568  | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
 | spacer_201_0_32        | mapping(bytes32 => bool) | 201  | 0      | 32    | contracts/L2/L2CrossDomainMessenger.sol:L2CrossDomainMessenger |
