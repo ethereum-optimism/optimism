@@ -1149,36 +1149,35 @@ contract OptimismPortal_MinGasLimit_Test is Portal_Initializer {
         // Warp past the finalization period
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
+        // 78_602 is the absolute minimum amount of gas that can be supplied to `finalizeWithdrawalTransaction`
+        // and still succeed for this withdrawal.
+        uint256 minFinalizeGas = 78_602;
+
         // Loop through a range of gas values, and ensure that the external call *always* receives
         // at LEAST the minimum gas limit each time the call to `finalizeWithdrawalTransaction`
         // succeeds.
         //
-        // The range [75_483, 85_483] was chosen because it's a range that includes the minimum amount
-        // of gas required to execute this `finalizeWithdrawalTransaction` call, 80_483, +/- 10_000.
-        for (uint256 gas = 70_483; gas <= 90_483; gas++) {
+        // The range [68_602, 88_602] was chosen because it's a range that includes the minimum amount
+        // of gas required to execute this `finalizeWithdrawalTransaction` call, 78_602, +/- 10_000.
+        for (uint256 gas = minFinalizeGas - 10_000; gas <= minFinalizeGas + 10_000; gas++) {
             // Take a state snapshot.
             uint256 snapshotId = vm.snapshot();
 
-            // Attempt to finalize the withdrawal.
-            (bool success, bytes memory returndata) = address(op).call{ gas: gas }(
-                abi.encodeWithSelector(op.finalizeWithdrawalTransaction.selector, _defaultTx)
-            );
-
-            // If the call was successful, then the gas supplied to the external call MUST be greater than the
-            // minimum gas limit. Otherwise, the call MUST revert with the expected error message.
-            if (success) {
-                // This assertion doubles as a check that the sub-call succeeded AND that the gas
-                // supplied was greater than or equal to the `minGasLimit`.
-                assertTrue(receiver.receivedGas() >= minGasLimit);
-            } else {
-                assertEq(
-                    returndata,
-                    abi.encodeWithSignature(
-                        "Error(string)",
-                        "OptimismPortal: insufficient gas to finalize withdrawal"
-                    )
+            if (gas >= minFinalizeGas) {
+                // If the gas supplied to `finalizeWithdrawalTransaction` is greater than or equal to 78_602,
+                // then the call is expected to succeed. We also assert that at least the minimum gas limit
+                // was supplied to the external call to `_defaultTx.target` from the portal.
+                vm.expectCallMinGas(
+                    _defaultTx.target,
+                    _defaultTx.value,
+                    uint64(_defaultTx.gasLimit),
+                    _defaultTx.data
                 );
+            } else {
+                // Below 78_602 gas, the call is expected to revert with the "insufficient gas" error message.
+                vm.expectRevert("OptimismPortal: insufficient gas to finalize withdrawal");
             }
+            op.finalizeWithdrawalTransaction{ gas: gas }(_defaultTx);
 
             // Revert back to the snapshot state (before the withdrawal was finalized).
             assertTrue(vm.revertTo(snapshotId));
@@ -1202,36 +1201,35 @@ contract OptimismPortal_MinGasLimit_Test is Portal_Initializer {
         // Warp past the finalization period
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
+        // 1_397_286 is the absolute minimum amount of gas that can be supplied to `finalizeWithdrawalTransaction`
+        // and still succeed for this withdrawal.
+        uint256 minFinalizeGas = 1_397_286;
+
         // Loop through a range of gas values, and ensure that the external call *always* receives
         // at LEAST the minimum gas limit each time the call to `finalizeWithdrawalTransaction`
         // succeeds.
         //
-        // The range [1_387_136, 1_407_136] was chosen because it's a range that includes the minimum amount
-        // of gas required to execute this `finalizeWithdrawalTransaction` call, 1_397_136, +/- 10_000.
-        for (uint256 gas = 1_387_136; gas <= 1_407_136; gas++) {
+        // The range [1_387_286, 1_407_286] was chosen because it's a range that includes the minimum amount
+        // of gas required to execute this `finalizeWithdrawalTransaction` call, 1_397_286, +/- 10_000.
+        for (uint256 gas = minFinalizeGas - 10_000; gas <= minFinalizeGas + 10_000; gas++) {
             // Take a state snapshot.
             uint256 snapshotId = vm.snapshot();
 
-            // Attempt to finalize the withdrawal.
-            (bool success, bytes memory returndata) = address(op).call{ gas: gas }(
-                abi.encodeWithSelector(op.finalizeWithdrawalTransaction.selector, _defaultTx)
-            );
-
-            // If the call was successful, then the gas supplied to the external call MUST be greater than the
-            // minimum gas limit. Otherwise, the call MUST revert with the expected error message.
-            if (success) {
-                // This assertion doubles as a check that the sub-call succeeded AND that the gas
-                // supplied was greater than or equal to the `minGasLimit`.
-                assertTrue(receiver.receivedGas() >= minGasLimit);
-            } else {
-                assertEq(
-                    returndata,
-                    abi.encodeWithSignature(
-                        "Error(string)",
-                        "OptimismPortal: insufficient gas to finalize withdrawal"
-                    )
+            if (gas >= minFinalizeGas) {
+                // If the gas supplied to `finalizeWithdrawalTransaction` is greater than or equal to 78_602,
+                // then the call is expected to succeed. We also assert that at least the minimum gas limit
+                // was supplied to the external call to `_defaultTx.target` from the portal.
+                vm.expectCallMinGas(
+                    _defaultTx.target,
+                    _defaultTx.value,
+                    uint64(_defaultTx.gasLimit),
+                    _defaultTx.data
                 );
+            } else {
+                // Below 1_397_286 gas, the call is expected to revert with the "insufficient gas" error message.
+                vm.expectRevert("OptimismPortal: insufficient gas to finalize withdrawal");
             }
+            op.finalizeWithdrawalTransaction{ gas: gas }(_defaultTx);
 
             // Revert back to the snapshot state (before the withdrawal was finalized).
             assertTrue(vm.revertTo(snapshotId));
