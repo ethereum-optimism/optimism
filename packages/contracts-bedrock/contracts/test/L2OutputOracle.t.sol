@@ -411,6 +411,20 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.expectRevert("L2OutputOracle: cannot delete outputs after the latest output index");
         oracle.deleteL2Outputs(latestOutputIndex - 2);
     }
+
+    function test_deleteL2Outputs_finalized_reverts() external {
+        test_proposeL2Output_proposeAnotherOutput_succeeds();
+
+        // Warp past the finalization period + 1 second
+        vm.warp(block.timestamp + 7 days + 1);
+
+        uint256 latestOutputIndex = oracle.latestOutputIndex();
+
+        // Try to delete a finalized output
+        vm.prank(owner);
+        vm.expectRevert("L2OutputOracle: cannot delete outputs that have already been finalized");
+        oracle.deleteL2Outputs(latestOutputIndex);
+    }
 }
 
 contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {

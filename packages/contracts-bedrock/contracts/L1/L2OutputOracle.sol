@@ -143,6 +143,12 @@ contract L2OutputOracle is Initializable, Semver {
             "L2OutputOracle: cannot delete outputs after the latest output index"
         );
 
+        // Do not allow deleting any outputs that have already been finalized.
+        require(
+            block.timestamp - l2Outputs[_l2OutputIndex].timestamp < 7 days,
+            "L2OutputOracle: cannot delete outputs that have already been finalized"
+        );
+
         uint256 prevNextL2OutputIndex = nextOutputIndex();
 
         // Use assembly to delete the array elements because Solidity doesn't allow it.
