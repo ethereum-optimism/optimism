@@ -15,6 +15,7 @@ jobs:
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
       fault-detector: ${{ steps.packages.outputs.fault-detector }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
+      wd-mon: ${{ steps.packages.outputs.wd-mon }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
       contracts-bedrock: ${{ steps.packages.outputs.contracts-bedrock }}
@@ -335,6 +336,33 @@ jobs:
           target: fault-detector
           push: true
           tags: ethereumoptimism/fault-detector:${{ needs.release.outputs.fault-detector }},ethereumoptimism/fault-detector:latest
+
+  wd-mon:
+    name: Publish Withdrawal Monitor Version ${{ needs.release.outputs.wd-mon }}
+    needs: release
+    if: needs.release.outputs.wd-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: wd-mon
+          push: true
+          tags: ethereumoptimism/wd-mon:${{ needs.release.outputs.wd-mon }},ethereumoptimism/wd-mon:latest
 
   drippie-mon:
     name: Publish Drippie Monitor Version ${{ needs.release.outputs.drippie-mon }}
