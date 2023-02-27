@@ -53,7 +53,7 @@ transaction types:
    for the rationale).
 3. They buy their L2 gas on L1 and, as such, the L2 gas is not refundable.
 
-We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`.
+We define a new [EIP-2718] compatible transaction type with the prefix `0x7E` to represent a deposit transaction.
 
 A deposit has the following fields
 (rlp encoded in the order they appear here):
@@ -146,7 +146,7 @@ transaction's attributes, in exactly the same manner as it would be for an EIP-1
 The deposit transaction is processed exactly like a type-3 (EIP-1559) transaction, with the exception of:
 
 - No fee fields are verified: the deposit does not have any, as it pays for gas on L1.
-- Not `nonce` field is verified: the deposit does not have any, it's uniquely identified by its `sourceHash`.
+- No `nonce` field is verified: the deposit does not have any, it's uniquely identified by its `sourceHash`.
 - No access-list is processed: the deposit has no access-list, and it is thus processed as if the access-list is empty.
 - No check if `from` is an Externally Owner Account (EOA): the deposit is ensured not to be an EAO through L1 address
   masking, this may change in future L1 contract-deployments to e.g. enable an account-abstraction like mechanism.
@@ -165,8 +165,8 @@ and gas metering is the same (with the exception of fee related changes above), 
 Any non-EVM state-transition error emitted by the EVM execution is processed in a special way:
 
 - It is transformed into an EVM-error:
-  i.e. the deposit will always be included, but its receipt will indicate a failure,
-  if it runs into a non-EVM a state-transition error, e.g. failure to transfer the specified
+  i.e. the deposit will always be included, but its receipt will indicate a failure
+  if it runs into a non-EVM state-transition error, e.g. failure to transfer the specified
   `value` amount of ETH due to insufficient account-balance.
 - The world state is rolled back to the start of the EVM processing, after the minting part of the deposit.
 - The `nonce` of `from` in the world state is incremented by 1, making the error equivalent to a native EVM failure.
