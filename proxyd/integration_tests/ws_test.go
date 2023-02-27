@@ -1,7 +1,10 @@
 package integration_tests
 
 import (
+	"bufio"
+	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -40,7 +43,7 @@ func TestConcurrentWSPanic(t *testing.T) {
 	config := ReadConfig("ws")
 	shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
-	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, nil)
+	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, nil, nil)
 	require.NoError(t, err)
 	defer shutdown()
 
@@ -149,77 +152,31 @@ func TestWS(t *testing.T) {
 	config := ReadConfig("ws")
 	shutdown, err := proxyd.Start(config)
 	require.NoError(t, err)
-	client, err := NewProxydWSClient("ws://127.0.0.1:8546", func(msgType int, data []byte) {
+	defer shutdown()
+
+	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, func(msgType int, data []byte) {
 		clientHdlr.MsgCB(msgType, data)
 	}, nil)
 	defer client.HardClose()
 	require.NoError(t, err)
-	defer shutdown()
 
-	tests := []struct {
-		name       string
-		backendRes string
-		expRes     string
-		clientReq  string
-	}{
-		{
-			"ok response",
-			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0xcd0c3e8af590364c09d0fa6a1210faf5\"}",
-			"{\"jsonrpc\":\"2.0\",\"id\":1,\"result\":\"0xcd0c3e8af590364c09d0fa6a1210faf5\"}",
-			"{\"id\": 1, \"method\": \"eth_subscribe\", \"params\": [\"newHeads\"]}",
-		},
-		{
-			"garbage backend response",
-			"gibblegabble",
-			"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32013,\"message\":\"backend returned an invalid response\"},\"id\":null}",
-			"{\"id\": 1, \"method\": \"eth_subscribe\", \"params\": [\"newHeads\"]}",
-		},
-		{
-			"blacklisted RPC",
-			"}",
-			"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32001,\"message\":\"rpc method is not whitelisted\"},\"id\":1}",
-			"{\"id\": 1, \"method\": \"eth_whatever\", \"params\": []}",
-		},
-		{
-			"garbage client request",
-			"{}",
-			"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32700,\"message\":\"parse error\"},\"id\":null}",
-			"barf",
-		},
-		{
-			"invalid client request",
-			"{}",
-			"{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32700,\"message\":\"parse error\"},\"id\":null}",
-			"{\"jsonrpc\": \"2.0\", \"method\": true}",
-		},
-		{
-			"eth_accounts",
-			"{}",
-			"{\"jsonrpc\":\"2.0\",\"result\":[],\"id\":1}",
-			"{\"jsonrpc\": \"2.0\", \"method\": \"eth_accounts\", \"id\": 1}",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			timeout := time.NewTicker(30 * time.Second)
-			doneCh := make(chan struct{}, 1)
-			backendHdlr.SetMsgCB(func(conn *websocket.Conn, msgType int, data []byte) {
-				require.NoError(t, conn.WriteMessage(websocket.TextMessage, []byte(tt.backendRes)))
-			})
-			clientHdlr.SetMsgCB(func(msgType int, data []byte) {
-				require.Equal(t, tt.expRes, string(data))
-				doneCh <- struct{}{}
-			})
-			require.NoError(t, client.WriteMessage(
-				websocket.TextMessage,
-				[]byte(tt.clientReq),
-			))
-			select {
-			case <-timeout.C:
-				t.Fatalf("timed out")
-			case <-doneCh:
-				return
-			}
+	f, err := os.Open("testdata/ws_testdata.txt")
+	require.NoError(t, err)
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	scanner.Scan() // skip header
+	for scanner.Scan() {
+		record := strings.Split(scanner.Text(), "|")
+		name, body, responseBody, expResponseBody := record[0], record[1], record[2], record[3]
+		if expResponseBody == "" {
+			expResponseBody = responseBody
+		}
+		require.NoError(t, err)
+		t.Run(name, func(t *testing.T) {
+			res := spamWSReqs(t, clientHdlr, backendHdlr, client, []byte(body), []byte(responseBody), 1)
+			require.NoError(t, err)
+			require.Equal(t, 1, res[expResponseBody])
 		})
 	}
 }
@@ -244,7 +201,7 @@ func TestWSClientClosure(t *testing.T) {
 
 	for _, closeType := range []string{"soft", "hard"} {
 		t.Run(closeType, func(t *testing.T) {
-			client, err := NewProxydWSClient("ws://127.0.0.1:8546", func(msgType int, data []byte) {
+			client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, func(msgType int, data []byte) {
 				clientHdlr.MsgCB(msgType, data)
 			}, nil)
 			require.NoError(t, err)
@@ -283,9 +240,9 @@ func TestWSClientMaxConns(t *testing.T) {
 	defer shutdown()
 
 	doneCh := make(chan struct{}, 1)
-	_, err = NewProxydWSClient("ws://127.0.0.1:8546", nil, nil)
+	_, err = NewProxydWSClient("ws://127.0.0.1:8546", nil, nil, nil)
 	require.NoError(t, err)
-	_, err = NewProxydWSClient("ws://127.0.0.1:8546", nil, func(err error) {
+	_, err = NewProxydWSClient("ws://127.0.0.1:8546", nil, nil, func(err error) {
 		require.Contains(t, err.Error(), "unexpected EOF")
 		doneCh <- struct{}{}
 	})
@@ -298,4 +255,146 @@ func TestWSClientMaxConns(t *testing.T) {
 	case <-doneCh:
 		return
 	}
+}
+
+var sampleRequest = []byte("{\"jsonrpc\": \"2.0\", \"method\": \"eth_accounts\", \"id\": 1}")
+
+func TestWSClientMaxRPSLimit(t *testing.T) {
+	backendHdlr := new(backendHandler)
+	clientHdlr := new(clientHandler)
+
+	backend := NewMockWSBackend(nil, func(conn *websocket.Conn, msgType int, data []byte) {
+		backendHdlr.MsgCB(conn, msgType, data)
+	}, func(conn *websocket.Conn, err error) {
+		backendHdlr.CloseCB(conn, err)
+	})
+	defer backend.Close()
+
+	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
+
+	config := ReadConfig("ws_frontend_rate_limit")
+	shutdown, err := proxyd.Start(config)
+	require.NoError(t, err)
+	defer shutdown()
+
+	t.Run("non-exempt over limit", func(t *testing.T) {
+		client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, func(msgType int, data []byte) {
+			clientHdlr.MsgCB(msgType, data)
+		}, nil)
+		defer client.HardClose()
+		require.NoError(t, err)
+		res := spamWSReqs(t, clientHdlr, backendHdlr, client, sampleRequest, []byte(""), 4)
+		require.Equal(t, 3, res[invalidRateLimitResponse])
+	})
+
+	t.Run("exempt user agent over limit", func(t *testing.T) {
+		h := make(http.Header)
+		h.Set("User-Agent", "exempt_agent")
+		client, err := NewProxydWSClient("ws://127.0.0.1:8546", h, func(msgType int, data []byte) {
+			clientHdlr.MsgCB(msgType, data)
+		}, nil)
+		defer client.HardClose()
+		require.NoError(t, err)
+		res := spamWSReqs(t, clientHdlr, backendHdlr, client, sampleRequest, []byte(""), 4)
+		require.Equal(t, 0, res[invalidRateLimitResponse])
+	})
+
+	t.Run("exempt origin over limit", func(t *testing.T) {
+		h := make(http.Header)
+		// In gorilla/websocket, the Origin header must be the same as the URL.
+		// Otherwise, it will be rejected
+		h.Set("Origin", "wss://127.0.0.1:8546")
+		client, err := NewProxydWSClient("ws://127.0.0.1:8546", h, func(msgType int, data []byte) {
+			clientHdlr.MsgCB(msgType, data)
+		}, nil)
+		defer client.HardClose()
+		require.NoError(t, err)
+		res := spamWSReqs(t, clientHdlr, backendHdlr, client, sampleRequest, []byte(""), 4)
+		require.Equal(t, 0, res[invalidRateLimitResponse])
+	})
+
+	t.Run("multiple xff", func(t *testing.T) {
+		h1 := make(http.Header)
+		h1.Set("X-Forwarded-For", "1.1.1.1")
+		h2 := make(http.Header)
+		h2.Set("X-Forwarded-For", "2.2.2.2")
+		client1, _ := NewProxydWSClient("ws://127.0.0.1:8546", h1, func(msgType int, data []byte) {
+			clientHdlr.MsgCB(msgType, data)
+		}, nil)
+		defer client1.HardClose()
+		client2, _ := NewProxydWSClient("ws://127.0.0.1:8546", h2, func(msgType int, data []byte) {
+			clientHdlr.MsgCB(msgType, data)
+		}, nil)
+		defer client2.HardClose()
+		res1 := spamWSReqs(t, clientHdlr, backendHdlr, client1, sampleRequest, []byte(""), 4)
+		res2 := spamWSReqs(t, clientHdlr, backendHdlr, client2, sampleRequest, []byte(""), 4)
+		require.Equal(t, 3, res1[invalidRateLimitResponse])
+		require.Equal(t, 3, res2[invalidRateLimitResponse])
+	})
+}
+
+func TestWSSenderRateLimitLimiting(t *testing.T) {
+	backendHdlr := new(backendHandler)
+	clientHdlr := new(clientHandler)
+
+	backend := NewMockWSBackend(nil, func(conn *websocket.Conn, msgType int, data []byte) {
+		backendHdlr.MsgCB(conn, msgType, data)
+	}, func(conn *websocket.Conn, err error) {
+		backendHdlr.CloseCB(conn, err)
+	})
+	defer backend.Close()
+
+	require.NoError(t, os.Setenv("GOOD_BACKEND_RPC_URL", backend.URL()))
+
+	config := ReadConfig("ws_sender_rate_limit")
+	shutdown, err := proxyd.Start(config)
+	require.NoError(t, err)
+	defer shutdown()
+
+	// Two separate requests from the same sender
+	// should be rate limited.
+	client, err := NewProxydWSClient("ws://127.0.0.1:8546", nil, func(msgType int, data []byte) {
+		clientHdlr.MsgCB(msgType, data)
+	}, nil)
+	defer client.HardClose()
+	require.NoError(t, err)
+	res := spamWSReqs(t, clientHdlr, backendHdlr, client, makeSendRawTransaction(txHex1), []byte(""), 4)
+	require.Equal(t, 3, res[invalidSenderRateLimitResponse])
+
+	// Clear the limiter.
+	time.Sleep(1100 * time.Millisecond)
+
+	// Two separate requests from different senders
+	// should not be rate limited.
+	res1 := spamWSReqs(t, clientHdlr, backendHdlr, client, makeSendRawTransaction(txHex1), []byte(""), 4)
+	res2 := spamWSReqs(t, clientHdlr, backendHdlr, client, makeSendRawTransaction(txHex2), []byte(""), 4)
+	require.Equal(t, 3, res1[invalidSenderRateLimitResponse])
+	require.Equal(t, 3, res2[invalidSenderRateLimitResponse])
+}
+
+func spamWSReqs(t *testing.T, clientHdlr *clientHandler, backendHdlr *backendHandler, client *ProxydWSClient, request []byte, response []byte, n int) map[string]int {
+	resCh := make(chan string)
+	for i := 0; i < n; i++ {
+		go func() {
+			backendHdlr.SetMsgCB(func(conn *websocket.Conn, msgType int, data []byte) {
+				require.NoError(t, conn.WriteMessage(websocket.TextMessage, response))
+			})
+			clientHdlr.SetMsgCB(func(msgType int, data []byte) {
+				resCh <- string(data)
+			})
+			require.NoError(t, client.WriteMessage(
+				websocket.TextMessage,
+				[]byte(request),
+			))
+		}()
+	}
+
+	resMapping := make(map[string]int)
+	for i := 0; i < n; i++ {
+		res := <-resCh
+		response := res
+		resMapping[response]++
+	}
+
+	return resMapping
 }

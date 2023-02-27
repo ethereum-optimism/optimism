@@ -4,24 +4,20 @@ ws_backend_group = "main"
 
 ws_method_whitelist = [
   "eth_subscribe",
-  "eth_accounts",
-  "eth_sendRawTransaction"
+  "eth_accounts"
 ]
 
 [server]
 rpc_port = 8545
 ws_port = 8546
-max_body_size_bytes = 10000
 
 [backend]
 response_timeout_seconds = 1
-max_response_size_bytes = 10000
 
 [backends]
 [backends.good]
 rpc_url = "$GOOD_BACKEND_RPC_URL"
 ws_url = "$GOOD_BACKEND_RPC_URL"
-max_ws_conns = 1
 
 [backend_groups]
 [backend_groups.main]
@@ -32,8 +28,8 @@ eth_chainId = "main"
 
 [rate_limit]
 enable_backend_rate_limiter = true
-
-[sender_rate_limit]
-enabled = true
-limit = 10000
-interval = "1s"
+base_rate = 1
+base_interval = "1s"
+exempt_origins = ["wss://127.0.0.1:8546"]
+exempt_user_agents = ["exempt_agent"]
+error_message = "over rate limit with special message"

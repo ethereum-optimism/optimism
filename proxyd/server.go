@@ -65,6 +65,12 @@ type Server struct {
 
 type limiterFunc func(method string) bool
 
+type WSServerLimiter struct {
+	isLimited         limiterFunc
+	isRateLimitSender func(ctx context.Context, req *RPCReq) error
+	maxBodySize       int64
+}
+
 func NewServer(
 	backendGroups map[string]*BackendGroup,
 	wsBackendGroup *BackendGroup,
@@ -525,6 +531,51 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	origin := r.Header.Get("Origin")
+	userAgent := r.Header.Get("User-Agent")
+	// Use XFF in context since it will automatically be replaced by the remote IP
+	xff := stripXFF(GetXForwardedFor(ctx))
+	isUnlimitedOrigin := s.isUnlimitedOrigin(origin)
+	isUnlimitedUserAgent := s.isUnlimitedUserAgent(userAgent)
+
+	if xff == "" {
+		writeRPCError(ctx, w, nil, ErrInvalidRequest("request does not include a remote IP"))
+		return
+	}
+
+	isLimited := func(method string) bool {
+		isGloballyLimitedMethod := s.isGlobalLimit(method)
+		if !isGloballyLimitedMethod && (isUnlimitedOrigin || isUnlimitedUserAgent) {
+			return false
+		}
+
+		var lim FrontendRateLimiter
+		if method == "" {
+			lim = s.mainLim
+		} else {
+			lim = s.overrideLims[method]
+		}
+
+		if lim == nil {
+			return false
+		}
+
+		ok, err := lim.Take(context.Background(), xff)
+		if err != nil {
+			log.Warn("error taking rate limit", "err", err)
+			return true
+		}
+		return !ok
+	}
+
+	isRateLimitSender := func(ctx context.Context, req *RPCReq) error {
+		if s.senderLim != nil {
+			return s.rateLimitSender(ctx, req)
+		} else {
+			return nil
+		}
+	}
+
 	proxier, err := s.wsBackendGroup.ProxyWS(ctx, clientConn, s.wsMethodWhitelist)
 	if err != nil {
 		if errors.Is(err, ErrNoBackends) {
@@ -537,8 +588,9 @@ func (s *Server) HandleWS(w http.ResponseWriter, r *http.Request) {
 
 	activeClientWsConnsGauge.WithLabelValues(GetAuthCtx(ctx)).Inc()
 	go func() {
+		proxyWSServerLimiter := WSServerLimiter{isLimited: isLimited, isRateLimitSender: isRateLimitSender, maxBodySize: s.maxBodySize}
 		// Below call blocks so run it in a goroutine.
-		if err := proxier.Proxy(ctx); err != nil {
+		if err := proxier.Proxy(ctx, &proxyWSServerLimiter); err != nil {
 			log.Error("error proxying websocket", "auth", GetAuthCtx(ctx), "req_id", GetReqID(ctx), "err", err)
 		}
 		activeClientWsConnsGauge.WithLabelValues(GetAuthCtx(ctx)).Dec()

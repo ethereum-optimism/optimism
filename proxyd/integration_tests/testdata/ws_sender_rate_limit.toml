@@ -11,17 +11,14 @@ ws_method_whitelist = [
 [server]
 rpc_port = 8545
 ws_port = 8546
-max_body_size_bytes = 10000
 
 [backend]
 response_timeout_seconds = 1
-max_response_size_bytes = 10000
 
 [backends]
 [backends.good]
 rpc_url = "$GOOD_BACKEND_RPC_URL"
 ws_url = "$GOOD_BACKEND_RPC_URL"
-max_ws_conns = 1
 
 [backend_groups]
 [backend_groups.main]
@@ -29,11 +26,9 @@ backends = ["good"]
 
 [rpc_method_mappings]
 eth_chainId = "main"
-
-[rate_limit]
-enable_backend_rate_limiter = true
+eth_sendRawTransaction = "main"
 
 [sender_rate_limit]
 enabled = true
-limit = 10000
 interval = "1s"
+limit = 1
