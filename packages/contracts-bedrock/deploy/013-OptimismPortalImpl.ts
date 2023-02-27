@@ -41,7 +41,6 @@ const deployFn: DeployFunction = async (hre) => {
     name: 'OptimismPortal',
     args: [
       L2OutputOracleProxy.address,
-      hre.deployConfig.finalizationPeriodSeconds,
       finalSystemOwner,
       true, // paused
     ],
@@ -50,11 +49,6 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'L2_ORACLE',
         L2OutputOracleProxy.address
-      )
-      await assertContractVariable(
-        contract,
-        'FINALIZATION_PERIOD_SECONDS',
-        hre.deployConfig.finalizationPeriodSeconds
       )
       await assertContractVariable(
         contract,
