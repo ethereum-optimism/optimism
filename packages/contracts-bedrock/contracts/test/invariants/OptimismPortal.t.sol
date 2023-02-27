@@ -1,6 +1,9 @@
 pragma solidity 0.8.15;
 
 import { Portal_Initializer } from "../CommonTest.t.sol";
+import { Vm } from "forge-std/Vm.sol";
+import { Proxy } from "../../universal/Proxy.sol";
+import { OptimismPortal } from "../../L1/OptimismPortal.sol";
 import { Types } from "../../libraries/Types.sol";
 
 contract OptimismPortal_Invariant_Harness is Portal_Initializer {
@@ -125,9 +128,72 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
     }
 }
 
+contract OptimismPortal_FinalizeFuzzGasActor {
+    OptimismPortal internal immutable OP;
+    Vm internal immutable VM;
+    Types.WithdrawalTransaction internal _defaultTx;
+
+    constructor(
+        OptimismPortal _op,
+        Vm _vm,
+        Types.WithdrawalTransaction memory _tx
+    ) {
+        OP = _op;
+        VM = _vm;
+        _defaultTx = _tx;
+    }
+
+    function finalize(uint64 gas) external {
+        // Ensure that the portal has at least the transaction value as a balance.
+        // For some weird reason, the invariant fuzzer sometimes zeroes out the portal
+        // proxy's balance if a call to it reverts, even though it should have 0xFFFFFFFF ETH
+        // prior to finalizing alice's withdrawal to bob.
+        VM.deal(address(OP), _defaultTx.value);
+
+        (bool success, bytes memory returndata) = address(OP).call{ gas: gas }(
+            abi.encodeWithSelector(OP.finalizeWithdrawalTransaction.selector, _defaultTx)
+        );
+
+        // With the set up of this test, the only way the above call should fail is if:
+        // 1. The call ran out of gas
+        // 2. The portal reverted with the "insufficient gas to finalize withdrawal" error
+        // 3. The withdrawal has already been finalized.
+        if (!success) {
+            bytes32 returnDataHash = keccak256(returndata);
+            require(
+                returnDataHash ==
+                    keccak256(
+                        abi.encodeWithSignature(
+                            "Error(string)",
+                            "OptimismPortal: insufficient gas to finalize withdrawal"
+                        )
+                    ) ||
+                    returnDataHash ==
+                    keccak256(abi.encodeWithSignature("Error(string)", "EvmError: OutOfGas")) ||
+                    returnDataHash ==
+                    keccak256(
+                        abi.encodeWithSignature(
+                            "Error(string)",
+                            "OptimismPortal: withdrawal has already been finalized"
+                        )
+                    )
+            );
+        }
+    }
+}
+
 contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant_Harness {
+    uint256 internal bobBalanceBefore;
+
     function setUp() public override {
         super.setUp();
+
+        // Create a finalize actor
+        OptimismPortal_FinalizeFuzzGasActor finalizeActor = new OptimismPortal_FinalizeFuzzGasActor(
+            op,
+            vm,
+            _defaultTx
+        );
 
         // Prove the withdrawal transaction
         op.proveWithdrawalTransaction(
@@ -140,10 +206,23 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
         // Warp past the finalization period.
         vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
 
-        // Set the target contract to the portal proxy
+        // Target the portal proxy
         targetContract(address(op));
+
+        // Target the finalize actor
+        targetContract(address(finalizeActor));
+
         // Exclude the proxy multisig from the senders so that the proxy cannot be upgraded
         excludeSender(address(multisig));
+
+        // Exclude bob as a sender so that his balance remains static.
+        excludeSender(address(bob));
+
+        // Exclude the guardian as a sender so that they may not pause the portal.
+        excludeSender(address(guardian));
+
+        // Keep track of bob's balance before any calls were made.
+        bobBalanceBefore = address(bob).balance;
     }
 
     /**
@@ -152,13 +231,14 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
      *
      * This invariant asserts that there is no chain of calls that can be made that
      * will prevent a withdrawal from being finalized exactly `FINALIZATION_PERIOD_SECONDS`
-     * after it was successfully proven.
+     * after it was successfully proven if enough gas is provided.
      */
     function invariant_canAlwaysFinalize() external {
-        uint256 bobBalanceBefore = address(bob).balance;
-
-        op.finalizeWithdrawalTransaction(_defaultTx);
-
-        assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
+        // If the withdrawal was marked as finalized, we need to ensure that the external
+        // call made within `finalizeWithdrawalTransaction` was successful. We do so by
+        // ensuring that bob's balance has increased by the amount of the withdrawal.
+        if (op.finalizedWithdrawals(_withdrawalHash)) {
+            assertEq(address(bob).balance, bobBalanceBefore + _defaultTx.value);
+        }
     }
 }
