@@ -29,7 +29,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             // startingTimestamp is in the future
             block.timestamp + 1,
             proposer,
-            owner
+            owner,
+            7 days // finalization period (seconds)
         );
     }
 
@@ -41,7 +42,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             startingBlockNumber,
             block.timestamp,
             proposer,
-            owner
+            owner,
+            7 days // finalization period (seconds)
         );
     }
 
@@ -63,7 +65,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
             startingBlockNumber,
             block.timestamp,
             proposer,
-            owner
+            owner,
+            7 days // finalization period (seconds)
         );
     }
 

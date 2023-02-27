@@ -134,7 +134,8 @@ contract L2OutputOracle_Initializer is CommonTest {
             startingBlockNumber,
             startingTimestamp,
             proposer,
-            owner
+            owner,
+            7 days // finalization period (seconds)
         );
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
@@ -170,7 +171,6 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         opImpl = new OptimismPortal({
             _l2Oracle: oracle,
             _guardian: guardian,
-            _finalizationPeriodSeconds: 7 days,
             _paused: true
         });
         Proxy proxy = new Proxy(multisig);
@@ -234,7 +234,6 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         op = new OptimismPortal({
             _l2Oracle: oracle,
             _guardian: guardian,
-            _finalizationPeriodSeconds: 7 days,
             _paused: false
         });
         vm.label(address(op), "OptimismPortal");

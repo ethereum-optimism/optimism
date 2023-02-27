@@ -35,6 +35,11 @@ contract L2OutputOracle is Initializable, Semver {
     address public immutable PROPOSER;
 
     /**
+     * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
+     */
+    uint256 public immutable FINALIZATION_PERIOD_SECONDS;
+
+    /**
      * @notice The number of the first L2 block recorded in this contract.
      */
     uint256 public startingBlockNumber;
@@ -88,7 +93,8 @@ contract L2OutputOracle is Initializable, Semver {
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         address _proposer,
-        address _challenger
+        address _challenger,
+        uint256 _finalizationPeriodSeconds
     ) Semver(1, 1, 0) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
         require(
@@ -100,6 +106,7 @@ contract L2OutputOracle is Initializable, Semver {
         L2_BLOCK_TIME = _l2BlockTime;
         PROPOSER = _proposer;
         CHALLENGER = _challenger;
+        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
 
         initialize(_startingBlockNumber, _startingTimestamp);
     }
@@ -145,7 +152,7 @@ contract L2OutputOracle is Initializable, Semver {
 
         // Do not allow deleting any outputs that have already been finalized.
         require(
-            block.timestamp - l2Outputs[_l2OutputIndex].timestamp < 7 days,
+            block.timestamp - l2Outputs[_l2OutputIndex].timestamp < FINALIZATION_PERIOD_SECONDS,
             "L2OutputOracle: cannot delete outputs that have already been finalized"
         );
 
