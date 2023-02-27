@@ -18,14 +18,14 @@ func CreateChunks(chunkSize uint64, calldata []byte) [][]byte {
 	return chunkArray
 }
 
-func CreateBitcoinScript(calldata [][]byte) ([]byte, error) {
+func CreateBitcoinScript(calldataChunks [][]byte) ([]byte, error) {
 	tapscript := txscript.NewScriptBuilder()
 	// @DEV should we have a prefix telling what it is?
 
 	tapscript.AddOp(txscript.OP_FALSE)
 	tapscript.AddOp(txscript.OP_IF)
 	// for loop appending elements of calldata to tapscript with AddData
-	for _, calldata := range calldata {
+	for _, calldata := range calldataChunks {
 		tapscript.AddData(calldata)
 	}
 

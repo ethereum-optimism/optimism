@@ -179,6 +179,7 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 	data = append([]byte{0}, data...)
 
 	s.log.Trace("returning next tx data", "id", id)
+	// @DEV this is where tx data is popped off of the block queue??????
 	s.pendingTransactions[id] = data
 	return data, id, nil
 }
@@ -191,6 +192,8 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 //
 // It currently ignores the l1Head provided and doesn't track channel timeouts
 // or the sequencer window span yet.
+
+// @DEV this is where tx data is popped off of the block queue 2.0??????
 func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))

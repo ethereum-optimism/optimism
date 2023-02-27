@@ -58,8 +58,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
-	// @DEV BEDROCK USE THIS LATER
-	_, err = dialBTCClientWithoutTimeout(cfg.BTCRpc)
+	btcClient, err := dialBTCClientWithoutTimeout(cfg.BTCRpc)
 	if err != nil {
 		return nil, err
 	}
@@ -86,6 +85,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 	batcherCfg := Config{
 		L1Client:        l1Client,
 		L2Client:        l2Client,
+		BTCClient:       btcClient,
 		RollupNode:      rollupClient,
 		PollInterval:    cfg.PollInterval,
 		TxManagerConfig: txManagerConfig,
@@ -126,7 +126,8 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 		txMgr: NewTransactionManager(l,
 			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
 			cfg.From, cfg.L1Client),
-		done: make(chan struct{}),
+		btcTxMgr: NewBitcoinTransactionManager(cfg.BTCRecipientAddress, cfg.BTCSenderAddress, cfg.BTCClient),
+		done:     make(chan struct{}),
 		// TODO: this context only exists because the event loop doesn't reach done
 		// if the tx manager is blocking forever due to e.g. insufficient balance.
 		ctx:    ctx,
