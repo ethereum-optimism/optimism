@@ -57,11 +57,10 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/wsddn/go-ecdh v0.0.0-20161211032359-48726bab9208
-	golang.org/x/crypto v0.0.0-20220307211146-efcb8507fb70
-	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
-	golang.org/x/sys v0.0.0-20220310020820-b874c991c1a5
-	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
-	golang.org/x/text v0.3.7
+	golang.org/x/crypto v0.1.0
+	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4
+	golang.org/x/sys v0.1.0
+	golang.org/x/text v0.4.0
 	golang.org/x/time v0.0.0-20220224211638-0e9765cccd65
 	google.golang.org/protobuf v1.27.1 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
