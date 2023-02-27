@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +53,6 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	require.Equal(t, 0, balance.Cmp(common.Big0))
 
 	badDepositTx := types.NewTx(&types.DepositTx{
-		SourceHash:          opGeth.L1Head.Hash(),
 		From:                fromAddr,
 		To:                  &fromAddr, // send it to ourselves
 		Value:               big.NewInt(params.Ether),
@@ -69,4 +69,106 @@ func TestInvalidDepositInFCU(t *testing.T) {
 	balance, err = opGeth.L2Client.BalanceAt(ctx, fromAddr, nil)
 	require.Nil(t, err)
 	require.Equal(t, 0, balance.Cmp(common.Big0))
+}
+
+func TestBedrockSystemTxUsesZeroGas(t *testing.T) {
+	cfg := DefaultSystemConfig(t)
+	cfg.DeployConfig.FundDevAccounts = false
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
+
+	block, err := opGeth.AddL2Block(ctx)
+	require.NoError(t, err)
+	infoTx, err := opGeth.L2Client.TransactionInBlock(ctx, block.BlockHash, 0)
+	require.NoError(t, err)
+	require.True(t, infoTx.IsSystemTx())
+	receipt, err := opGeth.L2Client.TransactionReceipt(ctx, infoTx.Hash())
+	require.NoError(t, err)
+	require.Zero(t, receipt.GasUsed)
+}
+
+func TestBedrockDepositTx(t *testing.T) {
+	cfg := DefaultSystemConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
+
+	aliceAddr := cfg.Secrets.Addresses().Alice
+
+	// Deposit TX with a higher gas limit than required
+	depositTx := types.NewTx(&types.DepositTx{
+		From:                aliceAddr,
+		To:                  &aliceAddr,
+		Value:               big.NewInt(0),
+		Gas:                 50_000, // Simple transfer only requires 21,000
+		IsSystemTransaction: false,
+	})
+
+	// Contract creation deposit tx
+	contractCreateTx := types.NewTx(&types.DepositTx{
+		From:                aliceAddr,
+		Value:               big.NewInt(params.Ether),
+		Gas:                 1000001,
+		Data:                []byte{},
+		IsSystemTransaction: false,
+	})
+
+	_, err = opGeth.AddL2Block(ctx, depositTx, contractCreateTx)
+	require.NoError(t, err)
+	receipt, err := opGeth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx should succeed")
+	require.Equal(t, depositTx.Gas(), receipt.GasUsed, "should use all gas")
+
+	incorrectContractAddress := crypto.CreateAddress(aliceAddr, uint64(0)) // Expected to be wrong
+	correctContractAddress := crypto.CreateAddress(aliceAddr, uint64(1))
+	createRcpt, err := opGeth.L2Client.TransactionReceipt(ctx, contractCreateTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, createRcpt.Status, "create should succeed")
+	require.Equal(t, incorrectContractAddress, createRcpt.ContractAddress, "should report incorrect contract address")
+
+	contractBalance, err := opGeth.L2Client.BalanceAt(ctx, createRcpt.ContractAddress, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(0), contractBalance.Uint64(), "balance unchanged on incorrect contract address")
+
+	contractBalance, err = opGeth.L2Client.BalanceAt(ctx, correctContractAddress, nil)
+	require.NoError(t, err)
+	require.Equal(t, uint64(params.Ether), contractBalance.Uint64(), "balance changed on correct contract address")
+}
+
+func TestBedrockShouldNotRefundDepositTxUnusedGas(t *testing.T) {
+	cfg := DefaultSystemConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	opGeth, err := NewOpGeth(t, ctx, &cfg)
+	require.NoError(t, err)
+	defer opGeth.Close()
+
+	aliceAddr := cfg.Secrets.Addresses().Alice
+	origBalance, err := opGeth.L2Client.BalanceAt(ctx, aliceAddr, nil)
+	require.NoError(t, err)
+
+	// Deposit TX with a higher gas limit than required
+	depositTx := types.NewTx(&types.DepositTx{
+		From:                aliceAddr,
+		To:                  &aliceAddr,
+		Value:               big.NewInt(0),
+		Gas:                 50_000, // Simple transfer only requires 21,000
+		IsSystemTransaction: false,
+	})
+
+	_, err = opGeth.AddL2Block(ctx, depositTx)
+	require.NoError(t, err)
+	receipt, err := opGeth.L2Client.TransactionReceipt(ctx, depositTx.Hash())
+	require.NoError(t, err)
+	require.Equal(t, types.ReceiptStatusSuccessful, receipt.Status, "tx should succeed")
+
+	newBalance, err := opGeth.L2Client.BalanceAt(ctx, aliceAddr, nil)
+	require.NoError(t, err)
+	require.Equal(t, origBalance, newBalance, "should not refund cost of unused gas")
 }

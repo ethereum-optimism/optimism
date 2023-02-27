@@ -34,6 +34,7 @@ bindings: l1block-bindings \
 
 version:
 	forge --version
+	abigen --version
 
 compile:
 	cd ../packages/contracts-bedrock/ && \

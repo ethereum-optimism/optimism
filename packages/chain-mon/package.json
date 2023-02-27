@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "@eth-optimism/chain-mon",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "[Optimism] Chain monitoring services",
   "main": "dist/index",
   "types": "dist/index",
@@ -35,7 +35,7 @@
     "@eth-optimism/common-ts": "0.8.0",
     "@eth-optimism/contracts-periphery": "1.0.7",
     "@eth-optimism/core-utils": "0.12.0",
-    "@eth-optimism/sdk": "1.10.3",
+    "@eth-optimism/sdk": "1.10.4",
     "ethers": "^5.7.0",
     "@types/dateformat": "^5.0.0",
     "chai-as-promised": "^7.1.1",

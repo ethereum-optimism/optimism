@@ -546,6 +546,9 @@ func (eq *EngineQueue) ConfirmPayload(ctx context.Context) (out *eth.ExecutionPa
 }
 
 func (eq *EngineQueue) CancelPayload(ctx context.Context, force bool) error {
+	if eq.buildingID == (eth.PayloadID{}) { // only cancel if there is something to cancel.
+		return nil
+	}
 	// the building job gets wrapped up as soon as the payload is retrieved, there's no explicit cancel in the Engine API
 	eq.log.Error("cancelling old block sealing job", "payload", eq.buildingID)
 	_, err := eq.engine.GetPayload(ctx, eq.buildingID)
