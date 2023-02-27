@@ -155,3 +155,11 @@ func (s *L2Sequencer) ActBuildToL1HeadExclUnsafe(t Testing) {
 		s.ActL2EndBlock(t)
 	}
 }
+
+func (s *L2Sequencer) ActBuildL2ToRegolith(t Testing) {
+	require.NotNil(t, s.rollupCfg.RegolithTime, "cannot activate Regolith when it is not scheduled")
+	for s.L2Unsafe().Time < *s.rollupCfg.RegolithTime {
+		s.ActL2StartBlock(t)
+		s.ActL2EndBlock(t)
+	}
+}
