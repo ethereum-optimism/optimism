@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
@@ -30,7 +31,7 @@ var (
 
 func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, chainID int, noCheck bool) error {
 	// Chain params to use for integrity checking.
-	params := migration.ParamsByChainID[chainID]
+	params := crossdomain.ParamsByChainID[chainID]
 	if params == nil {
 		return fmt.Errorf("no chain params for %d", chainID)
 	}
@@ -47,7 +48,7 @@ func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, chainID int
 	// Migrate the legacy ETH to ETH.
 	log.Info("Migrating legacy ETH to ETH", "num-accounts", len(addresses))
 	totalMigrated := new(big.Int)
-	logAccountProgress := ProgressLogger(1000, "imported accounts")
+	logAccountProgress := util.ProgressLogger(1000, "imported accounts")
 	for addr := range deduped {
 		// No accounts should have a balance in state. If they do, bail.
 		if db.GetBalance(addr).Sign() > 0 {
