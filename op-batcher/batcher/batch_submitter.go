@@ -3,20 +3,20 @@ package batcher
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	gethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
 const (

@@ -129,8 +129,8 @@ func (l *BatchSubmitter) Start() error {
 	if l.running {
 		return errors.New("batcher is already running")
 	}
-
 	l.running = true
+
 	l.done = make(chan struct{})
 	// TODO: this context only exists because the event loop doesn't reach done
 	// if the tx manager is blocking forever due to e.g. insufficient balance.

@@ -1,7 +1,6 @@
 package batcher
 
 import (
-	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -10,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
