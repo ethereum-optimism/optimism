@@ -140,7 +140,7 @@ func main() {
 				return err
 			}
 
-			period, err := contracts.OptimismPortal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+			period, err := contracts.L2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 			if err != nil {
 				return err
 			}
