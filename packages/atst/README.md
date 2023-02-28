@@ -16,7 +16,8 @@
 
 # What's atst?
 
-**atst** is a typescript sdk and cli around the AttestationStation.<br />
+**atst** is a typescript sdk and cli around the AttestationStation.
+
 👉 See [**AttestationStation Docs**](https://community.optimism.io/docs/governance/attestation-station/) for general documentation on the AttestationStation. 
   
 ## Getting started
@@ -29,7 +30,8 @@ npm install @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0
 
 ## atst typescript sdk
 
-The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to the attestation station.<br />
+The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to the attestation station.
+
 👉 See [**sdk docs**]() for usage instructions.
 
 ## atst cli
@@ -41,6 +43,7 @@ _TODO put a gif here of using it_
 ## React instructions
 
 For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station.
+
 👉 See [**example/react**](http://todo.todo.todo) for an example.
 
 Use `parseAttestationBytes` and `stringifyAttestationBytes` to parse and stringify attestations before passing them into wagmi hooks.
