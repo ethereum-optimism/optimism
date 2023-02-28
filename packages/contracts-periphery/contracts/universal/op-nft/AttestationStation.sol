@@ -68,7 +68,7 @@ contract AttestationStation is Semver {
     /**
      * @notice Allows anyone to create attestations.
      *
-     * @param _attestations An array of attestation data.
+     * @param _attestations An array of AttestationData structs.
      */
     function attest(AttestationData[] calldata _attestations) external {
         uint256 length = _attestations.length;
