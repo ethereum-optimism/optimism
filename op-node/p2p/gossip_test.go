@@ -49,7 +49,7 @@ func TestVerifyBlockSignature(t *testing.T) {
 	}{
 		{
 			name:      "Legacy",
-			newSigner: NewLegacyLocalSigner,
+			newSigner: newLegacyLocalSigner,
 		},
 		{
 			name:      "Updated",
@@ -101,4 +101,8 @@ func TestVerifyBlockSignature(t *testing.T) {
 			require.Equal(t, pubsub.ValidationIgnore, result)
 		})
 	}
+}
+
+func newLegacyLocalSigner(priv *ecdsa.PrivateKey) *LocalSigner {
+	return &LocalSigner{priv: priv, hasher: LegacySigningHash}
 }
