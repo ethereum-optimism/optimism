@@ -340,7 +340,7 @@ func TestMigration(t *testing.T) {
 	}, lgr.New("module", "batcher"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		batcher.Stop()
+		batcher.StopIfRunning()
 	})
 
 	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{

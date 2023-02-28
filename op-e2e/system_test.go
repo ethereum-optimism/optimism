@@ -1173,6 +1173,101 @@ func TestStopStartSequencer(t *testing.T) {
 	require.Greater(t, blockAfter, blockBefore, "Chain did not advance after starting sequencer")
 }
 
+func TestStopStartBatcher(t *testing.T) {
+	parallel(t)
+	if !verboseGethNodes {
+		log.Root().SetHandler(log.DiscardHandler())
+	}
+
+	cfg := DefaultSystemConfig(t)
+	sys, err := cfg.Start()
+	require.Nil(t, err, "Error starting up system")
+	defer sys.Close()
+
+	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["verifier"].HTTPEndpoint())
+	require.Nil(t, err)
+	rollupClient := sources.NewRollupClient(client.NewBaseRPCClient(rollupRPCClient))
+
+	l2Seq := sys.Clients["sequencer"]
+	l2Verif := sys.Clients["verifier"]
+
+	// retrieve the initial sync status
+	seqStatus, err := rollupClient.SyncStatus(context.Background())
+	require.Nil(t, err)
+
+	nonce := uint64(0)
+	sendTx := func() *types.Receipt {
+		// Submit TX to L2 sequencer node
+		tx := types.MustSignNewTx(cfg.Secrets.Alice, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
+			ChainID:   cfg.L2ChainIDBig(),
+			Nonce:     nonce,
+			To:        &common.Address{0xff, 0xff},
+			Value:     big.NewInt(1_000_000_000),
+			GasTipCap: big.NewInt(10),
+			GasFeeCap: big.NewInt(200),
+			Gas:       21000,
+		})
+		nonce++
+		err = l2Seq.SendTransaction(context.Background(), tx)
+		require.Nil(t, err, "Sending L2 tx to sequencer")
+
+		// Let it show up on the unsafe chain
+		receipt, err := waitForTransaction(tx.Hash(), l2Seq, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+		require.Nil(t, err, "Waiting for L2 tx on sequencer")
+
+		return receipt
+	}
+	// send a transaction
+	receipt := sendTx()
+
+	// wait until the block the tx was first included in shows up in the safe chain on the verifier
+	safeBlockInclusionDuration := time.Duration(3*cfg.DeployConfig.L1BlockTime) * time.Second
+	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
+	require.Nil(t, err, "Waiting for block on verifier")
+
+	// ensure the safe chain advances
+	newSeqStatus, err := rollupClient.SyncStatus(context.Background())
+	require.Nil(t, err)
+	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
+
+	// stop the batch submission
+	err = sys.BatchSubmitter.Stop()
+	require.Nil(t, err)
+
+	// wait for any old safe blocks being submitted / derived
+	time.Sleep(safeBlockInclusionDuration)
+
+	// get the initial sync status
+	seqStatus, err = rollupClient.SyncStatus(context.Background())
+	require.Nil(t, err)
+
+	// send another tx
+	sendTx()
+	time.Sleep(safeBlockInclusionDuration)
+
+	// ensure that the safe chain does not advance while the batcher is stopped
+	newSeqStatus, err = rollupClient.SyncStatus(context.Background())
+	require.Nil(t, err)
+	require.Equal(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain advanced while batcher was stopped")
+
+	// start the batch submission
+	err = sys.BatchSubmitter.Start()
+	require.Nil(t, err)
+	time.Sleep(safeBlockInclusionDuration)
+
+	// send a third tx
+	receipt = sendTx()
+
+	// wait until the block the tx was first included in shows up in the safe chain on the verifier
+	_, err = waitForBlock(receipt.BlockNumber, l2Verif, safeBlockInclusionDuration)
+	require.Nil(t, err, "Waiting for block on verifier")
+
+	// ensure that the safe chain advances after restarting the batcher
+	newSeqStatus, err = rollupClient.SyncStatus(context.Background())
+	require.Nil(t, err)
+	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance after batcher was restarted")
+}
+
 func safeAddBig(a *big.Int, b *big.Int) *big.Int {
 	return new(big.Int).Add(a, b)
 }
