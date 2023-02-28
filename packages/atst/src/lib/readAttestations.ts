@@ -3,6 +3,7 @@ import { formatBytes32String } from 'ethers/lib/utils.js'
 
 import { ATTESTATION_STATION_ADDRESS } from '../constants/attestationStationAddress'
 import type { AttestationReadParams } from '../types/AttestationReadParams'
+import { DEFAULT_DATA_TYPE } from '../types/DataTypeOption'
 import type { WagmiBytes } from '../types/WagmiBytes'
 import { abi } from './abi'
 import { parseAttestationBytes } from './parseAttestationBytes'
@@ -60,7 +61,7 @@ export const readAttestations = async (
   })
 
   return results.map((dataBytes, i) => {
-    const dataType = attestationReads[i].dataType ?? 'string'
+    const dataType = attestationReads[i].dataType ?? DEFAULT_DATA_TYPE
     return parseAttestationBytes(dataBytes, dataType)
   })
 }

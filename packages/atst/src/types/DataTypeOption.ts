@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
 /**
+ * @internal
+ * Default data type for attestations
+ */
+export const DEFAULT_DATA_TYPE = 'string' as const
+
+/**
  * Zod validator for the DataType type
  * string | bytes | number | bool | address
  */

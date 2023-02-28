@@ -1,7 +1,6 @@
 import type { Address } from '@wagmi/core'
 
-import { DEFAULT_DATA_TYPE } from '../constants/defaultDataType'
-import type { DataTypeOption } from '../types/DataTypeOption'
+import { DataTypeOption, DEFAULT_DATA_TYPE } from '../types/DataTypeOption'
 import { readAttestations } from './readAttestations'
 
 /**
