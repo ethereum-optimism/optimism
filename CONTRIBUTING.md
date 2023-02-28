@@ -68,21 +68,26 @@ You'll need the following:
 * [Docker Compose](https://docs.docker.com/compose/install/)
 * [Foundry](https://getfoundry.sh)
 
-### Install the Correct Version of NodeJS
-
-Using `nvm`, install the correct version of NodeJS.
-
-```
-nvm use
-```
-
 ### Setup
 
-Clone the repository, open it, and install nodejs packages with `yarn`:
+Clone the repository and open it:
 
 ```bash
 git clone git@github.com:ethereum-optimism/optimism.git
 cd optimism
+```
+
+### Install the Correct Version of NodeJS
+
+Using [nvm](https://github.com/nvm-sh/nvm), install the correct version of NodeJS.
+
+```bash
+nvm use
+```
+
+### Install node packages with Yarn
+
+```bash
 yarn install
 ```
 
