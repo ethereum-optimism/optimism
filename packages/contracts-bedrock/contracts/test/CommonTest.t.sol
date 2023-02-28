@@ -128,15 +128,15 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the proposer
-        oracleImpl = new L2OutputOracle(
-            submissionInterval,
-            l2BlockTime,
-            startingBlockNumber,
-            startingTimestamp,
-            proposer,
-            owner,
-            7 days // finalization period (seconds)
-        );
+        oracleImpl = new L2OutputOracle({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days
+        });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
