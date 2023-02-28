@@ -22,11 +22,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
     function test_constructor_badTimestamp_reverts() external {
         vm.expectRevert("L2OutputOracle: starting L2 timestamp must be less than current time");
 
+        // startingTimestamp is in the future
         new L2OutputOracle({
             _submissionInterval: submissionInterval,
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
-            // startingTimestamp is in the future
             _startingTimestamp: block.timestamp + 1,
             _proposer: proposer,
             _challenger: owner,
