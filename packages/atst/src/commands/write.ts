@@ -9,6 +9,7 @@ import { ATTESTATION_STATION_ADDRESS } from '../constants/attestationStationAddr
 import { DEFAULT_RPC_URL } from '../constants/defaultRpcUrl'
 import { prepareWriteAttestation } from '../lib/prepareWriteAttestation'
 import { writeAttestation } from '../lib/writeAttestation'
+import { castAsDataType } from '../lib/castAsDataType'
 import { dataTypeOptionValidator } from '../types/DataTypeOption'
 
 const zodAddress = () =>
@@ -82,29 +83,11 @@ export const write = async (options: WriteOptions) => {
     }),
   })
 
-  const castAsDataType = (value: any) => {
-    if (parsedOptions.dataType === 'string') {
-      return value
-    } else if (parsedOptions.dataType === 'number') {
-      return Number(value)
-    } else if (parsedOptions.dataType === 'bool') {
-      return Boolean(value)
-    } else if (parsedOptions.dataType === 'bytes') {
-      return value
-    } else if (parsedOptions.dataType === 'address') {
-      return value
-    } else {
-      throw new Error(
-        `Unrecognized data type ${parsedOptions.dataType satisfies never}`
-      )
-    }
-  }
-
   try {
     const preparedTx = await prepareWriteAttestation(
       parsedOptions.about,
       parsedOptions.key,
-      castAsDataType(parsedOptions.value),
+      castAsDataType(parsedOptions.value, parsedOptions.dataType),
       network.chainId
     )
     const result = await writeAttestation(preparedTx)
