@@ -1,0 +1,11 @@
+// Vitest Snapshot v1
+
+exports[`logger > \${level}() > logs message "error" 1`] = `"[31merror[39m"`;
+
+exports[`logger > \${level}() > logs message "info" 1`] = `"[34minfo[39m"`;
+
+exports[`logger > \${level}() > logs message "log" 1`] = `"[37mlog[39m"`;
+
+exports[`logger > \${level}() > logs message "success" 1`] = `"[32msuccess[39m"`;
+
+exports[`logger > \${level}() > logs message "warn" 1`] = `"[33mwarn[39m"`;
