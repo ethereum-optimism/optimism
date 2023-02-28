@@ -1,12 +1,14 @@
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://user-images.githubusercontent.com/35039927/218812217-92f0f784-cb85-43b9-9ca6-e2b9effd9eb2.png">
-    <img alt="wagmi logo" src="https://user-images.githubusercontent.com/35039927/218812217-92f0f784-cb85-43b9-9ca6-e2b9effd9eb2.png" width="auto" height="300">
-  </picture>
-</p>
+<div align="center">
+  <br />
+  <br />
+  <a href="https://optimism.io"><img alt="Optimism" src="https://raw.githubusercontent.com/ethereum-optimism/brand-kit/main/assets/svg/OPTIMISM-R.svg" width=600></a>
+  <br />
+  <h3>@eth-optimism/atst</h3> The official SDK and cli for Optimism's attestation Station
+  <br />
+</div>
 
 <p align="center">
-  I need a tagline here
+
 <p>
 <a href="https://www.npmjs.com/package/@eth-optimism/atst" target="\_parent">
 <img alt="" src="https://img.shields.io/npm/dm/@eth-optimism/atst.svg" />
@@ -14,40 +16,40 @@
 
 # atst
 
-atst is a typescript sdk and cli around the attestation station (TODO link to attstation station)
+atst is a typescript sdk and cli around the attestation station
 
-Maybe put a gif of the cli here?
-
-## Visit [Docs](https://evmts-docs-fx6udvub5-evmts.vercel.app/en/getting-started) for more documentation on teh attestation station!
-
-TODO link to oris docs here
-
-Maybe link to cli docs and sdk docs seperately?
+### Visit [Docs](https://community.optimism.io/docs/governance/attestation-station/) for general documentation on the attestation station!
 
 ## Getting started
 
 Install
 
 ```bash
-npm install @eth-optimism/atst
+npm install @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0
 ```
 
-## ATST SDK
+## atst typescript sdk
 
-TODO
+The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to the attestation station
 
-## ATST CLI
+### See [sdk docs]() for usage instructions
 
-TODO
+## atst cli
+
+The cli provides a convenient cli for interacting with the attestation station contract
+
+TODO put a gif here of using it
+
+## React instructions
+
+For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station. See [example/react](http://todo.todo.todo) for an example.
+
+Use `parseAttestationBytes` and `stringifyAttestationBytes` to parse and stringify attestations before passing them into wagmi hooks.
 
 ## Contributing
 
-Please see our [contributing.md](/docs/contributing.md).
+Please see our [contributing.md](/docs/contributing.md). No contribution is too small.
 
-## 🚧 WARNING: UNDER CONSTRUCTION 🚧
+Having your contribution denied feels bad. Please consider opening an issue before adding any new features or apis
 
-**This sdk is not yet released**
-
-## Check out these other awesome attestation station tools
-
-TODO
+## Check [Awesome ATST](https://todo.todo.todo) for awesome tools and examples around the attestation station
