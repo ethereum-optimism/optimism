@@ -44,8 +44,6 @@ func Main(version string, cliCtx *cli.Context) error {
 		return err
 	}
 
-	l.Info("Starting Batch Submitter")
-
 	if !cfg.Stopped {
 		if err := batchSubmitter.Start(); err != nil {
 			l.Error("Unable to start Batch Submitter", "error", err)

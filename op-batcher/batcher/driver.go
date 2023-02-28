@@ -123,6 +123,8 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSub
 }
 
 func (l *BatchSubmitter) Start() error {
+	l.log.Info("Starting Batch Submitter")
+
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
@@ -151,6 +153,8 @@ func (l *BatchSubmitter) StopIfRunning() {
 }
 
 func (l *BatchSubmitter) Stop() error {
+	l.log.Info("Stopping Batch Submitter")
+
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
 
