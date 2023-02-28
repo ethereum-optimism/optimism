@@ -140,6 +140,9 @@ func (l *BatchSubmitter) Start() error {
 
 	l.wg.Add(1)
 	go l.loop()
+
+	l.log.Info("Batch Submitter started")
+
 	return nil
 }
 
@@ -155,6 +158,9 @@ func (l *BatchSubmitter) Stop() error {
 	l.cancel()
 	close(l.done)
 	l.wg.Wait()
+
+	l.log.Info("Batch Submitter stopped")
+	
 	return nil
 }
 

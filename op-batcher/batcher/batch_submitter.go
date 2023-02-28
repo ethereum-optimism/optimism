@@ -56,7 +56,6 @@ func Main(version string, cliCtx *cli.Context) error {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	l.Info("Batch Submitter started")
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
 		l.Info("starting pprof", "addr", pprofConfig.ListenAddr, "port", pprofConfig.ListenPort)
@@ -90,6 +89,7 @@ func Main(version string, cliCtx *cli.Context) error {
 			Namespace: "admin",
 			Service:   rpc.NewAdminAPI(batchSubmitter),
 		})
+		l.Info("Admin RPC enabled")
 	}
 	if err := server.Start(); err != nil {
 		cancel()
