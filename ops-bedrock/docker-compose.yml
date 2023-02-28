@@ -115,6 +115,7 @@ services:
     ports:
       - "6061:6060"
       - "7301:7300"
+      - "6545:8545"
     environment:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
@@ -130,10 +131,10 @@ services:
       OP_BATCHER_RESUBMISSION_TIMEOUT: 30s
       OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
       OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
-      OP_BATCHER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
       OP_BATCHER_LOG_TERMINAL: "true"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
+      OP_BATCHER_RPC_ENABLE_ADMIN: "true"
 
   stateviz:
     build:
