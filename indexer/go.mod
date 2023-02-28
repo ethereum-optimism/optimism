@@ -2,7 +2,10 @@ module github.com/ethereum-optimism/optimism/indexer
 
 go 1.17
 
-replace github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20230214215134-401b7fd3309b
+replace (
+	github.com/ethereum/go-ethereum v1.10.26 => github.com/ethereum-optimism/op-geth v0.0.0-20230214215134-401b7fd3309b
+	github.com/ethereum/go-ethereum v1.11.2 => github.com/ethereum-optimism/op-geth v1.11.2-aea0402.0.20230227230209-0705cf1b7df9
+)
 
 require (
 	github.com/ethereum-optimism/optimism/op-bindings v0.10.14

@@ -289,6 +289,8 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Set the Optimism options.
 	cfg.BedrockBlock = bedrockBlock.Number()
+	// Enable Regolith from the start of Bedrock
+	cfg.RegolithTime = new(uint64)
 	cfg.Optimism = &params.OptimismConfig{
 		EIP1559Denominator: config.EIP1559Denominator,
 		EIP1559Elasticity:  config.EIP1559Elasticity,
