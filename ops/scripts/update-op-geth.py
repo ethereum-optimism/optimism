@@ -6,11 +6,11 @@ import subprocess
 import os
 
 
-GETH_VERSION='v1.10.26'
+GETH_VERSION='v1.11.2'
 
 
 def main():
-	for project in ('.', 'op-wheel', 'indexer'):
+	for project in ('.', 'indexer'):
 		print(f'Updating {project}...')
 		update_mod(project)
 
@@ -22,7 +22,7 @@ def update_mod(project):
 		'mod',
 		'edit',
 		'-replace',
-		f'github.com/ethereum/go-ethereum@{GETH_VERSION}=github.com/ethereum-optimism/op-geth@optimism-history'
+		f'github.com/ethereum/go-ethereum@{GETH_VERSION}=github.com/ethereum-optimism/op-geth@optimism'
 	], cwd=os.path.join(project), check=True)
 	print('Tidying...')
 	subprocess.run([

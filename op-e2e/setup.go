@@ -309,6 +309,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
+			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
