@@ -2,7 +2,6 @@ import { BigNumber } from 'ethers'
 import { toUtf8String } from 'ethers/lib/utils.js'
 
 import type { DataTypeOption } from '../types/DataTypeOption'
-import * as logger from './logger'
 import type { WagmiBytes } from '../types/WagmiBytes'
 
 export const parseAttestationBytes = (
@@ -24,6 +23,6 @@ export const parseAttestationBytes = (
   if (dataType === 'string') {
     return attestationBytes && toUtf8String(attestationBytes)
   }
-  logger.warn(`unrecognized dataType ${dataType satisfies never}`)
+  console.warn(`unrecognized dataType ${dataType satisfies never}`)
   return attestationBytes
 }
