@@ -79,13 +79,13 @@ cd optimism
 
 ### Install the Correct Version of NodeJS
 
-Using [nvm](https://github.com/nvm-sh/nvm), install the correct version of NodeJS.
+Install node v16.16.0 with [nvm](https://github.com/nvm-sh/nvm)
 
 ```bash
 nvm use
 ```
 
-### Install node packages with Yarn
+### Install node modules with Yarn
 
 ```bash
 yarn install
