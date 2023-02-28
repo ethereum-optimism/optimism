@@ -146,6 +146,10 @@ func (l *BatchSubmitter) Start() error {
 	return nil
 }
 
+func (l *BatchSubmitter) StopIfRunning() {
+	_ = l.Stop()
+}
+
 func (l *BatchSubmitter) Stop() error {
 	l.mutex.Lock()
 	defer l.mutex.Unlock()
@@ -160,7 +164,7 @@ func (l *BatchSubmitter) Stop() error {
 	l.wg.Wait()
 
 	l.log.Info("Batch Submitter stopped")
-	
+
 	return nil
 }
 
