@@ -1,9 +1,9 @@
 package flags
 
 import (
-	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
