@@ -5,6 +5,31 @@
       "offset": 0,
       "length": 20
     },
+    "spacer_1_0_1600": {
+      "slot": 1,
+      "offset": 0,
+      "length": 1600
+    },
+    "spacer_51_0_20": {
+      "slot": 51,
+      "offset": 0,
+      "length": 20
+    },
+    "spacer_52_0_1568": {
+      "slot": 52,
+      "offset": 0,
+      "length": 1568
+    },
+    "spacer_101_0_1": {
+      "slot": 101,
+      "offset": 0,
+      "length": 1
+    },
+    "spacer_102_0_1568": {
+      "slot": 102,
+      "offset": 0,
+      "length": 1568
+    },
     "spacer_151_0_32": {
       "slot": 151,
       "offset": 0,
@@ -26,6 +51,31 @@
       "slot": 0,
       "offset": 0,
       "length": 20
+    },
+    "spacer_1_0_1600": {
+      "slot": 1,
+      "offset": 0,
+      "length": 1600
+    },
+    "spacer_51_0_20": {
+      "slot": 51,
+      "offset": 0,
+      "length": 20
+    },
+    "spacer_52_0_1568": {
+      "slot": 52,
+      "offset": 0,
+      "length": 1568
+    },
+    "spacer_101_0_1": {
+      "slot": 101,
+      "offset": 0,
+      "length": 1
+    },
+    "spacer_102_0_1568": {
+      "slot": 102,
+      "offset": 0,
+      "length": 1568
     },
     "spacer_151_0_32": {
       "slot": 151,
