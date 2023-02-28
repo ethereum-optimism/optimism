@@ -1,0 +1,44 @@
+{
+  "name": "@eth-optimism/atst",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "src/index.ts",
+  "module": "dist/index.cjs",
+  "license": "MIT",
+  "bin": {
+    "atst": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "clean": "rm -rf ./node_modules && rm -rf ./dist && rm -rf ./coverage",
+    "build": "yarn tsup",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:check": "eslint . --max-warnings=0",
+    "lint:fix": "yarn lint:check --fix",
+    "test": "vitest",
+    "typecheck": "yarn tsc --noEmit"
+  },
+  "dependencies": {
+    "cac": "^6.7.14",
+    "ethers": "^5.7.0",
+    "picocolors": "^1.0.0",
+    "ora": "^6.1.2",
+    "zod": "^3.11.6"
+  },
+  "peerDependencies": {
+    "@wagmi/core": ">0.9.0"
+  },
+  "devDependencies": {
+    "@testing-library/react-hooks": "^8.0.1",
+    "jsdom": "^21.1.0",
+    "react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "execa": "^1.0.0",
+    "vitest": "^0.28.3",
+    "tsup": "^6.5.0",
+    "tsx": "^3.12.2",
+    "typescript": "^4.9.3",
+    "@wagmi/core": "^0.9.2"
+  }
+}
