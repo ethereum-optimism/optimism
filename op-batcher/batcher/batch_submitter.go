@@ -3,6 +3,7 @@ package batcher
 import (
 	"context"
 	"fmt"
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
@@ -15,6 +16,7 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
+	gethrpc "github.com/ethereum/go-ethereum/rpc"
 )
 
 const (
@@ -44,9 +46,11 @@ func Main(version string, cliCtx *cli.Context) error {
 
 	l.Info("Starting Batch Submitter")
 
-	if err := batchSubmitter.Start(); err != nil {
-		l.Error("Unable to start Batch Submitter", "error", err)
-		return err
+	if !cfg.Stopped {
+		if err := batchSubmitter.Start(); err != nil {
+			l.Error("Unable to start Batch Submitter", "error", err)
+			return err
+		}
 	}
 	defer batchSubmitter.Stop()
 
@@ -81,6 +85,12 @@ func Main(version string, cliCtx *cli.Context) error {
 		rpcCfg.ListenPort,
 		version,
 	)
+	if rpcCfg.EnableAdmin {
+		server.AddAPI(gethrpc.API{
+			Namespace: "admin",
+			Service:   rpc.NewAdminAPI(batchSubmitter),
+		})
+	}
 	if err := server.Start(); err != nil {
 		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
@@ -97,5 +107,4 @@ func Main(version string, cliCtx *cli.Context) error {
 	cancel()
 	_ = server.Stop()
 	return nil
-
 }
