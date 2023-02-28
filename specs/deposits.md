@@ -28,6 +28,7 @@ with the authorization and validation conditions on L2.
   - [Validation and Authorization of Deposited Transactions](#validation-and-authorization-of-deposited-transactions)
   - [Execution](#execution)
     - [Nonce Handling](#nonce-handling)
+- [Deposit Receipt](#deposit-receipt)
 - [L1 Attributes Deposited Transaction](#l1-attributes-deposited-transaction)
 - [Special Accounts on L2](#special-accounts-on-l2)
   - [L1 Attributes Depositor Account](#l1-attributes-depositor-account)
@@ -52,8 +53,9 @@ transaction types:
    for the rationale).
 3. They buy their L2 gas on L1 and, as such, the L2 gas is not refundable.
 
-We define a new [EIP-2718] compatible transaction type with the prefix `0x7E`, and then a versioned
-byte sequence. The first version has `0x00` as the version byte and then as the following fields
+We define a new [EIP-2718] compatible transaction type with the prefix `0x7E` to represent a deposit transaction.
+
+A deposit has the following fields
 (rlp encoded in the order they appear here):
 
 [EIP-2718]: https://eips.ethereum.org/EIPS/eip-2718
@@ -65,10 +67,20 @@ byte sequence. The first version has `0x00` as the version byte and then as the 
 - `uint256 mint`: The ETH value to mint on L2.
 - `uint256 value`: The ETH value to send to the recipient account.
 - `bytes data`: The input data.
+- `bool isSystemTx`: If true, the transaction does not interact with the L2 block gas pool.
+  - Note: boolean is disabled (enforced to be `false`) starting from the Regolith upgrade.
 - `uint64 gasLimit`: The gasLimit for the L2 transaction.
 
-In contrast to [EIP-155] transactions, this transaction type does not include signature information,
-and makes the `from` address explicit.
+In contrast to [EIP-155] transactions, this transaction type:
+
+- Does not include a `nonce`, since it is identified by the `sourceHash`.
+  API responses still include a `nonce` attribute:
+  - Before Regolith: the `nonce` is always `0`
+  - With Regolith: the `nonce` is set to the `depositNonce` attribute of the corresponding transaction receipt.
+- Does not include signature information, and makes the `from` address explicit.
+  API responses contain zeroed signature `v`, `r`, `s` values for backwards compatibility.
+- Includes new `sourceHash`, `from`, `mint`, and `isSystemTx` attributes.
+  API responses contain these as additional fields.
 
 [EIP-155]:https://eips.ethereum.org/EIPS/eip-155
 
@@ -76,9 +88,6 @@ We select `0x7E` because transaction type identifiers are currently allowed to g
 Picking a high identifier minimizes the risk that the identifier will be used be claimed by another
 transaction type on the L1 chain in the future. We don't pick `0x7F` itself in case it becomes used
 for a variable-length encoding scheme.
-
-We chose to add a version field to the deposit transaction to enable the protocol to upgrade the deposit
-transaction type without having to take another [EIP-2718] transaction type selector.
 
 ### Source hash computation
 
@@ -129,27 +138,47 @@ deposit contract][deposit-contract].
 In order to execute a deposited transaction:
 
 First, the balance of the `from` account MUST be increased by the amount of `mint`.
+This is unconditional, and does not revert on deposit failure.
 
 Then, the execution environment for a deposited transaction is initialized based on the
 transaction's attributes, in exactly the same manner as it would be for an EIP-155 transaction.
 
-Specifically, a new EVM call frame targeting the `to` address is created with values initialized as
-follows:
+The deposit transaction is processed exactly like a type-3 (EIP-1559) transaction, with the exception of:
 
-- `CALLER` and `ORIGIN` set to `from`
-  - `from` is unchanged from the deposit feed contract's logs (though the address may have been
-  [aliased][address-aliasing] by the deposit feed contract).
-- `context.calldata` set to `data`
-- `context.gas` set to `gasLimit`
-- `context.value` set to `sendValue`
+- No fee fields are verified: the deposit does not have any, as it pays for gas on L1.
+- No `nonce` field is verified: the deposit does not have any, it's uniquely identified by its `sourceHash`.
+- No access-list is processed: the deposit has no access-list, and it is thus processed as if the access-list is empty.
+- No check if `from` is an Externally Owner Account (EOA): the deposit is ensured not to be an EAO through L1 address
+  masking, this may change in future L1 contract-deployments to e.g. enable an account-abstraction like mechanism.
+- Before the Regolith upgrade:
+  - The execution output states a non-standard gas usage:
+    - If `isSystemTx` is false: execution output states it uses `gasLimit` gas.
+    - If `isSystemTx` is true: execution output states it uses `0` gas.
+- No gas is refunded as ETH. (either by not refunding or utilizing the fact the gas-price of the deposit is `0`)
+- No transaction priority fee is charged. No payment is made to the block fee-recipient.
+- No L1-cost fee is charged, as deposits are derived from L1 and do not have to be submitted as data back to it.
+- No base fee is charged. The total base fee accounting does not change.
 
-No gas is bought on L2 and no refund is provided. The gas used for the deposit is subtracted from
-the gas pool on L2. Gas usage exactly matches other transaction types (including intrinsic gas).
-If a deposit runs out of gas or has some other failure, the mint will succeed and the nonce of the
-account will be increased, but no other state transition will occur.
+Note that this includes contract-deployment behavior like with regular transactions,
+and gas metering is the same (with the exception of fee related changes above), including metering of intrinsic gas.
 
-If `isSystemTransaction` in the deposit is set to `true`, the gas used by the deposit is unmetered.
-It must not be subtracted from the gas pool and the `usedGas` field of the receipt must be set to 0.
+Any non-EVM state-transition error emitted by the EVM execution is processed in a special way:
+
+- It is transformed into an EVM-error:
+  i.e. the deposit will always be included, but its receipt will indicate a failure
+  if it runs into a non-EVM state-transition error, e.g. failure to transfer the specified
+  `value` amount of ETH due to insufficient account-balance.
+- The world state is rolled back to the start of the EVM processing, after the minting part of the deposit.
+- The `nonce` of `from` in the world state is incremented by 1, making the error equivalent to a native EVM failure.
+  Note that a previous `nonce` increment may have happened during EVM processing, but this would be rolled back first.
+
+Finally, after the above processing, the execution post-processing runs the same:
+i.e. the gas pool and receipt are processed identical to a regular transaction.
+Starting with the Regolith upgrade however, the receipt of deposit transactions is extended with an additional
+`depositNonce` value, storing the `nonce` value of the `from` sender as registered *before* the EVM processing.
+
+Note that the gas used as stated by the execution output is subtracted from the gas pool,
+but this execution output value has special edge cases before the Regolith upgrade.
 
 Note for application developers: because `CALLER` and `ORIGIN` are set to `from`, the
 semantics of using the `tx.origin == msg.sender` check will not work to determine whether
@@ -168,6 +197,33 @@ tooling (such as wallets and block explorers).
 
 [create-nonce]: https://github.com/ethereum/execution-specs/blob/617903a8f8d7b50cf71bf1aa733c37897c8d75c1/src/ethereum/frontier/utils/address.py#L40
 
+## Deposit Receipt
+
+Transaction receipts use standard typing as per [EIP-2718].
+The Deposit transaction receipt type is equal to a regular receipt,
+but extended with an optional `depositNonce` field.
+
+The RLP-encoded consensus-enforced fields are:
+
+- `postStateOrStatus` (standard): this contains the transaction status, see [EIP-658].
+- `cumulativeGasUsed` (standard): gas used in the block thus far, including this transaction.
+  - The actual gas used is derived from the difference in `CumulativeGasUsed` with the previous transaction.
+  - Starting with Regolith, this accounts for the actual gas usage by the deposit, like regular transactions.
+- `bloom` (standard): bloom filter of the transaction logs.
+- `logs` (standard): log events emitted by the EVM processing.
+- `depositNonce` (unique extension): Optional field. The deposit transaction persists the nonce used during execution.
+  - Before Regolith, this `depositNonce` field must always be omitted.
+  - With Regolith, this `depositNonce` field must always be included.
+
+Starting with Regolith, the receipt API responses utilize the receipt changes for more accurate response data:
+
+- The `depositNonce` is included in the receipt JSON data in API responses
+- For contract-deployments (when `to == null`), the `depositNonce` helps derive the correct `contractAddress` meta-data,
+  instead of assuming the nonce was zero.
+- The `cumulativeGasUsed` accounts for the actual gas usage, as metered in the EVM processing.
+
+[EIP-658]: https://eips.ethereum.org/EIPS/eip-658
+
 ## L1 Attributes Deposited Transaction
 
 [l1-attr-deposit]: #l1-attributes-deposited-transaction
@@ -184,12 +240,18 @@ This transaction MUST have the following values:
 3. `mint` is `0`
 4. `value` is `0`
 5. `gasLimit` is set to 150,000,000.
-6. `isSystemTransaction` is set to `true`.
+6. `isSystemTx` is set to `true`.
 7. `data` is an [ABI] encoded call to the [L1 attributes predeployed contract][predeploy]'s
    `setL1BlockValues()` function with correct values associated with the corresponding L1 block (cf.
    [reference implementation][l1-attr-ref-implem]).
 
-No gas is paid for L1 attributes deposited transactions.
+If the Regolith upgrade is active, some fields are overridden:
+
+1. `gasLimit` is set to 1,000,000
+2. `isSystemTx` is set to `false`
+
+This system-initiated transaction for L1 attributes is not charged any ETH for its allocated `gasLimit`,
+as it is effectively part of the state-transition processing.
 
 ## Special Accounts on L2
 
@@ -268,7 +330,7 @@ transaction are determined by the corresponding `TransactionDeposited` event emi
 6. `isCreation` is set to `true` if the transaction is a contract creation, `false` otherwise.
 7. `data` is unchanged from the emitted value. Depending on the value of `isCreation` it is handled
    as either calldata or contract initialization code.
-8. `isSystemTransaction` is set by the rollup node for certain transactions that have unmetered execution.
+8. `isSystemTx` is set by the rollup node for certain transactions that have unmetered execution.
   It is `false` for user deposited transactions
 
 ### Deposit Contract
