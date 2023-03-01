@@ -64,8 +64,18 @@ export const read = async (options: ReadOptions) => {
       parsedOptions.dataType,
       parsedOptions.contract
     )
-    logger.log(result?.toString())
-    return result?.toString()
+    const strResult = result?.toString()
+    console.log(strResult.trim())
+    if (!strResult.replace(/[\u0000-\u001F\u007F-\u009F]/g, '').trim()) {
+      logger.warn(
+        `Unable to parse as string.  Pass in --dataType to specify the type of the data`
+      )
+      logger.log(result)
+      return result
+    } else {
+      logger.log(strResult)
+      return result?.toString()
+    }
   } catch (e) {
     logger.error('Unable to read attestation', e)
     process.exit(1)

@@ -22,7 +22,10 @@ describe(`cli:${read.name}`, () => {
       rpcUrl: 'http://localhost:8545',
     })
     expect(consoleUtil.formatted).toMatchInlineSnapshot(
-      '"[37mhttps://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes[39m"'
+      `
+      "https://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes
+      [37mhttps://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes[39m"
+    `
     )
   })
 })
