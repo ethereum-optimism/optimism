@@ -905,7 +905,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
 
         vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
-        vm.expectRevert("OptimismPortal: insufficient gas to finalize withdrawal");
+        vm.expectRevert("SafeCall: Not enough gas");
         op.finalizeWithdrawalTransaction{ gas: gasLimit }(insufficientGasTx);
     }
 

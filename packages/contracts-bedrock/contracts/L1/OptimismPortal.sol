@@ -44,11 +44,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /**
-     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
-     */
-    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
-
-    /**
      * @notice Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
