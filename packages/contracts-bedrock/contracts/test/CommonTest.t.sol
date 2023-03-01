@@ -128,14 +128,15 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the proposer
-        oracleImpl = new L2OutputOracle(
-            submissionInterval,
-            l2BlockTime,
-            startingBlockNumber,
-            startingTimestamp,
-            proposer,
-            owner
-        );
+        oracleImpl = new L2OutputOracle({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days
+        });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
@@ -167,12 +168,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        opImpl = new OptimismPortal({
-            _l2Oracle: oracle,
-            _guardian: guardian,
-            _finalizationPeriodSeconds: 7 days,
-            _paused: true
-        });
+        opImpl = new OptimismPortal({ _l2Oracle: oracle, _guardian: guardian, _paused: true });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
@@ -231,12 +227,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         super.setUp();
 
         // Deploy the OptimismPortal
-        op = new OptimismPortal({
-            _l2Oracle: oracle,
-            _guardian: guardian,
-            _finalizationPeriodSeconds: 7 days,
-            _paused: false
-        });
+        op = new OptimismPortal({ _l2Oracle: oracle, _guardian: guardian, _paused: false });
         vm.label(address(op), "OptimismPortal");
 
         // Deploy the address manager

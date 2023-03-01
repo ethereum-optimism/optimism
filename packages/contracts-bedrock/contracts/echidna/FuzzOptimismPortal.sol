@@ -12,7 +12,6 @@ contract EchidnaFuzzOptimismPortal {
         portal = new OptimismPortal({
             _l2Oracle: L2OutputOracle(address(0)),
             _guardian: address(0),
-            _finalizationPeriodSeconds: 10,
             _paused: false
         });
     }
