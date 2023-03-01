@@ -39,6 +39,9 @@ packages/contracts-bedrock/deployments/anvil
 # vim
 *.sw*
 
+# jetbrains
+.idea/
+
 .env
 .env*
 !.env.example

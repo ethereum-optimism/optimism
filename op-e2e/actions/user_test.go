@@ -4,6 +4,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
@@ -12,7 +13,13 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
-// TestCrossLayerUser tests that common actions of the CrossLayerUser actor work:
+type regolithScheduledTest struct {
+	name             string
+	regolithTime     *hexutil.Uint64
+	activateRegolith bool
+}
+
+// TestCrossLayerUser tests that common actions of the CrossLayerUser actor work in various regolith configurations:
 // - transact on L1
 // - transact on L2
 // - deposit on L1
@@ -20,9 +27,28 @@ import (
 // - prove tx on L1
 // - wait 1 week + 1 second
 // - finalize withdrawal on L1
-func TestCrossLayerUser(gt *testing.T) {
+func TestCrossLayerUser(t *testing.T) {
+	zeroTime := hexutil.Uint64(0)
+	futureTime := hexutil.Uint64(20)
+	farFutureTime := hexutil.Uint64(2000)
+	tests := []regolithScheduledTest{
+		{name: "NoRegolith", regolithTime: nil, activateRegolith: false},
+		{name: "NotYetRegolith", regolithTime: &farFutureTime, activateRegolith: false},
+		{name: "RegolithAtGenesis", regolithTime: &zeroTime, activateRegolith: true},
+		{name: "RegolithAfterGenesis", regolithTime: &futureTime, activateRegolith: true},
+	}
+	for _, test := range tests {
+		test := test // Use a fixed reference as the tests run in parallel
+		t.Run(test.name, func(gt *testing.T) {
+			runCrossLayerUserTest(gt, test)
+		})
+	}
+}
+
+func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
 	t := NewDefaultTesting(gt)
 	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	dp.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 	sd := e2eutils.Setup(t, dp, defaultAlloc)
 	log := testlog.Logger(t, log.LvlDebug)
 
@@ -63,6 +89,21 @@ func TestCrossLayerUser(gt *testing.T) {
 	alice := NewCrossLayerUser(log, dp.Secrets.Alice, rand.New(rand.NewSource(1234)))
 	alice.L1.SetUserEnv(l1UserEnv)
 	alice.L2.SetUserEnv(l2UserEnv)
+
+	// Build at least one l2 block so we have an unsafe head with a deposit info tx (genesis block doesn't)
+	seq.ActL2StartBlock(t)
+	seq.ActL2EndBlock(t)
+
+	if test.activateRegolith {
+		// advance L2 enough to activate regolith fork
+		seq.ActBuildL2ToRegolith(t)
+	}
+	// Check Regolith is active or not by confirming the system info tx is not a system tx
+	infoTx, err := l2Cl.TransactionInBlock(t.Ctx(), seq.L2Unsafe().Hash, 0)
+	require.NoError(t, err)
+	require.True(t, infoTx.IsDepositTx())
+	// Should only be a system tx if regolith is not enabled
+	require.Equal(t, !test.activateRegolith, infoTx.IsSystemTx())
 
 	// regular L2 tx, in new L2 block
 	alice.L2.ActResetTxOpts(t)
@@ -158,4 +199,11 @@ func TestCrossLayerUser(gt *testing.T) {
 	miner.ActL1EndBlock(t)
 	// check withdrawal succeeded
 	alice.L1.ActCheckReceiptStatusOfLastTx(true)(t)
+
+	// Check Regolith wasn't activated during the test unintentionally
+	infoTx, err = l2Cl.TransactionInBlock(t.Ctx(), seq.L2Unsafe().Hash, 0)
+	require.NoError(t, err)
+	require.True(t, infoTx.IsDepositTx())
+	// Should only be a system tx if regolith is not enabled
+	require.Equal(t, !test.activateRegolith, infoTx.IsSystemTx())
 }
