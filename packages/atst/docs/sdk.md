@@ -54,7 +54,7 @@ createClient({
 
 To read an attestation use `readString`, `readAddress`, `readNumber`, `readBool`
 
-Use `readAttestation` to with `bytes` passed in for the types parameter to read raw bytes
+Use `readAttestationString` with `bytes` passed in for the types parameter to read raw bytes
 
 Here is an example of reading an attestation used by the optimist nft
 
