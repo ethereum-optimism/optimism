@@ -78,7 +78,8 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 
 	_, _, err = m.TxData(eth.BlockID{})
 	require.Nil(t, err)
-
+_, _, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(t, err, io.EOF)
 	err = m.AddL2Block(x)
 	require.ErrorIs(t, err, batcher.ErrReorg)
 }
