@@ -25,6 +25,7 @@ describe(`cli:${write.name}`, () => {
       value,
       contract: ATTESTATION_STATION_ADDRESS,
       rpcUrl,
+      dataType: 'string',
     })
 
     expect(txHash.startsWith('0x')).toBe(true)
