@@ -1,6 +1,7 @@
 package batcher_test
 
 import (
+	"io"
 	"math/big"
 	"testing"
 
@@ -38,11 +39,11 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 	}, nil, nil, nil, nil)
 
 	err := m.AddL2Block(a)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	err = m.AddL2Block(b)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	err = m.AddL2Block(c)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	err = m.AddL2Block(x)
 	require.ErrorIs(t, err, batcher.ErrReorg)
 }
@@ -50,7 +51,7 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 // TestChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
 // detects a reorg even if it does not have any blocks inside it.
 func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
-	log := testlog.Logger(t, log.LvlTrace)
+	log := testlog.Logger(t, log.LvlCrit)
 	m := batcher.NewChannelManager(log, batcher.ChannelConfig{
 		TargetFrameSize:  0,
 		MaxFrameSize:     100,
@@ -62,7 +63,7 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 		Number:     big.NewInt(100),
 	}, nil, nil, nil, trie.NewStackTrie(nil))
 	l1InfoTx, err := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
 
 	a := types.NewBlock(&types.Header{
@@ -74,11 +75,11 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	}, txs, nil, nil, trie.NewStackTrie(nil))
 
 	err = m.AddL2Block(a)
-	require.Nil(t, err)
+	require.NoError(t, err)
 
 	_, _, err = m.TxData(eth.BlockID{})
-	require.Nil(t, err)
-_, _, err = m.TxData(eth.BlockID{})
+	require.NoError(t, err)
+	_, _, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(t, err, io.EOF)
 	err = m.AddL2Block(x)
 	require.ErrorIs(t, err, batcher.ErrReorg)
