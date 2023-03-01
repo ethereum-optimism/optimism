@@ -1,6 +1,7 @@
 // constants
 export { ATTESTATION_STATION_ADDRESS } from './constants/attestationStationAddress'
 // lib
+export { encodeRawKey } from './lib/encodeRawKey'
 export {
   readAttestation,
   readAttestationAddress,
@@ -23,5 +24,5 @@ export {
 } from './lib/parseAttestationBytes'
 // types
 export type { AttestationReadParams } from './types/AttestationReadParams'
-export type { WagmiBytes } from './types/WagmiBytes'
 export type { DataTypeOption } from './types/DataTypeOption'
+export type { WagmiBytes } from './types/WagmiBytes'
