@@ -140,7 +140,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.2.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
@@ -150,7 +150,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         L2OutputOracle _l2Oracle,
         address _guardian,
         bool _paused
-    ) Semver(1, 1, 0) {
+    ) Semver(1, 2, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         initialize(_paused);
