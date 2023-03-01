@@ -21,11 +21,11 @@ contract SafeCall_Succeeds_Invariants is Test {
     }
 
     /**
-     * @custom:invariant `callWithMinGas` forwards at least `minGas` if the call succeeds.
+     * @custom:invariant If `callWithMinGas` performs a call, then it must always
+     * provide at least the specified minimum gas limit to the subcontext.
      *
-     * If the call to `SafeCall.callWithMinGas` succeeds, then the
-     * call must have received at *least* `minGas` gas. If there is not enough gas in
-     * the callframe to supply the minimum amount of gas to the call, it must revert.
+     * If the check for remaining gas in `SafeCall.callWithMinGas` passes, the
+     * subcontext of the call below it must be provided at least `minGas` gas.
      */
     function invariant_callWithMinGas_alwaysForwardsMinGas_succeeds() public {
         assertEq(actor.numFailed(), 0, "no failed calls allowed");
@@ -52,11 +52,11 @@ contract SafeCall_Fails_Invariants is Test {
 
     /**
      * @custom:invariant `callWithMinGas` reverts if there is not enough gas to pass
-     * to the call.
+     * to the subcontext.
      *
-     * If there is not enough gas in the callframe to ensure that
-     * `SafeCall.callWithMinGas` will receive at least `minGas` gas, then the call
-     * must revert.
+     * If there is not enough gas in the callframe to ensure that `callWithMinGas`
+     * can provide the specified minimum gas limit to the subcontext of the call,
+     * then `callWithMinGas` must revert.
      */
     function invariant_callWithMinGas_neverForwardsMinGas_reverts() public {
         assertEq(actor.numSuccessful(), 0, "no successful calls allowed");

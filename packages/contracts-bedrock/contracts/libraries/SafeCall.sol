@@ -57,9 +57,10 @@ library SafeCall {
             //
             // Because EIP-150 ensures that, at max, 64/64ths of the remaining gas in the call
             // frame may be passed to a subcontext, we need to ensure that the gas will not be
-            // truncated to hold the invariant. In addition, exactly 51 gas is consumed between
-            // the below `GAS` opcode and the `CALL` opcode, so it is factored in with some extra
-            // room for error.
+            // truncated to hold this function's invariant: "If a call is performed by
+            // `callWithMinGas`, it must receive at least the specified minimum gas limit." In
+            // addition, exactly 51 gas is consumed between the below `GAS` opcode and the `CALL`
+            // opcode, so it is factored in with some extra room for error.
             if lt(gas(), div(shl(0x06, add(_minGas, 0xC8)), 0x3F)) {
                 // Store the "Error(string)" selector in scratch space.
                 mstore(0x00, 0x08c379a0)
