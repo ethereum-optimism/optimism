@@ -32,7 +32,7 @@ npm install @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0
 
 The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to the attestation station
 
-### See [sdk docs]() for usage instructions
+### See [sdk docs](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/sdk.md) for usage instructions
 
 ## atst cli
 
@@ -62,6 +62,6 @@ Also some more hooks exported by the cli but these are likely the only ones you 
 
 ## Contributing
 
-Please see our [contributing.md](/docs/contributing.md). No contribution is too small.
+Please see our [contributing.md](docs/contributing.md). No contribution is too small.
 
 Having your contribution denied feels bad. Please consider opening an issue before adding any new features or apis
