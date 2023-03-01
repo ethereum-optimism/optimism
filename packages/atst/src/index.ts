@@ -1,15 +1,16 @@
 // constants
 export { ATTESTATION_STATION_ADDRESS } from './constants/attestationStationAddress'
 // lib
-export { readAttestation } from './lib/readAttestation'
-export { readAttestations } from './lib/readAttestations'
+export { abi } from './lib/abi'
+export { encodeRawKey } from './lib/encodeRawKey'
+export { parseAttestationBytes } from './lib/parseAttestationBytes'
 export { prepareWriteAttestation } from './lib/prepareWriteAttestation'
 export { prepareWriteAttestations } from './lib/prepareWriteAttestations'
-export { writeAttestation } from './lib/writeAttestation'
-export { abi } from './lib/abi'
-export { parseAttestationBytes } from './lib/parseAttestationBytes'
+export { readAttestation } from './lib/readAttestation'
+export { readAttestations } from './lib/readAttestations'
 export { stringifyAttestationBytes } from './lib/stringifyAttestationBytes'
+export { writeAttestation } from './lib/writeAttestation'
 // types
 export type { AttestationReadParams } from './types/AttestationReadParams'
-export type { WagmiBytes } from './types/WagmiBytes'
 export type { DataTypeOption } from './types/DataTypeOption'
+export type { WagmiBytes } from './types/WagmiBytes'

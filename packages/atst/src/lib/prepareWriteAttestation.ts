@@ -13,7 +13,15 @@ export const prepareWriteAttestation = async (
   chainId = 10,
   contractAddress: Address = ATTESTATION_STATION_ADDRESS
 ) => {
-  const formattedKey = formatBytes32String(key) as WagmiBytes
+  let formattedKey: WagmiBytes
+  try {
+    formattedKey = formatBytes32String(key) as WagmiBytes
+  } catch (e) {
+    console.error(e)
+    throw new Error(
+      `key is longer than 32 bytes: ${key}.  Try using a shorter key or using 'encodeRawKey' to encode the key into 32 bytes first`
+    )
+  }
   return prepareWriteContract({
     address: contractAddress,
     abi,
