@@ -15,7 +15,6 @@ contract OptimismPortal_Test is Portal_Initializer {
     event Unpaused(address);
 
     function test_constructor_succeeds() external {
-        assertEq(op.FINALIZATION_PERIOD_SECONDS(), 7 days);
         assertEq(address(op.L2_ORACLE()), address(oracle));
         assertEq(op.l2Sender(), 0x000000000000000000000000000000000000dEaD);
         assertEq(op.paused(), false);
@@ -314,11 +313,11 @@ contract OptimismPortal_Test is Portal_Initializer {
         );
 
         // warp to the finalization period
-        vm.warp(ts + op.FINALIZATION_PERIOD_SECONDS());
+        vm.warp(ts + oracle.FINALIZATION_PERIOD_SECONDS());
         assertEq(op.isOutputFinalized(0), false);
 
         // warp past the finalization period
-        vm.warp(ts + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(ts + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         assertEq(op.isOutputFinalized(0), true);
     }
 
@@ -331,7 +330,7 @@ contract OptimismPortal_Test is Portal_Initializer {
         oracle.proposeL2Output(keccak256(abi.encode(2)), checkpoint, 0, 0);
 
         // warp to the final second of the finalization period
-        uint256 finalizationHorizon = block.timestamp + op.FINALIZATION_PERIOD_SECONDS();
+        uint256 finalizationHorizon = block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS();
         vm.warp(finalizationHorizon);
         // The checkpointed block should not be finalized until 1 second from now.
         assertEq(op.isOutputFinalized(nextOutputIndex), false);
@@ -398,7 +397,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
             oracle.getL2Output(_proposedOutputIndex).timestamp +
-                op.FINALIZATION_PERIOD_SECONDS() +
+                oracle.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
         // Fund the portal so that we can withdraw ETH.
@@ -620,7 +619,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             _withdrawalProof
         );
 
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectEmit(true, true, false, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -692,7 +691,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Mock a startingTimestamp change on the L2 Oracle
         vm.mockCall(
@@ -727,7 +726,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Mock an outputRoot change on the output proposal before attempting
         // to finalize the withdrawal.
@@ -769,7 +768,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         );
 
         // Warp to after the finalization period
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Mock a timestamp change on the output proposal that has not passed the
         // finalization period.
@@ -808,7 +807,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             _withdrawalProof
         );
 
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(_withdrawalHash, false);
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -854,7 +853,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             _withdrawalProof
         );
 
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(_withdrawalHash, true);
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -905,7 +904,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             withdrawalProof
         );
 
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectRevert("OptimismPortal: insufficient gas to finalize withdrawal");
         op.finalizeWithdrawalTransaction{ gas: gasLimit }(insufficientGasTx);
     }
@@ -937,7 +936,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         });
 
         // Setup the Oracle to return the outputRoot we want as well as a finalized timestamp.
-        uint256 finalizedTimestamp = block.timestamp - op.FINALIZATION_PERIOD_SECONDS() - 1;
+        uint256 finalizedTimestamp = block.timestamp - oracle.FINALIZATION_PERIOD_SECONDS() - 1;
         vm.mockCall(
             address(op.L2_ORACLE()),
             abi.encodeWithSelector(L2OutputOracle.getL2Output.selector),
@@ -959,7 +958,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
             withdrawalProof
         );
 
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         vm.expectCall(address(this), _testTx.data);
         vm.expectEmit(true, true, true, true);
         emit WithdrawalFinalized(withdrawalHash, true);
@@ -1025,7 +1024,7 @@ contract OptimismPortal_FinalizeWithdrawal_Test is Portal_Initializer {
         // Ensure that the sentMessages is correct
         assertEq(messagePasser.sentMessages(withdrawalHash), true);
 
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
         op.proveWithdrawalTransaction(
             _tx,
             100, // l2BlockNumber

@@ -85,7 +85,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
             oracle.getL2Output(_proposedOutputIndex).timestamp +
-                op.FINALIZATION_PERIOD_SECONDS() +
+                oracle.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
         // Fund the portal so that we can withdraw ETH.

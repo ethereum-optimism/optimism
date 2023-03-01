@@ -49,11 +49,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
     /**
-     * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
-     */
-    uint256 public immutable FINALIZATION_PERIOD_SECONDS;
-
-    /**
      * @notice Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
@@ -145,22 +140,19 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.2.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
-     * @param _finalizationPeriodSeconds Output finalization time in seconds.
      * @param _paused                    Sets the contract's pausability state.
      */
     constructor(
         L2OutputOracle _l2Oracle,
-        uint256 _finalizationPeriodSeconds,
         address _guardian,
         bool _paused
-    ) Semver(1, 1, 0) {
+    ) Semver(1, 2, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
-        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
         initialize(_paused);
     }
 
@@ -480,6 +472,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @return Whether or not the finalization period has elapsed.
      */
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
-        return block.timestamp > _timestamp + FINALIZATION_PERIOD_SECONDS;
+        return block.timestamp > _timestamp + L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
     }
 }

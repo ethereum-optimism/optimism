@@ -54,7 +54,7 @@ func WaitForFinalizationPeriod(ctx context.Context, client *ethclient.Client, po
 	}
 	l2BlockNumber = l2BlockNumber.Mul(l2BlockNumber, submissionInterval)
 
-	finalizationPeriod, err := portal.FINALIZATIONPERIODSECONDS(opts)
+	finalizationPeriod, err := l2OO.FINALIZATIONPERIODSECONDS(opts)
 	if err != nil {
 		return 0, err
 	}

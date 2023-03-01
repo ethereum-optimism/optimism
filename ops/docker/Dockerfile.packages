@@ -125,6 +125,6 @@ FROM base as balance-monitor
 WORKDIR /opt/optimism/packages/balance-monitor
 ENTRYPOINT ["yarn", "run", "start:prod"]
 
-FROM base as two-step-monitor
-WORKDIR /opt/optimism/packages/two-step-monitor
-ENTRYPOINT ["yarn", "run", "start"]
+FROM base as wd-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["yarn", "run", "start:wd-mon"]
