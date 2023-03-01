@@ -361,12 +361,15 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
-        // Trigger the call to the target contract. We use SafeCall because we don't
-        // care about the returndata and we don't want target contracts to be able to force this
-        // call to run out of gas via a returndata bomb. We also want to maintain the property
-        // that the amount of gas supplied to the call to the target contract is at least the gas
-        // limit specified by the user. If there is not enough gas in the callframe to accomplish
-        // this, `callWithMinGas` will revert.
+        // Trigger the call to the target contract. We use a custom low level method
+        // SafeCall.callWithMinGas to ensure two key properties
+        //   1. Target contracts cannot force this call to run out of gas by returning a very large
+        //      amount of data (and this is OK because we don't care about the returndata here).
+        //   2. The amount of gas provided to the call to the target contract is at least the gas
+        //      limit specified by the user. If there is not enough gas in the callframe to
+        //      accomplish this, `callWithMinGas` will revert.
+        // Additionally, if there is not enough gas remaining to complete the execution after the
+        // call returns, this function will revert.
         bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
 
         // Reset the l2Sender back to the default value.

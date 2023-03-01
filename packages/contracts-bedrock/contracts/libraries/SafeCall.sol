@@ -26,7 +26,7 @@ library SafeCall {
                 _gas, // gas
                 _target, // recipient
                 _value, // ether value
-                add(_calldata, 0x20), // inloc
+                add(_calldata, 32), // inloc
                 mload(_calldata), // inlen
                 0, // outloc
                 0 // outlen
@@ -55,17 +55,17 @@ library SafeCall {
         assembly {
             // Assertion: gasleft() >= ((_minGas + 200) * 64) / 63
             //
-            // Because EIP-150 ensures that, at max, 64/64ths of the remaining gas in the call
+            // Because EIP-150 ensures that, a maximum of 63/64ths of the remaining gas in the call
             // frame may be passed to a subcontext, we need to ensure that the gas will not be
             // truncated to hold this function's invariant: "If a call is performed by
             // `callWithMinGas`, it must receive at least the specified minimum gas limit." In
             // addition, exactly 51 gas is consumed between the below `GAS` opcode and the `CALL`
             // opcode, so it is factored in with some extra room for error.
-            if lt(gas(), div(shl(0x06, add(_minGas, 0xC8)), 0x3F)) {
+            if lt(gas(), div(mul(64, add(_minGas, 200)), 63)) {
                 // Store the "Error(string)" selector in scratch space.
-                mstore(0x00, 0x08c379a0)
+                mstore(0, 0x08c379a0)
                 // Store the pointer to the string length in scratch space.
-                mstore(0x20, 0x20)
+                mstore(32, 32)
                 // Store the string.
                 //
                 // SAFETY:
@@ -76,10 +76,10 @@ library SafeCall {
                 // unlikely that it will be greater than 3 bytes. As for the data within
                 // 0x60, it is ensured that it is 0 due to 0x60 being the zero offset.
                 // - It's fine to clobber the free memory pointer, we're reverting.
-                mstore(0x58, 0x0000185361666543616c6c3a204e6f7420656e6f75676820676173)
+                mstore(88, 0x0000185361666543616c6c3a204e6f7420656e6f75676820676173)
 
                 // Revert with 'Error("SafeCall: Not enough gas")'
-                revert(0x1c, 0x64)
+                revert(28, 100)
             }
 
             // The call will be supplied at least (((_minGas + 200) * 64) / 63) - 49 gas due to the
@@ -93,7 +93,7 @@ library SafeCall {
                 gas(), // gas
                 _target, // recipient
                 _value, // ether value
-                add(_calldata, 0x20), // inloc
+                add(_calldata, 32), // inloc
                 mload(_calldata), // inlen
                 0x00, // outloc
                 0x00 // outlen

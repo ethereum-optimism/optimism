@@ -7,11 +7,11 @@ import { Vm } from "forge-std/Vm.sol";
 import { SafeCall } from "../../libraries/SafeCall.sol";
 
 contract SafeCall_Succeeds_Invariants is Test {
-    SafeCaller_Succeeds_Actor actor;
+    SafeCaller_Actor actor;
 
     function setUp() public {
         // Create a new safe caller actor.
-        actor = new SafeCaller_Succeeds_Actor(vm);
+        actor = new SafeCaller_Actor(vm, false);
 
         // Set the caller to this contract
         targetSender(address(this));
@@ -28,7 +28,7 @@ contract SafeCall_Succeeds_Invariants is Test {
      * subcontext of the call below it must be provided at least `minGas` gas.
      */
     function invariant_callWithMinGas_alwaysForwardsMinGas_succeeds() public {
-        assertEq(actor.numFailed(), 0, "no failed calls allowed");
+        assertEq(actor.numCalls(), 0, "no failed calls allowed");
     }
 
     function performSafeCallMinGas(uint64 minGas) external {
@@ -37,11 +37,11 @@ contract SafeCall_Succeeds_Invariants is Test {
 }
 
 contract SafeCall_Fails_Invariants is Test {
-    SafeCaller_Fails_Actor actor;
+    SafeCaller_Actor actor;
 
     function setUp() public {
         // Create a new safe caller actor.
-        actor = new SafeCaller_Fails_Actor(vm);
+        actor = new SafeCaller_Actor(vm, true);
 
         // Set the caller to this contract
         targetSender(address(this));
@@ -59,7 +59,7 @@ contract SafeCall_Fails_Invariants is Test {
      * then `callWithMinGas` must revert.
      */
     function invariant_callWithMinGas_neverForwardsMinGas_reverts() public {
-        assertEq(actor.numSuccessful(), 0, "no successful calls allowed");
+        assertEq(actor.numCalls(), 0, "no successful calls allowed");
     }
 
     function performSafeCallMinGas(uint64 minGas) external {
@@ -67,57 +67,39 @@ contract SafeCall_Fails_Invariants is Test {
     }
 }
 
-contract SafeCaller_Succeeds_Actor is StdUtils {
-    Vm internal vm;
-    uint256 public numFailed;
+contract SafeCaller_Actor is StdUtils {
+    bool internal immutable FAILS;
 
-    constructor(Vm _vm) {
+    Vm internal vm;
+    uint256 public numCalls;
+
+    constructor(Vm _vm, bool _fails) {
         vm = _vm;
+        FAILS = _fails;
     }
 
     function performSafeCallMinGas(uint64 gas, uint64 minGas) external {
-        // Bound the minimum gas amount to [2500, type(uint48).max]
-        minGas = uint64(bound(minGas, 2500, type(uint48).max));
-        // Bound the gas passed to [(((minGas + 200) * 64) / 63) + 500, type(uint64).max]
-        gas = uint64(bound(gas, (((minGas + 200) * 64) / 63) + 500, type(uint64).max));
+        if (FAILS) {
+            // Bound the minimum gas amount to [2500, type(uint48).max]
+            minGas = uint64(bound(minGas, 2500, type(uint48).max));
+            // Bound the gas passed to [minGas, (((minGas + 200) * 64) / 63)]
+            gas = uint64(bound(gas, minGas, (((minGas + 200) * 64) / 63)));
+        } else {
+            // Bound the minimum gas amount to [2500, type(uint48).max]
+            minGas = uint64(bound(minGas, 2500, type(uint48).max));
+            // Bound the gas passed to [(((minGas + 200) * 64) / 63) + 500, type(uint64).max]
+            gas = uint64(bound(gas, (((minGas + 200) * 64) / 63) + 500, type(uint64).max));
+        }
 
         vm.expectCallMinGas(address(0x00), 0, minGas, hex"");
         bool success = SafeCall.call(
             msg.sender,
             gas,
             0,
-            abi.encodeWithSelector(
-                SafeCall_Succeeds_Invariants.performSafeCallMinGas.selector,
-                minGas
-            )
+            abi.encodeWithSelector(0x2ae57a41, minGas)
         );
 
-        if (!success) numFailed++;
-    }
-}
-
-contract SafeCaller_Fails_Actor is StdUtils {
-    Vm internal vm;
-    uint256 public numSuccessful;
-
-    constructor(Vm _vm) {
-        vm = _vm;
-    }
-
-    function performSafeCallMinGas(uint64 gas, uint64 minGas) external {
-        // Bound the minimum gas amount to [2500, type(uint48).max]
-        minGas = uint64(bound(minGas, 2500, type(uint48).max));
-        // Bound the gas passed to [minGas, (((minGas + 200) * 64) / 63)]
-        gas = uint64(bound(gas, minGas, (((minGas + 200) * 64) / 63)));
-
-        vm.expectCallMinGas(address(0x00), 0, minGas, hex"");
-        bool success = SafeCall.call(
-            msg.sender,
-            gas,
-            0,
-            abi.encodeWithSelector(SafeCall_Fails_Invariants.performSafeCallMinGas.selector, minGas)
-        );
-
-        if (success) numSuccessful++;
+        if (success && FAILS) numCalls++;
+        if (!FAILS && !success) numCalls++;
     }
 }
