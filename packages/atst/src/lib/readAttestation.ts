@@ -1,6 +1,8 @@
 import type { Address } from '@wagmi/core'
+import { BigNumber } from 'ethers'
 
-import { DataTypeOption, DEFAULT_DATA_TYPE } from '../types/DataTypeOption'
+import { DataTypeOption } from '../types/DataTypeOption'
+import { ParseBytesReturn } from '../types/ParseBytesReturn'
 import { readAttestations } from './readAttestations'
 
 /**
@@ -17,19 +19,166 @@ import { readAttestations } from './readAttestations'
  * key: 'my_key',
  * },
  */
-export const readAttestation = async (
+export const readAttestation = async <TDataType extends DataTypeOption>(
+  /**
+   * Creator of the attestation
+   */
   creator: Address,
+  /**
+   * Address the attestation is about
+   */
   about: Address,
+  /**
+   * Key of the attestation
+   */
   key: string,
-  dataType: DataTypeOption = DEFAULT_DATA_TYPE,
+  /**
+   * Data type of the attestation
+   * string | bool | number | address | bytes
+   *
+   * @defaults 'string'
+   */
+  dataType: TDataType,
+  /**
+   * Attestation address
+   * defaults to the official Optimism attestation station determistic deploy address
+   *
+   * @defaults '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+   */
   contractAddress: Address = '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
-) => {
+): Promise<ParseBytesReturn<TDataType>> => {
   const [result] = await readAttestations({
     creator,
     about,
     key,
-    dataType,
     contractAddress,
+    dataType,
   })
-  return result
+  return result as ParseBytesReturn<TDataType>
+}
+
+/**
+ * Reads a string attestation
+ */
+export const readAttestationString = (
+  /**
+   * Creator of the attestation
+   */
+  creator: Address,
+  /**
+   * Address the attestation is about
+   */
+  about: Address,
+  /**
+   * Key of the attestation
+   */
+  key: string,
+  /**
+   * Attestation address
+   * defaults to the official Optimism attestation station determistic deploy address
+   *
+   * @defaults '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+   */
+  contractAddress: Address = '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+) => {
+  return readAttestation(
+    creator,
+    about,
+    key,
+    'string',
+    contractAddress
+  ) as Promise<string>
+}
+
+export const readAttestationBool = (
+  /**
+   * Creator of the attestation
+   */
+  creator: Address,
+  /**
+   * Address the attestation is about
+   */
+  about: Address,
+  /**
+   * Key of the attestation
+   */
+  key: string,
+  /**
+   * Attestation address
+   * defaults to the official Optimism attestation station determistic deploy address
+   *
+   * @defaults '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+   */
+  contractAddress: Address = '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+) => {
+  return readAttestation(
+    /**
+     * Creator of the attestation
+     */
+    creator,
+    about,
+    key,
+    'bool',
+    contractAddress
+  ) as Promise<boolean>
+}
+
+export const readAttestationNumber = (
+  /**
+   * Creator of the attestation
+   */
+  creator: Address,
+  /**
+   * Address the attestation is about
+   */
+  about: Address,
+  /**
+   * Key of the attestation
+   */
+  key: string,
+  /**
+   * Attestation address
+   * defaults to the official Optimism attestation station determistic deploy address
+   *
+   * @defaults '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+   */
+  contractAddress: Address = '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+) => {
+  return readAttestation(
+    creator,
+    about,
+    key,
+    'number',
+    contractAddress
+  ) as Promise<BigNumber>
+}
+
+export const readAttestationAddress = (
+  /**
+   * Creator of the attestation
+   */
+  creator: Address,
+  /**
+   * Address the attestation is about
+   */
+  about: Address,
+  /**
+   * Key of the attestation
+   */
+  key: string,
+  /**
+   * Attestation address
+   * defaults to the official Optimism attestation station determistic deploy address
+   *
+   * @defaults '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+   */
+  contractAddress: Address = '0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77'
+) => {
+  return readAttestation(
+    creator,
+    about,
+    key,
+    'address',
+    contractAddress
+  ) as Promise<Address>
 }
