@@ -30,6 +30,8 @@ yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 
 ## Basic usage
 
+Note: all functions are fully tested. The tests are a great example to see usage examples.
+
 ### Basic Setup
 
 ATST uses `@wagmi/core` under the hood. See their documentation for more information.
@@ -250,6 +252,24 @@ const bigNumberAttestation = stringifyAttestationBytes(
 const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 await writeAttestation(preparedTx)
 ```
+
+### getEvents
+
+To getEvents use getEvents with a provider and any filters to filter the event
+
+```typescript
+const events = await getEvents({
+  creator,
+  about,
+  key,
+  value,
+  provider: new ethers.providers.JsonRpcProvider('http://localhost:8545'),
+  fromBlockOrBlockhash,
+  toBlock,
+})
+```
+
+Set key, about, creator, or value to `null` to not include that filter
 
 ## Tutorial
 
