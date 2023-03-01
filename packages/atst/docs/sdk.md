@@ -203,6 +203,21 @@ const attestation = parseAttestationBytes(
 )
 ```
 
+### attestation keys
+
+Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `encodeRawKey` function
+
+```typescript
+const key = await encodeRawKey(
+  about,
+  key,
+  'i.am.a.key.much.longer.than.32.bytes.long'
+)
+await writeAttestation(preparedTx)
+```
+
+encodeRawKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
+
 ### prepareWriteAttestation
 
 [Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
@@ -235,3 +250,7 @@ const bigNumberAttestation = stringifyAttestationBytes(
 const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 await writeAttestation(preparedTx)
 ```
+
+## Tutorial
+
+For a tutorial on using the attestation station in general, see out tutorial as well as other Optimism related tutorials in our [optimism-tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station#key-values) repo
