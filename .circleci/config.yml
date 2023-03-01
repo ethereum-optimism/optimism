@@ -225,6 +225,10 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
@@ -233,25 +237,20 @@ jobs:
       - gcp-oidc-authenticate
       - checkout
       - run:
-          name: Build
-          command: |
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker build \
-            $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-            -f <<parameters.docker_file>> \
-            --build-arg VERSION=$CIRCLE_TAG \
-            <<parameters.docker_context>>
-      - run:
           name: Configure Docker
           command: |
             gcloud auth configure-docker <<parameters.registry>>
       - run:
-          name: Publish
+          name: Build & Publish
           command: |
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
-            echo -ne $DOCKER_TAGS | tr ' ' '\n' | xargs -L1 docker push
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
       - run:
           name: Tag
           command: |
@@ -1178,6 +1177,7 @@ workflows:
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
+          platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr-release
           requires:
@@ -1193,6 +1193,7 @@ workflows:
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
+          platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr-release
           requires:
@@ -1208,6 +1209,7 @@ workflows:
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
+          platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr-release
           requires:
