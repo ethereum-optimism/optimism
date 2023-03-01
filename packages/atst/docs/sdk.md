@@ -52,20 +52,25 @@ createClient({
 
 ### Reading an attestation
 
+To read an attestation use `readString`, `readAddress`, `readNumber`, `readBool`
+
+Use `readAttestation` to with `bytes` passed in for the types parameter to read raw bytes
+
 Here is an example of reading an attestation used by the optimist nft
 
 ```typescript
-import { readAttestation } from '@eth-optimism/atst'
+import { readAttestationString } from '@eth-optimism/atst'
 
 const creator = '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3'
 const about = '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5'
 const key = 'optimist.base-uri'
-const dataType = 'string' // note string is default
 
-const attestation = await readAttestation(creator, about, key, dataType)
+const str = await readAttestationString(creator, about, key)
 
 console.log(attestation) // https://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes
 ```
+
+### Reading multiple Attestations
 
 If reading more than one attestation you can use readAttestations to read them with multicall
 
@@ -172,11 +177,16 @@ const attestation = await readAttestations({
 })
 ```
 
-### parseAttestationBytes
+### Parsing bytes
 
-Parses raw bytes from the attestation station based on the type.
+These utilities for parsing bytes are provided:
 
-Note: `readAttestation` and `readAttestations` already parse the bytes so this is only necessary if reading attestations directly from chain instead of through this sdkA
+`parseAddress`
+`parseNumber`
+`parseBool`
+`parseString`
+
+Note: `readAttestation` and `readAttestations` already parse the bytes so this is only necessary if reading attestations directly from chain instead of through this utility
 
 ```typescript
 const attestation = parseAttestationBytes(
