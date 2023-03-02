@@ -2,4 +2,4 @@
 '@eth-optimism/atst': minor
 ---
 
-Fix types
+Fix string type that should be `0x${string}`
