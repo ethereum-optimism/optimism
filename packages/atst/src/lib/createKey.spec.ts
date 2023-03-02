@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { encodeRawKey } from './encodeRawKey'
+import { encodeRawKey } from './createKey'
 
 describe(encodeRawKey.name, () => {
   it('should return just the raw key if it is less than 32 bytes', () => {
