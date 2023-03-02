@@ -6,13 +6,13 @@ import { WagmiBytes } from '../types/WagmiBytes'
 
 export const stringifyAttestationBytes = (
   bytes: WagmiBytes | string | Address | number | boolean | BigNumber
-) => {
+): WagmiBytes => {
   bytes = bytes === '0x' ? '0x0' : bytes
   if (BigNumber.isBigNumber(bytes)) {
-    return bytes.toHexString()
+    return bytes.toHexString() as WagmiBytes
   }
   if (typeof bytes === 'number') {
-    return BigNumber.from(bytes).toHexString()
+    return BigNumber.from(bytes).toHexString() as WagmiBytes
   }
   if (typeof bytes === 'boolean') {
     return bytes ? '0x1' : '0x0'
@@ -21,10 +21,10 @@ export const stringifyAttestationBytes = (
     return bytes
   }
   if (isHexString(bytes)) {
-    return bytes
+    return bytes as WagmiBytes
   }
   if (typeof bytes === 'string') {
-    return toUtf8Bytes(bytes)
+    return BigNumber.from(toUtf8Bytes(bytes)).toHexString() as WagmiBytes
   }
   throw new Error(`unrecognized bytes type ${bytes satisfies never}`)
 }
