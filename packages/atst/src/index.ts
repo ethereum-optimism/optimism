@@ -28,3 +28,5 @@ export type { AttestationCreatedEvent } from './types/AttestationCreatedEvent'
 export type { AttestationReadParams } from './types/AttestationReadParams'
 export type { DataTypeOption } from './types/DataTypeOption'
 export type { WagmiBytes } from './types/WagmiBytes'
+// react
+export * from './react'
