@@ -1,6 +1,11 @@
 import { Address } from '@wagmi/core'
 import { BigNumber } from 'ethers'
-import { isAddress, isHexString, toUtf8Bytes } from 'ethers/lib/utils.js'
+import {
+  hexlify,
+  isAddress,
+  isHexString,
+  toUtf8Bytes,
+} from 'ethers/lib/utils.js'
 
 import { WagmiBytes } from '../types/WagmiBytes'
 
@@ -24,7 +29,7 @@ export const stringifyAttestationBytes = (
     return bytes as WagmiBytes
   }
   if (typeof bytes === 'string') {
-    return BigNumber.from(toUtf8Bytes(bytes)).toHexString() as WagmiBytes
+    return hexlify(toUtf8Bytes(bytes)) as WagmiBytes
   }
   throw new Error(`unrecognized bytes type ${bytes satisfies never}`)
 }
