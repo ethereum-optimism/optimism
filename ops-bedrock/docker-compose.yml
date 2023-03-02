@@ -17,6 +17,7 @@ services:
       dockerfile: Dockerfile.l1
     ports:
       - "8545:8545"
+      - "7060:6060"
     volumes:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
@@ -28,6 +29,7 @@ services:
       dockerfile: Dockerfile.l2
     ports:
       - "9545:8545"
+      - "8060:6060"
     volumes:
       - "l2_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
