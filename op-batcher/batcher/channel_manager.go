@@ -188,9 +188,6 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 // It currently only uses one frame per transaction. If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending frame.
-//
-// It currently ignores the l1Head provided and doesn't track channel timeouts
-// or the sequencer window span yet.
 func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
@@ -211,11 +208,14 @@ func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 		return nil, txID{}, err
 	}
 
-	s.checkTimeout(l1Head)
-
 	if err := s.processBlocks(); err != nil {
 		return nil, txID{}, err
 	}
+
+	// Register current L1 head only after all pending blocks have been
+	// processed. Even if a timeout will be triggered now, it is better to have
+	// all pending blocks be included in this channel for submission.
+	s.registerL1Block(l1Head)
 
 	if err := s.pendingChannel.OutputFrames(); err != nil {
 		return nil, txID{}, fmt.Errorf("creating frames with channel builder: %w", err)
@@ -239,14 +239,13 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.BlockID) error {
 	return nil
 }
 
-// checkTimeout checks the block timeout on the pending channel.
-func (s *channelManager) checkTimeout(l1Head eth.BlockID) {
-	s.pendingChannel.CheckTimeout(l1Head.Number)
-	ferr := s.pendingChannel.FullErr()
-	s.log.Debug("timeout triggered",
+// registerL1Block registers the given block at the pending channel.
+func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
+	s.pendingChannel.RegisterL1Block(l1Head.Number)
+	s.log.Debug("new L1-block registered at channel builder",
 		"l1Head", l1Head,
-		"timed_out", errors.Is(ferr, ErrChannelTimedOut),
-		"full_reason", ferr,
+		"channel_full", s.pendingChannel.IsFull(),
+		"full_reason", s.pendingChannel.FullErr(),
 	)
 }
 

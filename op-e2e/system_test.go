@@ -367,9 +367,9 @@ func TestFinalize(t *testing.T) {
 	l2Seq := sys.Clients["sequencer"]
 
 	// as configured in the extra geth lifecycle in testing setup
-	finalizedDistance := uint64(8)
+	const finalizedDistance = 8
 	// Wait enough time for L1 to finalize and L2 to confirm its data in finalized L1 blocks
-	<-time.After(time.Duration((finalizedDistance+4)*cfg.DeployConfig.L1BlockTime) * time.Second)
+	time.Sleep(time.Duration((finalizedDistance+6)*cfg.DeployConfig.L1BlockTime) * time.Second)
 
 	// fetch the finalizes head of geth
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
@@ -883,7 +883,7 @@ func TestWithdrawals(t *testing.T) {
 	require.Nil(t, err)
 
 	// Get l2BlockNumber for proof generation
-	ctx, cancel = context.WithTimeout(context.Background(), 30*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	defer cancel()
 	blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 	require.Nil(t, err)

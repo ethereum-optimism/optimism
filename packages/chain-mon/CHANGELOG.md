@@ -1,5 +1,16 @@
 # @eth-optimism/drippie-mon
 
+## 0.2.0
+
+### Minor Changes
+
+- 282bda091: Added a withdrawal monitoring service
+
+### Patch Changes
+
+- Updated dependencies [cb19e2f9c]
+  - @eth-optimism/sdk@2.0.0
+
 ## 0.1.3
 
 ### Patch Changes

@@ -28,6 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
       0,
       hre.deployConfig.l2OutputOracleProposer,
       hre.deployConfig.l2OutputOracleChallenger,
+      hre.deployConfig.finalizationPeriodSeconds,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -49,6 +50,11 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'CHALLENGER',
         hre.deployConfig.l2OutputOracleChallenger
+      )
+      await assertContractVariable(
+        contract,
+        'FINALIZATION_PERIOD_SECONDS',
+        hre.deployConfig.finalizationPeriodSeconds
       )
     },
   })

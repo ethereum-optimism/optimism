@@ -30,6 +30,8 @@ yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 
 ## Basic usage
 
+Note: all functions are fully tested. The tests are a great example to see usage examples.
+
 ### Basic Setup
 
 ATST uses `@wagmi/core` under the hood. See their documentation for more information.
@@ -52,20 +54,25 @@ createClient({
 
 ### Reading an attestation
 
+To read an attestation use `readString`, `readAddress`, `readNumber`, `readBool`
+
+Use `readAttestationString` with `bytes` passed in for the types parameter to read raw bytes
+
 Here is an example of reading an attestation used by the optimist nft
 
 ```typescript
-import { readAttestation } from '@eth-optimism/atst'
+import { readAttestationString } from '@eth-optimism/atst'
 
 const creator = '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3'
 const about = '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5'
 const key = 'optimist.base-uri'
-const dataType = 'string' // note string is default
 
-const attestation = await readAttestation(creator, about, key, dataType)
+const str = await readAttestationString(creator, about, key)
 
 console.log(attestation) // https://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes
 ```
+
+### Reading multiple Attestations
 
 If reading more than one attestation you can use readAttestations to read them with multicall
 
@@ -172,11 +179,16 @@ const attestation = await readAttestations({
 })
 ```
 
-### parseAttestationBytes
+### Parsing bytes
 
-Parses raw bytes from the attestation station based on the type.
+These utilities for parsing bytes are provided:
 
-Note: `readAttestation` and `readAttestations` already parse the bytes so this is only necessary if reading attestations directly from chain instead of through this sdkA
+`parseAddress`
+`parseNumber`
+`parseBool`
+`parseString`
+
+Note: `readAttestation` and `readAttestations` already parse the bytes so this is only necessary if reading attestations directly from chain instead of through this utility
 
 ```typescript
 const attestation = parseAttestationBytes(
@@ -192,6 +204,21 @@ const attestation = parseAttestationBytes(
   dataType
 )
 ```
+
+### attestation keys
+
+Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `encodeRawKey` function
+
+```typescript
+const key = await encodeRawKey(
+  about,
+  key,
+  'i.am.a.key.much.longer.than.32.bytes.long'
+)
+await writeAttestation(preparedTx)
+```
+
+encodeRawKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
 
 ### prepareWriteAttestation
 
@@ -225,3 +252,25 @@ const bigNumberAttestation = stringifyAttestationBytes(
 const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 await writeAttestation(preparedTx)
 ```
+
+### getEvents
+
+To getEvents use getEvents with a provider and any filters to filter the event
+
+```typescript
+const events = await getEvents({
+  creator,
+  about,
+  key,
+  value,
+  provider: new ethers.providers.JsonRpcProvider('http://localhost:8545'),
+  fromBlockOrBlockhash,
+  toBlock,
+})
+```
+
+Set key, about, creator, or value to `null` to not include that filter
+
+## Tutorial
+
+For a tutorial on using the attestation station in general, see out tutorial as well as other Optimism related tutorials in our [optimism-tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station#key-values) repo

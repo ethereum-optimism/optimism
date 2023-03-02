@@ -19,6 +19,7 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -314,19 +315,22 @@ func TestDiscovery(t *testing.T) {
 
 	// B and C don't know each other yet, but both have A as a bootnode.
 	// It should only be a matter of time for them to connect, if they discover each other via A.
-	var firstPeersOfB []peer.ID
-	for i := 0; i < 2; i++ {
+	timeout := time.After(time.Second * 10)
+	var peersOfB []peer.ID
+	// B should be connected to the bootnode (A) it used (it's a valid optimism node to connect to here)
+	// C should also be connected, although this one might take more time to discover
+	for !slices.Contains(peersOfB, hostA.ID()) || !slices.Contains(peersOfB, hostC.ID()) {
 		select {
-		case <-time.After(time.Second * 30):
-			t.Fatal("failed to get connection to B in time")
+		case <-timeout:
+			var peers []string
+			for _, id := range peersOfB {
+				peers = append(peers, id.String())
+			}
+			t.Fatalf("timeout reached - expected host A: %v and host C: %v to be in %v", hostA.ID().String(), hostC.ID().String(), peers)
 		case c := <-connsB:
-			firstPeersOfB = append(firstPeersOfB, c.RemotePeer())
+			peersOfB = append(peersOfB, c.RemotePeer())
 		}
 	}
-	// B should be connected to the bootnode it used (it's a valid optimism node to connect to here)
-	require.Contains(t, firstPeersOfB, hostA.ID())
-	// C should be connected, although this one might take more time to discover
-	require.Contains(t, firstPeersOfB, hostC.ID())
 }
 
 // Most tests should use mocknets instead of using the actual local host network
