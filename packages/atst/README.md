@@ -44,7 +44,9 @@ TODO put a gif here of using it
 
 For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station.
 
-Use `parseAttestationBytes` and `stringifyAttestationBytes` to parse and stringify attestations before passing them into wagmi hooks.
+Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in the attestation station contract calls
+
+Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by attestation station to their correct data type.
 
 For convenience we also export the hooks here.
 
