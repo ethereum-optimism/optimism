@@ -75,6 +75,12 @@ var (
 
 	/* Optional flags */
 
+	MaxChannelDurationFlag = cli.Uint64Flag{
+		Name:   "max-channel-duration",
+		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
+		Value:  0,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_CHANNEL_DURATION"),
+	}
 	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
 		Name:   "max-l1-tx-size-bytes",
 		Usage:  "The maximum size of a batch tx submitted to L1.",
@@ -96,7 +102,7 @@ var (
 	ApproxComprRatioFlag = cli.Float64Flag{
 		Name:   "approx-compr-ratio",
 		Usage:  "The approximate compression ratio (<= 1.0)",
-		Value:  1.0,
+		Value:  0.4,
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "APPROX_COMPR_RATIO"),
 	}
 	StoppedFlag = cli.BoolFlag{
@@ -135,6 +141,7 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetL1TxSizeBytesFlag,
 	TargetNumFramesFlag,
