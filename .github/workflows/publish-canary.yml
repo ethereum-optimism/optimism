@@ -19,6 +19,7 @@ jobs:
       message-relayer: ${{ steps.packages.outputs.message-relayer }}
       fault-detector: ${{ steps.packages.outputs.fault-detector }}
       drippie-mon: ${{ steps.packages.outputs.drippie-mon }}
+      wd-mon: ${{ steps.packages.outputs.wd-mon }}
       data-transport-layer: ${{ steps.packages.outputs.data-transport-layer }}
       contracts: ${{ steps.packages.outputs.contracts }}
       contracts-bedrock: ${{ steps.packages.outputs.contracts-bedrock }}
@@ -255,6 +256,33 @@ jobs:
           target: drippie-mon
           push: true
           tags: ethereumoptimism/drippie-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
+
+  wd-mon:
+    name: Publish Withdrawal Monitor Version ${{ needs.canary-publish.outputs.canary-docker-tag }}
+    needs: canary-publish
+    if: needs.canary-publish.outputs.wd-mon != ''
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_ACCESS_TOKEN_SECRET }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./ops/docker/Dockerfile.packages
+          target: wd-mon
+          push: true
+          tags: ethereumoptimism/wd-mon:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   data-transport-layer:
     name: Publish Data Transport Layer Version ${{ needs.canary-publish.outputs.canary-docker-tag }}

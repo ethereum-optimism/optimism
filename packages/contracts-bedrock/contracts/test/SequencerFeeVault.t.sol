@@ -63,7 +63,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
             abi.encodeWithSelector(
                 StandardBridge.bridgeETHTo.selector,
                 vault.l1FeeWallet(),
-                20000,
+                35_000,
                 bytes("")
             )
         );

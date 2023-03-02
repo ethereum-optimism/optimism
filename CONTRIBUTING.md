@@ -70,20 +70,25 @@ You'll need the following:
 
 ### Setup
 
-Clone the repository, open it, and install nodejs packages with `yarn`:
+Clone the repository and open it:
 
 ```bash
 git clone git@github.com:ethereum-optimism/optimism.git
 cd optimism
-yarn install
 ```
 
 ### Install the Correct Version of NodeJS
 
-Using `nvm`, install the correct version of NodeJS.
+Install node v16.16.0 with [nvm](https://github.com/nvm-sh/nvm)
 
-```
+```bash
 nvm use
+```
+
+### Install node modules with Yarn
+
+```bash
+yarn install
 ```
 
 ### Building the TypeScript packages

@@ -215,6 +215,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	}
 	if cfg.RPC.EnableAdmin {
 		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
+		n.log.Info("Admin RPC enabled")
 	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := server.Start(); err != nil {

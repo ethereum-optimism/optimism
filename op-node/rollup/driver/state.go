@@ -32,9 +32,6 @@ type Driver struct {
 	// The derivation pipeline determines the new l2Safe.
 	derivation DerivationPipeline
 
-	// When the derivation pipeline is waiting for new data to do anything
-	idleDerivation bool
-
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
 
@@ -212,7 +209,11 @@ func (s *Driver) eventLoop() {
 
 		select {
 		case <-sequencerCh:
-			payload := s.sequencer.RunNextSequencerAction(ctx)
+			payload, err := s.sequencer.RunNextSequencerAction(ctx)
+			if err != nil {
+				s.log.Error("Sequencer critical error", "err", err)
+				return
+			}
 			if s.network != nil && payload != nil {
 				// Publishing of unsafe data via p2p is optional.
 				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
@@ -244,13 +245,11 @@ func (s *Driver) eventLoop() {
 			step()
 		case <-stepReqCh:
 			s.metrics.SetDerivationIdle(false)
-			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
 			err := s.derivation.Step(context.Background())
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
-				s.idleDerivation = true
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue

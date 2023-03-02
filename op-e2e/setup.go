@@ -212,7 +212,7 @@ func (sys *System) Close() {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		sys.BatchSubmitter.Stop()
+		sys.BatchSubmitter.StopIfRunning()
 	}
 
 	for _, node := range sys.RollupNodes {
@@ -309,6 +309,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
+			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -530,11 +531,12 @@ func (cfg SystemConfig) Start() (*System, error) {
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            160, //624,
+		TargetL1TxSize:            100_000,
 		TargetNumFrames:           1,
-		ApproxComprRatio:          1.0,
-		SubSafetyMargin:           testSafetyMargin(cfg.DeployConfig),
+		ApproxComprRatio:          0.4,
+		SubSafetyMargin:           4,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -573,25 +575,4 @@ func uint642big(in uint64) *hexutil.Big {
 func hexPriv(in *ecdsa.PrivateKey) string {
 	b := e2eutils.EncodePrivKey(in)
 	return hexutil.Encode(b)
-}
-
-// returns a safety margin that heuristically leads to a short channel lifetime
-// of netChannelDuration. In current testing setups, we want channels to close
-// quickly to have a low latency. We don't optimize for gas consumption.
-func testSafetyMargin(cfg *genesis.DeployConfig) uint64 {
-	// target channel duration after first frame is included on L1
-	const netChannelDuration = 2
-	// The sequencing window timeout starts from the L1 origin, whereas the
-	// channel timeout starts from the first L1 inclusion block of any frame.
-	// So to have comparable values, the sws is converted to an effective
-	// sequencing window from the first L1 inclusion block, assuming that L2
-	// blocks are quickly included on L1.
-	// So we subtract 1 block distance from the origin block and 1 block for
-	// minging the first frame.
-	openChannelSeqWindow := cfg.SequencerWindowSize - 2
-	if openChannelSeqWindow > cfg.ChannelTimeout {
-		return cfg.ChannelTimeout - netChannelDuration
-	} else {
-		return openChannelSeqWindow - netChannelDuration
-	}
 }

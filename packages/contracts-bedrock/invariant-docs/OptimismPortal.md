@@ -19,6 +19,6 @@ This invariant asserts that there is no chain of calls that can be made that wil
 
 
 ## Deposits of any value should always succeed unless `_to` = `address(0)` or `_isCreation` = `true`.
-**Test:** [`FuzzOptimismPortal.sol#L42`](../contracts/echidna/FuzzOptimismPortal.sol#L42)
+**Test:** [`FuzzOptimismPortal.sol#L41`](../contracts/echidna/FuzzOptimismPortal.sol#L41)
 
 All deposits, barring creation transactions and transactions sent to `address(0)`, should always succeed. 
