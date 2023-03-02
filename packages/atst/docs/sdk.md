@@ -171,11 +171,6 @@ const attestation = await readAttestations({
    * @defaults defaults to the create2 address
    */
   contractAddress,
-  /**
-   * Boolean: Whether to allow some of the calls to fail
-   * Defaults to false
-   */
-  allowFailures,
 })
 ```
 
