@@ -66,6 +66,7 @@ var Goerli = rollup.Config{
 	BatchInboxAddress:      common.HexToAddress("0xff00000000000000000000000000000000000420"),
 	DepositContractAddress: common.HexToAddress("0x5b47E1A08Ea6d985D6649300584e6722Ec4B1383"),
 	L1SystemConfigAddress:  common.HexToAddress("0xAe851f927Ee40dE99aaBb7461C00f9622ab91d60"),
+	RegolithTime:           u64Ptr(1679079600),
 }
 
 var NetworksByName = map[string]rollup.Config{
@@ -96,4 +97,8 @@ func GetRollupConfig(name string) (rollup.Config, error) {
 	}
 
 	return network, nil
+}
+
+func u64Ptr(v uint64) *uint64 {
+	return &v
 }

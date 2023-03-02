@@ -525,8 +525,7 @@ jobs:
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            ./... \
-            -- -timeout=20m
+            -- -timeout=20m ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
