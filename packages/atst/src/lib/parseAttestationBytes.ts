@@ -10,7 +10,7 @@ import { ParseBytesReturn } from '../types/ParseBytesReturn'
  * Parses a string attestion
  */
 export const parseString = (rawAttestation: WagmiBytes): string => {
-  rawAttestation = rawAttestation === '0x' ? '0x0' : rawAttestation
+  rawAttestation = rawAttestation === '0x0' ? '0x' : rawAttestation
   return rawAttestation ? toUtf8String(rawAttestation) : ''
 }
 

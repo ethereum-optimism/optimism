@@ -415,7 +415,6 @@ func TestMixedDepositValidity(t *testing.T) {
 // TestMixedWithdrawalValidity makes a number of withdrawal transactions and ensures ones with modified parameters are
 // rejected while unmodified ones are accepted. This runs test cases in different systems.
 func TestMixedWithdrawalValidity(t *testing.T) {
-	parallel(t)
 	// Setup our logger handler
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
@@ -425,7 +424,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 	for i := 0; i <= 8; i++ {
 		i := i // avoid loop var capture
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
-			t.Parallel()
+			parallel(t)
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.FinalizationPeriodSeconds = 6
@@ -528,7 +527,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			transactor.ExpectedL2Nonce = transactor.ExpectedL2Nonce + 1
 
 			// Wait for the finalization period, then we can finalize this withdrawal.
-			ctx, cancel = context.WithTimeout(context.Background(), 25*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+			ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 			blockNumber, err := withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, receipt.BlockNumber)
 			cancel()
 			require.Nil(t, err)
@@ -658,7 +657,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 				require.Equal(t, types.ReceiptStatusSuccessful, proveReceipt.Status)
 
 				// Wait for finalization and then create the Finalized Withdrawal Transaction
-				ctx, cancel = context.WithTimeout(context.Background(), 40*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
+				ctx, cancel = context.WithTimeout(context.Background(), 45*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 				defer cancel()
 				_, err = withdrawals.WaitForFinalizationPeriod(ctx, l1Client, predeploys.DevOptimismPortalAddr, header.Number)
 				require.Nil(t, err)

@@ -19,6 +19,7 @@
 /packages/migration-data        @ethereum-optimism/legacy-reviewers
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/ecopod
+/packages/atst                  @ethereum-optimism/ecopod
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers

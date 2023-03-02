@@ -39,4 +39,3 @@ describe(readAttestation.name, () => {
     )
   })
 })
-

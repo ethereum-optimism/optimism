@@ -26,6 +26,7 @@ cli
   })
   .example(
     () =>
+      // note: private key is just the first testing address when running anvil
       `atst read --key "optimist.base-uri" --about 0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5 --creator 0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3`
   )
   .action(async (options: ReadOptions) => {
@@ -72,6 +73,8 @@ cli
       `atst write --key "optimist.base-uri" --about 0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5 --value "my attestation" --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 --rpc-url http://localhost:8545`
   )
   .action(async (options: WriteOptions) => {
+    const spinner = logger.spinner()
+    spinner.start('Writing attestation...')
     const { write } = await import('./commands/write')
 
     // TODO use the native api to do this instead of parsing the raw args
@@ -86,9 +89,16 @@ cli
       : options.contract
 
     await write({ ...options, about, privateKey, contract })
+      .then((res) => {
+        spinner.succeed('Attestation written!')
+        logger.info(`Attestation hash: ${res}`)
+      })
+      .catch((e) => {
+        logger.error(e)
+        spinner.fail('Attestation failed!')
+      })
   })
 
-cli.help()
 cli.version(packageJson.version)
 
 void (async () => {
