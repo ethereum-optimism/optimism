@@ -47,6 +47,16 @@ type CLIConfig struct {
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
+	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
+	// channel open. This allows to more eagerly send batcher transactions
+	// during times of low L2 transaction volume. Note that the effective
+	// L1-block distance between batcher transactions is then MaxChannelDuration
+	// + NumConfirmations because the batcher waits for NumConfirmations blocks
+	// after sending a batcher tx and only then starts a new channel.
+	//
+	// If 0, duration checks are disabled.
+	MaxChannelDuration uint64
+
 	// The batcher tx submission safety margin (in #L1-blocks) to subtract from
 	// a channel's timeout and sequencing window, to guarantee safe inclusion of
 	// a channel on L1.
@@ -143,18 +153,19 @@ func NewConfig(ctx *cli.Context) CLIConfig {
 		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
 
 		/* Optional Flags */
-		MaxL1TxSize:      ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		TargetL1TxSize:   ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
-		TargetNumFrames:  ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio: ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
-		Stopped:          ctx.GlobalBool(flags.StoppedFlag.Name),
-		Mnemonic:         ctx.GlobalString(flags.MnemonicFlag.Name),
-		SequencerHDPath:  ctx.GlobalString(flags.SequencerHDPathFlag.Name),
-		PrivateKey:       ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		RPCConfig:        rpc.ReadCLIConfig(ctx),
-		LogConfig:        oplog.ReadCLIConfig(ctx),
-		MetricsConfig:    opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:      oppprof.ReadCLIConfig(ctx),
-		SignerConfig:     opsigner.ReadCLIConfig(ctx),
+		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
+		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
+		TargetNumFrames:    ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:   ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
+		Stopped:            ctx.GlobalBool(flags.StoppedFlag.Name),
+		Mnemonic:           ctx.GlobalString(flags.MnemonicFlag.Name),
+		SequencerHDPath:    ctx.GlobalString(flags.SequencerHDPathFlag.Name),
+		PrivateKey:         ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		RPCConfig:          rpc.ReadCLIConfig(ctx),
+		LogConfig:          oplog.ReadCLIConfig(ctx),
+		MetricsConfig:      opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:        oppprof.ReadCLIConfig(ctx),
+		SignerConfig:       opsigner.ReadCLIConfig(ctx),
 	}
 }

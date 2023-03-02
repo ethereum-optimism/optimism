@@ -41,8 +41,11 @@ describe(parseAttestationBytes.name, () => {
   })
 
   it('should work for raw bytes', () => {
-    const bytes = '0x420'
-    expect(parseAttestationBytes(bytes, 'bytes')).toBe(bytes)
+    expect(parseAttestationBytes('0x420', 'bytes')).toMatchInlineSnapshot(
+      '"0x420"'
+    )
+    expect(parseAttestationBytes('0x', 'string')).toMatchInlineSnapshot('""')
+    expect(parseAttestationBytes('0x0', 'string')).toMatchInlineSnapshot('""')
   })
 
   it('should return raw bytes for invalid type', () => {
@@ -57,12 +60,16 @@ describe('parseFoo', () => {
     const str = 'Hello World'
     const bytes = BigNumber.from(toUtf8Bytes(str)).toHexString() as WagmiBytes
     expect(parseString(bytes)).toBe(str)
+    expect(parseString('0x')).toMatchInlineSnapshot('""')
+    expect(parseString('0x0')).toMatchInlineSnapshot('""')
+    expect(parseString('0x0')).toMatchInlineSnapshot('""')
   })
 
   it('works for numbers', () => {
     const num = 123
     const bytes = BigNumber.from(num).toHexString() as WagmiBytes
     expect(parseNumber(bytes)).toEqual(BigNumber.from(num))
+    expect(parseNumber('0x')).toEqual(BigNumber.from(0))
   })
 
   it('works for addresses', () => {
@@ -74,5 +81,8 @@ describe('parseFoo', () => {
   it('works for booleans', () => {
     const bytes = BigNumber.from(1).toHexString() as WagmiBytes
     expect(parseBool(bytes)).toBe(true)
+    expect(parseBool('0x')).toBe(false)
+    expect(parseBool('0x0')).toBe(false)
+    expect(parseBool('0x00000')).toBe(false)
   })
 })
