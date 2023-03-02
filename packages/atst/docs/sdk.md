@@ -64,20 +64,21 @@ const about = '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5'
 const key = 'optimist.base-uri'
 
 const str = await readAttestationString(creator, about, key)
-console.log(attestation) // https://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes
+console.log(attestation) 
+// https://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes
 ```
 
 ### Reading multiple attestations
 
-If reading more than one attestation you can use `readAttestations` to read them with [multicall](https://www.npmjs.com/package/ethereum-multicall).
+If reading more than one attestation you can use [`readAttestations`](#readattestations) to read them with [multicall](https://www.npmjs.com/package/ethereum-multicall).
 
 ### Writing an attestation
 
 To write to an attestation you must [connect](https://wagmi.sh/core/connectors/metaMask) your wagmi client if not already connected. 
-If using Node.js use the [mock connector](https://wagmi.sh/core/connectors/mock)
+If using Node.js use the [mock connector](https://wagmi.sh/core/connectors/mock).
 
 ```typescript
-import { prepareWriteAttestation, writeAttestation } from '@eth-optimism/sdk'
+import { prepareWriteAttestation, writeAttestation } from '@eth-optimism/atst'
 
 const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 console.log(preparedTx.gasLimit)
@@ -90,9 +91,19 @@ await writeAttestation(preparedTx)
 
 These functions are the easiest way to interact with the AttestationStation contract.
 
+#### `prepareWriteAttestation`
+
+[Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
+This function creates the transaction data, estimates the gas cost, etc.
+
+```typescript
+const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
+console.log(preparedTx.gasFee)
+```
+
 #### `readAttestation`
 
-[Reads](https://wagmi.sh/core/actions/readContract) and parses an attestation based on it's data type.
+[Reads](https://wagmi.sh/core/actions/readContract) and parses an attestation based on its data type.
 
 ```typescript
 const attestation = await readAttestation(
@@ -105,6 +116,7 @@ const attestation = await readAttestation(
 ```
 
 **Return Value:** The value attested by the `creator` on the `about` address concerning the `key`, when interpreted as the `dataType`.
+If there is no such attestation the result is zero, `false`, or an empty string.
 
 #### `readAttestations`
 
@@ -124,16 +136,6 @@ const attestationList = await readAttestations({
 
 **Return Value:** A list of values attested by the `creator` on the `about` address concerning the `key`, when interpreted as the `dataType`.
 
-
-#### `prepareWriteAttestation`
-
-[Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
-This function creates the transaction data, estimates the gas cost, etc.
-
-```typescript
-const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
-console.log(preparedTx.gasFee)
-```
 
 
 #### `writeAttestation`
@@ -165,20 +167,24 @@ The abi of the attestation station contract
 import { abi } from '@eth-optimism/atst'
 ```
 
-### `stringifyAttestationBytes`
 
-Stringifys an attestation into raw bytes.
+#### `getEvents`
 
-**Note:** `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station
+Use `getEvents` to get attestation events using a provider and filters. 
 
 ```typescript
-const stringAttestation = stringifyAttestationBytes('hello world')
-const numberAttestation = stringifyAttestationBytes(500)
-const hexAttestation = stringifyAttestationBytes('0x1')
-const bigNumberAttestation = stringifyAttestationBytes(
-  BigNumber.from('9999999999999999999999999')
-)
+const events = await getEvents({
+  creator,
+  about,
+  key,
+  value,
+  provider: new ethers.providers.JsonRpcProvider('http://localhost:8545'),
+  fromBlockOrBlockhash,
+  toBlock,
+})
 ```
+
+Set `key`, `about`, `creator`, or `value` to `null` to not filter that value.
 
 
 #### `parseAddress`
@@ -212,9 +218,27 @@ Turn bytes into a string.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-#### attestation keys
+#### `stringifyAttestationBytes`
 
-Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `createKey` function
+Stringifys an attestation into raw bytes.
+
+```typescript
+const stringAttestation = stringifyAttestationBytes('hello world')
+const numberAttestation = stringifyAttestationBytes(500)
+const hexAttestation = stringifyAttestationBytes('0x1')
+const bigNumberAttestation = stringifyAttestationBytes(
+  BigNumber.from('9999999999999999999999999')
+)
+```
+
+**Note:** `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station.
+
+
+<!--
+#### createKey
+
+`createKey` hashes keys longer than 31 bytes, because the atst key size is limited to 32 bytes.
+
 
 ```typescript
 const key = await createKey(
@@ -227,26 +251,10 @@ await writeAttestation(preparedTx)
 
 createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
 
+-->
 
 
-### getEvents
-
-To getEvents use getEvents with a provider and any filters to filter the event
-
-```typescript
-const events = await getEvents({
-  creator,
-  about,
-  key,
-  value,
-  provider: new ethers.providers.JsonRpcProvider('http://localhost:8545'),
-  fromBlockOrBlockhash,
-  toBlock,
-})
-```
-
-Set key, about, creator, or value to `null` to not include that filter
 
 ## Tutorial
 
-For a tutorial on using the attestation station in general, see out tutorial as well as other Optimism related tutorials in our [optimism-tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station#key-values) repo
+For a tutorial on using the attestation station in general, see out tutorial as well as other Optimism related tutorials in our [optimism-tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station#key-values) repo.
