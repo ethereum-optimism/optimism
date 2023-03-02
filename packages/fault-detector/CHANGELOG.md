@@ -1,5 +1,12 @@
 # @eth-optimism/fault-detector
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [cb19e2f9c]
+  - @eth-optimism/sdk@2.0.0
+
 ## 0.6.0
 
 ### Minor Changes
