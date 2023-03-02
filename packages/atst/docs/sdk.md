@@ -26,15 +26,15 @@ yarn
 yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 ```
 
-**Note** as ethers v6 is not yet stable we only support ethers v5 at this time
+**Note:** As ethers v6 is not yet stable we only support ethers v5 at this time
 
 ## Basic usage
 
-Note: all functions are fully tested. The tests are a great example to see usage examples.
+All functions are fully tested. The tests are a great example to see usage examples.
 
-### Basic Setup
+### Basic setup
 
-ATST uses `@wagmi/core` under the hood. See their documentation for more information.
+atst uses `@wagmi/core` under the hood. [See their documentation for more information](https://wagmi.sh/core/getting-started).
 
 ```typescript
 import { connect, createClient } from '@wagmi/core'
@@ -54,10 +54,6 @@ createClient({
 
 ### Reading an attestation
 
-To read an attestation use `readString`, `readAddress`, `readNumber`, `readBool`
-
-Use `readAttestationString` with `bytes` passed in for the types parameter to read raw bytes
-
 Here is an example of reading an attestation used by the optimist nft
 
 ```typescript
@@ -68,175 +64,115 @@ const about = '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5'
 const key = 'optimist.base-uri'
 
 const str = await readAttestationString(creator, about, key)
-
 console.log(attestation) // https://assets.optimism.io/4a609661-6774-441f-9fdb-453fdbb89931-bucket/optimist-nft/attributes
 ```
 
-### Reading multiple Attestations
+### Reading multiple attestations
 
-If reading more than one attestation you can use readAttestations to read them with multicall
+If reading more than one attestation you can use `readAttestations` to read them with [multicall](https://www.npmjs.com/package/ethereum-multicall).
 
 ### Writing an attestation
 
-To write to an attestation you must [connect](https://wagmi.sh/core/connectors/metaMask) your wagmi client if not already connected. If using Node.js use the [mock connector](https://wagmi.sh/core/connectors/mock)
+To write to an attestation you must [connect](https://wagmi.sh/core/connectors/metaMask) your wagmi client if not already connected. 
+If using Node.js use the [mock connector](https://wagmi.sh/core/connectors/mock)
 
 ```typescript
 import { prepareWriteAttestation, writeAttestation } from '@eth-optimism/sdk'
 
 const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
-
 console.log(preparedTx.gasLimit)
-
 await writeAttestation(preparedTx)
 ```
 
 ## API
 
-### ATTESTATION_STATION_ADDRESS
+### High level API
 
-The deterministic deployment address for the attestation station currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`
+These functions are the easiest way to interact with the AttestationStation contract.
 
-```typescript
-import { ATTESTATION_STATION_ADDRESS } from '@eth-optimism/atst'
-```
-
-### abi
-
-The abi of the attestation station
-
-```typescript
-import { abi } from '@eth-optimism/atst'
-```
-
-### readAttestation
+#### `readAttestation`
 
 [Reads](https://wagmi.sh/core/actions/readContract) and parses an attestation based on it's data type.
 
 ```typescript
 const attestation = await readAttestation(
-  /**
-   * Address: The creator of the attestation
-   */
-  creator,
-  /**
-   * Address: The about topic of the attestation
-   */
-  about,
-  /**
-   * string: The key of the attestation
-   */
-  key,
-  /**
-   * 'string' | 'bytes' | 'number' | 'bool' | 'address'
-   * The data type of the attestation
-   * @defaults defaults to 'string'
-   */
-  dataType,
-  /**
-   * Address: the contract address of the attestation station
-   * @defaults defaults to the create2 address
-   */
-  contractAddress
+  creator,     // Address: The creator of the attestation
+  about,   // Address: The about topic of the attestation
+  key,   // string: The key of the attestation
+  dataType, // Optional, the data type of the attestation, 'string' | 'bytes' | 'number' | 'bool' | 'address'
+  contractAddress // Optional address: the contract address of the attestation station
 )
 ```
 
-`Return Value` The data returned from invoking the contract method.
+**Return Value:** The value attested by the `creator` on the `about` address concerning the `key`, when interpreted as the `dataType`.
 
-### readAttestations
+#### `readAttestations`
 
-Similar to read attestation but reads multiple attestations at once. Pass in a variadic amount of attestations to read.
-
-```typescript
-const attestation = await readAttestations({
-  /**
-   * Address: The creator of the attestation
-   */
-  creator,
-  /**
-   * Address: The about topic of the attestation
-   */
-  about,
-  /**
-   * string: The key of the attestation
-   */
-  key,
-  /**
-   * 'string' | 'bytes' | 'number' | 'bool' | 'address'
-   * The data type of the attestation
-   * @defaults defaults to 'string'
-   */
-  dataType,
-  /**
-   * Address: the contract address of the attestation station
-   * @defaults defaults to the create2 address
-   */
-  contractAddress,
-  /**
-   * Boolean: Whether to allow some of the calls to fail
-   * Defaults to false
-   */
-  allowFailures,
-})
-```
-
-### Parsing bytes
-
-These utilities for parsing bytes are provided:
-
-`parseAddress`
-`parseNumber`
-`parseBool`
-`parseString`
-
-Note: `readAttestation` and `readAttestations` already parse the bytes so this is only necessary if reading attestations directly from chain instead of through this utility
+Similar to `readAttestation` but reads multiple attestations at once. 
+Pass in a variadic amount of attestations to read.
+The parameters are all the same structure type, the one shown below.
 
 ```typescript
-const attestation = parseAttestationBytes(
-  /**
-   * HexString: The raw bytes returned from reading an attestation
-   */
-  bytes,
-  /**
-   * 'string' | 'bytes' | 'number' | 'bool' | 'address'
-   * The data type of the attestation
-   * @defaults defaults to 'string'
-   */
-  dataType
-)
+const attestationList = await readAttestations({
+  creator: <creator address>,
+  about: <about address>,
+  key: <attestation key (string)>,
+  [dataType: <data type - 'string' | 'bytes' | 'number' | 'bool' | 'address'>,]
+  [contractAddress: <contract address, if not the default>]
+}, {...}, {...})
 ```
 
-### attestation keys
+**Return Value:** A list of values attested by the `creator` on the `about` address concerning the `key`, when interpreted as the `dataType`.
 
-Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `encodeRawKey` function
 
-```typescript
-const key = await encodeRawKey(
-  about,
-  key,
-  'i.am.a.key.much.longer.than.32.bytes.long'
-)
-await writeAttestation(preparedTx)
-```
-
-encodeRawKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
-
-### prepareWriteAttestation
+#### `prepareWriteAttestation`
 
 [Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
+This function creates the transaction data, estimates the gas cost, etc.
 
 ```typescript
 const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 console.log(preparedTx.gasFee)
 ```
 
-### stringifyAttestationBytes
+
+#### `writeAttestation`
+
+[Writes the prepared tx](https://wagmi.sh/core/actions/writeContract).
+
+```typescript
+const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
+await writeAttestation(preparedTx)
+```
+
+### Low level API
+
+These definitions allow you to communicate with AttestationStation, but are not as easy to use as the high level API.
+
+#### `ATTESTATION_STATION_ADDRESS`
+
+The deployment address for the attestation station currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`.
+
+```typescript
+import { ATTESTATION_STATION_ADDRESS } from '@eth-optimism/atst'
+```
+
+#### `abi`
+
+The abi of the attestation station contract
+
+```typescript
+import { abi } from '@eth-optimism/atst'
+```
+
+### `stringifyAttestationBytes`
 
 Stringifys an attestation into raw bytes.
 
-Note: `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station
+**Note:** `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station
 
 ```typescript
-const stringAttestatoin = stringifyAttestationBytes('hello world')
+const stringAttestation = stringifyAttestationBytes('hello world')
 const numberAttestation = stringifyAttestationBytes(500)
 const hexAttestation = stringifyAttestationBytes('0x1')
 const bigNumberAttestation = stringifyAttestationBytes(
@@ -244,14 +180,54 @@ const bigNumberAttestation = stringifyAttestationBytes(
 )
 ```
 
-### writeAttestation
 
-[Writes the prepared tx](https://wagmi.sh/core/actions/writeContract)
+#### `parseAddress`
+
+Turn bytes into an address.
+
+**Note:** `readAttestation` and `readAttestations` already do this for you.
+This is only needed if talking to the contracts directly, or through a different library.
+
+#### `parseBool`
+
+Turn bytes into a boolean value.
+
+**Note:** `readAttestation` and `readAttestations` already do this for you.
+This is only needed if talking to the contracts directly, or through a different library.
+
+
+#### `parseNumber`
+
+Turn bytes into a number.
+
+**Note:** `readAttestation` and `readAttestations` already do this for you.
+This is only needed if talking to the contracts directly, or through a different library.
+
+
+#### `parseString`
+
+Turn bytes into a string.
+
+**Note:** `readAttestation` and `readAttestations` already do this for you.
+This is only needed if talking to the contracts directly, or through a different library.
+
+
+#### attestation keys
+
+Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `createKey` function
 
 ```typescript
-const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
+const key = await createKey(
+  about,
+  key,
+  'i.am.a.key.much.longer.than.32.bytes.long'
+)
 await writeAttestation(preparedTx)
 ```
+
+createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
+
+
 
 ### getEvents
 
