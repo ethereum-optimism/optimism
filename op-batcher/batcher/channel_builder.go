@@ -308,13 +308,13 @@ func (c *channelBuilder) NextFrame() (txID, []byte) {
 	return f.id, f.data
 }
 
-// PushFrame adds the frame back to the internal frames queue. Panics if not of
+// ReassembleFrame adds the frame back to the internal frames queue. Panics if not of
 // the same channel.
-func (c *channelBuilder) PushFrame(id txID, frame []byte) {
+func (c *channelBuilder) ReassembleFrame(id txID, frame []byte) {
 	if id.chID != c.ID() {
 		panic("wrong channel")
 	}
-	c.frames = append(c.frames, taggedData{id: id, data: frame})
+	c.frames = append([]taggedData{{id: id, data: frame}}, c.frames...)
 }
 
 var (
