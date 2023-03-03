@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers'
-import { Address } from 'wagmi'
+import type { Address } from '@wagmi/core'
 
 import { DataTypeOption } from './DataTypeOption'
 import { WagmiBytes } from './WagmiBytes'

@@ -6,6 +6,18 @@
   "types": "src/index.ts",
   "module": "dist/index.cjs",
   "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "main": "./dist/index.js",
+      "module": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./src/react.ts",
+      "main": "./dist/react.js",
+      "module": "./dist/react.cjs"
+    }
+  },
   "bin": {
     "atst": "./dist/cli.js"
   },
