@@ -122,6 +122,11 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		gasTipCap = tip
 	}
 
+	// Return the same transaction if we don't update any fields.
+	// We do this because ethereum signatures are not deterministic and therefore the transaction hash will change
+	// when we re-sign the tx. We don't want to do that because we want to see ErrAlreadyKnown instead of ErrReplacementUnderpriced
+	var reusedTip, reusedFeeCap bool
+
 	// new = old * (100 + priceBump) / 100
 	// Enforce a min priceBump on the tip. Do this before the feeCap is calculated
 	thresholdTip := new(big.Int).Mul(priceBumpPercent, tx.GasTipCap())
@@ -129,6 +134,7 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 	if tx.GasTipCapIntCmp(gasTipCap) >= 0 {
 		m.l.Debug("Reusing the previous tip", "previous", tx.GasTipCap(), "suggested", gasTipCap)
 		gasTipCap = tx.GasTipCap()
+		reusedTip = true
 	} else if thresholdTip.Cmp(gasTipCap) > 0 {
 		m.l.Debug("Overriding the tip to enforce a price bump", "previous", tx.GasTipCap(), "suggested", gasTipCap, "new", thresholdTip)
 		gasTipCap = thresholdTip
@@ -150,9 +156,14 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 	if tx.GasFeeCapIntCmp(gasFeeCap) >= 0 {
 		m.l.Debug("Reusing the previous fee cap", "previous", tx.GasFeeCap(), "suggested", gasFeeCap)
 		gasFeeCap = tx.GasFeeCap()
+		reusedFeeCap = true
 	} else if thresholdFeeCap.Cmp(gasFeeCap) > 0 {
 		m.l.Debug("Overriding the fee cap to enforce a price bump", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
 		gasFeeCap = thresholdFeeCap
+	}
+
+	if reusedTip && reusedFeeCap {
+		return tx, nil
 	}
 
 	rawTx := &types.DynamicFeeTx{

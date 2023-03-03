@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"math/big"
+	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -11,9 +12,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-node/testutils"
+	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -726,4 +730,43 @@ func TestIncreaseGasPriceUseLargeIncrease(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
 	require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
+}
+
+// TestIncreaseGasPriceReusesTransaction asserts that if the L1 basefee & tip remain the
+// same, the transaction is returned with the same signature values. The means that the error
+// when submitting the transaction to the network is ErrAlreadyKnown instead of ErrReplacementUnderpriced
+func TestIncreaseGasPriceReusesTransaction(t *testing.T) {
+	t.Parallel()
+
+	borkedBackend := failingBackend{
+		gasTip:  big.NewInt(10),
+		baseFee: big.NewInt(45),
+	}
+	pk := testutils.InsecureRandomKey(rand.New(rand.NewSource(123)))
+	signer := opcrypto.PrivateKeySignerFn(pk, big.NewInt(10))
+
+	mgr := &SimpleTxManager{
+		Config: Config{
+			ResubmissionTimeout:       time.Second,
+			ReceiptQueryInterval:      50 * time.Millisecond,
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+				return signer(from, tx)
+			},
+			From: crypto.PubkeyToAddress(pk.PublicKey),
+		},
+		name:    "TEST",
+		backend: &borkedBackend,
+		l:       testlog.Logger(t, log.LvlCrit),
+	}
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: big.NewInt(10),
+		GasFeeCap: big.NewInt(100),
+	})
+
+	ctx := context.Background()
+	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
+	require.NoError(t, err)
+	require.Equal(t, tx.Hash(), newTx.Hash())
 }
