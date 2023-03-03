@@ -41,6 +41,9 @@ export const parseAddress = (rawAttestation: WagmiBytes): Address => {
 }
 
 /**
+ * @deprecated use parseString, parseBool, parseNumber, or parseAddress instead
+ * Will be removed in v1.0.0
+ * @internal
  * Parses a raw attestation
  */
 export const parseAttestationBytes = <TDataType extends DataTypeOption>(
