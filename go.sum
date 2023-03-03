@@ -217,8 +217,8 @@ github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7
 github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3 h1:RWHKLhCrQThMfch+QJ1Z8veEq5ZO3DfIhZ7xgRP9WTc=
 github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3/go.mod h1:QziizLAiF0KqyLdNJYD7O5cpDlaFMNZzlxYNcWsJUxs=
-github.com/ethereum-optimism/op-geth v1.11.2-aea0402.0.20230227230209-0705cf1b7df9 h1:O13fqCZYW+HiGVs+UFKtMUHnCMpWR7XcyTPijm9IAiY=
-github.com/ethereum-optimism/op-geth v1.11.2-aea0402.0.20230227230209-0705cf1b7df9/go.mod h1:/tjlXxOaovIyuF0l6+wCzr6AtDb3lYWTymmpQAQcqu8=
+github.com/ethereum-optimism/op-geth v1.11.2-aea0402.0.20230301232322-c407b2a217b7 h1:bkttBXCRDv2Mp4VoGBglr4BjS7icIuN8HS5ZFpeKfvE=
+github.com/ethereum-optimism/op-geth v1.11.2-aea0402.0.20230301232322-c407b2a217b7/go.mod h1:/tjlXxOaovIyuF0l6+wCzr6AtDb3lYWTymmpQAQcqu8=
 github.com/fasthttp-contrib/websocket v0.0.0-20160511215533-1f3b11f56072/go.mod h1:duJ4Jxv5lDcvg4QuQr0oowTf7dz4/CR8NtyCooz9HL8=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=
 github.com/fatih/structs v1.1.0/go.mod h1:9NiDSp5zOcgEDl+j00MP/WkGVPOlPRLejGD8Ga6PJ7M=

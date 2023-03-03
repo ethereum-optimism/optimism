@@ -207,10 +207,10 @@ const attestation = parseAttestationBytes(
 
 ### attestation keys
 
-Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `encodeRawKey` function
+Attestation keys are limited to 32 bytes. To support keys longer than 32 bytes, you can use the `createKey` function
 
 ```typescript
-const key = await encodeRawKey(
+const key = await createKey(
   about,
   key,
   'i.am.a.key.much.longer.than.32.bytes.long'
@@ -218,7 +218,7 @@ const key = await encodeRawKey(
 await writeAttestation(preparedTx)
 ```
 
-encodeRawKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
+createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
 
 ### prepareWriteAttestation
 

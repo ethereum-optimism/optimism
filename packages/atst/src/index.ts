@@ -1,7 +1,8 @@
 // constants
 export { ATTESTATION_STATION_ADDRESS } from './constants/attestationStationAddress'
 // lib
-export { encodeRawKey } from './lib/encodeRawKey'
+export { encodeRawKey, createKey } from './lib/createKey'
+export { createValue, stringifyAttestationBytes } from './lib/createValue'
 export {
   readAttestation,
   readAttestationAddress,
@@ -15,7 +16,6 @@ export { prepareWriteAttestation } from './lib/prepareWriteAttestation'
 export { prepareWriteAttestations } from './lib/prepareWriteAttestations'
 export { writeAttestation } from './lib/writeAttestation'
 export { abi } from './lib/abi'
-export { stringifyAttestationBytes } from './lib/stringifyAttestationBytes'
 export {
   parseAttestationBytes,
   parseAddress,
