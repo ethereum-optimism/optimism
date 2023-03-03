@@ -9,7 +9,16 @@ import {
 
 import { WagmiBytes } from '../types/WagmiBytes'
 
-export const stringifyAttestationBytes = (
+/**
+ * Turns a value into bytes to make an attestation
+ *
+ * @example
+ * createValue('hello world') // '0x68656c6c6f20776f726c64'
+ * createValue(123) // '0x7b'
+ * createValue(true) // '0x1'
+ * createValue(BigNumber.from(10)) // '0xa'
+ */
+export const createValue = (
   bytes: WagmiBytes | string | Address | number | boolean | BigNumber
 ): WagmiBytes => {
   bytes = bytes === '0x' ? '0x0' : bytes
@@ -32,4 +41,15 @@ export const stringifyAttestationBytes = (
     return hexlify(toUtf8Bytes(bytes)) as WagmiBytes
   }
   throw new Error(`unrecognized bytes type ${bytes satisfies never}`)
+}
+
+/**
+ * @deprecated use createValue instead
+ * Will be removed in v1.0.0
+ */
+export const stringifyAttestationBytes: typeof createValue = (bytes) => {
+  console.warn(
+    'stringifyAttestationBytes is deprecated, use createValue instead'
+  )
+  return createValue(bytes)
 }
