@@ -1,7 +1,7 @@
 # Network Upgrades
 
 Network upgrades, also known as forks or hardforks, implement consensus-breaking changes.
-These changes are transitioned into deterministically across all nodes through an activation-rule.
+These changes are transitioned into deterministically across all nodes through an activation rule.
 
 This document lists the network upgrades of the OP Stack, starting after the Bedrock upgrade.
 Prospective upgrades may be listed as proposals, but are not governed through these specifications.
