@@ -6,14 +6,8 @@ Typescript sdk for interacting with the ATST based on [@wagmi/core](https://wagm
 ## Table of content 
 
 - [Installation](#installation)
-- [Basic usage](#basic-usage)
-  - [Setup](#setup)
-  - [Reading an attestation](#reading-an-attestation)
-  - [Reading multiple attestations](#reading-multiple-attestations)
-  - [Writing an attestation](#writing-an-attestation)
-- [API](#api)
-  - [High level API](#high-level-api)
-  - [Low level API](#low-level-api)
+- [High level API](#high-level-api)
+- [Low level API](#low-level-api)
 
 
 
@@ -40,6 +34,9 @@ yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 ```
 
 **Note:** As ethers v6 is not yet stable we only support ethers v5 at this time
+
+<!--
+
 
 ## Basic usage
 
@@ -101,12 +98,13 @@ await writeAttestation(preparedTx)
 ```
 
 ## API
+-->
 
-### High level API
+## High level API
 
 These functions are the easiest way to interact with the AttestationStation contract.
 
-#### `prepareWriteAttestation`
+### `prepareWriteAttestation`
 
 [Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
 This function creates the transaction data, estimates the gas cost, etc.
@@ -116,7 +114,7 @@ const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 console.log(preparedTx.gasFee)
 ```
 
-#### `readAttestation`
+### `readAttestation`
 
 [Reads](https://wagmi.sh/core/actions/readContract) and parses an attestation based on its data type.
 
@@ -133,7 +131,7 @@ const attestation = await readAttestation(
 **Return Value:** The value attested by the `creator` on the `about` address concerning the `key`, when interpreted as the `dataType`.
 If there is no such attestation the result is zero, `false`, or an empty string.
 
-#### `readAttestations`
+### `readAttestations`
 
 Similar to `readAttestation` but reads multiple attestations at once. 
 Pass in a variadic amount of attestations to read.
@@ -153,7 +151,7 @@ const attestationList = await readAttestations({
 
 
 
-#### `writeAttestation`
+### `writeAttestation`
 
 [Writes the prepared tx](https://wagmi.sh/core/actions/writeContract).
 
@@ -162,11 +160,11 @@ const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 await writeAttestation(preparedTx)
 ```
 
-### Low level API
+## Low level API
 
 These definitions allow you to communicate with AttestationStation, but are not as easy to use as the high level API.
 
-#### `ATTESTATION_STATION_ADDRESS`
+### `ATTESTATION_STATION_ADDRESS`
 
 The deployment address for the attestation station currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`.
 
@@ -174,7 +172,7 @@ The deployment address for the attestation station currently deployed with creat
 import { ATTESTATION_STATION_ADDRESS } from '@eth-optimism/atst'
 ```
 
-#### `abi`
+### `abi`
 
 The abi of the attestation station contract
 
@@ -182,7 +180,7 @@ The abi of the attestation station contract
 import { abi } from '@eth-optimism/atst'
 ```
 
-#### `createKey`
+### `createKey`
 
 
 `createKey` hashes keys longer than 31 bytes, because the atst key size is limited to 32 bytes.
@@ -198,7 +196,7 @@ createKey will keep the key as is if it is shorter than 32 bytes and otherwise r
 
 
 
-#### `getEvents`
+### `getEvents`
 
 Use `getEvents` to get attestation events using a provider and filters. 
 
@@ -217,14 +215,14 @@ const events = await getEvents({
 Set `key`, `about`, `creator`, or `value` to `null` to not filter that value.
 
 
-#### `parseAddress`
+### `parseAddress`
 
 Turn bytes into an address.
 
 **Note:** `readAttestation` and `readAttestations` already do this for you.
 This is only needed if talking to the contracts directly, or through a different library.
 
-#### `parseBool`
+### `parseBool`
 
 Turn bytes into a boolean value.
 
@@ -232,7 +230,7 @@ Turn bytes into a boolean value.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-#### `parseNumber`
+### `parseNumber`
 
 Turn bytes into a number.
 
@@ -240,7 +238,7 @@ Turn bytes into a number.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-#### `parseString`
+### `parseString`
 
 Turn bytes into a string.
 
@@ -248,7 +246,7 @@ Turn bytes into a string.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-#### `stringifyAttestationBytes`
+### `stringifyAttestationBytes`
 
 Stringifys an attestation into raw bytes.
 
