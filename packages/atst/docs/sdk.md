@@ -2,7 +2,17 @@
 
 Typescript sdk for interacting with the ATST based on [@wagmi/core](https://wagmi.sh/core/getting-started)
 
-TODO add a table of contents like [zod](https://github.com/colinhacks/zod/blob/master/README.md)
+
+## Table of content 
+
+- [Installation](#installation)
+- [Basic usage](#basic-usage)
+  - [Setup](#setup)
+  - [Reading an attestation](#reading-an-attestation)
+  - [Reading multiple attestations](#reading-multiple-attestations)
+  - [Writing an attestation](#writing-an-attestation)
+- [API](#api)
+
 
 ## Installation
 
@@ -32,9 +42,10 @@ yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 
 All functions are fully tested. The tests are a great example to see usage examples.
 
-### Basic setup
+### Setup
 
-atst uses `@wagmi/core` under the hood. [See their documentation for more information](https://wagmi.sh/core/getting-started).
+atst uses `@wagmi/core` under the hood. 
+[See their documentation for more information](https://wagmi.sh/core/getting-started).
 
 ```typescript
 import { connect, createClient } from '@wagmi/core'
