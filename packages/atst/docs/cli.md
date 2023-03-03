@@ -1,6 +1,6 @@
 # atst cli docs
 
-![preview](https://user-images.githubusercontent.com/35039927/222435290-0271bc85-1e62-4d0a-b539-084af1e22ded.gif)
+![preview](../assets/preview.gif)
 
 ## Installation
 
