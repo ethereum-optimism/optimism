@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { StandardBridge } from "../universal/StandardBridge.sol";
-import { Semver } from "../universal/Semver.sol";
-import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
+import {StandardBridge} from "../universal/StandardBridge.sol";
+import {Semver} from "../universal/Semver.sol";
+import {OptimismMintableERC20} from "../universal/OptimismMintableERC20.sol";
 
 /**
  * @custom:proxied
@@ -73,12 +73,7 @@ contract L2StandardBridge is StandardBridge, Semver {
      */
     receive() external payable override onlyEOA {
         _initiateWithdrawal(
-            Predeploys.LEGACY_ERC20_ETH,
-            msg.sender,
-            msg.sender,
-            msg.value,
-            RECEIVE_DEFAULT_GAS_LIMIT,
-            bytes("")
+            Predeploys.LEGACY_ERC20_ETH, msg.sender, msg.sender, msg.value, RECEIVE_DEFAULT_GAS_LIMIT, bytes("")
         );
     }
 
@@ -93,12 +88,12 @@ contract L2StandardBridge is StandardBridge, Semver {
      * @param _minGasLimit Minimum gas limit to use for the transaction.
      * @param _extraData   Extra data attached to the withdrawal.
      */
-    function withdraw(
-        address _l2Token,
-        uint256 _amount,
-        uint32 _minGasLimit,
-        bytes calldata _extraData
-    ) external payable virtual onlyEOA {
+    function withdraw(address _l2Token, uint256 _amount, uint32 _minGasLimit, bytes calldata _extraData)
+        external
+        payable
+        virtual
+        onlyEOA
+    {
         _initiateWithdrawal(_l2Token, msg.sender, msg.sender, _amount, _minGasLimit, _extraData);
     }
 
@@ -118,13 +113,11 @@ contract L2StandardBridge is StandardBridge, Semver {
      * @param _minGasLimit Minimum gas limit to use for the transaction.
      * @param _extraData   Extra data attached to the withdrawal.
      */
-    function withdrawTo(
-        address _l2Token,
-        address _to,
-        uint256 _amount,
-        uint32 _minGasLimit,
-        bytes calldata _extraData
-    ) external payable virtual {
+    function withdrawTo(address _l2Token, address _to, uint256 _amount, uint32 _minGasLimit, bytes calldata _extraData)
+        external
+        payable
+        virtual
+    {
         _initiateWithdrawal(_l2Token, msg.sender, _to, _amount, _minGasLimit, _extraData);
     }
 
@@ -198,20 +191,11 @@ contract L2StandardBridge is StandardBridge, Semver {
      *
      * @inheritdoc StandardBridge
      */
-    function _emitETHBridgeInitiated(
-        address _from,
-        address _to,
-        uint256 _amount,
-        bytes memory _extraData
-    ) internal override {
-        emit WithdrawalInitiated(
-            address(0),
-            Predeploys.LEGACY_ERC20_ETH,
-            _from,
-            _to,
-            _amount,
-            _extraData
-        );
+    function _emitETHBridgeInitiated(address _from, address _to, uint256 _amount, bytes memory _extraData)
+        internal
+        override
+    {
+        emit WithdrawalInitiated(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
         super._emitETHBridgeInitiated(_from, _to, _amount, _extraData);
     }
 
@@ -221,20 +205,11 @@ contract L2StandardBridge is StandardBridge, Semver {
      *
      * @inheritdoc StandardBridge
      */
-    function _emitETHBridgeFinalized(
-        address _from,
-        address _to,
-        uint256 _amount,
-        bytes memory _extraData
-    ) internal override {
-        emit DepositFinalized(
-            address(0),
-            Predeploys.LEGACY_ERC20_ETH,
-            _from,
-            _to,
-            _amount,
-            _extraData
-        );
+    function _emitETHBridgeFinalized(address _from, address _to, uint256 _amount, bytes memory _extraData)
+        internal
+        override
+    {
+        emit DepositFinalized(address(0), Predeploys.LEGACY_ERC20_ETH, _from, _to, _amount, _extraData);
         super._emitETHBridgeFinalized(_from, _to, _amount, _extraData);
     }
 

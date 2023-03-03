@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { L1Block } from "../L2/L1Block.sol";
+import {Semver} from "../universal/Semver.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
+import {L1Block} from "../L2/L1Block.sol";
 
 /**
  * @custom:proxied
@@ -43,7 +43,7 @@ contract GasPriceOracle is Semver {
     function getL1Fee(bytes memory _data) external view returns (uint256) {
         uint256 l1GasUsed = getL1GasUsed(_data);
         uint256 l1Fee = l1GasUsed * l1BaseFee();
-        uint256 divisor = 10**DECIMALS;
+        uint256 divisor = 10 ** DECIMALS;
         uint256 unscaled = l1Fee * scalar();
         uint256 scaled = unscaled / divisor;
         return scaled;

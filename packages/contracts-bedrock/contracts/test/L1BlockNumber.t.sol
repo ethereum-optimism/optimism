@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { L1Block } from "../L2/L1Block.sol";
-import { L1BlockNumber } from "../legacy/L1BlockNumber.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import {Test} from "forge-std/Test.sol";
+import {L1Block} from "../L2/L1Block.sol";
+import {L1BlockNumber} from "../legacy/L1BlockNumber.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
 
 contract L1BlockNumberTest is Test {
     L1Block lb;
@@ -41,7 +41,7 @@ contract L1BlockNumberTest is Test {
     }
 
     function test_receive_succeeds() external {
-        (bool success, bytes memory ret) = address(bn).call{ value: 1 }(hex"");
+        (bool success, bytes memory ret) = address(bn).call{value: 1}(hex"");
         assertEq(success, true);
         assertEq(ret, abi.encode(number));
     }

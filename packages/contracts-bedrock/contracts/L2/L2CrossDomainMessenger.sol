@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { Semver } from "../universal/Semver.sol";
-import { L2ToL1MessagePasser } from "./L2ToL1MessagePasser.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
+import {CrossDomainMessenger} from "../universal/CrossDomainMessenger.sol";
+import {Semver} from "../universal/Semver.sol";
+import {L2ToL1MessagePasser} from "./L2ToL1MessagePasser.sol";
 
 /**
  * @custom:proxied
@@ -21,10 +21,7 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @param _l1CrossDomainMessenger Address of the L1CrossDomainMessenger contract.
      */
-    constructor(address _l1CrossDomainMessenger)
-        Semver(1, 1, 0)
-        CrossDomainMessenger(_l1CrossDomainMessenger)
-    {
+    constructor(address _l1CrossDomainMessenger) Semver(1, 1, 0) CrossDomainMessenger(_l1CrossDomainMessenger) {
         initialize();
     }
 
@@ -48,15 +45,10 @@ contract L2CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
      * @inheritdoc CrossDomainMessenger
      */
-    function _sendMessage(
-        address _to,
-        uint64 _gasLimit,
-        uint256 _value,
-        bytes memory _data
-    ) internal override {
-        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{
-            value: _value
-        }(_to, _gasLimit, _data);
+    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
+        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER)).initiateWithdrawal{value: _value}(
+            _to, _gasLimit, _data
+        );
     }
 
     /**

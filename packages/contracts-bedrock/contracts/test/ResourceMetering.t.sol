@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { ResourceMetering } from "../L1/ResourceMetering.sol";
-import { Proxy } from "../universal/Proxy.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {ResourceMetering} from "../L1/ResourceMetering.sol";
+import {Proxy} from "../universal/Proxy.sol";
 
 contract MeterUser is ResourceMetering {
     constructor() {
@@ -92,12 +92,12 @@ contract ResourceMetering_Test is CommonTest {
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         meter.use(target * elasticity);
 
-        (, uint64 prevBoughtGas, ) = meter.params();
+        (, uint64 prevBoughtGas,) = meter.params();
         assertEq(prevBoughtGas, target * elasticity);
 
         vm.roll(initialBlockNum + 1);
         meter.use(0);
-        (uint128 postBaseFee, , ) = meter.params();
+        (uint128 postBaseFee,,) = meter.params();
         // Base fee increases by 1/8 the difference
         assertEq(postBaseFee, 1375000000);
     }

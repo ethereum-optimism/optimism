@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {
-    PausableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import { SafeCall } from "../libraries/SafeCall.sol";
-import { Hashing } from "../libraries/Hashing.sol";
-import { Encoding } from "../libraries/Encoding.sol";
-import { Constants } from "../libraries/Constants.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {PausableUpgradeable} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import {SafeCall} from "../libraries/SafeCall.sol";
+import {Hashing} from "../libraries/Hashing.sol";
+import {Encoding} from "../libraries/Encoding.sol";
+import {Constants} from "../libraries/Constants.sol";
 
 /**
  * @custom:legacy
@@ -37,11 +33,7 @@ contract CrossDomainMessengerLegacySpacer {
  *         chain it's deployed on. Currently only designed for message passing between two paired
  *         chains and does not support one-to-many interactions.
  */
-abstract contract CrossDomainMessenger is
-    CrossDomainMessengerLegacySpacer,
-    OwnableUpgradeable,
-    PausableUpgradeable
-{
+abstract contract CrossDomainMessenger is CrossDomainMessengerLegacySpacer, OwnableUpgradeable, PausableUpgradeable {
     /**
      * @notice Current message version identifier.
      */
@@ -158,13 +150,7 @@ abstract contract CrossDomainMessenger is
      * @param messageNonce Unique nonce attached to the message.
      * @param gasLimit     Minimum gas limit that the message can be executed with.
      */
-    event SentMessage(
-        address indexed target,
-        address sender,
-        bytes message,
-        uint256 messageNonce,
-        uint256 gasLimit
-    );
+    event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit);
 
     /**
      * @notice Additional event data to emit, required as of Bedrock. Cannot be merged with the
@@ -222,11 +208,7 @@ abstract contract CrossDomainMessenger is
      * @param _message     Message to trigger the target address with.
      * @param _minGasLimit Minimum gas limit that the message can be executed with.
      */
-    function sendMessage(
-        address _target,
-        bytes calldata _message,
-        uint32 _minGasLimit
-    ) external payable {
+    function sendMessage(address _target, bytes calldata _message, uint32 _minGasLimit) external payable {
         // Triggers a message to the other messenger. Note that the amount of gas provided to the
         // message is the amount of gas requested by the user PLUS the base gas value. We want to
         // guarantee the property that the call to the target contract will always have at least
@@ -236,13 +218,7 @@ abstract contract CrossDomainMessenger is
             baseGas(_message, _minGasLimit),
             msg.value,
             abi.encodeWithSelector(
-                this.relayMessage.selector,
-                messageNonce(),
-                msg.sender,
-                _target,
-                msg.value,
-                _minGasLimit,
-                _message
+                this.relayMessage.selector, messageNonce(), msg.sender, _target, msg.value, _minGasLimit, _message
             )
         );
 
@@ -275,31 +251,19 @@ abstract contract CrossDomainMessenger is
         bytes calldata _message
     ) external payable whenNotPaused {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
-        require(
-            version < 2,
-            "CrossDomainMessenger: only version 0 or 1 messages are supported at this time"
-        );
+        require(version < 2, "CrossDomainMessenger: only version 0 or 1 messages are supported at this time");
 
         // If the message is version 0, then it's a migrated legacy withdrawal. We therefore need
         // to check that the legacy version of the message has not already been relayed.
         if (version == 0) {
             bytes32 oldHash = Hashing.hashCrossDomainMessageV0(_target, _sender, _message, _nonce);
-            require(
-                successfulMessages[oldHash] == false,
-                "CrossDomainMessenger: legacy withdrawal already relayed"
-            );
+            require(successfulMessages[oldHash] == false, "CrossDomainMessenger: legacy withdrawal already relayed");
         }
 
         // We use the v1 message hash as the unique identifier for the message because it commits
         // to the value and minimum gas limit of the message.
-        bytes32 versionedHash = Hashing.hashCrossDomainMessageV1(
-            _nonce,
-            _sender,
-            _target,
-            _value,
-            _minGasLimit,
-            _message
-        );
+        bytes32 versionedHash =
+            Hashing.hashCrossDomainMessageV1(_nonce, _sender, _target, _value, _minGasLimit, _message);
 
         // Check if the reentrancy lock for the `versionedHash` is already set.
         if (reentrancyLocks[versionedHash]) {
@@ -314,30 +278,19 @@ abstract contract CrossDomainMessenger is
             assert(msg.value == _value);
             assert(!failedMessages[versionedHash]);
         } else {
-            require(
-                msg.value == 0,
-                "CrossDomainMessenger: value must be zero unless message is from a system address"
-            );
+            require(msg.value == 0, "CrossDomainMessenger: value must be zero unless message is from a system address");
 
-            require(
-                failedMessages[versionedHash],
-                "CrossDomainMessenger: message cannot be replayed"
-            );
+            require(failedMessages[versionedHash], "CrossDomainMessenger: message cannot be replayed");
         }
 
         require(
-            _isUnsafeTarget(_target) == false,
-            "CrossDomainMessenger: cannot send message to blocked system address"
+            _isUnsafeTarget(_target) == false, "CrossDomainMessenger: cannot send message to blocked system address"
         );
 
-        require(
-            successfulMessages[versionedHash] == false,
-            "CrossDomainMessenger: message has already been relayed"
-        );
+        require(successfulMessages[versionedHash] == false, "CrossDomainMessenger: message has already been relayed");
 
         require(
-            gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
-            "CrossDomainMessenger: insufficient gas to relay message"
+            gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED, "CrossDomainMessenger: insufficient gas to relay message"
         );
 
         xDomainMsgSender = _sender;
@@ -374,8 +327,7 @@ abstract contract CrossDomainMessenger is
      */
     function xDomainMessageSender() external view returns (address) {
         require(
-            xDomainMsgSender != Constants.DEFAULT_L2_SENDER,
-            "CrossDomainMessenger: xDomainMessageSender is not set"
+            xDomainMsgSender != Constants.DEFAULT_L2_SENDER, "CrossDomainMessenger: xDomainMessageSender is not set"
         );
 
         return xDomainMsgSender;
@@ -408,13 +360,12 @@ abstract contract CrossDomainMessenger is
         // by MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR would otherwise limit the _minGasLimit to
         // type(uint32).max / MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR ~= 4.2m.
         return
-            // Dynamic overhead
-            ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) /
-                MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR) +
-            // Calldata overhead
-            (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD) +
-            // Constant overhead
-            MIN_GAS_CONSTANT_OVERHEAD;
+        // Dynamic overhead
+        ((uint64(_minGasLimit) * MIN_GAS_DYNAMIC_OVERHEAD_NUMERATOR) / MIN_GAS_DYNAMIC_OVERHEAD_DENOMINATOR)
+        // Calldata overhead
+        + (uint64(_message.length) * MIN_GAS_CALLDATA_OVERHEAD)
+        // Constant overhead
+        + MIN_GAS_CONSTANT_OVERHEAD;
     }
 
     /**
@@ -438,12 +389,7 @@ abstract contract CrossDomainMessenger is
      * @param _value    Amount of ETH to send with the message.
      * @param _data     Message data.
      */
-    function _sendMessage(
-        address _to,
-        uint64 _gasLimit,
-        uint256 _value,
-        bytes memory _data
-    ) internal virtual;
+    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal virtual;
 
     /**
      * @notice Checks whether the message is coming from the other messenger. Implemented by child

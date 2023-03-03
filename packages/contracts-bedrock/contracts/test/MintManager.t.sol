@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { MintManager } from "../governance/MintManager.sol";
-import { GovernanceToken } from "../governance/GovernanceToken.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {MintManager} from "../governance/MintManager.sol";
+import {GovernanceToken} from "../governance/GovernanceToken.sol";
 
 contract MintManager_Initializer is CommonTest {
     address constant owner = address(0x1234);

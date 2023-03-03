@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { LegacyMessagePasser } from "../legacy/LegacyMessagePasser.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {LegacyMessagePasser} from "../legacy/LegacyMessagePasser.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
 
 contract LegacyMessagePasser_Test is CommonTest {
     LegacyMessagePasser messagePasser;

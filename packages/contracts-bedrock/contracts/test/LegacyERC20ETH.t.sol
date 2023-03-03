@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {LegacyERC20ETH} from "../legacy/LegacyERC20ETH.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
 
 contract LegacyERC20ETH_Test is CommonTest {
     LegacyERC20ETH eth;

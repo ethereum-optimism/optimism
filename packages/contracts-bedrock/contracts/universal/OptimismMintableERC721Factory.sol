@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OptimismMintableERC721 } from "./OptimismMintableERC721.sol";
-import { Semver } from "./Semver.sol";
+import {OptimismMintableERC721} from "./OptimismMintableERC721.sol";
+import {Semver} from "./Semver.sol";
 
 /**
  * @title OptimismMintableERC721Factory
@@ -31,11 +31,7 @@ contract OptimismMintableERC721Factory is Semver {
      * @param remoteToken Address of the token on the remote domain.
      * @param deployer    Address of the initiator of the deployment
      */
-    event OptimismMintableERC721Created(
-        address indexed localToken,
-        address indexed remoteToken,
-        address deployer
-    );
+    event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     /**
      * @custom:semver 1.1.0
@@ -58,19 +54,13 @@ contract OptimismMintableERC721Factory is Semver {
      * @param _name        ERC721 name.
      * @param _symbol      ERC721 symbol.
      */
-    function createOptimismMintableERC721(
-        address _remoteToken,
-        string memory _name,
-        string memory _symbol
-    ) external returns (address) {
-        require(
-            _remoteToken != address(0),
-            "OptimismMintableERC721Factory: L1 token address cannot be address(0)"
-        );
+    function createOptimismMintableERC721(address _remoteToken, string memory _name, string memory _symbol)
+        external
+        returns (address)
+    {
+        require(_remoteToken != address(0), "OptimismMintableERC721Factory: L1 token address cannot be address(0)");
 
-        address localToken = address(
-            new OptimismMintableERC721(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol)
-        );
+        address localToken = address(new OptimismMintableERC721(BRIDGE, REMOTE_CHAIN_ID, _remoteToken, _name, _symbol));
 
         isOptimismMintableERC721[localToken] = true;
         emit OptimismMintableERC721Created(localToken, _remoteToken, msg.sender);

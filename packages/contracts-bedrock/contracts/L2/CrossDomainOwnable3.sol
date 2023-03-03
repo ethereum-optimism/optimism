@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { L2CrossDomainMessenger } from "./L2CrossDomainMessenger.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
+import {L2CrossDomainMessenger} from "./L2CrossDomainMessenger.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title CrossDomainOwnable3
@@ -23,11 +23,7 @@ abstract contract CrossDomainOwnable3 is Ownable {
      * @notice Emits when ownership of the contract is transferred. Includes the
      *         isLocal field in addition to the standard `Ownable` OwnershipTransferred event.
      */
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner,
-        bool isLocal
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner, bool isLocal);
 
     /**
      * @notice Allows for ownership to be transferred with specifying the locality.
@@ -53,19 +49,11 @@ abstract contract CrossDomainOwnable3 is Ownable {
         if (isLocal) {
             require(owner() == msg.sender, "CrossDomainOwnable3: caller is not the owner");
         } else {
-            L2CrossDomainMessenger messenger = L2CrossDomainMessenger(
-                Predeploys.L2_CROSS_DOMAIN_MESSENGER
-            );
+            L2CrossDomainMessenger messenger = L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-            require(
-                msg.sender == address(messenger),
-                "CrossDomainOwnable3: caller is not the messenger"
-            );
+            require(msg.sender == address(messenger), "CrossDomainOwnable3: caller is not the messenger");
 
-            require(
-                owner() == messenger.xDomainMessageSender(),
-                "CrossDomainOwnable3: caller is not the owner"
-            );
+            require(owner() == messenger.xDomainMessageSender(), "CrossDomainOwnable3: caller is not the owner");
         }
     }
 }

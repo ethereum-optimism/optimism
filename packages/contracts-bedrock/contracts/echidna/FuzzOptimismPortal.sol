@@ -1,8 +1,8 @@
 pragma solidity 0.8.15;
 
-import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import {OptimismPortal} from "../L1/OptimismPortal.sol";
+import {L2OutputOracle} from "../L1/L2OutputOracle.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
 
 contract EchidnaFuzzOptimismPortal {
     OptimismPortal internal portal;
@@ -28,7 +28,7 @@ contract EchidnaFuzzOptimismPortal {
     ) public payable {
         failedToComplete = true;
         require(!_isCreation || _to == address(0), "EchidnaFuzzOptimismPortal: invalid test case.");
-        portal.depositTransaction{ value: _mint }(_to, _value, _gasLimit, _isCreation, _data);
+        portal.depositTransaction{value: _mint}(_to, _value, _gasLimit, _isCreation, _data);
         failedToComplete = false;
     }
 

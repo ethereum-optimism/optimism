@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721Bridge } from "../universal/ERC721Bridge.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
-import { Semver } from "../universal/Semver.sol";
+import {ERC721Bridge} from "../universal/ERC721Bridge.sol";
+import {IERC721} from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+import {L2ERC721Bridge} from "../L2/L2ERC721Bridge.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @title L1ERC721Bridge
@@ -25,10 +25,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
      * @param _messenger   Address of the CrossDomainMessenger on this network.
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
-    constructor(address _messenger, address _otherBridge)
-        Semver(1, 1, 0)
-        ERC721Bridge(_messenger, _otherBridge)
-    {}
+    constructor(address _messenger, address _otherBridge) Semver(1, 1, 0) ERC721Bridge(_messenger, _otherBridge) {}
 
     /**
      * @notice Completes an ERC721 bridge from the other domain and sends the ERC721 token to the
@@ -87,13 +84,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
 
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(
-            L2ERC721Bridge.finalizeBridgeERC721.selector,
-            _remoteToken,
-            _localToken,
-            _from,
-            _to,
-            _tokenId,
-            _extraData
+            L2ERC721Bridge.finalizeBridgeERC721.selector, _remoteToken, _localToken, _from, _to, _tokenId, _extraData
         );
 
         // Lock token into bridge

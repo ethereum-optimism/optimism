@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -86,10 +86,7 @@ contract L1Block is Semver {
         uint256 _l1FeeOverhead,
         uint256 _l1FeeScalar
     ) external {
-        require(
-            msg.sender == DEPOSITOR_ACCOUNT,
-            "L1Block: only the depositor account can set L1 block values"
-        );
+        require(msg.sender == DEPOSITOR_ACCOUNT, "L1Block: only the depositor account can set L1 block values");
 
         number = _number;
         timestamp = _timestamp;

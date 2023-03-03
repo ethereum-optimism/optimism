@@ -2,31 +2,31 @@
 pragma solidity 0.8.15;
 
 /* Testing utilities */
-import { Test, StdUtils } from "forge-std/Test.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
-import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
-import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
-import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
-import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
-import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
-import { OptimismMintableERC721Factory } from "../universal/OptimismMintableERC721Factory.sol";
-import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
-import { OptimismPortal } from "../L1/OptimismPortal.sol";
-import { L1CrossDomainMessenger } from "../L1/L1CrossDomainMessenger.sol";
-import { L2CrossDomainMessenger } from "../L2/L2CrossDomainMessenger.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { LegacyERC20ETH } from "../legacy/LegacyERC20ETH.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { Types } from "../libraries/Types.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { Proxy } from "../universal/Proxy.sol";
-import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "../legacy/AddressManager.sol";
-import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import {Test, StdUtils} from "forge-std/Test.sol";
+import {L2OutputOracle} from "../L1/L2OutputOracle.sol";
+import {L2ToL1MessagePasser} from "../L2/L2ToL1MessagePasser.sol";
+import {L1StandardBridge} from "../L1/L1StandardBridge.sol";
+import {L2StandardBridge} from "../L2/L2StandardBridge.sol";
+import {L1ERC721Bridge} from "../L1/L1ERC721Bridge.sol";
+import {L2ERC721Bridge} from "../L2/L2ERC721Bridge.sol";
+import {OptimismMintableERC20Factory} from "../universal/OptimismMintableERC20Factory.sol";
+import {OptimismMintableERC721Factory} from "../universal/OptimismMintableERC721Factory.sol";
+import {OptimismMintableERC20} from "../universal/OptimismMintableERC20.sol";
+import {OptimismPortal} from "../L1/OptimismPortal.sol";
+import {L1CrossDomainMessenger} from "../L1/L1CrossDomainMessenger.sol";
+import {L2CrossDomainMessenger} from "../L2/L2CrossDomainMessenger.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
+import {LegacyERC20ETH} from "../legacy/LegacyERC20ETH.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
+import {Types} from "../libraries/Types.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {Proxy} from "../universal/Proxy.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import {ResolvedDelegateProxy} from "../legacy/ResolvedDelegateProxy.sol";
+import {AddressManager} from "../legacy/AddressManager.sol";
+import {L1ChugSplashProxy} from "../legacy/L1ChugSplashProxy.sol";
+import {IL1ChugSplashDeployer} from "../legacy/L1ChugSplashProxy.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -41,12 +41,7 @@ contract CommonTest is Test {
     bytes32 nonZeroHash = keccak256(abi.encode("NON_ZERO"));
     bytes NON_ZERO_DATA = hex"0000111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000";
 
-    event TransactionDeposited(
-        address indexed from,
-        address indexed to,
-        uint256 indexed version,
-        bytes opaqueData
-    );
+    event TransactionDeposited(address indexed from, address indexed to, uint256 indexed version, bytes opaqueData);
 
     FFIInterface ffi;
 
@@ -75,12 +70,7 @@ contract CommonTest is Test {
         bool _isCreation,
         bytes memory _data
     ) internal {
-        emit TransactionDeposited(
-            _from,
-            _to,
-            0,
-            abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data)
-        );
+        emit TransactionDeposited(_from, _to, 0, abi.encodePacked(_mint, _value, _gasLimit, _isCreation, _data));
     }
 }
 
@@ -89,8 +79,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     L2OutputOracle oracle;
     L2OutputOracle oracleImpl;
 
-    L2ToL1MessagePasser messagePasser =
-        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
+    L2ToL1MessagePasser messagePasser = L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
 
     // Constructor arguments
     address internal proposer = 0x000000000000000000000000000000000000AbBa;
@@ -105,10 +94,7 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 initL1Time;
 
     event OutputProposed(
-        bytes32 indexed outputRoot,
-        uint256 indexed l2OutputIndex,
-        uint256 indexed l2BlockNumber,
-        uint256 l1Timestamp
+        bytes32 indexed outputRoot, uint256 indexed l2OutputIndex, uint256 indexed l2BlockNumber, uint256 l1Timestamp
     );
 
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
@@ -139,8 +125,7 @@ contract L2OutputOracle_Initializer is CommonTest {
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
-            address(oracleImpl),
-            abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp))
+            address(oracleImpl), abi.encodeCall(L2OutputOracle.initialize, (startingBlockNumber, startingTimestamp))
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
@@ -158,11 +143,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
-    event WithdrawalProven(
-        bytes32 indexed withdrawalHash,
-        address indexed from,
-        address indexed to
-    );
+    event WithdrawalProven(bytes32 indexed withdrawalHash, address indexed from, address indexed to);
 
     function setUp() public virtual override {
         super.setUp();
@@ -175,10 +156,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
-        proxy.upgradeToAndCall(
-            address(opImpl),
-            abi.encodeWithSelector(OptimismPortal.initialize.selector, false)
-        );
+        proxy.upgradeToAndCall(address(opImpl), abi.encodeWithSelector(OptimismPortal.initialize.selector, false));
         op = OptimismPortal(payable(address(proxy)));
     }
 }
@@ -187,16 +165,9 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
     OptimismPortal op;
     AddressManager addressManager;
     L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger =
-        L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
+    L2CrossDomainMessenger L2Messenger = L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
-    event SentMessage(
-        address indexed target,
-        address sender,
-        bytes message,
-        uint256 messageNonce,
-        uint256 gasLimit
-    );
+    event SentMessage(address indexed target, address sender, bytes message, uint256 messageNonce, uint256 gasLimit);
 
     event SentMessageExtension1(address indexed sender, uint256 value);
 
@@ -256,10 +227,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         L1Messenger = L1CrossDomainMessenger(address(proxy));
         L1Messenger.initialize(alice);
 
-        vm.etch(
-            Predeploys.L2_CROSS_DOMAIN_MESSENGER,
-            address(new L2CrossDomainMessenger(address(L1Messenger))).code
-        );
+        vm.etch(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(new L2CrossDomainMessenger(address(L1Messenger))).code);
 
         L2Messenger.initialize();
 
@@ -270,10 +238,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         vm.label(Predeploys.LEGACY_ERC20_ETH, "LegacyERC20ETH");
         vm.label(Predeploys.L2_CROSS_DOMAIN_MESSENGER, "L2CrossDomainMessenger");
 
-        vm.label(
-            AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)),
-            "L1CrossDomainMessenger_aliased"
-        );
+        vm.label(AddressAliasHelper.applyL1ToL2Alias(address(L1Messenger)), "L1CrossDomainMessenger_aliased");
     }
 }
 
@@ -291,56 +256,26 @@ contract Bridge_Initializer is Messenger_Initializer {
 
     event ETHDepositInitiated(address indexed from, address indexed to, uint256 amount, bytes data);
 
-    event ETHWithdrawalFinalized(
-        address indexed from,
-        address indexed to,
-        uint256 amount,
-        bytes data
-    );
+    event ETHWithdrawalFinalized(address indexed from, address indexed to, uint256 amount, bytes data);
 
     event ERC20DepositInitiated(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
+        address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes data
     );
 
     event ERC20WithdrawalFinalized(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
+        address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes data
     );
 
     event WithdrawalInitiated(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
+        address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes data
     );
 
     event DepositFinalized(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
+        address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes data
     );
 
     event DepositFailed(
-        address indexed l1Token,
-        address indexed l2Token,
-        address indexed from,
-        address to,
-        uint256 amount,
-        bytes data
+        address indexed l1Token, address indexed l2Token, address indexed from, address to, uint256 amount, bytes data
     );
 
     event ETHBridgeInitiated(address indexed from, address indexed to, uint256 amount, bytes data);
@@ -374,11 +309,7 @@ contract Bridge_Initializer is Messenger_Initializer {
         // Deploy the L1 bridge and initialize it with the address of the
         // L1CrossDomainMessenger
         L1ChugSplashProxy proxy = new L1ChugSplashProxy(multisig);
-        vm.mockCall(
-            multisig,
-            abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector),
-            abi.encode(true)
-        );
+        vm.mockCall(multisig, abi.encodeWithSelector(IL1ChugSplashDeployer.isUpgrading.selector), abi.encode(true));
         vm.startPrank(multisig);
         proxy.setCode(address(new L1StandardBridge(payable(address(L1Messenger)))).code);
         vm.clearMockedCalls();
@@ -458,8 +389,7 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
         // Deploy the implementation for the L2ERC721Bridge and etch it into the predeploy address.
         vm.etch(
             Predeploys.L2_ERC721_BRIDGE,
-            address(new L2ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(L1Bridge)))
-                .code
+            address(new L2ERC721Bridge(Predeploys.L2_CROSS_DOMAIN_MESSENGER, address(L1Bridge))).code
         );
 
         // Set up a reference to the L2ERC721Bridge.
@@ -474,13 +404,7 @@ contract ERC721Bridge_Initializer is Messenger_Initializer {
 contract FFIInterface is Test {
     function getProveWithdrawalTransactionInputs(Types.WithdrawalTransaction memory _tx)
         external
-        returns (
-            bytes32,
-            bytes32,
-            bytes32,
-            bytes32,
-            bytes[] memory
-        )
+        returns (bytes32, bytes32, bytes32, bytes32, bytes[] memory)
     {
         string[] memory cmds = new string[](9);
         cmds[0] = "node";
@@ -596,10 +520,7 @@ contract FFIInterface is Test {
         return abi.decode(result, (bytes32));
     }
 
-    function encodeDepositTransaction(Types.UserDepositTransaction calldata txn)
-        external
-        returns (bytes memory)
-    {
+    function encodeDepositTransaction(Types.UserDepositTransaction calldata txn) external returns (bytes memory) {
         string[] memory cmds = new string[](12);
         cmds[0] = "node";
         cmds[1] = "dist/scripts/differential-testing.js";
@@ -654,12 +575,7 @@ contract FFIInterface is Test {
 
     function getMerkleTrieFuzzCase(string memory variant)
         external
-        returns (
-            bytes32,
-            bytes memory,
-            bytes memory,
-            bytes[] memory
-        )
+        returns (bytes32, bytes memory, bytes memory, bytes[] memory)
     {
         string[] memory cmds = new string[](5);
         cmds[0] = "./test-case-generator/fuzz";
@@ -703,12 +619,8 @@ contract CallerCaller {
         emit WhatHappened(success, returndata);
         assembly {
             switch success
-            case 0 {
-                revert(add(returndata, 0x20), mload(returndata))
-            }
-            default {
-                return(add(returndata, 0x20), mload(returndata))
-            }
+            case 0 { revert(add(returndata, 0x20), mload(returndata)) }
+            default { return(add(returndata, 0x20), mload(returndata)) }
         }
     }
 }
@@ -732,12 +644,8 @@ contract ConfigurableCaller {
             emit WhatHappened(success, returndata);
             assembly {
                 switch success
-                case 0 {
-                    revert(add(returndata, 0x20), mload(returndata))
-                }
-                default {
-                    return(add(returndata, 0x20), mload(returndata))
-                }
+                case 0 { revert(add(returndata, 0x20), mload(returndata)) }
+                default { return(add(returndata, 0x20), mload(returndata)) }
             }
         }
     }

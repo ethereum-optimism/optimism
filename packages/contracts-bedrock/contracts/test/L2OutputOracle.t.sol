@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { stdError } from "forge-std/Test.sol";
-import { L2OutputOracle_Initializer, NextImpl } from "./CommonTest.t.sol";
-import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
-import { Proxy } from "../universal/Proxy.sol";
-import { Types } from "../libraries/Types.sol";
+import {stdError} from "forge-std/Test.sol";
+import {L2OutputOracle_Initializer, NextImpl} from "./CommonTest.t.sol";
+import {L2OutputOracle} from "../L1/L2OutputOracle.sol";
+import {Proxy} from "../universal/Proxy.sol";
+import {Types} from "../libraries/Types.sol";
 
 contract L2OutputOracleTest is L2OutputOracle_Initializer {
     bytes32 proposedOutput1 = keccak256(abi.encode(1));
@@ -67,9 +67,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         );
     }
 
-    /****************
+    /**
+     *
      * Getter Tests *
-     ****************/
+     *
+     */
 
     // Test: latestBlockNumber() should return the correct value
     function test_latestBlockNumber_succeeds() external {
@@ -189,21 +191,17 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(oracle.computeL2Timestamp(startingBlockNumber), startingTimestamp);
 
         // ... for the first block after the starting block
-        assertEq(
-            oracle.computeL2Timestamp(startingBlockNumber + 1),
-            startingTimestamp + l2BlockTime
-        );
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 1), startingTimestamp + l2BlockTime);
 
         // ... for some other block number
-        assertEq(
-            oracle.computeL2Timestamp(startingBlockNumber + 96024),
-            startingTimestamp + l2BlockTime * 96024
-        );
+        assertEq(oracle.computeL2Timestamp(startingBlockNumber + 96024), startingTimestamp + l2BlockTime * 96024);
     }
 
-    /*****************************
+    /**
+     *
      * Propose Tests - Happy Path *
-     *****************************/
+     *
+     */
 
     // Test: proposeL2Output succeeds when given valid input, and no block hash and number are
     // specified.
@@ -239,9 +237,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, prevL1BlockHash, prevL1BlockNumber);
     }
 
-    /***************************
+    /**
+     *
      * Propose Tests - Sad Path *
-     ***************************/
+     *
+     */
 
     // Test: proposeL2Output fails if called by a party that is not the proposer.
     function test_proposeL2Output_notProposer_reverts() external {
@@ -288,15 +288,8 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         uint256 nextBlockNumber = oracle.nextBlockNumber();
         warpToProposeTime(nextBlockNumber);
         vm.prank(proposer);
-        vm.expectRevert(
-            "L2OutputOracle: block hash does not match the hash at the expected height"
-        );
-        oracle.proposeL2Output(
-            nonZeroHash,
-            nextBlockNumber,
-            bytes32(uint256(0x01)),
-            block.number - 1
-        );
+        vm.expectRevert("L2OutputOracle: block hash does not match the hash at the expected height");
+        oracle.proposeL2Output(nonZeroHash, nextBlockNumber, bytes32(uint256(0x01)), block.number - 1);
     }
 
     // Test: proposeL2Output fails when given valid input, but the block hash and number do not
@@ -314,15 +307,15 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         vm.prank(proposer);
 
         // This will fail when foundry no longer returns zerod block hashes
-        vm.expectRevert(
-            "L2OutputOracle: block hash does not match the hash at the expected height"
-        );
+        vm.expectRevert("L2OutputOracle: block hash does not match the hash at the expected height");
         oracle.proposeL2Output(nonZeroHash, nextBlockNumber, l1BlockHash, l1BlockNumber - 1);
     }
 
-    /*****************************
+    /**
+     *
      * Delete Tests - Happy Path *
-     *****************************/
+     *
+     */
 
     function test_deleteOutputs_singleOutput_succeeds() external {
         test_proposeL2Output_proposeAnotherOutput_succeeds();
@@ -374,9 +367,11 @@ contract L2OutputOracleTest is L2OutputOracle_Initializer {
         assertEq(newLatestOutput.timestamp, proposal.timestamp);
     }
 
-    /***************************
+    /**
+     *
      * Delete Tests - Sad Path *
-     ***************************/
+     *
+     */
 
     function test_deleteL2Outputs_ifNotChallenger_reverts() external {
         uint256 latestBlockNumber = oracle.latestBlockNumber();
@@ -448,10 +443,7 @@ contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
 
         NextImpl nextImpl = new NextImpl();
         vm.startPrank(multisig);
-        proxy.upgradeToAndCall(
-            address(nextImpl),
-            abi.encodeWithSelector(NextImpl.initialize.selector)
-        );
+        proxy.upgradeToAndCall(address(nextImpl), abi.encodeWithSelector(NextImpl.initialize.selector));
         assertEq(proxy.implementation(), address(nextImpl));
 
         // Verify that the NextImpl contract initialized its values according as expected

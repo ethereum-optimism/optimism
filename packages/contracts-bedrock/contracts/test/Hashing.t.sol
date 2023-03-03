@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { Types } from "../libraries/Types.sol";
-import { Hashing } from "../libraries/Hashing.sol";
-import { Encoding } from "../libraries/Encoding.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {Types} from "../libraries/Types.sol";
+import {Hashing} from "../libraries/Hashing.sol";
+import {Encoding} from "../libraries/Encoding.sol";
 
 contract Hashing_hashDepositSource_Test is CommonTest {
     /**
@@ -12,10 +12,7 @@ contract Hashing_hashDepositSource_Test is CommonTest {
      */
     function test_hashDepositSource_succeeds() external {
         assertEq(
-            Hashing.hashDepositSource(
-                0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959,
-                0x1
-            ),
+            Hashing.hashDepositSource(0xd25df7858efc1778118fb133ac561b138845361626dfb976699c5287ed0f4959, 0x1),
             0xf923fb07134d7d287cb52c770cc619e17e82606c21a875c92f4c63b65280a5cc
         );
     }
@@ -58,9 +55,7 @@ contract Hashing_hashWithdrawal_Test is CommonTest {
         bytes memory _data
     ) external {
         assertEq(
-            Hashing.hashWithdrawal(
-                Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)
-            ),
+            Hashing.hashWithdrawal(Types.WithdrawalTransaction(_nonce, _sender, _target, _value, _gasLimit, _data)),
             ffi.hashWithdrawal(_nonce, _sender, _target, _value, _gasLimit, _data)
         );
     }
@@ -85,12 +80,7 @@ contract Hashing_hashOutputRootProof_Test is CommonTest {
                     latestBlockhash: _latestBlockhash
                 })
             ),
-            ffi.hashOutputRootProof(
-                _version,
-                _stateRoot,
-                _messagePasserStorageRoot,
-                _latestBlockhash
-            )
+            ffi.hashOutputRootProof(_version, _stateRoot, _messagePasserStorageRoot, _latestBlockhash)
         );
     }
 }
