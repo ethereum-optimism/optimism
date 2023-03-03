@@ -15,13 +15,13 @@ cli
   .option('--creator <string>', readOptionsValidators.creator.description!)
   .option('--about <string>', readOptionsValidators.about.description!)
   .option('--key <string>', readOptionsValidators.key.description!)
-  .option('--data-type [string]', readOptionsValidators.dataType.description!, {
+  .option('--data-type <string>', readOptionsValidators.dataType.description!, {
     default: readOptionsValidators.dataType.parse(undefined),
   })
-  .option('--rpc-url [url]', readOptionsValidators.rpcUrl.description!, {
+  .option('--rpc-url <url>', readOptionsValidators.rpcUrl.description!, {
     default: readOptionsValidators.rpcUrl.parse(undefined),
   })
-  .option('--contract [address]', readOptionsValidators.contract.description!, {
+  .option('--contract <address>', readOptionsValidators.contract.description!, {
     default: readOptionsValidators.contract.parse(undefined),
   })
   .example(
@@ -52,17 +52,17 @@ cli
     '--private-key <string>',
     writeOptionsValidators.privateKey.description!
   )
-  .option('--data-type [string]', readOptionsValidators.dataType.description!, {
+  .option('--data-type <string>', readOptionsValidators.dataType.description!, {
     default: writeOptionsValidators.dataType.parse(undefined),
   })
   .option('--about <string>', writeOptionsValidators.about.description!)
   .option('--key <string>', writeOptionsValidators.key.description!)
   .option('--value <string>', writeOptionsValidators.value.description!)
-  .option('--rpc-url [url]', writeOptionsValidators.rpcUrl.description!, {
+  .option('--rpc-url <url>', writeOptionsValidators.rpcUrl.description!, {
     default: writeOptionsValidators.rpcUrl.parse(undefined),
   })
   .option(
-    '--contract [address]',
+    '--contract <address>',
     writeOptionsValidators.contract.description!,
     {
       default: writeOptionsValidators.contract.parse(undefined),
