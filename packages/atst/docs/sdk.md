@@ -18,39 +18,34 @@ Install atst and it's peer dependencies.
 npm
 
 ```bash
-npm i @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0 react react-dom
+npm i @eth-optimism/atst @wagmi/core ethers@5.7.0
 ```
 
 pnpm
 
 ```bash
-pnpm i @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0 react react-dom
+pnpm i @eth-optimism/atst @wagmi/core ethers@5.7.0
 ```
 
 yarn
 
 ```bash
-yarn add @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0 react react-dom
+yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 ```
 
 **Note:** As ethers v6 is not yet stable we only support ethers v5 at this time
 
-<!--
-
 
 ## Basic usage
-
-All functions are fully tested. The tests (the files that end with `.spec.ts` under `.../src/lib`) are a great example to see usage examples.
-
 
 ### Setup
 
 atst uses `@wagmi/core` under the hood. 
 [See their documentation for more information](https://wagmi.sh/core/getting-started).
 
-```typescript
-import { connect, createClient } from '@wagmi/core'
-import { providers, Wallet } from 'ethers'
+```javascript
+import { createClient } from '@wagmi/core'
+import { providers } from 'ethers'
 
 const provider = new providers.JsonRpcProvider({
   url: "https://mainnet.optimism.io",
@@ -68,8 +63,8 @@ createClient({
 
 Here is an example of reading an attestation used by the optimist nft
 
-```typescript
-import { readAttestationString } from '@eth-optimism/atst'
+```javascript
+import { readAttestation } from '@eth-optimism/atst'
 
 const creator = '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3'
 const about = '0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5'
@@ -98,13 +93,13 @@ await writeAttestation(preparedTx)
 ```
 
 ## API
--->
 
-## High level API
+
+### High level API
 
 These functions are the easiest way to interact with the AttestationStation contract.
 
-### `prepareWriteAttestation`
+#### `prepareWriteAttestation`
 
 [Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
 This function creates the transaction data, estimates the gas cost, etc.
@@ -114,7 +109,7 @@ const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 console.log(preparedTx.gasFee)
 ```
 
-### `readAttestation`
+#### `readAttestation`
 
 [Reads](https://wagmi.sh/core/actions/readContract) and parses an attestation based on its data type.
 
@@ -131,7 +126,7 @@ const attestation = await readAttestation(
 **Return Value:** The value attested by the `creator` on the `about` address concerning the `key`, when interpreted as the `dataType`.
 If there is no such attestation the result is zero, `false`, or an empty string.
 
-### `readAttestations`
+#### `readAttestations`
 
 Similar to `readAttestation` but reads multiple attestations at once. 
 Pass in a variadic amount of attestations to read.
@@ -151,7 +146,7 @@ const attestationList = await readAttestations({
 
 
 
-### `writeAttestation`
+#### `writeAttestation`
 
 [Writes the prepared tx](https://wagmi.sh/core/actions/writeContract).
 
@@ -160,11 +155,11 @@ const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 await writeAttestation(preparedTx)
 ```
 
-## Low level API
+### Low level API
 
 These definitions allow you to communicate with AttestationStation, but are not as easy to use as the high level API.
 
-### `ATTESTATION_STATION_ADDRESS`
+#### `ATTESTATION_STATION_ADDRESS`
 
 The deployment address for the attestation station currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`.
 
@@ -172,7 +167,7 @@ The deployment address for the attestation station currently deployed with creat
 import { ATTESTATION_STATION_ADDRESS } from '@eth-optimism/atst'
 ```
 
-### `abi`
+#### `abi`
 
 The abi of the attestation station contract
 
@@ -180,7 +175,7 @@ The abi of the attestation station contract
 import { abi } from '@eth-optimism/atst'
 ```
 
-### `createKey`
+#### `createKey`
 
 
 `createKey` hashes keys longer than 31 bytes, because the atst key size is limited to 32 bytes.
@@ -196,7 +191,7 @@ createKey will keep the key as is if it is shorter than 32 bytes and otherwise r
 
 
 
-### `getEvents`
+#### `getEvents`
 
 Use `getEvents` to get attestation events using a provider and filters. 
 
@@ -215,14 +210,14 @@ const events = await getEvents({
 Set `key`, `about`, `creator`, or `value` to `null` to not filter that value.
 
 
-### `parseAddress`
+#### `parseAddress`
 
 Turn bytes into an address.
 
 **Note:** `readAttestation` and `readAttestations` already do this for you.
 This is only needed if talking to the contracts directly, or through a different library.
 
-### `parseBool`
+#### `parseBool`
 
 Turn bytes into a boolean value.
 
@@ -230,7 +225,7 @@ Turn bytes into a boolean value.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-### `parseNumber`
+#### `parseNumber`
 
 Turn bytes into a number.
 
@@ -238,7 +233,7 @@ Turn bytes into a number.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-### `parseString`
+#### `parseString`
 
 Turn bytes into a string.
 
@@ -246,7 +241,7 @@ Turn bytes into a string.
 This is only needed if talking to the contracts directly, or through a different library.
 
 
-### `stringifyAttestationBytes`
+#### `stringifyAttestationBytes`
 
 Stringifys an attestation into raw bytes.
 
@@ -260,6 +255,20 @@ const bigNumberAttestation = stringifyAttestationBytes(
 ```
 
 **Note:** `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station.
+
+### React API
+
+For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station.
+
+Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in the attestation station contract calls.
+Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by attestation station to their correct data type.
+
+For convenience we also export the hooks here:
+- `useAttestationStationAttestation` - Reads attestations with useContractRead
+- `useAttestationStationVersion` - Reads attestation version
+- `useAttestationStationAttest` - Wraps useContractWrite with attestation station abi calling attest
+- `usePrepareAttestationStationAttest` - Wraps usePrepare with attestation station abi calling attest
+- `useAttestationStationAttestationCreatedEvent` - Wraps useContractEvents for Created events
 
 
 
