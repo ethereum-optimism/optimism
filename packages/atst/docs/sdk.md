@@ -43,7 +43,8 @@ yarn add @eth-optimism/atst @wagmi/core ethers@5.7.0
 
 ## Basic usage
 
-All functions are fully tested. The tests are a great example to see usage examples.
+All functions are fully tested. The tests (the files that end with `.spec.ts` under `.../src/lib`) are a great example to see usage examples.
+
 
 ### Setup
 
@@ -55,7 +56,7 @@ import { connect, createClient } from '@wagmi/core'
 import { providers, Wallet } from 'ethers'
 
 const provider = new providers.JsonRpcProvider({
-  url: parsedOptions.rpcUrl,
+  url: "https://mainnet.optimism.io",
   headers: {
     'User-Agent': '@eth-optimism/atst',
   },
@@ -181,6 +182,21 @@ The abi of the attestation station contract
 import { abi } from '@eth-optimism/atst'
 ```
 
+#### `createKey`
+
+
+`createKey` hashes keys longer than 31 bytes, because the atst key size is limited to 32 bytes.
+
+
+```typescript
+const key = await createKey(
+  'i.am.a.key.much.longer.than.32.bytes.long'
+)
+```
+
+createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through keccak256.
+
+
 
 #### `getEvents`
 
@@ -246,26 +262,6 @@ const bigNumberAttestation = stringifyAttestationBytes(
 ```
 
 **Note:** `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station.
-
-
-<!--
-#### createKey
-
-`createKey` hashes keys longer than 31 bytes, because the atst key size is limited to 32 bytes.
-
-
-```typescript
-const key = await createKey(
-  about,
-  key,
-  'i.am.a.key.much.longer.than.32.bytes.long'
-)
-await writeAttestation(preparedTx)
-```
-
-createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through kekkak256
-
--->
 
 
 
