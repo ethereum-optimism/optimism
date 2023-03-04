@@ -60,7 +60,7 @@ func SignerFactoryFromConfig(l log.Logger, privateKey, mnemonic, hdPath string, 
 				if !bytes.Equal(address[:], fromAddress[:]) {
 					return nil, fmt.Errorf("attempting to sign for %s, expected %s: ", address, signerConfig.Address)
 				}
-				return signerClient.SignTransaction(ctx, chainID, tx)
+				return signerClient.SignTransaction(ctx, chainID, address, tx)
 			}
 		}
 	} else {
