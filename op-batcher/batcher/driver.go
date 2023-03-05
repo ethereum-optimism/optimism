@@ -265,10 +265,17 @@ func (l *BatchSubmitter) loop() {
 					break
 				}
 				// Record TX Status
-				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
+				// if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
+				// 	l.recordFailedTx(id, err)
+				// } else {
+				// 	l.recordConfirmedTx(id, receipt)s
+				// }
+
+				if receipt, err := l.btcTxMgr.SendTransactionTest(data); err != nil {
 					l.recordFailedTx(id, err)
 				} else {
-					l.recordConfirmedTx(id, receipt)
+					l.log.Trace("Transaction confirmed", "tx_hash", receipt.Txid)
+					l.recordConfirmedTx(id, nil)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending

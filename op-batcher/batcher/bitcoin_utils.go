@@ -5,6 +5,8 @@ import (
 	"math"
 	"time"
 
+	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	"github.com/btcsuite/btcd/btcjson"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/rpcclient"
@@ -25,8 +27,7 @@ func CreateChunks(chunkSize uint64, calldata []byte) [][]byte {
 
 func CreateBitcoinScript(calldataChunks [][]byte) ([]byte, error) {
 	tapscript := txscript.NewScriptBuilder()
-	// @DEV should we have a prefix telling what it is?
-
+	tapscript.AddOp(txscript.OP_TRUE)
 	tapscript.AddOp(txscript.OP_FALSE)
 	tapscript.AddOp(txscript.OP_IF)
 	// for loop appending elements of calldata to tapscript with AddData
@@ -37,6 +38,13 @@ func CreateBitcoinScript(calldataChunks [][]byte) ([]byte, error) {
 	tapscript.AddOp(txscript.OP_ENDIF)
 
 	return tapscript.Script()
+}
+
+func PayToTaprootScript(taprootKey *btcec.PublicKey) ([]byte, error) {
+	return txscript.NewScriptBuilder().
+		AddOp(txscript.OP_1).
+		AddData(schnorr.SerializePubKey(taprootKey)).
+		Script()
 }
 
 func ConnectToClient() (*rpcclient.Client, error) {
