@@ -68,14 +68,14 @@ func ConnectToClient() (*rpcclient.Client, error) {
 
 func waitForTransactionConfirmation(client rpcclient.Client, txHash *chainhash.Hash) (*btcjson.TxRawResult, error) {
 	for {
-		time.Sleep(20 * time.Second)
+		time.Sleep(10 * time.Second)
 		tx, err := client.GetRawTransactionVerbose(txHash)
 		if err != nil {
 			log.Printf("error getting transaction: %v", err)
 			time.Sleep(10 * time.Second)
 			continue
 		}
-		if tx.Confirmations > 0 {
+		if tx.Confirmations > 6 {
 			return tx, nil
 		}
 		// retry every 10 seconds
