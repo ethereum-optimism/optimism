@@ -258,8 +258,8 @@ func (l *BatchSubmitter) loop() {
 				// Collect next transaction data
 				data, id, err := l.state.TxData(l1tip.ID())
 
-				l.log.Debug("afk wants this data")
-				l.log.Debug(string(data))
+				l.log.Info("afk wants this data")
+				l.log.Info(string(data))
 
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
