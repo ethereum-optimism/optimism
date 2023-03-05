@@ -1,8 +1,13 @@
 package batcher
 
 import (
+	"log"
 	"math"
+	"time"
 
+	"github.com/btcsuite/btcd/btcjson"
+	"github.com/btcsuite/btcd/chaincfg/chainhash"
+	"github.com/btcsuite/btcd/rpcclient"
 	"github.com/btcsuite/btcd/txscript"
 )
 
@@ -32,4 +37,40 @@ func CreateBitcoinScript(calldataChunks [][]byte) ([]byte, error) {
 	tapscript.AddOp(txscript.OP_ENDIF)
 
 	return tapscript.Script()
+}
+
+func ConnectToClient() (*rpcclient.Client, error) {
+	// Connect to local bitcoin core RPC server using HTTP POST mode.
+	connCfg := &rpcclient.ConnConfig{
+		Host:         "regtest.dctrl.wtf",
+		User:         "test",
+		Pass:         "test",
+		HTTPPostMode: true, // Bitcoin core only supports HTTP POST mode
+		DisableTLS:   false,
+		Params:       "regtest",
+	}
+	// Notice the notification parameter is nil since notifications are
+	// not supported in HTTP POST mode.
+	client, err := rpcclient.New(connCfg, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return client, nil
+}
+
+func waitForTransactionConfirmation(client rpcclient.Client, txHash *chainhash.Hash) (*btcjson.TxRawResult, error) {
+	for {
+		tx, err := client.GetRawTransactionVerbose(txHash)
+		if err != nil {
+			log.Printf("error getting transaction: %v", err)
+			time.Sleep(20 * time.Second)
+			continue
+		}
+		if tx.Confirmations > 0 {
+			return tx, nil
+		}
+		// retry every 10 seconds
+		time.Sleep(10 * time.Second)
+	}
 }

@@ -1,0 +1,81 @@
+
+##### SET THIS IN YOUR ENV
+privkey=1229101a0fcf2104e8808dab35661134aa5903867d44deb73ce1c7e4eb925be8 &&
+pubkey=f30544d6009c8d8d94f5d030b2e844b1a3ca036255161c479db1cca5b374dd1c &&
+script_alice='[144 OP_CHECKSEQUENCEVERIFY OP_DROP 9997a497d964fc1a62885b05a51166a65a90df00492c8d7cf61d6accf54803be OP_CHECKSIG]' &&
+script_bob='[OP_SHA256 6c60f404f8167a38fc70eaf8aa17ac351023bef86bcb9d1086a19afe95bd5333 OP_EQUALVERIFY 4edfcf9dfe6c0b5c83d1ab3f78d1b39a46ebac6798e08e19761f5ed89ec83c10 OP_CHECKSIG]'
+
+
+### BCLI
+bcli sendtoaddress bcrt1p5kaqsuted66fldx256lh3en4h9z4uttxuagkwepqlqup6hw639gsm28t6c 0.001
+
+### CURL SANITY
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"getnetworkinfo","params":[]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+### CURL SEND
+
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"send","params":[{"bcrt1p5kaqsuted66fldx256lh3en4h9z4uttxuagkwepqlqup6hw639gsm28t6c":"0.001"}]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+### RESULT
+{"result":{"txid":"52b74572d6c8153247ca20aba86febd1f3a666db0fc34031f76354e779eec7ea","complete":true},"error":null,"id":"1"}
+
+{"result":{"txid":"a408ba60aabeaa07ae989147a1173249bac2ce2578359cf411dcc239b5565b0f","complete":true},"error":null,"id":"1"}
+
+#### CURL GET RAW TRANSACTION
+
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"gettransaction","params":["a408ba60aabeaa07ae989147a1173249bac2ce2578359cf411dcc239b5565b0f"]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+### RESULT
+{"result":{"amount":-0.00100000,"fee":-0.00000154,"confirmations":20,"blockhash":"701fbc04cbf8c430d83aaaf23abbd2735fb7791ef4a419ab96e1192dede52f00","blockheight":17805,"blockindex":1,"blocktime":1677625474,"txid":"a408ba60aabeaa07ae989147a1173249bac2ce2578359cf411dcc239b5565b0f","wtxid":"0f8ad8d99315ed4a0f17b9bb4d19e5b6fe03215d66afb8b053deac46e59f532d","walletconflicts":[],"time":1677625472,"timereceived":1677625472,"bip125-replaceable":"no","details":[{"address":"bcrt1p5kaqsuted66fldx256lh3en4h9z4uttxuagkwepqlqup6hw639gsm28t6c","category":"send","amount":-0.00100000,"vout":0,"fee":-0.00000154,"abandoned":false}],"hex":"02000000000101eac7ee79e75463f73140c30fdb66a6f3d1eb6fa8ab20ca473215c8d67245b7520000000000fdffffff02a086010000000000225120a5ba0871796eb49fb4caa6bf78e675b9455e2d66e751676420f8381d5dda895190859500000000002251206296a4d2a22c14fedac6389c13ecb0700714df4f654a3e7b04266fe1260fba6001400c6a45131ada747b6c6dfc717dbc0ad715ccb9e45dacfd0d8b6f07bc4ee98e565b73ce68ea90541d5f8720bcfeb30b66a63dc8ef84098ddc8af78b53866a30cb00000000"},"error":null,"id":"1"}
+
+### txIn
+txin=02000000000101eac7ee79e75463f73140c30fdb66a6f3d1eb6fa8ab20ca473215c8d67245b7520000000000fdffffff02a086010000000000225120a5ba0871796eb49fb4caa6bf78e675b9455e2d66e751676420f8381d5dda895190859500000000002251206296a4d2a22c14fedac6389c13ecb0700714df4f654a3e7b04266fe1260fba6001400c6a45131ada747b6c6dfc717dbc0ad715ccb9e45dacfd0d8b6f07bc4ee98e565b73ce68ea90541d5f8720bcfeb30b66a63dc8ef84098ddc8af78b53866a30cb00000000
+
+
+### new address:
+
+bcrt1q2m6xx2f82df0kzuutk2ux975ukuadg5xsjuvmj
+
+### CREATE RAW TX
+
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"createrawtransaction","params":[[{"txid":"a408ba60aabeaa07ae989147a1173249bac2ce2578359cf411dcc239b5565b0f", "vout":0}],[{"bcrt1qe6ed9zhaetg6ur7ze7quhy5m520gx35znudxan":"0.00009"}]]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+
+#### RESULT
+{"result":"02000000010f5b56b539c2dc11f49c357825cec2ba493217a1479198ae07aabeaa60ba08a40000000000fdffffff01282300000000000016001456f46329275352fb0b9c5d95c317d4e5b9d6a28600000000","error":null,"id":"1"}
+
+
+### RESULTING TRANSACTION
+020000000001010f5b56b539c2dc11f49c357825cec2ba493217a1479198ae07aabeaa60ba08a40000000000fdffffff01282300000000000016001456f46329275352fb0b9c5d95c317d4e5b9d6a2860140000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f00000000
+
+#### DECODE RAW TRANSACTION
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"decoderawtransaction","params":["020000000001010f5b56b539c2dc11f49c357825cec2ba493217a1479198ae07aabeaa60ba08a40000000000fdffffff01282300000000000016001456f46329275352fb0b9c5d95c317d4e5b9d6a2860140000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f00000000"]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+
+#### RESULT
+{"result":{"txid":"bce68e556dc23125a75971df626e0620aa0cc18193fd5d1f41f560bf7e27bd37","hash":"b55cf9ccc0c2b1cdf01a5942741d4714ca6e2e39123cadc0cdc1c862e8e448ca","version":2,"size":150,"vsize":99,"weight":396,"locktime":0,"vin":[{"txid":"a408ba60aabeaa07ae989147a1173249bac2ce2578359cf411dcc239b5565b0f","vout":0,"scriptSig":{"asm":"","hex":""},"txinwitness":["000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f000102030405060708090a0b0c0d0e0f"],"sequence":4294967293}],"vout":[{"value":0.00009000,"n":0,"scriptPubKey":{"asm":"0 56f46329275352fb0b9c5d95c317d4e5b9d6a286","desc":"addr(bcrt1q2m6xx2f82df0kzuutk2ux975ukuadg5xsjuvmj)#v8tfkxjk","hex":"001456f46329275352fb0b9c5d95c317d4e5b9d6a286","address":"bcrt1q2m6xx2f82df0kzuutk2ux975ukuadg5xsjuvmj","type":"witness_v0_keyhash"}}]},"error":null,"id":"1"}
+
+
+####
+tap --tx=$tx --txin=$txin $pubkey 2 "${script_alice}" "${script_bob}" 1
+
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"sendrawtransaction","params":["020000000001010f5b56b539c2dc11f49c357825cec2ba493217a1479198ae07aabeaa60ba08a40000000000fdffffff01282300000000000016001456f46329275352fb0b9c5d95c317d4e5b9d6a286044093211166ca954b9c2f9147712e93ed3f2f7e71e0e6c88bf2f703ab412353ebf301ad486f8acaa4deff485bc5c2acb4efe0de49636abc7db92531b03b32eb132920107661134f21fc7c02223d50ab9eb3600bc3ffc3712423a1e47bb1f9a9dbf55f45a8206c60f404f8167a38fc70eaf8aa17ac351023bef86bcb9d1086a19afe95bd533388204edfcf9dfe6c0b5c83d1ab3f78d1b39a46ebac6798e08e19761f5ed89ec83c10ac41c1f30544d6009c8d8d94f5d030b2e844b1a3ca036255161c479db1cca5b374dd1cc81451874bd9ebd4b6fd4bba1f84cdfb533c532365d22a0a702205ff658b17c900000000"]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"getrawtransaction","params":["bce68e556dc23125a75971df626e0620aa0cc18193fd5d1f41f560bf7e27bd37"]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+
+#######
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"decoderawtransaction","params":["02000000011ad04deb917c8a0c62f6a03fab06441a6852649a4ad73f3d96e420521d9b0598000000006a4730440220726134fe11e30ef078933a6ad5f9c6c10094a2c4dbf38ecbdb5e0065595eab0a02202ddc014dfde955bc318718e7f2385468e5730addf3b99ef262c8f33bf9d71ea501210288060d1b1571364c5ffd613bb40d8a30f65081b9922fcd52ccf5c7a21438f6befdffffff02cb729500000000001600141f8b7a39d52d4d7e9181e7306a3098dc85f7acdce80300000000000016001484caf62153c569897a176be25f22c1121c47d55ebac00000"]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
+
+
+
+
+
+
+
+
+
+
+
