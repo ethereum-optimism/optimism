@@ -127,7 +127,7 @@ contract L2OutputOracle is Semver, BitcoinSPV {
         return 0;
     }
 
-    fallback(){
+    fallback() external {
 
     }
 }
