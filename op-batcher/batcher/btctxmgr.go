@@ -196,8 +196,12 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 			break
 		}
 	}
+	if txHash == nil {
+		log.Fatalf("tx hash is nil: %v", err)
+	}
 
-	confirmation, err = waitForTransactionConfirmation(*tm.client, txHash)
+	log.Println(txHash.String())
+	_, err = waitForTransactionConfirmation(*tm.client, txHash)
 	if err != nil {
 		log.Fatalf("Error waiting for transaction confirmation: %v", err)
 	}
