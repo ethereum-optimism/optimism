@@ -1,5 +1,7 @@
 const { ethers } = require("ethers");
 
+
+async function test(){
 // Define the private key and the network
 const privateKey = "ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80";
 
@@ -32,7 +34,7 @@ for (let i = 0; i < numTransactions; i++) {
   };
 
   // Sign and send the transaction
-  signer.sendTransaction(transaction)
+  await signer.sendTransaction(transaction)
     .then((tx) => {
       console.log(`Transaction sent: ${tx.hash}`);
     })
@@ -40,3 +42,5 @@ for (let i = 0; i < numTransactions; i++) {
       console.error(`Error sending transaction: ${err.message}`);
     });
 }
+}
+await test()
