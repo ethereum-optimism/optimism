@@ -186,7 +186,7 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	maxRetries := 3
 	retryInterval := 5 * time.Second // wait 5 seconds between each retry
 
-	for i := 1; i <= maxRetries; i++ { x
+	for i := 1; i <= maxRetries; i++ {
 		txHash, err := tm.client.SendRawTransaction(txCopy, true)
 		if err != nil {
 			log.Println(txCopy)
@@ -194,17 +194,16 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 			log.Fatalf("Error sending raw transaction: %v", err)
 		}
 
-		}
 		// If no error occurs, break out of the retry loop and continue with the rest of the code
 		log.Println(txCopy)
 		log.Println(txHash)
 		break
+
 	}
 
 	if err != nil {
 		log.Fatalf("Failed to send raw transaction after %d attempts: %v", maxRetries, err)
 	}
-
 
 	log.Println("txHASH", txHash)
 
