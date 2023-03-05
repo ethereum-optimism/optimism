@@ -258,6 +258,8 @@ func (l *BatchSubmitter) loop() {
 				// Collect next transaction data
 				data, id, err := l.state.TxData(l1tip.ID())
 
+				l.log.Info(id.String())
+
 				l.log.Info("afk wants this data")
 				l.log.Info(string(data))
 
