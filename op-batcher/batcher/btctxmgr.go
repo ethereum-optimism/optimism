@@ -29,6 +29,14 @@ type BitcoinTransactionManager struct {
 	//log       log.Logger
 }
 
+func NewBitcoinTransactionManager(recipientAddress btcutil.Address, senderAddress btcutil.Address, client *rpcclient.Client) *BitcoinTransactionManager {
+	t := &BitcoinTransactionManager{
+		recipientAddress: recipientAddress,
+		senderAddress:    senderAddress,
+		client:           client,
+	}
+	return t
+}
 func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.TxRawResult, error) {
 	privateKeyBytes, err := hex.DecodeString("2acec091f15620eaaa778a1186ed479e1df4e217f308ecc3383a6136b0a07e0a")
 	if err != nil {
