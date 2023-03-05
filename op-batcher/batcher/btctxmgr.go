@@ -43,11 +43,9 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 		log.Fatalf("Failed to decode private key: %v", err)
 	}
 
-	privateKey, publicKey := btcec.PrivKeyFromBytes(privateKeyBytes)
+	_, publicKey := btcec.PrivKeyFromBytes(privateKeyBytes)
 
 	chunkedDataToPost := CreateChunks(520, data)
-
-	fmt.Println("Chunked Data: ", chunkedDataToPost)
 
 	pkScript, err := CreateBitcoinScript(chunkedDataToPost)
 	if err != nil {
@@ -143,14 +141,14 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	)
 	sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
 
-	sig, err := txscript.RawTxInTapscriptSignature(
-		testTx, sigHashes, 0, txOut.Value,
-		txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
-		privateKey,
-	)
-	if err != nil {
-		log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
-	}
+	// sig, err := txscript.RawTxInTapscriptSignature(
+	// 	testTx, sigHashes, 0, txOut.Value,
+	// 	txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
+	// 	privateKey,
+	// )
+	// if err != nil {
+	// 	log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
+	// }
 
 	// Now that we have the sig, we'll make a valid witness
 	// including the control block.
@@ -160,7 +158,7 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	}
 	txCopy := testTx.Copy()
 	txCopy.TxIn[0].Witness = wire.TxWitness{
-		sig, pkScript, ctrlBlockBytes,
+		pkScript, ctrlBlockBytes,
 	}
 
 	// Finally, ensure that the signature produced is valid.
@@ -184,7 +182,9 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 
 	txHash, err := tm.client.SendRawTransaction(txCopy, true)
 	if err != nil {
-		log.Fatalf("Error sending raw transaction: %v", err)
+		log.Fatalf("Failed to send transaction: %v", err)
+	} else {
+		log.Println("Transaction sent: ", txHash.String())
 	}
 
 	confirmation, err = waitForTransactionConfirmation(*tm.client, txHash)
@@ -193,17 +193,8 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 		log.Fatalf("Error waiting for transaction confirmation: %v", err)
 	}
 
-	if err != nil {
-		log.Fatalf("Failed to send transaction: %v", err)
-	} else {
-		log.Println("Transaction sent: ", txHash.String())
-	}
-	verboseTx, err := tm.client.GetRawTransactionVerbose(txHash)
-	if err != nil {
-		log.Fatalf("Failed to get transaction: %v", err)
-	}
+	return confirmation, nil
 
-	return verboseTx, nil
 }
 
 func (tm *BitcoinTransactionManager) SendTransaction(amount int64, fee int64, data []byte) (*btcjson.TxRawResult, error) {
