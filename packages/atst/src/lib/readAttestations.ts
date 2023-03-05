@@ -19,7 +19,6 @@ import { parseAttestationBytes } from './parseAttestationBytes'
  *    creator: creatorAddress,
  *    about: aboutAddress,
  *    key: 'my_key',
- *    allowFailure: false,
  *  },
  *  {
  *    creator: creatorAddress2,
@@ -27,7 +26,6 @@ import { parseAttestationBytes } from './parseAttestationBytes'
  *    key: 'my_key',
  *    dataType: 'number',
  *    contractAddress: '0x1234',
- *    allowFailure: false,
  *   },
  * )
  */
@@ -40,7 +38,6 @@ export const readAttestations = async (
       about,
       key,
       contractAddress = ATTESTATION_STATION_ADDRESS,
-      allowFailure = false,
     } = attestation
     if (key.length > 32) {
       throw new Error(
@@ -52,7 +49,6 @@ export const readAttestations = async (
       abi,
       functionName: 'attestations',
       args: [creator, about, formatBytes32String(key) as WagmiBytes],
-      allowFailure,
     } as const
   })
 
