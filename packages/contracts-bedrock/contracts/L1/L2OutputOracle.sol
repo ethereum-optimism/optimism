@@ -13,7 +13,7 @@ import {BTCUtils} from "../btc/BTCUtils.sol";
  *         commitment to the state of the L2 chain. Other contracts like the OptimismPortal use
  *         these outputs to verify information about the state of L2.
  */
-contract L2OutputOracle is Semver, BitcoinSPVSimple {
+contract L2OutputOracle is Semver, BitcoinSPV {
     uint256 public immutable L2_BLOCK_TIME;
 
     uint256 public startingBlockNumber;
