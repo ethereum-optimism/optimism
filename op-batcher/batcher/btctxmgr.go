@@ -43,7 +43,7 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 		log.Fatalf("Failed to decode private key: %v", err)
 	}
 
-	_, publicKey := btcec.PrivKeyFromBytes(privateKeyBytes)
+	privateKey, publicKey := btcec.PrivKeyFromBytes(privateKeyBytes)
 
 	chunkedDataToPost := CreateChunks(520, data)
 
@@ -136,19 +136,19 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 
 	testTx.AddTxOut(txOut)
 
-	// prevFetcher := txscript.NewCannedPrevOutputFetcher(
-	// 	txOut.PkScript, txOut.Value,
-	// )
-	//sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
+	prevFetcher := txscript.NewCannedPrevOutputFetcher(
+		txOut.PkScript, txOut.Value,
+	)
+	sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
 
-	// sig, err := txscript.RawTxInTapscriptSignature(
-	// 	testTx, sigHashes, 0, txOut.Value,
-	// 	txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
-	// 	privateKey,
-	// )
-	// if err != nil {
-	// 	log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
-	// }
+	sig, err := txscript.RawTxInTapscriptSignature(
+		testTx, sigHashes, 0, txOut.Value,
+		txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
+		privateKey,
+	)
+	if err != nil {
+		log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
+	}
 
 	// Now that we have the sig, we'll make a valid witness
 	// including the control block.
@@ -158,24 +158,24 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	}
 	txCopy := testTx.Copy()
 	txCopy.TxIn[0].Witness = wire.TxWitness{
-		pkScript, ctrlBlockBytes,
+		sig, pkScript, ctrlBlockBytes,
 	}
 
-	// // Finally, ensure that the signature produced is valid.
-	// vm, err := txscript.NewEngine(
-	// 	txOut.PkScript, txCopy, 0, txscript.StandardVerifyFlags,
-	// 	nil, sigHashes, txOut.Value, prevFetcher,
-	// )
-	// if err != nil {
-	// 	log.Fatalf("Failed to create script engine: %v", err)
-	// }
+	// Finally, ensure that the signature produced is valid.
+	vm, err := txscript.NewEngine(
+		txOut.PkScript, txCopy, 0, txscript.StandardVerifyFlags,
+		nil, sigHashes, txOut.Value, prevFetcher,
+	)
+	if err != nil {
+		log.Fatalf("Failed to create script engine: %v", err)
+	}
 
-	// err = vm.Execute()
-	// if err != nil {
-	// 	log.Fatalf("Failed to execute script: %v", err)
-	// } else {
-	// 	log.Println("Script executed successfully")
-	// }
+	err = vm.Execute()
+	if err != nil {
+		log.Fatalf("Failed to execute script: %v", err)
+	} else {
+		log.Println("Script executed successfully")
+	}
 
 	fee := int64(5000) // Set the fee to 150,000 satoshis
 	txCopy.TxOut[0].Value -= fee
