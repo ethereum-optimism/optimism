@@ -184,6 +184,9 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	txCopy.TxOut[0].Value -= fee
 
 	txHash, err := tm.client.SendRawTransaction(txCopy, true)
+	if err != nil {
+		log.Fatalf("Error sending raw transaction: %v", err)
+	}
 
 	log.Println("txHASH", txHash)
 
