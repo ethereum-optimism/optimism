@@ -31,18 +31,8 @@ contract L2OutputOracle is Semver, BitcoinSPV {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
 
         L2_BLOCK_TIME = _l2BlockTime;
-
-        initialize(_startingBlockNumber, _startingTimestamp);
-    }
-
-    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp) public initializer {
-        require(
-            _startingTimestamp <= block.timestamp,
-            "L2OutputOracle: starting L2 timestamp must be less than current time"
-        );
-
+        startingBlockNumber =_startingBlockNumber;
         startingTimestamp = _startingTimestamp;
-        startingBlockNumber = _startingBlockNumber;
     }
 
     // TODO: Either improve Bitcoin SPV client or make `addHeaders` permissioned
