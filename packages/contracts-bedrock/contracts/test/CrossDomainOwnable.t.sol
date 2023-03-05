@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest, Portal_Initializer } from "./CommonTest.t.sol";
-import { CrossDomainOwnable } from "../L2/CrossDomainOwnable.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
-import { Vm, VmSafe } from "forge-std/Vm.sol";
-import { Bytes32AddressLib } from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
+import {CommonTest, Portal_Initializer} from "./CommonTest.t.sol";
+import {CrossDomainOwnable} from "../L2/CrossDomainOwnable.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
+import {Vm, VmSafe} from "forge-std/Vm.sol";
+import {Bytes32AddressLib} from "@rari-capital/solmate/src/utils/Bytes32AddressLib.sol";
 
 contract XDomainSetter is CrossDomainOwnable {
     uint256 public value;

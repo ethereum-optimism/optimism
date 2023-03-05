@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { GovernanceToken } from "../governance/GovernanceToken.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {GovernanceToken} from "../governance/GovernanceToken.sol";
 
 contract GovernanceToken_Test is CommonTest {
     address constant owner = address(0x1234);

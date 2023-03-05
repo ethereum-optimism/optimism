@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Types } from "./Types.sol";
-import { Hashing } from "./Hashing.sol";
-import { RLPWriter } from "./rlp/RLPWriter.sol";
+import {Types} from "./Types.sol";
+import {Hashing} from "./Hashing.sol";
+import {RLPWriter} from "./rlp/RLPWriter.sol";
 
 /**
  * @title Encoding
@@ -19,11 +19,7 @@ library Encoding {
      *
      * @return RLP encoded L2 deposit transaction.
      */
-    function encodeDepositTransaction(Types.UserDepositTransaction memory _tx)
-        internal
-        pure
-        returns (bytes memory)
-    {
+    function encodeDepositTransaction(Types.UserDepositTransaction memory _tx) internal pure returns (bytes memory) {
         bytes32 source = Hashing.hashDepositSource(_tx.l1BlockHash, _tx.logIndex);
         bytes[] memory raw = new bytes[](8);
         raw[0] = RLPWriter.writeBytes(abi.encodePacked(source));
@@ -78,20 +74,12 @@ library Encoding {
      *
      * @return Encoded cross domain message.
      */
-    function encodeCrossDomainMessageV0(
-        address _target,
-        address _sender,
-        bytes memory _data,
-        uint256 _nonce
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSignature(
-                "relayMessage(address,address,bytes,uint256)",
-                _target,
-                _sender,
-                _data,
-                _nonce
-            );
+    function encodeCrossDomainMessageV0(address _target, address _sender, bytes memory _data, uint256 _nonce)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodeWithSignature("relayMessage(address,address,bytes,uint256)", _target, _sender, _data, _nonce);
     }
 
     /**
@@ -114,16 +102,15 @@ library Encoding {
         uint256 _gasLimit,
         bytes memory _data
     ) internal pure returns (bytes memory) {
-        return
-            abi.encodeWithSignature(
-                "relayMessage(uint256,address,address,uint256,uint256,bytes)",
-                _nonce,
-                _sender,
-                _target,
-                _value,
-                _gasLimit,
-                _data
-            );
+        return abi.encodeWithSignature(
+            "relayMessage(uint256,address,address,uint256,uint256,bytes)",
+            _nonce,
+            _sender,
+            _target,
+            _value,
+            _gasLimit,
+            _data
+        );
     }
 
     /**

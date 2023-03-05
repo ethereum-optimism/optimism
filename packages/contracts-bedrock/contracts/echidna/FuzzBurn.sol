@@ -1,7 +1,7 @@
 pragma solidity 0.8.15;
 
-import { Burn } from "../libraries/Burn.sol";
-import { StdUtils } from "forge-std/Test.sol";
+import {Burn} from "../libraries/Burn.sol";
+import {StdUtils} from "forge-std/Test.sol";
 
 contract EchidnaFuzzBurnEth is StdUtils {
     bool internal failedEthBurn;

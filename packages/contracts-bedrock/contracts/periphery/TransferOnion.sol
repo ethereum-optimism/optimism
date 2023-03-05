@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ReentrancyGuard } from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title  TransferOnion
@@ -44,11 +44,7 @@ contract TransferOnion is ReentrancyGuard {
      * @param _sender Address of the sender to distribute from.
      * @param _shell  Initial shell of the onion.
      */
-    constructor(
-        ERC20 _token,
-        address _sender,
-        bytes32 _shell
-    ) {
+    constructor(ERC20 _token, address _sender, bytes32 _shell) {
         TOKEN = _token;
         SENDER = _sender;
         shell = _shell;
@@ -62,7 +58,7 @@ contract TransferOnion is ReentrancyGuard {
     function peel(Layer[] memory _layers) public nonReentrant {
         bytes32 tempShell = shell;
         uint256 length = _layers.length;
-        for (uint256 i = 0; i < length; ) {
+        for (uint256 i = 0; i < length;) {
             Layer memory layer = _layers[i];
 
             // Confirm that the onion layer is correct.

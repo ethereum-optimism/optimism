@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @custom:legacy
@@ -53,10 +53,7 @@ contract DeployerWhitelist is Semver {
      * @notice Blocks functions to anyone except the contract owner.
      */
     modifier onlyOwner() {
-        require(
-            msg.sender == owner,
-            "DeployerWhitelist: function can only be called by the owner of this contract"
-        );
+        require(msg.sender == owner, "DeployerWhitelist: function can only be called by the owner of this contract");
         _;
     }
 
@@ -85,10 +82,7 @@ contract DeployerWhitelist is Semver {
         // Prevent users from setting the whitelist owner to address(0) except via
         // enableArbitraryContractDeployment. If you want to burn the whitelist owner, send it to
         // any other address that doesn't have a corresponding knowable private key.
-        require(
-            _owner != address(0),
-            "DeployerWhitelist: can only be disabled via enableArbitraryContractDeployment"
-        );
+        require(_owner != address(0), "DeployerWhitelist: can only be disabled via enableArbitraryContractDeployment");
 
         emit OwnerChanged(owner, _owner);
         owner = _owner;

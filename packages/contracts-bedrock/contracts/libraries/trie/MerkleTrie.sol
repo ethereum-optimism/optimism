@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Bytes } from "../Bytes.sol";
-import { RLPReader } from "../rlp/RLPReader.sol";
+import {Bytes} from "../Bytes.sol";
+import {RLPReader} from "../rlp/RLPReader.sol";
 
 /**
  * @title MerkleTrie
@@ -70,12 +70,11 @@ library MerkleTrie {
      *
      * @return Whether or not the proof is valid.
      */
-    function verifyInclusionProof(
-        bytes memory _key,
-        bytes memory _value,
-        bytes[] memory _proof,
-        bytes32 _root
-    ) internal pure returns (bool) {
+    function verifyInclusionProof(bytes memory _key, bytes memory _value, bytes[] memory _proof, bytes32 _root)
+        internal
+        pure
+        returns (bool)
+    {
         return Bytes.equal(_value, get(_key, _proof, _root));
     }
 
@@ -88,11 +87,7 @@ library MerkleTrie {
      *
      * @return Value of the key if it exists.
      */
-    function get(
-        bytes memory _key,
-        bytes[] memory _proof,
-        bytes32 _root
-    ) internal pure returns (bytes memory) {
+    function get(bytes memory _key, bytes[] memory _proof, bytes32 _root) internal pure returns (bytes memory) {
         require(_key.length > 0, "MerkleTrie: empty key");
 
         TrieNode[] memory proof = _parseProof(_proof);
@@ -105,10 +100,7 @@ library MerkleTrie {
             TrieNode memory currentNode = proof[i];
 
             // Key index should never exceed total key length or we'll be out of bounds.
-            require(
-                currentKeyIndex <= key.length,
-                "MerkleTrie: key index exceeds total key length"
-            );
+            require(currentKeyIndex <= key.length, "MerkleTrie: key index exceeds total key length");
 
             if (currentKeyIndex == 0) {
                 // First proof element is always the root node.
@@ -124,10 +116,7 @@ library MerkleTrie {
                 );
             } else {
                 // Nodes smaller than 32 bytes aren't hashed.
-                require(
-                    Bytes.equal(currentNode.encoded, currentNodeID),
-                    "MerkleTrie: invalid internal node hash"
-                );
+                require(Bytes.equal(currentNode.encoded, currentNodeID), "MerkleTrie: invalid internal node hash");
             }
 
             if (currentNode.decoded.length == BRANCH_NODE_LENGTH) {
@@ -138,16 +127,10 @@ library MerkleTrie {
                     // even when the value wasn't explicitly placed there. Geth treats a value of
                     // bytes(0) as "key does not exist" and so we do the same.
                     bytes memory value = RLPReader.readBytes(currentNode.decoded[TREE_RADIX]);
-                    require(
-                        value.length > 0,
-                        "MerkleTrie: value length must be greater than zero (branch)"
-                    );
+                    require(value.length > 0, "MerkleTrie: value length must be greater than zero (branch)");
 
                     // Extra proof elements are not allowed.
-                    require(
-                        i == proof.length - 1,
-                        "MerkleTrie: value node must be last node in proof (branch)"
-                    );
+                    require(i == proof.length - 1, "MerkleTrie: value node must be last node in proof (branch)");
 
                     return value;
                 } else {
@@ -191,16 +174,10 @@ library MerkleTrie {
                     // say that if the value is empty, the key should not exist and the proof is
                     // invalid.
                     bytes memory value = RLPReader.readBytes(currentNode.decoded[1]);
-                    require(
-                        value.length > 0,
-                        "MerkleTrie: value length must be greater than zero (leaf)"
-                    );
+                    require(value.length > 0, "MerkleTrie: value length must be greater than zero (leaf)");
 
                     // Extra proof elements are not allowed.
-                    require(
-                        i == proof.length - 1,
-                        "MerkleTrie: value node must be last node in proof (leaf)"
-                    );
+                    require(i == proof.length - 1, "MerkleTrie: value node must be last node in proof (leaf)");
 
                     return value;
                 } else if (prefix == PREFIX_EXTENSION_EVEN || prefix == PREFIX_EXTENSION_ODD) {
@@ -231,8 +208,8 @@ library MerkleTrie {
     function _parseProof(bytes[] memory _proof) private pure returns (TrieNode[] memory) {
         uint256 length = _proof.length;
         TrieNode[] memory proof = new TrieNode[](length);
-        for (uint256 i = 0; i < length; ) {
-            proof[i] = TrieNode({ encoded: _proof[i], decoded: RLPReader.readList(_proof[i]) });
+        for (uint256 i = 0; i < length;) {
+            proof[i] = TrieNode({encoded: _proof[i], decoded: RLPReader.readList(_proof[i])});
             unchecked {
                 ++i;
             }
@@ -271,14 +248,10 @@ library MerkleTrie {
      *
      * @return Number of shared nibbles.
      */
-    function _getSharedNibbleLength(bytes memory _a, bytes memory _b)
-        private
-        pure
-        returns (uint256)
-    {
+    function _getSharedNibbleLength(bytes memory _a, bytes memory _b) private pure returns (uint256) {
         uint256 shared;
         uint256 max = (_a.length < _b.length) ? _a.length : _b.length;
-        for (; shared < max && _a[shared] == _b[shared]; ) {
+        for (; shared < max && _a[shared] == _b[shared];) {
             unchecked {
                 ++shared;
             }

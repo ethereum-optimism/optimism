@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
 
 /**
  * @title CrossDomainOwnable
@@ -18,8 +18,7 @@ abstract contract CrossDomainOwnable is Ownable {
      */
     function _checkOwner() internal view override {
         require(
-            owner() == AddressAliasHelper.undoL1ToL2Alias(msg.sender),
-            "CrossDomainOwnable: caller is not the owner"
+            owner() == AddressAliasHelper.undoL1ToL2Alias(msg.sender), "CrossDomainOwnable: caller is not the owner"
         );
     }
 }

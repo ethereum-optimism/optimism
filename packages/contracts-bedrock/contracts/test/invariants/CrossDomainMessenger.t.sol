@@ -1,14 +1,14 @@
 pragma solidity 0.8.15;
 
-import { StdUtils } from "forge-std/StdUtils.sol";
-import { Vm } from "forge-std/Vm.sol";
-import { OptimismPortal } from "../../L1/OptimismPortal.sol";
-import { L1CrossDomainMessenger } from "../../L1/L1CrossDomainMessenger.sol";
-import { Messenger_Initializer } from "../CommonTest.t.sol";
-import { Types } from "../../libraries/Types.sol";
-import { Predeploys } from "../../libraries/Predeploys.sol";
-import { Encoding } from "../../libraries/Encoding.sol";
-import { Hashing } from "../../libraries/Hashing.sol";
+import {StdUtils} from "forge-std/StdUtils.sol";
+import {Vm} from "forge-std/Vm.sol";
+import {OptimismPortal} from "../../L1/OptimismPortal.sol";
+import {L1CrossDomainMessenger} from "../../L1/L1CrossDomainMessenger.sol";
+import {Messenger_Initializer} from "../CommonTest.t.sol";
+import {Types} from "../../libraries/Types.sol";
+import {Predeploys} from "../../libraries/Predeploys.sol";
+import {Encoding} from "../../libraries/Encoding.sol";
+import {Hashing} from "../../libraries/Hashing.sol";
 
 contract RelayActor is StdUtils {
     // Storage slot of the l2Sender
@@ -22,11 +22,7 @@ contract RelayActor is StdUtils {
     L1CrossDomainMessenger xdm;
     Vm vm;
 
-    constructor(
-        OptimismPortal _op,
-        L1CrossDomainMessenger _xdm,
-        Vm _vm
-    ) {
+    constructor(OptimismPortal _op, L1CrossDomainMessenger _xdm, Vm _vm) {
         op = _op;
         xdm = _xdm;
         vm = _vm;
@@ -36,11 +32,7 @@ contract RelayActor is StdUtils {
      * Relays a message to the `L1CrossDomainMessenger` with a random `version`, `_minGasLimit`
      * and `_message`.
      */
-    function relay(
-        uint16 _version,
-        uint32 _minGasLimit,
-        bytes memory _message
-    ) external {
+    function relay(uint16 _version, uint32 _minGasLimit, bytes memory _message) external {
         address target = address(0x04); // ID precompile
         address sender = Predeploys.L2_CROSS_DOMAIN_MESSENGER;
 
@@ -69,16 +61,14 @@ contract RelayActor is StdUtils {
         // the outer min gas limit.
         vm.startPrank(address(op));
         vm.expectCall(target, _message);
-        try
-            xdm.relayMessage{ gas: xdm.baseGas(_message, _minGasLimit) }(
-                Encoding.encodeVersionedNonce(0, _version),
-                sender,
-                target,
-                0, // value
-                _minGasLimit,
-                _message
-            )
-        {} catch {
+        try xdm.relayMessage{gas: xdm.baseGas(_message, _minGasLimit)}(
+            Encoding.encodeVersionedNonce(0, _version),
+            sender,
+            target,
+            0, // value
+            _minGasLimit,
+            _message
+        ) {} catch {
             // If any of these calls revert, set `reverted` to true to fail the invariant test.
             // NOTE: This is to get around forge's invariant fuzzer ignoring reverted calls
             // to this function.
@@ -107,7 +97,7 @@ contract XDM_MinGasLimits is Messenger_Initializer {
         // Target the actor's `relay` function
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = actor.relay.selector;
-        targetSelector(FuzzSelector({ addr: address(actor), selectors: selectors }));
+        targetSelector(FuzzSelector({addr: address(actor), selectors: selectors}));
     }
 
     /**

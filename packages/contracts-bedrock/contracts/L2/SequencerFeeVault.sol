@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Semver } from "../universal/Semver.sol";
-import { FeeVault } from "../universal/FeeVault.sol";
+import {Semver} from "../universal/Semver.sol";
+import {FeeVault} from "../universal/FeeVault.sol";
 
 /**
  * @custom:proxied

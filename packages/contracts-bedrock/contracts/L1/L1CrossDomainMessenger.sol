@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Predeploys } from "../libraries/Predeploys.sol";
-import { OptimismPortal } from "./OptimismPortal.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { Semver } from "../universal/Semver.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
+import {OptimismPortal} from "./OptimismPortal.sol";
+import {CrossDomainMessenger} from "../universal/CrossDomainMessenger.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -24,10 +24,7 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
      *
      * @param _portal Address of the OptimismPortal contract on this network.
      */
-    constructor(OptimismPortal _portal)
-        Semver(1, 1, 0)
-        CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER)
-    {
+    constructor(OptimismPortal _portal) Semver(1, 1, 0) CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER) {
         PORTAL = _portal;
         initialize(address(0));
     }
@@ -45,13 +42,8 @@ contract L1CrossDomainMessenger is CrossDomainMessenger, Semver {
     /**
      * @inheritdoc CrossDomainMessenger
      */
-    function _sendMessage(
-        address _to,
-        uint64 _gasLimit,
-        uint256 _value,
-        bytes memory _data
-    ) internal override {
-        PORTAL.depositTransaction{ value: _value }(_to, _value, _gasLimit, false, _data);
+    function _sendMessage(address _to, uint64 _gasLimit, uint256 _value, bytes memory _data) internal override {
+        PORTAL.depositTransaction{value: _value}(_to, _value, _gasLimit, false, _data);
     }
 
     /**

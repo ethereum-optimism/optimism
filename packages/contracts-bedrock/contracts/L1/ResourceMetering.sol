@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
-import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
-import { Burn } from "../libraries/Burn.sol";
-import { Arithmetic } from "../libraries/Arithmetic.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {Burn} from "../libraries/Burn.sol";
+import {Arithmetic} from "../libraries/Arithmetic.sol";
 
 /**
  * @custom:upgradeable
@@ -91,16 +91,13 @@ abstract contract ResourceMetering is Initializable {
             // at which deposits can be created and therefore limit the potential for deposits to
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
             int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
-            int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
-                (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
+            int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta)
+                / (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
-            int256 newBaseFee = Arithmetic.clamp(
-                int256(uint256(params.prevBaseFee)) + baseFeeDelta,
-                MINIMUM_BASE_FEE,
-                MAXIMUM_BASE_FEE
-            );
+            int256 newBaseFee =
+                Arithmetic.clamp(int256(uint256(params.prevBaseFee)) + baseFeeDelta, MINIMUM_BASE_FEE, MAXIMUM_BASE_FEE);
 
             // If we skipped more than one block, we also need to account for every empty block.
             // Empty block means there was no demand for deposits in that block, so we should
@@ -110,11 +107,7 @@ abstract contract ResourceMetering is Initializable {
                 // blockDiff - 1 times. Simulates multiple empty blocks. Clamp the resulting value
                 // between min and max.
                 newBaseFee = Arithmetic.clamp(
-                    Arithmetic.cdexp(
-                        newBaseFee,
-                        BASE_FEE_MAX_CHANGE_DENOMINATOR,
-                        int256(blockDiff - 1)
-                    ),
+                    Arithmetic.cdexp(newBaseFee, BASE_FEE_MAX_CHANGE_DENOMINATOR, int256(blockDiff - 1)),
                     MINIMUM_BASE_FEE,
                     MAXIMUM_BASE_FEE
                 );
@@ -158,10 +151,6 @@ abstract contract ResourceMetering is Initializable {
      */
     // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
-        params = ResourceParams({
-            prevBaseFee: INITIAL_BASE_FEE,
-            prevBoughtGas: 0,
-            prevBlockNum: uint64(block.number)
-        });
+        params = ResourceParams({prevBaseFee: INITIAL_BASE_FEE, prevBoughtGas: 0, prevBlockNum: uint64(block.number)});
     }
 }

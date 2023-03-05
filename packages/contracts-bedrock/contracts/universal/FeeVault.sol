@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import {L2StandardBridge} from "../L2/L2StandardBridge.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
 
 /**
  * @title FeeVault
@@ -67,10 +67,8 @@ abstract contract FeeVault {
 
         emit Withdrawal(value, RECIPIENT, msg.sender);
 
-        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
-            RECIPIENT,
-            WITHDRAWAL_MIN_GAS,
-            bytes("")
+        L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{value: value}(
+            RECIPIENT, WITHDRAWAL_MIN_GAS, bytes("")
         );
     }
 }
