@@ -47,7 +47,7 @@ contract L2OutputOracle is Semver, BitcoinSPV {
 
     // TODO: Either improve Bitcoin SPV client or make `addHeaders` permissioned
     function addHeaders(bytes calldata _headers) external {
-        _addHeaders(_header);
+        _addHeaders(_headers);
     }
 
     function pushL2Output(
