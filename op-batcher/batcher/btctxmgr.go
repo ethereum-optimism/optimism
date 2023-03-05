@@ -185,6 +185,8 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 
 	txHash, err := tm.client.SendRawTransaction(txCopy, true)
 
+	log.Println("txHASH", txHash)
+
 	confirmation, err = waitForTransactionConfirmation(*tm.client, txHash)
 	if err != nil {
 		log.Fatalf("Error waiting for transaction confirmation: %v", err)
