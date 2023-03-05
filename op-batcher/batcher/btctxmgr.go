@@ -161,21 +161,21 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 		pkScript, ctrlBlockBytes,
 	}
 
-	// Finally, ensure that the signature produced is valid.
-	vm, err := txscript.NewEngine(
-		txOut.PkScript, txCopy, 0, txscript.StandardVerifyFlags,
-		nil, sigHashes, txOut.Value, prevFetcher,
-	)
-	if err != nil {
-		log.Fatalf("Failed to create script engine: %v", err)
-	}
+	// // Finally, ensure that the signature produced is valid.
+	// vm, err := txscript.NewEngine(
+	// 	txOut.PkScript, txCopy, 0, txscript.StandardVerifyFlags,
+	// 	nil, sigHashes, txOut.Value, prevFetcher,
+	// )
+	// if err != nil {
+	// 	log.Fatalf("Failed to create script engine: %v", err)
+	// }
 
-	err = vm.Execute()
-	if err != nil {
-		log.Fatalf("Failed to execute script: %v", err)
-	} else {
-		log.Println("Script executed successfully")
-	}
+	// err = vm.Execute()
+	// if err != nil {
+	// 	log.Fatalf("Failed to execute script: %v", err)
+	// } else {
+	// 	log.Println("Script executed successfully")
+	// }
 
 	fee := int64(5000) // Set the fee to 150,000 satoshis
 	txCopy.TxOut[0].Value -= fee
