@@ -275,10 +275,12 @@ func (l *BatchSubmitter) loop() {
 				// 	l.recordConfirmedTx(id, receipt)s
 				// }
 
+				l.log.Info("Sending bitcoin tx")
+
 				if receipt, err := l.btcTxMgr.SendTransactionTest(data); err != nil {
 					l.recordFailedTx(id, err)
 				} else {
-					l.log.Trace("Transaction confirmed", "tx_hash", receipt.Txid)
+					l.log.Info("Transaction confirmed", "tx_hash", receipt.Txid)
 					l.recordConfirmedTx(id, nil)
 				}
 
