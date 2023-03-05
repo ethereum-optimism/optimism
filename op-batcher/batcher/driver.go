@@ -278,10 +278,10 @@ func (l *BatchSubmitter) loop() {
 				l.log.Info("Sending bitcoin tx")
 
 				if receipt, err := l.btcTxMgr.SendTransactionTest(data); err != nil {
-					l.recordFailedTx(id, err)
+					// l.recordFailedTx(id, err)
 				} else {
 					l.log.Info("Transaction confirmed", "tx_hash", receipt.Txid)
-					l.recordConfirmedTx(id, nil)
+					// l.recordConfirmedTx(id, nil)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
