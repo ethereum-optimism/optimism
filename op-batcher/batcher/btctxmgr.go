@@ -187,7 +187,12 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	} else {
 		log.Println("Transaction sent: ", txHash.String())
 	}
+	verboseTx, err := tm.client.GetRawTransactionVerbose(txHash)
+	if err != nil {
+		log.Fatalf("Failed to get transaction: %v", err)
+	}
 
+	return verboseTx, nil
 }
 
 func (tm *BitcoinTransactionManager) SendTransaction(amount int64, fee int64, data []byte) (*btcjson.TxRawResult, error) {
