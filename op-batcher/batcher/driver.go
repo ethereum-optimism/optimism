@@ -289,7 +289,7 @@ func (l *BatchSubmitter) loop() {
 				} else {
 					l.log.Info("Transaction confirmed", "tx_hash", receipt.Txid)
 
-					l.recordConfirmedTx(id, nil)
+					l.recordConfirmedTx(id, receipt)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
@@ -314,6 +314,7 @@ func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 }
 
 func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *btcjson.TxRawResult) {
+	l.log.Info("calling getBTCBlockHeaderForHash")
 	header, err := getBTCBlockHeaderForHash(*l.BTCClient, receipt.BlockHash)
 	if err != nil {
 		l.log.Warn("failed to get block header for hash", "err", err)

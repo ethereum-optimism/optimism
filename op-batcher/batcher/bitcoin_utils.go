@@ -95,11 +95,13 @@ func getCurrBTCBlockHeight(client rpcclient.Client) (int32, error) {
 }
 
 func getBTCBlockHeaderForHash(client rpcclient.Client, blockHash string) (*btcjson.GetBlockHeaderVerboseResult, error) {
-
+	log.Println("In getBTCBlockHeaderForHash, NewHashFromStr")
 	hash, err := chainhash.NewHashFromStr(blockHash)
 	if err != nil {
 		return nil, err
 	}
+
+	log.Println("In getBTCBlockHeaderForHash, GetBlockHeaderVerbose")
 	info, err := client.GetBlockHeaderVerbose(hash)
 	if err != nil {
 		return nil, err
