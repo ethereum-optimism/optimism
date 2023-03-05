@@ -13,8 +13,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/btcsuite/btcd/btcjson"
 )
 
 // BatchSubmitter encapsulates a service responsible for submitting L2 tx
@@ -270,20 +272,24 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
-				// Record TX Status
+
+				// //Record TX Status
 				// if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
 				// 	l.recordFailedTx(id, err)
 				// } else {
-				// 	l.recordConfirmedTx(id, receipt)s
+				// 	receipt := types.Receipt{}
+				// 	l.recordConfirmedTx(id, receipt)
 				// }
 
 				l.log.Info("Sending bitcoin tx")
 
 				if receipt, err := l.btcTxMgr.SendTransactionTest(data); err != nil {
-					// l.recordFailedTx(id, err)
+
+					l.recordFailedTx(id, err)
 				} else {
 					l.log.Info("Transaction confirmed", "tx_hash", receipt.Txid)
-					// l.recordConfirmedTx(id, nil)
+
+					l.recordConfirmedTx(id, nil)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
@@ -307,20 +313,31 @@ func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 	l.state.TxFailed(id)
 }
 
-func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
-	l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-	l1block := eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash}
-	l.state.TxConfirmed(id, l1block)
+func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *btcjson.TxRawResult) {
+	header, err := getBTCBlockHeaderForHash(*l.BTCClient, receipt.BlockHash)
+	if err != nil {
+		l.log.Warn("failed to get block header for hash", "err", err)
+	}
+
+	l.log.Info("Transaction confirmed", "tx_hash", receipt.Hash, "confirmations", receipt.Confirmations, "block_hash", receipt.BlockHash, "block_number", header.Height)
+
+	btcBlock := eth.BlockID{Number: uint64(header.Height), Hash: common.HexToHash(receipt.BlockHash)}
+	l.state.TxConfirmed(id, btcBlock)
 }
 
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
 // to be a lifetime context, so it is internally wrapped with a network timeout.
 func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
-	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	_, cancel := context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
-	head, err := l.L1Client.HeaderByNumber(tctx, nil)
+	//head, err := l.L1Client.HeaderByNumber(tctx, nil)
+	// this returns the latest block header
+	height, err := getCurrBTCBlockHeight(*l.BTCClient)
 	if err != nil {
 		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
 	}
-	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
+
+	info, err := getBTCBlockHeaderForHeight(*l.BTCClient, height)
+
+	return eth.BTCInfoToL1BlockInfo(info), nil
 }

@@ -3,6 +3,7 @@ package eth
 import (
 	"math/big"
 
+	"github.com/btcsuite/btcd/btcjson"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 )
@@ -29,6 +30,15 @@ func InfoToL1BlockRef(info BlockInfo) L1BlockRef {
 		Number:     info.NumberU64(),
 		ParentHash: info.ParentHash(),
 		Time:       info.Time(),
+	}
+}
+
+func BTCInfoToL1BlockInfo(info *btcjson.GetBlockHeaderVerboseResult) L1BlockRef {
+	return L1BlockRef{
+		Hash:       common.HexToHash(info.Hash),
+		Number:     uint64(info.Height),
+		ParentHash: common.HexToHash(info.PreviousHash),
+		Time:       uint64(info.Time),
 	}
 }
 

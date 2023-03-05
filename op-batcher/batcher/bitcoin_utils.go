@@ -69,10 +69,11 @@ func ConnectToClient() (*rpcclient.Client, error) {
 
 func waitForTransactionConfirmation(client rpcclient.Client, txHash *chainhash.Hash) (*btcjson.TxRawResult, error) {
 	for {
+		time.Sleep(20 * time.Second)
 		tx, err := client.GetRawTransactionVerbose(txHash)
 		if err != nil {
 			log.Printf("error getting transaction: %v", err)
-			time.Sleep(20 * time.Second)
+			time.Sleep(10 * time.Second)
 			continue
 		}
 		if tx.Confirmations > 0 {
@@ -81,4 +82,42 @@ func waitForTransactionConfirmation(client rpcclient.Client, txHash *chainhash.H
 		// retry every 10 seconds
 		time.Sleep(10 * time.Second)
 	}
+}
+
+func getCurrBTCBlockHeight(client rpcclient.Client) (int32, error) {
+
+	info, err := client.GetBlockChainInfo()
+	if err != nil {
+		return 0, err
+	}
+
+	return info.Blocks, err
+}
+
+func getBTCBlockHeaderForHash(client rpcclient.Client, blockHash string) (*btcjson.GetBlockHeaderVerboseResult, error) {
+
+	hash, err := chainhash.NewHashFromStr(blockHash)
+	if err != nil {
+		return nil, err
+	}
+	info, err := client.GetBlockHeaderVerbose(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, err
+}
+
+func getBTCBlockHeaderForHeight(client rpcclient.Client, blockHeight int32) (*btcjson.GetBlockHeaderVerboseResult, error) {
+
+	hash, err := client.GetBlockHash(int64(blockHeight))
+	if err != nil {
+		return nil, err
+	}
+	info, err := client.GetBlockHeaderVerbose(hash)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, err
 }
