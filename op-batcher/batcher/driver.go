@@ -58,7 +58,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
-	btcClient, err := dialBTCClientWithoutTimeout(cfg.BTCRpc)
+	btcClient, err := dialBTCClientWithoutTimeout("regtest.dctrl.wtf")
 	if err != nil {
 		return nil, err
 	}
