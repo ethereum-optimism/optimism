@@ -43,4 +43,4 @@ for (let i = 0; i < numTransactions; i++) {
     });
 }
 }
-await test()
+ test()
