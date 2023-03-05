@@ -1,3 +1,14 @@
+# Bitcoin Vitaliks Vision (Satoshi's Modular Stack)
+A fork of Optimisms Bedrock that uses Bitcoin (ala Ordinals) as a data availability.
+
+This repo is pretty hacky rn, things that need to be done:
+- Remove hardcoded URLs and secrets
+- Reinstate Bedrock contract unit tests
+- Add ability to handle reorgs to SPV Client
+- Do some gas modeling to avoid posting calldata blobs that are too large to reasonably be able to verify
+
+
+
 <div align="center">
   <br />
   <br />
