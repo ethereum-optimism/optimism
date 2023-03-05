@@ -183,10 +183,28 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	fee := int64(5000) // Set the fee to 150,000 satoshis
 	txCopy.TxOut[0].Value -= fee
 
-	txHash, err := tm.client.SendRawTransaction(txCopy, true)
-	if err != nil {
-		log.Fatalf("Error sending raw transaction: %v", err)
+	maxRetries := 3
+	retryInterval := 5 * time.Second // wait 5 seconds between each retry
+
+	for i := 1; i <= maxRetries; i++ { x
+		txHash, err := tm.client.SendRawTransaction(txCopy, true)
+		if err != nil {
+			log.Println(txCopy)
+			log.Println(txHash)
+			log.Fatalf("Error sending raw transaction: %v", err)
+		}
+
+		}
+		// If no error occurs, break out of the retry loop and continue with the rest of the code
+		log.Println(txCopy)
+		log.Println(txHash)
+		break
 	}
+
+	if err != nil {
+		log.Fatalf("Failed to send raw transaction after %d attempts: %v", maxRetries, err)
+	}
+
 
 	log.Println("txHASH", txHash)
 
