@@ -197,6 +197,11 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 		}
 	}
 
+	confirmation, err = waitForTransactionConfirmation(*tm.client, txHash)
+	if err != nil {
+		log.Fatalf("Error waiting for transaction confirmation: %v", err)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to send transaction after %d attempts: %v", maxRetries, err)
 	} else {

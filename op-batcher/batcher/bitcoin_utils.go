@@ -68,11 +68,9 @@ func ConnectToClient() (*rpcclient.Client, error) {
 
 func waitForTransactionConfirmation(client rpcclient.Client, txHash *chainhash.Hash) (*btcjson.TxRawResult, error) {
 	for {
-		time.Sleep(10 * time.Second)
 		tx, err := client.GetRawTransactionVerbose(txHash)
 		if err != nil {
 			log.Printf("error getting transaction: %v", err)
-			time.Sleep(10 * time.Second)
 			continue
 		}
 		if tx.Confirmations > 6 {

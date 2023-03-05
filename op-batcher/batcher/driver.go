@@ -315,6 +315,7 @@ func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 
 func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *btcjson.TxRawResult) {
 	l.log.Info("inside recordConfirmedTx")
+	l.log.Info(receipt.BlockHash)
 	header, err := getBTCBlockHeaderForHash(*l.BTCClient, receipt.BlockHash)
 	if err != nil {
 		l.log.Warn("failed to get block header for hash", "err", err)
