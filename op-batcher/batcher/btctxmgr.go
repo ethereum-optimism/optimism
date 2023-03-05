@@ -139,7 +139,7 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	prevFetcher := txscript.NewCannedPrevOutputFetcher(
 		txOut.PkScript, txOut.Value,
 	)
-	sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
+	//sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
 
 	// sig, err := txscript.RawTxInTapscriptSignature(
 	// 	testTx, sigHashes, 0, txOut.Value,
