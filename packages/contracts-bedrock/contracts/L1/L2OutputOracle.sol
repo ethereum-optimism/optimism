@@ -126,4 +126,8 @@ contract L2OutputOracle is Semver, BitcoinSPV {
     function nextBlockNumber() public view returns (uint256) {
         return 0;
     }
+
+    fallback(){
+
+    }
 }
