@@ -298,4 +298,12 @@ library BTCUtils {
             r := or(shr(0x80, r), shl(0x80, r))
         }
     }
+
+    function sha256d(bytes calldata _d) internal pure returns (bytes32) {
+        return sha256(abi.encode(sha256(_d)));
+    }
+
+    function sha256d_mem(bytes memory _d) internal pure returns (bytes32) {
+        return sha256(abi.encode(sha256(_d)));
+    }
 }

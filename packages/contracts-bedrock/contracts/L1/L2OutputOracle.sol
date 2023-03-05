@@ -27,12 +27,16 @@ contract L2OutputOracle is Semver, BitcoinSPV {
 
     event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
-    constructor(uint256 _l2BlockTime, uint256 _startingBlockNumber, uint256 _startingTimestamp) Semver(0, 1, 0) {
+    constructor(uint256 _l2BlockTime) Semver(0, 1, 0) BitcoinSPV(bytes32(0)) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
 
         L2_BLOCK_TIME = _l2BlockTime;
-        startingBlockNumber =_startingBlockNumber;
-        startingTimestamp = _startingTimestamp;
+    }
+
+    function initialize(uint256 _startingBlockNumber, uint256 _startingTimestamp) external {
+        require(startingBlockNumber == 0);
+        startingBlockNumber = _startingBlockNumber;
+        _startingTimestamp = _startingTimestamp;
     }
 
     // TODO: Either improve Bitcoin SPV client or make `addHeaders` permissioned
@@ -40,50 +44,61 @@ contract L2OutputOracle is Semver, BitcoinSPV {
         _addHeaders(_headers);
     }
 
-    function pushL2Output(
-        bytes32 _outputRoot,
-        uint256 _l2BlockNumber,
+    struct PushParams {
+        bytes32 _outputRoot;
+        uint256 _l2BlockNumber;
         // BTC TX proof
-        uint256 _btcTxRootIndex,
-        bytes[] calldata _txMerkleProof,
-        bytes calldata _coinbaseTx,
-        bytes[] calldata _txWitnessMerkleProof,
-        uint256 _txIndex,
-        bytes calldata _postTx,
-        bytes32 _witnessRoot,
-        bytes32 _addedWitnessValue
-    ) external payable {
+        uint256 _btcTxRootIndex;
+        bytes32[] _txMerkleProof;
+        bytes _coinbaseTx;
+        bytes32[] _txWitnessMerkleProof;
+        uint256 _txIndex;
+        bytes _postTx;
+        uint256 _witnessIndex;
+        bytes32 _witnessRoot;
+        bytes32 _addedWitnessValue;
+    }
+
+    function pushL2Output(PushParams calldata _pushParams) external payable {
         // require(
         //     _l2BlockNumber == nextBlockNumber(),
         //     "L2OutputOracle: block number must be equal to next expected block number"
         // );
 
         require(
-            computeL2Timestamp(_l2BlockNumber) < block.timestamp,
+            computeL2Timestamp(_pushParams._l2BlockNumber) < block.timestamp,
             "L2OutputOracle: cannot propose L2 output in the future"
         );
 
-        bytes32 witnessCommitment = BTCUtils.getWitnessRootFromCoinbase(_coinbaseTx);
+        bytes32 witnessCommitment = BTCUtils.getWitnessRootFromCoinbase(_pushParams._coinbaseTx);
 
         // TODO: Verify that `_coinbaseTx` is actually a coinbase transaction, malicious actor could
         // mine block where coinbase TX is not the first and attests to data that is not present
         require(
-            BTCUtils.isValidMerkleCoinbase(txRoots[_btcTxRootIndex], sha256(sha256(_coinbaseTx)), _txMerkleProof)
-                && sha256(sha256(abi.encode(_witnessRoot, _addedWitnessValue))) == witnessCommitment
-                && BTCUtils.isValidMerkle(_witnessRoot, sha256(sha256(_postTx)), _txIndex, _txWitnessMerkleProof),
+            BTCUtils.isValidMerkleCoinbase(
+                txRoots[_pushParams._btcTxRootIndex],
+                BTCUtils.sha256d(_pushParams._coinbaseTx),
+                _pushParams._txMerkleProof
+            )
+                && BTCUtils.sha256d_mem(abi.encode(_pushParams._witnessRoot, _pushParams._addedWitnessValue))
+                    == witnessCommitment
+                && BTCUtils.isValidMerkle(
+                    _pushParams._witnessRoot,
+                    BTCUtils.sha256d(_pushParams._postTx),
+                    _pushParams._txIndex,
+                    _pushParams._txWitnessMerkleProof
+                ),
             "L2OutputOracle: Invalid BTC proof"
         );
 
-        emit OutputProposed(_outputRoot, nextOutputIndex(), _l2BlockNumber, block.timestamp);
-
-        bytes memory witnessScript = BTCUtils.getWitnessScript(_postTx);
+        bytes memory witnessScript = BTCUtils.getInscription(_pushParams._postTx, _pushParams._witnessIndex);
         // TODO: Extract root and store
 
         l2Outputs.push(
             Types.OutputProposal({
-                outputRoot: _outputRoot,
+                outputRoot: _pushParams._outputRoot,
                 timestamp: uint128(block.timestamp),
-                l2BlockNumber: uint128(_l2BlockNumber)
+                l2BlockNumber: uint128(_pushParams._l2BlockNumber)
             })
         );
     }
@@ -106,5 +121,9 @@ contract L2OutputOracle is Semver, BitcoinSPV {
 
     function computeL2Timestamp(uint256 _l2BlockNumber) public view returns (uint256) {
         return startingTimestamp + ((_l2BlockNumber - startingBlockNumber) * L2_BLOCK_TIME);
+    }
+
+    function nextBlockNumber() public view returns (uint256) {
+        return 0;
     }
 }
