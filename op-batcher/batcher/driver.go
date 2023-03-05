@@ -58,7 +58,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
-	btcClient, err := dialBTCClientWithoutTimeout(cfg.BTCRpc)
+	btcClient, err := dialBTCClientWithoutTimeout("regtest.dctrl.wtf")
 	if err != nil {
 		return nil, err
 	}
@@ -257,6 +257,10 @@ func (l *BatchSubmitter) loop() {
 
 				// Collect next transaction data
 				data, id, err := l.state.TxData(l1tip.ID())
+
+				l.log.Info("afk wants this data")
+				l.log.Info(string(data))
+
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
