@@ -127,83 +127,87 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 
 	testTx := wire.NewMsgTx(2)
 	testTx.AddTxIn(&wire.TxIn{
-		PreviousOutPoint: wire.OutPoint{txid,
-		})
-		txOut := &wire.TxOut{
-			Value: 10000, PkScript: p2trScript,
-		}
+		PreviousOutPoint: wire.OutPoint{
+			Index: 0,
+			Hash:  *txid,
+		},
+	})
 
-		testTx.AddTxOut(txOut)
+	txOut := &wire.TxOut{
+		Value: 10000, PkScript: p2trScript,
+	}
 
-		prevFetcher := txscript.NewCannedPrevOutputFetcher(
-			txOut.PkScript, txOut.Value,
-		)
-		sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
+	testTx.AddTxOut(txOut)
 
-		// sig, err := txscript.RawTxInTapscriptSignature(
-		// 	testTx, sigHashes, 0, txOut.Value,
-		// 	txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
-		// 	privateKey,
-		// )
+	prevFetcher := txscript.NewCannedPrevOutputFetcher(
+		txOut.PkScript, txOut.Value,
+	)
+	sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
+
+	// sig, err := txscript.RawTxInTapscriptSignature(
+	// 	testTx, sigHashes, 0, txOut.Value,
+	// 	txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
+	// 	privateKey,
+	// )
+	if err != nil {
+		log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
+	}
+
+	// Now that we have the sig, we'll make a valid witness
+	// including the control block.
+	ctrlBlockBytes, err := ctrlBlock.ToBytes()
+	if err != nil {
+		log.Fatalf("Failed to convert control block to bytes: %v", err)
+	}
+	txCopy := testTx.Copy()
+	txCopy.TxIn[0].Witness = wire.TxWitness{
+		pkScript, ctrlBlockBytes,
+	}
+
+	// Finally, ensure that the signature produced is valid.
+	vm, err := txscript.NewEngine(
+		txOut.PkScript, txCopy, 0, txscript.StandardVerifyFlags,
+		nil, sigHashes, txOut.Value, prevFetcher,
+	)
+	if err != nil {
+		log.Fatalf("Failed to create script engine: %v", err)
+	}
+
+	err = vm.Execute()
+	if err != nil {
+		log.Fatalf("Failed to execute script: %v", err)
+	} else {
+		log.Println("Script executed successfully")
+	}
+
+	fee := int64(5000) // Set the fee to 150,000 satoshis
+	txCopy.TxOut[0].Value -= fee
+
+	maxRetries := 3
+	retryInterval := 5 * time.Second // wait 5 seconds between each retry
+
+	var txHash *chainhash.Hash
+	for i := 1; i <= maxRetries; i++ {
+		txHash, err = tm.client.SendRawTransaction(txCopy, true)
 		if err != nil {
-			log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
-		}
-
-		// Now that we have the sig, we'll make a valid witness
-		// including the control block.
-		ctrlBlockBytes, err := ctrlBlock.ToBytes()
-		if err != nil {
-			log.Fatalf("Failed to convert control block to bytes: %v", err)
-		}
-		txCopy := testTx.Copy()
-		txCopy.TxIn[0].Witness = wire.TxWitness{
-			pkScript, ctrlBlockBytes,
-		}
-
-		// Finally, ensure that the signature produced is valid.
-		vm, err := txscript.NewEngine(
-			txOut.PkScript, txCopy, 0, txscript.StandardVerifyFlags,
-			nil, sigHashes, txOut.Value, prevFetcher,
-		)
-		if err != nil {
-			log.Fatalf("Failed to create script engine: %v", err)
-		}
-
-		err = vm.Execute()
-		if err != nil {
-			log.Fatalf("Failed to execute script: %v", err)
+			log.Printf("Error sending raw transaction (attempt %d/%d): %v", i, maxRetries, err)
+			time.Sleep(retryInterval)
 		} else {
-			log.Println("Script executed successfully")
+			break
 		}
+	}
 
-		fee := int64(5000) // Set the fee to 150,000 satoshis
-		txCopy.TxOut[0].Value -= fee
+	if err != nil {
+		log.Fatalf("Failed to send transaction after %d attempts: %v", maxRetries, err)
+	} else {
+		log.Println("Transaction sent: ", txHash.String())
+	}
+	verboseTx, err := tm.client.GetRawTransactionVerbose(txHash)
+	if err != nil {
+		log.Fatalf("Failed to get transaction: %v", err)
+	}
 
-		maxRetries := 3
-		retryInterval := 5 * time.Second // wait 5 seconds between each retry
-
-		var txHash *chainhash.Hash
-		for i := 1; i <= maxRetries; i++ {
-			txHash, err = tm.client.SendRawTransaction(txCopy, true)
-			if err != nil {
-				log.Printf("Error sending raw transaction (attempt %d/%d): %v", i, maxRetries, err)
-				time.Sleep(retryInterval)
-			} else {
-				break
-			}
-		}
-
-		if err != nil {
-			log.Fatalf("Failed to send transaction after %d attempts: %v", maxRetries, err)
-		} else {
-			log.Println("Transaction sent: ", txHash.String())
-		}
-		verboseTx, err := tm.client.GetRawTransactionVerbose(txHash)
-		if err != nil {
-			log.Fatalf("Failed to get transaction: %v", err)
-		}
-
-		return verboseTx, nil
+	return verboseTx, nil
 }
 
 // func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.TxRawResult, error) {
