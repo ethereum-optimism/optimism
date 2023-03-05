@@ -53,10 +53,10 @@ contract L2OutputOracle is Semver, BitcoinSPV {
         bytes32 _witnessRoot,
         bytes32 _addedWitnessValue
     ) external payable {
-        require(
-            _l2BlockNumber == nextBlockNumber(),
-            "L2OutputOracle: block number must be equal to next expected block number"
-        );
+        // require(
+        //     _l2BlockNumber == nextBlockNumber(),
+        //     "L2OutputOracle: block number must be equal to next expected block number"
+        // );
 
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
