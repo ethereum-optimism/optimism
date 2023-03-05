@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
-import { OptimismMintableERC721 } from "../universal/OptimismMintableERC721.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {ERC721Bridge_Initializer} from "./CommonTest.t.sol";
+import {OptimismMintableERC721} from "../universal/OptimismMintableERC721.sol";
 
 contract OptimismMintableERC721_Test is ERC721Bridge_Initializer {
     ERC721 internal L1Token;

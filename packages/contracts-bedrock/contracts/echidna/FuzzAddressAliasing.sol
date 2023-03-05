@@ -1,6 +1,6 @@
 pragma solidity 0.8.15;
 
-import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import {AddressAliasHelper} from "../vendor/AddressAliasHelper.sol";
 
 contract EchidnaFuzzAddressAliasing {
     bool internal failedRoundtrip;

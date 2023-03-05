@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Bridge_Initializer } from "./CommonTest.t.sol";
+import {Bridge_Initializer} from "./CommonTest.t.sol";
 
-import { SequencerFeeVault } from "../L2/SequencerFeeVault.sol";
-import { StandardBridge } from "../universal/StandardBridge.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import {SequencerFeeVault} from "../L2/SequencerFeeVault.sol";
+import {StandardBridge} from "../universal/StandardBridge.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
 
 contract SequencerFeeVault_Test is Bridge_Initializer {
     SequencerFeeVault vault = SequencerFeeVault(payable(Predeploys.SEQUENCER_FEE_WALLET));
@@ -31,7 +31,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         uint256 balance = address(vault).balance;
 
         vm.prank(alice);
-        (bool success, ) = address(vault).call{ value: 100 }(hex"");
+        (bool success,) = address(vault).call{value: 100}(hex"");
 
         assertEq(success, true);
         assertEq(address(vault).balance, balance + 100);
@@ -40,9 +40,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
     function test_withdraw_notEnough_reverts() external {
         assert(address(vault).balance < vault.MIN_WITHDRAWAL_AMOUNT());
 
-        vm.expectRevert(
-            "FeeVault: withdrawal amount must be greater than minimum withdrawal amount"
-        );
+        vm.expectRevert("FeeVault: withdrawal amount must be greater than minimum withdrawal amount");
         vault.withdraw();
     }
 
@@ -60,12 +58,7 @@ contract SequencerFeeVault_Test is Bridge_Initializer {
         vm.expectCall(
             Predeploys.L2_STANDARD_BRIDGE,
             address(vault).balance,
-            abi.encodeWithSelector(
-                StandardBridge.bridgeETHTo.selector,
-                vault.l1FeeWallet(),
-                35_000,
-                bytes("")
-            )
+            abi.encodeWithSelector(StandardBridge.bridgeETHTo.selector, vault.l1FeeWallet(), 35_000, bytes(""))
         );
 
         vault.withdraw();

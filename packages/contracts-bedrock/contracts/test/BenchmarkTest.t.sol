@@ -2,20 +2,16 @@
 pragma solidity 0.8.15;
 
 /* Testing utilities */
-import { Test } from "forge-std/Test.sol";
-import { Vm } from "forge-std/Vm.sol";
+import {Test} from "forge-std/Test.sol";
+import {Vm} from "forge-std/Vm.sol";
 import "./CommonTest.t.sol";
-import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
-import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import {CrossDomainMessenger} from "../universal/CrossDomainMessenger.sol";
+import {ResourceMetering} from "../L1/ResourceMetering.sol";
 
 uint128 constant INITIAL_BASE_FEE = 1_000_000_000;
 
 // Free function for setting the prevBaseFee param in the OptimismPortal.
-function setPrevBaseFee(
-    Vm _vm,
-    address _op,
-    uint128 _prevBaseFee
-) {
+function setPrevBaseFee(Vm _vm, address _op, uint128 _prevBaseFee) {
     _vm.store(
         address(_op),
         bytes32(uint256(1)),
@@ -61,8 +57,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
         // Get withdrawal proof data we can use for testing.
         bytes32 _storageRoot;
         bytes32 _stateRoot;
-        (_stateRoot, _storageRoot, _outputRoot, , _withdrawalProof) = ffi
-            .getProveWithdrawalTransactionInputs(_defaultTx);
+        (_stateRoot, _storageRoot, _outputRoot,, _withdrawalProof) = ffi.getProveWithdrawalTransactionInputs(_defaultTx);
 
         // Setup a dummy output root proof for reuse.
         _outputRootProof = Types.OutputRootProof({
@@ -83,59 +78,42 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
         oracle.proposeL2Output(_outputRoot, _proposedBlockNumber, 0, 0);
 
         // Warp beyond the finalization period for the block we've proposed.
-        vm.warp(
-            oracle.getL2Output(_proposedOutputIndex).timestamp +
-                op.FINALIZATION_PERIOD_SECONDS() +
-                1
-        );
+        vm.warp(oracle.getL2Output(_proposedOutputIndex).timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(op), 0xFFFFFFFF);
     }
 
     function test_depositTransaction_benchmark() external {
-        op.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            false,
-            NON_ZERO_DATA
+        op.depositTransaction{value: NON_ZERO_VALUE}(
+            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
         );
     }
 
     function test_depositTransaction_benchmark_1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
-        op.depositTransaction{ value: NON_ZERO_VALUE }(
-            NON_ZERO_ADDRESS,
-            ZERO_VALUE,
-            NON_ZERO_GASLIMIT,
-            false,
-            NON_ZERO_DATA
+        op.depositTransaction{value: NON_ZERO_VALUE}(
+            NON_ZERO_ADDRESS, ZERO_VALUE, NON_ZERO_GASLIMIT, false, NON_ZERO_DATA
         );
     }
 
     function test_proveWithdrawalTransaction_benchmark() external {
-        op.proveWithdrawalTransaction(
-            _defaultTx,
-            _proposedOutputIndex,
-            _outputRootProof,
-            _withdrawalProof
-        );
+        op.proveWithdrawalTransaction(_defaultTx, _proposedOutputIndex, _outputRootProof, _withdrawalProof);
     }
 }
 
 contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     function test_sendMessage_benchmark_0() external {
         // The amount of data typically sent during a bridge deposit.
-        bytes
-            memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        bytes memory data =
+            hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 
     function test_sendMessage_benchmark_1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
         // The amount of data typically sent during a bridge deposit.
-        bytes
-            memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        bytes memory data =
+            hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 }
@@ -148,21 +126,21 @@ contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
     }
 
     function test_depositETH_benchmark_0() external {
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        L1Bridge.depositETH{value: 500}(50000, hex"");
     }
 
     function test_depositETH_benchmark_1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        L1Bridge.depositETH{value: 500}(50000, hex"");
     }
 
     function test_depositERC20_benchmark_0() external {
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        L1Bridge.depositETH{value: 500}(50000, hex"");
     }
 
     function test_depositERC20_benchmark_1() external {
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        L1Bridge.depositETH{value: 500}(50000, hex"");
     }
 }
 
@@ -183,7 +161,7 @@ contract GasBenchMark_L1StandardBridge_Finalize is Bridge_Initializer {
         // TODO: Make this more accurate. It is underestimating the cost because it pranks
         // the call coming from the messenger, which bypasses the portal
         // and oracle.
-        L1Bridge.finalizeETHWithdrawal{ value: 100 }(alice, alice, 100, hex"");
+        L1Bridge.finalizeETHWithdrawal{value: 100}(alice, alice, 100, hex"");
     }
 }
 

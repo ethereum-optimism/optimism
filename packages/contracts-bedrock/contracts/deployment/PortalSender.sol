@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { OptimismPortal } from "../L1/OptimismPortal.sol";
+import {OptimismPortal} from "../L1/OptimismPortal.sol";
 
 /**
  * @title PortalSender
@@ -25,6 +25,6 @@ contract PortalSender {
      * @notice Sends balance of this contract to the OptimismPortal.
      */
     function donate() public {
-        PORTAL.donateETH{ value: address(this).balance }();
+        PORTAL.donateETH{value: address(this).balance}();
     }
 }

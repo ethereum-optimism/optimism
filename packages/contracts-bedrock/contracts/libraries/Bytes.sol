@@ -18,11 +18,7 @@ library Bytes {
      *
      * @return Slice of the input byte array.
      */
-    function slice(
-        bytes memory _bytes,
-        uint256 _start,
-        uint256 _length
-    ) internal pure returns (bytes memory) {
+    function slice(bytes memory _bytes, uint256 _start, uint256 _length) internal pure returns (bytes memory) {
         unchecked {
             require(_length + 31 >= _length, "slice_overflow");
             require(_start + _length >= _start, "slice_overflow");
@@ -62,9 +58,7 @@ library Bytes {
                 } lt(mc, end) {
                     mc := add(mc, 0x20)
                     cc := add(cc, 0x20)
-                } {
-                    mstore(mc, mload(cc))
-                }
+                } { mstore(mc, mload(cc)) }
 
                 mstore(tempBytes, _length)
 
@@ -116,7 +110,7 @@ library Bytes {
         bytes memory nibbles = new bytes(bytesLength * 2);
         bytes1 b;
 
-        for (uint256 i = 0; i < bytesLength; ) {
+        for (uint256 i = 0; i < bytesLength;) {
             b = _bytes[i];
             nibbles[i * 2] = b >> 4;
             nibbles[i * 2 + 1] = b & 0x0f;

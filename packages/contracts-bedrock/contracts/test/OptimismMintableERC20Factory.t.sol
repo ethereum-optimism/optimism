@@ -1,16 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Bridge_Initializer } from "./CommonTest.t.sol";
-import { LibRLP } from "./RLP.t.sol";
+import {Bridge_Initializer} from "./CommonTest.t.sol";
+import {LibRLP} from "./RLP.t.sol";
 
 contract OptimismMintableTokenFactory_Test is Bridge_Initializer {
     event StandardL2TokenCreated(address indexed remoteToken, address indexed localToken);
-    event OptimismMintableERC20Created(
-        address indexed localToken,
-        address indexed remoteToken,
-        address deployer
-    );
+    event OptimismMintableERC20Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     function setUp() public override {
         super.setUp();

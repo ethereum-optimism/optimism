@@ -1,20 +1,16 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { ERC721Bridge_Initializer } from "./CommonTest.t.sol";
-import { LibRLP } from "./RLP.t.sol";
-import { OptimismMintableERC721 } from "../universal/OptimismMintableERC721.sol";
-import { OptimismMintableERC721Factory } from "../universal/OptimismMintableERC721Factory.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {ERC721Bridge_Initializer} from "./CommonTest.t.sol";
+import {LibRLP} from "./RLP.t.sol";
+import {OptimismMintableERC721} from "../universal/OptimismMintableERC721.sol";
+import {OptimismMintableERC721Factory} from "../universal/OptimismMintableERC721Factory.sol";
 
 contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
     OptimismMintableERC721Factory internal factory;
 
-    event OptimismMintableERC721Created(
-        address indexed localToken,
-        address indexed remoteToken,
-        address deployer
-    );
+    event OptimismMintableERC721Created(address indexed localToken, address indexed remoteToken, address deployer);
 
     function setUp() public override {
         super.setUp();
@@ -41,9 +37,8 @@ contract OptimismMintableERC721Factory_Test is ERC721Bridge_Initializer {
 
         // Create the token.
         vm.prank(alice);
-        OptimismMintableERC721 created = OptimismMintableERC721(
-            factory.createOptimismMintableERC721(address(1234), "L2Token", "L2T")
-        );
+        OptimismMintableERC721 created =
+            OptimismMintableERC721(factory.createOptimismMintableERC721(address(1234), "L2Token", "L2T"));
 
         // Token address should be correct.
         assertEq(address(created), predicted);

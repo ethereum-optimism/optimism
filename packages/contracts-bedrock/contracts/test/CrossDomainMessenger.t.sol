@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Messenger_Initializer, Reverter, CallerCaller } from "./CommonTest.t.sol";
+import {Messenger_Initializer, Reverter, CallerCaller} from "./CommonTest.t.sol";
 
 // CrossDomainMessenger_Test is for testing functionality which is common to both the L1 and L2
 // CrossDomainMessenger contracts. For simplicity, we use the L1 Messenger as the test contract.

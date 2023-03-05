@@ -1,14 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    ERC721Enumerable
-} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
-import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IOptimismMintableERC721 } from "./IOptimismMintableERC721.sol";
-import { Semver } from "../universal/Semver.sol";
+import {ERC721Enumerable} from "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {IOptimismMintableERC721} from "./IOptimismMintableERC721.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @title OptimismMintableERC721
@@ -63,10 +61,7 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
     ) ERC721(_name, _symbol) Semver(1, 0, 0) {
         require(_bridge != address(0), "OptimismMintableERC721: bridge cannot be address(0)");
         require(_remoteChainId != 0, "OptimismMintableERC721: remote chain id cannot be zero");
-        require(
-            _remoteToken != address(0),
-            "OptimismMintableERC721: remote token cannot be address(0)"
-        );
+        require(_remoteToken != address(0), "OptimismMintableERC721: remote token cannot be address(0)");
 
         REMOTE_CHAIN_ID = _remoteChainId;
         REMOTE_TOKEN = _remoteToken;
@@ -131,18 +126,10 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Se
      *
      * @return True if the interface ID is supported, false otherwise.
      */
-    function supportsInterface(bytes4 _interfaceId)
-        public
-        view
-        override(ERC721Enumerable, IERC165)
-        returns (bool)
-    {
+    function supportsInterface(bytes4 _interfaceId) public view override(ERC721Enumerable, IERC165) returns (bool) {
         bytes4 iface1 = type(IERC165).interfaceId;
         bytes4 iface2 = type(IOptimismMintableERC721).interfaceId;
-        return
-            _interfaceId == iface1 ||
-            _interfaceId == iface2 ||
-            super.supportsInterface(_interfaceId);
+        return _interfaceId == iface1 || _interfaceId == iface2 || super.supportsInterface(_interfaceId);
     }
 
     /**

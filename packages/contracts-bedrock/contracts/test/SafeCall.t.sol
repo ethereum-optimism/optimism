@@ -1,17 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { SafeCall } from "../libraries/SafeCall.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {SafeCall} from "../libraries/SafeCall.sol";
 
 contract SafeCall_call_Test is CommonTest {
-    function testFuzz_call_succeeds(
-        address from,
-        address to,
-        uint256 gas,
-        uint64 value,
-        bytes memory data
-    ) external {
+    function testFuzz_call_succeeds(address from, address to, uint256 gas, uint64 value, bytes memory data) external {
         vm.assume(from.balance == 0);
         vm.assume(to.balance == 0);
         // no precompiles

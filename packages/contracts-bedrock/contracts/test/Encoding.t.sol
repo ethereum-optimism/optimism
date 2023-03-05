@@ -1,15 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { Types } from "../libraries/Types.sol";
-import { Encoding } from "../libraries/Encoding.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {Types} from "../libraries/Types.sol";
+import {Encoding} from "../libraries/Encoding.sol";
 
 contract Encoding_Test is CommonTest {
     function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external {
-        (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(
-            Encoding.encodeVersionedNonce(_nonce, _version)
-        );
+        (uint240 nonce, uint16 version) = Encoding.decodeVersionedNonce(Encoding.encodeVersionedNonce(_nonce, _version));
         assertEq(version, _version);
         assertEq(nonce, _nonce);
     }
@@ -35,23 +33,9 @@ contract Encoding_Test is CommonTest {
         uint8 version = _version % 2;
         uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
 
-        bytes memory encoding = Encoding.encodeCrossDomainMessage(
-            nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
+        bytes memory encoding = Encoding.encodeCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
 
-        bytes memory _encoding = ffi.encodeCrossDomainMessage(
-            nonce,
-            _sender,
-            _target,
-            _value,
-            _gasLimit,
-            _data
-        );
+        bytes memory _encoding = ffi.encodeCrossDomainMessage(nonce, _sender, _target, _value, _gasLimit, _data);
 
         assertEq(encoding, _encoding);
     }
@@ -67,15 +51,7 @@ contract Encoding_Test is CommonTest {
         uint256 _logIndex
     ) external {
         Types.UserDepositTransaction memory t = Types.UserDepositTransaction(
-            _from,
-            _to,
-            isCreate,
-            _value,
-            _mint,
-            _gas,
-            _data,
-            bytes32(uint256(0)),
-            _logIndex
+            _from, _to, isCreate, _value, _mint, _gas, _data, bytes32(uint256(0)), _logIndex
         );
 
         bytes memory txn = Encoding.encodeDepositTransaction(t);

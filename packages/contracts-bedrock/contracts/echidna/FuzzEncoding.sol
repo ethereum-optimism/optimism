@@ -1,6 +1,6 @@
 pragma solidity 0.8.15;
 
-import { Encoding } from "../libraries/Encoding.sol";
+import {Encoding} from "../libraries/Encoding.sol";
 
 contract EchidnaFuzzEncoding {
     bool internal failedRoundtripAToB;

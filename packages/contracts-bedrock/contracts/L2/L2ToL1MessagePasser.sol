@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Types } from "../libraries/Types.sol";
-import { Hashing } from "../libraries/Hashing.sol";
-import { Encoding } from "../libraries/Encoding.sol";
-import { Burn } from "../libraries/Burn.sol";
-import { Semver } from "../universal/Semver.sol";
+import {Types} from "../libraries/Types.sol";
+import {Hashing} from "../libraries/Hashing.sol";
+import {Encoding} from "../libraries/Encoding.sol";
+import {Burn} from "../libraries/Burn.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @custom:proxied
@@ -95,11 +95,7 @@ contract L2ToL1MessagePasser is Semver {
      * @param _gasLimit Minimum gas limit for executing the message on L1.
      * @param _data     Data to forward to L1 target.
      */
-    function initiateWithdrawal(
-        address _target,
-        uint256 _gasLimit,
-        bytes memory _data
-    ) public payable {
+    function initiateWithdrawal(address _target, uint256 _gasLimit, bytes memory _data) public payable {
         bytes32 withdrawalHash = Hashing.hashWithdrawal(
             Types.WithdrawalTransaction({
                 nonce: messageNonce(),
@@ -113,15 +109,7 @@ contract L2ToL1MessagePasser is Semver {
 
         sentMessages[withdrawalHash] = true;
 
-        emit MessagePassed(
-            messageNonce(),
-            msg.sender,
-            _target,
-            msg.value,
-            _gasLimit,
-            _data,
-            withdrawalHash
-        );
+        emit MessagePassed(messageNonce(), msg.sender, _target, msg.value, _gasLimit, _data, withdrawalHash);
 
         unchecked {
             ++msgNonce;

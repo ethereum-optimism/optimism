@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
-import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
-import { ILegacyMintableERC20, IOptimismMintableERC20 } from "./IOptimismMintableERC20.sol";
-import { Semver } from "../universal/Semver.sol";
+import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
+import {ILegacyMintableERC20, IOptimismMintableERC20} from "./IOptimismMintableERC20.sol";
+import {Semver} from "../universal/Semver.sol";
 
 /**
  * @title OptimismMintableERC20
@@ -57,12 +57,10 @@ contract OptimismMintableERC20 is IOptimismMintableERC20, ILegacyMintableERC20, 
      * @param _name        ERC20 name.
      * @param _symbol      ERC20 symbol.
      */
-    constructor(
-        address _bridge,
-        address _remoteToken,
-        string memory _name,
-        string memory _symbol
-    ) ERC20(_name, _symbol) Semver(1, 0, 0) {
+    constructor(address _bridge, address _remoteToken, string memory _name, string memory _symbol)
+        ERC20(_name, _symbol)
+        Semver(1, 0, 0)
+    {
         REMOTE_TOKEN = _remoteToken;
         BRIDGE = _bridge;
     }

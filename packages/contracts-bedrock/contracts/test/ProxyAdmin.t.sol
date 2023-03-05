@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { Test } from "forge-std/Test.sol";
-import { Proxy } from "../universal/Proxy.sol";
-import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
-import { SimpleStorage } from "./Proxy.t.sol";
-import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
-import { ResolvedDelegateProxy } from "../legacy/ResolvedDelegateProxy.sol";
-import { AddressManager } from "../legacy/AddressManager.sol";
+import {Test} from "forge-std/Test.sol";
+import {Proxy} from "../universal/Proxy.sol";
+import {ProxyAdmin} from "../universal/ProxyAdmin.sol";
+import {SimpleStorage} from "./Proxy.t.sol";
+import {L1ChugSplashProxy} from "../legacy/L1ChugSplashProxy.sol";
+import {ResolvedDelegateProxy} from "../legacy/ResolvedDelegateProxy.sol";
+import {AddressManager} from "../legacy/AddressManager.sol";
 
 contract ProxyAdmin_Test is Test {
     address alice = address(64);
@@ -86,14 +86,8 @@ contract ProxyAdmin_Test is Test {
 
     function test_proxyType_succeeds() external {
         assertEq(uint256(admin.proxyType(address(proxy))), uint256(ProxyAdmin.ProxyType.ERC1967));
-        assertEq(
-            uint256(admin.proxyType(address(chugsplash))),
-            uint256(ProxyAdmin.ProxyType.CHUGSPLASH)
-        );
-        assertEq(
-            uint256(admin.proxyType(address(resolved))),
-            uint256(ProxyAdmin.ProxyType.RESOLVED)
-        );
+        assertEq(uint256(admin.proxyType(address(chugsplash))), uint256(ProxyAdmin.ProxyType.CHUGSPLASH));
+        assertEq(uint256(admin.proxyType(address(resolved))), uint256(ProxyAdmin.ProxyType.RESOLVED));
     }
 
     function test_erc1967GetProxyImplementation_succeeds() external {
@@ -222,11 +216,7 @@ contract ProxyAdmin_Test is Test {
 
     function upgradeAndCall(address payable _proxy) internal {
         vm.prank(alice);
-        admin.upgradeAndCall(
-            _proxy,
-            address(implementation),
-            abi.encodeWithSelector(SimpleStorage.set.selector, 1, 1)
-        );
+        admin.upgradeAndCall(_proxy, address(implementation), abi.encodeWithSelector(SimpleStorage.set.selector, 1, 1));
 
         address impl = admin.getProxyImplementation(_proxy);
         assertEq(impl, address(implementation));

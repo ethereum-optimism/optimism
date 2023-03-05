@@ -1,8 +1,8 @@
 pragma solidity 0.8.15;
 
-import { L2OutputOracle_Initializer } from "../CommonTest.t.sol";
-import { L2OutputOracle } from "../../L1/L2OutputOracle.sol";
-import { Vm } from "forge-std/Vm.sol";
+import {L2OutputOracle_Initializer} from "../CommonTest.t.sol";
+import {L2OutputOracle} from "../../L1/L2OutputOracle.sol";
+import {Vm} from "forge-std/Vm.sol";
 
 contract L2OutputOracle_Proposer {
     L2OutputOracle internal oracle;
@@ -16,12 +16,9 @@ contract L2OutputOracle_Proposer {
     /**
      * @dev Allows the actor to propose an L2 output to the `L2OutputOracle`
      */
-    function proposeL2Output(
-        bytes32 _outputRoot,
-        uint256 _l2BlockNumber,
-        bytes32 _l1BlockHash,
-        uint256 _l1BlockNumber
-    ) external {
+    function proposeL2Output(bytes32 _outputRoot, uint256 _l2BlockNumber, bytes32 _l1BlockHash, uint256 _l1BlockNumber)
+        external
+    {
         // Act as the proposer and propose a new output.
         vm.prank(oracle.PROPOSER());
         oracle.proposeL2Output(_outputRoot, _l2BlockNumber, _l1BlockHash, _l1BlockNumber);
@@ -45,7 +42,7 @@ contract L2OutputOracle_MonotonicBlockNumIncrease_Invariant is L2OutputOracle_In
         // that can modify the `l2Outputs` array in the oracle.
         bytes4[] memory selectors = new bytes4[](1);
         selectors[0] = actor.proposeL2Output.selector;
-        FuzzSelector memory selector = FuzzSelector({ addr: address(actor), selectors: selectors });
+        FuzzSelector memory selector = FuzzSelector({addr: address(actor), selectors: selectors});
         targetSelector(selector);
     }
 

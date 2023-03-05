@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
-import { GasPriceOracle } from "../L2/GasPriceOracle.sol";
-import { L1Block } from "../L2/L1Block.sol";
-import { Predeploys } from "../libraries/Predeploys.sol";
+import {CommonTest} from "./CommonTest.t.sol";
+import {GasPriceOracle} from "../L2/GasPriceOracle.sol";
+import {L1Block} from "../L2/L1Block.sol";
+import {Predeploys} from "../libraries/Predeploys.sol";
 
 contract GasPriceOracle_Test is CommonTest {
     event OverheadUpdated(uint256);
@@ -82,9 +82,8 @@ contract GasPriceOracle_Test is CommonTest {
 
     // Removed in bedrock
     function test_setGasPrice_doesNotExist_reverts() external {
-        (bool success, bytes memory returndata) = address(gasOracle).call(
-            abi.encodeWithSignature("setGasPrice(uint256)", 1)
-        );
+        (bool success, bytes memory returndata) =
+            address(gasOracle).call(abi.encodeWithSignature("setGasPrice(uint256)", 1));
 
         assertEq(success, false);
         assertEq(returndata, hex"");
@@ -92,9 +91,8 @@ contract GasPriceOracle_Test is CommonTest {
 
     // Removed in bedrock
     function test_setL1BaseFee_doesNotExist_reverts() external {
-        (bool success, bytes memory returndata) = address(gasOracle).call(
-            abi.encodeWithSignature("setL1BaseFee(uint256)", 1)
-        );
+        (bool success, bytes memory returndata) =
+            address(gasOracle).call(abi.encodeWithSignature("setL1BaseFee(uint256)", 1));
 
         assertEq(success, false);
         assertEq(returndata, hex"");
