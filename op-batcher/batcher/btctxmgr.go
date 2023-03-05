@@ -48,6 +48,8 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 
 	chunkedDataToPost := CreateChunks(520, data)
 
+	fmt.Println("Chunked Data: ", chunkedDataToPost)
+
 	pkScript, err := CreateBitcoinScript(chunkedDataToPost)
 	if err != nil {
 		return nil, fmt.Errorf("error creating Taproot script: %v", err)
@@ -182,6 +184,12 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	txCopy.TxOut[0].Value -= fee
 
 	txHash, err := tm.client.SendRawTransaction(txCopy, true)
+
+	confirmation, err = waitForTransactionConfirmation(*tm.client, txHash)
+	if err != nil {
+		log.Fatalf("Error waiting for transaction confirmation: %v", err)
+	}
+
 	if err != nil {
 		log.Fatalf("Failed to send transaction: %v", err)
 	} else {

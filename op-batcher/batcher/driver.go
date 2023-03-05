@@ -287,11 +287,11 @@ func (l *BatchSubmitter) loop() {
 
 					l.recordFailedTx(id, err)
 				} else {
+					l.log.Info("Transaction confirmed", "receipt", receipt)
 					l.log.Info("Transaction confirmed", "tx_hash", receipt.Txid)
-
+					l.log.Info("Outside recordConfirmedTx")
 					l.recordConfirmedTx(id, receipt)
 				}
-
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
 				// from the channel manager rather than sending the channel in a loop. This stalls b/c if the
 				// context is cancelled while sending, it will never fuilly clearing the pending txns.
@@ -314,7 +314,7 @@ func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
 }
 
 func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *btcjson.TxRawResult) {
-	l.log.Info("calling getBTCBlockHeaderForHash")
+	l.log.Info("inside recordConfirmedTx")
 	header, err := getBTCBlockHeaderForHash(*l.BTCClient, receipt.BlockHash)
 	if err != nil {
 		l.log.Warn("failed to get block header for hash", "err", err)

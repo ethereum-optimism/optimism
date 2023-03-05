@@ -69,6 +69,9 @@ curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"getrawt
 curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"decoderawtransaction","params":["02000000011ad04deb917c8a0c62f6a03fab06441a6852649a4ad73f3d96e420521d9b0598000000006a4730440220726134fe11e30ef078933a6ad5f9c6c10094a2c4dbf38ecbdb5e0065595eab0a02202ddc014dfde955bc318718e7f2385468e5730addf3b99ef262c8f33bf9d71ea501210288060d1b1571364c5ffd613bb40d8a30f65081b9922fcd52ccf5c7a21438f6befdffffff02cb729500000000001600141f8b7a39d52d4d7e9181e7306a3098dc85f7acdce80300000000000016001484caf62153c569897a176be25f22c1121c47d55ebac00000"]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
 
 
+######
+curl --user test:test --data-binary '{"jsonrpc":"1.0","id":"1","method":"getbalance","params":[null, null, null, null]}' -H 'content-type:text/plain;' https://regtest.dctrl.wtf
+
 
 
 
