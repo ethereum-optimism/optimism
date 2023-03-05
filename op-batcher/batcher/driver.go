@@ -257,6 +257,10 @@ func (l *BatchSubmitter) loop() {
 
 				// Collect next transaction data
 				data, id, err := l.state.TxData(l1tip.ID())
+
+				fmt.Println("afk wants this data")
+				fmt.Println(data)
+
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
