@@ -338,6 +338,9 @@ func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
 	}
 
 	info, err := getBTCBlockHeaderForHeight(*l.BTCClient, height)
+	if err != nil {
+		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
+	}
 
 	return eth.BTCInfoToL1BlockInfo(info), nil
 }
