@@ -43,7 +43,7 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 		log.Fatalf("Failed to decode private key: %v", err)
 	}
 
-	_, publicKey := btcec.PrivKeyFromBytes(privateKeyBytes)
+	privateKey, publicKey := btcec.PrivKeyFromBytes(privateKeyBytes)
 
 	chunkedDataToPost := CreateChunks(520, data)
 
@@ -143,11 +143,11 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	)
 	sigHashes := txscript.NewTxSigHashes(testTx, prevFetcher)
 
-	// sig, err := txscript.RawTxInTapscriptSignature(
-	// 	testTx, sigHashes, 0, txOut.Value,
-	// 	txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
-	// 	privateKey,
-	// )
+	sig, err := txscript.RawTxInTapscriptSignature(
+		testTx, sigHashes, 0, txOut.Value,
+		txOut.PkScript, baseTapLeafForScript, txscript.SigHashNone,
+		privateKey,
+	)
 	if err != nil {
 		log.Fatalf("Failed to create raw tx in tapscript signature: %v", err)
 	}
@@ -160,7 +160,7 @@ func (tm *BitcoinTransactionManager) SendTransactionTest(data []byte) (*btcjson.
 	}
 	txCopy := testTx.Copy()
 	txCopy.TxIn[0].Witness = wire.TxWitness{
-		pkScript, ctrlBlockBytes,
+		sig, pkScript, ctrlBlockBytes,
 	}
 
 	// Finally, ensure that the signature produced is valid.
