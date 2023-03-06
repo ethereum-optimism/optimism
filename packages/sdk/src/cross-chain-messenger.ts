@@ -1005,7 +1005,7 @@ export class CrossChainMessenger {
    */
   public async getChallengePeriodSeconds(): Promise<number> {
     const challengePeriod = this.bedrock
-      ? await this.contracts.l1.OptimismPortal.FINALIZATION_PERIOD_SECONDS()
+      ? await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
       : await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
     return challengePeriod.toNumber()
   }
@@ -1014,6 +1014,7 @@ export class CrossChainMessenger {
    * Queries the OptimismPortal contract's `provenWithdrawals` mapping
    * for a ProvenWithdrawal that matches the passed withdrawalHash
    *
+   * @bedrock
    * Note: This function is bedrock-specific.
    *
    * @returns A ProvenWithdrawal object

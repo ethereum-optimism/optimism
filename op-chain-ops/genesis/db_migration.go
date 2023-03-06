@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	abiTrue = common.Hash{31: 0x01}
+	abiTrue  = common.Hash{31: 0x01}
+	abiFalse = common.Hash{}
 	// BedrockTransitionBlockExtraData represents the extradata
 	// set in the very first bedrock block. This value must be
 	// less than 32 bytes long or it will create an invalid block.
@@ -120,7 +121,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// We now need to check that we have all of the withdrawals that we expect to have. An error
 	// will be thrown if there are any missing messages, and any extra messages will be removed.
-	var filteredWithdrawals []*crossdomain.LegacyWithdrawal
+	var filteredWithdrawals crossdomain.SafeFilteredWithdrawals
 	if !noCheck {
 		log.Info("Checking withdrawals...")
 		filteredWithdrawals, err = crossdomain.PreCheckWithdrawals(db, unfilteredWithdrawals)
@@ -129,7 +130,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		}
 	} else {
 		log.Info("Skipping checking withdrawals")
-		filteredWithdrawals = unfilteredWithdrawals
+		filteredWithdrawals = crossdomain.SafeFilteredWithdrawals(unfilteredWithdrawals)
 	}
 
 	// We also need to verify that we have all of the storage slots for the LegacyERC20ETH contract
@@ -191,7 +192,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	// Finally we migrate the balances held inside the LegacyERC20ETH contract into the state trie.
-	// Note that we do NOT delete the balances from the LegacyERC20ETH contract.
+	// We also delete the balances from the LegacyERC20ETH contract.
 	log.Info("Starting to migrate ERC20 ETH")
 	err = ether.MigrateLegacyETH(db, addrs, int(config.L1ChainID), noCheck)
 	if err != nil {
@@ -255,7 +256,7 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Otherwise we need to write the changes to disk. First we commit the state changes.
 	log.Info("Committing trie DB")
-	if err := db.Database().TrieDB().Commit(newRoot, true, nil); err != nil {
+	if err := db.Database().TrieDB().Commit(newRoot, true); err != nil {
 		return nil, err
 	}
 
@@ -288,6 +289,8 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Set the Optimism options.
 	cfg.BedrockBlock = bedrockBlock.Number()
+	// Enable Regolith from the start of Bedrock
+	cfg.RegolithTime = new(uint64)
 	cfg.Optimism = &params.OptimismConfig{
 		EIP1559Denominator: config.EIP1559Denominator,
 		EIP1559Elasticity:  config.EIP1559Elasticity,

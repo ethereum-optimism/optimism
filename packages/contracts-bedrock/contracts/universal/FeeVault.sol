@@ -30,6 +30,11 @@ abstract contract FeeVault {
     address public immutable RECIPIENT;
 
     /**
+     * @notice The minimum gas limit for the FeeVault withdrawal transaction.
+     */
+    uint32 internal constant WITHDRAWAL_MIN_GAS = 35_000;
+
+    /**
      * @notice Total amount of wei processed by the contract.
      */
     uint256 public totalProcessed;
@@ -64,7 +69,7 @@ abstract contract FeeVault {
 
         L2StandardBridge(payable(Predeploys.L2_STANDARD_BRIDGE)).bridgeETHTo{ value: value }(
             RECIPIENT,
-            20000,
+            WITHDRAWAL_MIN_GAS,
             bytes("")
         );
     }

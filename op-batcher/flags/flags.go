@@ -3,6 +3,7 @@ package flags
 import (
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	opservice "github.com/ethereum-optimism/optimism/op-service"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -14,7 +15,7 @@ import (
 const envVarPrefix = "OP_BATCHER"
 
 var (
-	/* Required Flags */
+	/* Required flags */
 
 	L1EthRpcFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
@@ -34,23 +35,13 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "ROLLUP_RPC"),
 	}
-	MinL1TxSizeBytesFlag = cli.Uint64Flag{
-		Name:     "min-l1-tx-size-bytes",
-		Usage:    "The minimum size of a batch tx submitted to L1.",
+	SubSafetyMarginFlag = cli.Uint64Flag{
+		Name: "sub-safety-margin",
+		Usage: "The batcher tx submission safety margin (in #L1-blocks) to subtract " +
+			"from a channel's timeout and sequencing window, to guarantee safe inclusion " +
+			"of a channel on L1.",
 		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "MIN_L1_TX_SIZE_BYTES"),
-	}
-	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
-		Name:     "max-l1-tx-size-bytes",
-		Usage:    "The maximum size of a batch tx submitted to L1.",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "MAX_L1_TX_SIZE_BYTES"),
-	}
-	ChannelTimeoutFlag = cli.Uint64Flag{
-		Name:     "channel-timeout",
-		Usage:    "The maximum amount of time to attempt completing an opened channel, as opposed to submitting L2 blocks into a new channel.",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "CHANNEL_TIMEOUT"),
+		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SUB_SAFETY_MARGIN"),
 	}
 	PollIntervalFlag = cli.DurationFlag{
 		Name: "poll-interval",
@@ -81,6 +72,44 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "RESUBMISSION_TIMEOUT"),
 	}
+
+	/* Optional flags */
+
+	MaxChannelDurationFlag = cli.Uint64Flag{
+		Name:   "max-channel-duration",
+		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
+		Value:  0,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_CHANNEL_DURATION"),
+	}
+	MaxL1TxSizeBytesFlag = cli.Uint64Flag{
+		Name:   "max-l1-tx-size-bytes",
+		Usage:  "The maximum size of a batch tx submitted to L1.",
+		Value:  120_000,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "MAX_L1_TX_SIZE_BYTES"),
+	}
+	TargetL1TxSizeBytesFlag = cli.Uint64Flag{
+		Name:   "target-l1-tx-size-bytes",
+		Usage:  "The target size of a batch tx submitted to L1.",
+		Value:  100_000,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "TARGET_L1_TX_SIZE_BYTES"),
+	}
+	TargetNumFramesFlag = cli.IntFlag{
+		Name:   "target-num-frames",
+		Usage:  "The target number of frames to create per channel",
+		Value:  1,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "TARGET_NUM_FRAMES"),
+	}
+	ApproxComprRatioFlag = cli.Float64Flag{
+		Name:   "approx-compr-ratio",
+		Usage:  "The approximate compression ratio (<= 1.0)",
+		Value:  0.4,
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "APPROX_COMPR_RATIO"),
+	}
+	StoppedFlag = cli.BoolFlag{
+		Name:   "stopped",
+		Usage:  "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",
+		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "STOPPED"),
+	}
 	MnemonicFlag = cli.StringFlag{
 		Name: "mnemonic",
 		Usage: "The mnemonic used to derive the wallets for either the " +
@@ -98,29 +127,26 @@ var (
 		Usage:  "The private key to use with the l2output wallet. Must not be used with mnemonic.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "PRIVATE_KEY"),
 	}
-	SequencerBatchInboxAddressFlag = cli.StringFlag{
-		Name:     "sequencer-batch-inbox-address",
-		Usage:    "L1 Address to receive batch transactions",
-		Required: true,
-		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "SEQUENCER_BATCH_INBOX_ADDRESS"),
-	}
 )
 
 var requiredFlags = []cli.Flag{
 	L1EthRpcFlag,
 	L2EthRpcFlag,
 	RollupRpcFlag,
-	MinL1TxSizeBytesFlag,
-	MaxL1TxSizeBytesFlag,
-	ChannelTimeoutFlag,
+	SubSafetyMarginFlag,
 	PollIntervalFlag,
 	NumConfirmationsFlag,
 	SafeAbortNonceTooLowCountFlag,
 	ResubmissionTimeoutFlag,
-	SequencerBatchInboxAddressFlag,
 }
 
 var optionalFlags = []cli.Flag{
+	MaxChannelDurationFlag,
+	MaxL1TxSizeBytesFlag,
+	TargetL1TxSizeBytesFlag,
+	TargetNumFramesFlag,
+	ApproxComprRatioFlag,
+	StoppedFlag,
 	MnemonicFlag,
 	SequencerHDPathFlag,
 	PrivateKeyFlag,
@@ -133,6 +159,7 @@ func init() {
 	optionalFlags = append(optionalFlags, opmetrics.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, oppprof.CLIFlags(envVarPrefix)...)
 	optionalFlags = append(optionalFlags, opsigner.CLIFlags(envVarPrefix)...)
+	optionalFlags = append(optionalFlags, rpc.CLIFlags(envVarPrefix)...)
 
 	Flags = append(requiredFlags, optionalFlags...)
 }

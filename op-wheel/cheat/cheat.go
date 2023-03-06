@@ -35,7 +35,15 @@ type Cheater struct {
 
 func OpenGethRawDB(dataDirPath string, readOnly bool) (ethdb.Database, error) {
 	// don't use readonly mode in actual DB, it doesn't work with Geth.
-	db, err := rawdb.NewLevelDBDatabaseWithFreezer(dataDirPath, 2048, 500, filepath.Join(dataDirPath, "ancient"), "", readOnly)
+	db, err := rawdb.Open(rawdb.OpenOptions{
+		Type:              "leveldb",
+		Directory:         dataDirPath,
+		AncientsDirectory: filepath.Join(dataDirPath, "ancient"),
+		Namespace:         "",
+		Cache:             2048,
+		Handles:           500,
+		ReadOnly:          readOnly,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to open leveldb: %w", err)
 	}
@@ -99,7 +107,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	blockHash := header.Hash()
 
 	// We have to manually commit the updated state root to the database.
-	if err := state.Database().TrieDB().Commit(stateRoot, true, nil); err != nil {
+	if err := state.Database().TrieDB().Commit(stateRoot, true); err != nil {
 		return fmt.Errorf("error committing trie db: %w", err)
 	}
 
@@ -178,7 +186,13 @@ func StorageGet(address common.Address, key common.Hash, w io.Writer) HeadFn {
 // to another account (maybe even in a different database!).
 func StorageReadAll(address common.Address, w io.Writer) HeadFn {
 	return func(headState *state.StateDB) error {
-		storage := headState.StorageTrie(address)
+		storage, err := headState.StorageTrie(address)
+		if err != nil {
+			return fmt.Errorf("failed to open storage trie of addr %s: %w", address, err)
+		}
+		if storage == nil {
+			return fmt.Errorf("no storage trie in state for account %s", address)
+		}
 		iter := trie.NewIterator(storage.NodeIterator(nil))
 		for iter.Next() {
 			if _, err := fmt.Fprintf(w, "+ %x = %x\n", iter.Key, dbValueToHash(iter.Value)); err != nil {
@@ -205,8 +219,20 @@ func dbValueToHash(enc []byte) common.Hash {
 // Each difference is expressed with 1 character + or - to indicate the change from a to b, followed by key = value.
 func StorageDiff(out io.Writer, addressA, addressB common.Address) HeadFn {
 	return func(headState *state.StateDB) error {
-		aStorage := headState.StorageTrie(addressA)
-		bStorage := headState.StorageTrie(addressB)
+		aStorage, err := headState.StorageTrie(addressA)
+		if err != nil {
+			return fmt.Errorf("failed to open storage trie of addr A %s: %w", addressA, err)
+		}
+		if aStorage == nil {
+			return fmt.Errorf("no storage trie in state for account A %s", addressA)
+		}
+		bStorage, err := headState.StorageTrie(addressB)
+		if err != nil {
+			return fmt.Errorf("failed to open storage trie of addr B %s: %w", addressB, err)
+		}
+		if bStorage == nil {
+			return fmt.Errorf("no storage trie in state for account B %s", addressB)
+		}
 		aIter := trie.NewIterator(aStorage.NodeIterator(nil))
 		bIter := trie.NewIterator(bStorage.NodeIterator(nil))
 		hasA := aIter.Next()

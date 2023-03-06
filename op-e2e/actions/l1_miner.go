@@ -105,7 +105,7 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			return
 		}
 		s.pendingIndices[from] = i + 1 // won't retry the tx
-		s.l1BuildingState.Prepare(tx.Hash(), len(s.l1Transactions))
+		s.l1BuildingState.SetTxContext(tx.Hash(), len(s.l1Transactions))
 		receipt, err := core.ApplyTransaction(s.l1Cfg.Config, s.l1Chain, &s.l1BuildingHeader.Coinbase,
 			s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx, &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
 		if err != nil {
@@ -141,7 +141,7 @@ func (s *L1Miner) ActL1EndBlock(t Testing) {
 	if err != nil {
 		t.Fatalf("l1 state write error: %v", err)
 	}
-	if err := s.l1BuildingState.Database().TrieDB().Commit(root, false, nil); err != nil {
+	if err := s.l1BuildingState.Database().TrieDB().Commit(root, false); err != nil {
 		t.Fatalf("l1 trie write error: %v", err)
 	}
 

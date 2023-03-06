@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: If you use this software in your work, please cite it using the following metadata
+title: The Optimism Monorepo
+authors:
+- name: The Optimism Collective
+version: 1.0.0
+year: 2020
+url: https://github.com/ethereum-optimism/optimism
+repository: https://github.com/ethereum-optimism/optimism
+license: MIT

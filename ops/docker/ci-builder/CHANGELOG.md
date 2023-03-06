@@ -1,5 +1,15 @@
 # @eth-optimism/ci-builder
 
+## 0.5.0
+
+### Minor Changes
+
+- 80f2271f5: Update foundry
+
+### Patch Changes
+
+- 035391a1f: Bump foundry to edf15abd648bb96e2bcee342c1d72ec7d1066cd1
+
 ## 0.4.0
 
 ### Minor Changes

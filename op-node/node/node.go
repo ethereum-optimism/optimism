@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
@@ -61,9 +62,11 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 	// not a context leak, gossipsub is closed with a context.
 	n.resourcesCtx, n.resourcesClose = context.WithCancel(context.Background())
 
+	log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkName))
+
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
-		log.Error("Error intializing the rollup node", "err", err)
+		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
 			return nil, multierror.Append(err, closeErr)
@@ -122,6 +125,10 @@ func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
 		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC, rpcProvKind))
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %w", err)
+	}
+
+	if err := cfg.Rollup.ValidateL1Config(ctx, n.l1Source); err != nil {
+		return err
 	}
 
 	// Keep subscribed to the L1 heads, which keeps the L1 maintainer pointing to the best headers to sync
@@ -189,6 +196,10 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return fmt.Errorf("failed to create Engine client: %w", err)
 	}
 
+	if err := cfg.Rollup.ValidateL2Config(ctx, n.l2Source); err != nil {
+		return err
+	}
+
 	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
 
 	return nil
@@ -204,6 +215,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	}
 	if cfg.RPC.EnableAdmin {
 		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
+		n.log.Info("Admin RPC enabled")
 	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := server.Start(); err != nil {

@@ -92,6 +92,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
 
+		SequencerFeeVaultRecipient: common.Address{19: 1},
+		BaseFeeVaultRecipient:      common.Address{19: 2},
+		L1FeeVaultRecipient:        common.Address{19: 3},
+
 		DeploymentWaitConfirmations: 1,
 
 		EIP1559Elasticity:  2,
@@ -208,7 +212,7 @@ func (sys *System) Close() {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		sys.BatchSubmitter.Stop()
+		sys.BatchSubmitter.StopIfRunning()
 	}
 
 	for _, node := range sys.RollupNodes {
@@ -305,6 +309,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
+			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -498,7 +503,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// L2Output Submitter
-	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitter(l2os.CLIConfig{
+	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
 		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
@@ -522,13 +527,16 @@ func (cfg SystemConfig) Start() (*System, error) {
 	}
 
 	// Batch Submitter
-	sys.BatchSubmitter, err = bss.NewBatchSubmitter(bss.Config{
+	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MinL1TxSize:               1,
-		MaxL1TxSize:               120000,
-		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
+		MaxChannelDuration:        1,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            100_000,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          0.4,
+		SubSafetyMargin:           4,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -537,8 +545,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey:                 hexPriv(cfg.Secrets.Batcher),
-		SequencerBatchInboxAddress: cfg.DeployConfig.BatchInboxAddress.String(),
+		PrivateKey: hexPriv(cfg.Secrets.Batcher),
 	}, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)

@@ -30,7 +30,7 @@ export const advancedQueryFilter = async (
       const allEvents = await contract.queryFilter(
         options.queryFilter,
         i,
-        i + step
+        Math.min(i + step, end)
       )
       const matching = options.filter
         ? allEvents.filter(options.filter)

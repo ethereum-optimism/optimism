@@ -2,7 +2,7 @@ version: 2.1
 
 orbs:
   go: circleci/go@1.5.0
-  gcp-cli: circleci/gcp-cli@2.4.1
+  gcp-cli: circleci/gcp-cli@3.0.1
 commands:
   gcp-oidc-authenticate:
     description: "Authenticate with GCP using a CircleCI OIDC token."
@@ -147,6 +147,8 @@ jobs:
             - "."
 
   docker-publish:
+    environment:
+      DOCKER_BUILDKIT: 1
     parameters:
       docker_name:
         description: Docker image name
@@ -154,6 +156,13 @@ jobs:
       docker_tags:
         description: Docker image tags as csv
         type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
+        default: "."
       registry:
         description: Docker registry
         type: string
@@ -162,17 +171,14 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
-      - attach_workspace:
-          at: /tmp/docker_images
-      - run:
-          name: Docker load
-          command: |
-            DOCKER_LABELS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g")
-            echo -ne $DOCKER_LABELS | tr ' ' '\n' | xargs -I {} docker load -i /tmp/docker_images/<<parameters.docker_name>>_{}.tar
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
       # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
@@ -181,16 +187,36 @@ jobs:
       - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
       - run: cat /etc/netplan/50-cloud-init.yaml
       - run: sudo netplan apply
+      - checkout
       - run:
-          name: Publish
+          name: Build & Publish
           command: |
             gcloud auth configure-docker <<parameters.registry>>
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
-            echo -ne $DOCKER_TAGS | tr ' ' '\n' | xargs -L1 docker push
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
 
-  docker-tag-op-stack-release:
+  docker-release:
+    environment:
+      DOCKER_BUILDKIT: 1
     parameters:
+      docker_name:
+        description: Docker image name
+        type: string
+      docker_tags:
+        description: Docker image tags as csv
+        type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
       registry:
         description: Docker registry
         type: string
@@ -199,17 +225,35 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
-    docker:
-      - image: cimg/python:3.7
-    resource_class: small
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
+    machine:
+      image: ubuntu-2204:2022.07.1
+      resource_class: xlarge
     steps:
       - gcp-cli/install
       - gcp-oidc-authenticate
       - checkout
       - run:
-          name: Tag
+          name: Configure Docker
           command: |
             gcloud auth configure-docker <<parameters.registry>>
+      - run:
+          name: Build & Publish
+          command: |
+            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
+      - run:
+          name: Tag
+          command: |
             ./ops/scripts/ci-docker-tag-op-stack-release.sh <<parameters.registry>>/<<parameters.repo>> $CIRCLE_TAG $CIRCLE_SHA1
 
   contracts-bedrock-tests:
@@ -238,7 +282,7 @@ jobs:
       - run:
           name: test and generate coverage
           command: yarn coverage:lcov
-          no_output_timeout: 15m
+          no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
@@ -439,7 +483,7 @@ jobs:
       - run:
           name: run lint
           command: |
-            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+            golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.module>>
 
   go-test:
@@ -492,8 +536,7 @@ jobs:
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            ./... \
-            -- -timeout=20m
+            -- -timeout=20m ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
@@ -523,7 +566,7 @@ jobs:
           patterns: <<parameters.working_directory>>,<<parameters.dependencies>>
       - run:
           name: Lint
-          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint -e "errors.As" -e "errors.Is" ./...
+          command: golangci-lint run -E goimports,sqlclosecheck,bodyclose,asciicheck,misspell,errorlint --timeout 2m -e "errors.As" -e "errors.Is" ./...
           working_directory: <<parameters.working_directory>>
       - store_test_results:
           path: /test-results
@@ -668,6 +711,31 @@ jobs:
                 name: Check the status
                 command: npx hardhat check-op-node
                 working_directory: packages/contracts-bedrock
+            - run:
+                name: Dump op-node logs
+                command: |
+                  docker logs ops-bedrock-op-node-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-geth logs
+                command: |
+                  docker logs ops-bedrock-l2-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump l1 logs
+                command: |
+                  docker logs ops-bedrock-l1-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-batcher logs
+                command: |
+                  docker logs ops-bedrock-op-batcher-1 || echo "No logs."
+                when: on_fail
+            - run:
+                name: Dump op-proposer logs
+                command: |
+                  docker logs ops-bedrock-op-proposer-1 || echo "No logs."
+                when: on_fail
 
   integration-tests:
     machine:
@@ -846,9 +914,9 @@ workflows:
           requires:
             - yarn-monorepo
       - js-lint-test:
-          name: drippie-mon-tests
-          coverage_flag: drippie-mon-tests
-          package_name: drippie-mon
+          name: chain-mon-tests
+          coverage_flag: chain-mon-tests
+          package_name: chain-mon
           dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
           requires:
             - yarn-monorepo
@@ -949,6 +1017,9 @@ workflows:
       - go-lint:
           name: op-service-lint
           module: op-service
+      - go-lint:
+          name: op-wheel-lint
+          module: op-wheel
       - go-test:
           name: op-batcher-tests
           module: op-batcher
@@ -1002,11 +1073,11 @@ workflows:
       - docker-publish:
           name: op-node-docker-publish
           docker_name: op-node
+          docker_file: op-node/Dockerfile
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-node-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-batcher-docker-build
           docker_file: op-batcher/Dockerfile
@@ -1015,12 +1086,12 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-batcher-docker-publish
+          docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-batcher-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
@@ -1029,12 +1100,12 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-proposer-docker-publish
+          docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-proposer-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-heartbeat-docker-build
           docker_file: op-heartbeat/Dockerfile
@@ -1043,12 +1114,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-heartbeat-docker-publish
+          docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-heartbeat-docker-build
       - docker-build:
           name: indexer-docker-build
           docker_file: indexer/Dockerfile
@@ -1057,12 +1127,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: indexer-docker-publish
+          docker_file: indexer/Dockerfile
           docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - indexer-docker-build
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1089,113 +1158,73 @@ workflows:
             - op-proposer-docker-build
   release:
     jobs:
-      - docker-build:
-          name: op-node-docker-build
+      - hold:
+          type: approval
           filters:
             tags:
               only: /^op-[a-z0-9\-]*\/v.*/
+            branches:
+              ignore: /.*/
+      - docker-release:
+          name: op-node-docker-release
+          filters:
+            tags:
+              only: /^op-node\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-node/Dockerfile
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-node-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-node
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
-            - op-node-docker-build
-      - docker-build:
-          name: op-batcher-docker-build
+            - hold
+      - docker-release:
+          name: op-batcher-docker-release
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^op-batcher\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-batcher-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-batcher
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
-            - op-batcher-docker-build
-      - docker-build:
-          name: op-proposer-docker-build
+            - hold
+      - docker-release:
+          name: op-proposer-docker-release
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^op-proposer\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-proposer-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-proposer
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          platforms: "linux/amd64,linux/arm64"
           context:
-            - oplabs-gcr
+            - oplabs-gcr-release
           requires:
-            - op-proposer-docker-build
+            - hold
       - docker-build:
-          name: op-migrate-docker-build
+          name: op-migrate-docker-release
           filters:
             tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
+              only: /^op-migrate\/v.*/
             branches:
               ignore: /.*/
           docker_file: op-chain-ops/Dockerfile
           docker_name: op-migrate
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-      - docker-publish:
-          name: op-migrate-docker-publish
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          docker_name: op-migrate
-          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
-          context:
-            - oplabs-gcr
-          requires:
-            - op-migrate-docker-build
-      - docker-tag-op-stack-release:
-          name: docker-tag-op-stack-release
-          filters:
-            tags:
-              only: /^op-[a-z0-9\-]*\/v.*/
-            branches:
-              ignore: /.*/
-          requires:
-            - op-node-docker-publish
-            - op-proposer-docker-publish
-            - op-batcher-docker-publish
-            - op-migrate-docker-publish
           context:
             - oplabs-gcr-release
+          requires:
+            - hold

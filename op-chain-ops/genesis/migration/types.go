@@ -117,8 +117,8 @@ type MigrationData struct {
 	EvmMessages []*SentMessage
 }
 
-func (m *MigrationData) ToWithdrawals() ([]*crossdomain.LegacyWithdrawal, error) {
-	messages := make([]*crossdomain.LegacyWithdrawal, 0)
+func (m *MigrationData) ToWithdrawals() (crossdomain.DangerousUnfilteredWithdrawals, error) {
+	messages := make(crossdomain.DangerousUnfilteredWithdrawals, 0)
 	for _, msg := range m.OvmMessages {
 		wd, err := msg.ToLegacyWithdrawal()
 		if err != nil {

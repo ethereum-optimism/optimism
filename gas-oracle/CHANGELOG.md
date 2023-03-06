@@ -1,5 +1,12 @@
 # @eth-optimism/gas-oracle
 
+## 0.1.13
+
+### Patch Changes
+
+- 9b61c84c9: build(deps): bump golang.org/x/net from 0.0.0-20211112202133-69e39bad7dc2 to 0.7.0 in /gas-oracle
+- f13b31e04: build(deps): bump golang.org/x/sys from 0.0.0-20220310020820-b874c991c1a5 to 0.1.0 in /gas-oracle
+
 ## 0.1.12
 
 ### Patch Changes

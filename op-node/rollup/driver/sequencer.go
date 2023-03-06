@@ -20,16 +20,13 @@ type Downloader interface {
 	FetchReceipts(ctx context.Context, blockHash common.Hash) (eth.BlockInfo, types.Receipts, error)
 }
 
-type SequencerMetrics interface {
-	RecordSequencerBuildingDiffTime(duration time.Duration)
-	RecordSequencerSealingTime(duration time.Duration)
+type L1OriginSelectorIface interface {
+	FindL1Origin(ctx context.Context, l2Head eth.L2BlockRef) (eth.L1BlockRef, error)
 }
 
-type EngineState interface {
-	Finalized() eth.L2BlockRef
-	UnsafeL2Head() eth.L2BlockRef
-	SafeL2Head() eth.L2BlockRef
-	Origin() eth.L1BlockRef
+type SequencerMetrics interface {
+	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
+	RecordSequencerReset()
 }
 
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.
@@ -37,40 +34,48 @@ type Sequencer struct {
 	log    log.Logger
 	config *rollup.Config
 
-	l2          derive.Engine
-	engineState EngineState
+	engine derive.ResettableEngineControl
 
-	attrBuilder       derive.AttributesBuilder
-	buildingOnto      eth.L2BlockRef
-	buildingID        eth.PayloadID
-	buildingStartTime time.Time
+	attrBuilder      derive.AttributesBuilder
+	l1OriginSelector L1OriginSelectorIface
 
 	metrics SequencerMetrics
+
+	// timeNow enables sequencer testing to mock the time
+	timeNow func() time.Time
+
+	nextAction time.Time
 }
 
-func NewSequencer(log log.Logger, cfg *rollup.Config, l2 derive.Engine, engineState EngineState, attributesBuilder derive.AttributesBuilder, metrics SequencerMetrics) *Sequencer {
+func NewSequencer(log log.Logger, cfg *rollup.Config, engine derive.ResettableEngineControl, attributesBuilder derive.AttributesBuilder, l1OriginSelector L1OriginSelectorIface, metrics SequencerMetrics) *Sequencer {
 	return &Sequencer{
-		log:         log,
-		config:      cfg,
-		l2:          l2,
-		metrics:     metrics,
-		engineState: engineState,
-		attrBuilder: attributesBuilder,
+		log:              log,
+		config:           cfg,
+		engine:           engine,
+		timeNow:          time.Now,
+		attrBuilder:      attributesBuilder,
+		l1OriginSelector: l1OriginSelector,
+		metrics:          metrics,
 	}
 }
 
 // StartBuildingBlock initiates a block building job on top of the given L2 head, safe and finalized blocks, and using the provided l1Origin.
-func (d *Sequencer) StartBuildingBlock(ctx context.Context, l1Origin eth.L1BlockRef) error {
-	l2Head := d.engineState.UnsafeL2Head()
+func (d *Sequencer) StartBuildingBlock(ctx context.Context) error {
+	l2Head := d.engine.UnsafeL2Head()
+
+	// Figure out which L1 origin block we're going to be building on top of.
+	l1Origin, err := d.l1OriginSelector.FindL1Origin(ctx, l2Head)
+	if err != nil {
+		d.log.Error("Error finding next L1 Origin", "err", err)
+		return err
+	}
+
 	if !(l2Head.L1Origin.Hash == l1Origin.ParentHash || l2Head.L1Origin.Hash == l1Origin.Hash) {
-		return fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s", l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin)
+		d.metrics.RecordSequencerInconsistentL1Origin(l2Head.L1Origin, l1Origin.ID())
+		return derive.NewResetError(fmt.Errorf("cannot build new L2 block with L1 origin %s (parent L1 %s) on current L2 head %s with L1 origin %s", l1Origin, l1Origin.ParentHash, l2Head, l2Head.L1Origin))
 	}
 
 	d.log.Info("creating new block", "parent", l2Head, "l1Origin", l1Origin)
-	if d.buildingID != (eth.PayloadID{}) { // This may happen when we decide to build a different block in response to a reorg. Or when previous block building failed.
-		d.log.Warn("did not finish previous block building, starting new building now", "prev_onto", d.buildingOnto, "prev_payload_id", d.buildingID, "new_onto", l2Head)
-	}
-	d.buildingStartTime = time.Now()
 
 	fetchCtx, cancel := context.WithTimeout(ctx, time.Second*20)
 	defer cancel()
@@ -90,20 +95,11 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l1Origin eth.L1Block
 		"num", l2Head.Number+1, "time", uint64(attrs.Timestamp),
 		"origin", l1Origin, "origin_time", l1Origin.Time, "noTxPool", attrs.NoTxPool)
 
-	// And construct our fork choice state. This is our current fork choice state and will be
-	// updated as a result of executing the block based on the attributes described above.
-	fc := eth.ForkchoiceState{
-		HeadBlockHash:      l2Head.Hash,
-		SafeBlockHash:      d.engineState.SafeL2Head().Hash,
-		FinalizedBlockHash: d.engineState.Finalized().Hash,
-	}
 	// Start a payload building process.
-	id, errTyp, err := derive.StartPayload(ctx, d.l2, fc, attrs)
+	errTyp, err := d.engine.StartPayload(ctx, l2Head, attrs, false)
 	if err != nil {
 		return fmt.Errorf("failed to start building on top of L2 chain %s, error (%d): %w", l2Head, errTyp, err)
 	}
-	d.buildingOnto = l2Head
-	d.buildingID = id
 	return nil
 }
 
@@ -111,75 +107,134 @@ func (d *Sequencer) StartBuildingBlock(ctx context.Context, l1Origin eth.L1Block
 // Warning: the safe and finalized L2 blocks as viewed during the initiation of the block building are reused for completion of the block building.
 // The Execution engine should not change the safe and finalized blocks between start and completion of block building.
 func (d *Sequencer) CompleteBuildingBlock(ctx context.Context) (*eth.ExecutionPayload, error) {
-	if d.buildingID == (eth.PayloadID{}) {
-		return nil, fmt.Errorf("cannot complete payload building: not currently building a payload")
-	}
-	sealingStart := time.Now()
-
-	l2Head := d.engineState.UnsafeL2Head()
-	if d.buildingOnto.Hash != l2Head.Hash {
-		return nil, fmt.Errorf("engine reorged from %s to %s while building block", d.buildingOnto, l2Head)
-	}
-	fc := eth.ForkchoiceState{
-		HeadBlockHash:      l2Head.Hash,
-		SafeBlockHash:      d.engineState.SafeL2Head().Hash,
-		FinalizedBlockHash: d.engineState.Finalized().Hash,
-	}
-
-	// Actually execute the block and add it to the head of the chain.
-	payload, errTyp, err := derive.ConfirmPayload(ctx, d.log, d.l2, fc, d.buildingID, false)
+	payload, errTyp, err := d.engine.ConfirmPayload(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to complete building on top of L2 chain %s, id: %s, error (%d): %w", d.buildingOnto, d.buildingID, errTyp, err)
+		return nil, fmt.Errorf("failed to complete building block: error (%d): %w", errTyp, err)
 	}
-	now := time.Now()
-	sealTime := now.Sub(sealingStart)
-	buildTime := now.Sub(d.buildingStartTime)
-	d.metrics.RecordSequencerSealingTime(sealTime)
-	d.metrics.RecordSequencerBuildingDiffTime(buildTime - time.Duration(d.config.BlockTime)*time.Second)
-	d.log.Debug("sequenced block", "seal_time", sealTime, "build_time", buildTime)
-	d.buildingID = eth.PayloadID{}
 	return payload, nil
 }
 
-// PlanNextSequencerAction returns a desired delay till the next action, and if we should seal the block:
-// - true whenever we need to complete a block
-// - false whenever we need to start a block
-func (d *Sequencer) PlanNextSequencerAction(sequenceErr error) (delay time.Duration, seal bool, onto eth.BlockID) {
-	blockTime := time.Duration(d.config.BlockTime) * time.Second
-	head := d.engineState.UnsafeL2Head()
+// CancelBuildingBlock cancels the current open block building job.
+// This sequencer only maintains one block building job at a time.
+func (d *Sequencer) CancelBuildingBlock(ctx context.Context) {
+	// force-cancel, we can always continue block building, and any error is logged by the engine state
+	_ = d.engine.CancelPayload(ctx, true)
+}
 
-	// based on the build error, delay and start over again
-	if sequenceErr != nil {
-		if errors.Is(sequenceErr, UninitializedL1StateErr) {
-			// temporary errors are not so bad, just retry in 500ms
-			return 500 * time.Millisecond, false, head.ID()
-		} else {
-			// we just hit an unknown type of error, delay a re-attempt by as much as a block
-			return blockTime, false, head.ID()
-		}
+// PlanNextSequencerAction returns a desired delay till the RunNextSequencerAction call.
+func (d *Sequencer) PlanNextSequencerAction() time.Duration {
+	head := d.engine.UnsafeL2Head()
+	now := d.timeNow()
+
+	buildingOnto, buildingID, _ := d.engine.BuildingPayload()
+
+	// We may have to wait till the next sequencing action, e.g. upon an error.
+	// If the head changed we need to respond and will not delay the sequencing.
+	if delay := d.nextAction.Sub(now); delay > 0 && buildingOnto.Hash == head.Hash {
+		return delay
 	}
 
+	blockTime := time.Duration(d.config.BlockTime) * time.Second
 	payloadTime := time.Unix(int64(head.Time+d.config.BlockTime), 0)
-	remainingTime := time.Until(payloadTime)
+	remainingTime := payloadTime.Sub(now)
 
 	// If we started building a block already, and if that work is still consistent,
 	// then we would like to finish it by sealing the block.
-	if d.buildingID != (eth.PayloadID{}) && d.buildingOnto.Hash == head.Hash {
+	if buildingID != (eth.PayloadID{}) && buildingOnto.Hash == head.Hash {
 		// if we started building already, then we will schedule the sealing.
 		if remainingTime < sealingDuration {
-			return 0, true, head.ID() // if there's not enough time for sealing, don't wait.
+			return 0 // if there's not enough time for sealing, don't wait.
 		} else {
 			// finish with margin of sealing duration before payloadTime
-			return remainingTime - sealingDuration, true, head.ID()
+			return remainingTime - sealingDuration
 		}
 	} else {
 		// if we did not yet start building, then we will schedule the start.
 		if remainingTime > blockTime {
 			// if we have too much time, then wait before starting the build
-			return remainingTime - blockTime, false, head.ID()
+			return remainingTime - blockTime
 		} else {
 			// otherwise start instantly
-			return 0, false, head.ID()
+			return 0
 		}
+	}
+}
+
+// BuildingOnto returns the L2 head reference that the latest block is or was being built on top of.
+func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
+	ref, _, _ := d.engine.BuildingPayload()
+	return ref
+}
+
+// RunNextSequencerAction starts new block building work, or seals existing work,
+// and is best timed by first awaiting the delay returned by PlanNextSequencerAction.
+// If a new block is successfully sealed, it will be returned for publishing, nil otherwise.
+//
+// Only critical errors are bubbled up, other errors are handled internally.
+// Internally starting or sealing of a block may fail with a derivation-like error:
+//   - If it is a critical error, the error is bubbled up to the caller.
+//   - If it is a reset error, the ResettableEngineControl used to build blocks is requested to reset, and a backoff aplies.
+//     No attempt is made at completing the block building.
+//   - If it is a temporary error, a backoff is applied to reattempt building later.
+//   - If it is any other error, a backoff is applied and building is cancelled.
+//
+// Upon L1 reorgs that are deep enough to affect the L1 origin selection, a reset-error may occur,
+// to direct the engine to follow the new L1 chain before continuing to sequence blocks.
+// It is up to the EngineControl implementation to handle conflicting build jobs of the derivation
+// process (as verifier) and sequencing process.
+// Generally it is expected that the latest call interrupts any ongoing work,
+// and the derivation process does not interrupt in the happy case,
+// since it can consolidate previously sequenced blocks by comparing sequenced inputs with derived inputs.
+// If the derivation pipeline does force a conflicting block, then an ongoing sequencer task might still finish,
+// but the derivation can continue to reset until the chain is correct.
+func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error) {
+	if _, buildingID, _ := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) {
+		payload, err := d.CompleteBuildingBlock(ctx)
+		if err != nil {
+			if errors.Is(err, derive.ErrCritical) {
+				return nil, err // bubble up critical errors.
+			} else if errors.Is(err, derive.ErrReset) {
+				d.log.Error("sequencer failed to seal new block, requiring derivation reset", "err", err)
+				d.metrics.RecordSequencerReset()
+				d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime)) // hold off from sequencing for a full block
+				d.CancelBuildingBlock(ctx)
+				d.engine.Reset()
+			} else if errors.Is(err, derive.ErrTemporary) {
+				d.log.Error("sequencer failed temporarily to seal new block", "err", err)
+				d.nextAction = d.timeNow().Add(time.Second)
+				// We don't explicitly cancel block building jobs upon temporary errors: we may still finish the block.
+				// Any unfinished block building work eventually times out, and will be cleaned up that way.
+			} else {
+				d.log.Error("sequencer failed to seal block with unclassified error", "err", err)
+				d.nextAction = d.timeNow().Add(time.Second)
+				d.CancelBuildingBlock(ctx)
+			}
+			return nil, nil
+		} else {
+			d.log.Info("sequencer successfully built a new block", "block", payload.ID(), "time", uint64(payload.Timestamp), "txs", len(payload.Transactions))
+			return payload, nil
+		}
+	} else {
+		err := d.StartBuildingBlock(ctx)
+		if err != nil {
+			if errors.Is(err, derive.ErrCritical) {
+				return nil, err
+			} else if errors.Is(err, derive.ErrReset) {
+				d.log.Error("sequencer failed to seal new block, requiring derivation reset", "err", err)
+				d.metrics.RecordSequencerReset()
+				d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime)) // hold off from sequencing for a full block
+				d.engine.Reset()
+			} else if errors.Is(err, derive.ErrTemporary) {
+				d.log.Error("sequencer temporarily failed to start building new block", "err", err)
+				d.nextAction = d.timeNow().Add(time.Second)
+			} else {
+				d.log.Error("sequencer failed to start building new block with unclassified error", "err", err)
+				d.nextAction = d.timeNow().Add(time.Second)
+			}
+		} else {
+			parent, buildingID, _ := d.engine.BuildingPayload() // we should have a new payload ID now that we're building a block
+			d.log.Info("sequencer started building new block", "payload_id", buildingID, "l2_parent_block", parent, "l2_parent_block_time", parent.Time)
+		}
+		return nil, nil
 	}
 }

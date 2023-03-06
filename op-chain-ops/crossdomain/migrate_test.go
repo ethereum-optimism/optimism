@@ -17,10 +17,7 @@ func TestMigrateWithdrawal(t *testing.T) {
 	for _, receipt := range receipts {
 		msg, err := findCrossDomainMessage(receipt)
 		require.Nil(t, err)
-		withdrawal, err := msg.ToWithdrawal()
-		require.Nil(t, err)
-		legacyWithdrawal, ok := withdrawal.(*crossdomain.LegacyWithdrawal)
-		require.True(t, ok)
+		legacyWithdrawal := toWithdrawal(t, predeploys.L2CrossDomainMessengerAddr, msg)
 		withdrawals = append(withdrawals, legacyWithdrawal)
 	}
 
@@ -31,7 +28,7 @@ func TestMigrateWithdrawal(t *testing.T) {
 			require.Nil(t, err)
 			require.NotNil(t, withdrawal)
 
-			require.Equal(t, legacy.Nonce.Uint64(), withdrawal.Nonce.Uint64())
+			require.Equal(t, legacy.XDomainNonce.Uint64(), withdrawal.Nonce.Uint64())
 			require.Equal(t, *withdrawal.Sender, predeploys.L2CrossDomainMessengerAddr)
 			require.Equal(t, *withdrawal.Target, l1CrossDomainMessenger)
 		})

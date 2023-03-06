@@ -12,13 +12,14 @@
 /packages/contracts-periphery   @ethereum-optimism/contract-reviewers
 /packages/core-utils            @ethereum-optimism/legacy-reviewers
 /packages/data-transport-layer  @ethereum-optimism/legacy-reviewers
-/packages/drippie-mon           @smartcontracts
+/packages/chain-mon             @smartcontracts
 /packages/fault-detector        @ethereum-optimism/legacy-reviewers
 /packages/hardhat-deploy-config @ethereum-optimism/legacy-reviewers
 /packages/message-relayer       @ethereum-optimism/legacy-reviewers
 /packages/migration-data        @ethereum-optimism/legacy-reviewers
 /packages/replica-healthcheck   @ethereum-optimism/legacy-reviewers
 /packages/sdk                   @ethereum-optimism/ecopod
+/packages/atst                  @ethereum-optimism/ecopod
 
 # Bedrock codebases
 /bedrock-devnet @ethereum-optimism/go-reviewers

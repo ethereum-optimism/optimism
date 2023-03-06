@@ -28,8 +28,8 @@ var DefaultPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
 	if slot == 0 {
 		slot = 2 * time.Second
 	}
-	// TODO: tune these params
-	// TODO: we initialize an "epoch" as 6 blocks suggesting 6 blocks, each taking ~ 2 seconds, is 12 seconds
+	// We initialize an "epoch" as 6 blocks suggesting 6 blocks,
+	// each taking ~ 2 seconds, is 12 seconds
 	epoch := 6 * slot
 	tenEpochs := 10 * epoch
 	oneHundredEpochs := 100 * epoch
@@ -58,8 +58,8 @@ var DefaultPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
 var DisabledPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
 	slot := time.Duration(cfg.BlockTime) * time.Second
-	// TODO: tune these params
-	// TODO: we initialize an "epoch" as 6 blocks suggesting 6 blocks, each taking ~ 2 seconds, is 12 seconds
+	// We initialize an "epoch" as 6 blocks suggesting 6 blocks,
+	// each taking ~ 2 seconds, is 12 seconds
 	epoch := 6 * slot
 	tenEpochs := 10 * epoch
 	oneHundredEpochs := 100 * epoch

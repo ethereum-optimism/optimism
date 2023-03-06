@@ -11,15 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/ipfs/go-datastore/sync"
-	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/slices"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -34,9 +34,6 @@ import (
 func TestingConfig(t *testing.T) *Config {
 	p, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err, "failed to generate new p2p priv key")
-	mtpt, err := lconf.MuxerConstructor(yamux.DefaultTransport)
-	require.NoError(t, err)
-	mux := lconf.MsMuxC{MuxC: mtpt, ID: "/yamux/1.0.0"}
 
 	return &Config{
 		Priv:                (p).(*crypto.Secp256k1PrivateKey),
@@ -45,7 +42,7 @@ func TestingConfig(t *testing.T) *Config {
 		ListenIP:            net.IP{127, 0, 0, 1},
 		ListenTCPPort:       0, // bind to any available port
 		StaticPeers:         nil,
-		HostMux:             []lconf.MsMuxC{mux},
+		HostMux:             []libp2p.Option{YamuxC()},
 		NoTransportSecurity: true,
 		PeersLo:             1,
 		PeersHi:             10,
@@ -96,15 +93,6 @@ func TestP2PFull(t *testing.T) {
 	pB, _, err := crypto.GenerateSecp256k1Key(rand.Reader)
 	require.NoError(t, err, "failed to generate new p2p priv key")
 
-	mplexC, err := MplexC()
-	require.NoError(t, err)
-	yamuxC, err := YamuxC()
-	require.NoError(t, err)
-	noiseC, err := NoiseC()
-	require.NoError(t, err)
-	tlsC, err := TlsC()
-	require.NoError(t, err)
-
 	confA := Config{
 		Priv:                (pA).(*crypto.Secp256k1PrivateKey),
 		DisableP2P:          false,
@@ -112,8 +100,8 @@ func TestP2PFull(t *testing.T) {
 		ListenIP:            net.IP{127, 0, 0, 1},
 		ListenTCPPort:       0, // bind to any available port
 		StaticPeers:         nil,
-		HostMux:             []lconf.MsMuxC{yamuxC, mplexC},
-		HostSecurity:        []lconf.MsSecC{noiseC, tlsC},
+		HostMux:             []libp2p.Option{YamuxC(), MplexC()},
+		HostSecurity:        []libp2p.Option{NoiseC(), TlsC()},
 		NoTransportSecurity: false,
 		PeersLo:             1,
 		PeersHi:             10,
@@ -242,15 +230,6 @@ func TestDiscovery(t *testing.T) {
 	logB := testlog.Logger(t, log.LvlError).New("host", "B")
 	logC := testlog.Logger(t, log.LvlError).New("host", "C")
 
-	mplexC, err := MplexC()
-	require.NoError(t, err)
-	yamuxC, err := YamuxC()
-	require.NoError(t, err)
-	noiseC, err := NoiseC()
-	require.NoError(t, err)
-	tlsC, err := TlsC()
-	require.NoError(t, err)
-
 	discDBA, err := enode.OpenDB("") // "" = memory db
 	require.NoError(t, err)
 	discDBB, err := enode.OpenDB("")
@@ -269,8 +248,8 @@ func TestDiscovery(t *testing.T) {
 		ListenIP:            net.IP{127, 0, 0, 1},
 		ListenTCPPort:       0, // bind to any available port
 		StaticPeers:         nil,
-		HostMux:             []lconf.MsMuxC{yamuxC, mplexC},
-		HostSecurity:        []lconf.MsSecC{noiseC, tlsC},
+		HostMux:             []libp2p.Option{YamuxC(), MplexC()},
+		HostSecurity:        []libp2p.Option{NoiseC(), TlsC()},
 		NoTransportSecurity: false,
 		PeersLo:             1,
 		PeersHi:             10,
@@ -336,19 +315,22 @@ func TestDiscovery(t *testing.T) {
 
 	// B and C don't know each other yet, but both have A as a bootnode.
 	// It should only be a matter of time for them to connect, if they discover each other via A.
-	var firstPeersOfB []peer.ID
-	for i := 0; i < 2; i++ {
+	timeout := time.After(time.Second * 60)
+	var peersOfB []peer.ID
+	// B should be connected to the bootnode (A) it used (it's a valid optimism node to connect to here)
+	// C should also be connected, although this one might take more time to discover
+	for !slices.Contains(peersOfB, hostA.ID()) || !slices.Contains(peersOfB, hostC.ID()) {
 		select {
-		case <-time.After(time.Second * 30):
-			t.Fatal("failed to get connection to B in time")
+		case <-timeout:
+			var peers []string
+			for _, id := range peersOfB {
+				peers = append(peers, id.String())
+			}
+			t.Fatalf("timeout reached - expected host A: %v and host C: %v to be in %v", hostA.ID().String(), hostC.ID().String(), peers)
 		case c := <-connsB:
-			firstPeersOfB = append(firstPeersOfB, c.RemotePeer())
+			peersOfB = append(peersOfB, c.RemotePeer())
 		}
 	}
-	// B should be connected to the bootnode it used (it's a valid optimism node to connect to here)
-	require.Contains(t, firstPeersOfB, hostA.ID())
-	// C should be connected, although this one might take more time to discover
-	require.Contains(t, firstPeersOfB, hostC.ID())
 }
 
 // Most tests should use mocknets instead of using the actual local host network

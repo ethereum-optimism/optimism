@@ -1,15 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import {
-    OwnableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {
-    PausableUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
-import {
-    ReentrancyGuardUpgradeable
-} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Encoding } from "../libraries/Encoding.sol";
@@ -17,18 +9,95 @@ import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @custom:legacy
- * @title CrossDomainMessengerLegacySpacer
+ * @title CrossDomainMessengerLegacySpacer0
  * @notice Contract only exists to add a spacer to the CrossDomainMessenger where the
  *         libAddressManager variable used to exist. Must be the first contract in the inheritance
- *         tree of the CrossDomainMessenger
+ *         tree of the CrossDomainMessenger.
  */
-contract CrossDomainMessengerLegacySpacer {
+contract CrossDomainMessengerLegacySpacer0 {
     /**
      * @custom:legacy
      * @custom:spacer libAddressManager
      * @notice Spacer for backwards compatibility.
      */
     address private spacer_0_0_20;
+}
+
+/**
+ * @custom:legacy
+ * @title CrossDomainMessengerLegacySpacer1
+ * @notice Contract only exists to add a spacer to the CrossDomainMessenger where the
+ *         PausableUpgradable and OwnableUpgradeable variables used to exist. Must be
+ *         the third contract in the inheritance tree of the CrossDomainMessenger.
+ */
+contract CrossDomainMessengerLegacySpacer1 {
+    /**
+     * @custom:legacy
+     * @custom:spacer __gap
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         ContextUpgradable via OwnableUpgradeable.
+     *
+     */
+    uint256[50] private spacer_1_0_1600;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer _owner
+     * @notice Spacer for backwards compatibility.
+     *         Come from OpenZeppelin OwnableUpgradeable.
+     */
+    address private spacer_51_0_20;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer __gap
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         ContextUpgradable via PausableUpgradable.
+     */
+    uint256[49] private spacer_52_0_1568;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer _paused
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         PausableUpgradable.
+     */
+    bool private spacer_101_0_1;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer __gap
+     * @notice Spacer for backwards compatibility. Comes from OpenZeppelin
+     *         PausableUpgradable.
+     */
+    uint256[49] private spacer_102_0_1568;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer ReentrancyGuardUpgradeable's `_status` field.
+     * @notice Spacer for backwards compatibility
+     */
+    uint256 private spacer_151_0_32;
+
+    /**
+     * @custom:spacer ReentrancyGuardUpgradeable
+     * @notice Spacer for backwards compatibility
+     */
+    uint256[49] private __gap_reentrancy_guard;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer blockedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    mapping(bytes32 => bool) private spacer_201_0_32;
+
+    /**
+     * @custom:legacy
+     * @custom:spacer relayedMessages
+     * @notice Spacer for backwards compatibility.
+     */
+    mapping(bytes32 => bool) private spacer_202_0_32;
 }
 
 /**
@@ -39,12 +108,13 @@ contract CrossDomainMessengerLegacySpacer {
  *         needs to be extended slightly to provide low-level message passing functionality on each
  *         chain it's deployed on. Currently only designed for message passing between two paired
  *         chains and does not support one-to-many interactions.
+ *
+ *         Any changes to this contract MUST result in a semver bump for contracts that inherit it.
  */
 abstract contract CrossDomainMessenger is
-    CrossDomainMessengerLegacySpacer,
-    OwnableUpgradeable,
-    PausableUpgradeable,
-    ReentrancyGuardUpgradeable
+    CrossDomainMessengerLegacySpacer0,
+    Initializable,
+    CrossDomainMessengerLegacySpacer1
 {
     /**
      * @notice Current message version identifier.
@@ -87,20 +157,6 @@ abstract contract CrossDomainMessenger is
     address public immutable OTHER_MESSENGER;
 
     /**
-     * @custom:legacy
-     * @custom:spacer blockedMessages
-     * @notice Spacer for backwards compatibility.
-     */
-    mapping(bytes32 => bool) private spacer_201_0_32;
-
-    /**
-     * @custom:legacy
-     * @custom:spacer relayedMessages
-     * @notice Spacer for backwards compatibility.
-     */
-    mapping(bytes32 => bool) private spacer_202_0_32;
-
-    /**
      * @notice Mapping of message hashes to boolean receipt values. Note that a message will only
      *         be present in this mapping if it has successfully been relayed on this chain, and
      *         can therefore not be relayed again.
@@ -130,11 +186,16 @@ abstract contract CrossDomainMessenger is
     mapping(bytes32 => bool) public failedMessages;
 
     /**
+     * @notice A mapping of hashes to reentrancy locks.
+     */
+    mapping(bytes32 => bool) internal reentrancyLocks;
+
+    /**
      * @notice Reserve extra slots in the storage layout for future upgrades.
      *         A gap size of 41 was chosen here, so that the first slot used in a child contract
      *         would be a multiple of 50.
      */
-    uint256[42] private __gap;
+    uint256[41] private __gap;
 
     /**
      * @notice Emitted whenever a message is sent to the other chain.
@@ -181,22 +242,6 @@ abstract contract CrossDomainMessenger is
      */
     constructor(address _otherMessenger) {
         OTHER_MESSENGER = _otherMessenger;
-    }
-
-    /**
-     * @notice Allows the owner of this contract to temporarily pause message relaying. Backup
-     *         security mechanism just in case. Owner should be the same as the upgrade wallet to
-     *         maintain the security model of the system as a whole.
-     */
-    function pause() external onlyOwner {
-        _pause();
-    }
-
-    /**
-     * @notice Allows the owner of this contract to resume message relaying once paused.
-     */
-    function unpause() external onlyOwner {
-        _unpause();
     }
 
     /**
@@ -260,7 +305,7 @@ abstract contract CrossDomainMessenger is
         uint256 _value,
         uint256 _minGasLimit,
         bytes calldata _message
-    ) external payable nonReentrant whenNotPaused {
+    ) external payable {
         (, uint16 version) = Encoding.decodeVersionedNonce(_nonce);
         require(
             version < 2,
@@ -287,6 +332,13 @@ abstract contract CrossDomainMessenger is
             _minGasLimit,
             _message
         );
+
+        // Check if the reentrancy lock for the `versionedHash` is already set.
+        if (reentrancyLocks[versionedHash]) {
+            revert("ReentrancyGuard: reentrant call");
+        }
+        // Trigger the reentrancy lock for `versionedHash`
+        reentrancyLocks[versionedHash] = true;
 
         if (_isOtherMessenger()) {
             // These properties should always hold when the message is first submitted (as
@@ -340,6 +392,9 @@ abstract contract CrossDomainMessenger is
                 revert("CrossDomainMessenger: failed to relay message");
             }
         }
+
+        // Clear the reentrancy lock for `versionedHash`
+        reentrancyLocks[versionedHash] = false;
     }
 
     /**
@@ -400,10 +455,6 @@ abstract contract CrossDomainMessenger is
     // solhint-disable-next-line func-name-mixedcase
     function __CrossDomainMessenger_init() internal onlyInitializing {
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
-        __Context_init_unchained();
-        __Ownable_init_unchained();
-        __Pausable_init_unchained();
-        __ReentrancyGuard_init_unchained();
     }
 
     /**

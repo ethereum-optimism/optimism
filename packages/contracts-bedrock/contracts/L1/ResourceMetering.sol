@@ -92,16 +92,15 @@ abstract contract ResourceMetering is Initializable {
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
             int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
             int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
-                TARGET_RESOURCE_LIMIT /
-                BASE_FEE_MAX_CHANGE_DENOMINATOR;
+                (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
-            int256 newBaseFee = Arithmetic.clamp(
-                int256(uint256(params.prevBaseFee)) + baseFeeDelta,
-                MINIMUM_BASE_FEE,
-                MAXIMUM_BASE_FEE
-            );
+            int256 newBaseFee = Arithmetic.clamp({
+                _value: int256(uint256(params.prevBaseFee)) + baseFeeDelta,
+                _min: MINIMUM_BASE_FEE,
+                _max: MAXIMUM_BASE_FEE
+            });
 
             // If we skipped more than one block, we also need to account for every empty block.
             // Empty block means there was no demand for deposits in that block, so we should
@@ -110,15 +109,15 @@ abstract contract ResourceMetering is Initializable {
                 // Update the base fee by repeatedly applying the exponent 1-(1/change_denominator)
                 // blockDiff - 1 times. Simulates multiple empty blocks. Clamp the resulting value
                 // between min and max.
-                newBaseFee = Arithmetic.clamp(
-                    Arithmetic.cdexp(
-                        newBaseFee,
-                        BASE_FEE_MAX_CHANGE_DENOMINATOR,
-                        int256(blockDiff - 1)
-                    ),
-                    MINIMUM_BASE_FEE,
-                    MAXIMUM_BASE_FEE
-                );
+                newBaseFee = Arithmetic.clamp({
+                    _value: Arithmetic.cdexp({
+                        _coefficient: newBaseFee,
+                        _denominator: BASE_FEE_MAX_CHANGE_DENOMINATOR,
+                        _exponent: int256(blockDiff - 1)
+                    }),
+                    _min: MINIMUM_BASE_FEE,
+                    _max: MAXIMUM_BASE_FEE
+                });
             }
 
             // Update new base fee, reset bought gas, and update block number.
@@ -142,7 +141,7 @@ abstract contract ResourceMetering is Initializable {
         // division by zero for L1s that don't support 1559 or to avoid excessive gas burns during
         // periods of extremely low L1 demand. One-day average gas fee hasn't dipped below 1 gwei
         // during any 1 day period in the last 5 years, so should be fine.
-        uint256 gasCost = resourceCost / Math.max(block.basefee, 1000000000);
+        uint256 gasCost = resourceCost / Math.max(block.basefee, 1 gwei);
 
         // Give the user a refund based on the amount of gas they used to do all of the work up to
         // this point. Since we're at the end of the modifier, this should be pretty accurate. Acts

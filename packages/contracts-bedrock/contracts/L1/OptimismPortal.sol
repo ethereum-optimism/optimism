@@ -49,14 +49,14 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
 
     /**
-     * @notice Minimum time (in seconds) that must elapse before a withdrawal can be finalized.
-     */
-    uint256 public immutable FINALIZATION_PERIOD_SECONDS;
-
-    /**
      * @notice Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
+
+    /**
+     * @notice Address that has the ability to pause and unpause deposits and withdrawals.
+     */
+    address public immutable GUARDIAN;
 
     /**
      * @notice Address of the L2 account which initiated a withdrawal in this transaction. If the
@@ -74,6 +74,13 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice A mapping of withdrawal hashes to `ProvenWithdrawal` data.
      */
     mapping(bytes32 => ProvenWithdrawal) public provenWithdrawals;
+
+    /**
+     * @notice Determines if cross domain messaging is paused. When set to true,
+     *         deposits and withdrawals are paused. This may be removed in the
+     *         future.
+     */
+    bool public paused;
 
     /**
      * @notice Emitted when a transaction is deposited from L1 to L2. The parameters of this event
@@ -111,23 +118,69 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
 
     /**
-     * @custom:semver 1.0.0
+     * @notice Emitted when the pause is triggered.
+     *
+     * @param account Address of the account triggering the pause.
+     */
+    event Paused(address account);
+
+    /**
+     * @notice Emitted when the pause is lifted.
+     *
+     * @param account Address of the account triggering the unpause.
+     */
+    event Unpaused(address account);
+
+    /**
+     * @notice Reverts when paused.
+     */
+    modifier whenNotPaused() {
+        require(paused == false, "OptimismPortal: paused");
+        _;
+    }
+
+    /**
+     * @custom:semver 1.2.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
-     * @param _finalizationPeriodSeconds Output finalization time in seconds.
+     * @param _guardian                  Address that can pause deposits and withdrawals.
+     * @param _paused                    Sets the contract's pausability state.
      */
-    constructor(L2OutputOracle _l2Oracle, uint256 _finalizationPeriodSeconds) Semver(1, 0, 0) {
+    constructor(
+        L2OutputOracle _l2Oracle,
+        address _guardian,
+        bool _paused
+    ) Semver(1, 2, 0) {
         L2_ORACLE = _l2Oracle;
-        FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        initialize();
+        GUARDIAN = _guardian;
+        initialize(_paused);
     }
 
     /**
      * @notice Initializer.
      */
-    function initialize() public initializer {
+    function initialize(bool _paused) public initializer {
         l2Sender = Constants.DEFAULT_L2_SENDER;
+        paused = _paused;
         __ResourceMetering_init();
+    }
+
+    /**
+     * @notice Pause deposits and withdrawals.
+     */
+    function pause() external {
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can pause");
+        paused = true;
+        emit Paused(msg.sender);
+    }
+
+    /**
+     * @notice Unpause deposits and withdrawals.
+     */
+    function unpause() external {
+        require(msg.sender == GUARDIAN, "OptimismPortal: only guardian can unpause");
+        paused = false;
+        emit Unpaused(msg.sender);
     }
 
     /**
@@ -162,7 +215,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         uint256 _l2OutputIndex,
         Types.OutputRootProof calldata _outputRootProof,
         bytes[] calldata _withdrawalProof
-    ) external {
+    ) external whenNotPaused {
         // Prevent users from creating a deposit transaction where this address is the message
         // sender on L2. Because this is checked here, we do not need to check again in
         // `finalizeWithdrawalTransaction`.
@@ -193,8 +246,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // output index has been updated.
         require(
             provenWithdrawal.timestamp == 0 ||
-                (_l2OutputIndex == provenWithdrawal.l2OutputIndex &&
-                    outputRoot != provenWithdrawal.outputRoot),
+                L2_ORACLE.getL2Output(provenWithdrawal.l2OutputIndex).outputRoot !=
+                provenWithdrawal.outputRoot,
             "OptimismPortal: withdrawal hash has already been proven"
         );
 
@@ -240,7 +293,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @param _tx Withdrawal transaction to finalize.
      */
-    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx) external {
+    function finalizeWithdrawalTransaction(Types.WithdrawalTransaction memory _tx)
+        external
+        whenNotPaused
+    {
         // Make sure that the l2Sender has not yet been set. The l2Sender is set to a value other
         // than the default value when a withdrawal transaction is being finalized. This check is
         // a defacto reentrancy guard.
@@ -371,6 +427,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
             );
         }
 
+        // Prevent depositing transactions that have too small of a gas limit.
+        require(_gasLimit >= 21_000, "OptimismPortal: gas limit must cover instrinsic gas cost");
+
         // Transform the from-address to its alias if the caller is a contract.
         address from = msg.sender;
         if (msg.sender != tx.origin) {
@@ -413,6 +472,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @return Whether or not the finalization period has elapsed.
      */
     function _isFinalizationPeriodElapsed(uint256 _timestamp) internal view returns (bool) {
-        return block.timestamp > _timestamp + FINALIZATION_PERIOD_SECONDS;
+        return block.timestamp > _timestamp + L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
     }
 }

@@ -7,10 +7,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"strconv"
 	"time"
 
+	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -54,6 +54,9 @@ type Metricer interface {
 	RecordUnsafePayloadsBuffer(length uint64, memSize uint64, next eth.BlockID)
 	CountSequencedTxs(count int)
 	RecordL1ReorgDepth(d uint64)
+	RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID)
+	RecordSequencerReset()
+	RecordGossipEvent(evType int32)
 	IncPeerCount()
 	DecPeerCount()
 	IncStreamCount()
@@ -88,6 +91,9 @@ type Metrics struct {
 	DerivationErrors *EventMetrics
 	SequencingErrors *EventMetrics
 	PublishingErrors *EventMetrics
+
+	SequencerInconsistentL1Origin *EventMetrics
+	SequencerResets               *EventMetrics
 
 	SequencerBuildingDiffDurationSeconds prometheus.Histogram
 	SequencerBuildingDiffTotal           prometheus.Counter
@@ -207,6 +213,9 @@ func NewMetrics(procName string) *Metrics {
 		DerivationErrors: NewEventMetrics(factory, ns, "derivation_errors", "derivation errors"),
 		SequencingErrors: NewEventMetrics(factory, ns, "sequencing_errors", "sequencing errors"),
 		PublishingErrors: NewEventMetrics(factory, ns, "publishing_errors", "p2p publishing errors"),
+
+		SequencerInconsistentL1Origin: NewEventMetrics(factory, ns, "sequencer_inconsistent_l1_origin", "events when the sequencer selects an inconsistent L1 origin"),
+		SequencerResets:               NewEventMetrics(factory, ns, "sequencer_resets", "sequencer resets"),
 
 		UnsafePayloadsBufferLen: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
@@ -468,6 +477,16 @@ func (m *Metrics) RecordL1ReorgDepth(d uint64) {
 	m.L1ReorgDepth.Observe(float64(d))
 }
 
+func (m *Metrics) RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID) {
+	m.SequencerInconsistentL1Origin.RecordEvent()
+	m.recordRef("l1_origin", "inconsistent_from", from.Number, 0, from.Hash)
+	m.recordRef("l1_origin", "inconsistent_to", to.Number, 0, to.Hash)
+}
+
+func (m *Metrics) RecordSequencerReset() {
+	m.SequencerResets.RecordEvent()
+}
+
 func (m *Metrics) RecordGossipEvent(evType int32) {
 	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
 }
@@ -527,12 +546,10 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 // The server will be closed when the passed-in context is cancelled.
 func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
-	server := &http.Server{
-		Addr: addr,
-		Handler: promhttp.InstrumentMetricHandler(
-			m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
-		),
-	}
+	server := ophttp.NewHttpServer(promhttp.InstrumentMetricHandler(
+		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
+	))
+	server.Addr = addr
 	go func() {
 		<-ctx.Done()
 		server.Close()
@@ -599,6 +616,12 @@ func (n *noopMetricer) CountSequencedTxs(count int) {
 }
 
 func (n *noopMetricer) RecordL1ReorgDepth(d uint64) {
+}
+
+func (n *noopMetricer) RecordSequencerInconsistentL1Origin(from eth.BlockID, to eth.BlockID) {
+}
+
+func (n *noopMetricer) RecordSequencerReset() {
 }
 
 func (n *noopMetricer) RecordGossipEvent(evType int32) {
