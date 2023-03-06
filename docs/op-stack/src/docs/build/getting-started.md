@@ -342,6 +342,38 @@ Run `op-geth` with the following command. Make sure to replace `<SEQUENCER>` wit
 
 And `op-geth` should be running! You should see some output, but you won’t see any blocks being created yet because `op-geth` is driven by the `op-node`. We’ll need to get that running next.
 
+### Reinitializing op-geth
+
+There are several situations are indicate database corruption and require you to reset the `op-geth` component:
+
+- When `op-node` errors out when first started and exits.
+- When `op-node` emits this error:
+
+  ```
+  stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000
+  ```
+
+This is the reinitialization procedure:
+
+1. Stop the `op-geth` process.
+1. Delete the geth data.
+
+    ```bash
+    cd ~/op-geth
+    rm -rf datadir/geth
+    ```
+
+1. Rerun init.
+
+    ```bash
+    build/bin/geth init --datadir=datadir genesis.json
+    ```
+
+1. Start `op-geth`
+
+1. Start `op-node`
+
+
 ## Run op-node
 
 Once we’ve got `op-geth` running we’ll need to run `op-node`. Like Ethereum, the OP Stack has a consensus client (the `op-node`) and an execution client (`op-geth`). The consensus client drives the execution client over the Engine API.
@@ -369,24 +401,6 @@ Head over to the `op-node` package and start the `op-node` using the following c
 
 Once you run this command, you should start seeing the `op-node` begin to process all of the L1 information after the starting block number that you picked earlier. Once the `op-node` has enough information, it’ll begin sending Engine API payloads to `op-geth`. At that point, you’ll start to see blocks being created inside of `op-geth`. We’re live!
 
-If `op-node` errors out and exits, you might need to reinitialize `op-geth`:
-
-1. Stop the `op-geth` process.
-1. Delete the geth data.
-
-    ```bash
-    cd ~/op-geth
-    rm -rf datadir/geth
-    ```
-
-1. Rerun init.
-
-    ```bash
-    build/bin/geth init --datadir=datadir genesis.json
-    ```
-
-1. Start `op-geth`
-1. Start `op-node`
 
 ## Run op-batcher
 
