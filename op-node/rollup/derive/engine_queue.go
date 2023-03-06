@@ -225,6 +225,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	outOfData := false
 	if len(eq.safeAttributes) == 0 {
 		eq.origin = eq.prev.Origin()
+		eq.postProcessSafeL2() // make sure we track the last L2 safe head for every new L1 block
 		if next, err := eq.prev.NextAttributes(ctx, eq.safeHead); err == io.EOF {
 			outOfData = true
 		} else if err != nil {
@@ -279,9 +280,15 @@ func (eq *EngineQueue) postProcessSafeL2() {
 			L2Block: eq.safeHead,
 			L1Block: eq.origin.ID(),
 		})
+		last := &eq.finalityData[len(eq.finalityData)-1]
+		eq.log.Debug("extended finality-data", "last_l1", last.L1Block, "last_l2", last.L2Block)
 	} else {
-		// if it's a now L2 block that was derived from the same latest L1 block, then just update the entry
-		eq.finalityData[len(eq.finalityData)-1].L2Block = eq.safeHead
+		// if it's a new L2 block that was derived from the same latest L1 block, then just update the entry
+		last := &eq.finalityData[len(eq.finalityData)-1]
+		if last.L2Block != eq.safeHead { // avoid logging if there are no changes
+			last.L2Block = eq.safeHead
+			eq.log.Debug("updated finality-data", "last_l1", last.L1Block, "last_l2", last.L2Block)
+		}
 	}
 }
 
