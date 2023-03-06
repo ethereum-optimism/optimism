@@ -24,7 +24,7 @@ func LoadSignerSetup(ctx *cli.Context) (p2p.SignerSetup, error) {
 			return nil, fmt.Errorf("failed to read batch submitter key: %w", err)
 		}
 
-		return &p2p.PreparedSigner{Signer: p2p.NewLegacyLocalSigner(priv)}, nil
+		return &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(priv)}, nil
 	}
 
 	// TODO: create remote signer
