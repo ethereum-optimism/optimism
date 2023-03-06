@@ -11,4 +11,5 @@ export interface AttestationReadParams {
   key: string
   dataType?: DataTypeOption
   contractAddress?: Address
+  chainId?: number
 }
