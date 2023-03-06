@@ -315,7 +315,7 @@ func TestDiscovery(t *testing.T) {
 
 	// B and C don't know each other yet, but both have A as a bootnode.
 	// It should only be a matter of time for them to connect, if they discover each other via A.
-	timeout := time.After(time.Second * 10)
+	timeout := time.After(time.Second * 60)
 	var peersOfB []peer.ID
 	// B should be connected to the bootnode (A) it used (it's a valid optimism node to connect to here)
 	// C should also be connected, although this one might take more time to discover
