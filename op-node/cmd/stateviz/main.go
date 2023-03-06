@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/server"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -161,7 +162,8 @@ func runServer() {
 	mux.HandleFunc("/logs", makeGzipHandler(logsHandler))
 
 	log.Info("running webserver...")
-	if err := http.Serve(l, mux); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	httpServer := server.NewHttpServer(mux)
+	if err := httpServer.Serve(l); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Crit("http server failed", "message", err)
 	}
 }
