@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/ethereum-optimism/optimism/op-node/server"
+	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -88,7 +88,7 @@ func (s *rpcServer) Start() error {
 	}
 	s.listenAddr = listener.Addr()
 
-	s.httpServer = server.NewHttpServer(mux)
+	s.httpServer = ophttp.NewHttpServer(mux)
 	go func() {
 		if err := s.httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) { // todo improve error handling
 			s.log.Error("http server failed", "err", err)

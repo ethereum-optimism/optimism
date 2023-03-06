@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/server"
+	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
@@ -528,7 +528,7 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 // The server will be closed when the passed-in context is cancelled.
 func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
-	server := server.NewHttpServer(promhttp.InstrumentMetricHandler(
+	server := ophttp.NewHttpServer(promhttp.InstrumentMetricHandler(
 		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
 	))
 	server.Addr = addr
