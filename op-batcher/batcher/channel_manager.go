@@ -87,7 +87,7 @@ func (s *channelManager) Clear() {
 func (s *channelManager) TxFailed(id txID) {
 	if data, ok := s.pendingTransactions[id]; ok {
 		s.log.Trace("marked transaction as failed", "id", id)
-		s.pendingChannel.PushFrame(id, data)
+		s.pendingChannel.PushFrame(id, data[1:]) // strip the version byte
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)

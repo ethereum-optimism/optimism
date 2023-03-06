@@ -38,7 +38,7 @@ The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface f
 
 The cli provides a convenient cli for interacting with the attestation station contract
 
-TODO put a gif here of using it
+![preview](./assets/preview.gif)
 
 ## React API
 

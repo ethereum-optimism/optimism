@@ -10,7 +10,7 @@ export const prepareWriteAttestation = async (
   about: Address,
   key: string,
   value: string | WagmiBytes | number | boolean,
-  chainId = 10,
+  chainId: number | undefined = undefined,
   contractAddress: Address = ATTESTATION_STATION_ADDRESS
 ) => {
   let formattedKey: WagmiBytes
