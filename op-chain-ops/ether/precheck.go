@@ -1,12 +1,14 @@
 package ether
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
-	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -17,9 +19,9 @@ import (
 // slots in the LegacyERC20ETH contract. We don't have to filter out extra addresses like we do for
 // withdrawals because we'll simply carry the balance of a given address to the new system, if the
 // account is extra then it won't have any balance and nothing will happen.
-func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.Address, allowances []*migration.Allowance, chainID int, noCheck bool) ([]common.Address, error) {
+func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.Address, allowances []*crossdomain.Allowance, chainID int, noCheck bool) ([]common.Address, error) {
 	// Chain params to use for integrity checking.
-	params := migration.ParamsByChainID[chainID]
+	params := crossdomain.ParamsByChainID[chainID]
 	if params == nil {
 		return nil, fmt.Errorf("no chain params for %d", chainID)
 	}
@@ -53,7 +55,10 @@ func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.
 	// slots that we know we can ignore (totalSupply, name, symbol).
 	var count int
 	slotsAct := make(map[common.Hash]common.Hash)
+	progress := util.ProgressLogger(1000, "Read OVM_ETH storage slot")
 	err := db.ForEachStorage(predeploys.LegacyERC20ETHAddr, func(key, value common.Hash) bool {
+		progress()
+
 		// We can safely ignore specific slots (totalSupply, name, symbol).
 		if ignoredSlots[key] {
 			return true
@@ -75,13 +80,16 @@ func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.
 	// keep track of the total balance to be migrated and throw if the total supply exceeds the
 	// expected supply delta.
 	totalFound := new(big.Int)
+	var unknown bool
 	for slot := range slotsAct {
 		slotType, ok := slotsInp[slot]
 		if !ok {
 			if noCheck {
-				log.Error("ignoring unknown storage slot in state", "slot", slot)
+				log.Error("ignoring unknown storage slot in state", "slot", slot.String())
 			} else {
-				log.Crit("unknown storage slot in state: %s", slot)
+				unknown = true
+				log.Error("unknown storage slot in state", "slot", slot.String())
+				continue
 			}
 		}
 
@@ -101,6 +109,9 @@ func PreCheckBalances(ldb ethdb.Database, db *state.StateDB, addresses []common.
 				log.Crit("unknown slot type: %d", slotType)
 			}
 		}
+	}
+	if unknown {
+		return nil, errors.New("unknown storage slots in state (see logs for details)")
 	}
 
 	// Verify the supply delta. Recorded total supply in the LegacyERC20ETH contract may be higher

@@ -1,16 +1,20 @@
-package migration
+package crossdomain
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 )
 
-// SentMessageJSON represents an entry in the JSON file that is created by
+// SentMessage represents an entry in the JSON file that is created by
 // the `migration-data` package. Each entry represents a call to the
 // `LegacyMessagePasser`. The `who` should always be the
 // `L2CrossDomainMessenger` and the `msg` should be an abi encoded
@@ -20,10 +24,10 @@ type SentMessage struct {
 	Msg hexutil.Bytes  `json:"msg"`
 }
 
-// NewSentMessageJSON will read a JSON file from disk given a path to the JSON
+// NewSentMessageFromJSON will read a JSON file from disk given a path to the JSON
 // file. The JSON file this function reads from disk is an output from the
 // `migration-data` package.
-func NewSentMessage(path string) ([]*SentMessage, error) {
+func NewSentMessageFromJSON(path string) ([]*SentMessage, error) {
 	file, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("cannot find sent message json at %s: %w", path, err)
@@ -37,15 +41,81 @@ func NewSentMessage(path string) ([]*SentMessage, error) {
 	return j, nil
 }
 
+// ReadWitnessData will read messages and addresses from a raw l2geth state
+// dump file.
+func ReadWitnessData(path string) ([]*SentMessage, OVMETHAddresses, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot open witness data file: %w", err)
+	}
+	defer f.Close()
+
+	scan := bufio.NewScanner(f)
+	var witnesses []*SentMessage
+	addresses := make(map[common.Address]bool)
+	for scan.Scan() {
+		line := scan.Text()
+		splits := strings.Split(line, "|")
+		if len(splits) < 2 {
+			return nil, nil, fmt.Errorf("invalid line: %s", line)
+		}
+
+		switch splits[0] {
+		case "MSG":
+			if len(splits) != 3 {
+				return nil, nil, fmt.Errorf("invalid line: %s", line)
+			}
+
+			msg := splits[2]
+			// Make sure that the witness data has a 0x prefix
+			if !strings.HasPrefix(msg, "0x") {
+				msg = "0x" + msg
+			}
+
+			abi, err := bindings.LegacyMessagePasserMetaData.GetAbi()
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get abi: %w", err)
+			}
+
+			msgB := hexutil.MustDecode(msg)
+			method, err := abi.MethodById(msgB[:4])
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to get method: %w", err)
+			}
+
+			out, err := method.Inputs.Unpack(msgB[4:])
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to unpack: %w", err)
+			}
+
+			cast, ok := out[0].([]byte)
+			if !ok {
+				return nil, nil, fmt.Errorf("failed to cast to bytes")
+			}
+
+			witnesses = append(witnesses, &SentMessage{
+				Who: common.HexToAddress(splits[1]),
+				Msg: cast,
+			})
+		case "ETH":
+			addresses[common.HexToAddress(splits[1])] = true
+		default:
+			return nil, nil, fmt.Errorf("invalid line: %s", line)
+		}
+	}
+
+	return witnesses, addresses, nil
+}
+
 // ToLegacyWithdrawal will convert a SentMessageJSON to a LegacyWithdrawal
 // struct. This is useful because the LegacyWithdrawal struct has helper
 // functions on it that can compute the withdrawal hash and the storage slot.
-func (s *SentMessage) ToLegacyWithdrawal() (*crossdomain.LegacyWithdrawal, error) {
+func (s *SentMessage) ToLegacyWithdrawal() (*LegacyWithdrawal, error) {
 	data := make([]byte, len(s.Who)+len(s.Msg))
 	copy(data, s.Msg)
 	copy(data[len(s.Msg):], s.Who[:])
 
-	var w crossdomain.LegacyWithdrawal
+	var w LegacyWithdrawal
 	if err := w.Decode(data); err != nil {
 		return nil, err
 	}
@@ -117,26 +187,26 @@ type MigrationData struct {
 	EvmMessages []*SentMessage
 }
 
-func (m *MigrationData) ToWithdrawals() (crossdomain.DangerousUnfilteredWithdrawals, error) {
-	messages := make(crossdomain.DangerousUnfilteredWithdrawals, 0)
+func (m *MigrationData) ToWithdrawals() (DangerousUnfilteredWithdrawals, []InvalidMessage, error) {
+	messages := make(DangerousUnfilteredWithdrawals, 0)
+	invalidMessages := make([]InvalidMessage, 0)
 	for _, msg := range m.OvmMessages {
 		wd, err := msg.ToLegacyWithdrawal()
 		if err != nil {
-			return nil, err
+			return nil, nil, fmt.Errorf("error serializing OVM message: %w", err)
 		}
 		messages = append(messages, wd)
-		if err != nil {
-			return nil, err
-		}
 	}
 	for _, msg := range m.EvmMessages {
 		wd, err := msg.ToLegacyWithdrawal()
 		if err != nil {
-			return nil, err
+			log.Warn("Discovered mal-formed withdrawal", "who", msg.Who, "data", msg.Msg)
+			invalidMessages = append(invalidMessages, InvalidMessage(*msg))
+			continue
 		}
 		messages = append(messages, wd)
 	}
-	return messages, nil
+	return messages, invalidMessages, nil
 }
 
 func (m *MigrationData) Addresses() []common.Address {
