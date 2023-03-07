@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -43,4 +44,8 @@ func (id ChannelID) String() string {
 // TerminalString implements log.TerminalStringer, formatting a string for console output during logging.
 func (id ChannelID) TerminalString() string {
 	return fmt.Sprintf("%x..%x", id[:3], id[13:])
+}
+
+func (id ChannelID) MarshalJSON() ([]byte, error) {
+	return json.Marshal(id.String())
 }
