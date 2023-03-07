@@ -19,7 +19,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
@@ -89,7 +88,7 @@ var (
 // PostCheckMigratedDB will check that the migration was performed correctly
 func PostCheckMigratedDB(
 	ldb ethdb.Database,
-	migrationData migration.MigrationData,
+	migrationData crossdomain.MigrationData,
 	l1XDM *common.Address,
 	l1ChainID uint64,
 	finalSystemOwner common.Address,
@@ -468,8 +467,8 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
-	wds, err := data.ToWithdrawals()
+func CheckWithdrawalsAfter(db vm.StateDB, data crossdomain.MigrationData, l1CrossDomainMessenger *common.Address) error {
+	wds, invalidMessages, err := data.ToWithdrawals()
 	if err != nil {
 		return err
 	}
@@ -479,6 +478,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 	// some witness data may references withdrawals that reverted.
 	oldToNewSlots := make(map[common.Hash]common.Hash)
 	wdsByOldSlot := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
+	invalidMessagesByOldSlot := make(map[common.Hash]crossdomain.InvalidMessage)
 	for _, wd := range wds {
 		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
 		if err != nil {
@@ -497,6 +497,15 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		oldToNewSlots[legacySlot] = migratedSlot
 		wdsByOldSlot[legacySlot] = wd
 	}
+	for _, im := range invalidMessages {
+		invalidSlot, err := im.StorageSlot()
+		if err != nil {
+			return fmt.Errorf("cannot compute legacy storage slot: %w", err)
+		}
+		invalidMessagesByOldSlot[invalidSlot] = im
+	}
+
+	log.Info("computed withdrawal storage slots", "migrated", len(oldToNewSlots), "invalid", len(invalidMessagesByOldSlot))
 
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
 	// migrated withdrawal.
@@ -513,6 +522,17 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		if value != abiTrue {
 			innerErr = fmt.Errorf("non-true value found in legacy message passer. key: %s, value: %s", key, value)
 			return false
+		}
+
+		// Make sure invalid slots don't get migrated.
+		_, isInvalidSlot := invalidMessagesByOldSlot[key]
+		if isInvalidSlot {
+			value := db.GetState(predeploys.L2ToL1MessagePasserAddr, key)
+			if value != abiFalse {
+				innerErr = fmt.Errorf("expected invalid slot not to be migrated, but got %s", value)
+				return false
+			}
+			return true
 		}
 
 		// Grab the migrated slot.

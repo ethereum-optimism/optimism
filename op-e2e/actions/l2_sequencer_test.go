@@ -4,8 +4,6 @@ import (
 	"math/big"
 	"testing"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -144,24 +142,19 @@ func TestL2Sequencer_SequencerOnlyReorg(gt *testing.T) {
 	// so it'll keep the L2 block with the old L1 origin, since no conflict is detected.
 	sequencer.ActL1HeadSignal(t)
 	sequencer.ActL2PipelineFull(t)
-	// TODO: CLI-3405 we can detect the inconsistency of the L1 origin of the unsafe L2 head:
-	//  as verifier, there is no need to wait for sequencer to recognize it.
+	// Verifier should detect the inconsistency of the L1 origin and reset the pipeline to follow the reorg
 	newStatus := sequencer.SyncStatus()
-	require.Equal(t, status.HeadL1.Hash, newStatus.UnsafeL2.L1Origin.Hash, "still have old bad L1 origin")
+	require.Zero(t, newStatus.UnsafeL2.L1Origin.Number, "back to genesis block with good L1 origin, drop old unsafe L2 chain with bad L1 origins")
 	require.NotEqual(t, status.HeadL1.Hash, newStatus.HeadL1.Hash, "did see the new L1 head change")
 	require.Equal(t, newStatus.HeadL1.Hash, newStatus.CurrentL1.Hash, "did sync the new L1 head as verifier")
 
 	// the block N+1 cannot build on the old N which still refers to the now orphaned L1 origin
 	require.Equal(t, status.UnsafeL2.L1Origin.Number, newStatus.HeadL1.Number-1, "seeing N+1 to attempt to build on N")
 	require.NotEqual(t, status.UnsafeL2.L1Origin.Hash, newStatus.HeadL1.ParentHash, "but N+1 cannot fit on N")
-	sequencer.ActL1HeadSignal(t)
-	// sequence more L2 blocks, until we actually need the next L1 origin
-	sequencer.ActBuildToL1HeadExclUnsafe(t)
-	// We expect block building to fail when the next L1 block is not consistent with the existing L1 origin
-	sequencer.ActL2StartBlockCheckErr(t, derive.ErrReset)
-	// After hitting a reset error, it reset derivation, and drops the old L1 chain
+
+	// After hitting a reset error, it resets derivation, and drops the old L1 chain
 	sequencer.ActL2PipelineFull(t)
-	require.Zero(t, sequencer.SyncStatus().UnsafeL2.L1Origin.Number, "back to genesis block with good L1 origin, drop old unsafe L2 chain with bad L1 origins")
+
 	// Can build new L2 blocks with good L1 origin
 	sequencer.ActBuildToL1HeadUnsafe(t)
 	require.Equal(t, newStatus.HeadL1.Hash, sequencer.SyncStatus().UnsafeL2.L1Origin.Hash, "build L2 chain with new correct L1 origins")

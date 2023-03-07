@@ -192,6 +192,7 @@ These definitions allow you to communicate with AttestationStation, but are not 
 
 #### `ATTESTATION_STATION_ADDRESS`
 
+
 The deployment address for the attestation station currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`.
 
 ```typescript
@@ -211,7 +212,6 @@ import { abi } from '@eth-optimism/atst'
 
 `createKey` hashes keys longer than 31 bytes, because the atst key size is limited to 32 bytes.
 
-
 ```typescript
 const key = await createKey(
   'i.am.a.key.much.longer.than.32.bytes.long'
@@ -219,7 +219,6 @@ const key = await createKey(
 ```
 
 createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through keccak256.
-
 
 
 #### `parseAddress`

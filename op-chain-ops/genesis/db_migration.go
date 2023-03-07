@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -35,7 +34,7 @@ type MigrationResult struct {
 }
 
 // MigrateDB will migrate an l2geth legacy Optimism database to a Bedrock database.
-func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *migration.MigrationData, commit, noCheck bool) (*MigrationResult, error) {
+func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, migrationData *crossdomain.MigrationData, commit, noCheck bool) (*MigrationResult, error) {
 	// Grab the hash of the tip of the legacy chain.
 	hash := rawdb.ReadHeadHeaderHash(ldb)
 	log.Info("Reading chain tip from database", "hash", hash)
@@ -114,17 +113,19 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 
 	// Convert all input messages into legacy messages. Note that this list is not yet filtered and
 	// may be missing some messages or have some extra messages.
-	unfilteredWithdrawals, err := migrationData.ToWithdrawals()
+	unfilteredWithdrawals, invalidMessages, err := migrationData.ToWithdrawals()
 	if err != nil {
 		return nil, fmt.Errorf("cannot serialize withdrawals: %w", err)
 	}
+
+	log.Info("Read withdrawals from witness data", "unfiltered", len(unfilteredWithdrawals), "invalid", len(invalidMessages))
 
 	// We now need to check that we have all of the withdrawals that we expect to have. An error
 	// will be thrown if there are any missing messages, and any extra messages will be removed.
 	var filteredWithdrawals crossdomain.SafeFilteredWithdrawals
 	if !noCheck {
 		log.Info("Checking withdrawals...")
-		filteredWithdrawals, err = crossdomain.PreCheckWithdrawals(db, unfilteredWithdrawals)
+		filteredWithdrawals, err = crossdomain.PreCheckWithdrawals(db, unfilteredWithdrawals, invalidMessages)
 		if err != nil {
 			return nil, fmt.Errorf("withdrawals mismatch: %w", err)
 		}

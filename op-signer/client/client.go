@@ -12,6 +12,7 @@ import (
 
 	optls "github.com/ethereum-optimism/optimism/op-service/tls"
 	"github.com/ethereum-optimism/optimism/op-service/tls/certman"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -91,8 +92,8 @@ func (s *SignerClient) pingVersion() (string, error) {
 	return v, nil
 }
 
-func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, tx *types.Transaction) (*types.Transaction, error) {
-	args := NewTransactionArgsFromTransaction(chainId, tx)
+func (s *SignerClient) SignTransaction(ctx context.Context, chainId *big.Int, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+	args := NewTransactionArgsFromTransaction(chainId, from, tx)
 
 	var result hexutil.Bytes
 	if err := s.client.CallContext(ctx, &result, "eth_signTransaction", args); err != nil {

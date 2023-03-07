@@ -1,10 +1,10 @@
 import { ethers } from 'ethers'
-import { Address } from 'wagmi'
+import type { Address } from '@wagmi/core'
 
 import { ATTESTATION_STATION_ADDRESS } from '../constants/attestationStationAddress'
 import { abi } from '../lib/abi'
 import { AttestationCreatedEvent } from '../types/AttestationCreatedEvent'
-import { encodeRawKey } from './encodeRawKey'
+import { encodeRawKey } from './createKey'
 
 export const getEvents = async ({
   creator = null,

@@ -18,8 +18,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
-
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -768,7 +766,7 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 	evmMsgs := ctx.String("evm-messages")
 
 	log.Debug("Migration data", "ovm-path", ovmMsgs, "evm-messages", evmMsgs)
-	ovmMessages, err := migration.NewSentMessage(ovmMsgs)
+	ovmMessages, err := crossdomain.NewSentMessageFromJSON(ovmMsgs)
 	if err != nil {
 		return nil, err
 	}
@@ -777,20 +775,20 @@ func newWithdrawals(ctx *cli.Context, l1ChainID *big.Int) ([]*crossdomain.Legacy
 	// committed to in git.
 	if l1ChainID.Cmp(common.Big1) != 0 {
 		log.Info("not using ovm messages because its not mainnet")
-		ovmMessages = []*migration.SentMessage{}
+		ovmMessages = []*crossdomain.SentMessage{}
 	}
 
-	evmMessages, err := migration.NewSentMessage(evmMsgs)
+	evmMessages, err := crossdomain.NewSentMessageFromJSON(evmMsgs)
 	if err != nil {
 		return nil, err
 	}
 
-	migrationData := migration.MigrationData{
+	migrationData := crossdomain.MigrationData{
 		OvmMessages: ovmMessages,
 		EvmMessages: evmMessages,
 	}
 
-	wds, err := migrationData.ToWithdrawals()
+	wds, _, err := migrationData.ToWithdrawals()
 	if err != nil {
 		return nil, err
 	}
