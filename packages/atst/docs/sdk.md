@@ -60,8 +60,6 @@ wagmiCore.createClient({
 })
 ```
 
-To be able to write attesations you also need to connect to a wallet that will sign and pay the transactions. 
-[See here for more details](https://wagmi.sh/examples/connect-wallet)
 
 ### Reading an attestation
 
