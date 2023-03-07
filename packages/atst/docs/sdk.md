@@ -6,8 +6,16 @@ Typescript sdk for interacting with the ATST based on [@wagmi/core](https://wagm
 ## Table of content 
 
 - [Installation](#installation)
-- [High level API](#high-level-api)
-- [Low level API](#low-level-api)
+- [Basic usage](#basic-usage)
+  - [Setup](#setup)
+  - [Reading an attestation](#reading-an-attestation)
+  - [Reading multiple attestation](#reading-multiple-attestations)
+  - [Writing an attestation](#writing-an-attestation)
+- [API](#api)
+  - [High level API](#high-level-api)
+  - [Low level API](#low-level-api)
+  - [React API](#react-api)
+- [Tutorial](#tutorial)
 
 
 
