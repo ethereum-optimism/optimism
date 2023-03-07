@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
+import { Test } from "forge-std/Test.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Proxy } from "../universal/Proxy.sol";
 
@@ -15,14 +15,21 @@ contract MeterUser is ResourceMetering {
     }
 
     function use(uint64 _amount) public metered(_amount) {}
+
+    function set(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) public {
+        params = ResourceMetering.ResourceParams({
+            prevBaseFee: _prevBaseFee,
+            prevBoughtGas: _prevBoughtGas,
+            prevBlockNum: _prevBlockNum
+        });
+    }
 }
 
-contract ResourceMetering_Test is CommonTest {
+contract ResourceMetering_Test is Test {
     MeterUser internal meter;
     uint64 initialBlockNum;
 
-    function setUp() public virtual override {
-        super.setUp();
+    function setUp() public {
         meter = new MeterUser();
         initialBlockNum = uint64(block.number);
     }
@@ -107,6 +114,34 @@ contract ResourceMetering_Test is CommonTest {
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
         meter.use(target * elasticity + 1);
+    }
+
+    /**
+     * @notice The max resource limit should be able to be used when the L1
+     *         deposit base fee is at its max value. This previously would
+     *         revert because prevBaseFee is a uint128 and checked math when
+     *         multiplying against a uint64 _amount can result in an overflow
+     *         even though its assigning to a uint256. The values MUST be casted
+     *         to uint256 when doing the multiplication to prevent overflows.
+     */
+    function test_meter_useMaxWithMaxBaseFee_success() external {
+        uint128 _prevBaseFee = uint128(uint256(meter.MAXIMUM_BASE_FEE()));
+        uint64 _prevBoughtGas = 0;
+        uint64 _prevBlockNum = uint64(block.number);
+
+        meter.set({
+            _prevBaseFee: _prevBaseFee,
+            _prevBoughtGas: _prevBoughtGas,
+            _prevBlockNum: _prevBlockNum
+        });
+
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
+        assertEq(prevBaseFee, _prevBaseFee);
+        assertEq(prevBoughtGas, _prevBoughtGas);
+        assertEq(prevBlockNum, _prevBlockNum);
+
+        uint64 gasRequested = uint64(uint256(meter.MAX_RESOURCE_LIMIT()));
+        meter.use(gasRequested);
     }
 
     // Demonstrates that the resource metering arithmetic can tolerate very large gaps between

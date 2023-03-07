@@ -140,7 +140,7 @@ abstract contract ResourceMetering is Initializable {
         //         type(uint64).max * type(uint128).max < type(uint256).max
         uint256 resourceCost;
         unchecked {
-            resourceCost = _amount * params.prevBaseFee;
+            resourceCost = uint256(_amount) * uint256(params.prevBaseFee);
         }
 
         // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
