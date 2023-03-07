@@ -2,6 +2,8 @@ package p2p
 
 import (
 	"sort"
+	"math"
+	"time"
 	"testing"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -50,4 +52,79 @@ func (testSuite *PeerParamsTestSuite) TestNewPeerScoreThresholds() {
 		OpportunisticGraftThreshold: 0.05,
 	}
 	testSuite.Equal(expected, thresholds)
+}
+
+// TestGetPeerScoreParams validates the peer score parameters.
+func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams() {
+	params, err := GetPeerScoreParams("light", 1)
+	testSuite.NoError(err)
+	expected := LightPeerScoreParams(1)
+	testSuite.Equal(expected.DecayInterval, params.DecayInterval)
+	testSuite.Equal(time.Duration(1) * time.Second, params.DecayInterval)
+
+	params, err = GetPeerScoreParams("none", 1)
+	testSuite.NoError(err)
+	expected = DisabledPeerScoreParams(1)
+	testSuite.Equal(expected.DecayInterval, params.DecayInterval)
+	testSuite.Equal(time.Duration(1) * time.Second, params.DecayInterval)
+
+	_, err = GetPeerScoreParams("invalid", 1)
+	testSuite.Error(err)
+}
+
+// TestLightPeerScoreParams validates the light peer score params.
+func (testSuite *PeerParamsTestSuite) TestLightPeerScoreParams() {
+	blockTime := uint64(1)
+	slot := time.Duration(blockTime) * time.Second
+	epoch := 6 * slot
+	oneHundredEpochs := 100 * epoch
+
+	// calculate the behavior penalty decay
+	duration := 10 * epoch
+	decay := math.Pow(DecayToZero, 1 / float64(duration / slot))
+	testSuite.Equal(0.9261187281287935, decay)
+
+	// Test the params
+	params, err := GetPeerScoreParams("light", blockTime)
+	testSuite.NoError(err)
+	testSuite.Equal(params.Topics, make(map[string]*pubsub.TopicScoreParams))
+	testSuite.Equal(params.TopicScoreCap, float64(34))
+	// testSuite.Equal(params.AppSpecificScore("alice"), float(0))
+	testSuite.Equal(params.AppSpecificWeight, float64(1))
+	testSuite.Equal(params.IPColocationFactorWeight, float64(-35))
+	testSuite.Equal(params.IPColocationFactorThreshold, int(10))
+	testSuite.Nil(params.IPColocationFactorWhitelist)
+	testSuite.Equal(params.BehaviourPenaltyWeight, float64(-16))
+	testSuite.Equal(params.BehaviourPenaltyThreshold, float64(6))
+	testSuite.Equal(params.BehaviourPenaltyDecay, decay)
+	testSuite.Equal(params.DecayInterval, slot)
+	testSuite.Equal(params.DecayToZero, DecayToZero)
+	testSuite.Equal(params.RetainScore, oneHundredEpochs)
+}
+
+// TestDisabledPeerScoreParams validates the disabled peer score params.
+func (testSuite *PeerParamsTestSuite) TestDisabledPeerScoreParams() {
+	blockTime := uint64(1)
+	slot := time.Duration(blockTime) * time.Second
+	epoch := 6 * slot
+	oneHundredEpochs := 100 * epoch
+
+	// calculate the behavior penalty decay
+	duration := 10 * epoch
+	decay := math.Pow(DecayToZero, 1 / float64(duration / slot))
+	testSuite.Equal(0.9261187281287935, decay)
+
+	// Test the params
+	params, err := GetPeerScoreParams("none", blockTime)
+	testSuite.NoError(err)
+	testSuite.Equal(params.Topics, make(map[string]*pubsub.TopicScoreParams))
+	testSuite.Equal(params.TopicScoreCap, float64(0))
+	testSuite.Equal(params.AppSpecificWeight, float64(1))
+	testSuite.Equal(params.IPColocationFactorWeight, float64(0))
+	testSuite.Nil(params.IPColocationFactorWhitelist)
+	testSuite.Equal(params.BehaviourPenaltyWeight, float64(0))
+	testSuite.Equal(params.BehaviourPenaltyDecay, decay)
+	testSuite.Equal(params.DecayInterval, slot)
+	testSuite.Equal(params.DecayToZero, DecayToZero)
+	testSuite.Equal(params.RetainScore, oneHundredEpochs)
 }
