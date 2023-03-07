@@ -44,20 +44,24 @@ atst uses `@wagmi/core` under the hood.
 [See their documentation for more information](https://wagmi.sh/core/getting-started).
 
 ```javascript
-import { createClient } from '@wagmi/core'
-import { providers } from 'ethers'
+import ethers from "ethers"
+const wagmiCore = await import("@wagmi/core")
+const wagmiAlchemy = await import("@wagmi/core/providers/alchemy")
+const wagmiChains = await import("@wagmi/core/chains")
 
-const provider = new providers.JsonRpcProvider({
-  url: "https://mainnet.optimism.io",
-  headers: {
-    'User-Agent': '@eth-optimism/atst',
-  },
-})
+const { chains, provider, webSocketProvider } = wagmiCore.configureChains(
+  [wagmiChains.optimismGoerli],
+  [wagmiAlchemy.alchemyProvider({ apiKey: process.env.ALCHEMY_API_KEY })],
+)
 
-createClient({
+wagmiCore.createClient({
   provider,
+  webSocketProvider
 })
 ```
+
+To be able to write attesations you also need to connect to a wallet that will sign and pay the transactions. 
+[See here for more details](https://wagmi.sh/examples/connect-wallet)
 
 ### Reading an attestation
 
