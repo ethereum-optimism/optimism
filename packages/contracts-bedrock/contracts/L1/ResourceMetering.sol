@@ -134,7 +134,14 @@ abstract contract ResourceMetering is Initializable {
         );
 
         // Determine the amount of ETH to be paid.
-        uint256 resourceCost = _amount * params.prevBaseFee;
+        // Safety: _amount is a uint64
+        //         params.prevBaseFee is a uint128
+        //         resourceCost is a uint256
+        //         type(uint64).max * type(uint128).max < type(uint256).max
+        uint256 resourceCost;
+        unchecked {
+            resourceCost = _amount * params.prevBaseFee;
+        }
 
         // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
         // into gas by dividing by the L1 base fee. We assume a minimum base fee of 1 gwei to avoid
