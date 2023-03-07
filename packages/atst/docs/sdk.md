@@ -13,7 +13,7 @@ Typescript sdk for interacting with the ATST based on [@wagmi/core](https://wagm
 
 ## Installation
 
-Install atst and it's peer dependencies.
+Install atst and its peer dependencies.
 
 npm
 
@@ -100,6 +100,7 @@ await writeAttestation(preparedTx)
 ### High level API
 
 These functions are the easiest way to interact with the AttestationStation contract.
+For a more detailed explanation, [see the tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station/using-sdk).
 
 #### `prepareWriteAttestation`
 
@@ -111,16 +112,18 @@ const preparedTx = await prepareWriteAttestation(about, key, 'hello world')
 console.log(preparedTx.gasFee)
 ```
 
+**Return Value:** A prepared transaction, ready for [`writeAttestation`](#writeattestation).
+
 #### `readAttestation`
 
 [Reads](https://wagmi.sh/core/actions/readContract) and parses an attestation based on its data type.
 
 ```typescript
 const attestation = await readAttestation(
-  creator,     // Address: The creator of the attestation
-  about,   // Address: The about topic of the attestation
-  key,   // string: The key of the attestation
-  dataType, // Optional, the data type of the attestation, 'string' | 'bytes' | 'number' | 'bool' | 'address'
+  creator,        // Address: The creator of the attestation
+  about,          // Address: The about topic of the attestation
+  key,            // string: The key of the attestation
+  dataType,       // Optional, the data type of the attestation, 'string' | 'bytes' | 'number' | 'bool' | 'address'
   contractAddress // Optional address: the contract address of the attestation station
 )
 ```
