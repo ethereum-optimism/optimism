@@ -38,6 +38,9 @@ type Config struct {
 	OutDirectory string
 }
 
+// Batches fetches & stores all transactions sent to the batch inbox address in
+// the given block range (inclusive to exclusive).
+// The transactions & metadata are written to the out directory.
 func Batches(client *ethclient.Client, config Config) (totalValid, totalInvalid int) {
 	if err := os.MkdirAll(config.OutDirectory, 0750); err != nil {
 		log.Fatal(err)
@@ -53,13 +56,15 @@ func Batches(client *ethclient.Client, config Config) (totalValid, totalInvalid 
 	return
 }
 
+// fetchBatchesPerBlock gets a block & the parses all of the transactions in the block.
 func fetchBatchesPerBlock(client *ethclient.Client, number *big.Int, signer types.Signer, config Config) (validBatchCount, invalidBatchCount int) {
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 	block, err := client.BlockByNumber(ctx, number)
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println("Fetched block: ", number)
 	for i, tx := range block.Transactions() {
 		if tx.To() != nil && *tx.To() == config.BatchInbox {
 			sender, err := signer.Sender(tx)
