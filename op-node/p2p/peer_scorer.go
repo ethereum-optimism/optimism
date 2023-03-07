@@ -33,7 +33,6 @@ type Peerstore interface {
 	Peers() peer.IDSlice
 }
 
-
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
 type Scorer interface {
 	OnConnect()

@@ -41,7 +41,7 @@ const (
 	DefaultMeshDhi   = 12 // topic stable mesh high watermark
 	DefaultMeshDlazy = 6  // gossip target
 	// peerScoreInspectFrequency is the frequency at which peer scores are inspected
-	peerScoreInspectFrequency = 1 * time.Minute
+	peerScoreInspectFrequency = 15 * time.Second
 )
 
 // Message domains, the msg id function uncompresses to keep data monomorphic,
@@ -51,7 +51,8 @@ var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
 type GossipSetupConfigurables interface {
-	Scoring() *pubsub.PeerScoreParams
+	PeerScoringParams() *pubsub.PeerScoreParams
+	TopicScoringParams() *pubsub.TopicScoreParams
 	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
 }
 
@@ -154,8 +155,6 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		return nil, err
 	}
 	params := BuildGlobalGossipParams(cfg)
-	peerScoreThresholds := NewPeerScoreThresholds()
-	scorer := NewScorer(g, h.Peerstore(), m, log)
 	gossipOpts := []pubsub.Option{
 		pubsub.WithMaxMessageSize(maxGossipSize),
 		pubsub.WithMessageIdFn(BuildMsgIdFn(cfg)),
@@ -170,9 +169,8 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
-		pubsub.WithPeerScore(gossipConf.Scoring(), &peerScoreThresholds),
-		pubsub.WithPeerScoreInspect(scorer.SnapshotHook(), peerScoreInspectFrequency),
 	}
+	gossipOpts = append(gossipOpts, ConfigurePeerScoring(h, g, gossipConf, m, log)...)
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
 }
@@ -439,7 +437,7 @@ func (p *publisher) Close() error {
 	return p.blocksTopic.Close()
 }
 
-func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func JoinGossip(p2pCtx context.Context, self peer.ID, topicScoreParams *pubsub.TopicScoreParams, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
 	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg, runCfg)))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
@@ -459,16 +457,7 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
-	// TODO: make this configurable behind a cli flag - disabled or default
-	// Set default block topic scoring parameters
-	// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
-	// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
-	// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
-	defaultTopicScoreParams, err := GetTopicScoreParams("default", cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create default topic score params: %w", err)
-	}
-	if err = blocksTopic.SetScoreParams(&defaultTopicScoreParams); err != nil {
+	if err = blocksTopic.SetScoreParams(topicScoreParams); err != nil {
 		return nil, fmt.Errorf("failed to set topic score params: %w", err)
 	}
 

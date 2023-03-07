@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
@@ -21,13 +20,11 @@ const DecayEpoch = time.Duration(5)
 // See [TopicScoreParams] for detailed documentation.
 //
 // [TopicScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#TopicScoreParams
-var DefaultTopicScoreParams = func(cfg *rollup.Config) pubsub.TopicScoreParams {
-	slot := time.Duration(cfg.BlockTime) * time.Second
+var DefaultTopicScoreParams = func(blockTime uint64) pubsub.TopicScoreParams {
+	slot := time.Duration(blockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
 	}
-	// TODO: tune these params
-	// TODO: we initialize an "epoch" as 6 blocks suggesting 6 blocks, each taking ~ 2 seconds, is 12 seconds
 	epoch := 6 * slot
 	invalidDecayPeriod := 50 * epoch
 	return pubsub.TopicScoreParams{
@@ -60,10 +57,11 @@ func inMeshCap(slot time.Duration) float64 {
 // See [TopicScoreParams] for detailed documentation.
 //
 // [TopicScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#TopicScoreParams
-var DisabledTopicScoreParams = func(cfg *rollup.Config) pubsub.TopicScoreParams {
-	slot := time.Duration(cfg.BlockTime) * time.Second
-	// TODO: tune these params
-	// TODO: we initialize an "epoch" as 6 blocks suggesting 6 blocks, each taking ~ 2 seconds, is 12 seconds
+var DisabledTopicScoreParams = func(blockTime uint64) pubsub.TopicScoreParams {
+	slot := time.Duration(blockTime) * time.Second
+	if slot == 0 {
+		slot = 2 * time.Second
+	}
 	epoch := 6 * slot
 	invalidDecayPeriod := 50 * epoch
 	return pubsub.TopicScoreParams{
@@ -88,7 +86,7 @@ var DisabledTopicScoreParams = func(cfg *rollup.Config) pubsub.TopicScoreParams 
 }
 
 // TopicScoreParamsByName is a map of name to [pubsub.TopicScoreParams].
-var TopicScoreParamsByName = map[string](func(*rollup.Config) pubsub.TopicScoreParams){
+var TopicScoreParamsByName = map[string](func(blockTime uint64) pubsub.TopicScoreParams){
 	"default":  DefaultTopicScoreParams,
 	"disabled": DisabledTopicScoreParams,
 }
@@ -105,11 +103,11 @@ func AvailableTopicScoreParams() []string {
 }
 
 // GetTopicScoreParams returns the [pubsub.TopicScoreParams] for the given name.
-func GetTopicScoreParams(name string, cfg *rollup.Config) (pubsub.TopicScoreParams, error) {
+func GetTopicScoreParams(name string, blockTime uint64) (pubsub.TopicScoreParams, error) {
 	params, ok := TopicScoreParamsByName[name]
 	if !ok {
 		return pubsub.TopicScoreParams{}, fmt.Errorf("invalid topic params %s", name)
 	}
 
-	return params(cfg), nil
+	return params(blockTime), nil
 }

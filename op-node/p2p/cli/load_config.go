@@ -54,8 +54,12 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p gossip options: %w", err)
 	}
 
-	if err := loadScoringOpts(conf, ctx, blockTime); err != nil {
-		return nil, fmt.Errorf("failed to load p2p scoring options: %w", err)
+	if err := loadPeerScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
+	}
+
+	if err := loadTopicScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p topic scoring options: %w", err)
 	}
 
 	conf.ConnGater = p2p.DefaultConnGater
@@ -77,9 +81,30 @@ func validatePort(p uint) (uint16, error) {
 	return uint16(p), nil
 }
 
-// loadScoringOpts loads the scoring options from the CLI context.
-func loadScoringOpts(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
-	scoringLevel := ctx.GlobalString(flags.P2PScoring.Name)
+// loadTopicScoringParams loads the topic scoring options from the CLI context.
+func loadTopicScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.TopicScoring.Name)
+	if scoringLevel == "" {
+		scoringLevel = "none"
+	}
+
+	// Set default block topic scoring parameters
+	// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
+	// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
+	// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
+	topicScoreParams, err := p2p.GetTopicScoreParams(scoringLevel, blockTime)
+	if err != nil {
+		return err
+	}
+
+	conf.TopicScoring = topicScoreParams
+	return nil
+}
+
+
+// loadPeerScoringParams loads the scoring options from the CLI context.
+func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.PeerScoring.Name)
 	if scoringLevel == "" {
 		scoringLevel = "none"
 	}
@@ -300,6 +325,8 @@ func parsePriv(data string) (*crypto.Secp256k1PrivateKey, error) {
 	}
 	return (p).(*crypto.Secp256k1PrivateKey), nil
 }
+
+
 
 func loadGossipOptions(conf *p2p.Config, ctx *cli.Context) error {
 	conf.MeshD = ctx.GlobalInt(flags.GossipMeshDFlag.Name)

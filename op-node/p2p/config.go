@@ -50,8 +50,9 @@ type Config struct {
 	DisableP2P  bool
 	NoDiscovery bool
 
-	// Pubsub P2P Scoring Configurations
+	// Pubsub Scoring Parameters
 	PeerScoring pubsub.PeerScoreParams
+	TopicScoring pubsub.TopicScoreParams
 
 	ListenIP      net.IP
 	ListenTCPPort uint16
@@ -143,8 +144,12 @@ func (conf *Config) Disabled() bool {
 	return conf.DisableP2P
 }
 
-func (conf *Config) Scoring() *pubsub.PeerScoreParams {
+func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
 	return &conf.PeerScoring
+}
+
+func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {
+	return &conf.TopicScoring
 }
 
 const maxMeshParam = 1000

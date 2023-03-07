@@ -64,7 +64,11 @@ func (p *Prepared) ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Opti
 	return nil
 }
 
-func (p *Prepared) Scoring() *pubsub.PeerScoreParams {
+func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
+	return nil
+}
+
+func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
 	return nil
 }
 

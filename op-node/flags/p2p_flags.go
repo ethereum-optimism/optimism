@@ -25,14 +25,23 @@ var (
 		Required: false,
 		EnvVar:   p2pEnv("NO_DISCOVERY"),
 	}
-	P2PScoring = cli.StringFlag{
-		Name: "p2p.scoring",
-		Usage: "Sets the scoring strategy for the P2P stack. " +
+	PeerScoring = cli.StringFlag{
+		Name: "p2p.scoring.peers",
+		Usage: "Sets the peer scoring strategy for the P2P stack. " +
 			"Can be one of: none, light, full." +
 			"Custom scoring strategies can be defined in the config file.",
 		Required:  false,
 		Value:     "none",
-		EnvVar:    p2pEnv("SCORING"),
+		EnvVar:    p2pEnv("PEER_SCORING"),
+	}
+	TopicScoring = cli.StringFlag{
+		Name: "p2p.scoring.topics",
+		Usage: "Sets the topic scoring strategy. " +
+			"Can be one of: none, light, full." +
+			"Custom scoring strategies can be defined in the config file.",
+		Required:  false,
+		Value:     "none",
+		EnvVar:    p2pEnv("TOPIC_SCORING"),
 	}
 	P2PPrivPath = cli.StringFlag{
 		Name: "p2p.priv.path",
