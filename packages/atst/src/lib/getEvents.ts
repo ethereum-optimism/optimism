@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { Address } from 'wagmi'
+import type { Address } from '@wagmi/core'
 
 import { ATTESTATION_STATION_ADDRESS } from '../constants/attestationStationAddress'
 import { abi } from '../lib/abi'
