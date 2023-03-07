@@ -19,6 +19,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -49,8 +50,8 @@ type Config struct {
 	DisableP2P  bool
 	NoDiscovery bool
 
-	// P2P Scoring Configurations
-	ScoringConfig *ScoringConfig
+	// Pubsub P2P Scoring Configurations
+	PeerScoring pubsub.PeerScoreParams
 
 	ListenIP      net.IP
 	ListenTCPPort uint16
@@ -98,11 +99,6 @@ type Config struct {
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
 }
 
-type ScoringConfig struct {
-	// Scoring Level
-	EnablePeerScoring bool
-}
-
 type ConnectionGater interface {
 	connmgr.ConnectionGater
 
@@ -144,6 +140,10 @@ func (conf *Config) TargetPeers() uint {
 
 func (conf *Config) Disabled() bool {
 	return conf.DisableP2P
+}
+
+func (conf *Config) Scoring() *pubsub.PeerScoreParams {
+	return &conf.PeerScoring
 }
 
 const maxMeshParam = 1000

@@ -51,6 +51,7 @@ var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
 type GossipSetupConfigurables interface {
+	Scoring() *pubsub.PeerScoreParams
 	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
 }
 
@@ -152,11 +153,6 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		return nil, err
 	}
 	params := BuildGlobalGossipParams(cfg)
-	// TODO: make this configurable behind a cli flag - disabled or default
-	peerScoreParams, err := GetPeerScoreParams("default", cfg)
-	if err != nil {
-		return nil, err
-	}
 	peerScoreThresholds := NewPeerScoreThresholds()
 	scorer := NewScorer(g, h.Peerstore(), m, log)
 	gossipOpts := []pubsub.Option{
@@ -173,7 +169,7 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *r
 		pubsub.WithBlacklist(denyList),
 		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
-		pubsub.WithPeerScore(&peerScoreParams, &peerScoreThresholds),
+		pubsub.WithPeerScore(gossipConf.Scoring(), &peerScoreThresholds),
 		pubsub.WithPeerScoreInspect(scorer.SnapshotHook(), peerScoreInspectFrequency),
 	}
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)

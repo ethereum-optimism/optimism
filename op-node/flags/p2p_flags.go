@@ -25,6 +25,15 @@ var (
 		Required: false,
 		EnvVar:   p2pEnv("NO_DISCOVERY"),
 	}
+	P2PScoring = cli.StringFlag{
+		Name: "p2p.scoring",
+		Usage: "Sets the scoring strategy for the P2P stack. " +
+			"Can be one of: none, light, full." +
+			"Custom scoring strategies can be defined in the config file.",
+		Required:  false,
+		Value:     "none",
+		EnvVar:    p2pEnv("SCORING"),
+	}
 	P2PPrivPath = cli.StringFlag{
 		Name: "p2p.priv.path",
 		Usage: "Read the hex-encoded 32-byte private key for the peer ID from this txt file. Created if not already exists." +

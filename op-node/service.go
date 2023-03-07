@@ -46,7 +46,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p signer: %w", err)
 	}
 
-	p2pConfig, err := p2pcli.NewConfig(ctx)
+	p2pConfig, err := p2pcli.NewConfig(ctx, rollupConfig.BlockTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load p2p config: %w", err)
 	}

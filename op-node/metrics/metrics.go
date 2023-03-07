@@ -66,7 +66,6 @@ type Metricer interface {
 	RecordSequencerSealingTime(duration time.Duration)
 	Document() []metrics.DocumentedMetric
 	// P2P Metrics
-	RecordGossipEvent(evType int32)
 	RecordPeerScoring(peerID peer.ID, score float64)
 }
 

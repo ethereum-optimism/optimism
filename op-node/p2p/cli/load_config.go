@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-func NewConfig(ctx *cli.Context) (*p2p.Config, error) {
+func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.GlobalBool(flags.DisableP2P.Name) {
@@ -54,6 +54,10 @@ func NewConfig(ctx *cli.Context) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p gossip options: %w", err)
 	}
 
+	if err := loadScoringOpts(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p scoring options: %w", err)
+	}
+
 	conf.ConnGater = p2p.DefaultConnGater
 	conf.ConnMngr = p2p.DefaultConnManager
 
@@ -73,11 +77,21 @@ func validatePort(p uint) (uint16, error) {
 	return uint16(p), nil
 }
 
-// TODO: Load peer scoring options
-// func loadScoringOpts(conf *p2p.Config, ctx *cli.Context) error {
-// 	conf.ScoringParams = p2p.DefaultScoringParams
-// 	return nil
-// }
+// loadScoringOpts loads the scoring options from the CLI context.
+func loadScoringOpts(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.P2PScoring.Name)
+	if scoringLevel == "" {
+		scoringLevel = "none"
+	}
+
+	peerScoreParams, err := p2p.GetPeerScoreParams(scoringLevel, blockTime)
+	if err != nil {
+		return err
+	}
+
+	conf.PeerScoring = peerScoreParams
+	return nil
+}
 
 func loadListenOpts(conf *p2p.Config, ctx *cli.Context) error {
 	listenIP := ctx.GlobalString(flags.ListenIP.Name)

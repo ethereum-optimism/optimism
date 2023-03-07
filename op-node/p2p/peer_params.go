@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -19,12 +18,12 @@ func ScoreDecay(duration time.Duration, slot time.Duration) float64 {
 	return math.Pow(DecayToZero, 1/float64(numOfTimes))
 }
 
-// DefaultPeerScoreParams is a default instantiation of [pubsub.PeerScoreParams].
+// LightPeerScoreParams is an instantiation of [pubsub.PeerScoreParams] with light penalties.
 // See [PeerScoreParams] for detailed documentation.
 //
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-var DefaultPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
-	slot := time.Duration(cfg.BlockTime) * time.Second
+var LightPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
+	slot := time.Duration(blockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
 	}
@@ -56,8 +55,8 @@ var DefaultPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
 // See [PeerScoreParams] for detailed documentation.
 //
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
-var DisabledPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
-	slot := time.Duration(cfg.BlockTime) * time.Second
+var DisabledPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
+	slot := time.Duration(blockTime) * time.Second
 	// We initialize an "epoch" as 6 blocks suggesting 6 blocks,
 	// each taking ~ 2 seconds, is 12 seconds
 	epoch := 6 * slot
@@ -84,9 +83,9 @@ var DisabledPeerScoreParams = func(cfg *rollup.Config) pubsub.PeerScoreParams {
 }
 
 // PeerScoreParamsByName is a map of name to function that returns a [pubsub.PeerScoreParams] based on the provided [rollup.Config].
-var PeerScoreParamsByName = map[string](func(cfg *rollup.Config) pubsub.PeerScoreParams){
-	"default":  DefaultPeerScoreParams,
-	"disabled": DisabledPeerScoreParams,
+var PeerScoreParamsByName = map[string](func(blockTime uint64) pubsub.PeerScoreParams){
+	"light":  LightPeerScoreParams,
+	"none": DisabledPeerScoreParams,
 }
 
 // AvailablePeerScoreParams returns a list of available peer score params.
@@ -101,13 +100,13 @@ func AvailablePeerScoreParams() []string {
 }
 
 // GetPeerScoreParams returns the [pubsub.PeerScoreParams] for the given name.
-func GetPeerScoreParams(name string, cfg *rollup.Config) (pubsub.PeerScoreParams, error) {
+func GetPeerScoreParams(name string, blockTime uint64) (pubsub.PeerScoreParams, error) {
 	params, ok := PeerScoreParamsByName[name]
 	if !ok {
 		return pubsub.PeerScoreParams{}, fmt.Errorf("invalid params %s", name)
 	}
 
-	return params(cfg), nil
+	return params(blockTime), nil
 }
 
 // NewPeerScoreThresholds returns a default [pubsub.PeerScoreThresholds].
