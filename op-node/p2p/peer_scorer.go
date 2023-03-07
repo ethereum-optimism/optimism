@@ -4,8 +4,9 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core/peer"
-	"github.com/libp2p/go-libp2p/core/peerstore"
+	// "github.com/libp2p/go-libp2p/core/peerstore"
 	"golang.org/x/exp/slices"
+
 )
 
 const ConnectionFactor = -10
@@ -14,10 +15,24 @@ const PeerScoreThreshold = -100
 
 type scorer struct {
 	connGater ConnectionGater
-	peerStore peerstore.Peerstore
+	peerStore Peerstore
 	metricer  GossipMetricer
 	log       log.Logger
 }
+
+// Peerstore is a subset of the libp2p peerstore.Peerstore interface.
+//
+//go:generate mockery --name Peerstore --output mocks/
+type Peerstore interface {
+	// PeerInfo returns a peer.PeerInfo struct for given peer.ID.
+	// This is a small slice of the information Peerstore has on
+	// that peer, useful to other services.
+	PeerInfo(peer.ID) peer.AddrInfo
+
+	// Peers returns all of the peer IDs stored across all inner stores.
+	Peers() peer.IDSlice
+}
+
 
 // Scorer is a peer scorer that scores peers based on application-specific metrics.
 type Scorer interface {
@@ -27,7 +42,7 @@ type Scorer interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(connGater ConnectionGater, peerStore peerstore.Peerstore, metricer GossipMetricer, log log.Logger) Scorer {
+func NewScorer(connGater ConnectionGater, peerStore Peerstore, metricer GossipMetricer, log log.Logger) Scorer {
 	return &scorer{
 		connGater: connGater,
 		peerStore: peerStore,
@@ -52,8 +67,6 @@ func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 			// Record peer score in the metricer
 			s.metricer.RecordPeerScoring(id, snap.Score)
 
-			// TODO: encorporate the number of peer connections/disconnections into the score
-			// TODO: or should we just affect the score in the OnConnect/OnDisconnect methods?
 			// TODO: if we don't have to do this calculation here, we can push score updates to the metricer
 			// TODO: which would leave the scoring to the pubsub lib
 			// peer, err := s.peerStore.Get(id)

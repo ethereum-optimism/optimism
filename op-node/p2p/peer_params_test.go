@@ -15,11 +15,6 @@ type PeerParamsTestSuite struct {
 	suite.Suite
 }
 
-// SetupTest sets up the test suite.
-func (testSuite *PeerParamsTestSuite) SetupTest() {
-	// TODO:
-}
-
 // TestPeerParams runs the PeerParamsTestSuite.
 func TestPeerParams(t *testing.T) {
 	suite.Run(t, new(PeerParamsTestSuite))
@@ -127,4 +122,15 @@ func (testSuite *PeerParamsTestSuite) TestDisabledPeerScoreParams() {
 	testSuite.Equal(params.DecayInterval, slot)
 	testSuite.Equal(params.DecayToZero, DecayToZero)
 	testSuite.Equal(params.RetainScore, oneHundredEpochs)
+}
+
+// TestParamsZeroBlockTime validates peer score params use default slot for 0 block time.
+func (testSuite *PeerParamsTestSuite) TestParamsZeroBlockTime() {
+	slot := 2 * time.Second
+	params, err := GetPeerScoreParams("none", uint64(0))
+	testSuite.NoError(err)
+	testSuite.Equal(params.DecayInterval, slot)
+	params, err = GetPeerScoreParams("light", uint64(0))
+	testSuite.NoError(err)
+	testSuite.Equal(params.DecayInterval, slot)
 }

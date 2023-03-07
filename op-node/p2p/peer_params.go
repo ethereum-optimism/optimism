@@ -57,6 +57,9 @@ var LightPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
 // [PeerScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#PeerScoreParams
 var DisabledPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
 	slot := time.Duration(blockTime) * time.Second
+	if slot == 0 {
+		slot = 2 * time.Second
+	}
 	// We initialize an "epoch" as 6 blocks suggesting 6 blocks,
 	// each taking ~ 2 seconds, is 12 seconds
 	epoch := 6 * slot

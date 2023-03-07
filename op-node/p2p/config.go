@@ -99,6 +99,7 @@ type Config struct {
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
 }
 
+//go:generate mockery --name ConnectionGater
 type ConnectionGater interface {
 	connmgr.ConnectionGater
 

@@ -59,6 +59,7 @@ type GossipRuntimeConfig interface {
 	P2PSequencerAddress() common.Address
 }
 
+//go:generate mockery --name GossipMetricer
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
 	RecordPeerScoring(peerID peer.ID, score float64)
