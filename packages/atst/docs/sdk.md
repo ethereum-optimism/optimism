@@ -102,6 +102,24 @@ await writeAttestation(preparedTx)
 These functions are the easiest way to interact with the AttestationStation contract.
 For a more detailed explanation, [see the tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station/using-sdk).
 
+#### `getEvents`
+
+Use `getEvents` to get attestation events using a provider and filters. 
+
+```typescript
+const events = await getEvents({
+  creator,
+  about,
+  key,
+  value,
+  provider: new ethers.providers.JsonRpcProvider('http://localhost:8545'),
+  fromBlockOrBlockhash,
+  toBlock,
+})
+```
+
+Set `key`, `about`, `creator`, or `value` to `null` to not filter that value.
+
 #### `prepareWriteAttestation`
 
 [Prepares](https://wagmi.sh/core/actions/prepareWriteContract) an attestation to be written.
@@ -194,25 +212,6 @@ const key = await createKey(
 
 createKey will keep the key as is if it is shorter than 32 bytes and otherwise run it through keccak256.
 
-
-
-#### `getEvents`
-
-Use `getEvents` to get attestation events using a provider and filters. 
-
-```typescript
-const events = await getEvents({
-  creator,
-  about,
-  key,
-  value,
-  provider: new ethers.providers.JsonRpcProvider('http://localhost:8545'),
-  fromBlockOrBlockhash,
-  toBlock,
-})
-```
-
-Set `key`, `about`, `creator`, or `value` to `null` to not filter that value.
 
 
 #### `parseAddress`
