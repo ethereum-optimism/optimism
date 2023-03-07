@@ -128,10 +128,6 @@ const config: HardhatUserConfig = {
         '../contracts/deployments/goerli',
         '../contracts-periphery/deployments/goerli',
       ],
-      'final-migration-rehearsal': [
-        '../contracts/deployments/goerli',
-        '../contracts-periphery/deployments/goerli',
-      ],
     },
   },
   solidity: {
