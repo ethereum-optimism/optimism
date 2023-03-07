@@ -10,6 +10,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -23,6 +24,9 @@ type TransactionWithMeta struct {
 	ChainId     uint64             `json:"chain_id"`
 	Sender      common.Address     `json:"sender"`
 	ValidSender bool               `json:"valid_sender"`
+	Frames      []derive.Frame     `json:"frames"`
+	FrameErr    string             `json:"frame_parse_error"`
+	ValidFrames bool               `json:"valid_data"`
 	Tx          *types.Transaction `json:"tx"`
 }
 
@@ -62,14 +66,26 @@ func fetchBatchesPerBlock(client *ethclient.Client, number *big.Int, signer type
 			if err != nil {
 				log.Fatal(err)
 			}
-			var validSender bool
+			validSender := true
 			if _, ok := config.BatchSenders[sender]; !ok {
 				fmt.Printf("Found a transaction (%s) from an invalid sender (%s)\n", tx.Hash().String(), sender.String())
 				invalidBatchCount += 1
 				validSender = false
-			} else {
+			}
+
+			validFrames := true
+			frameError := ""
+			frames, err := derive.ParseFrames(tx.Data())
+			if err != nil {
+				fmt.Printf("Found a transaction (%s) with invalid data: %v\n", tx.Hash().String(), err)
+				validFrames = false
+				frameError = err.Error()
+			}
+
+			if validSender && validFrames {
 				validBatchCount += 1
-				validSender = true
+			} else {
+				invalidBatchCount += 1
 			}
 
 			txm := &TransactionWithMeta{
@@ -81,6 +97,9 @@ func fetchBatchesPerBlock(client *ethclient.Client, number *big.Int, signer type
 				BlockHash:   block.Hash(),
 				ChainId:     config.ChainID.Uint64(),
 				InboxAddr:   config.BatchInbox,
+				Frames:      frames,
+				FrameErr:    frameError,
+				ValidFrames: validFrames,
 			}
 			filename := path.Join(config.OutDirectory, fmt.Sprintf("%s.json", tx.Hash().String()))
 			file, err := os.Create(filename)
