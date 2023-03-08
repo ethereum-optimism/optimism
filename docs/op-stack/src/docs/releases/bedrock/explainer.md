@@ -8,7 +8,7 @@ meta:
 
 ![Bedrock](https://dev.optimism.io/content/images/size/w2000/2022/12/bedrock-BLUE.jpg)
 
-::: tip
+::: tip Staying up to date
 
 [Stay up to date on The Superchain and the OP Stack by subscribing to the Optimism newsletter](https://optimism.us6.list-manage.com/subscribe/post?u=9727fa8bec4011400e57cafcb&id=ca91042234&f_id=002a19e3f0).
 
