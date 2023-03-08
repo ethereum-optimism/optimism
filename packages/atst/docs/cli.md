@@ -52,7 +52,7 @@ npx atst read --key "optimist.base-uri" --about 0x2335022c740d17c2837f9C884Bfe4f
 ### Write
 
 - `--private-key <string>` Private key of the creator of the attestation
-- `[--data-type <string>]` [Zod validator](https://zod.dev/) for the DataType type `string` | `bytes` | `number` | `bool` | `address` (default: `string`)
+- `[--data-type <string>]` The DataType type `string` | `bytes` | `number` | `bool` | `address` (default: `string`)
 - `--about <address>` Address of the subject of the attestation
 - `--key <address>` Key of the attestation either as string or hex number
 - `--value <string>` undefined
