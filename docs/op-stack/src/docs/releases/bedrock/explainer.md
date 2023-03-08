@@ -8,6 +8,12 @@ meta:
 
 ![Bedrock](https://dev.optimism.io/content/images/size/w2000/2022/12/bedrock-BLUE.jpg)
 
+::: tip
+
+[Stay up to date on The Superchain and the OP Stack by subscribing to the Optimism newsletter](https://optimism.us6.list-manage.com/subscribe/post?u=9727fa8bec4011400e57cafcb&id=ca91042234&f_id=002a19e3f0).
+
+:::
+
 Bedrock is the name of the first ever official release of the OP Stack codebase, which is a set of free and open-source modular components that work together to power Optimism.
 
 - To understand what is in the Bedrock release, keep reading.

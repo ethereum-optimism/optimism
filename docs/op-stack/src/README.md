@@ -5,6 +5,12 @@ lang: en-US
 
 **The OP Stack is the standardized, shared, and open-source development stack that powers Optimism, maintained by the Optimism Collective.**
 
+::: tip
+
+[Stay up to date on The Superchain and the OP Stack by subscribing to the Optimism newsletter](https://optimism.us6.list-manage.com/subscribe/post?u=9727fa8bec4011400e57cafcb&id=ca91042234&f_id=002a19e3f0).
+
+:::
+
 The OP Stack consists of the many different software components managed and maintained by the Optimism Collective that, together, form the backbone of Optimism. 
 The OP Stack is built as a public good for the Ethereum and Optimism ecosystems.
 
