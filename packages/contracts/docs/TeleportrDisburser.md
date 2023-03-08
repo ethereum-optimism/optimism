@@ -16,7 +16,7 @@
 function disburse(uint256 _nextDepositId, TeleportrDisburser.Disbursement[] _disbursements) external payable
 ```
 
-Accepts a list of Disbursements and forwards the amount paid to the contract to each recipient. The method reverts if there are zero disbursements, the total amount to forward differs from the amount sent in the transaction, or the _nextDepositId is unexpected. Failed disbursements will not cause the method to revert, but will instead be held by the contract and availabe for the owner to withdraw.
+Accepts a list of Disbursements and forwards the amount paid to the contract to each recipient. The method reverts if there are zero disbursements, the total amount to forward differs from the amount sent in the transaction, or the _nextDepositId is unexpected. Failed disbursements will not cause the method to revert, but will instead be held by the contract and available for the owner to withdraw.
 
 
 
