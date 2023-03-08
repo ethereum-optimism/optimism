@@ -198,19 +198,23 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 	}
 
 	var syncClient *sources.SyncClient
-	// If there is an RPC url present in the config, create a sync client
-	if err := cfg.L2Sync.Check(); err == nil {
-		rpcSyncClient, err := cfg.L2Sync.Setup(ctx, n.log)
-		if err != nil {
-			return fmt.Errorf("failed to setup L2 execution-engine RPC client for backup sync: %w", err)
-		}
+	// If the L2 sync config is present, use it to create a sync client
+	if cfg.L2Sync != nil {
+		if err := cfg.L2Sync.Check(); err != nil {
+			log.Info("L2 sync config is not present, skipping L2 sync client setup", "err", err)
+		} else {
+			rpcSyncClient, err := cfg.L2Sync.Setup(ctx, n.log)
+			if err != nil {
+				return fmt.Errorf("failed to setup L2 execution-engine RPC client for backup sync: %w", err)
+			}
 
-		// The sync client's RPC is always trusted
-		config := sources.SyncClientDefaultConfig(&cfg.Rollup, true)
+			// The sync client's RPC is always trusted
+			config := sources.SyncClientDefaultConfig(&cfg.Rollup, true)
 
-		syncClient, err = sources.NewSyncClient(rpcSyncClient, n.log, n.metrics.L2SourceCache, config)
-		if err != nil {
-			return fmt.Errorf("failed to create sync client: %w", err)
+			syncClient, err = sources.NewSyncClient(n.OnUnsafeL2Payload, rpcSyncClient, n.log, n.metrics.L2SourceCache, config)
+			if err != nil {
+				return fmt.Errorf("failed to create sync client: %w", err)
+			}
 		}
 	}
 
@@ -289,7 +293,7 @@ func (n *OpNode) Start(ctx context.Context) error {
 
 	// If the backup unsafe sync client is enabled, start its event loop
 	if n.l2Driver.L2SyncCl != nil {
-		if err := n.l2Driver.L2SyncCl.Start(n.l2Driver.UnsafeL2Payloads); err != nil {
+		if err := n.l2Driver.L2SyncCl.Start(); err != nil {
 			n.log.Error("Could not start the backup sync client", "err", err)
 			return err
 		}

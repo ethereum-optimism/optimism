@@ -49,7 +49,7 @@ type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
-	GetUnsafeQueueGap() (uint64, uint64)
+	GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64)
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
@@ -113,7 +113,7 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, sy
 		l1HeadSig:        make(chan eth.L1BlockRef, 10),
 		l1SafeSig:        make(chan eth.L1BlockRef, 10),
 		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
-		UnsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
+		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
 		L2SyncCl:         syncClient,
 	}
 }

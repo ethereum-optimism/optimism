@@ -82,7 +82,7 @@ func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger) (client
 
 // L2SyncEndpointConfig contains configuration for the fallback sync endpoint
 type L2SyncEndpointConfig struct {
-	// HTTP Address of the L2 RPC to use for backup sync
+	// Address of the L2 RPC to use for backup sync
 	L2NodeAddr string
 }
 
@@ -100,6 +100,25 @@ func (cfg *L2SyncEndpointConfig) Setup(ctx context.Context, log log.Logger) (cli
 func (cfg *L2SyncEndpointConfig) Check() error {
 	if cfg.L2NodeAddr == "" {
 		return errors.New("empty L2 Node Address")
+	}
+
+	return nil
+}
+
+type L2SyncRPCConfig struct {
+	// RPC endpoint to use for syncing
+	Rpc client.RPC
+}
+
+var _ L2SyncEndpointSetup = (*L2SyncRPCConfig)(nil)
+
+func (cfg *L2SyncRPCConfig) Setup(ctx context.Context, log log.Logger) (client.RPC, error) {
+	return cfg.Rpc, nil
+}
+
+func (cfg *L2SyncRPCConfig) Check() error {
+	if cfg.Rpc == nil {
+		return errors.New("rpc cannot be nil")
 	}
 
 	return nil

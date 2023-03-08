@@ -10,10 +10,18 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
+var ErrNoUnsafeL2PayloadChannel = errors.New("unsafeL2Payloads channel must not be nil")
+
+// RpcSyncPeer is a mock PeerID for the RPC sync client.
+var RpcSyncPeer peer.ID = "ALT_RPC_SYNC"
+
+type receivePayload = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error
+
 type SyncClientInterface interface {
-	Start(unsafeL2Payloads chan *eth.ExecutionPayload) error
+	Start() error
 	Close() error
 	fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64)
 }
@@ -22,7 +30,7 @@ type SyncClient struct {
 	*L2Client
 	FetchUnsafeBlock chan uint64
 	done             chan struct{}
-	unsafeL2Payloads chan *eth.ExecutionPayload
+	receivePayload   receivePayload
 	wg               sync.WaitGroup
 }
 
@@ -38,7 +46,7 @@ func SyncClientDefaultConfig(config *rollup.Config, trustRPC bool) *SyncClientCo
 	}
 }
 
-func NewSyncClient(client client.RPC, log log.Logger, metrics caching.Metrics, config *SyncClientConfig) (*SyncClient, error) {
+func NewSyncClient(receiver receivePayload, client client.RPC, log log.Logger, metrics caching.Metrics, config *SyncClientConfig) (*SyncClient, error) {
 	l2Client, err := NewL2Client(client, log, metrics, &config.L2ClientConfig)
 	if err != nil {
 		return nil, err
@@ -46,19 +54,15 @@ func NewSyncClient(client client.RPC, log log.Logger, metrics caching.Metrics, c
 
 	return &SyncClient{
 		L2Client:         l2Client,
-		FetchUnsafeBlock: make(chan uint64),
+		FetchUnsafeBlock: make(chan uint64, 128),
 		done:             make(chan struct{}),
+		receivePayload:   receiver,
 	}, nil
 }
 
 // Start starts up the state loop.
 // The loop will have been started if err is not nil.
-func (s *SyncClient) Start(unsafeL2Payloads chan *eth.ExecutionPayload) error {
-	if unsafeL2Payloads == nil {
-		return errors.New("unsafeL2Payloads channel must not be nil")
-	}
-	s.unsafeL2Payloads = unsafeL2Payloads
-
+func (s *SyncClient) Start() error {
 	s.wg.Add(1)
 	go s.eventLoop()
 	return nil
@@ -74,7 +78,7 @@ func (s *SyncClient) Close() error {
 // eventLoop is the main event loop for the sync client.
 func (s *SyncClient) eventLoop() {
 	defer s.wg.Done()
-	s.log.Info("starting sync client event loop")
+	s.log.Info("Starting sync client event loop")
 
 	for {
 		select {
@@ -88,29 +92,31 @@ func (s *SyncClient) eventLoop() {
 
 // fetchUnsafeBlockFromRpc attempts to fetch an unsafe execution payload from the backup unsafe sync RPC.
 // WARNING: This function fails silently (aside from warning logs).
+//
+// Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
+// the `eth_getBlockByNumber` method is more widely available.
 func (s *SyncClient) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64) {
-	s.log.Info("requesting unsafe payload from backup RPC", "block number", blockNumber)
-
-	// TODO: Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
-	// the `eth_getBlockByNumber` method is more widely available.
+	s.log.Info("Requesting unsafe payload from backup RPC", "block number", blockNumber)
 
 	payload, err := s.PayloadByNumber(ctx, blockNumber)
 	if err != nil {
-		s.log.Warn("failed to convert block to execution payload", "block number", blockNumber, "err", err)
+		s.log.Warn("Failed to convert block to execution payload", "block number", blockNumber, "err", err)
 		return
 	}
 
-	// TODO: Validate the integrity of the payload. Is this required?
 	// Signature validation is not necessary here since the backup RPC is trusted.
 	if _, ok := payload.CheckBlockHash(); !ok {
-		s.log.Warn("received invalid payload from backup RPC; invalid block hash", "payload", payload.ID())
+		s.log.Warn("Received invalid payload from backup RPC; invalid block hash", "payload", payload.ID())
 		return
 	}
 
-	s.log.Info("received unsafe payload from backup RPC", "payload", payload.ID())
+	s.log.Info("Received unsafe payload from backup RPC", "payload", payload.ID())
 
 	// Send the retrieved payload to the `unsafeL2Payloads` channel.
-	s.unsafeL2Payloads <- payload
-
-	s.log.Info("sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
+	if err = s.receivePayload(ctx, RpcSyncPeer, payload); err != nil {
+		s.log.Warn("Failed to send payload into the driver's unsafeL2Payloads channel", "payload", payload.ID(), "err", err)
+		return
+	} else {
+		s.log.Info("Sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
+	}
 }

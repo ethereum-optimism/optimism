@@ -69,8 +69,7 @@ type Driver struct {
 
 	// L2 Signals:
 
-	// Note: `UnsafeL2Payloads` is exposed so that the SyncClient can send payloads to the driver if it is enabled.
-	UnsafeL2Payloads chan *eth.ExecutionPayload
+	unsafeL2Payloads chan *eth.ExecutionPayload
 
 	l1        L1Chain
 	l2        L2Chain
@@ -137,7 +136,7 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case s.UnsafeL2Payloads <- payload:
+	case s.unsafeL2Payloads <- payload:
 		return nil
 	}
 }
@@ -201,10 +200,11 @@ func (s *Driver) eventLoop() {
 		sequencerTimer.Reset(delay)
 	}
 
-	// Create a ticker to check if there is a gap in the engine queue every minute
+	// Create a ticker to check if there is a gap in the engine queue every 15 seconds
 	// If there is, we send requests to the backup RPC to retrieve the missing payloads
 	// and add them to the unsafe queue.
-	altSyncTicker := time.NewTicker(60 * time.Second)
+	altSyncTicker := time.NewTicker(15 * time.Second)
+	defer altSyncTicker.Stop()
 
 	for {
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
@@ -234,12 +234,13 @@ func (s *Driver) eventLoop() {
 				}
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
-		// TODO: Should this be lower-priority in the switch case?
 		case <-altSyncTicker.C:
 			// Check if there is a gap in the current unsafe payload queue. If there is, attempt to fetch
 			// missing payloads from the backup RPC (if it is configured).
-			s.checkForGapInUnsafeQueue(ctx)
-		case payload := <-s.UnsafeL2Payloads:
+			if s.L2SyncCl != nil {
+				s.checkForGapInUnsafeQueue(ctx)
+			}
+		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
 			s.derivation.AddUnsafePayload(payload)
@@ -463,16 +464,31 @@ type hashAndErrorChannel struct {
 // WARNING: The sync client's attempt to retrieve the missing payloads is not guaranteed to succeed, and it will fail silently (besides
 // emitting warning logs) if the requests fail.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) {
-	start, end := s.derivation.GetUnsafeQueueGap()
+	// subtract genesis time from wall clock to get the time elapsed since genesis, and then divide that
+	// difference by the block time to get the expected L2 block number at the current time. If the
+	// unsafe head does not have this block number, then there is a gap in the queue.
+	wallClock := uint64(time.Now().Unix())
+	genesisTimestamp := s.config.Genesis.L2Time
+	wallClockGenesisDiff := wallClock - genesisTimestamp
+	expectedL2Block := wallClockGenesisDiff / s.config.BlockTime
+
+	start, end := s.derivation.GetUnsafeQueueGap(expectedL2Block)
 	size := end - start
 
-	// If there is a gap in the queue and a backup sync client is configured, attempt to retrieve the missing payloads from the backup RPC
-	if size > 0 && s.L2SyncCl != nil {
+	// Check if there is a gap between the unsafe head and the expected L2 block number at the current time.
+	if size > 0 {
+		s.log.Warn("Gap in payload queue tip and expected unsafe chain detected", "start", start, "end", end, "size", size)
+		s.log.Info("Attempting to fetch missing payloads from backup RPC", "start", start, "end", end, "size", size)
+
 		// Attempt to fetch the missing payloads from the backup unsafe sync RPC concurrently.
 		// Concurrent requests are safe here due to the engine queue being a priority queue.
-		// TODO: Should enforce a max gap size to prevent spamming the backup RPC or being rate limited.
-		for blockNumber := start; blockNumber < end; blockNumber++ {
-			s.L2SyncCl.FetchUnsafeBlock <- blockNumber
+		for blockNumber := start; blockNumber <= end; blockNumber++ {
+			select {
+			case s.L2SyncCl.FetchUnsafeBlock <- blockNumber:
+				// Do nothing- the block number was successfully sent into the channel
+			default:
+				return // If the channel is full, return and wait for the next iteration of the event loop
+			}
 		}
 	}
 }

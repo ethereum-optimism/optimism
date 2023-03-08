@@ -36,10 +36,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, err
 	}
 
-	driverConfig, err := NewDriverConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
+	driverConfig := NewDriverConfig(ctx)
 
 	p2pSignerSetup, err := p2pcli.LoadSignerSetup(ctx)
 	if err != nil {
@@ -51,10 +48,7 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p config: %w", err)
 	}
 
-	l1Endpoint, err := NewL1EndpointConfig(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load l1 endpoint info: %w", err)
-	}
+	l1Endpoint := NewL1EndpointConfig(ctx)
 
 	l2Endpoint, err := NewL2EndpointConfig(ctx, log)
 	if err != nil {
@@ -99,12 +93,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 	return cfg, nil
 }
 
-func NewL1EndpointConfig(ctx *cli.Context) (*node.L1EndpointConfig, error) {
+func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
 		L1NodeAddr: ctx.GlobalString(flags.L1NodeAddr.Name),
 		L1TrustRPC: ctx.GlobalBool(flags.L1TrustRPC.Name),
 		L1RPCKind:  sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
-	}, nil
+	}
 }
 
 func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConfig, error) {
@@ -137,19 +131,21 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 	}, nil
 }
 
+// NewL2SyncEndpointConfig returns a pointer to a L2SyncEndpointConfig if the
+// flag is set, otherwise nil.
 func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 	return &node.L2SyncEndpointConfig{
 		L2NodeAddr: ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name),
 	}
 }
 
-func NewDriverConfig(ctx *cli.Context) (*driver.Config, error) {
+func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
 		VerifierConfDepth:  ctx.GlobalUint64(flags.VerifierL1Confs.Name),
 		SequencerConfDepth: ctx.GlobalUint64(flags.SequencerL1Confs.Name),
 		SequencerEnabled:   ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
 		SequencerStopped:   ctx.GlobalBool(flags.SequencerStoppedFlag.Name),
-	}, nil
+	}
 }
 
 func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
