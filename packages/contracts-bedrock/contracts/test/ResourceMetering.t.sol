@@ -34,6 +34,27 @@ contract ResourceMetering_Test is Test {
         initialBlockNum = uint64(block.number);
     }
 
+    /**
+     * @notice The INITIAL_BASE_FEE must be less than the MAXIMUM_BASE_FEE
+     *         and greater than the MINIMUM_BASE_FEE.
+     */
+    function test_meter_initialBaseFee_succeeds() external {
+        uint256 max = uint256(meter.MAXIMUM_BASE_FEE());
+        uint256 min = uint256(meter.MINIMUM_BASE_FEE());
+        uint256 initial = uint256(meter.INITIAL_BASE_FEE());
+        assertTrue(max > initial);
+        assertTrue(min < initial);
+    }
+
+    /**
+     * @notice The MINIMUM_BASE_FEE must be less than the MAXIMUM_BASE_FEE.
+     */
+    function test_meter_minBaseFeeLessThanMaxBaseFee_succeeds() external {
+        uint256 max = uint256(meter.MAXIMUM_BASE_FEE());
+        uint256 min = uint256(meter.MINIMUM_BASE_FEE());
+        assertTrue(max > min);
+    }
+
     function test_meter_initialResourceParams_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
@@ -123,8 +144,10 @@ contract ResourceMetering_Test is Test {
      *         multiplying against a uint64 _amount can result in an overflow
      *         even though its assigning to a uint256. The values MUST be casted
      *         to uint256 when doing the multiplication to prevent overflows.
+     *         The function is called with the L1 block gas limit to ensure that
+     *         the MAX_RESOURCE_LIMIT can be consumed at the MAXIMUM_BASE_FEE.
      */
-    function test_meter_useMaxWithMaxBaseFee_success() external {
+    function test_meter_useMaxWithMaxBaseFee_succeeds() external {
         uint128 _prevBaseFee = uint128(uint256(meter.MAXIMUM_BASE_FEE()));
         uint64 _prevBoughtGas = 0;
         uint64 _prevBlockNum = uint64(block.number);
@@ -141,7 +164,7 @@ contract ResourceMetering_Test is Test {
         assertEq(prevBlockNum, _prevBlockNum);
 
         uint64 gasRequested = uint64(uint256(meter.MAX_RESOURCE_LIMIT()));
-        meter.use(gasRequested);
+        meter.use{ gas: 30_000_000 }(gasRequested);
     }
 
     // Demonstrates that the resource metering arithmetic can tolerate very large gaps between

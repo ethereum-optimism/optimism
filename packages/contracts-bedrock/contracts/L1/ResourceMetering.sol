@@ -54,11 +54,16 @@ abstract contract ResourceMetering is Initializable {
 
     /**
      * @notice Maximum base fee value, cannot go higher than this.
+     *         This value must be small enough to allow a user to request the
+     *         MAX_RESOURCE_LIMIT when the base fee is at its max value.
+     *         Setting this value too large can result in more gas being
+     *         consumed than the L1 block gas limit.
      */
-    int256 public constant MAXIMUM_BASE_FEE = int256(uint256(type(uint128).max));
+    int256 public constant MAXIMUM_BASE_FEE = int256(uint256(type(uint32).max / 7 * 6));
 
     /**
-     * @notice Initial base fee value.
+     * @notice Initial base fee value. This value must be smaller than the
+     *         MAXIMUM_BASE_FEE.
      */
     uint128 public constant INITIAL_BASE_FEE = 1_000_000_000;
 
@@ -134,14 +139,7 @@ abstract contract ResourceMetering is Initializable {
         );
 
         // Determine the amount of ETH to be paid.
-        // Safety: _amount is a uint64
-        //         params.prevBaseFee is a uint128
-        //         resourceCost is a uint256
-        //         type(uint64).max * type(uint128).max < type(uint256).max
-        uint256 resourceCost;
-        unchecked {
-            resourceCost = uint256(_amount) * uint256(params.prevBaseFee);
-        }
+        uint256 resourceCost = uint256(_amount) * uint256(params.prevBaseFee);
 
         // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
         // into gas by dividing by the L1 base fee. We assume a minimum base fee of 1 gwei to avoid
