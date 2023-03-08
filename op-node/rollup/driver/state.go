@@ -64,10 +64,13 @@ type Driver struct {
 	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
 
-	// L2 Signals:
-	unsafeL2Payloads chan *eth.ExecutionPayload
+	// Backup unsafe sync client
+	L2SyncCl *sources.SyncClient
 
-	l2SyncCl *sources.SyncClient
+	// L2 Signals:
+
+	// Note: `UnsafeL2Payloads` is exposed so that the SyncClient can send payloads to the driver if it is enabled.
+	UnsafeL2Payloads chan *eth.ExecutionPayload
 
 	l1        L1Chain
 	l2        L2Chain
@@ -134,7 +137,7 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case s.unsafeL2Payloads <- payload:
+	case s.UnsafeL2Payloads <- payload:
 		return nil
 	}
 }
@@ -236,7 +239,7 @@ func (s *Driver) eventLoop() {
 			// Check if there is a gap in the current unsafe payload queue. If there is, attempt to fetch
 			// missing payloads from the backup RPC (if it is configured).
 			s.checkForGapInUnsafeQueue(ctx)
-		case payload := <-s.unsafeL2Payloads:
+		case payload := <-s.UnsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
 			s.derivation.AddUnsafePayload(payload)
@@ -457,47 +460,19 @@ type hashAndErrorChannel struct {
 }
 
 // checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from the backup RPC.
-// WARNING: This function fails silently (aside from warning logs).
+// WARNING: The sync client's attempt to retrieve the missing payloads is not guaranteed to succeed, and it will fail silently (besides
+// emitting warning logs) if the requests fail.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) {
 	start, end := s.derivation.GetUnsafeQueueGap()
 	size := end - start
 
 	// If there is a gap in the queue and a backup sync client is configured, attempt to retrieve the missing payloads from the backup RPC
-	if size > 0 && s.l2SyncCl != nil {
+	if size > 0 && s.L2SyncCl != nil {
 		// Attempt to fetch the missing payloads from the backup unsafe sync RPC concurrently.
 		// Concurrent requests are safe here due to the engine queue being a priority queue.
 		// TODO: Should enforce a max gap size to prevent spamming the backup RPC or being rate limited.
 		for blockNumber := start; blockNumber < end; blockNumber++ {
-			go s.fetchUnsafeBlockFromRpc(ctx, blockNumber)
+			s.L2SyncCl.FetchUnsafeBlock <- blockNumber
 		}
 	}
-}
-
-// fetchUnsafeBlockFromRpc attempts to fetch an unsafe execution payload from the backup unsafe sync RPC.
-// WARNING: This function fails silently (aside from warning logs).
-func (s *Driver) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64) {
-	s.log.Info("requesting unsafe payload from backup RPC", "block number", blockNumber)
-
-	// TODO: Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
-	// the `eth_getBlockByNumber` method is more widely available.
-
-	payload, err := s.l2SyncCl.PayloadByNumber(ctx, blockNumber)
-	if err != nil {
-		s.log.Warn("failed to convert block to execution payload", "block number", blockNumber, "err", err)
-		return
-	}
-
-	// TODO: Validate the integrity of the payload.
-	// Signature validation is not necessary here since the backup RPC is trusted.
-	if _, ok := payload.CheckBlockHash(); !ok {
-		s.log.Warn("received invalid payload from backup RPC; invalid block hash", "payload", payload.ID())
-		return
-	}
-
-	s.log.Info("received unsafe payload from backup RPC", "payload", payload.ID())
-
-	// Send the retrieved payload to the `unsafeL2Payloads` channel.
-	s.unsafeL2Payloads <- payload
-
-	s.log.Info("sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
 }

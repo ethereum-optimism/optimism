@@ -280,11 +280,19 @@ func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) Start(ctx context.Context) error {
 	n.log.Info("Starting execution engine driver")
+
 	// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-	err := n.l2Driver.Start()
-	if err != nil {
+	if err := n.l2Driver.Start(); err != nil {
 		n.log.Error("Could not start a rollup node", "err", err)
 		return err
+	}
+
+	// If the backup unsafe sync client is enabled, start its event loop
+	if n.l2Driver.L2SyncCl != nil {
+		if err := n.l2Driver.L2SyncCl.Start(n.l2Driver.UnsafeL2Payloads); err != nil {
+			n.log.Error("Could not start the backup sync client", "err", err)
+			return err
+		}
 	}
 
 	return nil
@@ -398,6 +406,13 @@ func (n *OpNode) Close() error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+		}
+
+		// If the L2 sync client is present & running, close it.
+		if n.l2Driver.L2SyncCl != nil {
+			if err := n.l2Driver.L2SyncCl.Close(); err != nil {
+				result = multierror.Append(result, fmt.Errorf("failed to close L2 engine backup sync client cleanly: %w", err))
+			}
 		}
 	}
 
