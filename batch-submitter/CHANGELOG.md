@@ -1,5 +1,11 @@
 # @eth-optimism/batch-submitter-service
 
+## 0.1.15
+
+### Patch Changes
+
+- 1d8d50c42: build(deps): bump golang.org/x/crypto from 0.0.0-20220307211146-efcb8507fb70 to 0.1.0 in /batch-submitter
+
 ## 0.1.14
 
 ### Patch Changes

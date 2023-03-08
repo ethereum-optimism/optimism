@@ -4,7 +4,7 @@ import { formatBytes32String } from 'ethers/lib/utils.js'
 import { ATTESTATION_STATION_ADDRESS } from '../constants/attestationStationAddress'
 import { WagmiBytes } from '../types/WagmiBytes'
 import { abi } from './abi'
-import { stringifyAttestationBytes } from './stringifyAttestationBytes'
+import { createValue } from './createValue'
 
 type Attestation = {
   about: Address
@@ -14,14 +14,20 @@ type Attestation = {
 
 export const prepareWriteAttestations = async (
   attestations: Attestation[],
-  chainId = 10,
+  chainId: number | undefined = undefined,
   contractAddress: Address = ATTESTATION_STATION_ADDRESS
 ) => {
   const formattedAttestations = attestations.map((attestation) => {
-    const formattedKey = formatBytes32String(attestation.key) as WagmiBytes
-    const formattedValue = stringifyAttestationBytes(
-      attestation.value
-    ) as WagmiBytes
+    let formattedKey: WagmiBytes
+    try {
+      formattedKey = formatBytes32String(attestation.key) as WagmiBytes
+    } catch (e) {
+      console.error(e)
+      throw new Error(
+        `key is longer than 32 bytes: ${attestation.key}.  Try using a shorter key or using 'encodeRawKey' to encode the key into 32 bytes first`
+      )
+    }
+    const formattedValue = createValue(attestation.value) as WagmiBytes
     return {
       about: attestation.about,
       key: formattedKey,

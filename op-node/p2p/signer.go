@@ -64,10 +64,6 @@ type LocalSigner struct {
 	hasher func(domain [32]byte, chainID *big.Int, payloadBytes []byte) (common.Hash, error)
 }
 
-func NewLegacyLocalSigner(priv *ecdsa.PrivateKey) *LocalSigner {
-	return &LocalSigner{priv: priv, hasher: LegacySigningHash}
-}
-
 func NewLocalSigner(priv *ecdsa.PrivateKey) *LocalSigner {
 	return &LocalSigner{priv: priv, hasher: SigningHash}
 }

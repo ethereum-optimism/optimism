@@ -1,5 +1,11 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.13.0
+
+### Minor Changes
+
+- cb19e2f9c: Moves `FINALIZATION_PERIOD_SECONDS` from the `OptimismPortal` to the `L2OutputOracle` & ensures the `CHALLENGER` key cannot delete finalized outputs.
+
 ## 0.12.1
 
 ### Patch Changes

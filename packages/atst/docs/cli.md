@@ -1,5 +1,7 @@
 # atst cli docs
 
+![preview](../assets/preview.gif)
+
 ## Installation
 
 ```bash

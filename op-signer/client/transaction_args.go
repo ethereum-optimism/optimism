@@ -31,12 +31,13 @@ type TransactionArgs struct {
 }
 
 // NewTransactionArgsFromTransaction creates a TransactionArgs struct from an EIP-1559 transaction
-func NewTransactionArgsFromTransaction(chainId *big.Int, tx *types.Transaction) *TransactionArgs {
+func NewTransactionArgsFromTransaction(chainId *big.Int, from common.Address, tx *types.Transaction) *TransactionArgs {
 	data := hexutil.Bytes(tx.Data())
 	nonce := hexutil.Uint64(tx.Nonce())
 	gas := hexutil.Uint64(tx.Gas())
 	accesses := tx.AccessList()
 	args := &TransactionArgs{
+		From:                 &from,
 		Input:                &data,
 		Nonce:                &nonce,
 		Value:                (*hexutil.Big)(tx.Value()),

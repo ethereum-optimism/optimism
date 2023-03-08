@@ -1,4 +1,4 @@
-FROM golang:1.18.0-alpine3.15 as builder
+FROM --platform=$BUILDPLATFORM golang:1.18.0-alpine3.15 as builder
 
 ARG VERSION=v0.0.0
 
@@ -15,7 +15,11 @@ COPY ./.git /app/.git
 
 WORKDIR /app/op-node
 
-RUN make op-node VERSION="$VERSION"
+RUN go mod download
+
+ARG TARGETOS TARGETARCH
+
+RUN make op-node VERSION="$VERSION" GOOS=$TARGETOS GOARCH=$TARGETARCH
 
 FROM alpine:3.15
 

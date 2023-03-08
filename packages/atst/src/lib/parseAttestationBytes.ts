@@ -10,7 +10,7 @@ import { ParseBytesReturn } from '../types/ParseBytesReturn'
  * Parses a string attestion
  */
 export const parseString = (rawAttestation: WagmiBytes): string => {
-  rawAttestation = rawAttestation === '0x' ? '0x0' : rawAttestation
+  rawAttestation = rawAttestation === '0x0' ? '0x' : rawAttestation
   return rawAttestation ? toUtf8String(rawAttestation) : ''
 }
 
@@ -41,6 +41,9 @@ export const parseAddress = (rawAttestation: WagmiBytes): Address => {
 }
 
 /**
+ * @deprecated use parseString, parseBool, parseNumber, or parseAddress instead
+ * Will be removed in v1.0.0
+ * @internal
  * Parses a raw attestation
  */
 export const parseAttestationBytes = <TDataType extends DataTypeOption>(
