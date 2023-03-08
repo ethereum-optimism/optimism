@@ -23,7 +23,8 @@ const config: HardhatUserConfig = {
       live: false,
     },
     mainnet: {
-      url: process.env.RPC_URL || 'http://localhost:8545',
+      url: process.env.RPC_URL || 'https://mainnet-l1-rehearsal.optimism.io',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero]
     },
     devnetL1: {
       live: false,
