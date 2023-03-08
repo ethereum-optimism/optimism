@@ -89,6 +89,16 @@ abstract contract ResourceMetering is Initializable {
         // Run the underlying function.
         _;
 
+        _metered(_amount, initialGas);
+    }
+
+    /**
+     * @notice An internal function that holds all of the logic for metering a resource.
+     *
+     * @param _amount     Amount of the resource requested.
+     * @param _initialGas The amount of gas before any modifier execution.
+     */
+    function _metered(uint64 _amount, uint256 _initialGas) internal {
         // Update block number and base fee if necessary.
         uint256 blockDiff = block.number - params.prevBlockNum;
         if (blockDiff > 0) {
@@ -151,7 +161,7 @@ abstract contract ResourceMetering is Initializable {
         // Give the user a refund based on the amount of gas they used to do all of the work up to
         // this point. Since we're at the end of the modifier, this should be pretty accurate. Acts
         // effectively like a dynamic stipend (with a minimum value).
-        uint256 usedGas = initialGas - gasleft();
+        uint256 usedGas = _initialGas - gasleft();
         if (gasCost > usedGas) {
             Burn.gas(gasCost - usedGas);
         }
