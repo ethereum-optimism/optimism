@@ -1132,6 +1132,13 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
+      - docker-publish:
+          name: chain-mon-docker-publish
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: chain-mon
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          context:
+            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>

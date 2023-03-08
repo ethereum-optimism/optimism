@@ -14,6 +14,7 @@ This directory contains documentation for all defined invariant tests within `co
 - [L2OutputOracle](./L2OutputOracle.md)
 - [OptimismPortal](./OptimismPortal.md)
 - [ResourceMetering](./ResourceMetering.md)
+- [SafeCall](./SafeCall.md)
 - [SystemConfig](./SystemConfig.md)
 <!-- END autoTOC -->
 
