@@ -274,7 +274,7 @@ For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-s
 Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in the attestation station contract calls.
 Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by attestation station to their correct data type.
 
-For convenience we also export the hooks here:
+For convenience we also [export the hooks](../src/react.ts) here:
 - `useAttestationStationAttestation` - Reads attestations with useContractRead
 - `useAttestationStationVersion` - Reads attestation version
 - `useAttestationStationAttest` - Wraps useContractWrite with attestation station abi calling attest
