@@ -63,9 +63,10 @@ abstract contract ResourceMetering is Initializable {
     uint128 public constant INITIAL_BASE_FEE = 1_000_000_000;
 
     /**
-     * @notice EIP-1559 style gas parameters.
+     * @notice EIP-1559 style gas parameters. They are private to prevent
+     *         contracts that inherit this contract from setting them accidentally.
      */
-    ResourceParams public params;
+    ResourceParams private _params;
 
     /**
      * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
@@ -85,19 +86,19 @@ abstract contract ResourceMetering is Initializable {
         _;
 
         // Update block number and base fee if necessary.
-        uint256 blockDiff = block.number - params.prevBlockNum;
+        uint256 blockDiff = block.number - _params.prevBlockNum;
         if (blockDiff > 0) {
             // Handle updating EIP-1559 style gas parameters. We use EIP-1559 to restrict the rate
             // at which deposits can be created and therefore limit the potential for deposits to
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
-            int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
-            int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
+            int256 gasUsedDelta = int256(uint256(_params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
+            int256 baseFeeDelta = (int256(uint256(_params.prevBaseFee)) * gasUsedDelta) /
                 (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
             int256 newBaseFee = Arithmetic.clamp({
-                _value: int256(uint256(params.prevBaseFee)) + baseFeeDelta,
+                _value: int256(uint256(_params.prevBaseFee)) + baseFeeDelta,
                 _min: MINIMUM_BASE_FEE,
                 _max: MAXIMUM_BASE_FEE
             });
@@ -121,20 +122,20 @@ abstract contract ResourceMetering is Initializable {
             }
 
             // Update new base fee, reset bought gas, and update block number.
-            params.prevBaseFee = uint128(uint256(newBaseFee));
-            params.prevBoughtGas = 0;
-            params.prevBlockNum = uint64(block.number);
+            _params.prevBaseFee = uint128(uint256(newBaseFee));
+            _params.prevBoughtGas = 0;
+            _params.prevBlockNum = uint64(block.number);
         }
 
         // Make sure we can actually buy the resource amount requested by the user.
-        params.prevBoughtGas += _amount;
+        _params.prevBoughtGas += _amount;
         require(
-            int256(uint256(params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
+            int256(uint256(_params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
             "ResourceMetering: cannot buy more gas than available gas limit"
         );
 
         // Determine the amount of ETH to be paid.
-        uint256 resourceCost = _amount * params.prevBaseFee;
+        uint256 resourceCost = _amount * _params.prevBaseFee;
 
         // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
         // into gas by dividing by the L1 base fee. We assume a minimum base fee of 1 gwei to avoid
@@ -153,12 +154,19 @@ abstract contract ResourceMetering is Initializable {
     }
 
     /**
+     * @notice A public getter for the ResourceParams.
+     */
+    function params() public view returns (uint128, uint64, uint64) {
+        return (_params.prevBaseFee, _params.prevBoughtGas, _params.prevBlockNum);
+    }
+
+    /**
      * @notice Sets initial resource parameter values. This function must either be called by the
      *         initializer function of an upgradeable child contract.
      */
     // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
-        params = ResourceParams({
+        _params = ResourceParams({
             prevBaseFee: INITIAL_BASE_FEE,
             prevBoughtGas: 0,
             prevBlockNum: uint64(block.number)
