@@ -28,13 +28,13 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		},
 		cli.StringFlag{
 			Name:   FormatFlagName,
-			Usage:  "Format the log output. Supported formats: 'text', 'json'",
+			Usage:  "Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty',",
 			Value:  "text",
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "LOG_FORMAT"),
 		},
 		cli.BoolFlag{
 			Name:   ColorFlagName,
-			Usage:  "Color the log output",
+			Usage:  "Color the log output if in terminal mode",
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "LOG_COLOR"),
 		},
 	}
@@ -43,12 +43,12 @@ func CLIFlags(envPrefix string) []cli.Flag {
 type CLIConfig struct {
 	Level  string // Log level: trace, debug, info, warn, error, crit. Capitals are accepted too.
 	Color  bool   // Color the log output. Defaults to true if terminal is detected.
-	Format string // Format the log output. Supported formats: 'text', 'json'
+	Format string // Format the log output. Supported formats: 'text', 'terminal', 'logfmt', 'json', 'json-pretty'
 }
 
 func (cfg CLIConfig) Check() error {
 	switch cfg.Format {
-	case "json", "json-pretty", "terminal", "text":
+	case "json", "json-pretty", "terminal", "text", "logfmt":
 	default:
 		return fmt.Errorf("unrecognized log format: %s", cfg.Format)
 	}
@@ -101,8 +101,16 @@ func Format(lf string, color bool) log.Format {
 		return log.JSONFormat()
 	case "json-pretty":
 		return log.JSONFormatEx(true, true)
-	case "text", "terminal":
+	case "text":
+		if term.IsTerminal(int(os.Stdout.Fd())) {
+			return log.TerminalFormat(color)
+		} else {
+			return log.LogfmtFormat()
+		}
+	case "terminal":
 		return log.TerminalFormat(color)
+	case "logfmt":
+		return log.LogfmtFormat()
 	default:
 		panic("Failed to create `log.Format` from options")
 	}
