@@ -1665,10 +1665,6 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Sen
 		return common.Hash{}, err
 	}
 	// Assemble the transaction and sign with the wallet
-
-	// Force Gas price to 0 for transactions
-	args.GasPrice = (*hexutil.Big)(big.NewInt(0))
-
 	tx := args.toTransaction()
 
 	signed, err := wallet.SignTx(account, tx, s.b.ChainConfig().ChainID)
