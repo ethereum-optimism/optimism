@@ -13,6 +13,7 @@ import {
   getDeploymentAddress,
   doStep,
   jsonifyTransaction,
+  getTenderlySimulationLink,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -97,6 +98,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -133,6 +135,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -169,6 +172,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     // Wait for the ownership transfer to complete.
