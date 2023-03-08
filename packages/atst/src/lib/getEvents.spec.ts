@@ -76,6 +76,35 @@ describe(getEvents.name, () => {
           "transactionHash": "0x61f59bd4dfe54272d9369effe3ae57a0ef2584161fcf2bbd55f5596002e759bd",
           "transactionIndex": 1,
         },
+        {
+          "address": "0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77",
+          "args": [
+            "0xBCf86Fd70a0183433763ab0c14E7a760194f3a9F",
+            "0x00000000000000000000000000000000000060A7",
+            "0x616e696d616c6661726d2e7363686f6f6c2e617474656e646564000000000000",
+            "0x01",
+          ],
+          "blockHash": "0x4870baaac6d7195952dc25e5dc0109ea324f819f8152d2889c7b4ad64040a9bf",
+          "blockNumber": 6278428,
+          "data": "0x000000000000000000000000000000000000000000000000000000000000002000000000000000000000000000000000000000000000000000000000000000010100000000000000000000000000000000000000000000000000000000000000",
+          "decode": [Function],
+          "event": "AttestationCreated",
+          "eventSignature": "AttestationCreated(address,address,bytes32,bytes)",
+          "getBlock": [Function],
+          "getTransaction": [Function],
+          "getTransactionReceipt": [Function],
+          "logIndex": 0,
+          "removeListener": [Function],
+          "removed": false,
+          "topics": [
+            "0x28710dfecab43d1e29e02aa56b2e1e610c0bae19135c9cf7a83a1adb6df96d85",
+            "0x000000000000000000000000bcf86fd70a0183433763ab0c14e7a760194f3a9f",
+            "0x00000000000000000000000000000000000000000000000000000000000060a7",
+            "0x616e696d616c6661726d2e7363686f6f6c2e617474656e646564000000000000",
+          ],
+          "transactionHash": "0x4e836b74c51a370375efa374297524d9b0f6eacdd699c30556680ae7dc9a14ea",
+          "transactionIndex": 1,
+        },
       ]
     `)
   })
