@@ -37,7 +37,7 @@ npx atst write --help
 - `--creator <address>` Address of the creator of the attestation
 - `--about <address>` Address of the subject of the attestation
 - `--key <string>` Key of the attestation either as string or hex number
-- `[--data-type <string>]` [Zod validator](https://zod.dev/) for the DataType type `string` | `bytes` | `number` | `bool` | `address` (default: `string`)
+- `[--data-type <string>]` The DataType type `string` | `bytes` | `number` | `bool` | `address` (default: `string`)
 - `[--rpc-url <url>]` Rpc url to use (default: `https://mainnet.optimism.io`)
 - `[--contract <address>]` Contract address to read from (default: `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`)
 - `-h`, `--help` Display help message
