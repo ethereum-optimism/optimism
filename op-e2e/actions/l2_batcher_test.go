@@ -196,6 +196,62 @@ func TestL2Finalization(gt *testing.T) {
 	require.Equal(t, heightToSubmit, sequencer.SyncStatus().FinalizedL2.Number, "unknown/bad finalized L1 blocks are ignored")
 }
 
+// TestL2FinalizationWithSparseL1 tests that safe L2 blocks can be finalized even if we do not regularly get a L1 finalization signal
+func TestL2FinalizationWithSparseL1(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlDebug)
+	miner, engine, sequencer := setupSequencerTest(t, sd, log)
+
+	sequencer.ActL2PipelineFull(t)
+
+	miner.ActEmptyBlock(t)
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActBuildToL1Head(t)
+
+	startStatus := sequencer.SyncStatus()
+	require.Less(t, startStatus.SafeL2.Number, startStatus.UnsafeL2.Number, "sequencer has unsafe L2 block")
+
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 128_000,
+		BatcherKey:  dp.Secrets.Batcher,
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
+	batcher.ActSubmitAll(t)
+
+	// include in L1
+	miner.ActL1StartBlock(12)(t)
+	miner.ActL1IncludeTx(dp.Addresses.Batcher)(t)
+	miner.ActL1EndBlock(t)
+
+	// Make 2 L1 blocks without batches
+	miner.ActEmptyBlock(t)
+	miner.ActEmptyBlock(t)
+
+	// See the L1 head, and traverse the pipeline to it
+	sequencer.ActL1HeadSignal(t)
+	sequencer.ActL2PipelineFull(t)
+
+	updatedStatus := sequencer.SyncStatus()
+	require.Equal(t, updatedStatus.SafeL2.Number, updatedStatus.UnsafeL2.Number, "unsafe L2 block is now safe")
+	require.Less(t, updatedStatus.FinalizedL2.Number, updatedStatus.UnsafeL2.Number, "submitted block is not yet finalized")
+
+	// Now skip straight to the head with L1 signals (sequencer has traversed the L1 blocks, but they did not have L2 contents)
+	headL1Num := miner.UnsafeNum()
+	miner.ActL1Safe(t, headL1Num)
+	miner.ActL1Finalize(t, headL1Num)
+	sequencer.ActL1SafeSignal(t)
+	sequencer.ActL1FinalizedSignal(t)
+
+	// Now see if the signals can be processed
+	sequencer.ActL2PipelineFull(t)
+
+	finalStatus := sequencer.SyncStatus()
+	// Verify the signal was processed, even though we signalled a later L1 block than the one with the batch.
+	require.Equal(t, finalStatus.FinalizedL2.Number, finalStatus.UnsafeL2.Number, "sequencer submitted its L2 block and it finalized")
+}
+
 // TestGarbageBatch tests the behavior of an invalid/malformed output channel frame containing
 // valid batches being submitted to the batch inbox. These batches should always be rejected
 // and the safe L2 head should remain unaltered.

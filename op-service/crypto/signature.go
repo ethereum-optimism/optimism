@@ -1,6 +1,7 @@
 package crypto
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"errors"
@@ -56,10 +57,10 @@ func SignerFactoryFromConfig(l log.Logger, privateKey, mnemonic, hdPath string, 
 		fromAddress = common.HexToAddress(signerConfig.Address)
 		signer = func(chainID *big.Int) SignerFn {
 			return func(ctx context.Context, address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				if address.String() != signerConfig.Address {
+				if !bytes.Equal(address[:], fromAddress[:]) {
 					return nil, fmt.Errorf("attempting to sign for %s, expected %s: ", address, signerConfig.Address)
 				}
-				return signerClient.SignTransaction(ctx, chainID, tx)
+				return signerClient.SignTransaction(ctx, chainID, address, tx)
 			}
 		}
 	} else {

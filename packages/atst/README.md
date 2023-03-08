@@ -32,24 +32,38 @@ npm install @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0
 
 The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to the attestation station
 
-### See [sdk docs]() for usage instructions
+### See [sdk docs](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/sdk.md) for usage instructions
 
 ## atst cli
 
 The cli provides a convenient cli for interacting with the attestation station contract
 
-TODO put a gif here of using it
+![preview](./assets/preview.gif)
 
-## React instructions
+## React API
 
-For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station. See [example/react](http://todo.todo.todo) for an example.
+For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station.
 
-Use `parseAttestationBytes` and `stringifyAttestationBytes` to parse and stringify attestations before passing them into wagmi hooks.
+Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in the attestation station contract calls
+
+Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by attestation station to their correct data type.
+
+For convenience we also export the hooks here.
+
+`useAttestationStationAttestation` - Reads attestations with useContractRead
+
+`useAttestationStationVersion` - Reads attestation version
+
+`useAttestationStationAttest` - Wraps useContractWrite with attestation station abi calling attest
+
+`usePrepareAttestationStationAttest` - Wraps usePrepare with attestation station abi calling attest
+
+`useAttestationStationAttestationCreatedEvent` - Wraps useContractEvents for Created events
+
+Also some more hooks exported by the cli but these are likely the only ones you need.
 
 ## Contributing
 
-Please see our [contributing.md](/docs/contributing.md). No contribution is too small.
+Please see our [contributing.md](docs/contributing.md). No contribution is too small.
 
 Having your contribution denied feels bad. Please consider opening an issue before adding any new features or apis
-
-## Check [Awesome ATST](https://todo.todo.todo) for awesome tools and examples around the attestation station

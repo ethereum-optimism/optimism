@@ -8,6 +8,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/db"
 	"github.com/mattn/go-isatty"
 
@@ -22,7 +24,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/hardhat"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/ethclient"
 
 	"github.com/urfave/cli"
@@ -47,11 +48,6 @@ func main() {
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:     "evm-addresses",
-				Usage:    "Path to evm-addresses.json",
-				Required: true,
-			},
-			&cli.StringFlag{
 				Name:     "ovm-allowances",
 				Usage:    "Path to ovm-allowances.json",
 				Required: true,
@@ -62,8 +58,8 @@ func main() {
 				Required: true,
 			},
 			&cli.StringFlag{
-				Name:     "evm-messages",
-				Usage:    "Path to evm-messages.json",
+				Name:     "witness-file",
+				Usage:    "Path to witness file",
 				Required: true,
 			},
 			&cli.StringFlag{
@@ -118,30 +114,35 @@ func main() {
 				return err
 			}
 
-			ovmAddresses, err := migration.NewAddresses(ctx.String("ovm-addresses"))
+			ovmAddresses, err := crossdomain.NewAddresses(ctx.String("ovm-addresses"))
 			if err != nil {
 				return err
 			}
-			evmAddresess, err := migration.NewAddresses(ctx.String("evm-addresses"))
+			ovmAllowances, err := crossdomain.NewAllowances(ctx.String("ovm-allowances"))
 			if err != nil {
 				return err
 			}
-			ovmAllowances, err := migration.NewAllowances(ctx.String("ovm-allowances"))
+			ovmMessages, err := crossdomain.NewSentMessageFromJSON(ctx.String("ovm-messages"))
 			if err != nil {
 				return err
 			}
-			ovmMessages, err := migration.NewSentMessage(ctx.String("ovm-messages"))
-			if err != nil {
-				return err
-			}
-			evmMessages, err := migration.NewSentMessage(ctx.String("evm-messages"))
+			evmMessages, evmAddresses, err := crossdomain.ReadWitnessData(ctx.String("witness-file"))
 			if err != nil {
 				return err
 			}
 
-			migrationData := migration.MigrationData{
+			log.Info(
+				"Loaded witness data",
+				"ovmAddresses", len(ovmAddresses),
+				"evmAddresses", len(evmAddresses),
+				"ovmAllowances", len(ovmAllowances),
+				"ovmMessages", len(ovmMessages),
+				"evmMessages", len(evmMessages),
+			)
+
+			migrationData := crossdomain.MigrationData{
 				OvmAddresses:  ovmAddresses,
-				EvmAddresses:  evmAddresess,
+				EvmAddresses:  evmAddresses,
 				OvmAllowances: ovmAllowances,
 				OvmMessages:   ovmMessages,
 				EvmMessages:   evmMessages,

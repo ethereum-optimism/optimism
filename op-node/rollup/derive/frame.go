@@ -24,10 +24,10 @@ const MaxFrameLen = 1_000_000
 // is_last           = bool
 
 type Frame struct {
-	ID          ChannelID
-	FrameNumber uint16
-	Data        []byte
-	IsLast      bool
+	ID          ChannelID `json:"id"`
+	FrameNumber uint16    `json:"frame_number"`
+	Data        []byte    `json:"data"`
+	IsLast      bool      `'json:"is_last"`
 }
 
 // MarshalBinary writes the frame to `w`.
