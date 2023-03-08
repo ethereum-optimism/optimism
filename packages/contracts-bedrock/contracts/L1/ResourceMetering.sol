@@ -59,7 +59,7 @@ abstract contract ResourceMetering is Initializable {
      *         Setting this value too large can result in more gas being
      *         consumed than the L1 block gas limit.
      */
-    int256 public constant MAXIMUM_BASE_FEE = int256(uint256(type(uint32).max / 7 * 6));
+    int256 public constant MAXIMUM_BASE_FEE = int256(uint256((type(uint32).max / 7) * 6));
 
     /**
      * @notice Initial base fee value. This value must be smaller than the

@@ -16,7 +16,11 @@ contract MeterUser is ResourceMetering {
 
     function use(uint64 _amount) public metered(_amount) {}
 
-    function set(uint128 _prevBaseFee, uint64 _prevBoughtGas, uint64 _prevBlockNum) public {
+    function set(
+        uint128 _prevBaseFee,
+        uint64 _prevBoughtGas,
+        uint64 _prevBlockNum
+    ) public {
         params = ResourceMetering.ResourceParams({
             prevBaseFee: _prevBaseFee,
             prevBoughtGas: _prevBoughtGas,
