@@ -180,9 +180,11 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		TxManagerConfig:    txMgrConfg,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
-		AllowNonFinalized:  cfg.AllowNonFinalized,
-		From:               fromAddress,
-		SignerFnFactory:    signer,
+		// AllowNonFinalized:  cfg.AllowNonFinalized,
+		// [ning] hard coded as true
+		AllowNonFinalized: true,
+		From:              fromAddress,
+		SignerFnFactory:   signer,
 	}
 
 	return NewL2OutputSubmitter(proposerCfg, l)
@@ -285,7 +287,9 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	// Use either the finalized or safe head depending on the config. Finalized head is default & safer.
 	var currentBlockNumber *big.Int
 	if l.allowNonFinalized {
-		currentBlockNumber = new(big.Int).SetUint64(status.SafeL2.Number)
+		// currentBlockNumber = new(big.Int).SetUint64(status.SafeL2.Number)
+		// [ning] allow unsafe
+		currentBlockNumber = new(big.Int).SetUint64(status.UnsafeL2.Number)
 	} else {
 		currentBlockNumber = new(big.Int).SetUint64(status.FinalizedL2.Number)
 	}
@@ -310,9 +314,11 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	}
 
 	// Always propose if it's part of the Finalized L2 chain. Or if allowed, if it's part of the safe L2 chain.
-	if !(output.BlockRef.Number <= output.Status.FinalizedL2.Number || (l.allowNonFinalized && output.BlockRef.Number <= output.Status.SafeL2.Number)) {
+	// [ning]: allow unsafe block
+	if !(output.BlockRef.Number <= output.Status.FinalizedL2.Number || (l.allowNonFinalized && (output.BlockRef.Number <= output.Status.SafeL2.Number || output.BlockRef.Number <= output.Status.UnsafeL2.Number))) {
 		l.log.Debug("not proposing yet, L2 block is not ready for proposal",
 			"l2_proposal", output.BlockRef,
+			"l2_unssafe", output.Status.UnsafeL2,
 			"l2_safe", output.Status.SafeL2,
 			"l2_finalized", output.Status.FinalizedL2,
 			"allow_non_finalized", l.allowNonFinalized)
