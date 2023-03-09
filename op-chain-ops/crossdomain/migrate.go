@@ -83,6 +83,20 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		return nil, fmt.Errorf("cannot abi encode relayMessage: %w", err)
 	}
 
+	gasLimit := MigrateWithdrawalGasLimit(data)
+
+	w := NewWithdrawal(
+		versionedNonce,
+		&predeploys.L2CrossDomainMessengerAddr,
+		l1CrossDomainMessenger,
+		value,
+		new(big.Int).SetUint64(gasLimit),
+		data,
+	)
+	return w, nil
+}
+
+func MigrateWithdrawalGasLimit(data []byte) uint64 {
 	// Compute the cost of the calldata
 	dataCost := uint64(0)
 	for _, b := range data {
@@ -101,13 +115,5 @@ func MigrateWithdrawal(withdrawal *LegacyWithdrawal, l1CrossDomainMessenger *com
 		gasLimit = 25_000_000
 	}
 
-	w := NewWithdrawal(
-		versionedNonce,
-		&predeploys.L2CrossDomainMessengerAddr,
-		l1CrossDomainMessenger,
-		value,
-		new(big.Int).SetUint64(gasLimit),
-		data,
-	)
-	return w, nil
+	return gasLimit
 }
