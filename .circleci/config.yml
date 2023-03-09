@@ -67,16 +67,35 @@ jobs:
       - restore_cache:
           name: Restore Yarn Package Cache
           keys:
-            - yarn-packages-v2{{ checksum "yarn.lock" }}
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - run:
           name: Install dependencies
           command: yarn install --imutable
       - save_cache:
           name: Save Yarn Package Cache
-          key: yarn-packages-v2{{ checksum "yarn.lock" }}
+          key: yarn-packages-v2-{{ checksum "yarn.lock" }}
           paths:
             - "node_modules"
-            - "packages/*/node_modules"
+            - "packages/actor-tests/node_modules"
+            - "packages/atst/node_modules"
+            - "packages/balance-monitor/node_modules"
+            - "packages/chain-mon/node_modules"
+            - "packages/common-ts/node_modules"
+            - "packages/contracts/node_modules"
+            - "packages/contracts-bedrock/node_modules"
+            - "packages/contracts-governance/node_modules"
+            - "packages/contracts-periphery/node_modules"
+            - "packages/core-utils/node_modules"
+            - "packages/data-transport-layer/node_modules"
+            - "packages/drippie-mon/node_modules"
+            - "packages/fault-detector/node_modules"
+            - "packages/hardhat-deploy-config/node_modules"
+            - "packages/integration-tests-bedrock/node_modules"
+            - "packages/message-relayer/node_modules"
+            - "packages/migration-data/node_modules"
+            - "packages/replica-healthcheck/node_modules"
+            - "packages/sdk/node_modules"
+            - "packages/two-step-monitor/node_modules"
       - run:
           name: print forge version
           command: forge --version
