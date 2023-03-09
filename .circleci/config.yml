@@ -260,7 +260,7 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
-    parallelism: 3
+    parallelism: 5
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -271,6 +271,7 @@ jobs:
           command: |
               forge --version
               circleci tests glob "contracts/tests/**/*.t.sol" | circleci tests split | tee splits.txt
+              cat splits.txt
               yarn coverage:lcov $(cat splits.txt)
           no_output_timeout: 18m
           environment:
