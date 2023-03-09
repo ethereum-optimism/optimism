@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -269,6 +270,28 @@ func (c *Config) Description(l2Chains map[string]string) string {
 	banner += "Post-Bedrock Network Upgrades (timestamp based):\n"
 	banner += fmt.Sprintf("  - Regolith: %s\n", fmtForkTimeOrUnset(c.RegolithTime))
 	return banner
+}
+
+// Description outputs a banner describing the important parts of rollup configuration in a log format.
+// Optionally provide a mapping of L2 chain IDs to network names to label the L2 chain with if not unknown.
+// The config should be config.Check()-ed before creating a description.
+func (c *Config) LogDescription(log log.Logger, l2Chains map[string]string) {
+	// Find and report the network the user is running
+	networkL2 := ""
+	if l2Chains != nil {
+		networkL2 = l2Chains[c.L2ChainID.String()]
+	}
+	if networkL2 == "" {
+		networkL2 = "unknown L2"
+	}
+	networkL1 := params.NetworkNames[c.L1ChainID.String()]
+	if networkL1 == "" {
+		networkL1 = "unknown L1"
+	}
+	log.Info("Rollup Config", "l2_chain_id", c.L2ChainID, "l2_network", networkL2, "l1_chain_id", c.L1ChainID,
+		"l1_network", networkL1, "l2_start_time", c.Genesis.L2Time, "l2_block_hash", c.Genesis.L2.Hash.String(),
+		"l2_block_number", c.Genesis.L2.Number, "l1_block_hash", c.Genesis.L1.Hash.String(),
+		"l1_block_number", c.Genesis.L1.Number, "regolith_time", fmtForkTimeOrUnset(c.RegolithTime))
 }
 
 func fmtForkTimeOrUnset(v *uint64) string {

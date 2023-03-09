@@ -100,7 +100,6 @@ services:
       OP_PROPOSER_RESUBMISSION_TIMEOUT: 30s
       OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
       OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
-      OP_PROPOSER_LOG_TERMINAL: "true"
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
@@ -134,7 +133,6 @@ services:
       OP_BATCHER_RESUBMISSION_TIMEOUT: 30s
       OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
       OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
-      OP_BATCHER_LOG_TERMINAL: "true"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
       OP_BATCHER_RPC_ENABLE_ADMIN: "true"

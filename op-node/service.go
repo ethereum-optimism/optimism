@@ -168,21 +168,6 @@ func NewRollupConfig(ctx *cli.Context) (*rollup.Config, error) {
 	return &rollupConfig, nil
 }
 
-// NewLogConfig creates a log config from the provided flags or environment variables.
-func NewLogConfig(ctx *cli.Context) (node.LogConfig, error) {
-	cfg := node.DefaultLogConfig() // Done to set color based on terminal type
-	cfg.Level = ctx.GlobalString(flags.LogLevelFlag.Name)
-	cfg.Format = ctx.GlobalString(flags.LogFormatFlag.Name)
-	if ctx.IsSet(flags.LogColorFlag.Name) {
-		cfg.Color = ctx.GlobalBool(flags.LogColorFlag.Name)
-	}
-
-	if err := cfg.Check(); err != nil {
-		return cfg, err
-	}
-	return cfg, nil
-}
-
 func NewSnapshotLogger(ctx *cli.Context) (log.Logger, error) {
 	snapshotFile := ctx.GlobalString(flags.SnapshotLog.Name)
 	handler := log.DiscardHandler()
