@@ -104,7 +104,7 @@ type EngineQueue struct {
 
 	finalizedL1 eth.L1BlockRef
 
-	safeAttribute  *eth.PayloadAttributes
+	safeAttributes  *eth.PayloadAttributes
 	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
@@ -207,7 +207,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	if eq.needForkchoiceUpdate {
 		return eq.tryUpdateEngine(ctx)
 	}
-	if eq.safeAttribute != nil {
+	if eq.safeAttributes != nil {
 		return eq.tryNextSafeAttributes(ctx)
 	}
 	outOfData := false
@@ -223,7 +223,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 	} else if err != nil {
 		return err
 	} else {
-		eq.safeAttribute = next
+		eq.safeAttributes = next
 		return NotEnoughData
 	}
 
@@ -453,7 +453,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 		}
 		return NewTemporaryError(fmt.Errorf("failed to get existing unsafe payload to compare against derived attributes from L1: %w", err))
 	}
-	if err := AttributesMatchBlock(eq.safeAttribute, eq.safeHead.Hash, payload, eq.log); err != nil {
+	if err := AttributesMatchBlock(eq.safeAttributes, eq.safeHead.Hash, payload, eq.log); err != nil {
 		eq.log.Warn("L2 reorg: existing unsafe block does not match derived attributes from L1", "err", err)
 		// geth cannot wind back a chain without reorging to a new, previously non-canonical, block
 		return eq.forceNextSafeAttributes(ctx)
@@ -466,7 +466,7 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 	eq.needForkchoiceUpdate = true
 	eq.metrics.RecordL2Ref("l2_safe", ref)
 	// unsafe head stays the same, we did not reorg the chain.
-	eq.safeAttribute = nil
+	eq.safeAttributes = nil
 	eq.postProcessSafeL2()
 	eq.logSyncProgress("reconciled with L1")
 
@@ -475,10 +475,10 @@ func (eq *EngineQueue) consolidateNextSafeAttributes(ctx context.Context) error 
 
 // forceNextSafeAttributes inserts the provided attributes, reorging away any conflicting unsafe chain.
 func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
-	if eq.safeAttribute == nil {
+	if eq.safeAttributes == nil {
 		return nil
 	}
-	attrs := eq.safeAttribute
+	attrs := eq.safeAttributes
 	errType, err := eq.StartPayload(ctx, eq.safeHead, attrs, true)
 	if err == nil {
 		_, errType, err = eq.ConfirmPayload(ctx)
@@ -507,7 +507,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 				return NewCriticalError(fmt.Errorf("failed to process block with only deposit transactions: %w", err))
 			}
 			// drop the payload without inserting it
-			eq.safeAttribute = nil
+			eq.safeAttributes = nil
 			// suppress the error b/c we want to retry with the next batch from the batch queue
 			// If there is no valid batch the node will eventually force a deposit only block. If
 			// the deposit only block fails, this will return the critical error above.
@@ -517,7 +517,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 			return NewCriticalError(fmt.Errorf("unknown InsertHeadBlock error type %d: %w", errType, err))
 		}
 	}
-	eq.safeAttribute = nil
+	eq.safeAttributes = nil
 	eq.logSyncProgress("processed safe block derived from L1")
 
 	return nil
