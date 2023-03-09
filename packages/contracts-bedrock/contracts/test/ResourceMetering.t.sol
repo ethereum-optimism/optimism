@@ -200,11 +200,11 @@ contract MeterUserCustom is ResourceMetering {
         uint64 _prevBoughtGas,
         uint64 _prevBlockNum
     ) {
-       params = ResourceMetering.ResourceParams({
-           prevBaseFee: _prevBaseFee,
-           prevBoughtGas: _prevBoughtGas,
-           prevBlockNum: _prevBlockNum
-       });
+        params = ResourceMetering.ResourceParams({
+            prevBaseFee: _prevBaseFee,
+            prevBoughtGas: _prevBoughtGas,
+            prevBlockNum: _prevBlockNum
+        });
     }
 
     function use(uint64 _amount) public returns (uint256) {
@@ -229,9 +229,11 @@ contract ResourceMeteringCustom_Test is Test {
     string internal outfile;
 
     // keccak256(abi.encodeWithSignature("Error(string)", "ResourceMetering: cannot buy more gas than available gas limit"))
-    bytes32 internal cannotBuyMoreGas = 0x84edc668cfd5e050b8999f43ff87a1faaa93e5f935b20bc1dd4d3ff157ccf429;
+    bytes32 internal cannotBuyMoreGas =
+        0x84edc668cfd5e050b8999f43ff87a1faaa93e5f935b20bc1dd4d3ff157ccf429;
     // keccak256(abi.encodeWithSignature("Panic(uint256)", 0x11))
-    bytes32 internal overflowErr = 0x1ca389f2c8264faa4377de9ce8e14d6263ef29c68044a9272d405761bab2db27;
+    bytes32 internal overflowErr =
+        0x1ca389f2c8264faa4377de9ce8e14d6263ef29c68044a9272d405761bab2db27;
 
     /**
      * @notice Sets the initial block number to something sane for the
@@ -245,7 +247,10 @@ contract ResourceMeteringCustom_Test is Test {
         outfile = string.concat(vm.projectRoot(), "/.resource-metering.csv");
 
         try vm.removeFile(outfile) {} catch {}
-        vm.writeLine(outfile, "prevBaseFee,prevBoughtGas,prevBlockNumDiff,l1BaseFee,requestedGas,gasConsumed,ethPrice,usdCost,success");
+        vm.writeLine(
+            outfile,
+            "prevBaseFee,prevBoughtGas,prevBlockNumDiff,l1BaseFee,requestedGas,gasConsumed,ethPrice,usdCost,success"
+        );
     }
 
     /**
@@ -319,7 +324,9 @@ contract ResourceMeteringCustom_Test is Test {
                                 vm.roll(block.number + prevBlockNumDiff);
 
                                 uint256 gasConsumed = 0;
-                                try meter.use{ gas: 30_000_000 }(requestedGas) returns (uint256 _gasConsumed) {
+                                try meter.use{ gas: 30_000_000 }(requestedGas) returns (
+                                    uint256 _gasConsumed
+                                ) {
                                     gasConsumed = _gasConsumed;
                                 } catch (bytes memory err) {
                                     bytes32 hash = keccak256(err);
@@ -334,19 +341,29 @@ contract ResourceMeteringCustom_Test is Test {
 
                                 // Compute the USD cost of the gas used, don't
                                 // worry too much about loss of precison under $1
-                                uint256 usdCost = gasConsumed * l1BaseFee * ethPrice / 1 ether;
+                                uint256 usdCost = (gasConsumed * l1BaseFee * ethPrice) / 1 ether;
 
                                 vm.writeLine(
                                     outfile,
                                     string.concat(
-                                        vm.toString(prevBaseFee), ",",
-                                        vm.toString(prevBoughtGas), ",",
-                                        vm.toString(prevBlockNumDiff), ",",
-                                        vm.toString(l1BaseFee), ",",
-                                        vm.toString(requestedGas), ",",
-                                        vm.toString(gasConsumed), ",",
-                                        "$", vm.toString(ethPrice), ",",
-                                        "$", vm.toString(usdCost), ",",
+                                        vm.toString(prevBaseFee),
+                                        ",",
+                                        vm.toString(prevBoughtGas),
+                                        ",",
+                                        vm.toString(prevBlockNumDiff),
+                                        ",",
+                                        vm.toString(l1BaseFee),
+                                        ",",
+                                        vm.toString(requestedGas),
+                                        ",",
+                                        vm.toString(gasConsumed),
+                                        ",",
+                                        "$",
+                                        vm.toString(ethPrice),
+                                        ",",
+                                        "$",
+                                        vm.toString(usdCost),
+                                        ",",
                                         result
                                     )
                                 );
