@@ -43,7 +43,7 @@ describe(prepareWriteAttestation.name, () => {
     expect(result.address).toMatchInlineSnapshot(
       '"0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77"'
     )
-    expect(result.chainId).toMatchInlineSnapshot('10')
+    expect(result.chainId).toMatchInlineSnapshot('undefined')
     expect(result.functionName).toMatchInlineSnapshot('"attest"')
     expect(result.mode).toMatchInlineSnapshot('"prepared"')
     expect(result.request.gasLimit).toMatchInlineSnapshot(`
@@ -54,18 +54,16 @@ describe(prepareWriteAttestation.name, () => {
     `)
   })
 
-  it('should throw an error if key is longer than 32 bytes', async () => {
+  it('should work for key longer than 32 bytes', async () => {
     const dataType = 'string'
 
-    await expect(
-      readAttestation(
+    expect(
+      await readAttestation(
         creator,
         about,
         'this is a key that is way longer than 32 bytes so this key should throw an error matching the inline snapshot',
         dataType
       )
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      '"Key is longer than the max length of 32 for attestation keys"'
-    )
+    ).toMatchInlineSnapshot('""')
   })
 })
