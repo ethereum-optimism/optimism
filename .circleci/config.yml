@@ -298,7 +298,7 @@ jobs:
           command: |
               forge --version
               ls contracts/test/
-              circleci tests glob "contracts/test/**.sol" | circleci tests split | tr " " "|" | tee splits.txt
+              circleci tests glob "contracts/test/**.sol" | circleci tests split | tr "\n" "|" | tee splits.txt
               cat splits.txt
               yarn coverage:lcov $(cat splits.txt)
           no_output_timeout: 18m
