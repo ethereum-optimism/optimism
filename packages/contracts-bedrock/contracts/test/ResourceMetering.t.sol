@@ -46,8 +46,8 @@ contract ResourceMetering_Test is Test {
         uint256 max = uint256(meter.MAXIMUM_BASE_FEE());
         uint256 min = uint256(meter.MINIMUM_BASE_FEE());
         uint256 initial = uint256(meter.INITIAL_BASE_FEE());
-        assertTrue(max > initial);
-        assertTrue(min < initial);
+        assertTrue(max >= initial);
+        assertTrue(min <= initial);
     }
 
     /**
@@ -83,8 +83,7 @@ contract ResourceMetering_Test is Test {
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
-        // Base fee decreases by 12.5%
-        assertEq(prevBaseFee, 875000000);
+        assertEq(prevBaseFee, 1 gwei);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum + 1);
     }
@@ -94,7 +93,7 @@ contract ResourceMetering_Test is Test {
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
-        assertEq(prevBaseFee, 765624999);
+        assertEq(prevBaseFee, 1 gwei);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum + 2);
     }
@@ -104,7 +103,7 @@ contract ResourceMetering_Test is Test {
         meter.use(0);
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
-        assertEq(prevBaseFee, 263075576);
+        assertEq(prevBaseFee, 1 gwei);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum + 10);
     }
@@ -130,8 +129,7 @@ contract ResourceMetering_Test is Test {
         vm.roll(initialBlockNum + 1);
         meter.use(0);
         (uint128 postBaseFee, , ) = meter.params();
-        // Base fee increases by 1/8 the difference
-        assertEq(postBaseFee, 1375000000);
+        assertEq(postBaseFee, 1500000000);
     }
 
     function test_meter_useMoreThanMax_reverts() external {
@@ -139,36 +137,6 @@ contract ResourceMetering_Test is Test {
         uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
         vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
         meter.use(target * elasticity + 1);
-    }
-
-    /**
-     * @notice The max resource limit should be able to be used when the L1
-     *         deposit base fee is at its max value. This previously would
-     *         revert because prevBaseFee is a uint128 and checked math when
-     *         multiplying against a uint64 _amount can result in an overflow
-     *         even though its assigning to a uint256. The values MUST be casted
-     *         to uint256 when doing the multiplication to prevent overflows.
-     *         The function is called with the L1 block gas limit to ensure that
-     *         the MAX_RESOURCE_LIMIT can be consumed at the MAXIMUM_BASE_FEE.
-     */
-    function test_meter_useMaxWithMaxBaseFee_succeeds() external {
-        uint128 _prevBaseFee = uint128(uint256(meter.MAXIMUM_BASE_FEE()));
-        uint64 _prevBoughtGas = 0;
-        uint64 _prevBlockNum = uint64(block.number);
-
-        meter.set({
-            _prevBaseFee: _prevBaseFee,
-            _prevBoughtGas: _prevBoughtGas,
-            _prevBlockNum: _prevBlockNum
-        });
-
-        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
-        assertEq(prevBaseFee, _prevBaseFee);
-        assertEq(prevBoughtGas, _prevBoughtGas);
-        assertEq(prevBlockNum, _prevBlockNum);
-
-        uint64 gasRequested = uint64(uint256(meter.MAX_RESOURCE_LIMIT()));
-        meter.use{ gas: 30_000_000 }(gasRequested);
     }
 
     // Demonstrates that the resource metering arithmetic can tolerate very large gaps between
@@ -187,11 +155,11 @@ contract ResourceMetering_Test is Test {
 }
 
 /**
- * @title MeterUserCustom
+ * @title CustomMeterUser
  * @notice A simple wrapper around `ResourceMetering` that allows the initial
  *         params to be set in the constructor.
  */
-contract MeterUserCustom is ResourceMetering {
+contract CustomMeterUser is ResourceMetering {
     uint256 public startGas;
     uint256 public endGas;
 
@@ -215,17 +183,20 @@ contract MeterUserCustom is ResourceMetering {
 }
 
 /**
- * @title ResourceMeteringCustom_Test
+ * @title ArtifactResourceMetering_Test
  * @notice A table test that sets the state of the ResourceParams and then requests
  *         various amounts of gas. This test ensures that a wide range of values
  *         can safely be used with the `ResourceMetering` contract.
  *         It also writes a CSV file to disk that includes useful information
  *         about how much gas is used and how expensive it is in USD terms to
  *         purchase the deposit gas.
- *         This contract is designed to have only a single test.
  */
-contract ResourceMeteringCustom_Test is Test {
-    MeterUser internal base;
+contract ArtifactResourceMetering_Test is Test {
+    uint128 internal minimumBaseFee;
+    uint128 internal maximumBaseFee;
+    uint64 internal maxResourceLimit;
+    uint64 internal targetResourceLimit;
+
     string internal outfile;
 
     // keccak256(abi.encodeWithSignature("Error(string)", "ResourceMetering: cannot buy more gas than available gas limit"))
@@ -234,23 +205,26 @@ contract ResourceMeteringCustom_Test is Test {
     // keccak256(abi.encodeWithSignature("Panic(uint256)", 0x11))
     bytes32 internal overflowErr =
         0x1ca389f2c8264faa4377de9ce8e14d6263ef29c68044a9272d405761bab2db27;
+    // keccak256(hex"")
+    bytes32 internal emptyReturnData =
+        0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
+
 
     /**
-     * @notice Sets the initial block number to something sane for the
-     *         deployment of MeterUser. Delete the CSV file if it exists
-     *         then write the first line of the CSV.
+     * @notice Sets up the tests by getting constants from the ResourceMetering
+     *         contract.
      */
     function setUp() public {
         vm.roll(1_000_000);
 
-        base = new MeterUser();
-        outfile = string.concat(vm.projectRoot(), "/.resource-metering.csv");
+        MeterUser base = new MeterUser();
+        minimumBaseFee = uint128(uint256(base.MINIMUM_BASE_FEE()));
+        maximumBaseFee = uint128(uint256(base.MAXIMUM_BASE_FEE()));
+        maxResourceLimit = uint64(uint256(base.MAX_RESOURCE_LIMIT()));
+        targetResourceLimit = uint64(uint256(base.TARGET_RESOURCE_LIMIT()));
 
+        outfile = string.concat(vm.projectRoot(), "/.resource-metering.csv");
         try vm.removeFile(outfile) {} catch {}
-        vm.writeLine(
-            outfile,
-            "prevBaseFee,prevBoughtGas,prevBlockNumDiff,l1BaseFee,requestedGas,gasConsumed,ethPrice,usdCost,success"
-        );
     }
 
     /**
@@ -259,19 +233,22 @@ contract ResourceMeteringCustom_Test is Test {
      *         gas, it can take very long to execute.
      */
     function test_meter_generateArtifact_succeeds() external {
+        vm.writeLine(
+            outfile,
+            "prevBaseFee,prevBoughtGas,prevBlockNumDiff,l1BaseFee,requestedGas,gasConsumed,ethPrice,usdCost,success"
+        );
+
         // prevBaseFee value in ResourceParams
         uint128[] memory prevBaseFees = new uint128[](5);
-        prevBaseFees[0] = uint128(uint256(base.MAXIMUM_BASE_FEE()));
-        prevBaseFees[1] = uint128(uint256(base.MINIMUM_BASE_FEE()));
-        prevBaseFees[2] = uint128(uint256(base.INITIAL_BASE_FEE()));
-        prevBaseFees[3] = uint128(100_000);
-        prevBaseFees[4] = uint128(500_000);
+        prevBaseFees[0] = minimumBaseFee;
+        prevBaseFees[1] = maximumBaseFee;
+        prevBaseFees[2] = uint128(50 gwei);
+        prevBaseFees[3] = uint128(100 gwei);
+        prevBaseFees[4] = uint128(200 gwei);
 
         // prevBoughtGas value in ResourceParams
-        uint64[] memory prevBoughtGases = new uint64[](3);
-        prevBoughtGases[0] = uint64(uint256(base.MAX_RESOURCE_LIMIT()));
-        prevBoughtGases[1] = uint64(uint256(base.TARGET_RESOURCE_LIMIT()));
-        prevBoughtGases[2] = uint64(0);
+        uint64[] memory prevBoughtGases = new uint64[](1);
+        prevBoughtGases[0] = uint64(0);
 
         // prevBlockNum diff, simulates blocks with no deposits when non zero
         uint64[] memory prevBlockNumDiffs = new uint64[](2);
@@ -280,8 +257,8 @@ contract ResourceMeteringCustom_Test is Test {
 
         // The amount of L2 gas that a user requests
         uint64[] memory requestedGases = new uint64[](3);
-        requestedGases[0] = uint64(uint256(base.MAX_RESOURCE_LIMIT()));
-        requestedGases[1] = uint64(uint256(base.TARGET_RESOURCE_LIMIT()));
+        requestedGases[0] = maxResourceLimit;
+        requestedGases[1] = targetResourceLimit;
         requestedGases[2] = uint64(100_000);
 
         // The L1 base fee
@@ -315,7 +292,7 @@ contract ResourceMeteringCustom_Test is Test {
 
                                 vm.fee(l1BaseFee);
 
-                                MeterUserCustom meter = new MeterUserCustom({
+                                CustomMeterUser meter = new CustomMeterUser({
                                     _prevBaseFee: prevBaseFee,
                                     _prevBoughtGas: prevBoughtGas,
                                     _prevBlockNum: uint64(block.number)
@@ -323,6 +300,8 @@ contract ResourceMeteringCustom_Test is Test {
 
                                 vm.roll(block.number + prevBlockNumDiff);
 
+                                // Call the metering code and catch the various
+                                // types of errors.
                                 uint256 gasConsumed = 0;
                                 try meter.use{ gas: 30_000_000 }(requestedGas) returns (
                                     uint256 _gasConsumed
@@ -334,13 +313,14 @@ contract ResourceMeteringCustom_Test is Test {
                                         result = "ResourceMetering: cannot buy more gas than available gas limit";
                                     } else if (hash == overflowErr) {
                                         result = "arithmetic overflow/underflow";
+                                    } else if (hash == emptyReturnData) {
+                                        result = "out of gas";
                                     } else {
                                         result = "UNKNOWN ERROR";
                                     }
                                 }
 
-                                // Compute the USD cost of the gas used, don't
-                                // worry too much about loss of precison under $1
+                                // Compute the USD cost of the gas used
                                 uint256 usdCost = (gasConsumed * l1BaseFee * ethPrice) / 1 ether;
 
                                 vm.writeLine(

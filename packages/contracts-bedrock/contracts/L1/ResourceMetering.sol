@@ -29,13 +29,14 @@ abstract contract ResourceMetering is Initializable {
 
     /**
      * @notice Maximum amount of the resource that can be used within this block.
+     *         This value cannot be larger than the L2 block gas limit.
      */
-    int256 public constant MAX_RESOURCE_LIMIT = 8_000_000;
+    int256 public constant MAX_RESOURCE_LIMIT = 20_000_000;
 
     /**
      * @notice Along with the resource limit, determines the target resource limit.
      */
-    int256 public constant ELASTICITY_MULTIPLIER = 4;
+    int256 public constant ELASTICITY_MULTIPLIER = 5;
 
     /**
      * @notice Target amount of the resource that should be used within this block.
@@ -50,22 +51,21 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice Minimum base fee value, cannot go lower than this.
      */
-    int256 public constant MINIMUM_BASE_FEE = 10_000;
+    int256 public constant MINIMUM_BASE_FEE = 1 gwei;
 
     /**
      * @notice Maximum base fee value, cannot go higher than this.
-     *         This value must be small enough to allow a user to request the
-     *         MAX_RESOURCE_LIMIT when the base fee is at its max value.
-     *         Setting this value too large can result in more gas being
-     *         consumed than the L1 block gas limit.
+     *         It is possible for the MAXIMUM_BASE_FEE to raise to a value
+     *         that is so large it will consume the entire gas limit of
+     *         an L1 block.
      */
-    int256 public constant MAXIMUM_BASE_FEE = int256(uint256((type(uint32).max / 7) * 6));
+    int256 public constant MAXIMUM_BASE_FEE = int256(uint256((type(uint128).max)));
 
     /**
      * @notice Initial base fee value. This value must be smaller than the
      *         MAXIMUM_BASE_FEE.
      */
-    uint128 public constant INITIAL_BASE_FEE = 1_000_000_000;
+    uint128 public constant INITIAL_BASE_FEE = 1 gwei;
 
     /**
      * @notice EIP-1559 style gas parameters.
@@ -89,10 +89,12 @@ abstract contract ResourceMetering is Initializable {
         // Run the underlying function.
         _;
 
+        // Run the metering function.
         _metered(_amount, initialGas);
     }
 
     /**
+
      * @notice An internal function that holds all of the logic for metering a resource.
      *
      * @param _amount     Amount of the resource requested.
