@@ -415,6 +415,7 @@ func TestMixedDepositValidity(t *testing.T) {
 // TestMixedWithdrawalValidity makes a number of withdrawal transactions and ensures ones with modified parameters are
 // rejected while unmodified ones are accepted. This runs test cases in different systems.
 func TestMixedWithdrawalValidity(t *testing.T) {
+	parallel(t)
 	// Setup our logger handler
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
@@ -424,7 +425,6 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 	for i := 0; i <= 8; i++ {
 		i := i // avoid loop var capture
 		t.Run(fmt.Sprintf("withdrawal test#%d", i+1), func(t *testing.T) {
-			parallel(t)
 			// Create our system configuration, funding all accounts we created for L1/L2, and start it
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.FinalizationPeriodSeconds = 6
