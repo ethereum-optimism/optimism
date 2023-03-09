@@ -297,8 +297,8 @@ jobs:
           name: test and generate coverage
           command: |
               forge --version
-              ls
-              circleci tests glob "contracts/test/*.sol contracts/test/invariants/*.sol" | circleci tests split --split-by=timings | tee splits.txt
+              ls contracts/test/
+              circleci tests glob "contracts/test/**.sol" | circleci tests split | tee splits.txt
               cat splits.txt
               yarn coverage:lcov $(cat splits.txt)
           no_output_timeout: 18m
