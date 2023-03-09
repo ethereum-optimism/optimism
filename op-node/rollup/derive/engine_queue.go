@@ -224,6 +224,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		return err
 	} else {
 		eq.safeAttributes = next
+		eq.log.Debug("Adding next safe attributes", "safe_head", eq.safeHead, "next", eq.safeAttributes)
 		return NotEnoughData
 	}
 
