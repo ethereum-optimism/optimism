@@ -45,7 +45,6 @@ func (s *gater) Update(id peer.ID, score float64) {
 		err := s.connGater.BlockPeer(id)
 		s.log.Warn("connection gater failed to block peer", id.String(), "err", err)
 	}
-	// TODO: This will never unblock a peer since the peer will disconnect and the score update hook will not trigger this call.
 	// Unblock peers whose score has recovered to an acceptable level
 	if (score > PeerScoreThreshold) && slices.Contains(s.connGater.ListBlockedPeers(), id) {
 		err := s.connGater.UnblockPeer(id)

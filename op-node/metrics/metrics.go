@@ -119,7 +119,7 @@ type Metrics struct {
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
 	StreamCount       prometheus.Gauge
-	PeerScores        *prometheus.HistogramVec
+	PeerScores        *prometheus.GaugeVec
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
 
@@ -490,7 +490,7 @@ func (m *Metrics) RecordGossipEvent(evType int32) {
 }
 
 func (m *Metrics) RecordPeerScoring(peerID peer.ID, score float64) {
-	m.PeerScores.WithLabelValues(peerID.String()).Observe(score)
+	m.PeerScores.WithLabelValues(peerID.String()).Set(score)
 }
 
 func (m *Metrics) IncPeerCount() {
