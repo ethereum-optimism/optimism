@@ -26,7 +26,6 @@ import {
   BedrockCrossChainMessageProof,
   decodeVersionedNonce,
   encodeVersionedNonce,
-  calldataCost,
 } from '@eth-optimism/core-utils'
 import { getContractInterface, predeploys } from '@eth-optimism/contracts'
 import * as rlp from 'rlp'
@@ -66,6 +65,7 @@ import {
   makeMerkleTreeProof,
   makeStateTrieProof,
   hashLowLevelMessage,
+  migratedWithdrawalGasLimit,
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
 } from './utils'
@@ -351,12 +351,7 @@ export class CrossChainMessenger {
       }
     }
 
-    // Compute the gas limit and cap at 25 million
-    const dataCost = calldataCost(resolved.message)
-    let minGasLimit = dataCost.add(200_000)
-    if (minGasLimit.gt(25_000_000)) {
-      minGasLimit = BigNumber.from(25_000_000)
-    }
+    const minGasLimit = migratedWithdrawalGasLimit(resolved.message)
 
     return {
       ...resolved,
