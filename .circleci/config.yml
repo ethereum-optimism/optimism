@@ -64,11 +64,18 @@ jobs:
     resource_class: xlarge
     steps:
       - checkout
-      - check-changed:
-          patterns: op-bindings,op-chain-ops,packages/
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-{{ checksum "yarn.lock" }}
       - run:
           name: Install dependencies
-          command: yarn && git diff --exit-code
+          command: yarn install --imutable
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-{{ checksum "yarn.lock" }}
+          paths:
+            - ~/.cache/yarn
       - run:
           name: print forge version
           command: forge --version
