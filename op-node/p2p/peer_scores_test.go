@@ -138,21 +138,22 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 
 	// Create subscriptions
 	var subs []*pubsub.Subscription
+	var topics []*pubsub.Topic
 	for _, ps := range pubsubs {
 		topic, err := ps.Join("test")
 		testSuite.NoError(err)
 		sub, err := topic.Subscribe()
 		testSuite.NoError(err)
 		subs = append(subs, sub)
+		topics = append(topics, topic)
 	}
 
 	// Wait and then publish messages
 	time.Sleep(3 * time.Second)
 	for i := 0; i < 20; i++ {
 		msg := []byte(fmt.Sprintf("message %d", i))
-		topic, err := pubsubs[i%20].Join("test")
-		testSuite.NoError(err)
-		err = topic.Publish(ctx, msg)
+		topic := topics[i]
+		err := topic.Publish(ctx, msg)
 		testSuite.NoError(err)
 		time.Sleep(20 * time.Millisecond)
 	}
