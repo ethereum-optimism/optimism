@@ -34,6 +34,15 @@ var (
 		Value:     "none",
 		EnvVar:    p2pEnv("PEER_SCORING"),
 	}
+
+	// Banning Flag - whether or not we want to act on the scoring
+	Banning = cli.BoolFlag{
+		Name: "p2p.ban.peers",
+		Usage: "Enables peer banning. This should ONLY be enabled once certain peer scoring is working correctly.",
+		Required:  false,
+		EnvVar:    p2pEnv("PEER_BANNING"),
+	}
+
 	TopicScoring = cli.StringFlag{
 		Name: "p2p.scoring.topics",
 		Usage: "Sets the topic scoring strategy. " +

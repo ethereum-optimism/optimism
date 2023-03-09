@@ -16,7 +16,8 @@ import (
 type PeerScorerTestSuite struct {
 	suite.Suite
 
-	mockGater *p2pMocks.ConnectionGater
+	// mockConnGater *p2pMocks.ConnectionGater
+	mockGater *p2pMocks.PeerGater
 	mockStore *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
 	logger log.Logger
@@ -24,7 +25,8 @@ type PeerScorerTestSuite struct {
 
 // SetupTest sets up the test suite.
 func (testSuite *PeerScorerTestSuite) SetupTest() {
-	testSuite.mockGater = &p2pMocks.ConnectionGater{}
+	testSuite.mockGater = &p2pMocks.PeerGater{}
+	// testSuite.mockConnGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
 	logger := node.DefaultLogConfig()
@@ -34,12 +36,6 @@ func (testSuite *PeerScorerTestSuite) SetupTest() {
 // TestPeerScorer runs the PeerScorerTestSuite.
 func TestPeerScorer(t *testing.T) {
 	suite.Run(t, new(PeerScorerTestSuite))
-}
-
-// TestPeerScoreConstants validates the peer score constants.
-func (testSuite *PeerScorerTestSuite) TestPeerScoreConstants() {
-	testSuite.Equal(-10, p2p.ConnectionFactor)
-	testSuite.Equal(-100, p2p.PeerScoreThreshold)
 }
 
 // TestPeerScorerOnConnect ensures we can call the OnConnect method on the peer scorer.
@@ -78,8 +74,8 @@ func (testSuite *PeerScorerTestSuite) TestSnapshotHook() {
 	// This doesn't return anything
 	testSuite.mockMetricer.On("RecordPeerScoring", peer.ID("peer1"), float64(-100)).Return(nil)
 
-	// Since the peer score is not below the [PeerScoreThreshold] of -100,
-	// no connection gater method should be called since the peer isn't already blocked
+	// Mock the peer gater call
+	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-100)).Return(nil)
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{
@@ -105,10 +101,8 @@ func (testSuite *PeerScorerTestSuite) TestSnapshotHookBlockPeer() {
 	// This doesn't return anything
 	testSuite.mockMetricer.On("RecordPeerScoring", peer.ID("peer1"), float64(-101)).Return(nil)
 
-	// Mock a connection gater peer block call
-	// Since the peer score is below the [PeerScoreThreshold] of -100,
-	// the [BlockPeer] method should be called
-	testSuite.mockGater.On("BlockPeer", peer.ID("peer1")).Return(nil)
+	// Mock the peer gater call
+	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-101)).Return(nil)
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{

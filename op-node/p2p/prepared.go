@@ -68,6 +68,10 @@ func (p *Prepared) PeerScoringParams() *pubsub.PeerScoreParams {
 	return nil
 }
 
+func (p *Prepared) BanPeers() bool {
+	return false
+}
+
 func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
 	return nil
 }

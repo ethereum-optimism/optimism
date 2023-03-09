@@ -54,6 +54,9 @@ type Config struct {
 	PeerScoring pubsub.PeerScoreParams
 	TopicScoring pubsub.TopicScoreParams
 
+	// Whether to ban peers based on their [PeerScoring] score.
+	BanningEnabled bool
+
 	ListenIP      net.IP
 	ListenTCPPort uint16
 
@@ -146,6 +149,10 @@ func (conf *Config) Disabled() bool {
 
 func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
 	return &conf.PeerScoring
+}
+
+func (conf *Config) BanPeers() bool {
+	return conf.BanningEnabled
 }
 
 func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {

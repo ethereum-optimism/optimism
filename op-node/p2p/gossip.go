@@ -53,6 +53,7 @@ var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 type GossipSetupConfigurables interface {
 	PeerScoringParams() *pubsub.PeerScoreParams
 	TopicScoringParams() *pubsub.TopicScoreParams
+	BanPeers() bool
 	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
 }
 
@@ -457,8 +458,13 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, topicScoreParams *pubsub.T
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
-	if err = blocksTopic.SetScoreParams(topicScoreParams); err != nil {
-		return nil, fmt.Errorf("failed to set topic score params: %w", err)
+	// A [TimeInMeshQuantum] value of 0 means the topic score is disabled.
+	// If we passed a topicScoreParams with [TimeInMeshQuantum] set to 0,
+	// libp2p errors since the params will be rejected.
+	if topicScoreParams != nil && topicScoreParams.TimeInMeshQuantum != 0 {
+		if err = blocksTopic.SetScoreParams(topicScoreParams); err != nil {
+			return nil, fmt.Errorf("failed to set topic score params: %w", err)
+		}
 	}
 
 	subscription, err := blocksTopic.Subscribe()
