@@ -193,13 +193,7 @@ contract PreBridgeERC20 is Bridge_Initializer {
         if (_isLegacy) {
             vm.expectCall(
                 address(L2Bridge),
-                abi.encodeWithSelector(
-                    L2Bridge.withdraw.selector,
-                    _l2Token,
-                    100,
-                    1000,
-                    hex""
-                )
+                abi.encodeWithSelector(L2Bridge.withdraw.selector, _l2Token, 100, 1000, hex"")
             );
         } else {
             vm.expectCall(
