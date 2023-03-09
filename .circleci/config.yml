@@ -313,12 +313,21 @@ jobs:
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
       - run:
-          name: validate spacers
-          command: yarn validate-spacers
-          working_directory: packages/contracts-bedrock
-      - run:
           name: invariant docs
           command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          working_directory: packages/contracts-bedrock
+
+  contracts-bedrock-validate-spaces:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: validate spacers
+          command: yarn validate-spacers
           working_directory: packages/contracts-bedrock
 
   bedrock-echidna-build:
@@ -899,6 +908,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-checks:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-validate-spaces:
           requires:
             - yarn-monorepo
       - op-bindings-build:
