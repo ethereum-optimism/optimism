@@ -28,8 +28,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/withdrawals"
@@ -591,7 +593,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
-		"verifier": []string{"sequencer"},
+		"verifier": {"sequencer"},
 	}
 
 	var published, received []common.Hash
@@ -660,6 +662,26 @@ func TestSystemMockPeerScoring(t *testing.T) {
 	// Keep the seq window small so the L2 chain is started quick
 	cfg.DeployConfig.L1BlockTime = 10
 
+	// Append additional nodes to the system to construct a dense p2p network
+	cfg.Nodes["verifier2"] = &rollupNode.Config{
+		Driver: driver.Config{
+			VerifierConfDepth:  0,
+			SequencerConfDepth: 0,
+			SequencerEnabled:   false,
+		},
+		L1EpochPollInterval: time.Second * 4,
+	}
+	cfg.Nodes["verifier3"] = &rollupNode.Config{
+		Driver: driver.Config{
+			VerifierConfDepth:  0,
+			SequencerConfDepth: 0,
+			SequencerEnabled:   false,
+		},
+		L1EpochPollInterval: time.Second * 4,
+	}
+	cfg.Loggers["verifier2"] = testlog.Logger(t, log.LvlInfo).New("role", "verifier")
+	cfg.Loggers["verifier3"] = testlog.Logger(t, log.LvlInfo).New("role", "verifier")
+
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
 		"verifier":  {"sequencer", "verifier2", "verifier3"},
@@ -677,19 +699,19 @@ func TestSystemMockPeerScoring(t *testing.T) {
 		}
 	}
 
-	var published, received []common.Hash
+	var published, received1, received2, received3 []common.Hash
 	seqTracer, verifTracer, verifTracer2, verifTracer3 := new(FnTracer), new(FnTracer), new(FnTracer), new(FnTracer)
 	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
 		published = append(published, payload.BlockHash)
 	}
 	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received = append(received, payload.BlockHash)
+		received1 = append(received1, payload.BlockHash)
 	}
 	verifTracer2.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received = append(received, payload.BlockHash)
+		received2 = append(received2, payload.BlockHash)
 	}
 	verifTracer3.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received = append(received, payload.BlockHash)
+		received3 = append(received3, payload.BlockHash)
 	}
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
@@ -740,11 +762,17 @@ func TestSystemMockPeerScoring(t *testing.T) {
 	require.Equal(t, receiptSeq, receiptVerif)
 
 	// Verify that everything that was received was published
-	require.GreaterOrEqual(t, len(published), len(received))
-	require.ElementsMatch(t, received, published[:len(received)])
+	require.GreaterOrEqual(t, len(published), len(received1))
+	require.GreaterOrEqual(t, len(published), len(received2))
+	require.GreaterOrEqual(t, len(published), len(received3))
+	require.ElementsMatch(t, received1, published[:len(received1)])
+	require.ElementsMatch(t, received2, published[:len(received2)])
+	require.ElementsMatch(t, received3, published[:len(received3)])
 
 	// Verify that the tx was received via p2p
-	require.Contains(t, received, receiptVerif.BlockHash)
+	require.Contains(t, received1, receiptVerif.BlockHash)
+	require.Contains(t, received2, receiptVerif.BlockHash)
+	require.Contains(t, received3, receiptVerif.BlockHash)
 }
 
 func TestL1InfoContract(t *testing.T) {
