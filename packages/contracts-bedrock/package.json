@@ -27,7 +27,7 @@
     "deploy": "hardhat deploy",
     "test": "yarn build:differential && yarn build:fuzz && forge test",
     "coverage": "yarn build:differential && yarn build:fuzz && forge coverage",
-    "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
+    "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov --match-path",
     "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-spacers": "hardhat compile && hardhat validate-spacers",
