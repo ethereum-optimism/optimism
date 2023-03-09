@@ -260,6 +260,7 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
+    parallelism: 3
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -276,12 +277,11 @@ jobs:
             yarn slither || exit 0
           working_directory: packages/contracts-bedrock
       - run:
-          name: print forge version
-          command: forge --version
-          working_directory: packages/contracts-bedrock
-      - run:
           name: test and generate coverage
-          command: yarn coverage:lcov
+          command: |
+              forge --version
+              circleci tests glob "contracts/tests/**/*.t.sol" | circleci tests split | tee splits.txt
+              yarn coverage:lcov $(cat splits.txt)
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
