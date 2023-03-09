@@ -26,16 +26,14 @@ describe(readAttestation.name, () => {
     )
   })
 
-  it('should throw an error if key is longer than 32 bytes', async () => {
-    await expect(
-      readAttestation(
+  it('should work if key is longer than 32 bytes', async () => {
+    expect(
+      await readAttestation(
         creator,
         about,
         'this is a key that is way longer than 32 bytes so this key should throw an error matching the inline snapshot',
         dataType
       )
-    ).rejects.toThrowErrorMatchingInlineSnapshot(
-      '"Key is longer than the max length of 32 for attestation keys"'
-    )
+    ).toMatchInlineSnapshot('""')
   })
 })
