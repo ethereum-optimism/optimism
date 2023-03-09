@@ -65,6 +65,9 @@ func NewLogger(cfg CLIConfig) log.Logger {
 	handler := log.StreamHandler(os.Stdout, Format(cfg.Format, cfg.Color))
 	handler = log.SyncHandler(handler)
 	handler = log.LvlFilterHandler(Level(cfg.Level), handler)
+	// Set the root handle to what we have configured. Some components like go-ethereum's RPC
+	// server use log.Root() instead of being able to pass in a log.
+	log.Root().SetHandler(handler)
 	logger := log.New()
 	logger.SetHandler(handler)
 	return logger

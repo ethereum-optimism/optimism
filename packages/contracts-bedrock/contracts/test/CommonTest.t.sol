@@ -27,6 +27,7 @@ import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { LegacyMintableERC20 } from "../legacy/LegacyMintableERC20.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -276,6 +277,7 @@ contract Bridge_Initializer is Messenger_Initializer {
     ERC20 L1Token;
     ERC20 BadL1Token;
     OptimismMintableERC20 L2Token;
+    LegacyMintableERC20 LegacyL2Token;
     ERC20 NativeL2Token;
     ERC20 BadL2Token;
     OptimismMintableERC20 RemoteL1Token;
@@ -397,6 +399,14 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
         L1Token = new ERC20("Native L1 Token", "L1T");
+
+        LegacyL2Token = new LegacyMintableERC20({
+            _l2Bridge: address(L2Bridge),
+            _l1Token: address(L1Token),
+            _name: string.concat("LegacyL2-", L1Token.name()),
+            _symbol: string.concat("LegacyL2-", L1Token.symbol())
+        });
+        vm.label(address(LegacyL2Token), "LegacyMintableERC20");
 
         // Deploy the L2 ERC20 now
         L2Token = OptimismMintableERC20(
