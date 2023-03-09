@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -19,7 +20,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -51,7 +51,7 @@ type Config struct {
 	NoDiscovery bool
 
 	// Pubsub Scoring Parameters
-	PeerScoring pubsub.PeerScoreParams
+	PeerScoring  pubsub.PeerScoreParams
 	TopicScoring pubsub.TopicScoreParams
 
 	// Whether to ban peers based on their [PeerScoring] score.

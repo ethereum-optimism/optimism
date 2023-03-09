@@ -3,12 +3,12 @@ package p2p_test
 import (
 	"testing"
 
-	peer "github.com/libp2p/go-libp2p/core/peer"
-	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
-	log "github.com/ethereum/go-ethereum/log"
 	node "github.com/ethereum-optimism/optimism/op-node/node"
-	suite "github.com/stretchr/testify/suite"
+	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	log "github.com/ethereum/go-ethereum/log"
+	peer "github.com/libp2p/go-libp2p/core/peer"
+	suite "github.com/stretchr/testify/suite"
 )
 
 // PeerGaterTestSuite tests peer parameterization.
@@ -16,7 +16,7 @@ type PeerGaterTestSuite struct {
 	suite.Suite
 
 	mockGater *p2pMocks.ConnectionGater
-	logger log.Logger
+	logger    log.Logger
 }
 
 // SetupTest sets up the test suite.
@@ -65,4 +65,3 @@ func (testSuite *PeerGaterTestSuite) TestPeerGaterUpdateNoBanning() {
 	// Notice: [BlockPeer] should not be called since banning is not enabled
 	gater.Update(peer.ID("peer1"), float64(-100000))
 }
-

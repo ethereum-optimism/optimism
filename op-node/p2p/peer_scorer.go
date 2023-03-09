@@ -2,8 +2,8 @@ package p2p
 
 import (
 	log "github.com/ethereum/go-ethereum/log"
-	peer "github.com/libp2p/go-libp2p/core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 )
 
 type scorer struct {

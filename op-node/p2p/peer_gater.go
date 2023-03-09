@@ -1,9 +1,9 @@
 package p2p
 
 import (
-	slices "golang.org/x/exp/slices"
 	log "github.com/ethereum/go-ethereum/log"
 	peer "github.com/libp2p/go-libp2p/core/peer"
+	slices "golang.org/x/exp/slices"
 )
 
 // ConnectionFactor is the factor by which we multiply the connection score.
@@ -14,8 +14,8 @@ const PeerScoreThreshold = -100
 
 // gater is an internal implementation of the [PeerGater] interface.
 type gater struct {
-	connGater ConnectionGater
-	log       log.Logger
+	connGater  ConnectionGater
+	log        log.Logger
 	banEnabled bool
 }
 
@@ -30,8 +30,8 @@ type PeerGater interface {
 // NewPeerGater returns a new peer gater.
 func NewPeerGater(connGater ConnectionGater, log log.Logger, banEnabled bool) PeerGater {
 	return &gater{
-		connGater: connGater,
-		log:       log,
+		connGater:  connGater,
+		log:        log,
 		banEnabled: banEnabled,
 	}
 }

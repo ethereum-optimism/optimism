@@ -1,25 +1,25 @@
 package p2p_test
 
 import (
-	"fmt"
-	"time"
-	"math/rand"
 	"context"
+	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 
-	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	node "github.com/ethereum-optimism/optimism/op-node/node"
-	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
+	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
 
 	mock "github.com/stretchr/testify/mock"
 	suite "github.com/stretchr/testify/suite"
 
 	log "github.com/ethereum/go-ethereum/log"
 
-	peer "github.com/libp2p/go-libp2p/core/peer"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	host "github.com/libp2p/go-libp2p/core/host"
+	peer "github.com/libp2p/go-libp2p/core/peer"
 	bhost "github.com/libp2p/go-libp2p/p2p/host/blank"
 	tswarm "github.com/libp2p/go-libp2p/p2p/net/swarm/testing"
 )
@@ -28,10 +28,10 @@ import (
 type PeerScoresTestSuite struct {
 	suite.Suite
 
-	mockGater *p2pMocks.ConnectionGater
-	mockStore *p2pMocks.Peerstore
+	mockGater    *p2pMocks.ConnectionGater
+	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
-	logger log.Logger
+	logger       log.Logger
 }
 
 // SetupTest sets up the test suite.
@@ -139,7 +139,9 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	// Create subscriptions
 	var subs []*pubsub.Subscription
 	for _, ps := range pubsubs {
-		sub, err := ps.Subscribe("test")
+		topic, err := ps.Join("test")
+		testSuite.NoError(err)
+		sub, err := topic.Subscribe()
 		testSuite.NoError(err)
 		subs = append(subs, sub)
 	}
@@ -148,7 +150,10 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	time.Sleep(3 * time.Second)
 	for i := 0; i < 20; i++ {
 		msg := []byte(fmt.Sprintf("message %d", i))
-		pubsubs[i%20].Publish("test", msg)
+		topic, err := pubsubs[i%20].Join("test")
+		testSuite.NoError(err)
+		err = topic.Publish(ctx, msg)
+		testSuite.NoError(err)
 		time.Sleep(20 * time.Millisecond)
 	}
 
@@ -158,7 +163,7 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	// Collects all messages from a subscription
 	collectAll := func(sub *pubsub.Subscription) []*pubsub.Message {
 		var res []*pubsub.Message
-		ctx, cancel := context.WithTimeout(context.Background(), 100 * time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		for {
 			msg, err := sub.Next(ctx)
@@ -182,6 +187,4 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 			testSuite.NotEqual(hosts[0].ID(), m.ReceivedFrom)
 		}
 	}
-
 }
-

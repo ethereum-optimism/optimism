@@ -87,8 +87,8 @@ var DisabledPeerScoreParams = func(blockTime uint64) pubsub.PeerScoreParams {
 
 // PeerScoreParamsByName is a map of name to function that returns a [pubsub.PeerScoreParams] based on the provided [rollup.Config].
 var PeerScoreParamsByName = map[string](func(blockTime uint64) pubsub.PeerScoreParams){
-	"light":  LightPeerScoreParams,
-	"none": DisabledPeerScoreParams,
+	"light": LightPeerScoreParams,
+	"none":  DisabledPeerScoreParams,
 }
 
 // AvailablePeerScoreParams returns a list of available peer score params.

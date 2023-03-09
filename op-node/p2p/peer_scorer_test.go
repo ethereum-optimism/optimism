@@ -3,13 +3,13 @@ package p2p_test
 import (
 	"testing"
 
-	peer "github.com/libp2p/go-libp2p/core/peer"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
-	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
-	log "github.com/ethereum/go-ethereum/log"
 	node "github.com/ethereum-optimism/optimism/op-node/node"
-	suite "github.com/stretchr/testify/suite"
+	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	log "github.com/ethereum/go-ethereum/log"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	peer "github.com/libp2p/go-libp2p/core/peer"
+	suite "github.com/stretchr/testify/suite"
 )
 
 // PeerScorerTestSuite tests peer parameterization.
@@ -17,10 +17,10 @@ type PeerScorerTestSuite struct {
 	suite.Suite
 
 	// mockConnGater *p2pMocks.ConnectionGater
-	mockGater *p2pMocks.PeerGater
-	mockStore *p2pMocks.Peerstore
+	mockGater    *p2pMocks.PeerGater
+	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
-	logger log.Logger
+	logger       log.Logger
 }
 
 // SetupTest sets up the test suite.
@@ -79,7 +79,7 @@ func (testSuite *PeerScorerTestSuite) TestSnapshotHook() {
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{
-		peer.ID("peer1"): &pubsub.PeerScoreSnapshot{
+		peer.ID("peer1"): {
 			Score: -100,
 		},
 	}
@@ -106,7 +106,7 @@ func (testSuite *PeerScorerTestSuite) TestSnapshotHookBlockPeer() {
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{
-		peer.ID("peer1"): &pubsub.PeerScoreSnapshot{
+		peer.ID("peer1"): {
 			Score: -101,
 		},
 	}

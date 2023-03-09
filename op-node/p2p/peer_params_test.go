@@ -1,10 +1,10 @@
 package p2p
 
 import (
-	"sort"
 	"math"
-	"time"
+	"sort"
 	"testing"
+	"time"
 
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/stretchr/testify/suite"
@@ -55,13 +55,13 @@ func (testSuite *PeerParamsTestSuite) TestGetPeerScoreParams() {
 	testSuite.NoError(err)
 	expected := LightPeerScoreParams(1)
 	testSuite.Equal(expected.DecayInterval, params.DecayInterval)
-	testSuite.Equal(time.Duration(1) * time.Second, params.DecayInterval)
+	testSuite.Equal(time.Duration(1)*time.Second, params.DecayInterval)
 
 	params, err = GetPeerScoreParams("none", 1)
 	testSuite.NoError(err)
 	expected = DisabledPeerScoreParams(1)
 	testSuite.Equal(expected.DecayInterval, params.DecayInterval)
-	testSuite.Equal(time.Duration(1) * time.Second, params.DecayInterval)
+	testSuite.Equal(time.Duration(1)*time.Second, params.DecayInterval)
 
 	_, err = GetPeerScoreParams("invalid", 1)
 	testSuite.Error(err)
@@ -76,7 +76,7 @@ func (testSuite *PeerParamsTestSuite) TestLightPeerScoreParams() {
 
 	// calculate the behavior penalty decay
 	duration := 10 * epoch
-	decay := math.Pow(DecayToZero, 1 / float64(duration / slot))
+	decay := math.Pow(DecayToZero, 1/float64(duration/slot))
 	testSuite.Equal(0.9261187281287935, decay)
 
 	// Test the params
@@ -106,7 +106,7 @@ func (testSuite *PeerParamsTestSuite) TestDisabledPeerScoreParams() {
 
 	// calculate the behavior penalty decay
 	duration := 10 * epoch
-	decay := math.Pow(DecayToZero, 1 / float64(duration / slot))
+	decay := math.Pow(DecayToZero, 1/float64(duration/slot))
 	testSuite.Equal(0.9261187281287935, decay)
 
 	// Test the params
