@@ -293,12 +293,11 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "stream_count",
 			Help:      "Count of currently connected p2p streams",
 		}),
-		PeerScores: factory.NewHistogramVec(prometheus.HistogramOpts{
+		PeerScores: factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
 			Name:      "peer_scores",
-			Buckets:   []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10},
-			Help:      "Histogram of p2p peer scores",
+			Help:      "Peer scoring",
 		}, []string{
 			"peerid",
 		}),
