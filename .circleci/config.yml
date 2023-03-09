@@ -289,8 +289,6 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: lint
           command: yarn lint:check
@@ -324,8 +322,6 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
-      - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: validate spacers
           command: yarn validate-spacers
