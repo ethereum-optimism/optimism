@@ -17,7 +17,7 @@ func ConfigurePeerScoring(h host.Host, g ConnectionGater, gossipConf GossipSetup
 	scorer := NewScorer(peerGater, h.Peerstore(), m, log)
 	opts := []pubsub.Option{}
 	// Check the app specific score since libp2p doesn't export it's [validate] function :/
-	if peerScoreParams.AppSpecificScore != nil {
+	if peerScoreParams != nil && peerScoreParams.AppSpecificScore != nil {
 		opts = []pubsub.Option{
 			pubsub.WithPeerScore(peerScoreParams, &peerScoreThresholds),
 			pubsub.WithPeerScoreInspect(scorer.SnapshotHook(), peerScoreInspectFrequency),
