@@ -163,6 +163,10 @@ jobs:
         description: Docker build context
         type: string
         default: "."
+      docker_target:
+        description: "target build stage"
+        type: string
+        default: ""
       registry:
         description: Docker registry
         type: string
@@ -196,7 +200,7 @@ jobs:
             DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
             docker context create buildx-build
             docker buildx create --use buildx-build
-            docker buildx build --platform=<<parameters.platforms>> --push \
+            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
               $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
               -f <<parameters.docker_file>> \
               <<parameters.docker_context>>
@@ -1137,6 +1141,7 @@ workflows:
           docker_file: ./ops/docker/Dockerfile.packages
           docker_name: chain-mon
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: wd-mon
           context:
             - oplabs-gcr
       - hive-test:

@@ -92,7 +92,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	rpcCfg := cfg.RPCConfig
-	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version)
+	server := oprpc.NewServer(rpcCfg.ListenAddr, rpcCfg.ListenPort, version, oprpc.WithLogger(l))
 	if err := server.Start(); err != nil {
 		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)

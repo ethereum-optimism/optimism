@@ -1,11 +1,11 @@
 import { readContracts } from '@wagmi/core'
-import { formatBytes32String } from 'ethers/lib/utils.js'
 
 import { ATTESTATION_STATION_ADDRESS } from '../constants/attestationStationAddress'
 import type { AttestationReadParams } from '../types/AttestationReadParams'
 import { DEFAULT_DATA_TYPE } from '../types/DataTypeOption'
 import type { WagmiBytes } from '../types/WagmiBytes'
 import { abi } from './abi'
+import { createKey } from './createKey'
 import { parseAttestationBytes } from './parseAttestationBytes'
 
 /**
@@ -39,16 +39,11 @@ export const readAttestations = async (
       key,
       contractAddress = ATTESTATION_STATION_ADDRESS,
     } = attestation
-    if (key.length > 32) {
-      throw new Error(
-        'Key is longer than the max length of 32 for attestation keys'
-      )
-    }
     return {
       address: contractAddress,
       abi,
       functionName: 'attestations',
-      args: [creator, about, formatBytes32String(key) as WagmiBytes],
+      args: [creator, about, createKey(key) as WagmiBytes],
     } as const
   })
 
