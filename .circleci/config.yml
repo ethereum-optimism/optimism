@@ -267,16 +267,6 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
-          name: lint
-          command: yarn lint:check
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: slither
-          command: |
-            slither --version
-            yarn slither || exit 0
-          working_directory: packages/contracts-bedrock
-      - run:
           name: test and generate coverage
           command: |
               forge --version
@@ -291,6 +281,25 @@ jobs:
           command: codecov --verbose --clean --flags contracts-bedrock-tests
           environment:
             FOUNDRY_PROFILE: ci
+
+  contracts-bedrock-checks:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: slither
+          command: |
+            slither --version
+            yarn slither || exit 0
+          working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
@@ -300,12 +309,12 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
-          name: validate spacers
-          command: yarn validate-spacers
-          working_directory: packages/contracts-bedrock
-      - run:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: validate spacers
+          command: yarn validate-spacers
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
@@ -887,6 +896,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-checks:
           requires:
             - yarn-monorepo
       - op-bindings-build:
