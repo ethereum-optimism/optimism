@@ -294,43 +294,46 @@ func (l *BatchSubmitter) loop() {
 		select {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.ctx)
-
-			for {
-				l1tip, err := l.l1Tip(ctx)
-				if err != nil {
-					l.log.Error("Failed to query L1 tip", "error", err)
-					break
-				}
-				l.recordL1Tip(l1tip)
-
-				// Collect next transaction data
-				txdata, err := l.state.TxData(l1tip.ID())
-				if err == io.EOF {
-					l.log.Trace("no transaction data available")
-					break // local for loop
-				} else if err != nil {
-					l.log.Error("unable to get tx data", "err", err)
-					break
-				}
-
-				// Record TX Status
-				if receipt, err := l.sendTransaction(l.ctx, txdata.Bytes()); err != nil {
-					l.recordFailedTx(txdata.ID(), err)
-				} else {
-					l.recordConfirmedTx(txdata.ID(), receipt)
-				}
-
-				// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
-				// produced. Any remaining frames must still be published to the L1 to prevent stalling.
-				select {
-				case <-l.done:
-					l.state.CloseCurrentChannel()
-				default:
-				}
-			}
-
+			l.publishStateToL1(ctx)
 		case <-l.done:
 			return
+		}
+	}
+}
+
+// publishStateToL1 loops through the block data loaded into `state` and
+// submits the associated data to the L1 in the form of channel frames.
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
+	for {
+		l1tip, err := l.l1Tip(ctx)
+		if err != nil {
+			l.log.Error("Failed to query L1 tip", "error", err)
+			return
+		}
+		l.recordL1Tip(l1tip)
+
+		// Collect next transaction data
+		txdata, err := l.state.TxData(l1tip.ID())
+		if err == io.EOF {
+			l.log.Trace("no transaction data available")
+			break
+		} else if err != nil {
+			l.log.Error("unable to get tx data", "err", err)
+			break
+		}
+		// Record TX Status
+		if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
+			l.recordFailedTx(txdata.ID(), err)
+		} else {
+			l.recordConfirmedTx(txdata.ID(), receipt)
+		}
+
+		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
+		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
+		select {
+		case <-l.done:
+			l.state.CloseCurrentChannel()
+		default:
 		}
 	}
 }
