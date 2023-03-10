@@ -49,7 +49,6 @@ jq "select(.is_ready == false)|[.id, .frames[0].inclusion_block, .frames[0].tran
 
 - Parallel transaction fetching (CLI-3563)
 - Create force-close channel tx data from channel ID (CLI-3564)
-- Better re-assembly of channels (CLI-3559)
 - Pull the batches out of channels & store that information inside the ChannelWithMetadata (CLI-3565)
 	- Transaction Bytes used
 	- Total uncompressed (different from tx bytes) + compressed bytes

@@ -16,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
-type TransactionWithMeta struct {
+type TransactionWithMetadata struct {
 	TxIndex     uint64             `json:"tx_index"`
 	InboxAddr   common.Address     `json:"inbox_address"`
 	BlockNumber uint64             `json:"block_number"`
@@ -94,7 +94,7 @@ func fetchBatchesPerBlock(client *ethclient.Client, number *big.Int, signer type
 				invalidBatchCount += 1
 			}
 
-			txm := &TransactionWithMeta{
+			txm := &TransactionWithMetadata{
 				Tx:          tx,
 				Sender:      sender,
 				ValidSender: validSender,
