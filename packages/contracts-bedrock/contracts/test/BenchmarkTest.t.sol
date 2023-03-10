@@ -14,17 +14,13 @@ function setPrevBaseFee(
     address _op,
     uint128 _prevBaseFee
 ) {
-    _vm.store(
-        address(_op),
-        bytes32(uint256(1)),
-        bytes32(block.number << 192 | _prevBaseFee)
-    );
+    _vm.store(address(_op), bytes32(uint256(1)), bytes32((block.number << 192) | _prevBaseFee));
 }
 
 contract SetPrevBaseFee_Test is Portal_Initializer {
-    function test_setPrevBaseFee_suceeds() external {
+    function test_setPrevBaseFee_succeeds() external {
         setPrevBaseFee(vm, address(op), 100 gwei);
-        (uint128 prevBaseFee,, uint64 prevBlockNum) = op.params();
+        (uint128 prevBaseFee, , uint64 prevBlockNum) = op.params();
         assertEq(uint256(prevBaseFee), 100 gwei);
         assertEq(uint256(prevBlockNum), block.number);
     }
