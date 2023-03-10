@@ -311,16 +311,11 @@ jobs:
             forge --version
             yarn build:differential && yarn build:fuzz
             circleci tests glob "contracts/test/*.sol" "contracts/test/*/*.sol" | circleci tests split | tee splits.txt
-            cat splits.txt | xargs -L1 forge coverage --cache-path=.forge_contracts_cache --report lcov --match-path
+            cat splits.txt | xargs -L1 forge test  --match-path
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
-      - run:
-          name: upload coverage
-          command: codecov --verbose --clean --flags contracts-bedrock-tests
-          environment:
-            FOUNDRY_PROFILE: ci
 
   contracts-bedrock-checks:
     docker:
