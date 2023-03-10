@@ -18,6 +18,7 @@ var (
 	ErrMaxDurationReached    = errors.New("max channel duration reached")
 	ErrChannelTimeoutClose   = errors.New("close to channel timeout")
 	ErrSeqWindowClose        = errors.New("close to sequencer window timeout")
+	ErrTerminated            = errors.New("channel terminated")
 )
 
 type ChannelFullError struct {
@@ -188,7 +189,7 @@ func (c *channelBuilder) Reset() error {
 }
 
 // AddBlock adds a block to the channel compression pipeline. IsFull should be
-// called aftewards to test whether the channel is full. If full, a new channel
+// called afterwards to test whether the channel is full. If full, a new channel
 // must be started.
 //
 // AddBlock returns a ChannelFullError if called even though the channel is
@@ -314,9 +315,10 @@ func (c *channelBuilder) IsFull() bool {
 //     would have been exceeded by the latest AddBlock call,
 //   - ErrMaxFrameIndex if the maximum number of frames has been generated
 //     (uint16),
-//   - ErrMaxDurationReached if the max channel duration got reached.
-//   - ErrChannelTimeoutClose if the consensus channel timeout got too close.
-//   - ErrSeqWindowClose if the end of the sequencer window got too close.
+//   - ErrMaxDurationReached if the max channel duration got reached,
+//   - ErrChannelTimeoutClose if the consensus channel timeout got too close,
+//   - ErrSeqWindowClose if the end of the sequencer window got too close,
+//   - ErrTerminated if the channel was explicitly terminated.
 func (c *channelBuilder) FullErr() error {
 	return c.fullErr
 }
@@ -400,6 +402,16 @@ func (c *channelBuilder) outputFrame() error {
 	c.frames = append(c.frames, frame)
 	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
+}
+
+// Close immediately marks the channel as full with an ErrTerminated
+// if the channel is not already full. This ensures that no additional
+// frames will be added to the channel.
+func (c *channelBuilder) Close() error {
+	if !c.IsFull() {
+		c.setFullErr(ErrTerminated)
+	}
+	return c.FullErr()
 }
 
 // HasFrame returns whether there's any available frame. If true, it can be

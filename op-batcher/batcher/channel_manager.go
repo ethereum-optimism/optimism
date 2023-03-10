@@ -344,3 +344,13 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 		SequenceNumber: l1info.SequenceNumber,
 	}
 }
+
+// CloseCurrentChannel closes the current pending channel, if one exists.
+// This ensures that no new frames will be produced, but there still may be any
+// number of pending frames produced before this call.
+func (s *channelManager) CloseCurrentChannel() error {
+	if s.pendingChannel == nil {
+		return nil
+	}
+	return s.pendingChannel.Close()
+}

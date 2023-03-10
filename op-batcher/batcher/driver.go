@@ -145,8 +145,6 @@ func (l *BatchSubmitter) Start() error {
 	l.running = true
 
 	l.done = make(chan struct{})
-	// TODO: this context only exists because the event loop doesn't reach done
-	// if the tx manager is blocking forever due to e.g. insufficient balance.
 	l.ctx, l.cancel = context.WithCancel(context.Background())
 	l.state.Clear()
 	l.lastStoredBlock = eth.BlockID{}
@@ -287,6 +285,9 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 func (l *BatchSubmitter) loop() {
 	defer l.wg.Done()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	ticker := time.NewTicker(l.PollInterval)
 	defer ticker.Stop()
 	for {
@@ -294,9 +295,8 @@ func (l *BatchSubmitter) loop() {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.ctx)
 
-		blockLoop:
 			for {
-				l1tip, err := l.l1Tip(l.ctx)
+				l1tip, err := l.l1Tip(ctx)
 				if err != nil {
 					l.log.Error("Failed to query L1 tip", "error", err)
 					break
@@ -320,12 +320,11 @@ func (l *BatchSubmitter) loop() {
 					l.recordConfirmedTx(txdata.ID(), receipt)
 				}
 
-				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
-				// from the channel manager rather than sending the channel in a loop. This stalls b/c if the
-				// context is cancelled while sending, it will never fully clear the pending txns.
+				// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
+				// produced. Any remaining frames must still be published to the L1 to prevent stalling.
 				select {
-				case <-l.ctx.Done():
-					break blockLoop
+				case <-l.done:
+					l.state.CloseCurrentChannel()
 				default:
 				}
 			}
