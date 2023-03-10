@@ -58,6 +58,9 @@ func (p *ProcessedChannels) Seen(id ChannelID) bool {
 }
 
 func (p *ProcessedChannels) Add(id ChannelID) {
+	if p.Seen(id) {
+		return
+	}
 	p.m[id] = true
 	p.a = append(p.a, id)
 	if len(p.a) > MaxProcessedChannelsSize {
