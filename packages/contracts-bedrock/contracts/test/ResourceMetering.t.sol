@@ -216,7 +216,6 @@ contract ArtifactResourceMetering_Test is Test {
     bytes32 internal emptyReturnData =
         0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470;
 
-
     /**
      * @notice Sets up the tests by getting constants from the ResourceMetering
      *         contract.
