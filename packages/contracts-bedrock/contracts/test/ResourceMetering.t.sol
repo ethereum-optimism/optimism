@@ -67,6 +67,13 @@ contract ResourceMetering_Test is Test {
         assertEq(prevBlockNum, initialBlockNum);
     }
 
+    function test_meter_maxValue_succeeds() external {
+        uint256 max = uint256(meter.MAX_RESOURCE_LIMIT());
+        uint256 target = uint256(meter.TARGET_RESOURCE_LIMIT());
+        uint256 elasticity = uint256(meter.ELASTICITY_MULTIPLIER());
+        assertEq(max / elasticity, target);
+    }
+
     function test_meter_updateParamsNoChange_succeeds() external {
         meter.use(0); // equivalent to just updating the base fee and block number
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -129,7 +136,7 @@ contract ResourceMetering_Test is Test {
         vm.roll(initialBlockNum + 1);
         meter.use(0);
         (uint128 postBaseFee, , ) = meter.params();
-        assertEq(postBaseFee, 1500000000);
+        assertEq(postBaseFee, 2125000000);
     }
 
     function test_meter_useMoreThanMax_reverts() external {

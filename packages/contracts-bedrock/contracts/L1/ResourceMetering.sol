@@ -36,7 +36,7 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice Along with the resource limit, determines the target resource limit.
      */
-    int256 public constant ELASTICITY_MULTIPLIER = 5;
+    int256 public constant ELASTICITY_MULTIPLIER = 10;
 
     /**
      * @notice Target amount of the resource that should be used within this block.
