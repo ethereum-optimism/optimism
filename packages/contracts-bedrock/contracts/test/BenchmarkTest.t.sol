@@ -134,20 +134,20 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     function test_sendMessage_benchmark_0() external {
         vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
-        vm.resumeGasMetering();
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        vm.resumeGasMetering();
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 
     function test_sendMessage_benchmark_1() external {
         vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), 10 gwei);
-        vm.resumeGasMetering();
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        vm.resumeGasMetering();
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 }
