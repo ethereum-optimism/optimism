@@ -2,9 +2,9 @@
   "name": "@eth-optimism/atst",
   "version": "0.1.0",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "types": "src/index.ts",
-  "module": "dist/index.cjs",
+  "module": "dist/index.js",
   "license": "MIT",
   "exports": {
     ".": {
