@@ -168,19 +168,25 @@ func loadTransactions(dir string, inbox common.Address) []fetch.TransactionWithM
 	}
 	var out []fetch.TransactionWithMeta
 	for _, file := range files {
-		f, err := os.Open(path.Join(dir, file.Name()))
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer f.Close()
-		dec := json.NewDecoder(f)
-		var txm fetch.TransactionWithMeta
-		if err := dec.Decode(&txm); err != nil {
-			log.Fatalf("Failed to decode %v. Err: %v\n", path.Join(dir, file.Name()), err)
-		}
+		f := path.Join(dir, file.Name())
+		txm := loadTransactionsFile(f)
 		if txm.InboxAddr == inbox && txm.ValidSender {
 			out = append(out, txm)
 		}
 	}
 	return out
+}
+
+func loadTransactionsFile(file string) fetch.TransactionWithMeta {
+	f, err := os.Open(file)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	var txm fetch.TransactionWithMeta
+	if err := dec.Decode(&txm); err != nil {
+		log.Fatalf("Failed to decode %v. Err: %v\n", file, err)
+	}
+	return txm
 }
