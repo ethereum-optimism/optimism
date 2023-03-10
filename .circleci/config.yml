@@ -291,6 +291,7 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
+    parallelism: 3
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -307,40 +308,10 @@ jobs:
       - run:
           name: test and generate coverage
           command: |
+            forge --version
             yarn build:differential && yarn build:fuzz
-            forge coverage --report lcov --match-path=contracts/test/*.sol
-          no_output_timeout: 18m
-          environment:
-            FOUNDRY_PROFILE: ci
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: upload coverage
-          command: codecov --verbose --clean --flags contracts-bedrock-tests
-          environment:
-            FOUNDRY_PROFILE: ci
-
-  contracts-bedrock-invariants-tests:
-    docker:
-      - image: ethereumoptimism/ci-builder:latest
-    resource_class: large
-    steps:
-      - checkout
-      - attach_workspace: { at: "." }
-      - restore_cache:
-          name: Restore Yarn Package Cache
-          keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
-      - check-changed:
-          patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: print forge version
-          command: forge --version
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: test and generate coverage
-          command: |
-            yarn build:differential && yarn build:fuzz
-            forge coverage --report lcov --match-path=contracts/test/invariants/*.sol
+            circleci tests glob "contracts/test/*.sol" "contracts/test/*/*.sol" | circleci tests split | tee splits.txt
+            cat splits.txt | xargs -L1 forge coverage --cache-path=.forge_contracts_cache --report lcov --match-path
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
@@ -994,9 +965,6 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
-          requires:
-            - yarn-monorepo
-      - contracts-bedrock-invariants-tests:
           requires:
             - yarn-monorepo
       - contracts-bedrock-checks:
