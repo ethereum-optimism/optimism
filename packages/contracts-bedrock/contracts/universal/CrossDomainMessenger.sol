@@ -142,16 +142,6 @@ abstract contract CrossDomainMessenger is
     uint64 public constant MIN_GAS_CALLDATA_OVERHEAD = 16;
 
     /**
-     * @notice Minimum amount of gas required to relay a message.
-     */
-    uint256 internal constant RELAY_GAS_REQUIRED = 45_000;
-
-    /**
-     * @notice Amount of gas held in reserve to guarantee that relay execution completes.
-     */
-    uint256 internal constant RELAY_GAS_BUFFER = RELAY_GAS_REQUIRED - 5000;
-
-    /**
      * @notice Address of the paired CrossDomainMessenger contract on the other chain.
      */
     address public immutable OTHER_MESSENGER;
@@ -367,16 +357,11 @@ abstract contract CrossDomainMessenger is
             "CrossDomainMessenger: message has already been relayed"
         );
 
-        require(
-            gasleft() >= _minGasLimit + RELAY_GAS_REQUIRED,
-            "CrossDomainMessenger: insufficient gas to relay message"
-        );
-
         xDomainMsgSender = _sender;
-        bool success = SafeCall.call(_target, gasleft() - RELAY_GAS_BUFFER, _value, _message);
+        bool success = SafeCall.callWithMinGas(_target, _minGasLimit, _value, _message);
         xDomainMsgSender = Constants.DEFAULT_L2_SENDER;
 
-        if (success == true) {
+        if (success) {
             successfulMessages[versionedHash] = true;
             emit RelayedMessage(versionedHash);
         } else {

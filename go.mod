@@ -191,6 +191,6 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.11.2 => github.com/ethereum-optimism/op-geth v1.11.2-aea0402.0.20230301232322-c407b2a217b7
+replace github.com/ethereum/go-ethereum v1.11.2 => github.com/ethereum-optimism/op-geth v1.11.2-de8c5df46.0.20230308025559-13ee9ab9153b
 
 //replace github.com/ethereum/go-ethereum v1.11.2 => ../go-ethereum

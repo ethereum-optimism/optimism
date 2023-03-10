@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/doc"
 
 	"github.com/urfave/cli"
@@ -22,6 +23,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/node"
 	"github.com/ethereum-optimism/optimism/op-node/version"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 )
 
@@ -48,12 +50,7 @@ var VersionWithMeta = func() string {
 func main() {
 	// Set up logger with a default INFO level in case we fail to parse flags,
 	// otherwise the final critical log won't show what the parsing error was.
-	log.Root().SetHandler(
-		log.LvlFilterHandler(
-			log.LvlInfo,
-			log.StreamHandler(os.Stdout, log.TerminalFormat(true)),
-		),
-	)
+	oplog.SetupDefaults()
 
 	app := cli.NewApp()
 	app.Version = VersionWithMeta
@@ -85,12 +82,12 @@ func main() {
 
 func RollupNodeMain(ctx *cli.Context) error {
 	log.Info("Initializing Rollup Node")
-	logCfg, err := opnode.NewLogConfig(ctx)
-	if err != nil {
+	logCfg := oplog.ReadCLIConfig(ctx)
+	if err := logCfg.Check(); err != nil {
 		log.Error("Unable to create the log config", "error", err)
 		return err
 	}
-	log := logCfg.NewLogger()
+	log := oplog.NewLogger(logCfg)
 	m := metrics.NewMetrics("default")
 
 	cfg, err := opnode.NewConfig(ctx, log)
@@ -102,6 +99,13 @@ func RollupNodeMain(ctx *cli.Context) error {
 	if err != nil {
 		log.Error("Unable to create snapshot root logger", "error", err)
 		return err
+	}
+
+	// Only pretty-print the banner if it is a terminal log. Other log it as key-value pairs.
+	if logCfg.Format == "terminal" {
+		log.Info("rollup config:\n" + cfg.Rollup.Description(chaincfg.L2ChainIDToNetworkName))
+	} else {
+		cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkName)
 	}
 
 	n, err := node.New(context.Background(), cfg, log, snapshotLog, VersionWithMeta, m)
