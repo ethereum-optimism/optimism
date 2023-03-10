@@ -605,7 +605,7 @@ The safe L2 head is the highest [safe L2 block][safe-l2-block] that a [rollup no
 [unsafe-l2-block]: glossary.md#unsafe-l2-block
 
 An unsafe L2 block is an L2 block that a [rollup node][rollup-node] knows about, but which was not derived from the L1
-chian. In sequencer mode, this will be a block sequenced by the sequencer itself. In validator mode, this will be a
+chain. In sequencer mode, this will be a block sequenced by the sequencer itself. In validator mode, this will be a
 block acquired from the sequencer via [unsafe sync][unsafe-sync].
 
 ## Unsafe L2 Head

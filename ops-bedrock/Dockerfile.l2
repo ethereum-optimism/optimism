@@ -1,4 +1,4 @@
-FROM ethereumoptimism/op-geth:optimism
+FROM us-docker.pkg.dev/oplabs-tools-artifacts/images/op-geth:optimism
 
 RUN apk add --no-cache jq
 

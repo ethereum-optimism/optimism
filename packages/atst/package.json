@@ -2,10 +2,24 @@
   "name": "@eth-optimism/atst",
   "version": "0.1.0",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/index.cjs",
   "types": "src/index.ts",
-  "module": "dist/index.cjs",
+  "module": "dist/index.js",
   "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./src/react.ts",
+      "default": "./dist/react.js",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    }
+  },
   "bin": {
     "atst": "./dist/cli.js"
   },

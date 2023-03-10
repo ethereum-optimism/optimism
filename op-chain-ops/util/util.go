@@ -1,4 +1,4 @@
-package ether
+package util
 
 import (
 	"github.com/ethereum/go-ethereum/log"

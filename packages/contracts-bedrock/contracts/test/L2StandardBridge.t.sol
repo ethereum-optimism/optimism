@@ -155,15 +155,15 @@ contract L2StandardBridge_Test is Bridge_Initializer {
 contract PreBridgeERC20 is Bridge_Initializer {
     // withdraw and BridgeERC20 should behave the same when transferring ERC20 tokens
     // so they should share the same setup and expectEmit calls
-    function _preBridgeERC20(bool isLegacy) internal {
+    function _preBridgeERC20(bool _isLegacy, address _l2Token) internal {
         // Alice has 100 L2Token
-        deal(address(L2Token), alice, 100, true);
-        assertEq(L2Token.balanceOf(alice), 100);
+        deal(_l2Token, alice, 100, true);
+        assertEq(ERC20(_l2Token).balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
             StandardBridge.finalizeBridgeERC20.selector,
             address(L1Token),
-            address(L2Token),
+            _l2Token,
             alice,
             alice,
             100,
@@ -190,23 +190,17 @@ contract PreBridgeERC20 is Bridge_Initializer {
             })
         );
 
-        if (isLegacy) {
+        if (_isLegacy) {
             vm.expectCall(
                 address(L2Bridge),
-                abi.encodeWithSelector(
-                    L2Bridge.withdraw.selector,
-                    address(L2Token),
-                    100,
-                    1000,
-                    hex""
-                )
+                abi.encodeWithSelector(L2Bridge.withdraw.selector, _l2Token, 100, 1000, hex"")
             );
         } else {
             vm.expectCall(
                 address(L2Bridge),
                 abi.encodeWithSelector(
                     L2Bridge.bridgeERC20.selector,
-                    address(L2Token),
+                    _l2Token,
                     address(L1Token),
                     100,
                     1000,
@@ -237,15 +231,15 @@ contract PreBridgeERC20 is Bridge_Initializer {
 
         // The L2Bridge should burn the tokens
         vm.expectCall(
-            address(L2Token),
+            _l2Token,
             abi.encodeWithSelector(OptimismMintableERC20.burn.selector, alice, 100)
         );
 
         vm.expectEmit(true, true, true, true);
-        emit WithdrawalInitiated(address(L1Token), address(L2Token), alice, alice, 100, hex"");
+        emit WithdrawalInitiated(address(L1Token), _l2Token, alice, alice, 100, hex"");
 
         vm.expectEmit(true, true, true, true);
-        emit ERC20BridgeInitiated(address(L2Token), address(L1Token), alice, alice, 100, hex"");
+        emit ERC20BridgeInitiated(_l2Token, address(L1Token), alice, alice, 100, hex"");
 
         vm.expectEmit(true, true, true, true);
         emit MessagePassed(
@@ -276,7 +270,7 @@ contract L2StandardBridge_BridgeERC20_Test is PreBridgeERC20 {
     // - emits WithdrawalInitiated
     // - calls Withdrawer.initiateWithdrawal
     function test_withdraw_withdrawingERC20_succeeds() external {
-        _preBridgeERC20({ isLegacy: true });
+        _preBridgeERC20({ _isLegacy: true, _l2Token: address(L2Token) });
         L2Bridge.withdraw(address(L2Token), 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
@@ -287,8 +281,22 @@ contract L2StandardBridge_BridgeERC20_Test is PreBridgeERC20 {
     // - emits WithdrawalInitiated
     // - calls Withdrawer.initiateWithdrawal
     function test_bridgeERC20_succeeds() external {
-        _preBridgeERC20({ isLegacy: false });
+        _preBridgeERC20({ _isLegacy: false, _l2Token: address(L2Token) });
         L2Bridge.bridgeERC20(address(L2Token), address(L1Token), 100, 1000, hex"");
+
+        assertEq(L2Token.balanceOf(alice), 0);
+    }
+
+    function test_withdrawLegacyERC20_succeeds() external {
+        _preBridgeERC20({ _isLegacy: true, _l2Token: address(LegacyL2Token) });
+        L2Bridge.withdraw(address(LegacyL2Token), 100, 1000, hex"");
+
+        assertEq(L2Token.balanceOf(alice), 0);
+    }
+
+    function test_bridgeLegacyERC20_succeeds() external {
+        _preBridgeERC20({ _isLegacy: false, _l2Token: address(LegacyL2Token) });
+        L2Bridge.bridgeERC20(address(LegacyL2Token), address(L1Token), 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
     }
@@ -305,14 +313,14 @@ contract L2StandardBridge_BridgeERC20_Test is PreBridgeERC20 {
 contract PreBridgeERC20To is Bridge_Initializer {
     // withdrawTo and BridgeERC20To should behave the same when transferring ERC20 tokens
     // so they should share the same setup and expectEmit calls
-    function _preBridgeERC20To(bool isLegacy) internal {
-        deal(address(L2Token), alice, 100, true);
-        assertEq(L2Token.balanceOf(alice), 100);
+    function _preBridgeERC20To(bool _isLegacy, address _l2Token) internal {
+        deal(_l2Token, alice, 100, true);
+        assertEq(ERC20(L2Token).balanceOf(alice), 100);
         uint256 nonce = L2Messenger.messageNonce();
         bytes memory message = abi.encodeWithSelector(
             StandardBridge.finalizeBridgeERC20.selector,
             address(L1Token),
-            address(L2Token),
+            _l2Token,
             alice,
             bob,
             100,
@@ -340,10 +348,10 @@ contract PreBridgeERC20To is Bridge_Initializer {
         );
 
         vm.expectEmit(true, true, true, true, address(L2Bridge));
-        emit WithdrawalInitiated(address(L1Token), address(L2Token), alice, bob, 100, hex"");
+        emit WithdrawalInitiated(address(L1Token), _l2Token, alice, bob, 100, hex"");
 
         vm.expectEmit(true, true, true, true, address(L2Bridge));
-        emit ERC20BridgeInitiated(address(L2Token), address(L1Token), alice, bob, 100, hex"");
+        emit ERC20BridgeInitiated(_l2Token, address(L1Token), alice, bob, 100, hex"");
 
         vm.expectEmit(true, true, true, true, address(messagePasser));
         emit MessagePassed(
@@ -364,12 +372,12 @@ contract PreBridgeERC20To is Bridge_Initializer {
         vm.expectEmit(true, true, true, true, address(L2Messenger));
         emit SentMessageExtension1(address(L2Bridge), 0);
 
-        if (isLegacy) {
+        if (_isLegacy) {
             vm.expectCall(
                 address(L2Bridge),
                 abi.encodeWithSelector(
                     L2Bridge.withdrawTo.selector,
-                    address(L2Token),
+                    _l2Token,
                     bob,
                     100,
                     1000,
@@ -381,7 +389,7 @@ contract PreBridgeERC20To is Bridge_Initializer {
                 address(L2Bridge),
                 abi.encodeWithSelector(
                     L2Bridge.bridgeERC20To.selector,
-                    address(L2Token),
+                    _l2Token,
                     address(L1Token),
                     bob,
                     100,
@@ -427,7 +435,7 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
     // - emits WithdrawalInitiated w/ correct recipient
     // - calls Withdrawer.initiateWithdrawal
     function test_withdrawTo_withdrawingERC20_succeeds() external {
-        _preBridgeERC20To({ isLegacy: true });
+        _preBridgeERC20To({ _isLegacy: true, _l2Token: address(L2Token) });
         L2Bridge.withdrawTo(address(L2Token), bob, 100, 1000, hex"");
 
         assertEq(L2Token.balanceOf(alice), 0);
@@ -438,7 +446,7 @@ contract L2StandardBridge_BridgeERC20To_Test is PreBridgeERC20To {
     // - emits WithdrawalInitiated w/ correct recipient
     // - calls Withdrawer.initiateWithdrawal
     function test_bridgeERC20To_succeeds() external {
-        _preBridgeERC20To({ isLegacy: false });
+        _preBridgeERC20To({ _isLegacy: false, _l2Token: address(L2Token) });
         L2Bridge.bridgeERC20To(address(L2Token), address(L1Token), bob, 100, 1000, hex"");
         assertEq(L2Token.balanceOf(alice), 0);
     }
