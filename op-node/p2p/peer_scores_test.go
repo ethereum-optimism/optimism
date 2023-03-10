@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	node "github.com/ethereum-optimism/optimism/op-node/node"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
@@ -39,8 +38,7 @@ func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	logger := node.DefaultLogConfig()
-	testSuite.logger = logger.NewLogger()
+	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
 // TestPeerScores runs the PeerScoresTestSuite.

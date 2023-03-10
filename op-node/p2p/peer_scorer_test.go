@@ -3,9 +3,9 @@ package p2p_test
 import (
 	"testing"
 
-	node "github.com/ethereum-optimism/optimism/op-node/node"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	log "github.com/ethereum/go-ethereum/log"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	peer "github.com/libp2p/go-libp2p/core/peer"
@@ -29,8 +29,7 @@ func (testSuite *PeerScorerTestSuite) SetupTest() {
 	// testSuite.mockConnGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	logger := node.DefaultLogConfig()
-	testSuite.logger = logger.NewLogger()
+	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
 // TestPeerScorer runs the PeerScorerTestSuite.

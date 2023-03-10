@@ -3,9 +3,9 @@ package p2p_test
 import (
 	"testing"
 
-	node "github.com/ethereum-optimism/optimism/op-node/node"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
+	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
 	log "github.com/ethereum/go-ethereum/log"
 	peer "github.com/libp2p/go-libp2p/core/peer"
 	suite "github.com/stretchr/testify/suite"
@@ -22,8 +22,7 @@ type PeerGaterTestSuite struct {
 // SetupTest sets up the test suite.
 func (testSuite *PeerGaterTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.ConnectionGater{}
-	logger := node.DefaultLogConfig()
-	testSuite.logger = logger.NewLogger()
+	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
 // TestPeerGater runs the PeerGaterTestSuite.
