@@ -156,8 +156,8 @@ contract L2OutputOracle_Initializer is CommonTest {
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target
-    OptimismPortal opImpl;
-    OptimismPortal op;
+    OptimismPortal internal opImpl;
+    OptimismPortal internal op;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(
@@ -177,14 +177,14 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
             abi.encodeWithSelector(OptimismPortal.initialize.selector, false)
         );
         op = OptimismPortal(payable(address(proxy)));
+        vm.label(address(op), "OptimismPortal");
     }
 }
 
-contract Messenger_Initializer is L2OutputOracle_Initializer {
-    OptimismPortal op;
-    AddressManager addressManager;
-    L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger =
+contract Messenger_Initializer is Portal_Initializer {
+    AddressManager internal addressManager;
+    L1CrossDomainMessenger internal L1Messenger;
+    L2CrossDomainMessenger internal L2Messenger =
         L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
     event SentMessage(
@@ -220,16 +220,10 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         bytes data
     );
 
-    event WithdrawalFinalized(bytes32 indexed, bool success);
-
     event WhatHappened(bool success, bytes returndata);
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Deploy the OptimismPortal
-        op = new OptimismPortal({ _l2Oracle: oracle, _guardian: guardian, _paused: false });
-        vm.label(address(op), "OptimismPortal");
 
         // Deploy the address manager
         vm.prank(multisig);

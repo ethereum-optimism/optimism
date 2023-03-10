@@ -8,8 +8,6 @@ import "./CommonTest.t.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
-uint128 constant INITIAL_BASE_FEE = 1_000_000_000;
-
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(
     Vm _vm,
@@ -19,16 +17,17 @@ function setPrevBaseFee(
     _vm.store(
         address(_op),
         bytes32(uint256(1)),
-        bytes32(
-            abi.encode(
-                ResourceMetering.ResourceParams({
-                    prevBaseFee: _prevBaseFee,
-                    prevBoughtGas: 0,
-                    prevBlockNum: uint64(block.number)
-                })
-            )
-        )
+        bytes32(block.number << 192 | _prevBaseFee)
     );
+}
+
+contract SetPrevBaseFee_Test is Portal_Initializer {
+    function test_setPrevBaseFee_suceeds() external {
+        setPrevBaseFee(vm, address(op), 100 gwei);
+        (uint128 prevBaseFee,, uint64 prevBlockNum) = op.params();
+        assertEq(uint256(prevBaseFee), 100 gwei);
+        assertEq(uint256(prevBlockNum), block.number);
+    }
 }
 
 // Tests for obtaining pure gas cost estimates for commonly used functions.
@@ -37,6 +36,8 @@ function setPrevBaseFee(
 // In order to achieve this we make no assertions, and handle everything else in the setUp()
 // function.
 contract GasBenchMark_OptimismPortal is Portal_Initializer {
+    uint128 INITIAL_BASE_FEE;
+
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -76,7 +77,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     }
 
     // Get the system into a nice ready-to-use state.
-    function setUp() public override {
+    function setUp() public virtual override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
         vm.prank(oracle.PROPOSER());
@@ -88,6 +89,9 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
                 oracle.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
+
+        INITIAL_BASE_FEE = op.INITIAL_BASE_FEE();
+
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(op), 0xFFFFFFFF);
     }
@@ -124,7 +128,15 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
 }
 
 contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
+    uint128 INITIAL_BASE_FEE;
+
+    function setUp() public virtual override {
+        super.setUp();
+        INITIAL_BASE_FEE = op.INITIAL_BASE_FEE();
+    }
+
     function test_sendMessage_benchmark_0() external {
+        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
@@ -132,7 +144,7 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     }
 
     function test_sendMessage_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        setPrevBaseFee(vm, address(op), 10 gwei);
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
@@ -141,28 +153,46 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
 }
 
 contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
+    uint128 INITIAL_BASE_FEE;
+
     function setUp() public virtual override {
         super.setUp();
+        INITIAL_BASE_FEE = op.INITIAL_BASE_FEE();
         deal(address(L1Token), alice, 100000, true);
         vm.startPrank(alice, alice);
+        L1Token.approve(address(L1Bridge), type(uint256).max);
     }
 
     function test_depositETH_benchmark_0() external {
+        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
         L1Bridge.depositETH{ value: 500 }(50000, hex"");
     }
 
     function test_depositETH_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        setPrevBaseFee(vm, address(op), 10 gwei);
         L1Bridge.depositETH{ value: 500 }(50000, hex"");
     }
 
     function test_depositERC20_benchmark_0() external {
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        L1Bridge.bridgeERC20({
+            _localToken: address(L1Token),
+            _remoteToken: address(L2Token),
+            _amount: 100,
+            _minGasLimit: 100_000,
+            _extraData: hex""
+        });
     }
 
     function test_depositERC20_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        setPrevBaseFee(vm, address(op), 10 gwei);
+        L1Bridge.bridgeERC20({
+            _localToken: address(L1Token),
+            _remoteToken: address(L2Token),
+            _amount: 100,
+            _minGasLimit: 100_000,
+            _extraData: hex""
+        });
     }
 }
 
