@@ -299,7 +299,9 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "peer_scores",
 			Help:      "Peer scoring",
 		}, []string{
-			"peerid",
+			// No label names here since peer ids would open a service attack vector.
+			// Each peer id would be a separate metric, flooding prometheus.
+			// See: https://prometheus.io/docs/practices/naming/#labels
 		}),
 		GossipEventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,

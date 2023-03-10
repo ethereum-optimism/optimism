@@ -28,7 +28,7 @@ var (
 	PeerScoring = cli.StringFlag{
 		Name: "p2p.scoring.peers",
 		Usage: "Sets the peer scoring strategy for the P2P stack. " +
-			"Can be one of: none, light, full." +
+			"Can be one of: none or light." +
 			"Custom scoring strategies can be defined in the config file.",
 		Required: false,
 		Value:    "none",
@@ -46,7 +46,7 @@ var (
 	TopicScoring = cli.StringFlag{
 		Name: "p2p.scoring.topics",
 		Usage: "Sets the topic scoring strategy. " +
-			"Can be one of: none, light, full." +
+			"Can be one of: none or light." +
 			"Custom scoring strategies can be defined in the config file.",
 		Required: false,
 		Value:    "none",

@@ -16,11 +16,11 @@ const MaxInMeshScore = 10
 // DecayEpoch is the number of epochs to decay the score over.
 const DecayEpoch = time.Duration(5)
 
-// DefaultTopicScoreParams is a default instantiation of [pubsub.TopicScoreParams].
+// LightTopicScoreParams is a default instantiation of [pubsub.TopicScoreParams].
 // See [TopicScoreParams] for detailed documentation.
 //
 // [TopicScoreParams]: https://pkg.go.dev/github.com/libp2p/go-libp2p-pubsub@v0.8.1#TopicScoreParams
-var DefaultTopicScoreParams = func(blockTime uint64) pubsub.TopicScoreParams {
+var LightTopicScoreParams = func(blockTime uint64) pubsub.TopicScoreParams {
 	slot := time.Duration(blockTime) * time.Second
 	if slot == 0 {
 		slot = 2 * time.Second
@@ -87,8 +87,8 @@ var DisabledTopicScoreParams = func(blockTime uint64) pubsub.TopicScoreParams {
 
 // TopicScoreParamsByName is a map of name to [pubsub.TopicScoreParams].
 var TopicScoreParamsByName = map[string](func(blockTime uint64) pubsub.TopicScoreParams){
-	"default":  DefaultTopicScoreParams,
-	"disabled": DisabledTopicScoreParams,
+	"light": LightTopicScoreParams,
+	"none":  DisabledTopicScoreParams,
 }
 
 // AvailableTopicScoreParams returns a list of available topic score params.
