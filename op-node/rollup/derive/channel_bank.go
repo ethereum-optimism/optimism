@@ -34,7 +34,7 @@ type ChannelBank struct {
 
 	channels          map[ChannelID]*Channel // channels by ID
 	channelQueue      []ChannelID            // channels in FIFO order
-	processedChannels ProcessedChannels      // processed channels by ID
+	processedChannels ProcessedChannels
 
 	prev NextFrameProvider
 }
@@ -43,8 +43,8 @@ type ChannelBank struct {
 // This is to ensure if a new frame arrives for a completed channel, we don't create a new
 // channel for that frame.
 type ProcessedChannels struct {
-	m map[ChannelID]bool
-	a []ChannelID
+	m map[ChannelID]bool // channels by ID
+	a []ChannelID        // channels in FIFO order
 }
 
 func NewProcessedChannels() ProcessedChannels {
