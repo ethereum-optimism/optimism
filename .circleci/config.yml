@@ -291,6 +291,7 @@ jobs:
     docker:
       - image: ethereumoptimism/ci-builder:latest
     resource_class: large
+    parallelism: 3
     steps:
       - checkout
       - attach_workspace: { at: "." }
@@ -306,7 +307,11 @@ jobs:
           working_directory: packages/contracts-bedrock
       - run:
           name: test and generate coverage
-          command: yarn coverage:lcov
+          command: |
+            forge --version
+            yarn build:differential && yarn build:fuzz
+            circleci tests glob "contracts/test/*.sol" "contracts/test/*/*.sol" | circleci tests split | tee splits.txt
+            cat splits.txt | xargs -L1 forge coverage --cache-path=.forge_contracts_cache --report lcov --match-path
           no_output_timeout: 18m
           environment:
             FOUNDRY_PROFILE: ci
