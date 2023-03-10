@@ -132,7 +132,9 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     }
 
     function test_sendMessage_benchmark_0() external {
+        vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        vm.resumeGasMetering();
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
@@ -140,7 +142,9 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     }
 
     function test_sendMessage_benchmark_1() external {
+        vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), 10 gwei);
+        vm.resumeGasMetering();
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
@@ -160,17 +164,23 @@ contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
     }
 
     function test_depositETH_benchmark_0() external {
+        vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        vm.resumeGasMetering();
         L1Bridge.depositETH{ value: 500 }(50000, hex"");
     }
 
     function test_depositETH_benchmark_1() external {
+        vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), 10 gwei);
+        vm.resumeGasMetering();
         L1Bridge.depositETH{ value: 500 }(50000, hex"");
     }
 
     function test_depositERC20_benchmark_0() external {
+        vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        vm.resumeGasMetering();
         L1Bridge.bridgeERC20({
             _localToken: address(L1Token),
             _remoteToken: address(L2Token),
@@ -181,7 +191,9 @@ contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
     }
 
     function test_depositERC20_benchmark_1() external {
+        vm.pauseGasMetering();
         setPrevBaseFee(vm, address(op), 10 gwei);
+        vm.resumeGasMetering();
         L1Bridge.bridgeERC20({
             _localToken: address(L1Token),
             _remoteToken: address(L2Token),
