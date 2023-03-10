@@ -42,6 +42,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	// Deploy WETH9
 	weth9Address, tx, WETH9, err := bindings.DeployWETH9(opts, l1Client)
+	require.NotNil(t, err)
 	_, err = waitForTransaction(tx.Hash(), l1Client, 3*time.Duration(cfg.DeployConfig.L1BlockTime)*time.Second)
 	require.Nil(t, err, "Waiting for deposit tx on L1")
 
@@ -53,6 +54,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	require.Nil(t, err)
 	opts.Value = nil
 	wethBalance, err := WETH9.BalanceOf(&bind.CallOpts{}, opts.From)
+	require.NotNil(t, err)
 	require.Equal(t, big.NewInt(params.Ether), wethBalance)
 
 	// Deploy L2 WETH9
@@ -61,7 +63,9 @@ func TestERC20BridgeDeposits(t *testing.T) {
 	optimismMintableTokenFactory, err := bindings.NewOptimismMintableERC20Factory(predeploys.OptimismMintableERC20FactoryAddr, l2Client)
 	require.Nil(t, err)
 	tx, err = optimismMintableTokenFactory.CreateOptimismMintableERC20(l2Opts, weth9Address, "L2-WETH", "L2-WETH")
+	require.NotNil(t, err)
 	_, err = waitForTransaction(tx.Hash(), l2Client, 3*time.Duration(cfg.DeployConfig.L2BlockTime)*time.Second)
+	require.NotNil(t, err)
 
 	// Get the deployment event to have access to the L2 WETH9 address
 	it, err := optimismMintableTokenFactory.FilterOptimismMintableERC20Created(&bind.FilterOpts{Start: 0}, nil, nil)
