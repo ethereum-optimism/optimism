@@ -1,4 +1,4 @@
-# atst sdk docs
+# AttestationStation sdk docs
 
 Typescript sdk for interacting with the ATST based on [@wagmi/core](https://wagmi.sh/core/getting-started)
 
@@ -150,7 +150,7 @@ const attestation = await readAttestation(
   about,          // Address: The about topic of the attestation
   key,            // string: The key of the attestation
   dataType,       // Optional, the data type of the attestation, 'string' | 'bytes' | 'number' | 'bool' | 'address'
-  contractAddress // Optional address: the contract address of the attestation station
+  contractAddress // Optional address: the contract address of AttestationStation
 )
 ```
 
@@ -193,7 +193,7 @@ These definitions allow you to communicate with AttestationStation, but are not 
 #### `ATTESTATION_STATION_ADDRESS`
 
 
-The deployment address for the attestation station currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`.
+The deployment address for AttestationStation currently deployed with create2 on Optimism and Optimism Goerli `0xEE36eaaD94d1Cc1d0eccaDb55C38bFfB6Be06C77`.
 
 ```typescript
 import { ATTESTATION_STATION_ADDRESS } from '@eth-optimism/atst'
@@ -201,7 +201,7 @@ import { ATTESTATION_STATION_ADDRESS } from '@eth-optimism/atst'
 
 #### `abi`
 
-The abi of the attestation station contract
+The abi of the AttestationStation contract
 
 ```typescript
 import { abi } from '@eth-optimism/atst'
@@ -265,24 +265,26 @@ const bigNumberAttestation = stringifyAttestationBytes(
 )
 ```
 
-**Note:** `writeAttestation` already does this for you so this is only needed if using a library other than the attestation station.
+**Note:** `writeAttestation` already does this for you so this is only needed if using a library other than `atst`.
 
 ### React API
 
-For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station.
+For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around AttestationStation.
 
-Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in the attestation station contract calls.
-Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by attestation station to their correct data type.
+Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in AttestationStation contract calls.
+Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by AttestationStation to their correct data type.
 
-For convenience we also [export the hooks](../src/react.ts) here:
+For convenience we also [export the hooks here](../src/react.ts):
 - `useAttestationStationAttestation` - Reads attestations with useContractRead
 - `useAttestationStationVersion` - Reads attestation version
-- `useAttestationStationAttest` - Wraps useContractWrite with attestation station abi calling attest
-- `usePrepareAttestationStationAttest` - Wraps usePrepare with attestation station abi calling attest
+- `useAttestationStationAttest` - Wraps useContractWrite with AttestationStation abi calling attest
+- `usePrepareAttestationStationAttest` - Wraps usePrepare with AttestationStation abi calling attest
 - `useAttestationStationAttestationCreatedEvent` - Wraps useContractEvents for Created events
 
 
 
 ## Tutorial
 
-For a tutorial on using the attestation station in general, see out tutorial as well as other Optimism related tutorials in our [optimism-tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station#key-values) repo.
+- [General atst tutorial](https://github.com/ethereum-optimism/optimism-tutorial/tree/main/ecosystem/attestation-station).
+- [React atst starter](https://github.com/ethereum-optimism/optimism-starter). 
+
