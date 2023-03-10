@@ -101,7 +101,7 @@ func TestChannelBankSimple(t *testing.T) {
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
-	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input)
 
 	// Load the first frame
 	out, err := cb.NextData(context.Background())
@@ -141,7 +141,7 @@ func TestChannelBankDuplicates(t *testing.T) {
 
 	cfg := &rollup.Config{ChannelTimeout: 10}
 
-	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input, nil)
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input)
 
 	// Load the first frame
 	out, err := cb.NextData(context.Background())
@@ -170,6 +170,40 @@ func TestChannelBankDuplicates(t *testing.T) {
 	out, err = cb.NextData(context.Background())
 	require.Nil(t, err)
 	require.Equal(t, "firstsecondthird", string(out))
+
+	// No more data
+	out, err = cb.NextData(context.Background())
+	require.Nil(t, out)
+	require.Equal(t, io.EOF, err)
+}
+
+func TestChannelBankRepeatedLastFrame(t *testing.T) {
+	rng := rand.New(rand.NewSource(1234))
+	a := testutils.RandomBlockRef(rng)
+
+	input := &fakeChannelBankInput{origin: a}
+	input.AddFrames("a:0:first!")
+	input.AddFrames("a:0:first!")
+	input.AddFrame(Frame{}, io.EOF)
+
+	cfg := &rollup.Config{ChannelTimeout: 10}
+
+	cb := NewChannelBank(testlog.Logger(t, log.LvlCrit), cfg, input)
+
+	// Load the first frame
+	out, err := cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
+
+	// Pull out the channel data
+	out, err = cb.NextData(context.Background())
+	require.Nil(t, err)
+	require.Equal(t, "first", string(out))
+
+	// Load the repeated first frame
+	out, err = cb.NextData(context.Background())
+	require.ErrorIs(t, err, NotEnoughData)
+	require.Equal(t, []byte(nil), out)
 
 	// No more data
 	out, err = cb.NextData(context.Background())

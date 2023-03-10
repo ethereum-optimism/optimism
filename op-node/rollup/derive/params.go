@@ -24,6 +24,9 @@ const DerivationVersion0 = 0
 // starting with the oldest channel.
 const MaxChannelBankSize = 100_000_000
 
+// MaxProcessedChannelsSize is the maximum amount of processed channels to track.
+const MaxProcessedChannelsSize = 100_000
+
 // MaxRLPBytesPerChannel is the maximum amount of bytes that will be read from
 // a channel. This limit is set when decoding the RLP.
 const MaxRLPBytesPerChannel = 10_000_000

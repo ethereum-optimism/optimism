@@ -32,24 +32,51 @@ type ChannelBank struct {
 	log log.Logger
 	cfg *rollup.Config
 
-	channels     map[ChannelID]*Channel // channels by ID
-	channelQueue []ChannelID            // channels in FIFO order
+	channels          map[ChannelID]*Channel // channels by ID
+	channelQueue      []ChannelID            // channels in FIFO order
+	processedChannels ProcessedChannels      // processed channels by ID
 
-	prev    NextFrameProvider
-	fetcher L1Fetcher
+	prev NextFrameProvider
+}
+
+// ProcessedChannels tracks channels that have been processed (either fully-read or timed-out).
+// This is to ensure if a new frame arrives for a completed channel, we don't create a new
+// channel for that frame.
+type ProcessedChannels struct {
+	m map[ChannelID]bool
+	a []ChannelID
+}
+
+func NewProcessedChannels() ProcessedChannels {
+	return ProcessedChannels{
+		m: make(map[ChannelID]bool),
+	}
+}
+
+func (p *ProcessedChannels) Seen(id ChannelID) bool {
+	return p.m[id]
+}
+
+func (p *ProcessedChannels) Add(id ChannelID) {
+	p.m[id] = true
+	p.a = append(p.a, id)
+	if len(p.a) > MaxProcessedChannelsSize {
+		delete(p.m, p.a[0])
+		p.a = p.a[1:]
+	}
 }
 
 var _ ResetableStage = (*ChannelBank)(nil)
 
 // NewChannelBank creates a ChannelBank, which should be Reset(origin) before use.
-func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider, fetcher L1Fetcher) *ChannelBank {
+func NewChannelBank(log log.Logger, cfg *rollup.Config, prev NextFrameProvider) *ChannelBank {
 	return &ChannelBank{
-		log:          log,
-		cfg:          cfg,
-		channels:     make(map[ChannelID]*Channel),
-		channelQueue: make([]ChannelID, 0, 10),
-		prev:         prev,
-		fetcher:      fetcher,
+		log:               log,
+		cfg:               cfg,
+		channels:          make(map[ChannelID]*Channel),
+		channelQueue:      make([]ChannelID, 0, 10),
+		processedChannels: NewProcessedChannels(),
+		prev:              prev,
 	}
 }
 
@@ -79,6 +106,11 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 	origin := cb.Origin()
 	log := log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber, "is_last", f.IsLast)
 	log.Debug("channel bank got new data")
+
+	if cb.processedChannels.Seen(f.ID) {
+		log.Warn("channel is processed, ignore frame")
+		return
+	}
 
 	currentCh, ok := cb.channels[f.ID]
 	if !ok {
@@ -117,6 +149,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 		cb.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
 		delete(cb.channels, first)
 		cb.channelQueue = cb.channelQueue[1:]
+		cb.processedChannels.Add(first)
 		return nil, nil // multiple different channels may all be timed out
 	}
 	if !ch.IsReady() {
@@ -125,6 +158,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 
 	delete(cb.channels, first)
 	cb.channelQueue = cb.channelQueue[1:]
+	cb.processedChannels.Add(first)
 	r := ch.Reader()
 	// Suppress error here. io.ReadAll does return nil instead of io.EOF though.
 	data, _ = io.ReadAll(r)
@@ -162,6 +196,7 @@ func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
 func (cb *ChannelBank) Reset(ctx context.Context, base eth.L1BlockRef, _ eth.SystemConfig) error {
 	cb.channels = make(map[ChannelID]*Channel)
 	cb.channelQueue = make([]ChannelID, 0, 10)
+	cb.processedChannels = NewProcessedChannels()
 	return io.EOF
 }
 
