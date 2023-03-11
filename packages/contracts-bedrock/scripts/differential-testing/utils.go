@@ -9,9 +9,12 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 var UnknownNonceVersion = errors.New("Unknown nonce version")
+
+var ZeroPadding = [32]byte{}
 
 // checkOk checks if ok is false, and panics if so.
 // Shorthand to ease go's god awful error handling
@@ -46,6 +49,56 @@ func encodeCrossDomainMessage(nonce *big.Int, sender common.Address, target comm
 	}
 
 	return encoded, err
+}
+
+// hashWithdrawal hashes a withdrawal transaction.
+func hashWithdrawal(nonce *big.Int, sender common.Address, target common.Address, value *big.Int, gasLimit *big.Int, data []byte) (common.Hash, error) {
+	// Pack withdrawal
+	wdtx := struct {
+		Nonce    *big.Int
+		Sender   common.Address
+		Target   common.Address
+		Value    *big.Int
+		GasLimit *big.Int
+		Data     []byte
+	}{
+		Nonce:    nonce,
+		Sender:   sender,
+		Target:   target,
+		Value:    value,
+		GasLimit: gasLimit,
+		Data:     data,
+	}
+	packed, err := withdrawalTransactionArgs.Pack(&wdtx)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	// Hash packed withdrawal (we ignore the pointer)
+	return crypto.Keccak256Hash(packed[32:]), nil
+}
+
+// hashOutputRootProof hashes an output root proof.
+func hashOutputRootProof(version common.Hash, stateRoot common.Hash, messagePasserStorageRoot common.Hash, latestBlockHash common.Hash) (common.Hash, error) {
+	// Pack proof
+	proof := struct {
+		Version                  common.Hash
+		StateRoot                common.Hash
+		MessagePasserStorageRoot common.Hash
+		LatestBlockHash          common.Hash
+	}{
+		Version:                  version,
+		StateRoot:                stateRoot,
+		MessagePasserStorageRoot: messagePasserStorageRoot,
+		LatestBlockHash:          latestBlockHash,
+	}
+	packed, err := outputRootProofArgs.Pack(&proof)
+	if err != nil {
+		return common.Hash{}, err
+	}
+
+	// Hash packed proof
+	return crypto.Keccak256Hash(packed), nil
 }
 
 // makeDepositTx creates a deposit transaction type.

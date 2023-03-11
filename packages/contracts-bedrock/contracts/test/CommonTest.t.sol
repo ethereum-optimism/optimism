@@ -477,16 +477,15 @@ contract FFIInterface is Test {
             bytes[] memory
         )
     {
-        string[] memory cmds = new string[](9);
-        cmds[0] = "node";
-        cmds[1] = "dist/scripts/differential-testing.js";
-        cmds[2] = "getProveWithdrawalTransactionInputs";
-        cmds[3] = vm.toString(_tx.nonce);
-        cmds[4] = vm.toString(_tx.sender);
-        cmds[5] = vm.toString(_tx.target);
-        cmds[6] = vm.toString(_tx.value);
-        cmds[7] = vm.toString(_tx.gasLimit);
-        cmds[8] = vm.toString(_tx.data);
+        string[] memory cmds = new string[](8);
+        cmds[0] = "scripts/differential-testing/differential-testing";
+        cmds[1] = "getProveWithdrawalTransactionInputs";
+        cmds[2] = vm.toString(_tx.nonce);
+        cmds[3] = vm.toString(_tx.sender);
+        cmds[4] = vm.toString(_tx.target);
+        cmds[5] = vm.toString(_tx.value);
+        cmds[6] = vm.toString(_tx.gasLimit);
+        cmds[7] = vm.toString(_tx.data);
 
         bytes memory result = vm.ffi(cmds);
         (
