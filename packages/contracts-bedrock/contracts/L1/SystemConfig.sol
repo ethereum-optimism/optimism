@@ -5,6 +5,7 @@ import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "../universal/Semver.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
 /**
  * @title SystemConfig
@@ -42,11 +43,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /**
-     * @notice Minimum gas limit. This should not be lower than the maximum deposit gas resource
-     *         limit in the ResourceMetering contract used by OptimismPortal, to ensure the L2
-     *         block always has sufficient gas to process deposits.
+     * @notice
      */
-    uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
+    address public immutable PORTAL;
 
     /**
      * @notice Fixed L2 gas overhead.
@@ -79,7 +78,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.0.1
+     * @custom:semver 1.1.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -87,6 +86,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _batcherHash       Initial batcher hash.
      * @param _gasLimit          Initial gas limit.
      * @param _unsafeBlockSigner Initial unsafe block signer address.
+     * @param _portal            Address of the OptimismPortal
      */
     constructor(
         address _owner,
@@ -94,8 +94,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _scalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
-        address _unsafeBlockSigner
-    ) Semver(1, 0, 1) {
+        address _unsafeBlockSigner,
+        address _portal
+    ) Semver(1, 1, 0) {
+        PORTAL = _portal;
         initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
     }
 
@@ -117,7 +119,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner
     ) public initializer {
-        require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
+        uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
+        require(_gasLimit >= maxResourceLimit, "SystemConfig: gas limit too low");
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;
@@ -188,7 +191,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _gasLimit New gas limit.
      */
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
-        require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
+        uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
+        require(_gasLimit >= maxResourceLimit, "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);

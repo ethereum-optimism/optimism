@@ -274,6 +274,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
 				gasLimit,
 				config.P2PSequencerAddress,
+				predeploys.DevOptimismPortalAddr,
 			},
 		},
 		{
@@ -342,6 +343,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[3].(common.Hash),
 			deployment.Args[4].(uint64),
 			deployment.Args[5].(common.Address),
+			deployment.Args[6].(common.Address),
 		)
 	case "L2OutputOracle":
 		_, tx, _, err = bindings.DeployL2OutputOracle(

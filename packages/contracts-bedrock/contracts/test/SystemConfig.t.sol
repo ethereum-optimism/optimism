@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
-import { CommonTest } from "./CommonTest.t.sol";
+import { Portal_Initializer } from "./CommonTest.t.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
-contract SystemConfig_Init is CommonTest {
+contract SystemConfig_Init is Portal_Initializer {
     SystemConfig sysConf;
 
     function setUp() public virtual override {
@@ -15,24 +16,25 @@ contract SystemConfig_Init is CommonTest {
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 9_000_000,
-            _unsafeBlockSigner: address(1)
+            _unsafeBlockSigner: address(1),
+            _portal: address(op)
         });
     }
 }
 
-contract SystemConfig_Initialize_TestFail is CommonTest {
+contract SystemConfig_Initialize_TestFail is Portal_Initializer {
     function test_initialize_lowGasLimit_reverts() external {
-        vm.expectRevert("SystemConfig: gas limit too low");
+        uint256 maxResourceLimit = uint256(ResourceMetering(op).MAX_RESOURCE_LIMIT());
 
-        // The minimum gas limit defined in SystemConfig:
-        uint64 MINIMUM_GAS_LIMIT = 8_000_000;
+        vm.expectRevert("SystemConfig: gas limit too low");
         new SystemConfig({
             _owner: alice,
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(hex""),
-            _gasLimit: MINIMUM_GAS_LIMIT - 1,
-            _unsafeBlockSigner: address(1)
+            _gasLimit: uint64(maxResourceLimit) - 1,
+            _unsafeBlockSigner: address(1),
+            _portal: address(op)
         });
     }
 }
@@ -90,9 +92,9 @@ contract SystemConfig_Setters_Test is SystemConfig_Init {
     }
 
     function testFuzz_setGasLimit_succeeds(uint64 newGasLimit) external {
-        uint64 minimumGasLimit = sysConf.MINIMUM_GAS_LIMIT();
+        uint256 maxResourceLimit = uint256(ResourceMetering(op).MAX_RESOURCE_LIMIT());
         newGasLimit = uint64(
-            bound(uint256(newGasLimit), uint256(minimumGasLimit), uint256(type(uint64).max))
+            bound(uint256(newGasLimit), uint256(maxResourceLimit), uint256(type(uint64).max))
         );
 
         vm.expectEmit(true, true, true, true);

@@ -2,18 +2,28 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { SystemConfig } from "../../L1/SystemConfig.sol";
+import { OptimismPortal } from "../../L1/OptimismPortal.sol";
+import { L2OutputOracle } from "../../L1/L2OutputOracle.sol";
 
 contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
+    OptimismPortal public portal;
 
     function setUp() public {
+        portal = new OptimismPortal({
+            _l2Oracle: L2OutputOracle(address(0)),
+            _guardian: address(0),
+            _paused: true
+        });
+
         config = new SystemConfig({
             _owner: address(0xbeef),
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 8_000_000,
-            _unsafeBlockSigner: address(1)
+            _unsafeBlockSigner: address(1),
+            _portal: address(portal)
         });
 
         // Set the target contract to the `config`
@@ -37,6 +47,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
      * than the hard-coded lower bound.
      */
     function invariant_gasLimitLowerBound() external {
-        assertTrue(config.gasLimit() >= config.MINIMUM_GAS_LIMIT());
+        uint256 maxResourceLimit = uint256(portal.MAX_RESOURCE_LIMIT());
+        assertTrue(config.gasLimit() >= maxResourceLimit);
     }
 }

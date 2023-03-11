@@ -8,6 +8,10 @@ const deployFn: DeployFunction = async (hre) => {
     .hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
     .toLowerCase()
 
+  const Artifact__OptimismPortalProxy = await hre.deployments.get(
+    'OptimismPortalProxy'
+  )
+
   await deploy({
     hre,
     name: 'SystemConfig',
@@ -18,6 +22,7 @@ const deployFn: DeployFunction = async (hre) => {
       batcherHash,
       hre.deployConfig.l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
+      Artifact__OptimismPortalProxy.address,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
