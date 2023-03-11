@@ -17,7 +17,7 @@
     "bindings": "cd ../../op-bindings && make",
     "build:forge": "forge build",
     "build:with-metadata": "FOUNDRY_PROFILE=echidna yarn build:forge",
-    "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop && go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
+    "build:differential": "go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
     "build:fuzz": "(cd test-case-generator && go build ./cmd/fuzz.go)",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
