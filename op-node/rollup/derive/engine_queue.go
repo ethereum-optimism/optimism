@@ -104,7 +104,7 @@ type EngineQueue struct {
 
 	finalizedL1 eth.L1BlockRef
 
-	safeAttributes  *eth.PayloadAttributes
+	safeAttributes *eth.PayloadAttributes
 	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
