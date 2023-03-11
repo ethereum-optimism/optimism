@@ -103,7 +103,7 @@ func main() {
 		checkOk(ok)
 		gasLimit, ok := new(big.Int).SetString(args[5], 10)
 		checkOk(ok)
-		data := common.Hex2Bytes(args[6][2:])
+		data := common.FromHex(args[6])
 
 		// Encode cross domain message
 		encoded, err := encodeCrossDomainMessage(nonce, sender, target, value, gasLimit, data)
@@ -125,7 +125,7 @@ func main() {
 		checkOk(ok)
 		gasLimit, ok := new(big.Int).SetString(args[5], 10)
 		checkOk(ok)
-		data := common.Hex2Bytes(args[6][2:])
+		data := common.FromHex(args[6])
 
 		// Encode cross domain message
 		encoded, err := encodeCrossDomainMessage(nonce, sender, target, value, gasLimit, data)
