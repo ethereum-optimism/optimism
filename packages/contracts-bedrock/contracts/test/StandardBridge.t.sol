@@ -41,7 +41,7 @@ contract StandardBridgeTester is StandardBridge {
 contract LegacyMintable is ERC20, ILegacyMintableERC20 {
     constructor(string memory _name, string memory _ticker) ERC20(_name, _ticker) {}
 
-    function l1Token() external view returns (address) {
+    function l1Token() external pure returns (address) {
         return address(0);
     }
 
@@ -55,7 +55,7 @@ contract LegacyMintable is ERC20, ILegacyMintableERC20 {
      *         check. Allows for testing against code that is has been deployed,
      *         assuming different compiler version is no problem.
      */
-    function supportsInterface(bytes4 _interfaceId) external view returns (bool) {
+    function supportsInterface(bytes4 _interfaceId) external pure returns (bool) {
         bytes4 firstSupportedInterface = bytes4(keccak256("supportsInterface(bytes4)")); // ERC165
         bytes4 secondSupportedInterface = ILegacyMintableERC20.l1Token.selector ^
             ILegacyMintableERC20.mint.selector ^

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
+	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/reassemble"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli"
@@ -59,7 +60,7 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-				ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				chainID, err := client.ChainID(ctx)
 				if err != nil {
@@ -79,6 +80,36 @@ func main() {
 				fmt.Printf("Fetched batches in range [%v,%v). Found %v valid & %v invalid batches\n", config.Start, config.End, totalValid, totalInvalid)
 				fmt.Printf("Fetch Config: Chain ID: %v. Inbox Address: %v. Valid Senders: %v.\n", config.ChainID, config.BatchInbox, config.BatchSenders)
 				fmt.Printf("Wrote transactions with batches to %v\n", config.OutDirectory)
+				return nil
+			},
+		},
+		{
+			Name:  "reassemble",
+			Usage: "Reassembles channels from fetched batches",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:  "inbox",
+					Value: "0xff00000000000000000000000000000000000420",
+					Usage: "Batch Inbox Address",
+				},
+				cli.StringFlag{
+					Name:  "in",
+					Value: "/tmp/batch_decoder/transactions_cache",
+					Usage: "Cache directory for the found transactions",
+				},
+				cli.StringFlag{
+					Name:  "out",
+					Value: "/tmp/batch_decoder/channel_cache",
+					Usage: "Cache directory for the found channels",
+				},
+			},
+			Action: func(cliCtx *cli.Context) error {
+				config := reassemble.Config{
+					BatchInbox:   common.HexToAddress(cliCtx.String("inbox")),
+					InDirectory:  cliCtx.String("in"),
+					OutDirectory: cliCtx.String("out"),
+				}
+				reassemble.Channels(config)
 				return nil
 			},
 		},

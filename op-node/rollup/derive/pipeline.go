@@ -50,7 +50,6 @@ type EngineQueueStage interface {
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.L1BlockRef)
-	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Step(context.Context) error
 }
