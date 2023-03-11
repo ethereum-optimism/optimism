@@ -8,7 +8,7 @@ import (
 )
 
 // ComputeL2OutputRoot computes the L2 output root
-func ComputeL2OutputRoot(l2OutputRootVersion eth.Bytes32, blockHash common.Hash, blockRoot common.Hash, storageRoot common.Hash) eth.Bytes32 {
+func ComputeL2OutputRoot(l2OutputRootVersion eth.Bytes32, blockRoot common.Hash, storageRoot common.Hash, blockHash common.Hash) eth.Bytes32 {
 	digest := crypto.Keccak256Hash(
 		l2OutputRootVersion[:],
 		blockRoot.Bytes(),

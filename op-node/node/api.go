@@ -114,7 +114,7 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	}
 
 	var l2OutputRootVersion eth.Bytes32 // it's zero for now
-	l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root(), proof.StorageHash)
+	l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Root(), proof.StorageHash, head.Hash())
 
 	return &eth.OutputResponse{
 		Version:               l2OutputRootVersion,
