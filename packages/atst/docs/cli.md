@@ -63,9 +63,9 @@ npx atst read --key "optimist.base-uri" --about 0x2335022c740d17c2837f9C884Bfe4f
 Example: 
 
 ```bash
-atst write --key "optimist.base-uri" \
+npx atst write --key "optimist.base-uri" \
     --about 0x2335022c740d17c2837f9C884Bfe4fFdbf0A95D5 \
     --value "my attestation" \
     --private-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
-    --rpc-url http://localhost:8545
+    --rpc-url http://goerli.optimism.io
 ```

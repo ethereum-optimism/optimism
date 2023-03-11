@@ -32,7 +32,7 @@ contract SetPrevBaseFee_Test is Portal_Initializer {
 // In order to achieve this we make no assertions, and handle everything else in the setUp()
 // function.
 contract GasBenchMark_OptimismPortal is Portal_Initializer {
-    uint128 INITIAL_BASE_FEE;
+    uint128 internal INITIAL_BASE_FEE;
 
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
@@ -124,7 +124,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
 }
 
 contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
-    uint128 INITIAL_BASE_FEE;
+    uint128 internal INITIAL_BASE_FEE;
 
     function setUp() public virtual override {
         super.setUp();
@@ -153,7 +153,7 @@ contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
 }
 
 contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
-    uint128 INITIAL_BASE_FEE;
+    uint128 internal INITIAL_BASE_FEE;
 
     function setUp() public virtual override {
         super.setUp();

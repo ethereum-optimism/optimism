@@ -168,7 +168,7 @@ func TestP2PFull(t *testing.T) {
 
 	_, err = p2pClientA.DiscoveryTable(ctx)
 	// rpc does not preserve error type
-	require.Equal(t, err.Error(), DisabledDiscovery.Error(), "expecting discv5 to be disabled")
+	require.Equal(t, err.Error(), ErrDisabledDiscovery.Error(), "expecting discv5 to be disabled")
 
 	require.NoError(t, p2pClientA.BlockPeer(ctx, hostB.ID()))
 	blockedPeers, err := p2pClientA.ListBlockedPeers(ctx)
