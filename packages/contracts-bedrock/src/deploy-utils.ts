@@ -54,10 +54,16 @@ export const deploy = async ({
       waitConfirmations: hre.deployConfig.numDeployConfirmations,
     })
     console.log(`Deployed ${name} at ${result.address}`)
+    // Only wait for the transaction if it was recently deployed in case the
+    // result was deployed a long time ago and was pruned from the backend.
+    await hre.ethers.provider.waitForTransaction(result.transactionHash)
   }
 
-  // Always wait for the transaction to be mined, just in case.
-  await hre.ethers.provider.waitForTransaction(result.transactionHash)
+  // Check to make sure there is code
+  const code = await hre.ethers.provider.getCode(result.address)
+  if (code === '0x') {
+    throw new Error(`no code for ${result.address}`)
+  }
 
   // Create the contract object to return.
   const created = asAdvancedContract({

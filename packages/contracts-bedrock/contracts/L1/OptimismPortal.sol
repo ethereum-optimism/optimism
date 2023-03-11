@@ -44,11 +44,6 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /**
-     * @notice Additional gas reserved for clean up after finalizing a transaction withdrawal.
-     */
-    uint256 internal constant FINALIZE_GAS_BUFFER = 20_000;
-
-    /**
      * @notice Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
@@ -363,26 +358,19 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Mark the withdrawal as finalized so it can't be replayed.
         finalizedWithdrawals[withdrawalHash] = true;
 
-        // We want to maintain the property that the amount of gas supplied to the call to the
-        // target contract is at least the gas limit specified by the user. We can do this by
-        // enforcing that, at this point in time, we still have gaslimit + buffer gas available.
-        require(
-            gasleft() >= _tx.gasLimit + FINALIZE_GAS_BUFFER,
-            "OptimismPortal: insufficient gas to finalize withdrawal"
-        );
-
         // Set the l2Sender so contracts know who triggered this withdrawal on L2.
         l2Sender = _tx.sender;
 
-        // Trigger the call to the target contract. We use SafeCall because we don't
-        // care about the returndata and we don't want target contracts to be able to force this
-        // call to run out of gas via a returndata bomb.
-        bool success = SafeCall.call(
-            _tx.target,
-            gasleft() - FINALIZE_GAS_BUFFER,
-            _tx.value,
-            _tx.data
-        );
+        // Trigger the call to the target contract. We use a custom low level method
+        // SafeCall.callWithMinGas to ensure two key properties
+        //   1. Target contracts cannot force this call to run out of gas by returning a very large
+        //      amount of data (and this is OK because we don't care about the returndata here).
+        //   2. The amount of gas provided to the call to the target contract is at least the gas
+        //      limit specified by the user. If there is not enough gas in the callframe to
+        //      accomplish this, `callWithMinGas` will revert.
+        // Additionally, if there is not enough gas remaining to complete the execution after the
+        // call returns, this function will revert.
+        bool success = SafeCall.callWithMinGas(_tx.target, _tx.gasLimit, _tx.value, _tx.data);
 
         // Reset the l2Sender back to the default value.
         l2Sender = Constants.DEFAULT_L2_SENDER;

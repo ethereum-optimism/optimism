@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -371,6 +372,12 @@ func TestRegolith(t *testing.T) {
 			tx, _, err := opGeth.L2Client.TransactionByHash(ctx, contractCreateTx.Hash())
 			require.NoError(t, err)
 			require.Equal(t, expectedNonce, *tx.EffectiveNonce(), "should report actual tx nonce")
+
+			// Should be able to search for logs even though there are deposit transactions in blocks.
+			logs, err := opGeth.L2Client.FilterLogs(ctx, ethereum.FilterQuery{})
+			require.NoError(t, err)
+			require.NotNil(t, logs)
+			require.Empty(t, logs)
 		})
 
 		t.Run("ReturnUnusedGasToPool_"+test.name, func(t *testing.T) {

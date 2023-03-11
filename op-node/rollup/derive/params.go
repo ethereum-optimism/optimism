@@ -1,7 +1,7 @@
 package derive
 
 import (
-	"encoding/json"
+	"encoding/hex"
 	"errors"
 	"fmt"
 )
@@ -46,6 +46,18 @@ func (id ChannelID) TerminalString() string {
 	return fmt.Sprintf("%x..%x", id[:3], id[13:])
 }
 
-func (id ChannelID) MarshalJSON() ([]byte, error) {
-	return json.Marshal(id.String())
+func (id ChannelID) MarshalText() ([]byte, error) {
+	return []byte(id.String()), nil
+}
+
+func (id *ChannelID) UnmarshalText(text []byte) error {
+	h, err := hex.DecodeString(string(text))
+	if err != nil {
+		return err
+	}
+	if len(h) != ChannelIDLength {
+		return errors.New("invalid length")
+	}
+	copy(id[:], h)
+	return nil
 }

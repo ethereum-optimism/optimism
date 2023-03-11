@@ -18,12 +18,10 @@ import {
   sleep,
   remove0x,
   toHexString,
-  fromHexString,
   toRpcHexString,
   hashCrossDomainMessage,
   encodeCrossDomainMessageV0,
   encodeCrossDomainMessageV1,
-  L2OutputOracleParameters,
   BedrockOutputData,
   BedrockCrossChainMessageProof,
   decodeVersionedNonce,
@@ -67,6 +65,7 @@ import {
   makeMerkleTreeProof,
   makeStateTrieProof,
   hashLowLevelMessage,
+  migratedWithdrawalGasLimit,
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
 } from './utils'
@@ -352,12 +351,12 @@ export class CrossChainMessenger {
       }
     }
 
-    const minGasLimit = fromHexString(resolved.message).length * 16 + 200_000
+    const minGasLimit = migratedWithdrawalGasLimit(resolved.message)
 
     return {
       ...resolved,
       value,
-      minGasLimit: BigNumber.from(minGasLimit),
+      minGasLimit,
       messageNonce: encodeVersionedNonce(
         BigNumber.from(1),
         resolved.messageNonce
