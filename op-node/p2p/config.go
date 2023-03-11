@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
 	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -48,6 +49,13 @@ type Config struct {
 
 	DisableP2P  bool
 	NoDiscovery bool
+
+	// Pubsub Scoring Parameters
+	PeerScoring  pubsub.PeerScoreParams
+	TopicScoring pubsub.TopicScoreParams
+
+	// Whether to ban peers based on their [PeerScoring] score.
+	BanningEnabled bool
 
 	ListenIP      net.IP
 	ListenTCPPort uint16
@@ -95,6 +103,7 @@ type Config struct {
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
 }
 
+//go:generate mockery --name ConnectionGater
 type ConnectionGater interface {
 	connmgr.ConnectionGater
 
@@ -136,6 +145,18 @@ func (conf *Config) TargetPeers() uint {
 
 func (conf *Config) Disabled() bool {
 	return conf.DisableP2P
+}
+
+func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
+	return &conf.PeerScoring
+}
+
+func (conf *Config) BanPeers() bool {
+	return conf.BanningEnabled
+}
+
+func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {
+	return &conf.TopicScoring
 }
 
 const maxMeshParam = 1000

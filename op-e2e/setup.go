@@ -464,7 +464,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
 
-			if c.Driver.SequencerEnabled {
+			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
 				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
