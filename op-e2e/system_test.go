@@ -684,23 +684,23 @@ func TestSystemMockPeerScoring(t *testing.T) {
 
 	// Construct a new sequencer with an invalid privkey to produce invalid gossip
 	// We can then test that the peer scoring system will ban the node
-	// sequencer2PrivateKey := cfg.Secrets.Mallory
-	// cfg.Nodes["sequencer2"] = &rollupNode.Config{
-	// 	Driver: driver.Config{
-	// 		VerifierConfDepth:  0,
-	// 		SequencerConfDepth: 0,
-	// 		SequencerEnabled:   true,
-	// 	},
-	// 	// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
-	// 	RPC: rollupNode.RPCConfig{
-	// 		ListenAddr:  "127.0.0.1",
-	// 		ListenPort:  0,
-	// 		EnableAdmin: true,
-	// 	},
-	// 	L1EpochPollInterval: time.Second * 4,
-	// 	P2PSigner:           &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(sequencer2PrivateKey)},
-	// }
-	// cfg.Loggers["sequencer2"] = testlog.Logger(t, log.LvlInfo).New("role", "sequencer")
+	sequencer2PrivateKey := cfg.Secrets.Mallory
+	cfg.Nodes["sequencer2"] = &rollupNode.Config{
+		Driver: driver.Config{
+			VerifierConfDepth:  0,
+			SequencerConfDepth: 0,
+			SequencerEnabled:   true,
+		},
+		// Submitter PrivKey is set in system start for rollup nodes where sequencer = true
+		RPC: rollupNode.RPCConfig{
+			ListenAddr:  "127.0.0.1",
+			ListenPort:  0,
+			EnableAdmin: true,
+		},
+		L1EpochPollInterval: time.Second * 4,
+		P2PSigner:           &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(sequencer2PrivateKey)},
+	}
+	cfg.Loggers["sequencer2"] = testlog.Logger(t, log.LvlInfo).New("role", "sequencer")
 
 	// connect the nodes
 	cfg.P2PTopology = map[string][]string{
@@ -719,15 +719,15 @@ func TestSystemMockPeerScoring(t *testing.T) {
 		}
 	}
 
-	var published, received1, received2, received3 []common.Hash
+	var published, published2, received1, received2, received3 []common.Hash
 	seqTracer, verifTracer, verifTracer2, verifTracer3 := new(FnTracer), new(FnTracer), new(FnTracer), new(FnTracer)
-	// seq2Tracer := new(FnTracer)
+	seq2Tracer := new(FnTracer)
 	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
 		published = append(published, payload.BlockHash)
 	}
-	// seq2Tracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
-	// 	published2 = append(published2, payload.BlockHash)
-	// }
+	seq2Tracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
+		published2 = append(published2, payload.BlockHash)
+	}
 	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
 		received1 = append(received1, payload.BlockHash)
 	}
@@ -738,7 +738,7 @@ func TestSystemMockPeerScoring(t *testing.T) {
 		received3 = append(received3, payload.BlockHash)
 	}
 	cfg.Nodes["sequencer"].Tracer = seqTracer
-	// cfg.Nodes["sequencer2"].Tracer = seq2Tracer
+	cfg.Nodes["sequencer2"].Tracer = seq2Tracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
 	cfg.Nodes["verifier2"].Tracer = verifTracer2
 	cfg.Nodes["verifier3"].Tracer = verifTracer3
@@ -760,7 +760,7 @@ func TestSystemMockPeerScoring(t *testing.T) {
 	toAddr := common.Address{0xff, 0xff}
 	tx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 		ChainID:   cfg.L2ChainIDBig(),
-		Nonce:     1,
+		Nonce:     0,
 		To:        &toAddr,
 		Value:     big.NewInt(1_000_000_000),
 		GasTipCap: big.NewInt(10),
@@ -804,7 +804,7 @@ func TestSystemMockPeerScoring(t *testing.T) {
 	// toAddr = common.Address{0xff, 0xff}
 	// maliciousTx := types.MustSignNewTx(ethPrivKey, types.LatestSignerForChainID(cfg.L2ChainIDBig()), &types.DynamicFeeTx{
 	// 	ChainID:   cfg.L2ChainIDBig(),
-	// 	Nonce:     0,
+	// 	Nonce:     1,
 	// 	To:        &toAddr,
 	// 	Value:     big.NewInt(1_000_000_000),
 	// 	GasTipCap: big.NewInt(10),
@@ -814,11 +814,11 @@ func TestSystemMockPeerScoring(t *testing.T) {
 	// err = l2Seq2.SendTransaction(context.Background(), maliciousTx)
 	// require.Nil(t, err, "Sending L2 tx to sequencer")
 
-	// // Wait for tx to be mined on the L2 sequencer chain
+	// Wait for tx to be mined on the L2 sequencer chain
 	// receiptSeq, err = waitForTransaction(maliciousTx.Hash(), l2Seq2, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	// require.Nil(t, err, "Waiting for L2 tx on sequencer")
 
-	// // Wait until the block it was first included in shows up in the safe chain on the verifier
+	// Wait until the block it was first included in shows up in the safe chain on the verifier
 	// receiptVerif, err = waitForTransaction(maliciousTx.Hash(), l2Verif, 6*time.Duration(sys.RollupConfig.BlockTime)*time.Second)
 	// require.Nil(t, err, "Waiting for L2 tx on verifier")
 	// require.Equal(t, receiptSeq, receiptVerif)
