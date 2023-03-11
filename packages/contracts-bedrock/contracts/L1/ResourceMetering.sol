@@ -59,7 +59,7 @@ abstract contract ResourceMetering is Initializable {
      *         that is so large it will consume the entire gas limit of
      *         an L1 block.
      */
-    int256 public constant MAXIMUM_BASE_FEE = int256(uint256((type(uint128).max)));
+    int256 public constant MAXIMUM_BASE_FEE = int256(uint256(type(uint128).max));
 
     /**
      * @notice Initial base fee value. This value must be smaller than the
@@ -94,7 +94,6 @@ abstract contract ResourceMetering is Initializable {
     }
 
     /**
-
      * @notice An internal function that holds all of the logic for metering a resource.
      *
      * @param _amount     Amount of the resource requested.
