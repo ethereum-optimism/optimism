@@ -8,6 +8,8 @@ import {
 } from '@eth-optimism/common-ts'
 import { getChainId, sleep, toRpcHexString } from '@eth-optimism/core-utils'
 import { CrossChainMessenger } from '@eth-optimism/sdk'
+import { getContractInterface } from '@eth-optimism/contracts'
+import { getContractInterface as getBedrockInterface } from '@eth-optimism/contracts-bedrock'
 import { Provider } from '@ethersproject/abstract-provider'
 import { ethers, Transaction } from 'ethers'
 import dateformat from 'dateformat'
@@ -26,6 +28,7 @@ type Options = {
   l2RpcProvider: Provider
   startBatchIndex: number
   bedrock: boolean
+  oracleAddress?: string
 }
 
 type Metrics = {
@@ -73,6 +76,12 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
           desc: 'Whether or not the service is running against a Bedrock chain',
           public: true,
         },
+        oracleAddress: {
+          validator: validators.str,
+          default: ethers.constants.AddressZero,
+          desc: 'Address of the StateCommitmentChain or the L2OutputOracle',
+          public: true,
+        },
       },
       metricsSpec: {
         highestBatchIndex: {
@@ -106,21 +115,49 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
       name: 'L2',
     })
 
-    this.state.messenger = new CrossChainMessenger({
-      l1SignerOrProvider: this.options.l1RpcProvider,
-      l2SignerOrProvider: this.options.l2RpcProvider,
-      l1ChainId: await getChainId(this.options.l1RpcProvider),
-      l2ChainId: await getChainId(this.options.l2RpcProvider),
-      bedrock: this.options.bedrock,
-    })
-
     // Not diverged by default.
     this.state.diverged = false
 
-    // We use this a lot, a bit cleaner to pull out to the top level of the state object.
-    this.state.fpw = await this.state.messenger.getChallengePeriodSeconds()
+    // Grab the oracle contract.
+    // TODO: This is a bit of a mess before Bedrock and should be cleaned up after Bedrock goes
+    // live. We should just use the input address for everything, but that's a breaking change that
+    // we can introduce when we launch a new major version of this package that removes all the
+    // legacy support (since people will no longer be running legacy networks).
+    let oo: ethers.Contract
+    if (this.options.oracleAddress !== ethers.constants.AddressZero) {
+      if (this.options.bedrock) {
+        oo = new ethers.Contract(
+          this.options.oracleAddress,
+          getBedrockInterface('L2OutputOracle'),
+          this.options.l1RpcProvider
+        )
+      } else {
+        oo = new ethers.Contract(
+          this.options.oracleAddress,
+          getContractInterface('StateCommitmentChain'),
+          this.options.l1RpcProvider
+        )
+      }
+    } else {
+      // Fall back to the SDK for backwards compatibility. Will be removed after Bedrock. You
+      // should always pass in the oracle address if running this service against a custom network.
+      this.state.messenger = new CrossChainMessenger({
+        l1SignerOrProvider: this.options.l1RpcProvider,
+        l2SignerOrProvider: this.options.l2RpcProvider,
+        l1ChainId: await getChainId(this.options.l1RpcProvider),
+        l2ChainId: await getChainId(this.options.l2RpcProvider),
+        bedrock: this.options.bedrock,
+      })
+      if (this.options.bedrock) {
+        oo = this.state.messenger.contracts.l1.L2OutputOracle
+      } else {
+        oo = this.state.messenger.contracts.l1.StateCommitmentChain
+      }
+    }
+
+    // Set up the oracle.
     if (this.options.bedrock) {
-      const oo = this.state.messenger.contracts.l1.L2OutputOracle
+      this.state.fpw = (await oo.FINALIZATION_PERIOD_SECONDS()).toNumber()
       this.state.oo = {
         contract: oo,
         filter: oo.filters.OutputProposed(),
@@ -128,7 +165,7 @@ export class FaultDetector extends BaseServiceV2<Options, Metrics, State> {
         getEventIndex: (args) => args.l2OutputIndex,
       }
     } else {
-      const oo = this.state.messenger.contracts.l1.StateCommitmentChain
+      this.state.fpw = (await oo.FRAUD_PROOF_WINDOW()).toNumber()
       this.state.oo = {
         contract: oo,
         filter: oo.filters.StateBatchAppended(),
