@@ -1,7 +1,6 @@
 package batcher_test
 
 import (
-	"math"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
@@ -35,6 +34,5 @@ func TestInputThreshold(t *testing.T) {
 
 	// The input threshold will overflow to the max uint64 value
 	receivedThreshold := config.InputThreshold()
-	var maxUint64 uint64 = math.MaxUint64
-	require.Equal(t, maxUint64, receivedThreshold)
+	require.Equal(t, uint64(0xffffffffffffffff), receivedThreshold)
 }
