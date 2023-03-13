@@ -13,6 +13,7 @@ import {
   jsonifyTransaction,
   isStep,
   doStep,
+  getTenderlySimulationLink,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -193,6 +194,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     await awaitCondition(
@@ -303,6 +305,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`OptimismPortal address: ${OptimismPortal.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     await awaitCondition(
@@ -331,6 +334,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     await awaitCondition(
