@@ -64,11 +64,11 @@ fee payments are not registered as internal EVM calls, and thus distinguished be
 These are hardcoded addresses, pointing at pre-deployed proxy contracts.
 The proxies are backed by vault contract deployments, based on `FeeVault`, to route vault funds to L1 securely.
 
-| Vault Name          | Predeploy                                             |
-|---------------------|-------------------------------------------------------|
-| Sequencer Fee Vault | [`SequencerFeeVault`](./predeploys#SequencerFeeVault) |
-| Base Fee Vault      | [`BaseFeeVault`](./predeploys#BaseFeeVault)           |
-| L1 Fee Vault        | [`L1FeeVault`](./predeploys#L1FeeVault)               |
+| Vault Name          | Predeploy                                                |
+|---------------------|----------------------------------------------------------|
+| Sequencer Fee Vault | [`SequencerFeeVault`](./predeploys.md#SequencerFeeVault) |
+| Base Fee Vault      | [`BaseFeeVault`](./predeploys.md#BaseFeeVault)           |
+| L1 Fee Vault        | [`L1FeeVault`](./predeploys.md#L1FeeVault)               |
 
 ### Priority fees (Sequencer Fee Vault)
 
