@@ -36,7 +36,7 @@ var (
 // this method will migrate into state. This method does the checking as part of the migration loop
 // in order to avoid having to iterate over state twice. This saves approximately 40 minutes during
 // the mainnet migration.
-func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, allowances []*crossdomain.Allowance, chainID int, noCheck bool, dryRun bool) error {
+func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, allowances []*crossdomain.Allowance, chainID int, noCheck bool, commit bool) error {
 	// Chain params to use for integrity checking.
 	params := crossdomain.ParamsByChainID[chainID]
 	if params == nil {
@@ -46,10 +46,10 @@ func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, allowances 
 	// Log the chain params for debugging purposes.
 	log.Info("Chain params", "chain-id", chainID, "supply-delta", params.ExpectedSupplyDelta)
 
-	return doMigration(db, addresses, allowances, params.ExpectedSupplyDelta, noCheck, dryRun)
+	return doMigration(db, addresses, allowances, params.ExpectedSupplyDelta, noCheck, commit)
 }
 
-func doMigration(db *state.StateDB, addresses []common.Address, allowances []*crossdomain.Allowance, expSupplyDiff *big.Int, noCheck bool, dryRun bool) error {
+func doMigration(db *state.StateDB, addresses []common.Address, allowances []*crossdomain.Allowance, expSupplyDiff *big.Int, noCheck bool, commit bool) error {
 	// We'll need to maintain a list of all addresses that we've seen along with all of the storage
 	// slots based on the witness data.
 	slotsAddrs := make(map[common.Hash]common.Address)
@@ -113,7 +113,7 @@ func doMigration(db *state.StateDB, addresses []common.Address, allowances []*cr
 				}
 			}
 
-			if dryRun {
+			if !commit {
 				return true
 			}
 
@@ -180,7 +180,7 @@ func doMigration(db *state.StateDB, addresses []common.Address, allowances []*cr
 	// different than the sum of all balances since we no longer track balances inside the contract
 	// itself. The total supply is going to be weird no matter what, might as well set it to zero
 	// so it's explicitly weird instead of implicitly weird.
-	if !dryRun {
+	if commit {
 		db.SetState(predeploys.LegacyERC20ETHAddr, getOVMETHTotalSupplySlot(), common.Hash{})
 		log.Info("Set the totalSupply to 0")
 	}
