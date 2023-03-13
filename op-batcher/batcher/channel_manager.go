@@ -229,7 +229,7 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.BlockID) error {
 		return nil
 	}
 
-	cb, err := newChannelBuilder(s.cfg)
+	cb, err := NewChannelBuilder(s.cfg)
 	if err != nil {
 		return fmt.Errorf("creating new channel: %w", err)
 	}

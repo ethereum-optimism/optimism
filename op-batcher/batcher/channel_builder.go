@@ -79,7 +79,9 @@ type channelBuilder struct {
 	frames []taggedData
 }
 
-func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
+// NewChannelBuilder creates a new channel builder or returns an error if the
+// channel out could not be created.
+func NewChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
 	co, err := derive.NewChannelOut()
 	if err != nil {
 		return nil, err
