@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 import { Types } from "../libraries/Types.sol";
 import { Encoding } from "../libraries/Encoding.sol";
+import { LegacyCrossDomainUtils } from "../libraries/LegacyCrossDomainUtils.sol";
 
 contract Encoding_Test is CommonTest {
     function testFuzz_nonceVersioning_succeeds(uint240 _nonce, uint16 _version) external {
@@ -54,6 +55,32 @@ contract Encoding_Test is CommonTest {
         );
 
         assertEq(encoding, _encoding);
+    }
+
+    function testFuzz_encodeCrossDomainMessageV0_matchesLegacy_succeeds(
+        uint240 _nonce,
+        address _sender,
+        address _target,
+        bytes memory _data
+    ) external {
+        uint8 version = 0;
+        uint256 nonce = Encoding.encodeVersionedNonce(_nonce, version);
+
+        bytes memory legacyEncoding = LegacyCrossDomainUtils.encodeXDomainCalldata(
+            _target,
+            _sender,
+            _data,
+            nonce
+        );
+
+        bytes memory bedrockEncoding = Encoding.encodeCrossDomainMessageV0(
+            _target,
+            _sender,
+            _data,
+            nonce
+        );
+
+        assertEq(legacyEncoding, bedrockEncoding);
     }
 
     function testDiff_encodeDepositTransaction_succeeds(

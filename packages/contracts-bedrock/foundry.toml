@@ -19,6 +19,9 @@ ffi = true
 fuzz_runs = 16
 no_match_contract = 'EchidnaFuzz'
 
+fs_permissions = [
+  { 'access'='read-write', 'path'='./.resource-metering.csv' },
+]
 
 [profile.ci]
 fuzz_runs = 512
