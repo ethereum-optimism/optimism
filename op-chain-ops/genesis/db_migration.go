@@ -195,7 +195,11 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	// Finally we migrate the balances held inside the LegacyERC20ETH contract into the state trie.
 	// We also delete the balances from the LegacyERC20ETH contract.
 	log.Info("Starting to migrate ERC20 ETH")
+<<<<<<< Updated upstream
 	err = ether.MigrateLegacyETH(db, addrs, int(config.L1ChainID), noCheck)
+=======
+	err = ether.MigrateLegacyETH(db, migrationData.Addresses(), migrationData.OvmAllowances, int(config.L1ChainID), noCheck, !commit)
+>>>>>>> Stashed changes
 	if err != nil {
 		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
 	}
