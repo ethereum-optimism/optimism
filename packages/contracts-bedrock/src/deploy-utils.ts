@@ -181,7 +181,6 @@ export const getContractFromArtifact = async (
   } = {}
 ): Promise<ethers.Contract> => {
   const artifact = await hre.deployments.get(name)
-  await hre.ethers.provider.waitForTransaction(artifact.receipt.transactionHash)
 
   // Get the deployed contract's interface.
   let iface = new hre.ethers.utils.Interface(artifact.abi)
