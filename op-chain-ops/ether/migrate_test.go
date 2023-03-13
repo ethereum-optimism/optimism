@@ -185,7 +185,7 @@ func TestMigrateLegacyETH(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			db := makeLegacyETH(t, tt.totalSupply, tt.stateBalances, tt.stateAllowances)
-			err := doMigration(db, tt.inputAddresses, tt.inputAllowances, tt.expDiff, false, false)
+			err := doMigration(db, tt.inputAddresses, tt.inputAllowances, tt.expDiff, false, true)
 			tt.check(t, db, err)
 		})
 	}
