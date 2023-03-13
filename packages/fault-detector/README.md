@@ -49,8 +49,9 @@ Usage: service [options]
 Options:
   --l1rpcprovider    Provider for interacting with L1 (env: FAULT_DETECTOR__L1_RPC_PROVIDER)
   --l2rpcprovider    Provider for interacting with L2 (env: FAULT_DETECTOR__L2_RPC_PROVIDER)
-  --startbatchindex  Batch index to start checking from (env: FAULT_DETECTOR__START_BATCH_INDEX)
+  --startbatchindex  Batch index to start checking from. Setting it to -1 will cause the fault detector to find the first state batch index that has not yet passed the fault proof window (env: FAULT_DETECTOR__START_BATCH_INDEX, default value: -1)
   --loopintervalms   Loop interval in milliseconds (env: FAULT_DETECTOR__LOOP_INTERVAL_MS)
+  --bedrock          Whether or not the service is running against a Bedrock chain (env: FAULT_DETECTOR__BEDROCK, default value: false)
   --port             Port for the app server (env: FAULT_DETECTOR__PORT)
   --hostname         Hostname for the app server (env: FAULT_DETECTOR__HOSTNAME)
   -h, --help         display help for command
