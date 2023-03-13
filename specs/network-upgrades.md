@@ -80,8 +80,10 @@ Summary of changes:
   including the `contractAddress` field of deposits that deploy contracts.
 - The `gas` and `depositNonce` data is committed to as part of the consensus-representation of the receipt,
   enabling the data to be safely synced between independent L2 nodes.
+- The L1-cost function was corrected to more closely match pre-Bedrock behavior.
 
-The [deposit specification](./deposits.md) specifies the changes of the Regolith upgrade in more detail.
+The [deposit specification](./deposits.md) specifies the deposit changes of the Regolith upgrade in more detail.
+The [execution engine specification](./exec-engine.md) specifies the L1 cost function difference.
 
 The Regolith upgrade uses a *L2 block-timestamp* activation-rule, and is specified in both the
 rollup-node (`regolith_time`) and execution engine (`config.regolithTime`).
