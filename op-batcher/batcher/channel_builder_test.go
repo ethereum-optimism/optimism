@@ -242,3 +242,85 @@ func (testSuite *ChannelBuilderTestSuite) TestBuilderReset() {
 	testSuite.Equal(0, cb.co.InputBytes())
 	testSuite.Equal(0, cb.co.ReadyBytes())
 }
+
+// TestBuilderRegisterL1Block tests the RegisterL1Block function
+func (testSuite *ChannelBuilderTestSuite) TestBuilderRegisterL1Block() {
+	// Construct the channel builder
+	cb, err := newChannelBuilder(testSuite.channelConfig)
+	testSuite.NoError(err)
+
+	// Assert params modified in RegisterL1Block
+	testSuite.Equal(uint64(1), testSuite.channelConfig.MaxChannelDuration)
+	testSuite.Equal(uint64(0), cb.timeout)
+
+	// Register a new L1 block
+	cb.RegisterL1Block(uint64(100))
+
+	// Assert params modified in RegisterL1Block
+	testSuite.Equal(uint64(1), testSuite.channelConfig.MaxChannelDuration)
+	testSuite.Equal(uint64(101), cb.timeout)
+}
+
+// TestBuilderRegisterL1BlockZeroMaxChannelDuration tests the RegisterL1Block function
+func (testSuite *ChannelBuilderTestSuite) TestBuilderRegisterL1BlockZeroMaxChannelDuration() {
+	// Set the max channel duration to 0
+	testSuite.channelConfig.MaxChannelDuration = 0
+
+	// Construct the channel builder
+	cb, err := newChannelBuilder(testSuite.channelConfig)
+	testSuite.NoError(err)
+
+	// Assert params modified in RegisterL1Block
+	testSuite.Equal(uint64(0), testSuite.channelConfig.MaxChannelDuration)
+	testSuite.Equal(uint64(0), cb.timeout)
+
+	// Register a new L1 block
+	cb.RegisterL1Block(uint64(100))
+
+	// Since the max channel duration is set to 0,
+	// the L1 block register should not update the timeout
+	testSuite.Equal(uint64(0), testSuite.channelConfig.MaxChannelDuration)
+	testSuite.Equal(uint64(0), cb.timeout)
+}
+
+// TestFramePublished tests the FramePublished function
+func (testSuite *ChannelBuilderTestSuite) TestFramePublished() {
+	// Construct the channel builder
+	cb, err := newChannelBuilder(testSuite.channelConfig)
+	testSuite.NoError(err)
+
+	// Let's say the block number is fed in as 100
+	// and the channel timeout is 1000
+	l1BlockNum := uint64(100)
+	cb.cfg.ChannelTimeout = uint64(1000)
+	cb.cfg.SubSafetyMargin = 100
+
+	// Then the frame published will update the timeout
+	cb.FramePublished(l1BlockNum)
+
+	// Now the timeout will be 1000
+	testSuite.Equal(uint64(1000), cb.timeout)
+}
+
+// TestFramePublishedUnderflows tests the FramePublished function
+//
+// Realistically, this will not happen because the [ChannelTimeout] is _known_
+// to be greater than the [SubSafetyMargin] when the ChannelConfig is configured
+// via cli flags / environment variables.
+func (testSuite *ChannelBuilderTestSuite) TestFramePublishedUnderflows() {
+	// Construct the channel builder
+	cb, err := newChannelBuilder(testSuite.channelConfig)
+	testSuite.NoError(err)
+
+	// Let's say the block number is fed in as 0
+	// and the channel timeout is < the sub safety margin
+	l1BlockNum := uint64(0)
+	cb.cfg.ChannelTimeout = uint64(1)
+	cb.cfg.SubSafetyMargin = uint64(2)
+
+	// Then the frame published will underflow the timeout
+	cb.FramePublished(l1BlockNum)
+
+	// Now the timeout will be the max uint64
+	testSuite.Equal(uint64(0xffffffffffffffff), cb.timeout)
+}
