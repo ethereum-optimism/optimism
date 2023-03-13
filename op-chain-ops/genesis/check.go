@@ -31,7 +31,6 @@ const MaxSlotChecks = 1000
 type StorageCheckMap = map[common.Hash]common.Hash
 
 var (
-	L2XDMOwnerSlot      = common.Hash{31: 0x33}
 	ProxyAdminOwnerSlot = common.Hash{}
 
 	LegacyETHCheckSlots = map[common.Hash]common.Hash{
@@ -53,10 +52,6 @@ var (
 		predeploys.L2CrossDomainMessengerAddr: {
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
 			common.Hash{}: common.HexToHash("0x0000000000000000000000010000000000000000000000000000000000000000"),
-			// Slot 0x33 (51) is _owner. Requires custom check, so set to a garbage value
-			L2XDMOwnerSlot: common.HexToHash("0xbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad0"),
-			// Slot 0x97 (151) is _status
-			common.Hash{31: 0x97}: common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 			// Slot 0xcc (204) is xDomainMsgSender
 			common.Hash{31: 0xcc}: common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
 			// EIP-1967 storage slots
@@ -346,7 +341,7 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, p
 		for key, value := range expSlots {
 			// The owner slots for the L2XDM and ProxyAdmin are special cases.
 			// They are set to the final system owner in the config.
-			if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
+			if *addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot {
 				actualOwner := common.BytesToAddress(slots[key].Bytes())
 				if actualOwner != proxyAdminOwner {
 					return fmt.Errorf("expected owner for %s to be %s but got %s", name, proxyAdminOwner, actualOwner)
