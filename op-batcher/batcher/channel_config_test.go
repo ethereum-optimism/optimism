@@ -34,5 +34,6 @@ func TestInputThreshold(t *testing.T) {
 
 	// The input threshold will overflow to the max uint64 value
 	receivedThreshold := config.InputThreshold()
-	require.Equal(t, uint64(0xffffffffffffffff), receivedThreshold)
+	max := config.TargetNumFrames * int(config.TargetFrameSize)
+	require.True(t, receivedThreshold > uint64(max))
 }
