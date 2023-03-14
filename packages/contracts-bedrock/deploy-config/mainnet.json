@@ -1,6 +1,6 @@
 {
-  "finalSystemOwner": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
-  "controller": "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+  "finalSystemOwner": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
+  "controller": "0x78339d822c23d943e4a2d4c3dd5408f66e6d662d",
 
   "l1StartingBlockTag": "0x97b14a0bb9912e1fd79b4802d05a4d542b9357516e1a5fc760c39f5b3126d6b0",
   "l1ChainID": 1,
@@ -33,7 +33,6 @@
   "l2GenesisBlockGasLimit": "0x17D7840",
   "l2GenesisBlockCoinbase": "0x4200000000000000000000000000000000000011",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
-
 
   "gasPriceOracleOverhead": 2100,
   "gasPriceOracleScalar": 1000000,
