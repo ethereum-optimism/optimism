@@ -405,13 +405,12 @@ func (c *channelBuilder) outputFrame() error {
 }
 
 // Close immediately marks the channel as full with an ErrTerminated
-// if the channel is not already full. This ensures that no additional
-// frames will be added to the channel.
+// if the channel is not already full, then outputs any remaining frames.
 func (c *channelBuilder) Close() error {
 	if !c.IsFull() {
 		c.setFullErr(ErrTerminated)
 	}
-	return c.FullErr()
+	return c.closeAndOutputAllFrames()
 }
 
 // HasFrame returns whether there's any available frame. If true, it can be

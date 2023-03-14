@@ -41,6 +41,9 @@ type channelManager struct {
 	pendingTransactions map[txID]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[txID]eth.BlockID
+
+	// if set to true, prevents production of any new channel frames
+	closed bool
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) *channelManager {
@@ -78,6 +81,13 @@ func (s *channelManager) TxFailed(id txID) {
 	}
 
 	s.metr.RecordBatchTxFailed()
+	// If this channel has no submitted transactions, put the pending blocks back into the
+	// local saved blocks and reset this state so it can try to build a new channel.
+	if len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+		s.log.Info("Channel has no submitted transactions", "chID", s.pendingChannel.ID())
+		s.blocks = append(s.pendingChannel.Blocks(), s.blocks...)
+		s.clearPendingChannel()
+	}
 }
 
 // TxConfirmed marks a transaction as confirmed on L1. Unfortunately even if all frames in
@@ -182,6 +192,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	// Short circuit if there is a pending frame.
 	if dataPending {
 		return s.nextTxData()
+	}
+
+	// Avoid producing new frames if the channel has been explicitly closed.
+	if s.closed {
+		return txData{}, io.EOF
 	}
 
 	// No pending frame, so we have to add new blocks to the channel
@@ -345,10 +360,12 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 	}
 }
 
-// CloseCurrentChannel closes the current pending channel, if one exists.
-// This ensures that no new frames will be produced, but there still may be any
-// number of pending frames produced before this call.
-func (s *channelManager) CloseCurrentChannel() error {
+// Close closes the current pending channel, if one exists, and prevents the
+// creation of any new channels.
+// This ensures that no new frames will be produced, but there may be any number
+// of pending frames produced before this call which should still be published.
+func (s *channelManager) Close() error {
+	s.closed = true
 	if s.pendingChannel == nil {
 		return nil
 	}

@@ -332,7 +332,7 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
 		select {
 		case <-l.done:
-			l.state.CloseCurrentChannel()
+			l.state.Close()
 		default:
 		}
 	}
