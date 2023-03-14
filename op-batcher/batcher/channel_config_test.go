@@ -7,33 +7,96 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestInputThreshold tests the [ChannelConfig.InputThreshold] function.
+// TestInputThreshold tests the [ChannelConfig.InputThreshold]
+// function using a table-driven testing approach.
 func TestInputThreshold(t *testing.T) {
-	// Construct an empty channel config
-	config := batcher.ChannelConfig{
-		SeqWindowSize:      15,
-		ChannelTimeout:     40,
-		MaxChannelDuration: 1,
-		SubSafetyMargin:    4,
-		MaxFrameSize:       120000,
-		TargetFrameSize:    100000,
-		TargetNumFrames:    1,
-		ApproxComprRatio:   0.4,
+	type testInput struct {
+		TargetFrameSize  uint64
+		TargetNumFrames  int
+		ApproxComprRatio float64
+	}
+	type test struct {
+		input testInput
+		want  uint64
 	}
 
-	// The input threshold is calculated as: (targetNumFrames * targetFrameSize) / approxComprRatio
-	// Here we see that 100,000 / 0.4 = 100,000 * 2.5 = 250,000
-	inputThreshold := config.InputThreshold()
-	require.Equal(t, uint64(250_000), inputThreshold)
+	// Construct test cases that test the boundary conditions
+	tests := []test{
+		{
+			input: testInput{
+				TargetFrameSize:  1,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 0.4,
+			},
+			want: 2,
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  1,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 1,
+			},
+			want: 1,
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  1,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 2,
+			},
+			want: 0,
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  100000,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 0.4,
+			},
+			want: 250_000,
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  1,
+				TargetNumFrames:  100000,
+				ApproxComprRatio: 0.4,
+			},
+			want: 250_000,
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  100000,
+				TargetNumFrames:  100000,
+				ApproxComprRatio: 0.4,
+			},
+			want: 25_000_000_000,
+		},
+		// A compression ratio of 0 means there is no input threshold
+		{
+			input: testInput{
+				TargetFrameSize:  100000,
+				TargetNumFrames:  100000,
+				ApproxComprRatio: 0,
+			},
+			want: uint64(0xffffffffffffffff),
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  0,
+				TargetNumFrames:  0,
+				ApproxComprRatio: 0,
+			},
+			want: 0,
+		},
+	}
 
-	// Set the approximate compression ratio to 0
-	// Logically, this represents infinite compression,
-	// so there is no threshold on the size of the input.
-	// In practice, this should never be set to 0.
-	config.ApproxComprRatio = 0
-
-	// The input threshold will overflow to the max uint64 value
-	receivedThreshold := config.InputThreshold()
-	max := config.TargetNumFrames * int(config.TargetFrameSize)
-	require.True(t, receivedThreshold > uint64(max))
+	// Validate each test case
+	for _, tt := range tests {
+		config := batcher.ChannelConfig{
+			TargetFrameSize:  tt.input.TargetFrameSize,
+			TargetNumFrames:  tt.input.TargetNumFrames,
+			ApproxComprRatio: tt.input.ApproxComprRatio,
+		}
+		got := config.InputThreshold()
+		require.Equal(t, tt.want, got)
+	}
 }
