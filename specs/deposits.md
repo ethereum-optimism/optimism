@@ -323,7 +323,7 @@ transaction are determined by the corresponding `TransactionDeposited` event emi
 1. `from` is unchanged from the emitted value (though it may have been transformed to an alias in
    the deposit feed contract).
 2. `to` is any 20-byte address (including the zero address)
-    - In case of a contract creation (cf. `isCreation`), this address is always zero.
+    - In case of a contract creation (cf. `isCreation`), this address is set to `null`.
 3. `mint` is set to the emitted value.
 4. `value` is set to the emitted value.
 5. `gaslimit` is unchanged from the emitted value. It must be at least 21000.

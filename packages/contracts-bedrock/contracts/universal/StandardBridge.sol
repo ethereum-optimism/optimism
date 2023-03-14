@@ -458,6 +458,8 @@ abstract contract StandardBridge {
 
     /**
      * @notice Checks if the "other token" is the correct pair token for the OptimismMintableERC20.
+     *         Calls can be saved in the future by combining this logic with
+     *         `_isOptimismMintableERC20`.
      *
      * @param _mintableToken OptimismMintableERC20 to check against.
      * @param _otherToken    Pair token to check.
@@ -469,7 +471,13 @@ abstract contract StandardBridge {
         view
         returns (bool)
     {
-        return _otherToken == OptimismMintableERC20(_mintableToken).l1Token();
+        if (
+            ERC165Checker.supportsInterface(_mintableToken, type(ILegacyMintableERC20).interfaceId)
+        ) {
+            return _otherToken == ILegacyMintableERC20(_mintableToken).l1Token();
+        } else {
+            return _otherToken == IOptimismMintableERC20(_mintableToken).remoteToken();
+        }
     }
 
     /** @notice Emits the ETHBridgeInitiated event and if necessary the appropriate legacy event

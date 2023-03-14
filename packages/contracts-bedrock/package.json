@@ -28,7 +28,7 @@
     "test": "yarn build:differential && yarn build:fuzz && forge test",
     "coverage": "yarn build:differential && yarn build:fuzz && forge coverage",
     "coverage:lcov": "yarn build:differential && yarn build:fuzz && forge coverage --report lcov",
-    "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant'",
+    "gas-snapshot": "yarn build:differential && yarn build:fuzz && forge snapshot --no-match-test 'testDiff|testFuzz|invariant|generateArtifact'",
     "storage-snapshot": "./scripts/storage-snapshot.sh",
     "validate-spacers": "hardhat compile && hardhat validate-spacers",
     "slither": "./scripts/slither.sh",

@@ -115,7 +115,6 @@ func (ibc *IterativeBatchCall[K, V]) Fetch(ctx context.Context) error {
 			}
 			return ctx.Err()
 		default:
-			break
 		}
 		break
 	}

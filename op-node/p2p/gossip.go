@@ -40,6 +40,8 @@ const (
 	DefaultMeshDlo   = 6  // topic stable mesh low watermark
 	DefaultMeshDhi   = 12 // topic stable mesh high watermark
 	DefaultMeshDlazy = 6  // gossip target
+	// peerScoreInspectFrequency is the frequency at which peer scores are inspected
+	peerScoreInspectFrequency = 15 * time.Second
 )
 
 // Message domains, the msg id function uncompresses to keep data monomorphic,
@@ -49,6 +51,9 @@ var MessageDomainInvalidSnappy = [4]byte{0, 0, 0, 0}
 var MessageDomainValidSnappy = [4]byte{1, 0, 0, 0}
 
 type GossipSetupConfigurables interface {
+	PeerScoringParams() *pubsub.PeerScoreParams
+	TopicScoringParams() *pubsub.TopicScoreParams
+	BanPeers() bool
 	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
 }
 
@@ -56,8 +61,10 @@ type GossipRuntimeConfig interface {
 	P2PSequencerAddress() common.Address
 }
 
+//go:generate mockery --name GossipMetricer
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
+	RecordPeerScoring(peerID peer.ID, score float64)
 }
 
 func blocksTopicV1(cfg *rollup.Config) string {
@@ -143,7 +150,7 @@ func BuildGlobalGossipParams(cfg *rollup.Config) pubsub.GossipSubParams {
 
 // NewGossipSub configures a new pubsub instance with the specified parameters.
 // PubSub uses a GossipSubRouter as it's router under the hood.
-func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer) (*pubsub.PubSub, error) {
+func NewGossipSub(p2pCtx context.Context, h host.Host, g ConnectionGater, cfg *rollup.Config, gossipConf GossipSetupConfigurables, m GossipMetricer, log log.Logger) (*pubsub.PubSub, error) {
 	denyList, err := pubsub.NewTimeCachedBlacklist(30 * time.Second)
 	if err != nil {
 		return nil, err
@@ -164,9 +171,9 @@ func NewGossipSub(p2pCtx context.Context, h host.Host, cfg *rollup.Config, gossi
 		pubsub.WithGossipSubParams(params),
 		pubsub.WithEventTracer(&gossipTracer{m: m}),
 	}
+	gossipOpts = append(gossipOpts, ConfigurePeerScoring(h, g, gossipConf, m, log)...)
 	gossipOpts = append(gossipOpts, gossipConf.ConfigureGossip(&params)...)
 	return pubsub.NewGossipSub(p2pCtx, h, gossipOpts...)
-	// TODO: pubsub.WithPeerScoreInspect(inspect, InspectInterval) to update peerstore scores with gossip scores
 }
 
 func validationResultString(v pubsub.ValidationResult) string {
@@ -431,7 +438,7 @@ func (p *publisher) Close() error {
 	return p.blocksTopic.Close()
 }
 
-func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
+func JoinGossip(p2pCtx context.Context, self peer.ID, topicScoreParams *pubsub.TopicScoreParams, ps *pubsub.PubSub, log log.Logger, cfg *rollup.Config, runCfg GossipRuntimeConfig, gossipIn GossipIn) (GossipOut, error) {
 	val := guardGossipValidator(log, logValidationResult(self, "validated block", log, BuildBlocksValidator(log, cfg, runCfg)))
 	blocksTopicName := blocksTopicV1(cfg)
 	err := ps.RegisterTopicValidator(blocksTopicName,
@@ -451,11 +458,14 @@ func JoinGossip(p2pCtx context.Context, self peer.ID, ps *pubsub.PubSub, log log
 	}
 	go LogTopicEvents(p2pCtx, log.New("topic", "blocks"), blocksTopicEvents)
 
-	// TODO: block topic scoring parameters
-	// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
-	// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
-	// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
-	//err := blocksTopic.SetScoreParams(&pubsub.TopicScoreParams{......})
+	// A [TimeInMeshQuantum] value of 0 means the topic score is disabled.
+	// If we passed a topicScoreParams with [TimeInMeshQuantum] set to 0,
+	// libp2p errors since the params will be rejected.
+	if topicScoreParams != nil && topicScoreParams.TimeInMeshQuantum != 0 {
+		if err = blocksTopic.SetScoreParams(topicScoreParams); err != nil {
+			return nil, fmt.Errorf("failed to set topic score params: %w", err)
+		}
+	}
 
 	subscription, err := blocksTopic.Subscribe()
 	if err != nil {

@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { URLSearchParams } from 'url'
 
 import { ethers, Contract } from 'ethers'
 import { Provider } from '@ethersproject/abstract-provider'
@@ -54,10 +55,16 @@ export const deploy = async ({
       waitConfirmations: hre.deployConfig.numDeployConfirmations,
     })
     console.log(`Deployed ${name} at ${result.address}`)
+    // Only wait for the transaction if it was recently deployed in case the
+    // result was deployed a long time ago and was pruned from the backend.
+    await hre.ethers.provider.waitForTransaction(result.transactionHash)
   }
 
-  // Always wait for the transaction to be mined, just in case.
-  await hre.ethers.provider.waitForTransaction(result.transactionHash)
+  // Check to make sure there is code
+  const code = await hre.ethers.provider.getCode(result.address)
+  if (code === '0x') {
+    throw new Error(`no code for ${result.address}`)
+  }
 
   // Create the contract object to return.
   const created = asAdvancedContract({
@@ -174,7 +181,6 @@ export const getContractFromArtifact = async (
   } = {}
 ): Promise<ethers.Contract> => {
   const artifact = await hre.deployments.get(name)
-  await hre.ethers.provider.waitForTransaction(artifact.receipt.transactionHash)
 
   // Get the deployed contract's interface.
   let iface = new hre.ethers.utils.Interface(artifact.abi)
@@ -287,6 +293,7 @@ export const getDeploymentAddress = async (
 export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
   return JSON.stringify(
     {
+      from: tx.from,
       to: tx.to,
       data: tx.data,
       value: tx.value,
@@ -348,6 +355,9 @@ export const doStep = async (opts: {
     console.log(`MSD address: ${opts.SystemDictator.address}`)
     console.log(`JSON:`)
     console.log(jsonifyTransaction(tx))
+    console.log(
+      await getTenderlySimulationLink(opts.SystemDictator.provider, tx)
+    )
   }
 
   // Wait for the step to complete.
@@ -361,4 +371,27 @@ export const doStep = async (opts: {
 
   // Perform post-step checks.
   await opts.checks()
+}
+
+/**
+ * Returns a direct link to a Tenderly simulation.
+ *
+ * @param provider Ethers Provider.
+ * @param tx Ethers transaction object.
+ * @returns the url of the tenderly simulation.
+ */
+export const getTenderlySimulationLink = async (
+  provider: ethers.providers.Provider,
+  tx: ethers.PopulatedTransaction
+): Promise<string> => {
+  if (process.env.TENDERLY_PROJECT && process.env.TENDERLY_USERNAME) {
+    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
+      process.env.TENDERLY_USERNAME
+    }/simulator/new?${new URLSearchParams({
+      network: (await provider.getNetwork()).chainId.toString(),
+      contractAddress: tx.to,
+      rawFunctionInput: tx.data,
+      from: tx.from,
+    }).toString()}`
+  }
 }

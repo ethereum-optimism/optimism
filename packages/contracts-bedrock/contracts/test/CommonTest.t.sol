@@ -27,6 +27,7 @@ import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { LegacyMintableERC20 } from "../legacy/LegacyMintableERC20.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -155,8 +156,8 @@ contract L2OutputOracle_Initializer is CommonTest {
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target
-    OptimismPortal opImpl;
-    OptimismPortal op;
+    OptimismPortal internal opImpl;
+    OptimismPortal internal op;
 
     event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
     event WithdrawalProven(
@@ -176,14 +177,14 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
             abi.encodeWithSelector(OptimismPortal.initialize.selector, false)
         );
         op = OptimismPortal(payable(address(proxy)));
+        vm.label(address(op), "OptimismPortal");
     }
 }
 
-contract Messenger_Initializer is L2OutputOracle_Initializer {
-    OptimismPortal op;
-    AddressManager addressManager;
-    L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger =
+contract Messenger_Initializer is Portal_Initializer {
+    AddressManager internal addressManager;
+    L1CrossDomainMessenger internal L1Messenger;
+    L2CrossDomainMessenger internal L2Messenger =
         L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
     event SentMessage(
@@ -219,16 +220,10 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         bytes data
     );
 
-    event WithdrawalFinalized(bytes32 indexed, bool success);
-
     event WhatHappened(bool success, bytes returndata);
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Deploy the OptimismPortal
-        op = new OptimismPortal({ _l2Oracle: oracle, _guardian: guardian, _paused: false });
-        vm.label(address(op), "OptimismPortal");
 
         // Deploy the address manager
         vm.prank(multisig);
@@ -276,6 +271,7 @@ contract Bridge_Initializer is Messenger_Initializer {
     ERC20 L1Token;
     ERC20 BadL1Token;
     OptimismMintableERC20 L2Token;
+    LegacyMintableERC20 LegacyL2Token;
     ERC20 NativeL2Token;
     ERC20 BadL2Token;
     OptimismMintableERC20 RemoteL1Token;
@@ -397,6 +393,14 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
         L1Token = new ERC20("Native L1 Token", "L1T");
+
+        LegacyL2Token = new LegacyMintableERC20({
+            _l2Bridge: address(L2Bridge),
+            _l1Token: address(L1Token),
+            _name: string.concat("LegacyL2-", L1Token.name()),
+            _symbol: string.concat("LegacyL2-", L1Token.symbol())
+        });
+        vm.label(address(LegacyL2Token), "LegacyMintableERC20");
 
         // Deploy the L2 ERC20 now
         L2Token = OptimismMintableERC20(

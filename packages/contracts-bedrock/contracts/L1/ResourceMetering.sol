@@ -29,13 +29,14 @@ abstract contract ResourceMetering is Initializable {
 
     /**
      * @notice Maximum amount of the resource that can be used within this block.
+     *         This value cannot be larger than the L2 block gas limit.
      */
-    int256 public constant MAX_RESOURCE_LIMIT = 8_000_000;
+    int256 public constant MAX_RESOURCE_LIMIT = 20_000_000;
 
     /**
      * @notice Along with the resource limit, determines the target resource limit.
      */
-    int256 public constant ELASTICITY_MULTIPLIER = 4;
+    int256 public constant ELASTICITY_MULTIPLIER = 10;
 
     /**
      * @notice Target amount of the resource that should be used within this block.
@@ -50,17 +51,21 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice Minimum base fee value, cannot go lower than this.
      */
-    int256 public constant MINIMUM_BASE_FEE = 10_000;
+    int256 public constant MINIMUM_BASE_FEE = 1 gwei;
 
     /**
      * @notice Maximum base fee value, cannot go higher than this.
+     *         It is possible for the MAXIMUM_BASE_FEE to raise to a value
+     *         that is so large it will consume the entire gas limit of
+     *         an L1 block.
      */
     int256 public constant MAXIMUM_BASE_FEE = int256(uint256(type(uint128).max));
 
     /**
-     * @notice Initial base fee value.
+     * @notice Initial base fee value. This value must be smaller than the
+     *         MAXIMUM_BASE_FEE.
      */
-    uint128 public constant INITIAL_BASE_FEE = 1_000_000_000;
+    uint128 public constant INITIAL_BASE_FEE = 1 gwei;
 
     /**
      * @notice EIP-1559 style gas parameters.
@@ -84,6 +89,17 @@ abstract contract ResourceMetering is Initializable {
         // Run the underlying function.
         _;
 
+        // Run the metering function.
+        _metered(_amount, initialGas);
+    }
+
+    /**
+     * @notice An internal function that holds all of the logic for metering a resource.
+     *
+     * @param _amount     Amount of the resource requested.
+     * @param _initialGas The amount of gas before any modifier execution.
+     */
+    function _metered(uint64 _amount, uint256 _initialGas) internal {
         // Update block number and base fee if necessary.
         uint256 blockDiff = block.number - params.prevBlockNum;
         if (blockDiff > 0) {
@@ -134,7 +150,7 @@ abstract contract ResourceMetering is Initializable {
         );
 
         // Determine the amount of ETH to be paid.
-        uint256 resourceCost = _amount * params.prevBaseFee;
+        uint256 resourceCost = uint256(_amount) * uint256(params.prevBaseFee);
 
         // We currently charge for this ETH amount as an L1 gas burn, so we convert the ETH amount
         // into gas by dividing by the L1 base fee. We assume a minimum base fee of 1 gwei to avoid
@@ -146,7 +162,7 @@ abstract contract ResourceMetering is Initializable {
         // Give the user a refund based on the amount of gas they used to do all of the work up to
         // this point. Since we're at the end of the modifier, this should be pretty accurate. Acts
         // effectively like a dynamic stipend (with a minimum value).
-        uint256 usedGas = initialGas - gasleft();
+        uint256 usedGas = _initialGas - gasleft();
         if (gasCost > usedGas) {
             Burn.gas(gasCost - usedGas);
         }
