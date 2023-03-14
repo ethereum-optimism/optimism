@@ -3,7 +3,6 @@ package eth
 import (
 	"bytes"
 	"fmt"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -15,7 +14,7 @@ import (
 
 type StorageProofEntry struct {
 	Key   common.Hash     `json:"key"`
-	Value hexutil.Bytes   `json:"value"`
+	Value hexutil.Big     `json:"value"`
 	Proof []hexutil.Bytes `json:"proof"`
 }
 
@@ -52,12 +51,16 @@ func (res *AccountResult) Verify(stateRoot common.Hash) error {
 		if err != nil {
 			return fmt.Errorf("failed to verify storage value %d with key %s (path %x) in storage trie %s: %w", i, entry.Key, path, res.StorageHash, err)
 		}
-		if !bytes.Equal(val, val) {
+		comparison, err := rlp.EncodeToBytes(entry.Value.ToInt().Bytes())
+		if err != nil {
+			return fmt.Errorf("failed to encode storage value %d with key %s (path %x) in storage trie %s: %w", i, entry.Key, path, res.StorageHash, err)
+		}
+		if !bytes.Equal(val, comparison) {
 			return fmt.Errorf("value %d in storage proof does not match proven value at key %s (path %x)", i, entry.Key, path)
 		}
 	}
 
-	accountClaimed := []any{uint64(res.Nonce), (*big.Int)(res.Balance).Bytes(), res.StorageHash, res.CodeHash}
+	accountClaimed := []any{uint64(res.Nonce), res.Balance.ToInt().Bytes(), res.StorageHash, res.CodeHash}
 	accountClaimedValue, err := rlp.EncodeToBytes(accountClaimed)
 	if err != nil {
 		return fmt.Errorf("failed to encode account from retrieved values: %w", err)

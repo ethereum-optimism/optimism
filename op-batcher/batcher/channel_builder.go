@@ -11,68 +11,72 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
-type (
-	// channelBuilder uses a ChannelOut to create a channel with output frame
-	// size approximation.
-	channelBuilder struct {
-		cfg ChannelConfig
+type ChannelConfig struct {
+	// Number of epochs (L1 blocks) per sequencing window, including the epoch
+	// L1 origin block itself
+	SeqWindowSize uint64
+	// The maximum number of L1 blocks that the inclusion transactions of a
+	// channel's frames can span.
+	ChannelTimeout uint64
 
-		// marked as full if a) max RLP input bytes, b) max num frames or c) max
-		// allowed frame index (uint16) has been reached
-		fullErr error
-		// current channel
-		co *derive.ChannelOut
-		// list of blocks in the channel. Saved in case the channel must be rebuilt
-		blocks []*types.Block
-		// frames data queue, to be send as txs
-		frames []taggedData
-	}
+	// Builder Config
 
-	ChannelConfig struct {
-		// ChannelTimeout is the maximum duration, in seconds, to attempt completing
-		// an opened channel. The batcher can decide to set it shorter than the
-		// actual timeout, since submitting continued channel data to L1 is not
-		// instantaneous. It's not worth it to work with nearly timed-out channels.
-		ChannelTimeout uint64
-		// The maximum byte-size a frame can have.
-		MaxFrameSize uint64
-		// The target number of frames to create per channel. Note that if the
-		// realized compression ratio is worse than the approximate, more frames may
-		// actually be created. This also depends on how close TargetFrameSize is to
-		// MaxFrameSize.
-		TargetFrameSize uint64
-		// The target number of frames to create in this channel. If the realized
-		// compression ratio is worse than approxComprRatio, additional leftover
-		// frame(s) might get created.
-		TargetNumFrames int
-		// Approximated compression ratio to assume. Should be slightly smaller than
-		// average from experiments to avoid the chances of creating a small
-		// additional leftover frame.
-		ApproxComprRatio float64
-	}
-
-	ChannelFullError struct {
-		Err error
-	}
-)
-
-func (e *ChannelFullError) Error() string {
-	return "channel full: " + e.Err.Error()
+	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep the
+	// channel open. This allows control over how long a channel is kept open
+	// during times of low transaction volume.
+	//
+	// If 0, duration checks are disabled.
+	MaxChannelDuration uint64
+	// The batcher tx submission safety margin (in #L1-blocks) to subtract from
+	// a channel's timeout and sequencing window, to guarantee safe inclusion of
+	// a channel on L1.
+	SubSafetyMargin uint64
+	// The maximum byte-size a frame can have.
+	MaxFrameSize uint64
+	// The target number of frames to create per channel. Note that if the
+	// realized compression ratio is worse than the approximate, more frames may
+	// actually be created. This also depends on how close TargetFrameSize is to
+	// MaxFrameSize.
+	TargetFrameSize uint64
+	// The target number of frames to create in this channel. If the realized
+	// compression ratio is worse than approxComprRatio, additional leftover
+	// frame(s) might get created.
+	TargetNumFrames int
+	// Approximated compression ratio to assume. Should be slightly smaller than
+	// average from experiments to avoid the chances of creating a small
+	// additional leftover frame.
+	ApproxComprRatio float64
 }
-
-func (e *ChannelFullError) Unwrap() error {
-	return e.Err
-}
-
-var (
-	ErrInputTargetReached = errors.New("target amount of input data reached")
-	ErrMaxFrameIndex      = errors.New("max frame index reached (uint16)")
-)
 
 // InputThreshold calculates the input data threshold in bytes from the given
 // parameters.
 func (c ChannelConfig) InputThreshold() uint64 {
 	return uint64(float64(c.TargetNumFrames) * float64(c.TargetFrameSize) / c.ApproxComprRatio)
+}
+
+// channelBuilder uses a ChannelOut to create a channel with output frame
+// size approximation.
+type channelBuilder struct {
+	cfg ChannelConfig
+
+	// L1 block number timeout of combined
+	// - channel duration timeout,
+	// - consensus channel timeout,
+	// - sequencing window timeout.
+	// 0 if no block number timeout set yet.
+	timeout uint64
+	// reason for currently set timeout
+	timeoutReason error
+
+	// Reason for the channel being full. Set by setFullErr so it's always
+	// guaranteed to be a ChannelFullError wrapping the specific reason.
+	fullErr error
+	// current channel
+	co *derive.ChannelOut
+	// list of blocks in the channel. Saved in case the channel must be rebuilt
+	blocks []*types.Block
+	// frames data queue, to be send as txs
+	frames []taggedData
 }
 
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
@@ -107,6 +111,8 @@ func (c *channelBuilder) Blocks() []*types.Block {
 func (c *channelBuilder) Reset() error {
 	c.blocks = c.blocks[:0]
 	c.frames = c.frames[:0]
+	c.timeout = 0
+	c.fullErr = nil
 	return c.co.Reset()
 }
 
@@ -123,16 +129,21 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 		return c.FullErr()
 	}
 
-	_, err := c.co.AddBlock(block)
-	if errors.Is(err, derive.ErrTooManyRLPBytes) {
+	batch, err := derive.BlockToBatch(block)
+	if err != nil {
+		return fmt.Errorf("converting block to batch: %w", err)
+	}
+
+	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
 		c.setFullErr(err)
 		return c.FullErr()
 	} else if err != nil {
 		return fmt.Errorf("adding block to channel out: %w", err)
 	}
 	c.blocks = append(c.blocks, block)
+	c.updateSwTimeout(batch)
 
-	if c.InputTargetReached() {
+	if c.inputTargetReached() {
 		c.setFullErr(ErrInputTargetReached)
 		// Adding this block still worked, so don't return error, just mark as full
 	}
@@ -140,9 +151,76 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 	return nil
 }
 
-// InputTargetReached says whether the target amount of input data has been
+// Timeout management
+
+// RegisterL1Block should be called whenever a new L1-block is seen.
+//
+// It ensures proper tracking of all possible timeouts (max channel duration,
+// close to consensus channel timeout, close to end of sequencing window).
+func (c *channelBuilder) RegisterL1Block(l1BlockNum uint64) {
+	c.updateDurationTimeout(l1BlockNum)
+	c.checkTimeout(l1BlockNum)
+}
+
+// FramePublished should be called whenever a frame of this channel got
+// published with the L1-block number of the block that the frame got included
+// in.
+func (c *channelBuilder) FramePublished(l1BlockNum uint64) {
+	timeout := l1BlockNum + c.cfg.ChannelTimeout - c.cfg.SubSafetyMargin
+	c.updateTimeout(timeout, ErrChannelTimeoutClose)
+}
+
+// updateDurationTimeout updates the block timeout with the channel duration
+// timeout derived from the given L1-block number. The timeout is only moved
+// forward if the derived timeout is earlier than the currently set timeout.
+//
+// It does nothing if the max channel duration is set to 0.
+func (c *channelBuilder) updateDurationTimeout(l1BlockNum uint64) {
+	if c.cfg.MaxChannelDuration == 0 {
+		return
+	}
+	timeout := l1BlockNum + c.cfg.MaxChannelDuration
+	c.updateTimeout(timeout, ErrMaxDurationReached)
+}
+
+// updateSwTimeout updates the block timeout with the sequencer window timeout
+// derived from the batch's origin L1 block. The timeout is only moved forward
+// if the derived sequencer window timeout is earlier than the currently set
+// timeout.
+func (c *channelBuilder) updateSwTimeout(batch *derive.BatchData) {
+	timeout := uint64(batch.EpochNum) + c.cfg.SeqWindowSize - c.cfg.SubSafetyMargin
+	c.updateTimeout(timeout, ErrSeqWindowClose)
+}
+
+// updateTimeout updates the timeout block to the given block number if it is
+// earlier than the current block timeout, or if it still unset.
+//
+// If the timeout is updated, the provided reason will be set as the channel
+// full error reason in case the timeout is hit in the future.
+func (c *channelBuilder) updateTimeout(timeoutBlockNum uint64, reason error) {
+	if c.timeout == 0 || c.timeout > timeoutBlockNum {
+		c.timeout = timeoutBlockNum
+		c.timeoutReason = reason
+	}
+}
+
+// checkTimeout checks if the channel is timed out at the given block number and
+// in this case marks the channel as full, if it wasn't full alredy.
+func (c *channelBuilder) checkTimeout(blockNum uint64) {
+	if !c.IsFull() && c.TimedOut(blockNum) {
+		c.setFullErr(c.timeoutReason)
+	}
+}
+
+// TimedOut returns whether the passed block number is after the timeout block
+// number. If no block timeout is set yet, it returns false.
+func (c *channelBuilder) TimedOut(blockNum uint64) bool {
+	return c.timeout != 0 && blockNum >= c.timeout
+}
+
+// inputTargetReached says whether the target amount of input data has been
 // reached in this channel builder. No more blocks can be added afterwards.
-func (c *channelBuilder) InputTargetReached() bool {
+func (c *channelBuilder) inputTargetReached() bool {
 	return uint64(c.co.InputBytes()) >= c.cfg.InputThreshold()
 }
 
@@ -155,12 +233,16 @@ func (c *channelBuilder) IsFull() bool {
 // FullErr returns the reason why the channel is full. If not full yet, it
 // returns nil.
 //
-// It returns a ChannelFullError wrapping one of three possible reasons for the
+// It returns a ChannelFullError wrapping one of six possible reasons for the
 // channel being full:
 //   - ErrInputTargetReached if the target amount of input data has been reached,
 //   - derive.MaxRLPBytesPerChannel if the general maximum amount of input data
 //     would have been exceeded by the latest AddBlock call,
-//   - ErrMaxFrameIndex if the maximum number of frames has been generated (uint16)
+//   - ErrMaxFrameIndex if the maximum number of frames has been generated
+//     (uint16),
+//   - ErrMaxDurationReached if the max channel duration got reached.
+//   - ErrChannelTimeoutClose if the consensus channel timeout got too close.
+//   - ErrSeqWindowClose if the end of the sequencer window got too close.
 func (c *channelBuilder) FullErr() error {
 	return c.fullErr
 }
@@ -173,9 +255,9 @@ func (c *channelBuilder) setFullErr(err error) {
 // after AddBlock and before iterating over available frames with HasFrame and
 // NextFrame.
 //
-// If the input data target hasn't been reached yet, it will conservatively only
+// If the channel isn't full yet, it will conservatively only
 // pull readily available frames from the compression output.
-// If the target has been reached, the channel is closed and all remaining
+// If it is full, the channel is closed and all remaining
 // frames will be created, possibly with a small leftover frame.
 func (c *channelBuilder) OutputFrames() error {
 	if c.IsFull() {
@@ -278,4 +360,24 @@ func (c *channelBuilder) PushFrame(id txID, frame []byte) {
 		panic("wrong channel")
 	}
 	c.frames = append(c.frames, taggedData{id: id, data: frame})
+}
+
+var (
+	ErrInputTargetReached  = errors.New("target amount of input data reached")
+	ErrMaxFrameIndex       = errors.New("max frame index reached (uint16)")
+	ErrMaxDurationReached  = errors.New("max channel duration reached")
+	ErrChannelTimeoutClose = errors.New("close to channel timeout")
+	ErrSeqWindowClose      = errors.New("close to sequencer window timeout")
+)
+
+type ChannelFullError struct {
+	Err error
+}
+
+func (e *ChannelFullError) Error() string {
+	return "channel full: " + e.Err.Error()
+}
+
+func (e *ChannelFullError) Unwrap() error {
+	return e.Err
 }

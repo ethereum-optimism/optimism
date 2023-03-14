@@ -63,7 +63,7 @@ func New(ctx context.Context, cfg *Config, log log.Logger, snapshotLog log.Logge
 
 	err := n.init(ctx, cfg, snapshotLog)
 	if err != nil {
-		log.Error("Error intializing the rollup node", "err", err)
+		log.Error("Error initializing the rollup node", "err", err)
 		// ensure we always close the node resources if we fail to initialize the node.
 		if closeErr := n.Close(); closeErr != nil {
 			return nil, multierror.Append(err, closeErr)
@@ -212,6 +212,7 @@ func (n *OpNode) initRPCServer(ctx context.Context, cfg *Config) error {
 	}
 	if cfg.RPC.EnableAdmin {
 		server.EnableAdminAPI(NewAdminAPI(n.l2Driver, n.metrics))
+		n.log.Info("Admin RPC enabled")
 	}
 	n.log.Info("Starting JSON-RPC server")
 	if err := server.Start(); err != nil {

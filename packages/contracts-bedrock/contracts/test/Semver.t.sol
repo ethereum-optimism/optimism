@@ -19,7 +19,7 @@ contract Semver_Test is CommonTest {
     /**
      * @notice Deploy a Semver contract
      */
-    function setUp() external {
+    function setUp() public virtual override {
         semver = new Semver(7, 8, 0);
     }
 

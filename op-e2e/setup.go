@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	rollupNode "github.com/ethereum-optimism/optimism/op-node/node"
@@ -91,6 +92,10 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 
 		GasPriceOracleOverhead: 2100,
 		GasPriceOracleScalar:   1_000_000,
+
+		SequencerFeeVaultRecipient: common.Address{19: 1},
+		BaseFeeVaultRecipient:      common.Address{19: 2},
+		L1FeeVaultRecipient:        common.Address{19: 3},
 
 		DeploymentWaitConfirmations: 1,
 
@@ -208,7 +213,7 @@ func (sys *System) Close() {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		sys.BatchSubmitter.Stop()
+		sys.BatchSubmitter.StopIfRunning()
 	}
 
 	for _, node := range sys.RollupNodes {
@@ -305,6 +310,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			BatchInboxAddress:      cfg.DeployConfig.BatchInboxAddress,
 			DepositContractAddress: predeploys.DevOptimismPortalAddr,
 			L1SystemConfigAddress:  predeploys.DevSystemConfigAddr,
+			RegolithTime:           cfg.DeployConfig.RegolithTime(uint64(cfg.DeployConfig.L1GenesisBlockTimestamp)),
 		}
 	}
 	defaultConfig := makeRollupConfig()
@@ -458,10 +464,12 @@ func (cfg SystemConfig) Start() (*System, error) {
 		if p, ok := p2pNodes[name]; ok {
 			c.P2P = p
 
-			if c.Driver.SequencerEnabled {
+			if c.Driver.SequencerEnabled && c.P2PSigner == nil {
 				c.P2PSigner = &p2p.PreparedSigner{Signer: p2p.NewLocalSigner(cfg.Secrets.SequencerP2P)}
 			}
 		}
+
+		c.Rollup.LogDescription(cfg.Loggers[name], chaincfg.L2ChainIDToNetworkName)
 
 		node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], snapLog, "", metrics.NewMetrics(""))
 		if err != nil {
@@ -526,11 +534,12 @@ func (cfg SystemConfig) Start() (*System, error) {
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            1,
+		TargetL1TxSize:            100_000,
 		TargetNumFrames:           1,
-		ApproxComprRatio:          1.0,
-		ChannelTimeout:            cfg.DeployConfig.ChannelTimeout,
+		ApproxComprRatio:          0.4,
+		SubSafetyMargin:           4,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -539,8 +548,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey:                 hexPriv(cfg.Secrets.Batcher),
-		SequencerBatchInboxAddress: cfg.DeployConfig.BatchInboxAddress.String(),
+		PrivateKey: hexPriv(cfg.Secrets.Batcher),
 	}, sys.cfg.Loggers["batcher"])
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)

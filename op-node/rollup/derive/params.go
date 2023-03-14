@@ -1,6 +1,7 @@
 package derive
 
 import (
+	"encoding/hex"
 	"errors"
 	"fmt"
 )
@@ -43,4 +44,20 @@ func (id ChannelID) String() string {
 // TerminalString implements log.TerminalStringer, formatting a string for console output during logging.
 func (id ChannelID) TerminalString() string {
 	return fmt.Sprintf("%x..%x", id[:3], id[13:])
+}
+
+func (id ChannelID) MarshalText() ([]byte, error) {
+	return []byte(id.String()), nil
+}
+
+func (id *ChannelID) UnmarshalText(text []byte) error {
+	h, err := hex.DecodeString(string(text))
+	if err != nil {
+		return err
+	}
+	if len(h) != ChannelIDLength {
+		return errors.New("invalid length")
+	}
+	copy(id[:], h)
+	return nil
 }

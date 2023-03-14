@@ -77,7 +77,7 @@ func TestBatchInLastPossibleBlocks(gt *testing.T) {
 	}
 
 	// 8 L1 blocks with 17 L2 blocks is the unsafe state.
-	// Because wew consistently batch submitted we are one epoch behind the unsafe head with the safe head
+	// Because we consistently batch submitted we are one epoch behind the unsafe head with the safe head
 	verifyChainStateOnSequencer(8, 17, 8, 15, 7)
 
 	// Create the batch for L2 blocks 16 & 17

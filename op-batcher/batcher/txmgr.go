@@ -32,14 +32,14 @@ type TransactionManager struct {
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, signerFn opcrypto.SignerFn) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
-		txMgr:             txmgr.NewSimpleTxManager("batcher", txMgrConfg, l1Client),
+		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
 		l1Client:          l1Client,
-		signerFn:          signerFn,
+		signerFn:          txMgrConfg.Signer,
 		log:               log,
 	}
 	return t
@@ -54,18 +54,14 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
-	// Construct a closure that will update the txn with the current gas prices.
-	updateGasPrice := func(ctx context.Context) (*types.Transaction, error) {
-		return t.UpdateGasPrice(ctx, tx)
-	}
 
 	ctx, cancel := context.WithTimeout(ctx, 100*time.Second) // TODO: Select a timeout that makes sense here.
 	defer cancel()
-	if receipt, err := t.txMgr.Send(ctx, updateGasPrice, t.l1Client.SendTransaction); err != nil {
-		t.log.Warn("unable to publish tx", "err", err)
+	if receipt, err := t.txMgr.Send(ctx, tx); err != nil {
+		t.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
 		return nil, err
 	} else {
-		t.log.Info("tx successfully published", "tx_hash", receipt.TxHash)
+		t.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "data_size", len(data))
 		return receipt, nil
 	}
 }
@@ -124,7 +120,7 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	}
 	t.log.Info("creating tx", "to", rawTx.To, "from", t.senderAddress)
 
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}
@@ -134,30 +130,4 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	defer cancel()
 	tx := types.NewTx(rawTx)
 	return t.signerFn(ctx, t.senderAddress, tx)
-}
-
-// UpdateGasPrice signs an otherwise identical txn to the one provided but with
-// updated gas prices sampled from the existing network conditions.
-//
-// NOTE: This method SHOULD NOT publish the resulting transaction.
-func (t *TransactionManager) UpdateGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
-	gasTipCap, gasFeeCap, err := t.calcGasTipAndFeeCap(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	rawTx := &types.DynamicFeeTx{
-		ChainID:   t.chainID,
-		Nonce:     tx.Nonce(),
-		To:        tx.To(),
-		GasTipCap: gasTipCap,
-		GasFeeCap: gasFeeCap,
-		Gas:       tx.Gas(),
-		Data:      tx.Data(),
-	}
-	// Only log the new tip/fee cap because the updateGasPrice closure reuses the same initial transaction
-	t.log.Trace("updating gas price", "tip_cap", gasTipCap, "fee_cap", gasFeeCap)
-
-	finalTx := types.NewTx(rawTx)
-	return t.signerFn(ctx, t.senderAddress, finalTx)
 }

@@ -1,7 +1,6 @@
 package crossdomain
 
 import (
-	"errors"
 	"fmt"
 	"math/big"
 
@@ -14,18 +13,18 @@ import (
 // version 1 messages have a value and the most significant
 // byte of the nonce is a 1
 type CrossDomainMessage struct {
-	Nonce    *big.Int        `json:"nonce"`
-	Sender   *common.Address `json:"sender"`
-	Target   *common.Address `json:"target"`
-	Value    *big.Int        `json:"value"`
-	GasLimit *big.Int        `json:"gasLimit"`
-	Data     []byte          `json:"data"`
+	Nonce    *big.Int       `json:"nonce"`
+	Sender   common.Address `json:"sender"`
+	Target   common.Address `json:"target"`
+	Value    *big.Int       `json:"value"`
+	GasLimit *big.Int       `json:"gasLimit"`
+	Data     []byte         `json:"data"`
 }
 
 // NewCrossDomainMessage creates a CrossDomainMessage.
 func NewCrossDomainMessage(
 	nonce *big.Int,
-	sender, target *common.Address,
+	sender, target common.Address,
 	value, gasLimit *big.Int,
 	data []byte,
 ) *CrossDomainMessage {
@@ -76,24 +75,4 @@ func (c *CrossDomainMessage) Hash() (common.Hash, error) {
 // for the migration process.
 func (c *CrossDomainMessage) HashV1() (common.Hash, error) {
 	return HashCrossDomainMessageV1(c.Nonce, c.Sender, c.Target, c.Value, c.GasLimit, c.Data)
-}
-
-// ToWithdrawal will turn a CrossDomainMessage into a Withdrawal.
-// This only works for version 0 CrossDomainMessages as not all of
-// the data is present for version 1 CrossDomainMessages to be turned
-// into Withdrawals.
-func (c *CrossDomainMessage) ToWithdrawal() (WithdrawalMessage, error) {
-	version := c.Version()
-	switch version {
-	case 0:
-		if c.Value != nil && c.Value.Cmp(common.Big0) != 0 {
-			return nil, errors.New("version 0 messages must have 0 value")
-		}
-		w := NewLegacyWithdrawal(c.Target, c.Sender, c.Data, c.Nonce)
-		return w, nil
-	case 1:
-		return nil, errors.New("version 1 messages cannot be turned into withdrawals")
-	default:
-		return nil, fmt.Errorf("unknown version %d", version)
-	}
 }

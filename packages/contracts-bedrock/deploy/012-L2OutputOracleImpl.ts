@@ -5,6 +5,19 @@ import '@nomiclabs/hardhat-ethers'
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
+  if (hre.deployConfig.l2BlockTime === 0) {
+    throw new Error(
+      'L2OutputOracle deployment: l2BlockTime must be greater than 0'
+    )
+  } else if (
+    hre.deployConfig.l2OutputOracleSubmissionInterval <=
+    hre.deployConfig.l2BlockTime
+  ) {
+    throw new Error(
+      'L2OutputOracle deployment: submissionInterval must be greater than the l2BlockTime'
+    )
+  }
+
   await deploy({
     hre,
     name: 'L2OutputOracle',
@@ -15,6 +28,7 @@ const deployFn: DeployFunction = async (hre) => {
       0,
       hre.deployConfig.l2OutputOracleProposer,
       hre.deployConfig.l2OutputOracleChallenger,
+      hre.deployConfig.finalizationPeriodSeconds,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -36,6 +50,11 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'CHALLENGER',
         hre.deployConfig.l2OutputOracleChallenger
+      )
+      await assertContractVariable(
+        contract,
+        'FINALIZATION_PERIOD_SECONDS',
+        hre.deployConfig.finalizationPeriodSeconds
       )
     },
   })

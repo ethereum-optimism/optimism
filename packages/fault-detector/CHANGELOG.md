@@ -1,5 +1,26 @@
 # @eth-optimism/fault-detector
 
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [cb19e2f9c]
+  - @eth-optimism/sdk@2.0.0
+
+## 0.6.0
+
+### Minor Changes
+
+- b004d1ad4: Updates the fault detector to support Bedrock networks.
+
+### Patch Changes
+
+- Updated dependencies [0e179781b]
+- Updated dependencies [5372c9f5b]
+- Updated dependencies [4ae94b412]
+  - @eth-optimism/common-ts@0.8.0
+  - @eth-optimism/sdk@1.10.2
+
 ## 0.5.0
 
 ### Minor Changes

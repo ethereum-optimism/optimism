@@ -11,8 +11,8 @@ module.exports = {
     ['meta', { name: 'apple-mobile-web-app-status-bar-style', content: 'black' }],
     ['meta', { property: 'og:image', content: 'https://stack.optimism.io/assets/logos/twitter-logo.png' }],
     ['meta', { name: 'twitter:image', content: 'https://stack.optimism.io/assets/logos/twitter-logo.png' }],
-    ['meta', { name: 'twitter:title', content: 'OP Stack Docs' }],  
-    ['meta', { property: 'og:title', content: 'OP Stack Docs' }],       
+    ['meta', { name: 'twitter:title', content: 'OP Stack Docs' }],
+    ['meta', { property: 'og:title', content: 'OP Stack Docs' }],
     ['meta', { name: 'twitter:card', content: 'summary' } ],
     ['link', { rel: "icon", type: "image/png", sizes: "32x32", href: "/assets/logos/favicon.png"}],
   ],
@@ -38,8 +38,8 @@ module.exports = {
       offset: -200,
     },
     algolia: {
-      appId: '8LQU4WGQXA',
-      apiKey: '2c1a86142192f96dab9a5066ad0c1d50',
+      appId: '7Q6XITDI0Z',
+      apiKey: '9d55a31a04b210cd26f97deabd161705',
       indexName: 'optimism'
     },
     nav: [
@@ -129,7 +129,7 @@ module.exports = {
       }, 
       {
         title: "Releases",
-        collapsable: false,          
+        collapsable: false,
         children: [
           '/docs/releases/',
           {
@@ -156,10 +156,10 @@ module.exports = {
             children: [
               '/docs/build/hacks.md',
               '/docs/build/featured.md',
-              '/docs/build/data-avail.md',            
+              '/docs/build/data-avail.md',
               '/docs/build/derivation.md',
               '/docs/build/execution.md',
-              '/docs/build/settlement.md',                  
+              '/docs/build/settlement.md',
               {
                 title: "Sample Hacks",
                 children: [
@@ -173,14 +173,14 @@ module.exports = {
       },      // End of Building OP Stack Rollups
       {
         title: "Contributing",
-        collapsable: false,          
+        collapsable: false,
         children: [
           '/docs/contribute.md',
-        ]        
-      },     
+        ]
+      },
       {
         title: "Security",
-        collapsable: false,          
+        collapsable: false,
         children: [
           '/docs/security/faq.md',
           '/docs/security/policy.md',

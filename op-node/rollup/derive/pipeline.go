@@ -25,6 +25,14 @@ type L1Fetcher interface {
 	L1TransactionFetcher
 }
 
+// ResettableEngineControl wraps EngineControl with reset-functionality,
+// which handles reorgs like the derivation pipeline:
+// by determining the last valid block references to continue from.
+type ResettableEngineControl interface {
+	EngineControl
+	Reset()
+}
+
 type ResetableStage interface {
 	// Reset resets a pull stage. `base` refers to the L1 Block Reference to reset to, with corresponding configuration.
 	Reset(ctx context.Context, base eth.L1BlockRef, baseCfg eth.SystemConfig) error
@@ -42,7 +50,6 @@ type EngineQueueStage interface {
 	SetUnsafeHead(head eth.L2BlockRef)
 
 	Finalize(l1Origin eth.L1BlockRef)
-	AddSafeAttributes(attributes *eth.PayloadAttributes)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
 	Step(context.Context) error
 }

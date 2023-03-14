@@ -123,7 +123,8 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err = portalABI.Pack("initialize")
+	// Initialize the OptimismPortal without being paused
+	data, err = portalABI.Pack("initialize", false)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
 	}
@@ -140,10 +141,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err = l1XDMABI.Pack(
-		"initialize",
-		config.FinalSystemOwner,
-	)
+	data, err = l1XDMABI.Pack("initialize")
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for L1CrossDomainMessenger: %w", err)
 	}
@@ -216,7 +214,13 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	}
 
 	for _, dep := range deployments {
-		st := stateDB.StorageTrie(dep.Address)
+		st, err := stateDB.StorageTrie(dep.Address)
+		if err != nil {
+			return nil, fmt.Errorf("failed to open storage trie of %s: %w", dep.Address, err)
+		}
+		if st == nil {
+			return nil, fmt.Errorf("missing account %s in state, address: %s", dep.Name, dep.Address)
+		}
 		iter := trie.NewIterator(st.NodeIterator(nil))
 
 		depAddr := dep.Address
@@ -281,12 +285,18 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				uint642Big(uint64(config.L1GenesisBlockTimestamp)),
 				config.L2OutputOracleProposer,
 				config.L2OutputOracleChallenger,
+				uint642Big(config.FinalizationPeriodSeconds),
 			},
 		},
 		{
+			// The implementation of the OptimismPortal is deployed
+			// as being paused to prevent invalid usage of the network
+			// as only the proxy should be used
 			Name: "OptimismPortal",
 			Args: []interface{}{
-				uint642Big(config.FinalizationPeriodSeconds),
+				predeploys.DevL2OutputOracleAddr,
+				config.FinalSystemOwner,
+				true, // _paused
 			},
 		},
 		{
@@ -343,13 +353,15 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[3].(*big.Int),
 			deployment.Args[4].(common.Address),
 			deployment.Args[5].(common.Address),
+			deployment.Args[6].(*big.Int),
 		)
 	case "OptimismPortal":
 		_, tx, _, err = bindings.DeployOptimismPortal(
 			opts,
 			backend,
-			predeploys.DevL2OutputOracleAddr,
-			deployment.Args[0].(*big.Int),
+			deployment.Args[0].(common.Address),
+			deployment.Args[1].(common.Address),
+			deployment.Args[2].(bool),
 		)
 	case "L1CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL1CrossDomainMessenger(

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
@@ -311,7 +312,9 @@ func TestMigration(t *testing.T) {
 		},
 		L1EpochPollInterval: 4 * time.Second,
 	}
-	rollupNode, err := node.New(ctx, rollupNodeConfig, log.New(), snapLog, "", metrics.NewMetrics(""))
+	rollupLog := log.New()
+	rollupNodeConfig.Rollup.LogDescription(rollupLog, chaincfg.L2ChainIDToNetworkName)
+	rollupNode, err := node.New(ctx, rollupNodeConfig, rollupLog, snapLog, "", metrics.NewMetrics(""))
 	require.NoError(t, err)
 
 	require.NoError(t, rollupNode.Start(ctx))
@@ -323,11 +326,12 @@ func TestMigration(t *testing.T) {
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
+		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            1,
+		TargetL1TxSize:            100_000,
 		TargetNumFrames:           1,
-		ApproxComprRatio:          1.0,
-		ChannelTimeout:            deployCfg.ChannelTimeout,
+		ApproxComprRatio:          0.4,
+		SubSafetyMargin:           4,
 		PollInterval:              50 * time.Millisecond,
 		NumConfirmations:          1,
 		ResubmissionTimeout:       5 * time.Second,
@@ -336,12 +340,11 @@ func TestMigration(t *testing.T) {
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey:                 hexPriv(secrets.Batcher),
-		SequencerBatchInboxAddress: deployCfg.BatchSenderAddress.String(),
+		PrivateKey: hexPriv(secrets.Batcher),
 	}, lgr.New("module", "batcher"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		batcher.Stop()
+		batcher.StopIfRunning()
 	})
 
 	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{

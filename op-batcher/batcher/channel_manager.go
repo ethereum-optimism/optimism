@@ -87,7 +87,7 @@ func (s *channelManager) Clear() {
 func (s *channelManager) TxFailed(id txID) {
 	if data, ok := s.pendingTransactions[id]; ok {
 		s.log.Trace("marked transaction as failed", "id", id)
-		s.pendingChannel.PushFrame(id, data)
+		s.pendingChannel.PushFrame(id, data[1:]) // strip the version byte
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)
@@ -108,6 +108,7 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 	}
 	delete(s.pendingTransactions, id)
 	s.confirmedTransactions[id] = inclusionBlock
+	s.pendingChannel.FramePublished(inclusionBlock.Number)
 
 	// If this channel timed out, put the pending blocks back into the local saved blocks
 	// and then reset this state so it can try to build a new channel.
@@ -187,10 +188,7 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 // It currently only uses one frame per transaction. If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending frame.
-//
-// It currently ignores the l1Head provided and doesn't track channel timeouts
-// or the sequencer window span yet.
-func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
@@ -210,9 +208,14 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 		return nil, txID{}, err
 	}
 
-	if err := s.addBlocks(); err != nil {
+	if err := s.processBlocks(); err != nil {
 		return nil, txID{}, err
 	}
+
+	// Register current L1 head only after all pending blocks have been
+	// processed. Even if a timeout will be triggered now, it is better to have
+	// all pending blocks be included in this channel for submission.
+	s.registerL1Block(l1Head)
 
 	if err := s.pendingChannel.OutputFrames(); err != nil {
 		return nil, txID{}, fmt.Errorf("creating frames with channel builder: %w", err)
@@ -221,7 +224,7 @@ func (s *channelManager) TxData(l1Head eth.L1BlockRef) ([]byte, txID, error) {
 	return s.nextTxData()
 }
 
-func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
+func (s *channelManager) ensurePendingChannel(l1Head eth.BlockID) error {
 	if s.pendingChannel != nil {
 		return nil
 	}
@@ -236,9 +239,19 @@ func (s *channelManager) ensurePendingChannel(l1Head eth.L1BlockRef) error {
 	return nil
 }
 
-// addBlocks adds blocks from the blocks queue to the pending channel until
+// registerL1Block registers the given block at the pending channel.
+func (s *channelManager) registerL1Block(l1Head eth.BlockID) {
+	s.pendingChannel.RegisterL1Block(l1Head.Number)
+	s.log.Debug("new L1-block registered at channel builder",
+		"l1Head", l1Head,
+		"channel_full", s.pendingChannel.IsFull(),
+		"full_reason", s.pendingChannel.FullErr(),
+	)
+}
+
+// processBlocks adds blocks from the blocks queue to the pending channel until
 // either the queue got exhausted or the channel is full.
-func (s *channelManager) addBlocks() error {
+func (s *channelManager) processBlocks() error {
 	var blocksAdded int
 	var _chFullErr *ChannelFullError // throw away, just for type checking
 	for i, block := range s.blocks {
@@ -271,9 +284,9 @@ func (s *channelManager) addBlocks() error {
 	return nil
 }
 
-// AddL2Block saves an L2 block to the internal state. It returns ErrReorg
-// if the block does not extend the last block loaded into the state.
-// If no blocks were added yet, the parent hash check is skipped.
+// AddL2Block adds an L2 block to the internal blocks queue. It returns ErrReorg
+// if the block does not extend the last block loaded into the state. If no
+// blocks were added yet, the parent hash check is skipped.
 func (s *channelManager) AddL2Block(block *types.Block) error {
 	if s.tip != (common.Hash{}) && s.tip != block.ParentHash() {
 		return ErrReorg

@@ -3,12 +3,14 @@ package rollup
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
 
@@ -16,12 +18,13 @@ import (
 )
 
 func randConfig() *Config {
+	rng := rand.New(rand.NewSource(1234))
 	randHash := func() (out [32]byte) {
-		rand.Read(out[:])
+		rng.Read(out[:])
 		return
 	}
 	randAddr := func() (out common.Address) { // we need generics...
-		rand.Read(out[:])
+		rng.Read(out[:])
 		return
 	}
 	return &Config{
@@ -135,6 +138,65 @@ func TestCheckL1BlockRefByNumber(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestRandomConfigDescription tests that the description works for different variations of a random rollup config.
+func TestRandomConfigDescription(t *testing.T) {
+	t.Run("named L2", func(t *testing.T) {
+		config := randConfig()
+		out := config.Description(map[string]string{config.L2ChainID.String(): "foobar chain"})
+		require.Contains(t, out, "foobar chain")
+	})
+	t.Run("named L1", func(t *testing.T) {
+		config := randConfig()
+		config.L1ChainID = big.NewInt(5)
+		out := config.Description(map[string]string{config.L2ChainID.String(): "foobar chain"})
+		require.Contains(t, out, "goerli")
+	})
+	t.Run("unnamed", func(t *testing.T) {
+		config := randConfig()
+		out := config.Description(nil)
+		require.Contains(t, out, "(unknown L1)")
+		require.Contains(t, out, "(unknown L2)")
+	})
+	t.Run("regolith unset", func(t *testing.T) {
+		config := randConfig()
+		config.RegolithTime = nil
+		out := config.Description(nil)
+		require.Contains(t, out, "Regolith: (not configured)")
+	})
+	t.Run("regolith genesis", func(t *testing.T) {
+		config := randConfig()
+		config.RegolithTime = new(uint64)
+		out := config.Description(nil)
+		require.Contains(t, out, "Regolith: @ genesis")
+	})
+	t.Run("regolith date", func(t *testing.T) {
+		config := randConfig()
+		x := uint64(1677119335)
+		config.RegolithTime = &x
+		out := config.Description(nil)
+		// Don't check human-readable part of the date, it's timezone-dependent.
+		// Don't make this test fail only in Australia :')
+		require.Contains(t, out, fmt.Sprintf("Regolith: @ %d ~ ", x))
+	})
+}
+
+// TestRegolithActivation tests the activation condition of the Regolith upgrade.
+func TestRegolithActivation(t *testing.T) {
+	config := randConfig()
+	config.RegolithTime = nil
+	require.False(t, config.IsRegolith(0), "false if nil time, even if checking 0")
+	require.False(t, config.IsRegolith(123456), "false if nil time")
+	config.RegolithTime = new(uint64)
+	require.True(t, config.IsRegolith(0), "true at zero")
+	require.True(t, config.IsRegolith(123456), "true for any")
+	x := uint64(123)
+	config.RegolithTime = &x
+	require.False(t, config.IsRegolith(0))
+	require.False(t, config.IsRegolith(122))
+	require.True(t, config.IsRegolith(123))
+	require.True(t, config.IsRegolith(124))
+}
+
 type mockL2Client struct {
 	chainID *big.Int
 	Hash    common.Hash
@@ -211,4 +273,126 @@ func TestCheckL2BlockRefByNumber(t *testing.T) {
 	mockClient.Hash = common.Hash{0x00}
 	err = config.CheckL2GenesisBlockHash(context.TODO(), &mockClient)
 	assert.Error(t, err)
+}
+
+func TestConfig_Check(t *testing.T) {
+	tests := []struct {
+		name        string
+		modifier    func(cfg *Config)
+		expectedErr error
+	}{
+		{
+			name:        "BlockTimeZero",
+			modifier:    func(cfg *Config) { cfg.BlockTime = 0 },
+			expectedErr: ErrBlockTimeZero,
+		},
+		{
+			name:        "ChannelTimeoutZero",
+			modifier:    func(cfg *Config) { cfg.ChannelTimeout = 0 },
+			expectedErr: ErrMissingChannelTimeout,
+		},
+		{
+			name:        "SeqWindowSizeZero",
+			modifier:    func(cfg *Config) { cfg.SeqWindowSize = 0 },
+			expectedErr: ErrInvalidSeqWindowSize,
+		},
+		{
+			name:        "SeqWindowSizeOne",
+			modifier:    func(cfg *Config) { cfg.SeqWindowSize = 1 },
+			expectedErr: ErrInvalidSeqWindowSize,
+		},
+		{
+			name:        "NoL1Genesis",
+			modifier:    func(cfg *Config) { cfg.Genesis.L1.Hash = common.Hash{} },
+			expectedErr: ErrMissingGenesisL1Hash,
+		},
+		{
+			name:        "NoL2Genesis",
+			modifier:    func(cfg *Config) { cfg.Genesis.L2.Hash = common.Hash{} },
+			expectedErr: ErrMissingGenesisL2Hash,
+		},
+		{
+			name:        "GenesisHashesEqual",
+			modifier:    func(cfg *Config) { cfg.Genesis.L2.Hash = cfg.Genesis.L1.Hash },
+			expectedErr: ErrGenesisHashesSame,
+		},
+		{
+			name:        "GenesisL2TimeZero",
+			modifier:    func(cfg *Config) { cfg.Genesis.L2Time = 0 },
+			expectedErr: ErrMissingGenesisL2Time,
+		},
+		{
+			name:        "NoBatcherAddr",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.BatcherAddr = common.Address{} },
+			expectedErr: ErrMissingBatcherAddr,
+		},
+		{
+			name:        "NoOverhead",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Overhead = eth.Bytes32{} },
+			expectedErr: ErrMissingOverhead,
+		},
+		{
+			name:        "NoScalar",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.Scalar = eth.Bytes32{} },
+			expectedErr: ErrMissingScalar,
+		},
+		{
+			name:        "NoGasLimit",
+			modifier:    func(cfg *Config) { cfg.Genesis.SystemConfig.GasLimit = 0 },
+			expectedErr: ErrMissingGasLimit,
+		},
+		{
+			name:        "NoBatchInboxAddress",
+			modifier:    func(cfg *Config) { cfg.BatchInboxAddress = common.Address{} },
+			expectedErr: ErrMissingBatchInboxAddress,
+		},
+		{
+			name:        "NoDepositContractAddress",
+			modifier:    func(cfg *Config) { cfg.DepositContractAddress = common.Address{} },
+			expectedErr: ErrMissingDepositContractAddress,
+		},
+		{
+			name:        "NoL1ChainId",
+			modifier:    func(cfg *Config) { cfg.L1ChainID = nil },
+			expectedErr: ErrMissingL1ChainID,
+		},
+		{
+			name:        "NoL2ChainId",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = nil },
+			expectedErr: ErrMissingL2ChainID,
+		},
+		{
+			name:        "ChainIDsEqual",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = cfg.L1ChainID },
+			expectedErr: ErrChainIDsSame,
+		},
+		{
+			name:        "L1ChainIdNegative",
+			modifier:    func(cfg *Config) { cfg.L1ChainID = big.NewInt(-1) },
+			expectedErr: ErrL1ChainIDNotPositive,
+		},
+		{
+			name:        "L1ChainIdZero",
+			modifier:    func(cfg *Config) { cfg.L1ChainID = big.NewInt(0) },
+			expectedErr: ErrL1ChainIDNotPositive,
+		},
+		{
+			name:        "L2ChainIdNegative",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = big.NewInt(-1) },
+			expectedErr: ErrL2ChainIDNotPositive,
+		},
+		{
+			name:        "L2ChainIdZero",
+			modifier:    func(cfg *Config) { cfg.L2ChainID = big.NewInt(0) },
+			expectedErr: ErrL2ChainIDNotPositive,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := randConfig()
+			test.modifier(cfg)
+			err := cfg.Check()
+			assert.Same(t, err, test.expectedErr)
+		})
+	}
 }

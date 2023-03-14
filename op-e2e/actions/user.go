@@ -445,7 +445,7 @@ func (s *CrossLayerUser) ActCompleteWithdrawal(t Testing) {
 // CompleteWithdrawal creates a L1 withdrawal finalization tx for the given L2 withdrawal tx, returning the tx hash.
 // It's an invalid action to attempt to complete a withdrawal that has not passed the L1 finalization period yet
 func (s *CrossLayerUser) CompleteWithdrawal(t Testing, l2TxHash common.Hash) common.Hash {
-	finalizationPeriod, err := s.L1.env.Bindings.OptimismPortal.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
+	finalizationPeriod, err := s.L1.env.Bindings.L2OutputOracle.FINALIZATIONPERIODSECONDS(&bind.CallOpts{})
 	require.NoError(t, err)
 
 	// Figure out when our withdrawal was included

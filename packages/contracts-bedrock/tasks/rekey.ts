@@ -6,25 +6,19 @@ task('rekey', 'Generates a new set of keys for a test network').setAction(
   async () => {
     const mnemonic = bip39.generateMnemonic()
     const pathPrefix = "m/44'/60'/0'/0"
-    const labels = [
-      'l2OutputOracleProposer',
-      'proxyAdminOwner',
-      'optimismBaseFeeRecipient',
-      'optimismL1FeeRecipient',
-      'p2pSequencerAddress',
-      'l2OutputOracleChallenger',
-      'batchSenderAddress',
-    ]
-
+    const labels = ['Admin', 'Proposer', 'Batcher', 'Sequencer']
     const hdwallet = hdkey.fromMasterSeed(await bip39.mnemonicToSeed(mnemonic))
-    let i = 0
-    const out = {}
+
     console.log(`Mnemonic: ${mnemonic}`)
-    for (const label of labels) {
+    for (let i = 0; i < labels.length; i++) {
+      const label = labels[i]
       const wallet = hdwallet.derivePath(`${pathPrefix}/${i}`).getWallet()
-      out[label] = `0x${wallet.getAddress().toString('hex')}`
-      i++
+      const addr = '0x' + wallet.getAddress().toString('hex')
+      const pk = wallet.getPrivateKey().toString('hex')
+
+      console.log()
+      console.log(`${label}: ${addr}`)
+      console.log(`Private Key: ${pk}`)
     }
-    console.log(JSON.stringify(out, null, '  '))
   }
 )

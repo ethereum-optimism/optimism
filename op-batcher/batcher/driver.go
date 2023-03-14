@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -28,6 +29,9 @@ type BatchSubmitter struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	mutex   sync.Mutex
+	running bool
+
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
 
@@ -40,11 +44,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 	ctx := context.Background()
 
 	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	batchInboxAddress, err := parseAddress(cfg.SequencerBatchInboxAddress)
 	if err != nil {
 		return nil, err
 	}
@@ -66,50 +65,48 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		return nil, err
 	}
 
-	chainID, err := l1Client.ChainID(ctx)
+	rcfg, err := rollupClient.RollupConfig(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
 	txManagerConfig := txmgr.Config{
-		Log:                       l,
-		Name:                      "Batch Submitter",
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
+		From:                      fromAddress,
+		Signer:                    signer(rcfg.L1ChainID),
 	}
 
 	batcherCfg := Config{
-		L1Client:          l1Client,
-		L2Client:          l2Client,
-		RollupNode:        rollupClient,
-		ChainID:           chainID,
-		PollInterval:      cfg.PollInterval,
-		TxManagerConfig:   txManagerConfig,
-		From:              fromAddress,
-		SignerFnFactory:   signer,
-		BatchInboxAddress: batchInboxAddress,
+		L1Client:        l1Client,
+		L2Client:        l2Client,
+		RollupNode:      rollupClient,
+		PollInterval:    cfg.PollInterval,
+		TxManagerConfig: txManagerConfig,
+		From:            fromAddress,
+		Rollup:          rcfg,
 		Channel: ChannelConfig{
-			ChannelTimeout:   cfg.ChannelTimeout,
-			MaxFrameSize:     cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
-			TargetFrameSize:  cfg.TargetL1TxSize - 1, // subtract 1 byte for version
-			TargetNumFrames:  cfg.TargetNumFrames,
-			ApproxComprRatio: cfg.ApproxComprRatio,
+			SeqWindowSize:      rcfg.SeqWindowSize,
+			ChannelTimeout:     rcfg.ChannelTimeout,
+			MaxChannelDuration: cfg.MaxChannelDuration,
+			SubSafetyMargin:    cfg.SubSafetyMargin,
+			MaxFrameSize:       cfg.MaxL1TxSize - 1,    // subtract 1 byte for version
+			TargetFrameSize:    cfg.TargetL1TxSize - 1, // subtract 1 byte for version
+			TargetNumFrames:    cfg.TargetNumFrames,
+			ApproxComprRatio:   cfg.ApproxComprRatio,
 		},
 	}
 
-	return NewBatchSubmitter(batcherCfg, l)
+	return NewBatchSubmitter(ctx, batcherCfg, l)
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
-	ctx, cancel := context.WithCancel(context.Background())
-
+func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSubmitter, error) {
 	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
 	if err != nil {
-		cancel()
 		return nil, err
 	}
 
@@ -118,27 +115,62 @@ func NewBatchSubmitter(cfg Config, l log.Logger) (*BatchSubmitter, error) {
 
 	return &BatchSubmitter{
 		Config: cfg,
-		txMgr:  NewTransactionManager(l, cfg.TxManagerConfig, cfg.BatchInboxAddress, cfg.ChainID, cfg.From, cfg.L1Client, cfg.SignerFnFactory(cfg.ChainID)),
-		done:   make(chan struct{}),
-		// TODO: this context only exists because the event loop doesn't reach done
-		// if the tx manager is blocking forever due to e.g. insufficient balance.
-		ctx:    ctx,
-		cancel: cancel,
-		state:  NewChannelManager(l, cfg.Channel),
+		txMgr: NewTransactionManager(l,
+			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
+			cfg.From, cfg.L1Client),
+		state: NewChannelManager(l, cfg.Channel),
 	}, nil
 
 }
 
 func (l *BatchSubmitter) Start() error {
+	l.log.Info("Starting Batch Submitter")
+
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if l.running {
+		return errors.New("batcher is already running")
+	}
+	l.running = true
+
+	l.done = make(chan struct{})
+	// TODO: this context only exists because the event loop doesn't reach done
+	// if the tx manager is blocking forever due to e.g. insufficient balance.
+	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.state.Clear()
+	l.lastStoredBlock = eth.BlockID{}
+
 	l.wg.Add(1)
 	go l.loop()
+
+	l.log.Info("Batch Submitter started")
+
 	return nil
 }
 
-func (l *BatchSubmitter) Stop() {
+func (l *BatchSubmitter) StopIfRunning() {
+	_ = l.Stop()
+}
+
+func (l *BatchSubmitter) Stop() error {
+	l.log.Info("Stopping Batch Submitter")
+
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+
+	if !l.running {
+		return errors.New("batcher is not running")
+	}
+	l.running = false
+
 	l.cancel()
 	close(l.done)
 	l.wg.Wait()
+
+	l.log.Info("Batch Submitter stopped")
+
+	return nil
 }
 
 // loadBlocksIntoState loads all blocks since the previous stored block
@@ -201,7 +233,7 @@ func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.
 	}
 
 	// Check last stored to see if it needs to be set on startup OR set if is lagged behind.
-	// It lagging implies that the op-node processed some batches that where submitted prior to the current instance of the batcher being alive.
+	// It lagging implies that the op-node processed some batches that were submitted prior to the current instance of the batcher being alive.
 	if l.lastStoredBlock == (eth.BlockID{}) {
 		l.log.Info("Starting batch-submitter work at safe-head", "safe", syncStatus.SafeL2)
 		l.lastStoredBlock = syncStatus.SafeL2.ID()
@@ -239,11 +271,16 @@ func (l *BatchSubmitter) loop() {
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.ctx)
 
-			// Empty the state after loading into it on every iteration.
 		blockLoop:
 			for {
-				// Collect the output frame
-				data, id, err := l.state.TxData(eth.L1BlockRef{})
+				l1tip, err := l.l1Tip(l.ctx)
+				if err != nil {
+					l.log.Error("Failed to query L1 tip", "error", err)
+					break
+				}
+
+				// Collect next transaction data
+				data, id, err := l.state.TxData(l1tip.ID())
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
@@ -253,16 +290,14 @@ func (l *BatchSubmitter) loop() {
 				}
 				// Record TX Status
 				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
-					l.log.Error("Failed to send transaction", "err", err)
-					l.state.TxFailed(id)
+					l.recordFailedTx(id, err)
 				} else {
-					l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
-					l.state.TxConfirmed(id, eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash})
+					l.recordConfirmedTx(id, receipt)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
 				// from the channel manager rather than sending the channel in a loop. This stalls b/c if the
-				// context is cancelled while sending, it will never fuilly clearing the pending txns.
+				// context is cancelled while sending, it will never fully clear the pending txns.
 				select {
 				case <-l.ctx.Done():
 					break blockLoop
@@ -274,4 +309,27 @@ func (l *BatchSubmitter) loop() {
 			return
 		}
 	}
+}
+
+func (l *BatchSubmitter) recordFailedTx(id txID, err error) {
+	l.log.Warn("Failed to send transaction", "err", err)
+	l.state.TxFailed(id)
+}
+
+func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
+	l.log.Info("Transaction confirmed", "tx_hash", receipt.TxHash, "status", receipt.Status, "block_hash", receipt.BlockHash, "block_number", receipt.BlockNumber)
+	l1block := eth.BlockID{Number: receipt.BlockNumber.Uint64(), Hash: receipt.BlockHash}
+	l.state.TxConfirmed(id, l1block)
+}
+
+// l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
+// to be a lifetime context, so it is internally wrapped with a network timeout.
+func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
+	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	defer cancel()
+	head, err := l.L1Client.HeaderByNumber(tctx, nil)
+	if err != nil {
+		return eth.L1BlockRef{}, fmt.Errorf("getting latest L1 block: %w", err)
+	}
+	return eth.InfoToL1BlockRef(eth.HeaderBlockInfo(head)), nil
 }

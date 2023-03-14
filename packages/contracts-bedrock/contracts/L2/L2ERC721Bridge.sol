@@ -26,7 +26,7 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
     constructor(address _messenger, address _otherBridge)
-        Semver(1, 0, 0)
+        Semver(1, 1, 0)
         ERC721Bridge(_messenger, _otherBridge)
     {}
 
@@ -85,12 +85,12 @@ contract L2ERC721Bridge is ERC721Bridge, Semver {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal override {
-        require(_remoteToken != address(0), "ERC721Bridge: remote token cannot be address(0)");
+        require(_remoteToken != address(0), "L2ERC721Bridge: remote token cannot be address(0)");
 
         // Check that the withdrawal is being initiated by the NFT owner
         require(
             _from == IOptimismMintableERC721(_localToken).ownerOf(_tokenId),
-            "Withdrawal is not being initiated by NFT owner"
+            "L2ERC721Bridge: Withdrawal is not being initiated by NFT owner"
         );
 
         // Construct calldata for l1ERC721Bridge.finalizeBridgeERC721(_to, _tokenId)

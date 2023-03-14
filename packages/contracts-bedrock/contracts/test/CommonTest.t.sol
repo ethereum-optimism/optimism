@@ -27,6 +27,7 @@ import { AddressManager } from "../legacy/AddressManager.sol";
 import { L1ChugSplashProxy } from "../legacy/L1ChugSplashProxy.sol";
 import { IL1ChugSplashDeployer } from "../legacy/L1ChugSplashProxy.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
+import { LegacyMintableERC20 } from "../legacy/LegacyMintableERC20.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -50,7 +51,7 @@ contract CommonTest is Test {
 
     FFIInterface ffi;
 
-    function _setUp() public {
+    function setUp() public virtual {
         // Give alice and bob some ETH
         vm.deal(alice, 1 << 16);
         vm.deal(bob, 1 << 16);
@@ -99,17 +100,28 @@ contract L2OutputOracle_Initializer is CommonTest {
     uint256 internal l2BlockTime = 2;
     uint256 internal startingBlockNumber = 200;
     uint256 internal startingTimestamp = 1000;
+    address guardian;
 
     // Test data
     uint256 initL1Time;
+
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
+    );
+
+    event OutputsDeleted(uint256 indexed prevNextOutputIndex, uint256 indexed newNextOutputIndex);
 
     // Advance the evm's time to meet the L2OutputOracle's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
         vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
     }
 
-    function setUp() public virtual {
-        _setUp();
+    function setUp() public virtual override {
+        super.setUp();
+        guardian = makeAddr("guardian");
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
@@ -117,14 +129,15 @@ contract L2OutputOracle_Initializer is CommonTest {
         vm.warp(initL1Time);
         vm.roll(startingBlockNumber);
         // Deploy the L2OutputOracle and transfer owernship to the proposer
-        oracleImpl = new L2OutputOracle(
-            submissionInterval,
-            l2BlockTime,
-            startingBlockNumber,
-            startingTimestamp,
-            proposer,
-            owner
-        );
+        oracleImpl = new L2OutputOracle({
+            _submissionInterval: submissionInterval,
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _proposer: proposer,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days
+        });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
@@ -143,28 +156,35 @@ contract L2OutputOracle_Initializer is CommonTest {
 
 contract Portal_Initializer is L2OutputOracle_Initializer {
     // Test target
-    OptimismPortal opImpl;
-    OptimismPortal op;
+    OptimismPortal internal opImpl;
+    OptimismPortal internal op;
+
+    event WithdrawalFinalized(bytes32 indexed withdrawalHash, bool success);
+    event WithdrawalProven(
+        bytes32 indexed withdrawalHash,
+        address indexed from,
+        address indexed to
+    );
 
     function setUp() public virtual override {
-        L2OutputOracle_Initializer.setUp();
+        super.setUp();
 
-        opImpl = new OptimismPortal(oracle, 7 days);
+        opImpl = new OptimismPortal({ _l2Oracle: oracle, _guardian: guardian, _paused: true });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
         proxy.upgradeToAndCall(
             address(opImpl),
-            abi.encodeWithSelector(OptimismPortal.initialize.selector)
+            abi.encodeWithSelector(OptimismPortal.initialize.selector, false)
         );
         op = OptimismPortal(payable(address(proxy)));
+        vm.label(address(op), "OptimismPortal");
     }
 }
 
-contract Messenger_Initializer is L2OutputOracle_Initializer {
-    OptimismPortal op;
-    AddressManager addressManager;
-    L1CrossDomainMessenger L1Messenger;
-    L2CrossDomainMessenger L2Messenger =
+contract Messenger_Initializer is Portal_Initializer {
+    AddressManager internal addressManager;
+    L1CrossDomainMessenger internal L1Messenger;
+    L2CrossDomainMessenger internal L2Messenger =
         L2CrossDomainMessenger(Predeploys.L2_CROSS_DOMAIN_MESSENGER);
 
     event SentMessage(
@@ -200,16 +220,10 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
         bytes data
     );
 
-    event WithdrawalFinalized(bytes32 indexed, bool success);
-
     event WhatHappened(bool success, bytes returndata);
 
     function setUp() public virtual override {
         super.setUp();
-
-        // Deploy the OptimismPortal
-        op = new OptimismPortal(oracle, 7 days);
-        vm.label(address(op), "OptimismPortal");
 
         // Deploy the address manager
         vm.prank(multisig);
@@ -226,7 +240,7 @@ contract Messenger_Initializer is L2OutputOracle_Initializer {
             "OVM_L1CrossDomainMessenger"
         );
         L1Messenger = L1CrossDomainMessenger(address(proxy));
-        L1Messenger.initialize(alice);
+        L1Messenger.initialize();
 
         vm.etch(
             Predeploys.L2_CROSS_DOMAIN_MESSENGER,
@@ -257,6 +271,7 @@ contract Bridge_Initializer is Messenger_Initializer {
     ERC20 L1Token;
     ERC20 BadL1Token;
     OptimismMintableERC20 L2Token;
+    LegacyMintableERC20 LegacyL2Token;
     ERC20 NativeL2Token;
     ERC20 BadL2Token;
     OptimismMintableERC20 RemoteL1Token;
@@ -378,6 +393,14 @@ contract Bridge_Initializer is Messenger_Initializer {
         vm.etch(Predeploys.LEGACY_ERC20_ETH, address(new LegacyERC20ETH()).code);
 
         L1Token = new ERC20("Native L1 Token", "L1T");
+
+        LegacyL2Token = new LegacyMintableERC20({
+            _l2Bridge: address(L2Bridge),
+            _l1Token: address(L1Token),
+            _name: string.concat("LegacyL2-", L1Token.name()),
+            _symbol: string.concat("LegacyL2-", L1Token.symbol())
+        });
+        vm.label(address(LegacyL2Token), "LegacyMintableERC20");
 
         // Deploy the L2 ERC20 now
         L2Token = OptimismMintableERC20(
@@ -681,6 +704,67 @@ contract CallerCaller {
             default {
                 return(add(returndata, 0x20), mload(returndata))
             }
+        }
+    }
+}
+
+// Used for testing the `CrossDomainMessenger`'s per-message reentrancy guard.
+contract ConfigurableCaller {
+    bool doRevert = true;
+    address target;
+    bytes payload;
+
+    event WhatHappened(bool success, bytes returndata);
+
+    /**
+     * @notice Call the configured target with the configured payload OR revert.
+     */
+    function call() external {
+        if (doRevert) {
+            revert("ConfigurableCaller: revert");
+        } else {
+            (bool success, bytes memory returndata) = address(target).call(payload);
+            emit WhatHappened(success, returndata);
+            assembly {
+                switch success
+                case 0 {
+                    revert(add(returndata, 0x20), mload(returndata))
+                }
+                default {
+                    return(add(returndata, 0x20), mload(returndata))
+                }
+            }
+        }
+    }
+
+    /**
+     * @notice Set whether or not to have `call` revert.
+     */
+    function setDoRevert(bool _doRevert) external {
+        doRevert = _doRevert;
+    }
+
+    /**
+     * @notice Set the target for the call made in `call`.
+     */
+    function setTarget(address _target) external {
+        target = _target;
+    }
+
+    /**
+     * @notice Set the payload for the call made in `call`.
+     */
+    function setPayload(bytes calldata _payload) external {
+        payload = _payload;
+    }
+
+    /**
+     * @notice Fallback function that reverts if `doRevert` is true.
+     *         Otherwise, it does nothing.
+     */
+    fallback() external {
+        if (doRevert) {
+            revert("ConfigurableCaller: revert");
         }
     }
 }

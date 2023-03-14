@@ -5,8 +5,9 @@ import (
 	"math/big"
 	"path/filepath"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
@@ -30,28 +31,28 @@ type Config struct {
 func Migrate(cfg *Config) (*genesis.MigrationResult, error) {
 	deployConfig := cfg.DeployConfig
 
-	ovmAddresses, err := migration.NewAddresses(cfg.OVMAddressesPath)
+	ovmAddresses, err := crossdomain.NewAddresses(cfg.OVMAddressesPath)
 	if err != nil {
 		return nil, err
 	}
-	evmAddresess, err := migration.NewAddresses(cfg.EVMAddressesPath)
+	evmAddresess, err := crossdomain.NewAddresses(cfg.EVMAddressesPath)
 	if err != nil {
 		return nil, err
 	}
-	ovmAllowances, err := migration.NewAllowances(cfg.OVMAllowancesPath)
+	ovmAllowances, err := crossdomain.NewAllowances(cfg.OVMAllowancesPath)
 	if err != nil {
 		return nil, err
 	}
-	ovmMessages, err := migration.NewSentMessage(cfg.OVMMessagesPath)
+	ovmMessages, err := crossdomain.NewSentMessageFromJSON(cfg.OVMMessagesPath)
 	if err != nil {
 		return nil, err
 	}
-	evmMessages, err := migration.NewSentMessage(cfg.EVMMessagesPath)
+	evmMessages, err := crossdomain.NewSentMessageFromJSON(cfg.EVMMessagesPath)
 	if err != nil {
 		return nil, err
 	}
 
-	migrationData := migration.MigrationData{
+	migrationData := crossdomain.MigrationData{
 		OvmAddresses:  ovmAddresses,
 		EvmAddresses:  evmAddresess,
 		OvmAllowances: ovmAllowances,
@@ -76,7 +77,16 @@ func Migrate(cfg *Config) (*genesis.MigrationResult, error) {
 
 	chaindataPath := filepath.Join(cfg.L2DBPath, "geth", "chaindata")
 	ancientPath := filepath.Join(chaindataPath, "ancient")
-	ldb, err := rawdb.NewLevelDBDatabaseWithFreezer(chaindataPath, 4096, 120, ancientPath, "", false)
+	ldb, err := rawdb.Open(
+		rawdb.OpenOptions{
+			Type:              "leveldb",
+			Directory:         chaindataPath,
+			Cache:             4096,
+			Handles:           120,
+			AncientsDirectory: ancientPath,
+			Namespace:         "",
+			ReadOnly:          false,
+		})
 	if err != nil {
 		return nil, err
 	}
