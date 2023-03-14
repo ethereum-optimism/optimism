@@ -1,0 +1,77 @@
+.navbar
+  .search-box
+    height calc(2rem + 4px)
+    margin-left 0.25rem
+
+    input
+      margin-top 1px
+      margin-bottom 1px
+      border-color transparent
+      border-radius 0.25em
+
+      @media (max-width $MQMobile)
+        left 0
+        background-color transparent
+
+      @media (min-width $MQNarrow)
+        background-color #efeef4
+
+        &:focus
+          width 15rem
+
+      &:focus
+        background-color var(--bgcolor)
+        border-color var(--accent-color)
+
+      .theme-dark &
+        color var(--text-color)
+        background-color transparent
+
+        @media (min-width $MQNarrow)
+          background-color lighten($darkBgColor, 10%) !important
+          border-color var(--border-color)
+
+        &:focus
+          background-color lighten($darkBgColor, 10%) !important
+
+    .theme-dark &
+      .suggestion
+        a
+          color darken($darkTextColor, 35%)
+
+        &.focused
+          background #0c0b0a
+
+          a
+            color var(--accent-color)
+            border-color var(--accent-color)
+
+      .suggestions
+        border-color var(--border-color)
+        background var(--white)
+
+  #docsearch button
+    background-color transparent
+    border-color transparent
+    border-radius 0.25em
+
+    .mobile &
+      left 0
+      background-color transparent
+
+    @media (min-width $MQNarrow)
+      background-color #efeef4
+
+    &:focus
+      background-color var(--bgcolor)
+      border-color var(--accent-color)
+
+    .theme-dark &
+      color var(--text-color)
+
+      @media (min-width $MQNarrow)
+        background-color lighten($darkBgColor, 10%) !important
+        border-color var(--border-color)
+
+      &:focus
+        background-color lighten($darkBgColor, 10%) !important
