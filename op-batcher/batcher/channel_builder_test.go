@@ -78,6 +78,86 @@ func buildTooLargeRlpEncodedBlockBatch(cb *channelBuilder) error {
 	return err
 }
 
+// FuzzDurationTimeoutZeroMaxChannelDuration ensures that when whenever the MaxChannelDuration
+// is set to 0, the channel builder cannot have a duration timeout.
+func FuzzDurationTimeoutZeroMaxChannelDuration(f *testing.F) {
+	for i := range [10]int{} {
+		f.Add(uint64(i))
+	}
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64) {
+		channelConfig := defaultTestChannelConfig
+		channelConfig.MaxChannelDuration = 0
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+		cb.timeout = 0
+		cb.updateDurationTimeout(l1BlockNum)
+		require.False(t, cb.TimedOut(l1BlockNum))
+	})
+}
+
+// FuzzDuration ensures that when whenever the MaxChannelDuration
+// is not set to 0, the channel builder will always have a duration timeout
+// as long as the channel builder's timeout is set to 0.
+func FuzzDuration(f *testing.F) {
+	for i := range [10]int{} {
+		f.Add(uint64(i), uint64(i))
+	}
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, maxChannelDuration uint64) {
+		if maxChannelDuration == 0 {
+			t.Skip("Max channel duration cannot be 0")
+		}
+
+		// Create the channel builder
+		channelConfig := defaultTestChannelConfig
+		channelConfig.MaxChannelDuration = maxChannelDuration
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+
+		// Whenever the timeout is set to 0, the channel builder should have a duration timeout
+		cb.timeout = 0
+		cb.updateDurationTimeout(l1BlockNum)
+		cb.checkTimeout(l1BlockNum + maxChannelDuration)
+		require.ErrorIsf(t, cb.FullErr(), ErrMaxDurationReached, "Max channel duration should be reached")
+	})
+}
+
+// FuzzDurationTimeout ensures that when whenever the MaxChannelDuration
+// is not set to 0, the channel builder will always have a duration timeout
+// as long as the channel builder's timeout is greater than the target block number.
+func FuzzDurationTimeout(f *testing.F) {
+	// Set multiple seeds in case fuzzing isn't explicitly used
+	for i := range [10]int{} {
+		f.Add(uint64(i), uint64(i), uint64(i))
+	}
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, maxChannelDuration uint64, timeout uint64) {
+		if maxChannelDuration == 0 {
+			t.Skip("Max channel duration cannot be 0")
+		}
+
+		// Create the channel builder
+		channelConfig := defaultTestChannelConfig
+		channelConfig.MaxChannelDuration = maxChannelDuration
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+
+		// Whenever the timeout is greater than the l1BlockNum,
+		// the channel builder should have a duration timeout
+		cb.timeout = timeout
+		cb.updateDurationTimeout(l1BlockNum)
+		if timeout > l1BlockNum+maxChannelDuration {
+			// Notice: we cannot call this outside of the if statement
+			// because it would put the channel builder in an invalid state.
+			// That is, where the channel builder has a value set for the timeout
+			// with no timeoutReason. This subsequently causes a panic when
+			// a nil timeoutReason is used as an error (eg when calling FullErr).
+			cb.checkTimeout(l1BlockNum + maxChannelDuration)
+			require.ErrorIsf(t, cb.FullErr(), ErrMaxDurationReached, "Max channel duration should be reached")
+		} else {
+			require.NoError(t, cb.FullErr())
+		}
+	})
+}
+
 // TestBuilderNextFrame tests calling NextFrame on a ChannelBuilder with only one frame
 func TestBuilderNextFrame(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
