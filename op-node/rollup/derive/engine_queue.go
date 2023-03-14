@@ -485,6 +485,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		_, errType, err = eq.ConfirmPayload(ctx)
 	}
 	if err != nil {
+		_ = eq.CancelPayload(ctx, true)
 		switch errType {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
