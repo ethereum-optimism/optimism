@@ -20,8 +20,14 @@ services:
       - "7060:6060"
     volumes:
       - "l1_data:/db"
-      - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - type: bind
+        source: ${PWD}/../.devnet/genesis-l1.json
+        target: /genesis.json
+        read_only: true
+      - type: bind
+        source: ${PWD}/test-jwt-secret.txt
+        target: /config/test-jwt-secret.txt
+        read_only: true
 
   l2:
     build:
@@ -32,8 +38,14 @@ services:
       - "8060:6060"
     volumes:
       - "l2_data:/db"
-      - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
+      - type: bind
+        source: ${PWD}/../.devnet/genesis-l2.json
+        target: /genesis.json
+        read_only: true
+      - type: bind
+        source: ${PWD}/test-jwt-secret.txt
+        target: /config/test-jwt-secret.txt
+        read_only: true
     entrypoint:  # pass the L2 specific flags by overriding the entry-point and adding extra arguments
       - "/bin/sh"
       - "/entrypoint.sh"
@@ -74,10 +86,20 @@ services:
       - "7300:7300"
       - "6060:6060"
     volumes:
-      - "${PWD}/p2p-sequencer-key.txt:/config/p2p-sequencer-key.txt"
-      - "${PWD}/p2p-node-key.txt:/config/p2p-node-key.txt"
-      - "${PWD}/test-jwt-secret.txt:/config/test-jwt-secret.txt"
-      - "${PWD}/../.devnet/rollup.json:/rollup.json"
+      - type: bind
+        source: ${PWD}/p2p-sequencer-key.txt
+        target: /config/p2p-sequencer-key.txt
+        read_only: true
+      - type: bind
+        source: ${PWD}/p2p-node-key.txt
+        target: /config/p2p-node-key.txt
+        read_only: true
+      - type: bind
+        source: ${PWD}/test-jwt-secret.txt
+        target: /config/test-jwt-secret.txt
+      - type: bind
+        source: ${PWD}/../.devnet/rollup.json
+        target: /rollup.json
       - op_log:/op_log
 
   op-proposer:
