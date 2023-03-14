@@ -149,6 +149,7 @@ module.exports = {
         children: [
           '/docs/build/getting-started.md',
           '/docs/build/conf.md',
+          '/docs/build/explorer.md',
           {
             title: "OP Stack Hacks",
             collapsable: true,
