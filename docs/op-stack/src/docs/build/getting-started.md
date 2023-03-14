@@ -39,12 +39,11 @@ This tutorial was checked on:
 | Software | Version    | Installation command(s) |
 | -------- | ---------- | - |
 | Ubuntu   | 20.04 LTS  | |
-| git      | OS default | |
-| make     | 4.2.1-1.2  | `sudo apt install -y make`
+| git, curl, and make | OS default | `sudo apt install -y git curl make` |
 | Go       | 1.20       | `sudo apt update` <br> `wget https://go.dev/dl/go1.20.linux-amd64.tar.gz` <br> `tar xvzf go1.20.linux-amd64.tar.gz` <br> `sudo cp go/bin/go /usr/bin/go` <br> `sudo mv go /usr/lib` <br> `echo export GOROOT=/usr/lib/go >> ~/.bashrc`
-| Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs`
+| Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs npm`
 | yarn     | 1.22.19    | `sudo npm install -g yarn`
-| Foundry  | 0.2.0      | `curl -L https://foundry.paradigm.xyz | bash` <br> `sudo bash` <br> `foundryup`
+| Foundry  | 0.2.0      | `curl -L https://foundry.paradigm.xyz | bash` <br> `. ~/.bashrc` <br> `foundryup`
 
 ## Build the Source Code
 
@@ -74,7 +73,8 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
-    make build
+    make op-node op-batcher
+    yarn build
     ```
 
 ### Build op-geth
