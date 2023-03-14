@@ -1,6 +1,7 @@
 package batcher_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
@@ -16,8 +17,8 @@ func TestInputThreshold(t *testing.T) {
 		ApproxComprRatio float64
 	}
 	type test struct {
-		input testInput
-		want  uint64
+		input     testInput
+		assertion func(uint64)
 	}
 
 	// Construct test cases that test the boundary conditions
@@ -28,7 +29,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  1,
 				ApproxComprRatio: 0.4,
 			},
-			want: 2,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(2), output)
+			},
 		},
 		{
 			input: testInput{
@@ -36,7 +39,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  1,
 				ApproxComprRatio: 1,
 			},
-			want: 1,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(1), output)
+			},
 		},
 		{
 			input: testInput{
@@ -44,7 +49,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  1,
 				ApproxComprRatio: 2,
 			},
-			want: 0,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(0), output)
+			},
 		},
 		{
 			input: testInput{
@@ -52,7 +59,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  1,
 				ApproxComprRatio: 0.4,
 			},
-			want: 250_000,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(250_000), output)
+			},
 		},
 		{
 			input: testInput{
@@ -60,7 +69,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  100000,
 				ApproxComprRatio: 0.4,
 			},
-			want: 250_000,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(250_000), output)
+			},
 		},
 		{
 			input: testInput{
@@ -68,7 +79,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  100000,
 				ApproxComprRatio: 0.4,
 			},
-			want: 25_000_000_000,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(25_000_000_000), output)
+			},
 		},
 		{
 			input: testInput{
@@ -76,7 +89,9 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  1,
 				ApproxComprRatio: 0.000001,
 			},
-			want: 1_000_000,
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(1_000_000), output)
+			},
 		},
 		{
 			input: testInput{
@@ -84,7 +99,10 @@ func TestInputThreshold(t *testing.T) {
 				TargetNumFrames:  0,
 				ApproxComprRatio: 0,
 			},
-			want: 0,
+			assertion: func(output uint64) {
+				// Need to allow for NaN depending on the machine architecture
+				require.True(t, output == uint64(0) || output == uint64(math.NaN()))
+			},
 		},
 	}
 
@@ -96,6 +114,6 @@ func TestInputThreshold(t *testing.T) {
 			ApproxComprRatio: tt.input.ApproxComprRatio,
 		}
 		got := config.InputThreshold()
-		require.Equal(t, tt.want, got)
+		tt.assertion(got)
 	}
 }
