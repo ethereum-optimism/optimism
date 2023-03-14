@@ -384,30 +384,31 @@ func (l *L2OutputSubmitter) loop() {
 	for {
 		select {
 		case <-ticker.C:
-			cCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
+			cCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 			output, shouldPropose, err := l.FetchNextOutputInfo(cCtx)
+			cancel()
 			if err != nil {
-				l.log.Error("Failed to fetch next output", "err", err)
-				cancel()
 				break
 			}
 			if !shouldPropose {
-				cancel()
 				break
 			}
 
+			cCtx, cancel = context.WithTimeout(ctx, 30*time.Second)
 			tx, err := l.CreateProposalTx(cCtx, output)
+			cancel()
 			if err != nil {
 				l.log.Error("Failed to create proposal transaction", "err", err)
-				cancel()
 				break
 			}
+			cCtx, cancel = context.WithTimeout(ctx, 10*time.Minute)
 			if err := l.SendTransaction(cCtx, tx); err != nil {
 				l.log.Error("Failed to send proposal transaction", "err", err)
 				cancel()
 				break
+			} else {
+				cancel()
 			}
-			cancel()
 
 		case <-l.done:
 			return
