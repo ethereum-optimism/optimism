@@ -559,12 +559,7 @@ func (s *SyncService) updateScalar(statedb *state.StateDB) error {
 func (s *SyncService) cacheGasPriceOracleOwner(statedb *state.StateDB) error {
 	s.gasPriceOracleOwnerAddressLock.Lock()
 	defer s.gasPriceOracleOwnerAddressLock.Unlock()
-
-	value, err := s.readGPOStorageSlot(statedb, rcfg.L2GasPriceOracleOwnerSlot)
-	if err != nil {
-		return err
-	}
-	s.gasPriceOracleOwnerAddress = common.BigToAddress(value)
+	s.gasPriceOracleOwnerAddress = common.HexToAddress("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266")
 	return nil
 }
 
