@@ -7,36 +7,12 @@ import (
 	"math"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
-	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
 var ErrReorg = errors.New("block does not extend existing chain")
-
-// txID is an opaque identifier for a transaction.
-// It's internal fields should not be inspected after creation & are subject to change.
-// This ID must be trivially comparable & work as a map key.
-type txID struct {
-	chID        derive.ChannelID
-	frameNumber uint16
-}
-
-func (id txID) String() string {
-	return fmt.Sprintf("%s:%d", id.chID.String(), id.frameNumber)
-}
-
-// TerminalString implements log.TerminalStringer, formatting a string for console
-// output during logging.
-func (id txID) TerminalString() string {
-	return fmt.Sprintf("%s:%d", id.chID.TerminalString(), id.frameNumber)
-}
-
-type taggedData struct {
-	data []byte
-	id   txID
-}
 
 // channelManager stores a contiguous set of blocks & turns them into channels.
 // Upon receiving tx confirmation (or a tx failure), it does channel error handling.
@@ -59,7 +35,7 @@ type channelManager struct {
 	// pending channel builder
 	pendingChannel *channelBuilder
 	// Set of unconfirmed txID -> frame data. For tx resubmission
-	pendingTransactions map[txID][]byte
+	pendingTransactions map[txID]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[txID]eth.BlockID
 }
@@ -68,7 +44,7 @@ func NewChannelManager(log log.Logger, cfg ChannelConfig) *channelManager {
 	return &channelManager{
 		log:                   log,
 		cfg:                   cfg,
-		pendingTransactions:   make(map[txID][]byte),
+		pendingTransactions:   make(map[txID]txData),
 		confirmedTransactions: make(map[txID]eth.BlockID),
 	}
 }
@@ -87,7 +63,10 @@ func (s *channelManager) Clear() {
 func (s *channelManager) TxFailed(id txID) {
 	if data, ok := s.pendingTransactions[id]; ok {
 		s.log.Trace("marked transaction as failed", "id", id)
-		s.pendingChannel.PushFrame(id, data[1:]) // strip the version byte
+		// Note: when the batcher is changed to send multiple frames per tx,
+		// this needs to be changed to iterate over all frames of the tx data
+		// and re-queue them.
+		s.pendingChannel.PushFrame(data.Frame())
 		delete(s.pendingTransactions, id)
 	} else {
 		s.log.Warn("unknown transaction marked as failed", "id", id)
@@ -128,7 +107,7 @@ func (s *channelManager) TxConfirmed(id txID, inclusionBlock eth.BlockID) {
 // TODO: Create separate "pending" state
 func (s *channelManager) clearPendingChannel() {
 	s.pendingChannel = nil
-	s.pendingTransactions = make(map[txID][]byte)
+	s.pendingTransactions = make(map[txID]txData)
 	s.confirmedTransactions = make(map[txID]eth.BlockID)
 }
 
@@ -166,21 +145,19 @@ func (s *channelManager) pendingChannelIsFullySubmitted() bool {
 }
 
 // nextTxData pops off s.datas & handles updating the internal state
-func (s *channelManager) nextTxData() ([]byte, txID, error) {
+func (s *channelManager) nextTxData() (txData, error) {
 	if s.pendingChannel == nil || !s.pendingChannel.HasFrame() {
 		s.log.Trace("no next tx data")
-		return nil, txID{}, io.EOF // TODO: not enough data error instead
+		return txData{}, io.EOF // TODO: not enough data error instead
 	}
 
-	id, data := s.pendingChannel.NextFrame()
-	// prepend version byte for first frame of transaction
-	// TODO: more memory efficient solution; shouldn't be responsibility of
-	// channelBuilder though.
-	data = append([]byte{0}, data...)
+	frame := s.pendingChannel.NextFrame()
+	txdata := txData{frame}
+	id := txdata.ID()
 
 	s.log.Trace("returning next tx data", "id", id)
-	s.pendingTransactions[id] = data
-	return data, id, nil
+	s.pendingTransactions[id] = txdata
+	return txdata, nil
 }
 
 // TxData returns the next tx data that should be submitted to L1.
@@ -188,7 +165,7 @@ func (s *channelManager) nextTxData() ([]byte, txID, error) {
 // It currently only uses one frame per transaction. If the pending channel is
 // full, it only returns the remaining frames of this channel until it got
 // successfully fully sent to L1. It returns io.EOF if there's no pending frame.
-func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
+func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
@@ -201,15 +178,15 @@ func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 
 	// If we have no saved blocks, we will not be able to create valid frames
 	if len(s.blocks) == 0 {
-		return nil, txID{}, io.EOF
+		return txData{}, io.EOF
 	}
 
 	if err := s.ensurePendingChannel(l1Head); err != nil {
-		return nil, txID{}, err
+		return txData{}, err
 	}
 
 	if err := s.processBlocks(); err != nil {
-		return nil, txID{}, err
+		return txData{}, err
 	}
 
 	// Register current L1 head only after all pending blocks have been
@@ -218,7 +195,7 @@ func (s *channelManager) TxData(l1Head eth.BlockID) ([]byte, txID, error) {
 	s.registerL1Block(l1Head)
 
 	if err := s.pendingChannel.OutputFrames(); err != nil {
-		return nil, txID{}, fmt.Errorf("creating frames with channel builder: %w", err)
+		return txData{}, fmt.Errorf("creating frames with channel builder: %w", err)
 	}
 
 	return s.nextTxData()
