@@ -2,6 +2,8 @@ package batcher
 
 import (
 	"bytes"
+	"crypto/rand"
+	"math"
 	"math/big"
 	"testing"
 
@@ -43,6 +45,36 @@ func addNonsenseBlock(cb *channelBuilder) error {
 		Number: big.NewInt(0),
 	}, txs, nil, nil, trie.NewStackTrie(nil))
 	err = cb.AddBlock(a)
+	return err
+}
+
+// buildTooLargeRlpEncodedBlockBatch is a helper function that builds a batch
+// of blocks that are too large to be added to a channel.
+func buildTooLargeRlpEncodedBlockBatch(cb *channelBuilder) error {
+	// Construct a block with way too many txs
+	lBlock := types.NewBlock(&types.Header{
+		BaseFee:    big.NewInt(10),
+		Difficulty: common.Big0,
+		Number:     big.NewInt(100),
+	}, nil, nil, nil, trie.NewStackTrie(nil))
+	l1InfoTx, _ := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
+	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
+	for i := 0; i < 500_000; i++ {
+		txData := make([]byte, 32)
+		_, _ = rand.Read(txData)
+		tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), 0, big.NewInt(0), txData)
+		txs = append(txs, tx)
+	}
+	block := types.NewBlock(&types.Header{
+		Number: big.NewInt(0),
+	}, txs, nil, nil, trie.NewStackTrie(nil))
+
+	// Try to add the block to the channel builder
+	// This should fail since the block is too large
+	// When a batch is constructed from the block and
+	// then rlp encoded in the channel out, the size
+	// will exceed [derive.MaxRLPBytesPerChannel]
+	err := cb.AddBlock(block)
 	return err
 }
 
@@ -151,6 +183,67 @@ func TestOutputFrames(t *testing.T) {
 	// There should no longer be any ready bytes
 	readyBytes = cb.co.ReadyBytes()
 	require.Equal(t, 0, readyBytes)
+}
+
+// TestMaxRLPBytesPerChannel tests the [channelBuilder.OutputFrames]
+// function errors when the max RLP bytes per channel is reached.
+func TestMaxRLPBytesPerChannel(t *testing.T) {
+	channelConfig := defaultTestChannelConfig
+
+	// Lower the max frame size so that we can test
+	channelConfig.MaxFrameSize = 2
+
+	// Construct the channel builder
+	cb, err := newChannelBuilder(channelConfig)
+	require.NoError(t, err)
+	require.False(t, cb.IsFull())
+	require.Equal(t, 0, cb.NumFrames())
+
+	// Add a block that overflows the [ChannelOut]
+	err = buildTooLargeRlpEncodedBlockBatch(cb)
+	require.ErrorIsf(t, err, derive.ErrTooManyRLPBytes, "err: %v", err)
+}
+
+// TestOutputFramesMaxFrameIndex tests the [channelBuilder.OutputFrames]
+// function errors when the max frame index is reached.
+func TestOutputFramesMaxFrameIndex(t *testing.T) {
+	channelConfig := defaultTestChannelConfig
+
+	// Lower the max frame size so that we can test
+	channelConfig.MaxFrameSize = 1
+	channelConfig.TargetNumFrames = math.MaxInt
+	channelConfig.TargetFrameSize = 1 // math.MaxUint64
+	channelConfig.ApproxComprRatio = 0
+
+	// Continuously add blocks until the max frame index is reached
+	// This should cause the [channelBuilder.OutputFrames] function
+	// to error
+	cb, err := newChannelBuilder(channelConfig)
+	require.NoError(t, err)
+	require.False(t, cb.IsFull())
+	require.Equal(t, 0, cb.NumFrames())
+	for {
+		lBlock := types.NewBlock(&types.Header{
+			BaseFee:    common.Big0,
+			Difficulty: common.Big0,
+			Number:     common.Big0,
+		}, nil, nil, nil, trie.NewStackTrie(nil))
+		l1InfoTx, _ := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
+		txs := []*types.Transaction{types.NewTx(l1InfoTx)}
+		a := types.NewBlock(&types.Header{
+			Number: big.NewInt(0),
+		}, txs, nil, nil, trie.NewStackTrie(nil))
+		err = cb.AddBlock(a)
+		if cb.IsFull() {
+			fullErr := cb.FullErr()
+			require.ErrorIsf(t, fullErr, ErrMaxFrameIndex, "err: %v", fullErr)
+			break
+		}
+		require.NoError(t, err)
+		_ = cb.OutputFrames()
+		// Flushing so we can construct new frames
+		_ = cb.co.Flush()
+	}
 }
 
 // TestBuilderAddBlock tests the AddBlock function
