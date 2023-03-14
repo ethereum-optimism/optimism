@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -209,6 +210,69 @@ func FuzzChannelTimeoutCloseZeroTimeout(f *testing.F) {
 		cb.checkTimeout(calculatedTimeout)
 		if cb.timeout != 0 {
 			require.ErrorIsf(t, cb.FullErr(), ErrChannelTimeoutClose, "Channel timeout close should be reached")
+		}
+	})
+}
+
+// FuzzSeqWindowClose ensures that the channel builder has a [ErrSeqWindowClose]
+// as long as the timeout constraint is met and the builder's timeout is greater than
+// the calculated timeout
+func FuzzSeqWindowClose(f *testing.F) {
+	// Set multiple seeds in case fuzzing isn't explicitly used
+	for i := range [10]int{} {
+		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
+	}
+	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64, timeout uint64) {
+		// Create the channel builder
+		channelConfig := defaultTestChannelConfig
+		channelConfig.SeqWindowSize = seqWindowSize
+		channelConfig.SubSafetyMargin = subSafetyMargin
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+
+		// Check the timeout
+		cb.timeout = timeout
+		cb.updateSwTimeout(&derive.BatchData{
+			BatchV1: derive.BatchV1{
+				EpochNum: rollup.Epoch(epochNum),
+			},
+		})
+		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
+		if timeout > calculatedTimeout {
+			cb.checkTimeout(calculatedTimeout)
+			require.ErrorIsf(t, cb.FullErr(), ErrSeqWindowClose, "Sequence window close should be reached")
+		} else {
+			require.NoError(t, cb.FullErr())
+		}
+	})
+}
+
+// FuzzSeqWindowCloseZeroTimeout ensures that the channel builder has a [ErrSeqWindowClose]
+// as long as the timeout constraint is met and the builder's timeout is set to zero.
+func FuzzSeqWindowCloseZeroTimeout(f *testing.F) {
+	// Set multiple seeds in case fuzzing isn't explicitly used
+	for i := range [10]int{} {
+		f.Add(uint64(i), uint64(i), uint64(i))
+	}
+	f.Fuzz(func(t *testing.T, epochNum uint64, seqWindowSize uint64, subSafetyMargin uint64) {
+		// Create the channel builder
+		channelConfig := defaultTestChannelConfig
+		channelConfig.SeqWindowSize = seqWindowSize
+		channelConfig.SubSafetyMargin = subSafetyMargin
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+
+		// Check the timeout
+		cb.timeout = 0
+		cb.updateSwTimeout(&derive.BatchData{
+			BatchV1: derive.BatchV1{
+				EpochNum: rollup.Epoch(epochNum),
+			},
+		})
+		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
+		cb.checkTimeout(calculatedTimeout)
+		if cb.timeout != 0 {
+			require.ErrorIsf(t, cb.FullErr(), ErrSeqWindowClose, "Sequence window close should be reached")
 		}
 	})
 }
