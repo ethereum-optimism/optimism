@@ -231,15 +231,22 @@ func TestBuilderNextFrame(t *testing.T) {
 	// Push one frame into to the channel builder
 	expectedTx := txID{chID: co.ID(), frameNumber: fn}
 	expectedBytes := buf.Bytes()
-	cb.PushFrame(expectedTx, expectedBytes)
+	frameData := &frameData{
+		id: frameID{
+			chID:        co.ID(),
+			frameNumber: fn,
+		},
+		data: expectedBytes,
+	}
+	cb.PushFrame(*frameData)
 
 	// There should only be 1 frame in the channel builder
 	require.Equal(t, 1, cb.NumFrames())
 
 	// We should be able to increment to the next frame
-	constructedTx, constructedBytes := cb.NextFrame()
-	require.Equal(t, expectedTx, constructedTx)
-	require.Equal(t, expectedBytes, constructedBytes)
+	constructedFrame := cb.NextFrame()
+	require.Equal(t, expectedTx, constructedFrame.id)
+	require.Equal(t, expectedBytes, constructedFrame.data)
 	require.Equal(t, 0, cb.NumFrames())
 
 	// The next call should panic since the length of frames is 0
@@ -265,8 +272,14 @@ func TestBuilderWrongFramePanic(t *testing.T) {
 	// The frame push should panic since we constructed a new channel out
 	// so the channel out id won't match
 	require.PanicsWithValue(t, "wrong channel", func() {
-		tx := txID{chID: co.ID(), frameNumber: fn}
-		cb.PushFrame(tx, buf.Bytes())
+		frame := &frameData{
+			id: frameID{
+				chID:        co.ID(),
+				frameNumber: fn,
+			},
+			data: buf.Bytes(),
+		}
+		cb.PushFrame(*frame)
 	})
 }
 
