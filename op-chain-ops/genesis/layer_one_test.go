@@ -88,6 +88,12 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevL1StandardBridgeAddr, bridgeAddr)
 
+	sysCfg, err := bindings.NewSystemConfig(predeploys.DevSystemConfigAddr, sim)
+	require.NoError(t, err)
+	portalAddr, err = sysCfg.PORTAL(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, predeploys.DevOptimismPortalAddr, portalAddr)
+
 	weth9, err := bindings.NewWETH9(predeploys.DevWETH9Addr, sim)
 	require.NoError(t, err)
 	decimals, err := weth9.Decimals(callOpts)

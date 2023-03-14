@@ -43,7 +43,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /**
-     * @notice
+     * @notice The amount of gas that is supplied to the system transaction.
+     */
+    uint256 public constant SYSTEM_TRANSACTION_MAX_GAS = 1_000_000;
+
+    /**
+     * @notice Address of the OptimismPortal.
      */
     address public immutable PORTAL;
 
@@ -119,8 +124,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner
     ) public initializer {
-        uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
-        require(_gasLimit >= maxResourceLimit, "SystemConfig: gas limit too low");
+        require(_gasLimit >= _minimumGasLimit(), "SystemConfig: gas limit too low");
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;
@@ -191,8 +195,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _gasLimit New gas limit.
      */
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
-        uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
-        require(_gasLimit >= maxResourceLimit, "SystemConfig: gas limit too low");
+        require(_gasLimit >= _minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
@@ -210,5 +213,16 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         assembly {
             sstore(slot, _unsafeBlockSigner)
         }
+    }
+
+    /**
+     * @notice Returns the minimum gas limit allowed by the system. If the L2
+     *         gas limit is set to a value smaller than this, then it is
+     *         possible for a block to be produced that uses more gas than what
+     *         is allowed on L2, resulting in a liveliness failure.
+     */
+    function _minimumGasLimit() internal returns (uint256) {
+        uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
+        return maxResourceLimit + SYSTEM_TRANSACTION_MAX_GAS;
     }
 }

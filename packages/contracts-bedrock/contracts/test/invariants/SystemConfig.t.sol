@@ -21,7 +21,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 8_000_000,
+            _gasLimit: 30_000_000,
             _unsafeBlockSigner: address(1),
             _portal: address(portal)
         });
@@ -48,6 +48,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
      */
     function invariant_gasLimitLowerBound() external {
         uint256 maxResourceLimit = uint256(portal.MAX_RESOURCE_LIMIT());
-        assertTrue(config.gasLimit() >= maxResourceLimit);
+        uint256 sysTxMaxGas = config.SYSTEM_TRANSACTION_MAX_GAS();
+        assertTrue(config.gasLimit() >= maxResourceLimit + sysTxMaxGas);
     }
 }
