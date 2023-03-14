@@ -101,8 +101,7 @@ func (g *GasPriceOracle) ensure() error {
 	}
 	address := crypto.PubkeyToAddress(g.config.privateKey.PublicKey)
 	if address != owner {
-		log.Error("Signing key does not match contract owner", "signer", address.Hex(), "owner", owner.Hex())
-		return errInvalidSigningKey
+		log.Warn("Signing key does not match contract owner", "signer", address.Hex(), "owner", owner.Hex())
 	}
 	return nil
 }
