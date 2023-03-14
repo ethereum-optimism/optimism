@@ -70,14 +70,13 @@ func TestInputThreshold(t *testing.T) {
 			},
 			want: 25_000_000_000,
 		},
-		// A compression ratio of 0 means there is no input threshold
 		{
 			input: testInput{
-				TargetFrameSize:  100000,
-				TargetNumFrames:  100000,
-				ApproxComprRatio: 0,
+				TargetFrameSize:  1,
+				TargetNumFrames:  1,
+				ApproxComprRatio: 0.000001,
 			},
-			want: uint64(0xffffffffffffffff),
+			want: 1_000_000,
 		},
 		{
 			input: testInput{
