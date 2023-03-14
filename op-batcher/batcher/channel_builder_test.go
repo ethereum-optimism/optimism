@@ -158,6 +158,61 @@ func FuzzDurationTimeout(f *testing.F) {
 	})
 }
 
+// FuzzChannelTimeoutClose ensures that the channel builder has a [ErrChannelTimeoutClose]
+// as long as the timeout constraint is met and the builder's timeout is greater than
+// the calculated timeout
+func FuzzChannelTimeoutClose(f *testing.F) {
+	// Set multiple seeds in case fuzzing isn't explicitly used
+	for i := range [10]int{} {
+		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
+	}
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64, timeout uint64) {
+		// Create the channel builder
+		channelConfig := defaultTestChannelConfig
+		channelConfig.ChannelTimeout = channelTimeout
+		channelConfig.SubSafetyMargin = subSafetyMargin
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+
+		// Check the timeout
+		cb.timeout = timeout
+		cb.FramePublished(l1BlockNum)
+		calculatedTimeout := l1BlockNum + channelTimeout - subSafetyMargin
+		if timeout > calculatedTimeout {
+			cb.checkTimeout(calculatedTimeout)
+			require.ErrorIsf(t, cb.FullErr(), ErrChannelTimeoutClose, "Channel timeout close should be reached")
+		} else {
+			require.NoError(t, cb.FullErr())
+		}
+	})
+}
+
+// FuzzChannelTimeoutCloseZeroTimeout ensures that the channel builder has a [ErrChannelTimeoutClose]
+// as long as the timeout constraint is met and the builder's timeout is set to zero.
+func FuzzChannelTimeoutCloseZeroTimeout(f *testing.F) {
+	// Set multiple seeds in case fuzzing isn't explicitly used
+	for i := range [10]int{} {
+		f.Add(uint64(i), uint64(i), uint64(i))
+	}
+	f.Fuzz(func(t *testing.T, l1BlockNum uint64, channelTimeout uint64, subSafetyMargin uint64) {
+		// Create the channel builder
+		channelConfig := defaultTestChannelConfig
+		channelConfig.ChannelTimeout = channelTimeout
+		channelConfig.SubSafetyMargin = subSafetyMargin
+		cb, err := newChannelBuilder(channelConfig)
+		require.NoError(t, err)
+
+		// Check the timeout
+		cb.timeout = 0
+		cb.FramePublished(l1BlockNum)
+		calculatedTimeout := l1BlockNum + channelTimeout - subSafetyMargin
+		cb.checkTimeout(calculatedTimeout)
+		if cb.timeout != 0 {
+			require.ErrorIsf(t, cb.FullErr(), ErrChannelTimeoutClose, "Channel timeout close should be reached")
+		}
+	})
+}
+
 // TestBuilderNextFrame tests calling NextFrame on a ChannelBuilder with only one frame
 func TestBuilderNextFrame(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
