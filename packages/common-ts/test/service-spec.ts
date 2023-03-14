@@ -24,7 +24,6 @@ class Service extends BaseServiceV2<ServiceOptions, {}, {}> {
 
 describe('BaseServiceV2', () => {
   it('base service ctor does not throw on camel case options', async () => {
-    // throws on error
     new Service({ camelCase: 'test' })
   })
 })
