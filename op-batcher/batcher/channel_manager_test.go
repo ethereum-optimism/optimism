@@ -457,38 +457,25 @@ func TestChannelManagerCloseNoPendingChannel(t *testing.T) {
 // can gracefully close with a pending channel, and will not produce any
 // new channel frames after this point.
 func TestChannelManagerClosePendingChannel(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
 			TargetNumFrames:  100,
-			TargetFrameSize:  1,
-			MaxFrameSize:     1,
+			TargetFrameSize:  25_000,
+			MaxFrameSize:     40_000,
 			ApproxComprRatio: 1.0,
 			ChannelTimeout:   1000,
 		})
-	lBlock := types.NewBlock(&types.Header{
-		BaseFee:    big.NewInt(10),
-		Difficulty: common.Big0,
-		Number:     big.NewInt(100),
-	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
-	require.NoError(t, err)
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
 
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
+	a, _ := derivetest.RandomL2Block(rng, 128)
 
-	l1InfoTx, err = derive.L1InfoDeposit(1, lBlock, eth.SystemConfig{}, false)
-	require.NoError(t, err)
-	txs = []*types.Transaction{types.NewTx(l1InfoTx)}
+	b, _ := derivetest.RandomL2Block(rng, 8)
+	header := b.Header()
+	header.ParentHash = a.Hash()
+	b = b.WithSeal(header)
 
-	b := types.NewBlock(&types.Header{
-		Number:     big.NewInt(1),
-		ParentHash: a.Hash(),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
-
-	err = m.AddL2Block(a)
+	err := m.AddL2Block(a)
 	require.NoError(t, err)
 
 	txdata, err := m.TxData(eth.BlockID{})
@@ -504,6 +491,9 @@ func TestChannelManagerClosePendingChannel(t *testing.T) {
 
 	m.TxConfirmed(txdata.ID(), eth.BlockID{})
 
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(t, err, io.EOF)
+
 	err = m.AddL2Block(b)
 	require.NoError(t, err)
 
@@ -515,28 +505,20 @@ func TestChannelManagerClosePendingChannel(t *testing.T) {
 // can gracefully close after producing transaction frames if none of these
 // have successfully landed on chain.
 func TestChannelManagerCloseAllTxsFailed(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlCrit)
 	m := NewChannelManager(log, metrics.NoopMetrics,
 		ChannelConfig{
-			TargetFrameSize:  0,
-			MaxFrameSize:     100,
+			TargetNumFrames:  100,
+			TargetFrameSize:  25_000,
+			MaxFrameSize:     40_000,
 			ApproxComprRatio: 1.0,
 			ChannelTimeout:   1000,
 		})
-	lBlock := types.NewBlock(&types.Header{
-		BaseFee:    big.NewInt(10),
-		Difficulty: common.Big0,
-		Number:     big.NewInt(100),
-	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
-	require.NoError(t, err)
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
 
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
+	a, _ := derivetest.RandomL2Block(rng, 128)
 
-	err = m.AddL2Block(a)
+	err := m.AddL2Block(a)
 	require.NoError(t, err)
 
 	txdata, err := m.TxData(eth.BlockID{})
