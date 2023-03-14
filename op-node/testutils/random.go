@@ -206,13 +206,21 @@ func RandomHeader(rng *rand.Rand) *types.Header {
 }
 
 func RandomBlock(rng *rand.Rand, txCount uint64) (*types.Block, []*types.Receipt) {
+	return RandomBlockPrependTxs(rng, int(txCount))
+}
+
+// RandomBlockPrependTxs returns a random block with txCount randomly generated
+// transactions and additionally the transactions ptxs prepended. So the total
+// number of transactions is len(ptxs) + txCount.
+func RandomBlockPrependTxs(rng *rand.Rand, txCount int, ptxs ...*types.Transaction) (*types.Block, []*types.Receipt) {
 	header := RandomHeader(rng)
 	signer := types.NewLondonSigner(big.NewInt(rng.Int63n(1000)))
-	txs := make([]*types.Transaction, 0, txCount)
-	for i := uint64(0); i < txCount; i++ {
+	txs := make([]*types.Transaction, 0, txCount+len(ptxs))
+	txs = append(txs, ptxs...)
+	for i := 0; i < txCount; i++ {
 		txs = append(txs, RandomTx(rng, header.BaseFee, signer))
 	}
-	receipts := make([]*types.Receipt, 0, txCount)
+	receipts := make([]*types.Receipt, 0, len(txs))
 	cumulativeGasUsed := uint64(0)
 	for i, tx := range txs {
 		r := RandomReceipt(rng, signer, tx, uint64(i), cumulativeGasUsed)

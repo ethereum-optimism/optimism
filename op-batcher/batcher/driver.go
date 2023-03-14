@@ -280,7 +280,7 @@ func (l *BatchSubmitter) loop() {
 				}
 
 				// Collect next transaction data
-				data, id, err := l.state.TxData(l1tip.ID())
+				txdata, err := l.state.TxData(l1tip.ID())
 				if err == io.EOF {
 					l.log.Trace("no transaction data available")
 					break // local for loop
@@ -289,10 +289,10 @@ func (l *BatchSubmitter) loop() {
 					break
 				}
 				// Record TX Status
-				if receipt, err := l.txMgr.SendTransaction(l.ctx, data); err != nil {
-					l.recordFailedTx(id, err)
+				if receipt, err := l.txMgr.SendTransaction(l.ctx, txdata.Bytes()); err != nil {
+					l.recordFailedTx(txdata.ID(), err)
 				} else {
-					l.recordConfirmedTx(id, receipt)
+					l.recordConfirmedTx(txdata.ID(), receipt)
 				}
 
 				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
