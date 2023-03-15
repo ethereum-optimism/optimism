@@ -68,7 +68,7 @@ func addNonsenseBlock(cb *channelBuilder) error {
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
 	}, txs, nil, nil, trie.NewStackTrie(nil))
-	err = cb.AddBlock(a)
+	_, err = cb.AddBlock(a)
 	return err
 }
 
@@ -98,7 +98,7 @@ func buildTooLargeRlpEncodedBlockBatch(cb *channelBuilder) error {
 	// When a batch is constructed from the block and
 	// then rlp encoded in the channel out, the size
 	// will exceed [derive.MaxRLPBytesPerChannel]
-	err := cb.AddBlock(block)
+	_, err := cb.AddBlock(block)
 	return err
 }
 
@@ -462,7 +462,7 @@ func TestOutputFramesMaxFrameIndex(t *testing.T) {
 		a := types.NewBlock(&types.Header{
 			Number: big.NewInt(0),
 		}, txs, nil, nil, trie.NewStackTrie(nil))
-		err = cb.AddBlock(a)
+		_, err = cb.AddBlock(a)
 		if cb.IsFull() {
 			fullErr := cb.FullErr()
 			require.ErrorIs(t, fullErr, ErrMaxFrameIndex)

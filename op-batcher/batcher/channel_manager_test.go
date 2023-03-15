@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
@@ -23,7 +24,7 @@ import (
 func TestPendingChannelTimeout(t *testing.T) {
 	// Create a new channel manager with a ChannelTimeout
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
 	})
 
@@ -67,7 +68,7 @@ func TestPendingChannelTimeout(t *testing.T) {
 // detects a reorg when it has cached L1 blocks.
 func TestChannelManagerReturnsErrReorg(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
@@ -101,11 +102,12 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 // detects a reorg even if it does not have any blocks inside it.
 func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{
-		TargetFrameSize:  0,
-		MaxFrameSize:     120_000,
-		ApproxComprRatio: 1.0,
-	})
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetFrameSize:  0,
+			MaxFrameSize:     120_000,
+			ApproxComprRatio: 1.0,
+		})
 	l1Block := types.NewBlock(&types.Header{
 		BaseFee:    big.NewInt(10),
 		Difficulty: common.Big0,
@@ -138,7 +140,7 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 // TestChannelManagerNextTxData checks the nextTxData function.
 func TestChannelManagerNextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	// Nil pending channel should return EOF
 	returnedTxData, err := m.nextTxData()
@@ -181,7 +183,7 @@ func TestClearChannelManager(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	m := NewChannelManager(log, ChannelConfig{
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
 		// clearing confirmed transactions, and reseting the pendingChannels map
@@ -254,7 +256,7 @@ func TestClearChannelManager(t *testing.T) {
 func TestChannelManagerTxConfirmed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
 		// clearing confirmed transactions, and reseting the pendingChannels map
@@ -308,7 +310,7 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 func TestChannelManagerTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness
@@ -351,11 +353,12 @@ func TestChannelManager_TxResend(t *testing.T) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlError)
-	m := NewChannelManager(log, ChannelConfig{
-		TargetFrameSize:  0,
-		MaxFrameSize:     120_000,
-		ApproxComprRatio: 1.0,
-	})
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetFrameSize:  0,
+			MaxFrameSize:     120_000,
+			ApproxComprRatio: 1.0,
+		})
 
 	a, _ := derivetest.RandomL2Block(rng, 4)
 
