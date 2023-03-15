@@ -118,7 +118,7 @@ func FuzzDuration(f *testing.F) {
 		cb.timeout = 0
 		cb.updateDurationTimeout(l1BlockNum)
 		cb.checkTimeout(l1BlockNum + maxChannelDuration)
-		require.ErrorIsf(t, cb.FullErr(), ErrMaxDurationReached, "Max channel duration should be reached")
+		require.ErrorIs(t, cb.FullErr(), ErrMaxDurationReached)
 	})
 }
 
@@ -152,7 +152,7 @@ func FuzzDurationTimeout(f *testing.F) {
 			// with no timeoutReason. This subsequently causes a panic when
 			// a nil timeoutReason is used as an error (eg when calling FullErr).
 			cb.checkTimeout(l1BlockNum + maxChannelDuration)
-			require.ErrorIsf(t, cb.FullErr(), ErrMaxDurationReached, "Max channel duration should be reached")
+			require.ErrorIs(t, cb.FullErr(), ErrMaxDurationReached)
 		} else {
 			require.NoError(t, cb.FullErr())
 		}
@@ -181,7 +181,7 @@ func FuzzChannelTimeoutClose(f *testing.F) {
 		calculatedTimeout := l1BlockNum + channelTimeout - subSafetyMargin
 		if timeout > calculatedTimeout {
 			cb.checkTimeout(calculatedTimeout)
-			require.ErrorIsf(t, cb.FullErr(), ErrChannelTimeoutClose, "Channel timeout close should be reached")
+			require.ErrorIs(t, cb.FullErr(), ErrChannelTimeoutClose)
 		} else {
 			require.NoError(t, cb.FullErr())
 		}
@@ -209,7 +209,7 @@ func FuzzChannelTimeoutCloseZeroTimeout(f *testing.F) {
 		calculatedTimeout := l1BlockNum + channelTimeout - subSafetyMargin
 		cb.checkTimeout(calculatedTimeout)
 		if cb.timeout != 0 {
-			require.ErrorIsf(t, cb.FullErr(), ErrChannelTimeoutClose, "Channel timeout close should be reached")
+			require.ErrorIs(t, cb.FullErr(), ErrChannelTimeoutClose)
 		}
 	})
 }
@@ -240,7 +240,7 @@ func FuzzSeqWindowClose(f *testing.F) {
 		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
 		if timeout > calculatedTimeout {
 			cb.checkTimeout(calculatedTimeout)
-			require.ErrorIsf(t, cb.FullErr(), ErrSeqWindowClose, "Sequence window close should be reached")
+			require.ErrorIs(t, cb.FullErr(), ErrSeqWindowClose)
 		} else {
 			require.NoError(t, cb.FullErr())
 		}
@@ -272,7 +272,7 @@ func FuzzSeqWindowCloseZeroTimeout(f *testing.F) {
 		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
 		cb.checkTimeout(calculatedTimeout)
 		if cb.timeout != 0 {
-			require.ErrorIsf(t, cb.FullErr(), ErrSeqWindowClose, "Sequence window close should be reached")
+			require.ErrorIs(t, cb.FullErr(), ErrSeqWindowClose)
 		}
 	})
 }
@@ -413,7 +413,7 @@ func TestMaxRLPBytesPerChannel(t *testing.T) {
 
 	// Add a block that overflows the [ChannelOut]
 	err = buildTooLargeRlpEncodedBlockBatch(cb)
-	require.ErrorIsf(t, err, derive.ErrTooManyRLPBytes, "err: %v", err)
+	require.ErrorIs(t, err, derive.ErrTooManyRLPBytes)
 }
 
 // TestOutputFramesMaxFrameIndex tests the [channelBuilder.OutputFrames]
@@ -448,7 +448,7 @@ func TestOutputFramesMaxFrameIndex(t *testing.T) {
 		err = cb.AddBlock(a)
 		if cb.IsFull() {
 			fullErr := cb.FullErr()
-			require.ErrorIsf(t, fullErr, ErrMaxFrameIndex, "err: %v", fullErr)
+			require.ErrorIs(t, fullErr, ErrMaxFrameIndex)
 			break
 		}
 		require.NoError(t, err)
