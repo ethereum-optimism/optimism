@@ -11,6 +11,27 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+var (
+	ErrChannelTimeoutTooSmall = errors.New("channel timeout is less than the safety margin")
+	ErrInputTargetReached     = errors.New("target amount of input data reached")
+	ErrMaxFrameIndex          = errors.New("max frame index reached (uint16)")
+	ErrMaxDurationReached     = errors.New("max channel duration reached")
+	ErrChannelTimeoutClose    = errors.New("close to channel timeout")
+	ErrSeqWindowClose         = errors.New("close to sequencer window timeout")
+)
+
+type ChannelFullError struct {
+	Err error
+}
+
+func (e *ChannelFullError) Error() string {
+	return "channel full: " + e.Err.Error()
+}
+
+func (e *ChannelFullError) Unwrap() error {
+	return e.Err
+}
+
 type ChannelConfig struct {
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch
 	// L1 origin block itself
@@ -46,6 +67,17 @@ type ChannelConfig struct {
 	// average from experiments to avoid the chances of creating a small
 	// additional leftover frame.
 	ApproxComprRatio float64
+}
+
+// Check validates the [ChannelConfig] parameters.
+func (cc *ChannelConfig) Check() error {
+	// The [ChannelTimeout] must be larger than the [SubSafetyMargin].
+	// Otherwise, new blocks would always be considered timed out.
+	if cc.ChannelTimeout < cc.SubSafetyMargin {
+		return ErrChannelTimeoutTooSmall
+	}
+
+	return nil
 }
 
 // InputThreshold calculates the input data threshold in bytes from the given
@@ -370,24 +402,4 @@ func (c *channelBuilder) PushFrame(frame frameData) {
 		panic("wrong channel")
 	}
 	c.frames = append(c.frames, frame)
-}
-
-var (
-	ErrInputTargetReached  = errors.New("target amount of input data reached")
-	ErrMaxFrameIndex       = errors.New("max frame index reached (uint16)")
-	ErrMaxDurationReached  = errors.New("max channel duration reached")
-	ErrChannelTimeoutClose = errors.New("close to channel timeout")
-	ErrSeqWindowClose      = errors.New("close to sequencer window timeout")
-)
-
-type ChannelFullError struct {
-	Err error
-}
-
-func (e *ChannelFullError) Error() string {
-	return "channel full: " + e.Err.Error()
-}
-
-func (e *ChannelFullError) Unwrap() error {
-	return e.Err
 }

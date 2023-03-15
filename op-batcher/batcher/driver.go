@@ -99,6 +99,11 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		},
 	}
 
+	// Validate the batcher config
+	if err := batcherCfg.Check(); err != nil {
+		return nil, err
+	}
+
 	return NewBatchSubmitter(ctx, batcherCfg, l)
 }
 
