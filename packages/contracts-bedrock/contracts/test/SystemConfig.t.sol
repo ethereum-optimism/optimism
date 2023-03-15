@@ -15,7 +15,7 @@ contract SystemConfig_Init is Portal_Initializer {
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 9_000_000,
+            _gasLimit: 30_000_000,
             _unsafeBlockSigner: address(1),
             _portal: address(op)
         });
