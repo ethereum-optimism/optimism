@@ -36,6 +36,16 @@ func TestInputThreshold(t *testing.T) {
 		{
 			input: testInput{
 				TargetFrameSize:  1,
+				TargetNumFrames:  100000,
+				ApproxComprRatio: 0.4,
+			},
+			assertion: func(output uint64) {
+				require.Equal(t, uint64(250_000), output)
+			},
+		},
+		{
+			input: testInput{
+				TargetFrameSize:  1,
 				TargetNumFrames:  1,
 				ApproxComprRatio: 1,
 			},
