@@ -31,6 +31,7 @@ const MaxSlotChecks = 1000
 type StorageCheckMap = map[common.Hash]common.Hash
 
 var (
+	L2XDMOwnerSlot      = common.Hash{31: 0x33}
 	ProxyAdminOwnerSlot = common.Hash{}
 
 	LegacyETHCheckSlots = map[common.Hash]common.Hash{
