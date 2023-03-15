@@ -129,7 +129,7 @@ contract Hashing_hashDepositTransaction_Test is CommonTest {
         uint256 _value,
         uint64 _gas,
         bytes memory _data,
-        uint256 _logIndex
+        uint64 _logIndex
     ) external {
         assertEq(
             Hashing.hashDepositTransaction(
