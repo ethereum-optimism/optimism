@@ -185,21 +185,21 @@ func (c *channelBuilder) Reset() error {
 // already full. See description of FullErr for details.
 //
 // Call OutputFrames() afterwards to create frames.
-func (c *channelBuilder) AddBlock(block *types.Block) error {
+func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error) {
 	if c.IsFull() {
-		return c.FullErr()
+		return derive.L1BlockInfo{}, c.FullErr()
 	}
 
-	batch, err := derive.BlockToBatch(block)
+	batch, l1info, err := derive.BlockToBatch(block)
 	if err != nil {
-		return fmt.Errorf("converting block to batch: %w", err)
+		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
 	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
 		c.setFullErr(err)
-		return c.FullErr()
+		return l1info, c.FullErr()
 	} else if err != nil {
-		return fmt.Errorf("adding block to channel out: %w", err)
+		return l1info, fmt.Errorf("adding block to channel out: %w", err)
 	}
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
@@ -209,7 +209,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 		// Adding this block still worked, so don't return error, just mark as full
 	}
 
-	return nil
+	return l1info, nil
 }
 
 // Timeout management
