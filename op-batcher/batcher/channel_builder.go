@@ -12,13 +12,13 @@ import (
 )
 
 var (
-	ErrMaxFrameSizeZero       = errors.New("max frame size cannot be zero")
-	ErrChannelTimeoutTooSmall = errors.New("channel timeout is less than the safety margin")
-	ErrInputTargetReached     = errors.New("target amount of input data reached")
-	ErrMaxFrameIndex          = errors.New("max frame index reached (uint16)")
-	ErrMaxDurationReached     = errors.New("max channel duration reached")
-	ErrChannelTimeoutClose    = errors.New("close to channel timeout")
-	ErrSeqWindowClose         = errors.New("close to sequencer window timeout")
+	ErrInvalidMaxFrameSize   = errors.New("max frame size cannot be zero")
+	ErrInvalidChannelTimeout = errors.New("channel timeout is less than the safety margin")
+	ErrInputTargetReached    = errors.New("target amount of input data reached")
+	ErrMaxFrameIndex         = errors.New("max frame index reached (uint16)")
+	ErrMaxDurationReached    = errors.New("max channel duration reached")
+	ErrChannelTimeoutClose   = errors.New("close to channel timeout")
+	ErrSeqWindowClose        = errors.New("close to sequencer window timeout")
 )
 
 type ChannelFullError struct {
@@ -75,14 +75,14 @@ func (cc *ChannelConfig) Check() error {
 	// The [ChannelTimeout] must be larger than the [SubSafetyMargin].
 	// Otherwise, new blocks would always be considered timed out.
 	if cc.ChannelTimeout < cc.SubSafetyMargin {
-		return ErrChannelTimeoutTooSmall
+		return ErrInvalidChannelTimeout
 	}
 
 	// If the [MaxFrameSize] is set to 0, the channel builder
 	// will infinitely loop when trying to create frames in the
 	// [channelBuilder.OutputFrames] function.
 	if cc.MaxFrameSize == 0 {
-		return ErrMaxFrameSizeZero
+		return ErrInvalidMaxFrameSize
 	}
 
 	return nil
