@@ -224,7 +224,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         possible for a block to be produced that uses more gas than what
      *         is allowed on L2, resulting in a liveliness failure.
      */
-    function _minimumGasLimit() internal returns (uint256) {
+    function _minimumGasLimit() internal view returns (uint256) {
         uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
         return maxResourceLimit + SYSTEM_TRANSACTION_MAX_GAS;
     }
