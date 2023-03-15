@@ -1,7 +1,11 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 
-import { assertContractVariable, deploy, getContractsFromArtifacts } from '../src/deploy-utils'
+import {
+  assertContractVariable,
+  deploy,
+  getContractsFromArtifacts,
+} from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
