@@ -395,3 +395,15 @@ export const getTenderlySimulationLink = async (
     }).toString()}`
   }
 }
+
+/**
+ * Returns a cast commmand for submitting a given transaction.
+ *
+ * @param tx Ethers transaction object.
+ * @returns the cast command
+ */
+export const getCastCommand = (tx: ethers.PopulatedTransaction): string => {
+  if (process.env.CAST_COMMANDS) {
+    return `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+  }
+}
