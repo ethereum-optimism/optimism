@@ -295,14 +295,14 @@ func TestBuilderNextFrame(t *testing.T) {
 	// Push one frame into to the channel builder
 	expectedTx := txID{chID: co.ID(), frameNumber: fn}
 	expectedBytes := buf.Bytes()
-	frameData := &frameData{
+	frameData := frameData{
 		id: frameID{
 			chID:        co.ID(),
 			frameNumber: fn,
 		},
 		data: expectedBytes,
 	}
-	cb.PushFrame(*frameData)
+	cb.PushFrame(frameData)
 
 	// There should only be 1 frame in the channel builder
 	require.Equal(t, 1, cb.NumFrames())
@@ -336,22 +336,20 @@ func TestBuilderWrongFramePanic(t *testing.T) {
 	// The frame push should panic since we constructed a new channel out
 	// so the channel out id won't match
 	require.PanicsWithValue(t, "wrong channel", func() {
-		frame := &frameData{
+		frame := frameData{
 			id: frameID{
 				chID:        co.ID(),
 				frameNumber: fn,
 			},
 			data: buf.Bytes(),
 		}
-		cb.PushFrame(*frame)
+		cb.PushFrame(frame)
 	})
 }
 
 // TestOutputFrames tests the OutputFrames function
 func TestOutputFrames(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
-
-	// Lower the max frame size so that we can test
 	channelConfig.MaxFrameSize = 2
 
 	// Construct the channel builder
@@ -401,8 +399,6 @@ func TestOutputFrames(t *testing.T) {
 // function errors when the max RLP bytes per channel is reached.
 func TestMaxRLPBytesPerChannel(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
-
-	// Lower the max frame size so that we can test
 	channelConfig.MaxFrameSize = 2
 
 	// Construct the channel builder
@@ -420,8 +416,6 @@ func TestMaxRLPBytesPerChannel(t *testing.T) {
 // function errors when the max frame index is reached.
 func TestOutputFramesMaxFrameIndex(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
-
-	// Lower the max frame size so that we can test
 	channelConfig.MaxFrameSize = 1
 	channelConfig.TargetNumFrames = math.MaxInt
 	channelConfig.TargetFrameSize = 1 // math.MaxUint64
