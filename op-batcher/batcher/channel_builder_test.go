@@ -96,10 +96,10 @@ func FuzzDurationTimeoutZeroMaxChannelDuration(f *testing.F) {
 	})
 }
 
-// FuzzDuration ensures that when whenever the MaxChannelDuration
+// FuzzDurationZero ensures that when whenever the MaxChannelDuration
 // is not set to 0, the channel builder will always have a duration timeout
 // as long as the channel builder's timeout is set to 0.
-func FuzzDuration(f *testing.F) {
+func FuzzDurationZero(f *testing.F) {
 	for i := range [10]int{} {
 		f.Add(uint64(i), uint64(i))
 	}
@@ -122,10 +122,10 @@ func FuzzDuration(f *testing.F) {
 	})
 }
 
-// FuzzDurationTimeout ensures that when whenever the MaxChannelDuration
+// FuzzDurationTimeoutMaxChannelDuration ensures that when whenever the MaxChannelDuration
 // is not set to 0, the channel builder will always have a duration timeout
 // as long as the channel builder's timeout is greater than the target block number.
-func FuzzDurationTimeout(f *testing.F) {
+func FuzzDurationTimeoutMaxChannelDuration(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
 		f.Add(uint64(i), uint64(i), uint64(i))
@@ -159,10 +159,10 @@ func FuzzDurationTimeout(f *testing.F) {
 	})
 }
 
-// FuzzChannelTimeoutClose ensures that the channel builder has a [ErrChannelTimeoutClose]
+// FuzzChannelCloseTimeout ensures that the channel builder has a [ErrChannelTimeoutClose]
 // as long as the timeout constraint is met and the builder's timeout is greater than
 // the calculated timeout
-func FuzzChannelTimeoutClose(f *testing.F) {
+func FuzzChannelCloseTimeout(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
 		f.Add(uint64(i), uint64(i), uint64(i), uint64(i*5))
@@ -179,7 +179,7 @@ func FuzzChannelTimeoutClose(f *testing.F) {
 		cb.timeout = timeout
 		cb.FramePublished(l1BlockNum)
 		calculatedTimeout := l1BlockNum + channelTimeout - subSafetyMargin
-		if timeout > calculatedTimeout {
+		if timeout > calculatedTimeout && calculatedTimeout != 0 {
 			cb.checkTimeout(calculatedTimeout)
 			require.ErrorIs(t, cb.FullErr(), ErrChannelTimeoutClose)
 		} else {
@@ -188,9 +188,9 @@ func FuzzChannelTimeoutClose(f *testing.F) {
 	})
 }
 
-// FuzzChannelTimeoutCloseZeroTimeout ensures that the channel builder has a [ErrChannelTimeoutClose]
+// FuzzChannelZeroCloseTimeout ensures that the channel builder has a [ErrChannelTimeoutClose]
 // as long as the timeout constraint is met and the builder's timeout is set to zero.
-func FuzzChannelTimeoutCloseZeroTimeout(f *testing.F) {
+func FuzzChannelZeroCloseTimeout(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
 		f.Add(uint64(i), uint64(i), uint64(i))
@@ -238,7 +238,7 @@ func FuzzSeqWindowClose(f *testing.F) {
 			},
 		})
 		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
-		if timeout > calculatedTimeout {
+		if timeout > calculatedTimeout && calculatedTimeout != 0 {
 			cb.checkTimeout(calculatedTimeout)
 			require.ErrorIs(t, cb.FullErr(), ErrSeqWindowClose)
 		} else {
@@ -247,9 +247,9 @@ func FuzzSeqWindowClose(f *testing.F) {
 	})
 }
 
-// FuzzSeqWindowCloseZeroTimeout ensures that the channel builder has a [ErrSeqWindowClose]
+// FuzzSeqWindowZeroTimeoutClose ensures that the channel builder has a [ErrSeqWindowClose]
 // as long as the timeout constraint is met and the builder's timeout is set to zero.
-func FuzzSeqWindowCloseZeroTimeout(f *testing.F) {
+func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 	// Set multiple seeds in case fuzzing isn't explicitly used
 	for i := range [10]int{} {
 		f.Add(uint64(i), uint64(i), uint64(i))
