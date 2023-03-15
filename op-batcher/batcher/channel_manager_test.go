@@ -128,6 +128,59 @@ func TestChannelManagerNextTxData(t *testing.T) {
 	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
 }
 
+// TestChannelManagerTxConfirmed checks the [ChannelManager.TxConfirmed] function.
+func TestChannelManagerTxConfirmed(t *testing.T) {
+	// Create a channel manager
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, ChannelConfig{
+		// Need to set the channel timeout here so we don't clear pending
+		// channels on confirmation. This would result in [TxConfirmed]
+		// clearing confirmed transactions, and reseting the pendingChannels map
+		ChannelTimeout: 10,
+	})
+
+	// Let's add a valid pending transaction to the channel manager
+	// So we can demonstrate that TxConfirmed's correctness
+	m.ensurePendingChannel(eth.BlockID{})
+	channelID := m.pendingChannel.ID()
+	frame := frameData{
+		data: []byte{},
+		id: frameID{
+			chID:        channelID,
+			frameNumber: uint16(0),
+		},
+	}
+	m.pendingChannel.PushFrame(frame)
+	require.Equal(t, 1, m.pendingChannel.NumFrames())
+	returnedTxData, err := m.nextTxData()
+	expectedTxData := txData{frame}
+	expectedChannelID := expectedTxData.ID()
+	require.NoError(t, err)
+	require.Equal(t, expectedTxData, returnedTxData)
+	require.Equal(t, 0, m.pendingChannel.NumFrames())
+	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
+	require.Equal(t, 1, len(m.pendingTransactions))
+
+	// An unknown pending transaction should not be marked as confirmed
+	// and should not be removed from the pending transactions map
+	actualChannelID := m.pendingChannel.ID()
+	unknownChannelID := derive.ChannelID([derive.ChannelIDLength]byte{0x69})
+	require.NotEqual(t, actualChannelID, unknownChannelID)
+	unknownTxID := frameID{chID: unknownChannelID, frameNumber: 0}
+	blockID := eth.BlockID{Number: 0, Hash: common.Hash{0x69}}
+	m.TxConfirmed(unknownTxID, blockID)
+	require.Empty(t, m.confirmedTransactions)
+	require.Equal(t, 1, len(m.pendingTransactions))
+
+	// Now let's mark the pending transaction as confirmed
+	// and check that it is removed from the pending transactions map
+	// and added to the confirmed transactions map
+	m.TxConfirmed(expectedChannelID, blockID)
+	require.Empty(t, m.pendingTransactions)
+	require.Equal(t, 1, len(m.confirmedTransactions))
+	require.Equal(t, blockID, m.confirmedTransactions[expectedChannelID])
+}
+
 func TestChannelManager_TxResend(t *testing.T) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
