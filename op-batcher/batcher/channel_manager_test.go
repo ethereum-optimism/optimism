@@ -128,6 +128,79 @@ func TestChannelManagerNextTxData(t *testing.T) {
 	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
 }
 
+// TestClearChannelManager tests clearing the channel manager.
+func TestClearChannelManager(t *testing.T) {
+	// Create a channel manager
+	log := testlog.Logger(t, log.LvlCrit)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	m := NewChannelManager(log, ChannelConfig{
+		// Need to set the channel timeout here so we don't clear pending
+		// channels on confirmation. This would result in [TxConfirmed]
+		// clearing confirmed transactions, and reseting the pendingChannels map
+		ChannelTimeout: 10,
+		// Have to set the max frame size here otherwise the channel builder would not
+		// be able to output any frames
+		MaxFrameSize: 1,
+	})
+
+	// Channel Manager state should be empty by default
+	require.Empty(t, m.blocks)
+	require.Equal(t, common.Hash{}, m.tip)
+	require.Nil(t, m.pendingChannel)
+	require.Empty(t, m.pendingTransactions)
+	require.Empty(t, m.confirmedTransactions)
+
+	// Add a block to the channel manager
+	a, _ := derivetest.RandomL2Block(rng, 4)
+	newL1Tip := a.Hash()
+	l1BlockID := eth.BlockID{
+		Hash:   a.Hash(),
+		Number: a.NumberU64(),
+	}
+	err := m.AddL2Block(a)
+	require.NoError(t, err)
+
+	// Make sure there is a channel builder
+	m.ensurePendingChannel(l1BlockID)
+	require.NotNil(t, m.pendingChannel)
+	require.Equal(t, 0, len(m.confirmedTransactions))
+
+	// Process the blocks
+	// We should have a pending channel with 1 frame
+	// and no more blocks since processBlocks consumes
+	// the list
+	err = m.processBlocks()
+	require.NoError(t, err)
+	err = m.pendingChannel.OutputFrames()
+	require.NoError(t, err)
+	_, err = m.nextTxData()
+	require.NoError(t, err)
+	require.Equal(t, 0, len(m.blocks))
+	require.Equal(t, newL1Tip, m.tip)
+	require.Equal(t, 1, len(m.pendingTransactions))
+
+	// Add a new block so we can test clearing
+	// the channel manager with a full state
+	b := types.NewBlock(&types.Header{
+		Number:     big.NewInt(1),
+		ParentHash: a.Hash(),
+	}, nil, nil, nil, nil)
+	err = m.AddL2Block(b)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(m.blocks))
+	require.Equal(t, b.Hash(), m.tip)
+
+	// Clear the channel manager
+	m.Clear()
+
+	// Check that the entire channel manager state cleared
+	require.Empty(t, m.blocks)
+	require.Equal(t, common.Hash{}, m.tip)
+	require.Nil(t, m.pendingChannel)
+	require.Empty(t, m.pendingTransactions)
+	require.Empty(t, m.confirmedTransactions)
+}
+
 // TestChannelManagerTxConfirmed checks the [ChannelManager.TxConfirmed] function.
 func TestChannelManagerTxConfirmed(t *testing.T) {
 	// Create a channel manager
@@ -179,6 +252,48 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 	require.Empty(t, m.pendingTransactions)
 	require.Equal(t, 1, len(m.confirmedTransactions))
 	require.Equal(t, blockID, m.confirmedTransactions[expectedChannelID])
+}
+
+// TestChannelManagerTxFailed checks the [ChannelManager.TxFailed] function.
+func TestChannelManagerTxFailed(t *testing.T) {
+	// Create a channel manager
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, ChannelConfig{})
+
+	// Let's add a valid pending transaction to the channel
+	// manager so we can demonstrate correctness
+	m.ensurePendingChannel(eth.BlockID{})
+	channelID := m.pendingChannel.ID()
+	frame := frameData{
+		data: []byte{},
+		id: frameID{
+			chID:        channelID,
+			frameNumber: uint16(0),
+		},
+	}
+	m.pendingChannel.PushFrame(frame)
+	require.Equal(t, 1, m.pendingChannel.NumFrames())
+	returnedTxData, err := m.nextTxData()
+	expectedTxData := txData{frame}
+	expectedChannelID := expectedTxData.ID()
+	require.NoError(t, err)
+	require.Equal(t, expectedTxData, returnedTxData)
+	require.Equal(t, 0, m.pendingChannel.NumFrames())
+	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
+	require.Equal(t, 1, len(m.pendingTransactions))
+
+	// Trying to mark an unknown pending transaction as failed
+	// shouldn't modify state
+	m.TxFailed(frameID{})
+	require.Equal(t, 0, m.pendingChannel.NumFrames())
+	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
+
+	// Now we still have a pending transaction
+	// Let's mark it as failed
+	m.TxFailed(expectedChannelID)
+	require.Empty(t, m.pendingTransactions)
+	// There should be a frame in the pending channel now
+	require.Equal(t, 1, m.pendingChannel.NumFrames())
 }
 
 func TestChannelManager_TxResend(t *testing.T) {
