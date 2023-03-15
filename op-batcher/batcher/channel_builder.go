@@ -136,6 +136,8 @@ type channelBuilder struct {
 	blocks []*types.Block
 	// frames data queue, to be send as txs
 	frames []frameData
+	// total amount of output data of all frames created yet
+	outputBytes int
 }
 
 // newChannelBuilder creates a new channel builder or returns an error if the
@@ -156,9 +158,19 @@ func (c *channelBuilder) ID() derive.ChannelID {
 	return c.co.ID()
 }
 
-// InputBytes returns to total amount of input bytes added to the channel.
+// InputBytes returns the total amount of input bytes added to the channel.
 func (c *channelBuilder) InputBytes() int {
 	return c.co.InputBytes()
+}
+
+// ReadyBytes returns the amount of bytes ready in the compression pipeline to
+// output into a frame.
+func (c *channelBuilder) ReadyBytes() int {
+	return c.co.ReadyBytes()
+}
+
+func (c *channelBuilder) OutputBytes() int {
+	return c.outputBytes
 }
 
 // Blocks returns a backup list of all blocks that were added to the channel. It
@@ -381,10 +393,11 @@ func (c *channelBuilder) outputFrame() error {
 	}
 
 	frame := frameData{
-		id:   txID{chID: c.co.ID(), frameNumber: fn},
+		id:   frameID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
 	}
 	c.frames = append(c.frames, frame)
+	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
 }
 
