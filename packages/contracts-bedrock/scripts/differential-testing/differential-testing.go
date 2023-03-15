@@ -221,7 +221,8 @@ func main() {
 		latestBlockHash := common.HexToHash(args[4])
 
 		// Hash the output root proof
-		hash := hashOutputRootProof(version, stateRoot, messagePasserStorageRoot, latestBlockHash)
+		hash, err := hashOutputRootProof(version, stateRoot, messagePasserStorageRoot, latestBlockHash)
+		checkErr(err, "Error hashing output root proof")
 
 		// Pack hash
 		packed, err := fixedBytesArgs.Pack(&hash)
@@ -289,7 +290,8 @@ func main() {
 		checkErr(state.Prove(predeploys.L2ToL1MessagePasserAddr.Bytes(), 0, &proof), "Error getting proof")
 
 		// Get the output root
-		outputRoot := hashOutputRootProof(common.Hash{}, world.Hash(), state.Hash(), common.Hash{})
+		outputRoot, err := hashOutputRootProof(common.Hash{}, world.Hash(), state.Hash(), common.Hash{})
+		checkErr(err, "Error hashing output root proof")
 
 		// Pack the output
 		output := struct {

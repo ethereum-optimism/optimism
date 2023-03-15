@@ -64,14 +64,17 @@ func hashWithdrawal(nonce *big.Int, sender common.Address, target common.Address
 }
 
 // hashOutputRootProof hashes an output root proof.
-func hashOutputRootProof(version common.Hash, stateRoot common.Hash, messagePasserStorageRoot common.Hash, latestBlockHash common.Hash) common.Hash {
-	proof := bindings.TypesOutputRootProof{
+func hashOutputRootProof(version common.Hash, stateRoot common.Hash, messagePasserStorageRoot common.Hash, latestBlockHash common.Hash) (common.Hash, error) {
+	hash, err := rollup.ComputeL2OutputRoot(&bindings.TypesOutputRootProof{
 		Version:                  version,
 		StateRoot:                stateRoot,
 		MessagePasserStorageRoot: messagePasserStorageRoot,
 		LatestBlockhash:          latestBlockHash,
+	})
+	if err != nil {
+		return common.Hash{}, err
 	}
-	return common.Hash(rollup.HashOutputRootProof(&proof))
+	return common.Hash(hash), nil
 }
 
 // makeDepositTx creates a deposit transaction type.
