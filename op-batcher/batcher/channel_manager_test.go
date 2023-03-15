@@ -1,4 +1,4 @@
-package batcher_test
+package batcher
 
 import (
 	"io"
@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-batcher/batcher"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
@@ -23,7 +22,7 @@ import (
 // detects a reorg when it has cached L1 blocks.
 func TestChannelManagerReturnsErrReorg(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := batcher.NewChannelManager(log, batcher.ChannelConfig{})
+	m := NewChannelManager(log, ChannelConfig{})
 
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
@@ -48,14 +47,14 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 	err = m.AddL2Block(c)
 	require.NoError(t, err)
 	err = m.AddL2Block(x)
-	require.ErrorIs(t, err, batcher.ErrReorg)
+	require.ErrorIs(t, err, ErrReorg)
 }
 
 // TestChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
 // detects a reorg even if it does not have any blocks inside it.
 func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := batcher.NewChannelManager(log, batcher.ChannelConfig{
+	m := NewChannelManager(log, ChannelConfig{
 		TargetFrameSize:  0,
 		MaxFrameSize:     120_000,
 		ApproxComprRatio: 1.0,
@@ -86,14 +85,54 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	require.ErrorIs(t, err, io.EOF)
 
 	err = m.AddL2Block(x)
-	require.ErrorIs(t, err, batcher.ErrReorg)
+	require.ErrorIs(t, err, ErrReorg)
+}
+
+// TestChannelManagerNextTxData checks the nextTxData function.
+func TestChannelManagerNextTxData(t *testing.T) {
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, ChannelConfig{})
+
+	// Nil pending channel should return EOF
+	returnedTxData, err := m.nextTxData()
+	require.ErrorIs(t, err, io.EOF)
+	require.Equal(t, txData{}, returnedTxData)
+
+	// Set the pending channel
+	// The nextTxData function should still return EOF
+	// since the pending channel has no frames
+	m.ensurePendingChannel(eth.BlockID{})
+	returnedTxData, err = m.nextTxData()
+	require.ErrorIs(t, err, io.EOF)
+	require.Equal(t, txData{}, returnedTxData)
+
+	// Manually push a frame into the pending channel
+	channelID := m.pendingChannel.ID()
+	frame := frameData{
+		data: []byte{},
+		id: frameID{
+			chID:        channelID,
+			frameNumber: uint16(0),
+		},
+	}
+	m.pendingChannel.PushFrame(frame)
+	require.Equal(t, 1, m.pendingChannel.NumFrames())
+
+	// Now the nextTxData function should return the frame
+	returnedTxData, err = m.nextTxData()
+	expectedTxData := txData{frame}
+	expectedChannelID := expectedTxData.ID()
+	require.NoError(t, err)
+	require.Equal(t, expectedTxData, returnedTxData)
+	require.Equal(t, 0, m.pendingChannel.NumFrames())
+	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
 }
 
 func TestChannelManager_TxResend(t *testing.T) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlError)
-	m := batcher.NewChannelManager(log, batcher.ChannelConfig{
+	m := NewChannelManager(log, ChannelConfig{
 		TargetFrameSize:  0,
 		MaxFrameSize:     120_000,
 		ApproxComprRatio: 1.0,
