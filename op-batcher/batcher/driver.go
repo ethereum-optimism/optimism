@@ -1,6 +1,7 @@
 package batcher
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -31,6 +34,8 @@ type BatchSubmitter struct {
 
 	mutex   sync.Mutex
 	running bool
+
+	loopFn chan chan struct{}
 
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
@@ -115,12 +120,43 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSub
 
 	return &BatchSubmitter{
 		Config: cfg,
+		loopFn: make(chan chan struct{}, 10),
 		txMgr: NewTransactionManager(l,
 			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
 			cfg.From, cfg.L1Client),
 		state: NewChannelManager(l, cfg.Channel),
 	}, nil
 
+}
+
+func (l *BatchSubmitter) CloseChannel(ctx context.Context, id derive.ChannelID, frameNumber uint16) error {
+	resp := make(chan struct{})  // no buffer to block the main loop
+	l.loopFn <- resp
+	defer func() {
+		<-resp
+	}()
+
+	f := derive.Frame{
+		ID:          id,
+		FrameNumber: frameNumber,
+		Data:        nil,
+		IsLast:      true,
+	}
+	var dest bytes.Buffer
+	dest.WriteByte(derive.DerivationVersion0)  // channel format version
+	if err := f.MarshalBinary(&dest); err != nil {
+		return fmt.Errorf("failed to construct closing frame")
+	}
+	txInput := dest.Bytes()
+	log := l.log.New("data", hexutil.Bytes(txInput), "id", id, "frame_number", frameNumber)
+	log.Warn("RPC call is closing channel")
+	if receipt, err := l.txMgr.SendTransaction(ctx, txInput); err != nil {
+		log.Error("failed to send tx to close channel")
+		return fmt.Errorf("failed to send tx to close channel %s (frame num %d): %w", id, frameNumber, err)
+	} else {
+		log.Info("Successfully submitted closing tx for channel", "tx_hash", receipt.TxHash, "gas_used", receipt.GasUsed)
+		return nil
+	}
 }
 
 func (l *BatchSubmitter) Start() error {
@@ -268,6 +304,10 @@ func (l *BatchSubmitter) loop() {
 	defer ticker.Stop()
 	for {
 		select {
+		case resp := <-l.loopFn:
+			l.log.Warn("pausing main batcher loop for external interaction")
+			resp<- struct{}{}
+			l.log.Info("unpaused main batcher loop")
 		case <-ticker.C:
 			l.loadBlocksIntoState(l.ctx)
 
