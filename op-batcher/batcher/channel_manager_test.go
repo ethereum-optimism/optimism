@@ -101,7 +101,8 @@ func TestChannelManagerNextTxData(t *testing.T) {
 	// Set the pending channel
 	// The nextTxData function should still return EOF
 	// since the pending channel has no frames
-	m.ensurePendingChannel(eth.BlockID{})
+	err = m.ensurePendingChannel(eth.BlockID{})
+	require.NoError(t, err)
 	returnedTxData, err = m.nextTxData()
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, txData{}, returnedTxData)
@@ -161,7 +162,8 @@ func TestClearChannelManager(t *testing.T) {
 	require.NoError(t, err)
 
 	// Make sure there is a channel builder
-	m.ensurePendingChannel(l1BlockID)
+	err = m.ensurePendingChannel(l1BlockID)
+	require.NoError(t, err)
 	require.NotNil(t, m.pendingChannel)
 	require.Equal(t, 0, len(m.confirmedTransactions))
 
@@ -214,7 +216,8 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
-	m.ensurePendingChannel(eth.BlockID{})
+	err := m.ensurePendingChannel(eth.BlockID{})
+	require.NoError(t, err)
 	channelID := m.pendingChannel.ID()
 	frame := frameData{
 		data: []byte{},
@@ -262,7 +265,8 @@ func TestChannelManagerTxFailed(t *testing.T) {
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness
-	m.ensurePendingChannel(eth.BlockID{})
+	err := m.ensurePendingChannel(eth.BlockID{})
+	require.NoError(t, err)
 	channelID := m.pendingChannel.ID()
 	frame := frameData{
 		data: []byte{},
