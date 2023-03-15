@@ -35,7 +35,7 @@ Download and install [Docker engine](https://docs.docker.com/engine/install/#ser
 
    ```sh
    cd ~
-   git clone https://github.com/blockscout/blockscout.git
+   git clone -b production-base-goerli-stg https://github.com/blockscout/blockscout.git
    cd blockscout/docker-compose
    ```
 
