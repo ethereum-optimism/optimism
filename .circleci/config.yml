@@ -327,6 +327,8 @@ jobs:
           name: Restore Yarn Package Cache
           keys:
             - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: lint
           command: yarn lint:check
@@ -364,6 +366,8 @@ jobs:
           name: Restore Yarn Package Cache
           keys:
             - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: validate spacers
           command: yarn validate-spacers
