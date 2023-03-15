@@ -46,6 +46,11 @@ const deployFn: DeployFunction = async (hre) => {
         'unsafeBlockSigner',
         hre.deployConfig.p2pSequencerAddress
       )
+      await assertContractVariable(
+        contract,
+        'PORTAL',
+        Artifact__OptimismPortalProxy.address
+      )
     },
   })
 }
