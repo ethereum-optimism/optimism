@@ -1,10 +1,13 @@
 package actions
 
 import (
+	"crypto/rand"
+	"errors"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -12,6 +15,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 )
 
@@ -377,4 +381,132 @@ func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 	require.Equal(t, sequencer.L2Unsafe(), verifier.L2Safe(), "all L2 blocks should have been included just in time")
 	sequencer.ActL2PipelineFull(t)
 	require.Equal(t, sequencer.L2Unsafe(), sequencer.L2Safe(), "same for sequencer")
+}
+
+// TestBigL2Txs tests a high-throughput case with constrained batcher:
+//   - Fill 100 L2 blocks to near max-capacity, with txs of 120 KB each
+//   - Buffer the L2 blocks into channels together as much as possible, submit data-txs only when necessary
+//     (just before crossing the max RLP channel size)
+//   - Limit the data-tx size to 40 KB, to force data to be split across multiple datat-txs
+//   - Defer all data-tx inclusion till the end
+//   - Fill L1 blocks with data-txs until we have processed them all
+//   - Run the verifier, and check if it derives the same L2 chain as was created by the sequencer.
+//
+// The goal of this test is to quickly run through an otherwise very slow process of submitting and including lots of data.
+// This does not test the batcher code, but is really focused at testing the batcher utils
+// and channel-decoding verifier code in the derive package.
+func TestBigL2Txs(gt *testing.T) {
+	t := NewDefaultTesting(gt)
+	p := &e2eutils.TestParams{
+		MaxSequencerDrift:   100,
+		SequencerWindowSize: 1000,
+		ChannelTimeout:      200, // give enough space to buffer large amounts of data before submitting it
+	}
+	dp := e2eutils.MakeDeployParams(t, p)
+	sd := e2eutils.Setup(t, dp, defaultAlloc)
+	log := testlog.Logger(t, log.LvlInfo)
+	miner, engine, sequencer := setupSequencerTest(t, sd, log)
+
+	_, verifier := setupVerifier(t, sd, log, miner.L1Client(t, sd.RollupCfg))
+
+	batcher := NewL2Batcher(log, sd.RollupCfg, &BatcherCfg{
+		MinL1TxSize: 0,
+		MaxL1TxSize: 40_000, // try a small batch size, to force the data to be split between more frames
+		BatcherKey:  dp.Secrets.Batcher,
+	}, sequencer.RollupClient(), miner.EthClient(), engine.EthClient())
+
+	sequencer.ActL2PipelineFull(t)
+
+	verifier.ActL2PipelineFull(t)
+	cl := engine.EthClient()
+
+	batcherNonce := uint64(0) // manually track batcher nonce. the "pending nonce" value in tx-pool is incorrect after we fill the pending-block gas limit and keep adding txs to the pool.
+	batcherTxOpts := func(tx *types.DynamicFeeTx) {
+		tx.Nonce = batcherNonce
+		batcherNonce++
+		tx.GasFeeCap = e2eutils.Ether(1) // be very generous with basefee, since we're spamming L1
+	}
+
+	// build many L2 blocks filled to the brim with large txs of random data
+	for i := 0; i < 100; i++ {
+		aliceNonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
+		status := sequencer.SyncStatus()
+		// build empty L1 blocks as necessary, so the L2 sequencer can continue to include txs while not drifting too far out
+		if status.UnsafeL2.Time >= status.HeadL1.Time+12 {
+			miner.ActEmptyBlock(t)
+		}
+		sequencer.ActL1HeadSignal(t)
+		sequencer.ActL2StartBlock(t)
+		baseFee := engine.l2Chain.CurrentBlock().BaseFee() // this will go quite high, since so many consecutive blocks are filled at capacity.
+		// fill the block with large L2 txs from alice
+		for n := aliceNonce; ; n++ {
+			require.NoError(t, err)
+			signer := types.LatestSigner(sd.L2Cfg.Config)
+			data := make([]byte, 120_000) // very large L2 txs, as large as the tx-pool will accept
+			_, err := rand.Read(data[:])  // fill with random bytes, to make compression ineffective
+			require.NoError(t, err)
+			gas, err := core.IntrinsicGas(data, nil, false, true, true, false)
+			require.NoError(t, err)
+			if gas > engine.l2GasPool.Gas() {
+				break
+			}
+			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{
+				ChainID:   sd.L2Cfg.Config.ChainID,
+				Nonce:     n,
+				GasTipCap: big.NewInt(2 * params.GWei),
+				GasFeeCap: new(big.Int).Add(new(big.Int).Mul(baseFee, big.NewInt(2)), big.NewInt(2*params.GWei)),
+				Gas:       gas,
+				To:        &dp.Addresses.Bob,
+				Value:     big.NewInt(0),
+				Data:      data,
+			})
+			require.NoError(gt, cl.SendTransaction(t.Ctx(), tx))
+			engine.ActL2IncludeTx(dp.Addresses.Alice)(t)
+		}
+		sequencer.ActL2EndBlock(t)
+		for batcher.l2BufferedBlock.Number < sequencer.SyncStatus().UnsafeL2.Number {
+			// if we run out of space, close the channel and submit all the txs
+			if err := batcher.Buffer(t); errors.Is(err, derive.ErrTooManyRLPBytes) {
+				log.Info("flushing filled channel to batch txs", "id", batcher.l2ChannelOut.ID())
+				batcher.ActL2ChannelClose(t)
+				for batcher.l2ChannelOut != nil {
+					batcher.ActL2BatchSubmit(t, batcherTxOpts)
+				}
+			}
+		}
+	}
+
+	// if anything is left in the channel, submit it
+	if batcher.l2ChannelOut != nil {
+		log.Info("flushing trailing channel to batch txs", "id", batcher.l2ChannelOut.ID())
+		batcher.ActL2ChannelClose(t)
+		for batcher.l2ChannelOut != nil {
+			batcher.ActL2BatchSubmit(t, batcherTxOpts)
+		}
+	}
+
+	// build L1 blocks until we're out of txs
+	txs, _ := miner.eth.TxPool().ContentFrom(dp.Addresses.Batcher)
+	for {
+		if len(txs) == 0 {
+			break
+		}
+		miner.ActL1StartBlock(12)(t)
+		for range txs {
+			if len(txs) == 0 {
+				break
+			}
+			tx := txs[0]
+			if miner.l1GasPool.Gas() < tx.Gas() { // fill the L1 block with batcher txs until we run out of gas
+				break
+			}
+			log.Info("including batcher tx", "nonce", tx)
+			miner.IncludeTx(t, tx)
+			txs = txs[1:]
+		}
+		miner.ActL1EndBlock(t)
+	}
+	verifier.ActL1HeadSignal(t)
+	verifier.ActL2PipelineFull(t)
+	require.Equal(t, sequencer.SyncStatus().UnsafeL2, verifier.SyncStatus().SafeL2, "verifier synced sequencer data even though of huge tx in block")
 }
