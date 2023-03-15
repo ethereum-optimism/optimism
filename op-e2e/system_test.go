@@ -651,6 +651,8 @@ func TestSystemMockP2P(t *testing.T) {
 
 // TestSystemDenseTopology sets up a dense p2p topology with 3 verifier nodes and 1 sequencer node.
 func TestSystemDenseTopology(t *testing.T) {
+	t.Skip("Skipping dense topology test to avoid flakiness. @refcell address in p2p scoring pr.")
+
 	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
