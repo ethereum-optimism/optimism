@@ -84,6 +84,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @custom:semver 1.1.0
+     * @notice The gas limit value should be checked offchain at deploy time to ensure that it
+     *         is larger than the _minimumGasLimit. This check does not happen in the constructor
+     *         because all contracts are deployed first and then initialized together
+     *         and calls to uninitialized contracts revert.
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -124,7 +128,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner
     ) public initializer {
-        require(_gasLimit >= _minimumGasLimit(), "SystemConfig: gas limit too low");
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;

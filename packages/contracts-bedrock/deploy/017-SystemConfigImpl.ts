@@ -1,9 +1,11 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 
-import { assertContractVariable, deploy } from '../src/deploy-utils'
+import { assertContractVariable, deploy, getContractsFromArtifacts } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
+  const { deployer } = await hre.getNamedAccounts()
+
   const batcherHash = hre.ethers.utils
     .hexZeroPad(hre.deployConfig.batchSenderAddress, 32)
     .toLowerCase()
@@ -11,6 +13,19 @@ const deployFn: DeployFunction = async (hre) => {
   const Artifact__OptimismPortalProxy = await hre.deployments.get(
     'OptimismPortalProxy'
   )
+
+  const [OptimismPortal] = await getContractsFromArtifacts(hre, [
+    {
+      name: 'OptimismPortal',
+      signerOrProvider: deployer,
+    },
+  ])
+
+  const MAX_RESOURCE_LIMIT = await OptimismPortal.MAX_RESOURCE_LIMIT()
+  const minGasLimit = MAX_RESOURCE_LIMIT.add(1_000_000)
+  if (minGasLimit.lt(hre.deployConfig.l2GenesisBlockGasLimit)) {
+    throw new Error(`Initial L2 gas limit is too low`)
+  }
 
   await deploy({
     hre,
@@ -39,6 +54,11 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'scalar',
         hre.deployConfig.gasPriceOracleScalar
+      )
+      await assertContractVariable(
+        contract,
+        'gasLimit',
+        hre.deployConfig.l2GenesisBlockGasLimit
       )
       await assertContractVariable(contract, 'batcherHash', batcherHash)
       await assertContractVariable(

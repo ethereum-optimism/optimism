@@ -22,23 +22,6 @@ contract SystemConfig_Init is Portal_Initializer {
     }
 }
 
-contract SystemConfig_Initialize_TestFail is Portal_Initializer {
-    function test_initialize_lowGasLimit_reverts() external {
-        uint256 maxResourceLimit = uint256(ResourceMetering(op).MAX_RESOURCE_LIMIT());
-
-        vm.expectRevert("SystemConfig: gas limit too low");
-        new SystemConfig({
-            _owner: alice,
-            _overhead: 0,
-            _scalar: 0,
-            _batcherHash: bytes32(hex""),
-            _gasLimit: uint64(maxResourceLimit) - 1,
-            _unsafeBlockSigner: address(1),
-            _portal: address(op)
-        });
-    }
-}
-
 contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setBatcherHash_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
