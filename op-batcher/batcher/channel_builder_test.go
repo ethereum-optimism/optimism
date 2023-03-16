@@ -437,7 +437,7 @@ func TestOutputFramesMaxFrameIndex(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 	channelConfig.MaxFrameSize = 1
 	channelConfig.TargetNumFrames = math.MaxInt
-	channelConfig.TargetFrameSize = 1 // math.MaxUint64
+	channelConfig.TargetFrameSize = 1
 	channelConfig.ApproxComprRatio = 0
 
 	// Continuously add blocks until the max frame index is reached
