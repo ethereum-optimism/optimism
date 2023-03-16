@@ -47,6 +47,9 @@ type HeaderInfo struct {
 	txHash      common.Hash
 	receiptHash common.Hash
 	gasUsed     uint64
+
+	// withdrawalsRoot was added in Shapella and is thus optional
+	withdrawalsRoot *common.Hash
 }
 
 var _ eth.BlockInfo = (*HeaderInfo)(nil)
@@ -113,7 +116,10 @@ type rpcHeader struct {
 	Nonce       types.BlockNonce `json:"nonce"`
 
 	// BaseFee was added by EIP-1559 and is ignored in legacy headers.
-	BaseFee *hexutil.Big `json:"baseFeePerGas" rlp:"optional"`
+	BaseFee *hexutil.Big `json:"baseFeePerGas"`
+
+	// WithdrawalsRoot was added by EIP-4895 and is ignored in legacy headers.
+	WithdrawalsRoot *common.Hash `json:"withdrawalsRoot"`
 
 	// untrusted info included by RPC, may have to be checked
 	Hash common.Hash `json:"hash"`
@@ -144,22 +150,23 @@ func (hdr *rpcHeader) checkPostMerge() error {
 
 func (hdr *rpcHeader) computeBlockHash() common.Hash {
 	gethHeader := types.Header{
-		ParentHash:  hdr.ParentHash,
-		UncleHash:   hdr.UncleHash,
-		Coinbase:    hdr.Coinbase,
-		Root:        hdr.Root,
-		TxHash:      hdr.TxHash,
-		ReceiptHash: hdr.ReceiptHash,
-		Bloom:       types.Bloom(hdr.Bloom),
-		Difficulty:  (*big.Int)(&hdr.Difficulty),
-		Number:      new(big.Int).SetUint64(uint64(hdr.Number)),
-		GasLimit:    uint64(hdr.GasLimit),
-		GasUsed:     uint64(hdr.GasUsed),
-		Time:        uint64(hdr.Time),
-		Extra:       hdr.Extra,
-		MixDigest:   hdr.MixDigest,
-		Nonce:       hdr.Nonce,
-		BaseFee:     (*big.Int)(hdr.BaseFee),
+		ParentHash:      hdr.ParentHash,
+		UncleHash:       hdr.UncleHash,
+		Coinbase:        hdr.Coinbase,
+		Root:            hdr.Root,
+		TxHash:          hdr.TxHash,
+		ReceiptHash:     hdr.ReceiptHash,
+		Bloom:           types.Bloom(hdr.Bloom),
+		Difficulty:      (*big.Int)(&hdr.Difficulty),
+		Number:          new(big.Int).SetUint64(uint64(hdr.Number)),
+		GasLimit:        uint64(hdr.GasLimit),
+		GasUsed:         uint64(hdr.GasUsed),
+		Time:            uint64(hdr.Time),
+		Extra:           hdr.Extra,
+		MixDigest:       hdr.MixDigest,
+		Nonce:           hdr.Nonce,
+		BaseFee:         (*big.Int)(hdr.BaseFee),
+		WithdrawalsHash: hdr.WithdrawalsRoot,
 	}
 	return gethHeader.Hash()
 }
@@ -177,17 +184,18 @@ func (hdr *rpcHeader) Info(trustCache bool, mustBePostMerge bool) (*HeaderInfo, 
 	}
 
 	info := HeaderInfo{
-		hash:        hdr.Hash,
-		parentHash:  hdr.ParentHash,
-		coinbase:    hdr.Coinbase,
-		root:        hdr.Root,
-		number:      uint64(hdr.Number),
-		time:        uint64(hdr.Time),
-		mixDigest:   hdr.MixDigest,
-		baseFee:     (*big.Int)(hdr.BaseFee),
-		txHash:      hdr.TxHash,
-		receiptHash: hdr.ReceiptHash,
-		gasUsed:     uint64(hdr.GasUsed),
+		hash:            hdr.Hash,
+		parentHash:      hdr.ParentHash,
+		coinbase:        hdr.Coinbase,
+		root:            hdr.Root,
+		number:          uint64(hdr.Number),
+		time:            uint64(hdr.Time),
+		mixDigest:       hdr.MixDigest,
+		baseFee:         (*big.Int)(hdr.BaseFee),
+		txHash:          hdr.TxHash,
+		receiptHash:     hdr.ReceiptHash,
+		gasUsed:         uint64(hdr.GasUsed),
+		withdrawalsRoot: hdr.WithdrawalsRoot,
 	}
 	return &info, nil
 }

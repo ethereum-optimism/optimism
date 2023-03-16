@@ -1,5 +1,14 @@
 # @eth-optimism/drippie-mon
 
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [fecd42d67]
+- Updated dependencies [66cafc00a]
+  - @eth-optimism/common-ts@0.8.1
+  - @eth-optimism/sdk@2.0.1
+
 ## 0.2.0
 
 ### Minor Changes
