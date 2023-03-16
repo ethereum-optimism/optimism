@@ -291,7 +291,7 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 		calculatedTimeout := epochNum + seqWindowSize - subSafetyMargin
 		cb.checkTimeout(calculatedTimeout)
 		if cb.timeout != 0 {
-			require.ErrorIs(t, cb.FullErr(), ErrSeqWindowClose)
+			require.ErrorIs(t, cb.FullErr(), ErrSeqWindowClose, "Sequence window close should be reached")
 		}
 	})
 }
