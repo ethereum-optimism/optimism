@@ -66,6 +66,9 @@ type Metricer interface {
 	Document() []metrics.DocumentedMetric
 	// P2P Metrics
 	SetPeerScores(scores map[string]float64)
+	ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
+	ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration)
+	PayloadsQuarantineSize(n int)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -89,6 +92,12 @@ type Metrics struct {
 	DerivationErrors *EventMetrics
 	SequencingErrors *EventMetrics
 	PublishingErrors *EventMetrics
+
+	P2PReqDurationSeconds *prometheus.HistogramVec
+	P2PReqTotal           *prometheus.CounterVec
+	P2PPayloadByNumber    *prometheus.GaugeVec
+
+	PayloadsQuarantineTotal prometheus.Gauge
 
 	SequencerInconsistentL1Origin *EventMetrics
 	SequencerResets               *EventMetrics
@@ -320,6 +329,44 @@ func NewMetrics(procName string) *Metrics {
 			Help:      "P2P bandwidth by direction",
 		}, []string{
 			"direction",
+		}),
+
+		P2PReqDurationSeconds: factory.NewHistogramVec(prometheus.HistogramOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "req_duration_seconds",
+			Buckets:   []float64{},
+			Help:      "Duration of P2P requests",
+		}, []string{
+			"p2p_role", // "client" or "server"
+			"p2p_method",
+			"result_code",
+		}),
+
+		P2PReqTotal: factory.NewCounterVec(prometheus.CounterOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "req_total",
+			Help:      "Number of P2P requests",
+		}, []string{
+			"p2p_role", // "client" or "server"
+			"p2p_method",
+			"result_code",
+		}),
+
+		P2PPayloadByNumber: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "payload_by_number",
+			Help:      "Payload by number requests",
+		}, []string{
+			"p2p_role", // "client" or "server"
+		}),
+		PayloadsQuarantineTotal: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "payloads_quarantine_total",
+			Help:      "number of unverified execution payloads buffered in quarantine",
 		}),
 
 		SequencerBuildingDiffDurationSeconds: factory.NewHistogram(prometheus.HistogramOpts{
@@ -567,6 +614,27 @@ func (m *Metrics) Document() []metrics.DocumentedMetric {
 	return m.factory.Document()
 }
 
+func (m *Metrics) ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
+	if resultCode > 4 { // summarize all high codes to reduce metrics overhead
+		resultCode = 5
+	}
+	code := strconv.FormatUint(uint64(resultCode), 10)
+	m.P2PReqTotal.WithLabelValues("client", "payload_by_number", code).Inc()
+	m.P2PReqDurationSeconds.WithLabelValues("client", "payload_by_number", code).Observe(float64(duration) / float64(time.Second))
+	m.P2PPayloadByNumber.WithLabelValues("client").Set(float64(num))
+}
+
+func (m *Metrics) ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
+	code := strconv.FormatUint(uint64(resultCode), 10)
+	m.P2PReqTotal.WithLabelValues("server", "payload_by_number", code).Inc()
+	m.P2PReqDurationSeconds.WithLabelValues("server", "payload_by_number", code).Observe(float64(duration) / float64(time.Second))
+	m.P2PPayloadByNumber.WithLabelValues("server").Set(float64(num))
+}
+
+func (m *Metrics) PayloadsQuarantineSize(n int) {
+	m.PayloadsQuarantineTotal.Set(float64(n))
+}
+
 type noopMetricer struct{}
 
 var NoopMetrics Metricer = new(noopMetricer)
@@ -659,4 +727,13 @@ func (n *noopMetricer) RecordSequencerSealingTime(duration time.Duration) {
 
 func (n *noopMetricer) Document() []metrics.DocumentedMetric {
 	return nil
+}
+
+func (n *noopMetricer) ClientPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
+}
+
+func (n *noopMetricer) ServerPayloadByNumberEvent(num uint64, resultCode byte, duration time.Duration) {
+}
+
+func (n *noopMetricer) PayloadsQuarantineSize(int) {
 }

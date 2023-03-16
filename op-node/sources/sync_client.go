@@ -32,9 +32,10 @@ type RPCSync interface {
 	// Start starts an additional worker syncing job
 	Start() error
 	// RequestL2Range signals that the given range should be fetched, implementing the alt-sync interface.
-	RequestL2Range(ctx context.Context, start, end uint64) error
+	RequestL2Range(ctx context.Context, start uint64, end eth.L2BlockRef) error
 }
 
+// SyncClient implements the driver AltSync interface, including support for fetching an open-ended chain of L2 blocks.
 type SyncClient struct {
 	*L2Client
 
@@ -88,7 +89,7 @@ func (s *SyncClient) Close() error {
 	return nil
 }
 
-func (s *SyncClient) RequestL2Range(ctx context.Context, start, end uint64) error {
+func (s *SyncClient) RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error {
 	// Drain previous requests now that we have new information
 	for len(s.requests) > 0 {
 		select { // in case requests is being read at the same time, don't block on draining it.
@@ -98,11 +99,23 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end uint64) erro
 		}
 	}
 
+	endNum := end.Number
+	if end == (eth.L2BlockRef{}) {
+		n, err := s.rollupCfg.TargetBlockNumber(uint64(time.Now().Unix()))
+		if err != nil {
+			return err
+		}
+		if n <= start.Number {
+			return nil
+		}
+		endNum = n
+	}
+
 	// TODO(CLI-3635): optimize the by-range fetching with the Engine API payloads-by-range method.
 
-	s.log.Info("Scheduling to fetch missing payloads from backup RPC", "start", start, "end", end, "size", end-start)
+	s.log.Info("Scheduling to fetch trailing missing payloads from backup RPC", "start", start, "end", endNum, "size", endNum-start.Number-1)
 
-	for i := start; i < end; i++ {
+	for i := start.Number + 1; i < endNum; i++ {
 		select {
 		case s.requests <- i:
 		case <-ctx.Done():

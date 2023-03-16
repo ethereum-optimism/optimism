@@ -22,6 +22,8 @@ type Prepared struct {
 	HostP2P   host.Host
 	LocalNode *enode.LocalNode
 	UDPv5     *discover.UDPv5
+
+	EnableReqRespSync bool
 }
 
 var _ SetupP2P = (*Prepared)(nil)
@@ -82,4 +84,8 @@ func (p *Prepared) TopicScoringParams() *pubsub.TopicScoreParams {
 
 func (p *Prepared) Disabled() bool {
 	return false
+}
+
+func (p *Prepared) ReqRespSyncEnabled() bool {
+	return p.EnableReqRespSync
 }
