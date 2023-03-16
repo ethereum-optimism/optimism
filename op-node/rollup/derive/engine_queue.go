@@ -430,7 +430,7 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 }
 
 func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
-	if eq.safeAttributes == nil {  // sanity check the attributes are there
+	if eq.safeAttributes == nil { // sanity check the attributes are there
 		return nil
 	}
 	// validate the safe attributes before processing them. The engine may have completed processing them through other means.
