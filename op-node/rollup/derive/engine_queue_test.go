@@ -860,13 +860,6 @@ func TestBlockBuildingRace(t *testing.T) {
 		L1Origin:       refA.ID(),
 		SequenceNumber: 0,
 	}
-	l1BlockTime := uint64(2)
-	refB := eth.L1BlockRef{
-		Hash:       testutils.RandomHash(rng),
-		Number:     refA.Number + 1,
-		ParentHash: refA.Hash,
-		Time:       refA.Time + l1BlockTime,
-	}
 	cfg := &rollup.Config{
 		Genesis: rollup.Genesis{
 			L1:     refA.ID(),
@@ -890,19 +883,6 @@ func TestBlockBuildingRace(t *testing.T) {
 		L1Origin:       refA.ID(),
 		SequenceNumber: 1,
 	}
-	refB0 := eth.L2BlockRef{
-		Hash:           testutils.RandomHash(rng),
-		Number:         refA1.Number + 1,
-		ParentHash:     refA1.Hash,
-		Time:           refA1.Time + cfg.BlockTime,
-		L1Origin:       refB.ID(),
-		SequenceNumber: 0,
-	}
-	t.Logf("A: %s", refA.Hash)
-	t.Logf("A0: %s", refA0.Hash)
-	t.Logf("A1: %s", refA1.Hash)
-	t.Logf("B: %s", refB.Hash)
-	t.Logf("B0: %s", refB0.Hash)
 
 	l1F := &testutils.MockL1Source{}
 
@@ -930,8 +910,6 @@ func TestBlockBuildingRace(t *testing.T) {
 	prev := &fakeAttributesQueue{origin: refA, attrs: attrs}
 	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F)
 	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
-
-	t.Log(refB0)
 
 	id := eth.PayloadID{0xff}
 
