@@ -29,10 +29,6 @@ type SequencerMetrics interface {
 	RecordSequencerReset()
 }
 
-// Sequencing produces unsafe blocks only, and should not interrupt the L2 block building of safe blocks,
-// e.g. when catching up with an L1 chain with existing batch data.
-const safeBuildInterruptBackoff = 5 * time.Second
-
 // Sequencer implements the sequencing interface of the driver: it starts and completes block building jobs.
 type Sequencer struct {
 	log    log.Logger
@@ -131,7 +127,8 @@ func (d *Sequencer) PlanNextSequencerAction() time.Duration {
 	// then give it time to sync up.
 	if onto, _, safe := d.engine.BuildingPayload(); safe {
 		d.log.Warn("delaying sequencing to not interrupt safe-head changes", "onto", onto, "onto_time", onto.Time)
-		return safeBuildInterruptBackoff
+		// approximates the worst-case time it takes to build a block, to reattempt sequencing after.
+		return time.Second * time.Duration(d.config.BlockTime)
 	}
 
 	head := d.engine.UnsafeL2Head()
@@ -203,7 +200,8 @@ func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionP
 	if onto, buildingID, safe := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) {
 		if safe {
 			d.log.Warn("avoiding sequencing to not interrupt safe-head changes", "onto", onto, "onto_time", onto.Time)
-			d.nextAction = d.timeNow().Add(safeBuildInterruptBackoff)
+			// approximates the worst-case time it takes to build a block, to reattempt sequencing after.
+			d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime))
 			return nil, nil
 		}
 		payload, err := d.CompleteBuildingBlock(ctx)
