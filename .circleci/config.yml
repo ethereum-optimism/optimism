@@ -66,9 +66,37 @@ jobs:
       - checkout
       - check-changed:
           patterns: op-bindings,op-chain-ops,packages/
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - run:
           name: Install dependencies
-          command: yarn && git diff --exit-code
+          command: yarn install && git diff --exit-code
+      - save_cache:
+          name: Save Yarn Package Cache
+          key: yarn-packages-v2-{{ checksum "yarn.lock" }}
+          paths:
+            - "node_modules"
+            - "packages/actor-tests/node_modules"
+            - "packages/atst/node_modules"
+            - "packages/balance-monitor/node_modules"
+            - "packages/chain-mon/node_modules"
+            - "packages/common-ts/node_modules"
+            - "packages/contracts/node_modules"
+            - "packages/contracts-bedrock/node_modules"
+            - "packages/contracts-governance/node_modules"
+            - "packages/contracts-periphery/node_modules"
+            - "packages/core-utils/node_modules"
+            - "packages/data-transport-layer/node_modules"
+            - "packages/drippie-mon/node_modules"
+            - "packages/fault-detector/node_modules"
+            - "packages/hardhat-deploy-config/node_modules"
+            - "packages/integration-tests-bedrock/node_modules"
+            - "packages/message-relayer/node_modules"
+            - "packages/migration-data/node_modules"
+            - "packages/replica-healthcheck/node_modules"
+            - "packages/sdk/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -78,8 +106,6 @@ jobs:
       - persist_to_workspace:
           root: "."
           paths:
-            - "node_modules"
-            - "packages/*/node_modules"
             - "packages/*/dist"
             - "packages/*/artifacts"
             - "packages/contracts/src/contract-artifacts.ts"
@@ -147,6 +173,8 @@ jobs:
             - "."
 
   docker-publish:
+    environment:
+      DOCKER_BUILDKIT: 1
     parameters:
       docker_name:
         description: Docker image name
@@ -154,6 +182,17 @@ jobs:
       docker_tags:
         description: Docker image tags as csv
         type: string
+      docker_file:
+        description: Path to Dockerfile
+        type: string
+      docker_context:
+        description: Docker build context
+        type: string
+        default: "."
+      docker_target:
+        description: "target build stage"
+        type: string
+        default: ""
       registry:
         description: Docker registry
         type: string
@@ -162,17 +201,14 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
     steps:
-      - attach_workspace:
-          at: /tmp/docker_images
-      - run:
-          name: Docker load
-          command: |
-            DOCKER_LABELS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g")
-            echo -ne $DOCKER_LABELS | tr ' ' '\n' | xargs -I {} docker load -i /tmp/docker_images/<<parameters.docker_name>>_{}.tar
       - gcp-oidc-authenticate
       # Below is CircleCI recommended way of specifying nameservers on an Ubuntu box:
       # https://support.circleci.com/hc/en-us/articles/7323511028251-How-to-set-custom-DNS-on-Ubuntu-based-images-using-netplan
@@ -181,13 +217,19 @@ jobs:
       - run: sudo sed -i "s/addresses:/ addresses":" [8.8.8.8, 8.8.4.4] /g" /etc/netplan/50-cloud-init.yaml
       - run: cat /etc/netplan/50-cloud-init.yaml
       - run: sudo netplan apply
+      - checkout
       - run:
-          name: Publish
+          name: Build & Publish
           command: |
             gcloud auth configure-docker <<parameters.registry>>
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
-            echo -ne $DOCKER_TAGS | tr ' ' '\n' | xargs -L1 docker push
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --target "<<parameters.docker_target>>" --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
 
   docker-release:
     environment:
@@ -213,6 +255,10 @@ jobs:
         description: Docker repo
         type: string
         default: "oplabs-tools-artifacts/images"
+      platforms:
+        description: Platforms to build for
+        type: string
+        default: "linux/amd64"
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: xlarge
@@ -221,25 +267,20 @@ jobs:
       - gcp-oidc-authenticate
       - checkout
       - run:
-          name: Build
-          command: |
-            IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
-            docker build \
-            $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
-            -f <<parameters.docker_file>> \
-            --build-arg VERSION=$CIRCLE_TAG \
-            <<parameters.docker_context>>
-      - run:
           name: Configure Docker
           command: |
             gcloud auth configure-docker <<parameters.registry>>
       - run:
-          name: Publish
+          name: Build & Publish
           command: |
             IMAGE_BASE="<<parameters.registry>>/<<parameters.repo>>/<<parameters.docker_name>>"
-            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|${IMAGE_BASE}:|")
-            echo -ne $DOCKER_TAGS | tr ' ' '\n' | xargs -L1 docker push
+            DOCKER_TAGS=$(echo -ne <<parameters.docker_tags>> | sed "s/,/\n/g" | sed "s/[^a-zA-Z0-9\n]/-/g" | sed -e "s|^|-t ${IMAGE_BASE}:|")
+            docker context create buildx-build
+            docker buildx create --use buildx-build
+            docker buildx build --platform=<<parameters.platforms>> --push \
+              $(echo -ne $DOCKER_TAGS | tr '\n' ' ') \
+              -f <<parameters.docker_file>> \
+              <<parameters.docker_context>>
       - run:
           name: Tag
           command: |
@@ -252,18 +293,12 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
-      - run:
-          name: lint
-          command: yarn lint:check
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: slither
-          command: |
-            slither --version
-            yarn slither || exit 0
-          working_directory: packages/contracts-bedrock
       - run:
           name: print forge version
           command: forge --version
@@ -280,6 +315,29 @@ jobs:
           command: codecov --verbose --clean --flags contracts-bedrock-tests
           environment:
             FOUNDRY_PROFILE: ci
+
+  contracts-bedrock-checks:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: lint
+          command: yarn lint:check
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: slither
+          command: |
+            slither --version
+            yarn slither || exit 0
+          working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
@@ -289,16 +347,29 @@ jobs:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
-          name: validate spacers
-          command: yarn validate-spacers
-          working_directory: packages/contracts-bedrock
-      - run:
           name: storage snapshot
           command: yarn storage-snapshot && git diff --exit-code .storage-layout
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
           command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          working_directory: packages/contracts-bedrock
+
+  contracts-bedrock-validate-spaces:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: validate spacers
+          command: yarn validate-spacers
           working_directory: packages/contracts-bedrock
 
   bedrock-echidna-build:
@@ -334,6 +405,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: contracts-bedrock,contracts
       - run:
@@ -349,6 +424,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: contracts-bedrock,op-bindings
       - run:
@@ -374,6 +453,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
       - run:
@@ -427,6 +510,10 @@ jobs:
     steps:
       - checkout
       - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
       - check-changed:
           patterns: packages
       # Note: The below needs to be manually configured whenever we
@@ -455,10 +542,6 @@ jobs:
           name: Check integration-tests
           command: npx depcheck
           working_directory: integration-tests
-      - run:
-          name: Check two-step-monitor
-          command: npx depcheck
-          working_directory: packages/two-step-monitor
 
   go-lint:
     parameters:
@@ -834,7 +917,7 @@ jobs:
             ./hive \
             -sim=<<parameters.sim>> \
             -sim.loglevel=5 \
-            -client=go-ethereum,op-geth_optimism-history,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
+            -client=go-ethereum,op-geth_optimism,op-proposer_<<parameters.version>>,op-batcher_<<parameters.version>>,op-node_<<parameters.version>> |& tee /tmp/hive.log || echo "failed."
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
@@ -876,6 +959,12 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-tests:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-checks:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-validate-spaces:
           requires:
             - yarn-monorepo
       - op-bindings-build:
@@ -1062,11 +1151,11 @@ workflows:
       - docker-publish:
           name: op-node-docker-publish
           docker_name: op-node
+          docker_file: op-node/Dockerfile
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-node-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-batcher-docker-build
           docker_file: op-batcher/Dockerfile
@@ -1075,12 +1164,12 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-batcher-docker-publish
+          docker_file: op-batcher/Dockerfile
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-batcher-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-proposer-docker-build
           docker_file: op-proposer/Dockerfile
@@ -1089,12 +1178,12 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-proposer-docker-publish
+          docker_file: op-proposer/Dockerfile
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-proposer-docker-build
+          platforms: "linux/amd64,linux/arm64"
       - docker-build:
           name: op-heartbeat-docker-build
           docker_file: op-heartbeat/Dockerfile
@@ -1103,12 +1192,11 @@ workflows:
           docker_context: .
       - docker-publish:
           name: op-heartbeat-docker-publish
+          docker_file: op-heartbeat/Dockerfile
           docker_name: op-heartbeat
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - op-heartbeat-docker-build
       - docker-build:
           name: indexer-docker-build
           docker_file: indexer/Dockerfile
@@ -1117,12 +1205,19 @@ workflows:
           docker_context: .
       - docker-publish:
           name: indexer-docker-publish
+          docker_file: indexer/Dockerfile
           docker_name: indexer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          requires:
-            - indexer-docker-build
+      - docker-publish:
+          name: chain-mon-docker-publish
+          docker_file: ./ops/docker/Dockerfile.packages
+          docker_name: chain-mon
+          docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
+          docker_target: wd-mon
+          context:
+            - oplabs-gcr
       - hive-test:
           name: hive-test-rpc
           version: <<pipeline.git.revision>>
@@ -1167,6 +1262,7 @@ workflows:
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
+          platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr-release
           requires:
@@ -1182,6 +1278,7 @@ workflows:
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
+          platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr-release
           requires:
@@ -1197,6 +1294,7 @@ workflows:
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
+          platforms: "linux/amd64,linux/arm64"
           context:
             - oplabs-gcr-release
           requires:

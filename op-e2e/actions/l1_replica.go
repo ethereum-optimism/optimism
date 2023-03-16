@@ -184,42 +184,68 @@ func (s *L1Replica) L1Client(t Testing, cfg *rollup.Config) *sources.L1Client {
 	return l1F
 }
 
-// ActL1FinalizeNext finalizes the next block, which must be marked as safe before doing so (see ActL1SafeNext).
-func (s *L1Replica) ActL1FinalizeNext(t Testing) {
+func (s *L1Replica) UnsafeNum() uint64 {
+	head := s.l1Chain.CurrentBlock()
+	headNum := uint64(0)
+	if head != nil {
+		headNum = head.NumberU64()
+	}
+	return headNum
+}
+
+func (s *L1Replica) SafeNum() uint64 {
 	safe := s.l1Chain.CurrentSafeBlock()
 	safeNum := uint64(0)
 	if safe != nil {
 		safeNum = safe.NumberU64()
 	}
+	return safeNum
+}
+
+func (s *L1Replica) FinalizedNum() uint64 {
 	finalized := s.l1Chain.CurrentFinalizedBlock()
 	finalizedNum := uint64(0)
 	if finalized != nil {
 		finalizedNum = finalized.NumberU64()
 	}
-	if safeNum <= finalizedNum {
+	return finalizedNum
+}
+
+// ActL1Finalize finalizes a later block, which must be marked as safe before doing so (see ActL1SafeNext).
+func (s *L1Replica) ActL1Finalize(t Testing, num uint64) {
+	safeNum := s.SafeNum()
+	finalizedNum := s.FinalizedNum()
+	if safeNum < num {
 		t.InvalidAction("need to move forward safe block before moving finalized block")
 		return
 	}
-	next := s.l1Chain.GetBlockByNumber(finalizedNum + 1)
-	if next == nil {
-		t.Fatalf("expected next block after finalized L1 block %d, safe head is ahead", finalizedNum)
+	newFinalized := s.l1Chain.GetBlockByNumber(num)
+	if newFinalized == nil {
+		t.Fatalf("expected block at %d after finalized L1 block %d, safe head is ahead", num, finalizedNum)
 	}
-	s.l1Chain.SetFinalized(next)
+	s.l1Chain.SetFinalized(newFinalized)
+}
+
+// ActL1FinalizeNext finalizes the next block, which must be marked as safe before doing so (see ActL1SafeNext).
+func (s *L1Replica) ActL1FinalizeNext(t Testing) {
+	n := s.FinalizedNum() + 1
+	s.ActL1Finalize(t, n)
+}
+
+// ActL1Safe marks the given unsafe block as safe.
+func (s *L1Replica) ActL1Safe(t Testing, num uint64) {
+	newSafe := s.l1Chain.GetBlockByNumber(num)
+	if newSafe == nil {
+		t.InvalidAction("could not find L1 block %d, cannot label it as safe", num)
+		return
+	}
+	s.l1Chain.SetSafe(newSafe)
 }
 
 // ActL1SafeNext marks the next unsafe block as safe.
 func (s *L1Replica) ActL1SafeNext(t Testing) {
-	safe := s.l1Chain.CurrentSafeBlock()
-	safeNum := uint64(0)
-	if safe != nil {
-		safeNum = safe.NumberU64()
-	}
-	next := s.l1Chain.GetBlockByNumber(safeNum + 1)
-	if next == nil {
-		t.InvalidAction("if head of chain is marked as safe then there's no next block")
-		return
-	}
-	s.l1Chain.SetSafe(next)
+	n := s.SafeNum() + 1
+	s.ActL1Safe(t, n)
 }
 
 func (s *L1Replica) Close() error {

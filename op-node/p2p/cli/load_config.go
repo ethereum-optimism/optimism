@@ -24,7 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
 
-func NewConfig(ctx *cli.Context) (*p2p.Config, error) {
+func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 	conf := &p2p.Config{}
 
 	if ctx.GlobalBool(flags.DisableP2P.Name) {
@@ -54,6 +54,18 @@ func NewConfig(ctx *cli.Context) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p gossip options: %w", err)
 	}
 
+	if err := loadPeerScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
+	}
+
+	if err := loadBanningOption(conf, ctx); err != nil {
+		return nil, fmt.Errorf("failed to load banning option: %w", err)
+	}
+
+	if err := loadTopicScoringParams(conf, ctx, blockTime); err != nil {
+		return nil, fmt.Errorf("failed to load p2p topic scoring options: %w", err)
+	}
+
 	conf.ConnGater = p2p.DefaultConnGater
 	conf.ConnMngr = p2p.DefaultConnManager
 
@@ -71,6 +83,49 @@ func validatePort(p uint) (uint16, error) {
 		return 0, fmt.Errorf("port is reserved for system: %d", p)
 	}
 	return uint16(p), nil
+}
+
+// loadTopicScoringParams loads the topic scoring options from the CLI context.
+//
+// If the topic scoring options are not set, then the default topic scoring.
+func loadTopicScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.TopicScoring.Name)
+	if scoringLevel != "" {
+		// Set default block topic scoring parameters
+		// See prysm: https://github.com/prysmaticlabs/prysm/blob/develop/beacon-chain/p2p/gossip_scoring_params.go
+		// And research from lighthouse: https://gist.github.com/blacktemplar/5c1862cb3f0e32a1a7fb0b25e79e6e2c
+		// And docs: https://github.com/libp2p/specs/blob/master/pubsub/gossipsub/gossipsub-v1.1.md#topic-parameter-calculation-and-decay
+		topicScoreParams, err := p2p.GetTopicScoreParams(scoringLevel, blockTime)
+		if err != nil {
+			return err
+		}
+		conf.TopicScoring = topicScoreParams
+	}
+
+	return nil
+}
+
+// loadPeerScoringParams loads the scoring options from the CLI context.
+//
+// If the scoring level is not set, no scoring is enabled.
+func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64) error {
+	scoringLevel := ctx.GlobalString(flags.PeerScoring.Name)
+	if scoringLevel != "" {
+		peerScoreParams, err := p2p.GetPeerScoreParams(scoringLevel, blockTime)
+		if err != nil {
+			return err
+		}
+		conf.PeerScoring = peerScoreParams
+	}
+
+	return nil
+}
+
+// loadBanningOption loads whether or not to ban peers from the CLI context.
+func loadBanningOption(conf *p2p.Config, ctx *cli.Context) error {
+	ban := ctx.GlobalBool(flags.Banning.Name)
+	conf.BanningEnabled = ban
+	return nil
 }
 
 func loadListenOpts(conf *p2p.Config, ctx *cli.Context) error {

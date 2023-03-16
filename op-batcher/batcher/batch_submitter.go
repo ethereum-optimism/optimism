@@ -81,6 +81,7 @@ func Main(version string, cliCtx *cli.Context) error {
 		rpcCfg.ListenAddr,
 		rpcCfg.ListenPort,
 		version,
+		oprpc.WithLogger(l),
 	)
 	if rpcCfg.EnableAdmin {
 		server.AddAPI(gethrpc.API{

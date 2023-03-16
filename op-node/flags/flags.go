@@ -185,6 +185,12 @@ var (
 		EnvVar: prefixEnvVar("HEARTBEAT_URL"),
 		Value:  "https://heartbeat.optimism.io",
 	}
+	BackupL2UnsafeSyncRPC = cli.StringFlag{
+		Name:     "l2.backup-unsafe-sync-rpc",
+		Usage:    "Set the backup L2 unsafe sync RPC endpoint.",
+		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -219,6 +225,7 @@ var optionalFlags = append([]cli.Flag{
 	HeartbeatEnabledFlag,
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
+	BackupL2UnsafeSyncRPC,
 }, p2pFlags...)
 
 // Flags contains the list of configuration options available to the binary.

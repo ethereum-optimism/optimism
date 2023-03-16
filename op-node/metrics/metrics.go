@@ -7,14 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"net/http"
 	"strconv"
 	"time"
 
+	ophttp "github.com/ethereum-optimism/optimism/op-node/http"
 	"github.com/ethereum-optimism/optimism/op-service/metrics"
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -64,6 +65,8 @@ type Metricer interface {
 	RecordSequencerBuildingDiffTime(duration time.Duration)
 	RecordSequencerSealingTime(duration time.Duration)
 	Document() []metrics.DocumentedMetric
+	// P2P Metrics
+	RecordPeerScoring(peerID peer.ID, score float64)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -116,6 +119,7 @@ type Metrics struct {
 	// P2P Metrics
 	PeerCount         prometheus.Gauge
 	StreamCount       prometheus.Gauge
+	PeerScores        *prometheus.GaugeVec
 	GossipEventsTotal *prometheus.CounterVec
 	BandwidthTotal    *prometheus.GaugeVec
 
@@ -288,6 +292,16 @@ func NewMetrics(procName string) *Metrics {
 			Subsystem: "p2p",
 			Name:      "stream_count",
 			Help:      "Count of currently connected p2p streams",
+		}),
+		PeerScores: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_scores",
+			Help:      "Peer scoring",
+		}, []string{
+			// No label names here since peer ids would open a service attack vector.
+			// Each peer id would be a separate metric, flooding prometheus.
+			// See: https://prometheus.io/docs/practices/naming/#labels
 		}),
 		GossipEventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
@@ -477,6 +491,10 @@ func (m *Metrics) RecordGossipEvent(evType int32) {
 	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
 }
 
+func (m *Metrics) RecordPeerScoring(peerID peer.ID, score float64) {
+	m.PeerScores.WithLabelValues(peerID.String()).Set(score)
+}
+
 func (m *Metrics) IncPeerCount() {
 	m.PeerCount.Inc()
 }
@@ -528,12 +546,10 @@ func (m *Metrics) RecordSequencerSealingTime(duration time.Duration) {
 // The server will be closed when the passed-in context is cancelled.
 func (m *Metrics) Serve(ctx context.Context, hostname string, port int) error {
 	addr := net.JoinHostPort(hostname, strconv.Itoa(port))
-	server := &http.Server{
-		Addr: addr,
-		Handler: promhttp.InstrumentMetricHandler(
-			m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
-		),
-	}
+	server := ophttp.NewHttpServer(promhttp.InstrumentMetricHandler(
+		m.registry, promhttp.HandlerFor(m.registry, promhttp.HandlerOpts{}),
+	))
+	server.Addr = addr
 	go func() {
 		<-ctx.Done()
 		server.Close()
@@ -609,6 +625,9 @@ func (n *noopMetricer) RecordSequencerReset() {
 }
 
 func (n *noopMetricer) RecordGossipEvent(evType int32) {
+}
+
+func (n *noopMetricer) RecordPeerScoring(peerID peer.ID, score float64) {
 }
 
 func (n *noopMetricer) IncPeerCount() {

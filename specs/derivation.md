@@ -928,10 +928,11 @@ follows:
 
 - `timestamp` is set to the batch's timestamp.
 - `random` is set to the `prev_randao` L1 block attribute.
-- `suggestedFeeRecipient` is set to an address determined by the sequencer.
+- `suggestedFeeRecipient` is set to the Sequencer Fee Vault address. See [Fee Vaults] specification.
 - `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions, all
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 - `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
 
 [extended-attributes]: exec-engine.md#extended-payloadattributesv1
+[Fee Vaults]: exec-engine.md#fee-vaults

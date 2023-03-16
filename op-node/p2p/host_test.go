@@ -168,7 +168,7 @@ func TestP2PFull(t *testing.T) {
 
 	_, err = p2pClientA.DiscoveryTable(ctx)
 	// rpc does not preserve error type
-	require.Equal(t, err.Error(), DisabledDiscovery.Error(), "expecting discv5 to be disabled")
+	require.Equal(t, err.Error(), ErrDisabledDiscovery.Error(), "expecting discv5 to be disabled")
 
 	require.NoError(t, p2pClientA.BlockPeer(ctx, hostB.ID()))
 	blockedPeers, err := p2pClientA.ListBlockedPeers(ctx)
@@ -315,7 +315,7 @@ func TestDiscovery(t *testing.T) {
 
 	// B and C don't know each other yet, but both have A as a bootnode.
 	// It should only be a matter of time for them to connect, if they discover each other via A.
-	timeout := time.After(time.Second * 10)
+	timeout := time.After(time.Second * 60)
 	var peersOfB []peer.ID
 	// B should be connected to the bootnode (A) it used (it's a valid optimism node to connect to here)
 	// C should also be connected, although this one might take more time to discover

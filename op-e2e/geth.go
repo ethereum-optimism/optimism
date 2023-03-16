@@ -53,7 +53,7 @@ func waitForL1OriginOnL2(l1BlockNum uint64, client *ethclient.Client, timeout ti
 			}
 
 		case err := <-headSub.Err():
-			return nil, fmt.Errorf("Error in head subscription: %w", err)
+			return nil, fmt.Errorf("error in head subscription: %w", err)
 		case <-timeoutCh:
 			return nil, errors.New("timeout")
 		}
@@ -101,7 +101,7 @@ func waitForBlock(number *big.Int, client *ethclient.Client, timeout time.Durati
 				return client.BlockByNumber(ctx, number)
 			}
 		case err := <-headSub.Err():
-			return nil, fmt.Errorf("Error in head subscription: %w", err)
+			return nil, fmt.Errorf("error in head subscription: %w", err)
 		case <-timeoutCh:
 			return nil, errors.New("timeout")
 		}

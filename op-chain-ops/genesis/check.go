@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -19,7 +21,6 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
-	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis/migration"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
@@ -54,10 +55,6 @@ var (
 		predeploys.L2CrossDomainMessengerAddr: {
 			// Slot 0x00 (0) is a combination of spacer_0_0_20, _initialized, and _initializing
 			common.Hash{}: common.HexToHash("0x0000000000000000000000010000000000000000000000000000000000000000"),
-			// Slot 0x33 (51) is _owner. Requires custom check, so set to a garbage value
-			L2XDMOwnerSlot: common.HexToHash("0xbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbadbad0"),
-			// Slot 0x97 (151) is _status
-			common.Hash{31: 0x97}: common.HexToHash("0x0000000000000000000000000000000000000000000000000000000000000001"),
 			// Slot 0xcc (204) is xDomainMsgSender
 			common.Hash{31: 0xcc}: common.HexToHash("0x000000000000000000000000000000000000000000000000000000000000dead"),
 			// EIP-1967 storage slots
@@ -89,7 +86,7 @@ var (
 // PostCheckMigratedDB will check that the migration was performed correctly
 func PostCheckMigratedDB(
 	ldb ethdb.Database,
-	migrationData migration.MigrationData,
+	migrationData crossdomain.MigrationData,
 	l1XDM *common.Address,
 	l1ChainID uint64,
 	finalSystemOwner common.Address,
@@ -256,7 +253,7 @@ func PostCheckPredeploys(prevDB, currDB *state.StateDB) error {
 
 		// Balances and nonces should match legacy
 		oldNonce := prevDB.GetNonce(addr)
-		oldBalance := prevDB.GetBalance(addr)
+		oldBalance := ether.GetOVMETHBalance(prevDB, addr)
 		newNonce := currDB.GetNonce(addr)
 		newBalance := currDB.GetBalance(addr)
 		if oldNonce != newNonce {
@@ -347,7 +344,7 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, p
 		for key, value := range expSlots {
 			// The owner slots for the L2XDM and ProxyAdmin are special cases.
 			// They are set to the final system owner in the config.
-			if (*addr == predeploys.L2CrossDomainMessengerAddr && key == L2XDMOwnerSlot) || (*addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot) {
+			if *addr == predeploys.ProxyAdminAddr && key == ProxyAdminOwnerSlot {
 				actualOwner := common.BytesToAddress(slots[key].Bytes())
 				if actualOwner != proxyAdminOwner {
 					return fmt.Errorf("expected owner for %s to be %s but got %s", name, proxyAdminOwner, actualOwner)
@@ -468,8 +465,8 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossDomainMessenger *common.Address) error {
-	wds, err := data.ToWithdrawals()
+func CheckWithdrawalsAfter(db vm.StateDB, data crossdomain.MigrationData, l1CrossDomainMessenger *common.Address) error {
+	wds, invalidMessages, err := data.ToWithdrawals()
 	if err != nil {
 		return err
 	}
@@ -479,6 +476,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 	// some witness data may references withdrawals that reverted.
 	oldToNewSlots := make(map[common.Hash]common.Hash)
 	wdsByOldSlot := make(map[common.Hash]*crossdomain.LegacyWithdrawal)
+	invalidMessagesByOldSlot := make(map[common.Hash]crossdomain.InvalidMessage)
 	for _, wd := range wds {
 		migrated, err := crossdomain.MigrateWithdrawal(wd, l1CrossDomainMessenger)
 		if err != nil {
@@ -497,6 +495,15 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		oldToNewSlots[legacySlot] = migratedSlot
 		wdsByOldSlot[legacySlot] = wd
 	}
+	for _, im := range invalidMessages {
+		invalidSlot, err := im.StorageSlot()
+		if err != nil {
+			return fmt.Errorf("cannot compute legacy storage slot: %w", err)
+		}
+		invalidMessagesByOldSlot[invalidSlot] = im
+	}
+
+	log.Info("computed withdrawal storage slots", "migrated", len(oldToNewSlots), "invalid", len(invalidMessagesByOldSlot))
 
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
 	// migrated withdrawal.
@@ -515,6 +522,17 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 			return false
 		}
 
+		// Make sure invalid slots don't get migrated.
+		_, isInvalidSlot := invalidMessagesByOldSlot[key]
+		if isInvalidSlot {
+			value := db.GetState(predeploys.L2ToL1MessagePasserAddr, key)
+			if value != abiFalse {
+				innerErr = fmt.Errorf("expected invalid slot not to be migrated, but got %s", value)
+				return false
+			}
+			return true
+		}
+
 		// Grab the migrated slot.
 		migratedSlot := oldToNewSlots[key]
 		if migratedSlot == (common.Hash{}) {
@@ -527,7 +545,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 
 		// If the sender is _not_ the L2XDM, the value should not be migrated.
 		wd := wdsByOldSlot[key]
-		if wd.XDomainSender == predeploys.L2CrossDomainMessengerAddr {
+		if wd.MessageSender == predeploys.L2CrossDomainMessengerAddr {
 			// Make sure the value is abiTrue if this withdrawal should be migrated.
 			if migratedValue != abiTrue {
 				innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
@@ -536,7 +554,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data migration.MigrationData, l1CrossD
 		} else {
 			// Otherwise, ensure that withdrawals from senders other than the L2XDM are _not_ migrated.
 			if migratedValue != abiFalse {
-				innerErr = fmt.Errorf("a migration from a sender other than the L2XDM was migrated")
+				innerErr = fmt.Errorf("a migration from a sender other than the L2XDM was migrated. sender: %s, migrated value: %s", wd.MessageSender, migratedValue)
 				return false
 			}
 		}

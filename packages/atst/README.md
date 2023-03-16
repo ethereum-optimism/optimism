@@ -16,9 +16,9 @@
 
 # atst
 
-atst is a typescript sdk and cli around the attestation station
+atst is a typescript / javascript sdk and cli around AttestationStation
 
-### Visit [Docs](https://community.optimism.io/docs/governance/attestation-station/) for general documentation on the attestation station!
+**Visit [Docs](https://community.optimism.io/docs/governance/attestation-station/) for general documentation on AttestationStation.**
 
 ## Getting started
 
@@ -28,40 +28,50 @@ Install
 npm install @eth-optimism/atst wagmi @wagmi/core ethers@5.7.0
 ```
 
-## atst typescript sdk
+## atst typescript/javascript sdk
 
-The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to the attestation station
+The typescript sdk provides a clean [wagmi](https://wagmi.sh/) based interface for reading and writing to AttestationStation.
 
-### See [sdk docs](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/sdk.md) for usage instructions
+**See [sdk docs](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/sdk.md) for usage instructions.**
 
 ## atst cli
 
-The cli provides a convenient cli for interacting with the attestation station contract
+The cli provides a convenient cli for interacting with the AttestationStation contract
 
-TODO put a gif here of using it
+![preview](./assets/preview.gif)
+
+**See [cli docs](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/cli.md) for usage instructions.**
 
 ## React API
 
-For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around the attestation station.
+For react hooks we recomend using the [wagmi cli](https://wagmi.sh/cli/getting-started) with the [etherscan plugin](https://wagmi.sh/cli/plugins/etherscan) and [react plugin](https://wagmi.sh/cli/plugins/react) to automatically generate react hooks around AttestationStation.
 
-Use `parseAttestationBytes` and `stringifyAttestationBytes` to parse and stringify attestations before passing them into wagmi hooks.
+Use `createKey` and `createValue` to convert your raw keys and values into bytes that can be used in AttestationStation contract calls
 
-For convenience we also export the hooks here.
+Use `parseString`, `parseBool`, `parseAddress` and `parseNumber` to convert values returned by AttestationStation to their correct data type.
 
-`useAttestationStationAttestation` - Reads attestations with useContractRead
-
-`useAttestationStationVersion` - Reads attestation version
-
-`useAttestationStationAttest` - Wraps useContractWrite with attestation station abi calling attest
-
-`usePrepareAttestationStationAttest` - Wraps usePrepare with attestation station abi calling attest
-
-`useAttestationStationAttestationCreatedEvent` - Wraps useContractEvents for Created events
+For convenience we also [export the hooks here](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/src/index.ts):
+- `useAttestationStationAttestation` - Reads attestations with useContractRead
+- `useAttestationStationVersion` - Reads attestation version
+- `useAttestationStationAttest` - Wraps useContractWrite with AttestationStation abi calling attest
+- `usePrepareAttestationStationAttest` - Wraps usePrepare with AttestationStation abi calling attest
+- `useAttestationStationAttestationCreatedEvent` - Wraps useContractEvents for Created events
 
 Also some more hooks exported by the cli but these are likely the only ones you need.
 
 ## Contributing
 
-Please see our [contributing.md](docs/contributing.md). No contribution is too small.
+Please see our [contributing.md](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md). No contribution is too small.
 
-Having your contribution denied feels bad. Please consider opening an issue before adding any new features or apis
+Having your contribution denied feels bad. 
+Please consider [opening an issue](https://github.com/ethereum-optimism/optimism/issues) before adding any new features or apis.
+
+
+## Getting help
+
+If you have any problems, these resources could help you:
+
+- [sdk documentation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/sdk.md)
+- [cli documentation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/cli.md)
+- [Optimism Discord](https://discord-gateway.optimism.io/)
+- [Telegram group](https://t.me/+zwpJ8Ohqgl8yNjNh) 
