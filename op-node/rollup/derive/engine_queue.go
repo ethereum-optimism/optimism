@@ -131,8 +131,9 @@ func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics M
 		metrics:      metrics,
 		finalityData: make([]FinalityData, 0, finalityLookback),
 		unsafePayloads: PayloadsQueue{
-			MaxSize: maxUnsafePayloadsMemory,
-			SizeFn:  payloadMemSize,
+			MaxSize:  maxUnsafePayloadsMemory,
+			SizeFn:   payloadMemSize,
+			blockNos: make(map[uint64]bool),
 		},
 		prev:      prev,
 		l1Fetcher: l1Fetcher,
@@ -485,6 +486,7 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		_, errType, err = eq.ConfirmPayload(ctx)
 	}
 	if err != nil {
+		_ = eq.CancelPayload(ctx, true)
 		switch errType {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
@@ -660,4 +662,21 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	eq.metrics.RecordL2Ref("l2_unsafe", unsafe)
 	eq.logSyncProgress("reset derivation work")
 	return io.EOF
+}
+
+// GetUnsafeQueueGap retrieves the current [start, end] range of the gap between the tip of the unsafe priority queue and the unsafe head.
+// If there is no gap, the difference between end and start will be 0.
+func (eq *EngineQueue) GetUnsafeQueueGap(expectedNumber uint64) (start uint64, end uint64) {
+	// The start of the gap is always the unsafe head + 1
+	start = eq.unsafeHead.Number + 1
+
+	// If the priority queue is empty, the end is the first block number at the top of the priority queue
+	// Otherwise, the end is the expected block number
+	if first := eq.unsafePayloads.Peek(); first != nil {
+		end = first.ID().Number
+	} else {
+		end = expectedNumber
+	}
+
+	return start, end
 }

@@ -11,6 +11,28 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+var (
+	ErrInvalidMaxFrameSize   = errors.New("max frame size cannot be zero")
+	ErrInvalidChannelTimeout = errors.New("channel timeout is less than the safety margin")
+	ErrInputTargetReached    = errors.New("target amount of input data reached")
+	ErrMaxFrameIndex         = errors.New("max frame index reached (uint16)")
+	ErrMaxDurationReached    = errors.New("max channel duration reached")
+	ErrChannelTimeoutClose   = errors.New("close to channel timeout")
+	ErrSeqWindowClose        = errors.New("close to sequencer window timeout")
+)
+
+type ChannelFullError struct {
+	Err error
+}
+
+func (e *ChannelFullError) Error() string {
+	return "channel full: " + e.Err.Error()
+}
+
+func (e *ChannelFullError) Unwrap() error {
+	return e.Err
+}
+
 type ChannelConfig struct {
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch
 	// L1 origin block itself
@@ -48,10 +70,38 @@ type ChannelConfig struct {
 	ApproxComprRatio float64
 }
 
+// Check validates the [ChannelConfig] parameters.
+func (cc *ChannelConfig) Check() error {
+	// The [ChannelTimeout] must be larger than the [SubSafetyMargin].
+	// Otherwise, new blocks would always be considered timed out.
+	if cc.ChannelTimeout < cc.SubSafetyMargin {
+		return ErrInvalidChannelTimeout
+	}
+
+	// If the [MaxFrameSize] is set to 0, the channel builder
+	// will infinitely loop when trying to create frames in the
+	// [channelBuilder.OutputFrames] function.
+	if cc.MaxFrameSize == 0 {
+		return ErrInvalidMaxFrameSize
+	}
+
+	return nil
+}
+
 // InputThreshold calculates the input data threshold in bytes from the given
 // parameters.
 func (c ChannelConfig) InputThreshold() uint64 {
 	return uint64(float64(c.TargetNumFrames) * float64(c.TargetFrameSize) / c.ApproxComprRatio)
+}
+
+type frameID struct {
+	chID        derive.ChannelID
+	frameNumber uint16
+}
+
+type frameData struct {
+	data []byte
+	id   frameID
 }
 
 // channelBuilder uses a ChannelOut to create a channel with output frame
@@ -76,7 +126,7 @@ type channelBuilder struct {
 	// list of blocks in the channel. Saved in case the channel must be rebuilt
 	blocks []*types.Block
 	// frames data queue, to be send as txs
-	frames []taggedData
+	frames []frameData
 }
 
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
@@ -319,7 +369,7 @@ func (c *channelBuilder) outputFrame() error {
 		c.setFullErr(ErrMaxFrameIndex)
 	}
 
-	frame := taggedData{
+	frame := frameData{
 		id:   txID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
 	}
@@ -343,41 +393,21 @@ func (c *channelBuilder) NumFrames() int {
 // NextFrame returns the next available frame.
 // HasFrame must be called prior to check if there's a next frame available.
 // Panics if called when there's no next frame.
-func (c *channelBuilder) NextFrame() (txID, []byte) {
+func (c *channelBuilder) NextFrame() frameData {
 	if len(c.frames) == 0 {
 		panic("no next frame")
 	}
 
 	f := c.frames[0]
 	c.frames = c.frames[1:]
-	return f.id, f.data
+	return f
 }
 
 // PushFrame adds the frame back to the internal frames queue. Panics if not of
 // the same channel.
-func (c *channelBuilder) PushFrame(id txID, frame []byte) {
-	if id.chID != c.ID() {
+func (c *channelBuilder) PushFrame(frame frameData) {
+	if frame.id.chID != c.ID() {
 		panic("wrong channel")
 	}
-	c.frames = append(c.frames, taggedData{id: id, data: frame})
-}
-
-var (
-	ErrInputTargetReached  = errors.New("target amount of input data reached")
-	ErrMaxFrameIndex       = errors.New("max frame index reached (uint16)")
-	ErrMaxDurationReached  = errors.New("max channel duration reached")
-	ErrChannelTimeoutClose = errors.New("close to channel timeout")
-	ErrSeqWindowClose      = errors.New("close to sequencer window timeout")
-)
-
-type ChannelFullError struct {
-	Err error
-}
-
-func (e *ChannelFullError) Error() string {
-	return "channel full: " + e.Err.Error()
-}
-
-func (e *ChannelFullError) Unwrap() error {
-	return e.Err
+	c.frames = append(c.frames, frame)
 }

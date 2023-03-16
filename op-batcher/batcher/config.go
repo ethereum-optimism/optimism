@@ -35,6 +35,17 @@ type Config struct {
 	Channel ChannelConfig
 }
 
+// Check ensures that the [Config] is valid.
+func (c *Config) Check() error {
+	if err := c.Rollup.Check(); err != nil {
+		return err
+	}
+	if err := c.Channel.Check(); err != nil {
+		return err
+	}
+	return nil
+}
+
 type CLIConfig struct {
 	/* Required Params */
 

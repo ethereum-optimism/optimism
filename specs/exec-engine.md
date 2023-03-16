@@ -6,6 +6,11 @@
 
 - [Deposited transaction processing](#deposited-transaction-processing)
   - [Deposited transaction boundaries](#deposited-transaction-boundaries)
+- [Fees](#fees)
+  - [Fee Vaults](#fee-vaults)
+  - [Priority fees (Sequencer Fee Vault)](#priority-fees-sequencer-fee-vault)
+  - [Base fees (Base Fee Vault)](#base-fees-base-fee-vault)
+  - [L1-Cost fees (L1 Fee Vault)](#l1-cost-fees-l1-fee-vault)
 - [Engine API](#engine-api)
   - [`engine_forkchoiceUpdatedV1`](#engine_forkchoiceupdatedv1)
     - [Extended PayloadAttributesV1](#extended-payloadattributesv1)
@@ -45,6 +50,74 @@ To process deposited transactions safely, the deposits MUST be authenticated fir
 
 Deposited transactions MUST never be consumed from the transaction pool.
 *The transaction pool can be disabled in a deposits-only rollup*
+
+## Fees
+
+Sequenced transactions (i.e. not applicable to deposits) are charged with 3 types of fees:
+priority fees, base fees, and L1-cost fees.
+
+### Fee Vaults
+
+The three types of fees are collected in 3 distinct L2 fee-vault deployments for accounting purposes:
+fee payments are not registered as internal EVM calls, and thus distinguished better this way.
+
+These are hardcoded addresses, pointing at pre-deployed proxy contracts.
+The proxies are backed by vault contract deployments, based on `FeeVault`, to route vault funds to L1 securely.
+
+| Vault Name          | Predeploy                                                |
+|---------------------|----------------------------------------------------------|
+| Sequencer Fee Vault | [`SequencerFeeVault`](./predeploys.md#SequencerFeeVault) |
+| Base Fee Vault      | [`BaseFeeVault`](./predeploys.md#BaseFeeVault)           |
+| L1 Fee Vault        | [`L1FeeVault`](./predeploys.md#L1FeeVault)               |
+
+### Priority fees (Sequencer Fee Vault)
+
+Priority fees follow the [eip-1559] specification, and are collected by the fee-recipient of the L2 block.
+The block fee-recipient (a.k.a. coinbase address) is set to the Sequencer Fee Vault address.
+
+### Base fees (Base Fee Vault)
+
+Base fees largely follow the [eip-1559] specification, with the exception that base fees are not burned,
+but add up to the Base Fee Vault ETH account balance.
+
+### L1-Cost fees (L1 Fee Vault)
+
+The protocol funds batch-submission of sequenced L2 transactions by charging L2 users an additional fee
+based on the estimated batch-submission costs.
+This fee is charged from the L2 transaction-sender ETH balance, and collected into the L1 Fee Vault.
+
+The exact L1 cost function to determine the L1-cost fee component of a L2 transaction is calculated as:
+`(rollupDataGas + l1FeeOverhead) * l1Basefee * l1FeeScalar / 1000000`
+(big-int computation, result in Wei and `uint256` range)
+Where:
+
+- `rollupDataGas` is determined from the *full* encoded transaction
+  (standard EIP-2718 transaction encoding, including signature fields):
+  - Before Regolith fork: `rollupDataGas = zeroes * 4 + (ones + 68) * 16`
+    - The addition of `68` non-zero bytes is a remnant of a pre-Bedrock L1-cost accounting function,
+       which accounted for the worst-case non-zero bytes addition to complement unsigned transactions, unlike Bedrock.
+  - With Regolith fork: `rollupDataGas = zeroes * 4 + ones * 16`
+- `l1FeeOverhead` is the Gas Price Oracle `overhead` value.
+- `l1FeeScalar` is the Gas Price Oracle `scalar` value.
+- `l1Basefee` is the L1 Base fee of the latest L1 origin registered in the L2 chain.
+
+Note that the `rollupDataGas` uses the same byte cost accounting as defined in [eip-2028],
+except the full L2 transaction now counts towards the bytes charged in the L1 calldata.
+This behavior matches pre-Bedrock L1-cost estimation of L2 transactions.
+
+Compression, batching, and intrinsic gas costs of the batch transactions are accounted for by the protocol
+with the Gas Price Oracle `overhead` and `scalar` parameters.
+
+The Gas Price Oracle `l1FeeOverhead` and `l1FeeScalar`, as well as the `l1Basefee` of the L1 origin,
+can be accessed in two interchangeable ways:
+
+- read from the deposited L1 attributes (`l1FeeOverhead`, `l1FeeScalar`, `basefee`) of the current L2 block
+- read from the L1 Block Info contract (`0x4200000000000000000000000000000000000015`)
+  - using the respective solidity `uint256`-getter functions (`l1FeeOverhead`, `l1FeeScalar`, `basefee`)
+  - using direct storage-reads:
+    - L1 basefee as big-endian `uint256` in slot `1`
+    - Overhead as big-endian `uint256` in slot `5`
+    - Scalar as big-endian `uint256` in slot `6`
 
 ## Engine API
 
@@ -190,6 +263,8 @@ the operation within the engine is the exact same as with L1 (although with an E
 
 [rollup node spec]: rollup-node.md
 
+[eip-1559]: https://eips.ethereum.org/EIPS/eip-1559
+[eip-2028]: https://eips.ethereum.org/EIPS/eip-2028
 [eip-2718]: https://eips.ethereum.org/EIPS/eip-2718
 [eip-2718-transactions]: https://eips.ethereum.org/EIPS/eip-2718#transactions
 [exec-api-data]: https://github.com/ethereum/execution-apis/blob/769c53c94c4e487337ad0edea9ee0dce49c79bfa/src/engine/specification.md#structures

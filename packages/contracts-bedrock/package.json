@@ -17,7 +17,7 @@
     "bindings": "cd ../../op-bindings && make",
     "build:forge": "forge build",
     "build:with-metadata": "FOUNDRY_PROFILE=echidna yarn build:forge",
-    "build:differential": "tsc scripts/differential-testing.ts --outDir dist --moduleResolution node --esModuleInterop",
+    "build:differential": "go build -o ./scripts/differential-testing/differential-testing ./scripts/differential-testing",
     "build:fuzz": "(cd test-case-generator && go build ./cmd/fuzz.go)",
     "prebuild": "yarn ts-node scripts/verify-foundry-install.ts",
     "build": "hardhat compile && yarn autogen:artifacts && yarn build:ts && yarn typechain",
@@ -59,8 +59,6 @@
   },
   "devDependencies": {
     "@eth-optimism/hardhat-deploy-config": "^0.2.5",
-    "@ethereumjs/trie": "^5.0.0-beta.1",
-    "@ethereumjs/util": "^8.0.0-beta.1",
     "@ethersproject/abstract-provider": "^5.7.0",
     "@ethersproject/abstract-signer": "^5.7.0",
     "ethereumjs-wallet": "^1.0.2",

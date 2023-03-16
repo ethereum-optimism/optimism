@@ -77,6 +77,7 @@ type PayloadsQueue struct {
 	pq          payloadsByNumber
 	currentSize uint64
 	MaxSize     uint64
+	blockNos    map[uint64]bool
 	SizeFn      func(p *eth.ExecutionPayload) uint64
 }
 
@@ -99,6 +100,9 @@ func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) error {
 	if p == nil {
 		return errors.New("cannot add nil payload")
 	}
+	if upq.blockNos[p.ID().Number] {
+		return errors.New("cannot add duplicate payload")
+	}
 	size := upq.SizeFn(p)
 	if size > upq.MaxSize {
 		return fmt.Errorf("cannot add payload %s, payload mem size %d is larger than max queue size %d", p.ID(), size, upq.MaxSize)
@@ -111,6 +115,7 @@ func (upq *PayloadsQueue) Push(p *eth.ExecutionPayload) error {
 	for upq.currentSize > upq.MaxSize {
 		upq.Pop()
 	}
+	upq.blockNos[p.ID().Number] = true
 	return nil
 }
 
@@ -132,5 +137,7 @@ func (upq *PayloadsQueue) Pop() *eth.ExecutionPayload {
 	}
 	ps := heap.Pop(&upq.pq).(payloadAndSize) // nosemgrep
 	upq.currentSize -= ps.size
+	// remove the key from the blockNos map
+	delete(upq.blockNos, ps.payload.ID().Number)
 	return ps.payload
 }

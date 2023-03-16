@@ -181,7 +181,6 @@ export const getContractFromArtifact = async (
   } = {}
 ): Promise<ethers.Contract> => {
   const artifact = await hre.deployments.get(name)
-  await hre.ethers.provider.waitForTransaction(artifact.receipt.transactionHash)
 
   // Get the deployed contract's interface.
   let iface = new hre.ethers.utils.Interface(artifact.abi)
@@ -394,5 +393,17 @@ export const getTenderlySimulationLink = async (
       rawFunctionInput: tx.data,
       from: tx.from,
     }).toString()}`
+  }
+}
+
+/**
+ * Returns a cast commmand for submitting a given transaction.
+ *
+ * @param tx Ethers transaction object.
+ * @returns the cast command
+ */
+export const getCastCommand = (tx: ethers.PopulatedTransaction): string => {
+  if (process.env.CAST_COMMANDS) {
+    return `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
   }
 }
