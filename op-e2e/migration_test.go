@@ -277,6 +277,7 @@ func TestMigration(t *testing.T) {
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
+		L2Sync: &node.PreparedL2SyncEndpoint{Client: nil, TrustRPC: false},
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
 			SequencerConfDepth: 0,

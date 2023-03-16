@@ -682,7 +682,8 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	return io.EOF
 }
 
-// GetUnsafeQueueGap retrieves the current [start, end] range of the gap between the tip of the unsafe priority queue and the unsafe head.
+// GetUnsafeQueueGap retrieves the current [start, end) range (incl. start, excl. end)
+// of the gap between the tip of the unsafe priority queue and the unsafe head.
 // If there is no gap, the difference between end and start will be 0.
 func (eq *EngineQueue) GetUnsafeQueueGap(expectedNumber uint64) (start uint64, end uint64) {
 	// The start of the gap is always the unsafe head + 1
@@ -691,9 +692,11 @@ func (eq *EngineQueue) GetUnsafeQueueGap(expectedNumber uint64) (start uint64, e
 	// If the priority queue is empty, the end is the first block number at the top of the priority queue
 	// Otherwise, the end is the expected block number
 	if first := eq.unsafePayloads.Peek(); first != nil {
+		// Don't include the payload we already have in the sync range
 		end = first.ID().Number
 	} else {
-		end = expectedNumber
+		// Include the expected payload in the sync range
+		end = expectedNumber + 1
 	}
 
 	return start, end
