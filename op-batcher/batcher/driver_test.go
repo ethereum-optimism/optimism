@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher/mocks"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
@@ -52,10 +53,11 @@ func constructDefaultBatchSubmitter(l log.Logger, l1Client L1ConfigProvider, l2C
 			ChannelTimeout:     40,
 			MaxChannelDuration: 1,
 			SubSafetyMargin:    4,
-			MaxFrameSize:       120000,
-			TargetFrameSize:    100000,
-			TargetNumFrames:    1,
-			ApproxComprRatio:   0.4,
+			// Set the max frame size to 1 so that we can test sending transactions
+			MaxFrameSize:     1,
+			TargetFrameSize:  1,
+			TargetNumFrames:  1,
+			ApproxComprRatio: 0.4,
 		},
 	}
 
@@ -117,7 +119,18 @@ func TestDriverLoadBlocksIntoState(t *testing.T) {
 	header := types.Header{
 		Number: oneZeroOne,
 	}
-	block := types.NewBlock(&header, []*types.Transaction{}, nil, nil, trie.NewStackTrie(nil))
+	l1Block := types.NewBlock(&types.Header{
+		BaseFee:    big.NewInt(10),
+		Difficulty: common.Big0,
+		Number:     big.NewInt(100),
+	}, nil, nil, nil, trie.NewStackTrie(nil))
+	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, false)
+	require.NoError(t, err)
+	txs := []*types.Transaction{}
+	for i := 0; i < 10; i++ {
+		txs = append(txs, types.NewTx(l1InfoTx))
+	}
+	block := types.NewBlock(&header, txs, nil, nil, trie.NewStackTrie(nil))
 	l2Client.On("BlockByNumber", mock.Anything, oneZeroOne).Return(block, nil).Once()
 
 	// Make the second L2 BlockByNumber call return a reorg error
