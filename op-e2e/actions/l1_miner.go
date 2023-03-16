@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/stretchr/testify/require"
 )
 
 // L1Miner wraps a L1Replica with instrumented block building ability.
@@ -100,24 +101,31 @@ func (s *L1Miner) ActL1IncludeTx(from common.Address) Action {
 			t.Fatalf("no pending txs from %s, and have %d unprocessable queued txs from this account", from, len(q))
 		}
 		tx := txs[i]
-		if tx.Gas() > s.l1BuildingHeader.GasLimit {
-			t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
-		}
-		if tx.Gas() > uint64(*s.l1GasPool) {
-			t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.l1GasPool))
-			return
-		}
+		s.IncludeTx(t, tx)
 		s.pendingIndices[from] = i + 1 // won't retry the tx
-		s.l1BuildingState.SetTxContext(tx.Hash(), len(s.l1Transactions))
-		receipt, err := core.ApplyTransaction(s.l1Cfg.Config, s.l1Chain, &s.l1BuildingHeader.Coinbase,
-			s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx, &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
-		if err != nil {
-			s.l1TxFailed = append(s.l1TxFailed, tx)
-			t.Fatalf("failed to apply transaction to L1 block (tx %d): %w", len(s.l1Transactions), err)
-		}
-		s.l1Receipts = append(s.l1Receipts, receipt)
-		s.l1Transactions = append(s.l1Transactions, tx)
 	}
+}
+
+func (s *L1Miner) IncludeTx(t Testing, tx *types.Transaction) {
+	from, err := s.l1Signer.Sender(tx)
+	require.NoError(t, err)
+	s.log.Info("including tx", "nonce", tx.Nonce(), "from", from)
+	if tx.Gas() > s.l1BuildingHeader.GasLimit {
+		t.Fatalf("tx consumes %d gas, more than available in L1 block %d", tx.Gas(), s.l1BuildingHeader.GasLimit)
+	}
+	if tx.Gas() > uint64(*s.l1GasPool) {
+		t.InvalidAction("action takes too much gas: %d, only have %d", tx.Gas(), uint64(*s.l1GasPool))
+		return
+	}
+	s.l1BuildingState.SetTxContext(tx.Hash(), len(s.l1Transactions))
+	receipt, err := core.ApplyTransaction(s.l1Cfg.Config, s.l1Chain, &s.l1BuildingHeader.Coinbase,
+		s.l1GasPool, s.l1BuildingState, s.l1BuildingHeader, tx, &s.l1BuildingHeader.GasUsed, *s.l1Chain.GetVMConfig())
+	if err != nil {
+		s.l1TxFailed = append(s.l1TxFailed, tx)
+		t.Fatalf("failed to apply transaction to L1 block (tx %d): %v", len(s.l1Transactions), err)
+	}
+	s.l1Receipts = append(s.l1Receipts, receipt)
+	s.l1Transactions = append(s.l1Transactions, tx)
 }
 
 func (s *L1Miner) ActL1SetFeeRecipient(coinbase common.Address) {

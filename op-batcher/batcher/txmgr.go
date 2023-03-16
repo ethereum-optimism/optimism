@@ -55,7 +55,7 @@ func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, 100*time.Second) // TODO: Select a timeout that makes sense here.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute) // TODO: Select a timeout that makes sense here.
 	defer cancel()
 	if receipt, err := t.txMgr.Send(ctx, tx); err != nil {
 		t.log.Warn("unable to publish tx", "err", err, "data_size", len(data))

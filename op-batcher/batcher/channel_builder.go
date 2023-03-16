@@ -129,6 +129,8 @@ type channelBuilder struct {
 	frames []frameData
 }
 
+// newChannelBuilder creates a new channel builder or returns an error if the
+// channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
 	co, err := derive.NewChannelOut()
 	if err != nil {
@@ -255,7 +257,7 @@ func (c *channelBuilder) updateTimeout(timeoutBlockNum uint64, reason error) {
 }
 
 // checkTimeout checks if the channel is timed out at the given block number and
-// in this case marks the channel as full, if it wasn't full alredy.
+// in this case marks the channel as full, if it wasn't full already.
 func (c *channelBuilder) checkTimeout(blockNum uint64) {
 	if !c.IsFull() && c.TimedOut(blockNum) {
 		c.setFullErr(c.timeoutReason)
