@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -19,6 +18,29 @@ import (
 
 const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
 
+// ExternalTxManager is a minimal interface for the [TransactionManager]
+// that is a subset of [txmgr.SimpleTxManager] functionality
+//
+//go:generate mockery --name ExternalTxManager --output ./mocks
+type ExternalTxManager interface {
+	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
+}
+
+// NewExternalTxManager creates a new tx manager with the given config.
+func NewExternalTxManager(log log.Logger, txMgrConfg txmgr.Config, l1Client txmgr.ETHBackend) ExternalTxManager {
+	return txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client)
+}
+
+// TxManagerProvider is a minimal interface for the [TransactionManager]
+// to fetch data from a fully-featured [ethclient.Client].
+//
+//go:generate mockery --name TxManagerProvider --output ./mocks
+type TxManagerProvider interface {
+	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+}
+
 // TransactionManager wraps the simple txmgr package to make it easy to send & wait for transactions
 type TransactionManager struct {
 	// Config
@@ -26,18 +48,18 @@ type TransactionManager struct {
 	senderAddress     common.Address
 	chainID           *big.Int
 	// Outside world
-	txMgr    txmgr.TxManager
-	l1Client *ethclient.Client
+	txMgr    ExternalTxManager
+	l1Client TxManagerProvider
 	signerFn opcrypto.SignerFn
 	log      log.Logger
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client TxManagerProvider, externalTxMgr ExternalTxManager) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
 		chainID:           chainID,
-		txMgr:             txmgr.NewSimpleTxManager("batcher", log, txMgrConfg, l1Client),
+		txMgr:             externalTxMgr,
 		l1Client:          l1Client,
 		signerFn:          txMgrConfg.Signer,
 		log:               log,

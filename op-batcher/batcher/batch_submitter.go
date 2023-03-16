@@ -73,7 +73,11 @@ func Main(version string, cliCtx *cli.Context) error {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", batchSubmitter.L1Client, batchSubmitter.From)
+		l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
+		if err != nil {
+			l.Error("Failed to connect to L1 provider to enable ")
+		}
+		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l1Client, batchSubmitter.From)
 	}
 
 	rpcCfg := cfg.RPCConfig

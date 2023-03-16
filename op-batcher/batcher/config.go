@@ -1,17 +1,19 @@
 package batcher
 
 import (
+	"context"
+	"math/big"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
@@ -19,11 +21,41 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
+// L1ConfigProvider is a minimal interface that allows the batch submitter to query
+// the L1 chain, and is coalesced into a [txmgr.ETHBackend] for the [TransactionManager].
+//
+//go:generate mockery --name L1ConfigProvider --output ./mocks
+type L1ConfigProvider interface {
+	// BlockNumber returns the most recent block number.
+	BlockNumber(ctx context.Context) (uint64, error)
+	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+	BalanceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (*big.Int, error)
+	TransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+	SendTransaction(ctx context.Context, tx *types.Transaction) error
+}
+
+// L2ConfigProvider is a minimal interface that allows the batch submitter to query L2.
+//
+//go:generate mockery --name L2ConfigProvider --output ./mocks
+type L2ConfigProvider interface {
+	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
+}
+
+// RollupNodeConfigProvider is a minimal interface that allows the batch submitter to query
+// the rollup node.
+//
+//go:generate mockery --name RollupNodeConfigProvider --output ./mocks
+type RollupNodeConfigProvider interface {
+	SyncStatus(ctx context.Context) (*eth.SyncStatus, error)
+}
+
 type Config struct {
 	log             log.Logger
-	L1Client        *ethclient.Client
-	L2Client        *ethclient.Client
-	RollupNode      *sources.RollupClient
+	L1Client        L1ConfigProvider
+	L2Client        L2ConfigProvider
+	RollupNode      RollupNodeConfigProvider
 	PollInterval    time.Duration
 	TxManagerConfig txmgr.Config
 	From            common.Address

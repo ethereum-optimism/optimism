@@ -118,14 +118,14 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSub
 	cfg.log = l
 	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
 
+	externalTxManager := NewExternalTxManager(l, cfg.TxManagerConfig, cfg.L1Client)
 	return &BatchSubmitter{
 		Config: cfg,
 		txMgr: NewTransactionManager(l,
 			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
-			cfg.From, cfg.L1Client),
+			cfg.From, cfg.L1Client, externalTxManager),
 		state: NewChannelManager(l, cfg.Channel),
 	}, nil
-
 }
 
 func (l *BatchSubmitter) Start() error {
