@@ -157,7 +157,7 @@ func (cfg *Config) CheckL2ChainID(ctx context.Context, client L2Client) error {
 		return err
 	}
 	if cfg.L2ChainID.Cmp(id) != 0 {
-		return fmt.Errorf("incorrect L2 RPC chain id %d, expected %d", cfg.L2ChainID, id)
+		return fmt.Errorf("incorrect L2 RPC chain id, expected from config %d, obtained from client %d", cfg.L2ChainID, id)
 	}
 	return nil
 }
