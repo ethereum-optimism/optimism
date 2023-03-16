@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -15,10 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/stretchr/testify/require"
 )
-
-type FakeClient struct {
-	ethclient.Client
-}
 
 func constructDefaultBatchSubmitter(l log.Logger) (*BatchSubmitter, error) {
 	resubmissionTimeout, err := time.ParseDuration("30s")
@@ -66,12 +63,17 @@ func constructDefaultBatchSubmitter(l log.Logger) (*BatchSubmitter, error) {
 
 // TestDriverLoadBlocksIntoState ensures that the [BatchSubmitter] can load blocks into the state.
 func TestDriverLoadBlocksIntoState(t *testing.T) {
+	// t.Skip("Hoisting this test to op-e2e for proper client construction...")
+
+	fmt.Println("Inside TestDriverLoadBlocksIntoState...")
+
 	// Create a new [BatchSubmitter]
 	log := testlog.Logger(t, log.LvlCrit)
+	fmt.Printf("Constructing default batch submitter...\n")
 	b, err := constructDefaultBatchSubmitter(log)
 	require.NoError(t, err)
 
 	// Load blocks into the state
+	fmt.Println("Loading blocks into state...")
 	b.loadBlocksIntoState(context.Background())
-
 }
