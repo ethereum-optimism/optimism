@@ -18,39 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestChannelManagerAddL2Block tests adding an L2 block to the channel manager.
-func TestChannelManagerAddL2Block(t *testing.T) {
-	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
-
-	// Add one block and assert state changes
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, nil, nil, nil, nil)
-	err := m.AddL2Block(a)
-	require.NoError(t, err)
-	require.Equal(t, []*types.Block{a}, m.blocks)
-	require.Equal(t, a.Hash(), m.tip)
-
-	// Add another block and assert state changes
-	b := types.NewBlock(&types.Header{
-		Number:     big.NewInt(1),
-		ParentHash: a.Hash(),
-	}, nil, nil, nil, nil)
-	err = m.AddL2Block(b)
-	require.NoError(t, err)
-	require.Equal(t, []*types.Block{a, b}, m.blocks)
-	require.Equal(t, b.Hash(), m.tip)
-
-	// Adding a block with an invalid parent hash should fail
-	c := types.NewBlock(&types.Header{
-		Number:     big.NewInt(2),
-		ParentHash: common.Hash{},
-	}, nil, nil, nil, nil)
-	err = m.AddL2Block(c)
-	require.ErrorIs(t, ErrReorg, err)
-}
-
 // TestPendingChannelTimeout tests that the channel manager
 // correctly identifies when a pending channel is timed out.
 func TestPendingChannelTimeout(t *testing.T) {
@@ -75,16 +42,8 @@ func TestPendingChannelTimeout(t *testing.T) {
 
 	// Manually set a confirmed transactions
 	// To avoid other methods clearing state
-	m.confirmedTransactions[frameID{
-		frameNumber: 0,
-	}] = eth.BlockID{
-		Number: 0,
-	}
-	m.confirmedTransactions[frameID{
-		frameNumber: 1,
-	}] = eth.BlockID{
-		Number: 99,
-	}
+	m.confirmedTransactions[frameID{frameNumber: 0}] = eth.BlockID{Number: 0}
+	m.confirmedTransactions[frameID{frameNumber: 1}] = eth.BlockID{Number: 99}
 
 	// Since the ChannelTimeout is 100, the
 	// pending channel should not be timed out
@@ -134,6 +93,8 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 	require.NoError(t, err)
 	err = m.AddL2Block(x)
 	require.ErrorIs(t, err, ErrReorg)
+
+	require.Equal(t, []*types.Block{a, b, c}, m.blocks)
 }
 
 // TestChannelManagerReturnsErrReorgWhenDrained ensures that the channel manager
