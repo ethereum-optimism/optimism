@@ -517,23 +517,30 @@ New frames for timed-out channels are dropped instead of buffered.
 
 The channel-bank can only output data from the first opened channel.
 
-Upon reading, first all timed-out channels are dropped.
+Upon reading, first all expired channels are removed from the known complete channels.
+
+A channel is expired if:
+`current_l1_block.number > channel.open_l1_block.number + max(SEQUENCING_WINDOW_SIZE, CHANNEL_TIMEOUT)`
+
+After expiring known channels, all timed-out channels are moved to the set of known complete channels.
 
 After pruning timed-out channels, the first remaining channel, if any, is read if it is ready:
 
 - The channel must be closed
 - The channel must have a contiguous sequence of frames until the closing frame
 
+After being read, the channel is moved to the set of known complete channels.
+
 If no channel is ready, the next frame is read and ingested into the channel bank.
 
 #### Loading frames
 
-When a channel ID referenced by a frame is not already present in the Channel Bank,
+When a channel ID referenced by a frame is not already present in the Channel Bank, or in the known complete channels,
 a new channel is opened, tagged with the current L1 block, and appended to the channel-queue.
 
 Frame insertion conditions:
 
-- New frames matching existing timed-out channels are dropped.
+- New frames matching known complete channels are dropped.
 - Duplicate frames (by frame number) are dropped.
 - Duplicate closes (new frame `is_last == 1`, but the channel has already seen a closing frame) are dropped.
 
