@@ -213,3 +213,58 @@ func BlockToBatch(block *types.Block) (*BatchData, error) {
 		},
 	}, nil
 }
+
+// ForceCloseTxData generates the transaction data for a transaction which will force close
+// a channel. It should be given every frame of that channel which has been submitted on
+// chain. The frames should be given in order that they appear on L1.
+func ForceCloseTxData(frames []Frame) ([]byte, error) {
+	if len(frames) == 0 {
+		return nil, errors.New("must provide at least one frame")
+	}
+	frameNumbers := make(map[uint16]struct{})
+	id := frames[0].ID
+	closeNumber := uint16(0)
+	closed := false
+	for i, frame := range frames {
+		if !closed && frame.IsLast {
+			closeNumber = frame.FrameNumber
+		}
+		closed = closed || frame.IsLast
+		frameNumbers[frame.FrameNumber] = struct{}{}
+		if frame.ID != id {
+			return nil, fmt.Errorf("invalid ID in list: first ID: %v, %vth ID: %v", id, i, frame.ID)
+		}
+	}
+
+	var out bytes.Buffer
+	out.WriteByte(DerivationVersion0)
+
+	if !closed {
+		f := Frame{
+			ID:          id,
+			FrameNumber: 0,
+			Data:        nil,
+			IsLast:      true,
+		}
+		if err := f.MarshalBinary(&out); err != nil {
+			return nil, err
+		}
+	} else {
+		for i := uint16(0); i <= closeNumber; i++ {
+			if _, ok := frameNumbers[i]; ok {
+				continue
+			}
+			f := Frame{
+				ID:          id,
+				FrameNumber: i,
+				Data:        nil,
+				IsLast:      false,
+			}
+			if err := f.MarshalBinary(&out); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return out.Bytes(), nil
+}

@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -119,14 +120,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
 		Nodes: map[string]*rollupNode.Config{
-			"verifier": {
-				Driver: driver.Config{
-					VerifierConfDepth:  0,
-					SequencerConfDepth: 0,
-					SequencerEnabled:   false,
-				},
-				L1EpochPollInterval: time.Second * 4,
-			},
 			"sequencer": {
 				Driver: driver.Config{
 					VerifierConfDepth:  0,
@@ -138,6 +131,14 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					ListenAddr:  "127.0.0.1",
 					ListenPort:  0,
 					EnableAdmin: true,
+				},
+				L1EpochPollInterval: time.Second * 4,
+			},
+			"verifier": {
+				Driver: driver.Config{
+					VerifierConfDepth:  0,
+					SequencerConfDepth: 0,
+					SequencerEnabled:   false,
 				},
 				L1EpochPollInterval: time.Second * 4,
 			},
@@ -225,7 +226,43 @@ func (sys *System) Close() {
 	sys.Mocknet.Close()
 }
 
-func (cfg SystemConfig) Start() (*System, error) {
+type systemConfigHook func(sCfg *SystemConfig, s *System)
+
+type SystemConfigOption struct {
+	key    string
+	role   string
+	action systemConfigHook
+}
+
+type SystemConfigOptions struct {
+	opts map[string]systemConfigHook
+}
+
+func NewSystemConfigOptions(_opts []SystemConfigOption) (SystemConfigOptions, error) {
+	opts := make(map[string]systemConfigHook)
+	for _, opt := range _opts {
+		if _, ok := opts[opt.key+":"+opt.role]; ok {
+			return SystemConfigOptions{}, fmt.Errorf("duplicate option for key %s and role %s", opt.key, opt.role)
+		}
+		opts[opt.key+":"+opt.role] = opt.action
+	}
+
+	return SystemConfigOptions{
+		opts: opts,
+	}, nil
+}
+
+func (s *SystemConfigOptions) Get(key, role string) (systemConfigHook, bool) {
+	v, ok := s.opts[key+":"+role]
+	return v, ok
+}
+
+func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
+	opts, err := NewSystemConfigOptions(_opts)
+	if err != nil {
+		return nil, err
+	}
+
 	sys := &System{
 		cfg:         cfg,
 		Nodes:       make(map[string]*node.Node),
@@ -457,7 +494,17 @@ func (cfg SystemConfig) Start() (*System, error) {
 	snapLog.SetHandler(log.DiscardHandler())
 
 	// Rollup nodes
-	for name, nodeConfig := range cfg.Nodes {
+
+	// Ensure we are looping through the nodes in alphabetical order
+	ks := make([]string, 0, len(cfg.Nodes))
+	for k := range cfg.Nodes {
+		ks = append(ks, k)
+	}
+	// Sort strings in ascending alphabetical order
+	sort.Strings(ks)
+
+	for _, name := range ks {
+		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()
 
@@ -482,6 +529,10 @@ func (cfg SystemConfig) Start() (*System, error) {
 			return nil, err
 		}
 		sys.RollupNodes[name] = node
+
+		if action, ok := opts.Get("afterRollupNodeStart", name); ok {
+			action(&cfg, sys)
+		}
 	}
 
 	if cfg.P2PTopology != nil {

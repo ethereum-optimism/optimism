@@ -29,7 +29,9 @@ var (
 	}
 )
 
-func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, chainID int, noCheck bool) error {
+type FilteredOVMETHAddresses []common.Address
+
+func MigrateLegacyETH(db *state.StateDB, addresses FilteredOVMETHAddresses, chainID int, noCheck bool) error {
 	// Chain params to use for integrity checking.
 	params := crossdomain.ParamsByChainID[chainID]
 	if params == nil {
@@ -39,28 +41,15 @@ func MigrateLegacyETH(db *state.StateDB, addresses []common.Address, chainID int
 	// Log the chain params for debugging purposes.
 	log.Info("Chain params", "chain-id", chainID, "supply-delta", params.ExpectedSupplyDelta)
 
-	// Deduplicate the list of addresses by converting to a map.
-	deduped := make(map[common.Address]bool)
-	for _, addr := range addresses {
-		deduped[addr] = true
-	}
-
 	// Migrate the legacy ETH to ETH.
 	log.Info("Migrating legacy ETH to ETH", "num-accounts", len(addresses))
 	totalMigrated := new(big.Int)
 	logAccountProgress := util.ProgressLogger(1000, "imported accounts")
-	for addr := range deduped {
-		// No accounts should have a balance in state. If they do, bail.
-		if db.GetBalance(addr).Sign() > 0 {
-			if noCheck {
-				log.Error("account has non-zero balance in state - should never happen", "addr", addr)
-			} else {
-				log.Crit("account has non-zero balance in state - should never happen", "addr", addr)
-			}
-		}
+	for _, addr := range addresses {
+		// Balances are pre-checked not have any balances in state.
 
 		// Pull out the OVM ETH balance.
-		ovmBalance := getOVMETHBalance(db, addr)
+		ovmBalance := GetOVMETHBalance(db, addr)
 
 		// Actually perform the migration by setting the appropriate values in state.
 		db.SetBalance(addr, ovmBalance)

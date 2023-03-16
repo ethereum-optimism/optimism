@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -251,7 +253,7 @@ func PostCheckPredeploys(prevDB, currDB *state.StateDB) error {
 
 		// Balances and nonces should match legacy
 		oldNonce := prevDB.GetNonce(addr)
-		oldBalance := prevDB.GetBalance(addr)
+		oldBalance := ether.GetOVMETHBalance(prevDB, addr)
 		newNonce := currDB.GetNonce(addr)
 		newBalance := currDB.GetBalance(addr)
 		if oldNonce != newNonce {
@@ -543,7 +545,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data crossdomain.MigrationData, l1Cros
 
 		// If the sender is _not_ the L2XDM, the value should not be migrated.
 		wd := wdsByOldSlot[key]
-		if wd.XDomainSender == predeploys.L2CrossDomainMessengerAddr {
+		if wd.MessageSender == predeploys.L2CrossDomainMessengerAddr {
 			// Make sure the value is abiTrue if this withdrawal should be migrated.
 			if migratedValue != abiTrue {
 				innerErr = fmt.Errorf("expected migrated value to be true, but got %s", migratedValue)
@@ -552,7 +554,7 @@ func CheckWithdrawalsAfter(db vm.StateDB, data crossdomain.MigrationData, l1Cros
 		} else {
 			// Otherwise, ensure that withdrawals from senders other than the L2XDM are _not_ migrated.
 			if migratedValue != abiFalse {
-				innerErr = fmt.Errorf("a migration from a sender other than the L2XDM was migrated")
+				innerErr = fmt.Errorf("a migration from a sender other than the L2XDM was migrated. sender: %s, migrated value: %s", wd.MessageSender, migratedValue)
 				return false
 			}
 		}
