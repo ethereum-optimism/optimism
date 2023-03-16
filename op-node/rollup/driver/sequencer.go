@@ -123,6 +123,14 @@ func (d *Sequencer) CancelBuildingBlock(ctx context.Context) {
 
 // PlanNextSequencerAction returns a desired delay till the RunNextSequencerAction call.
 func (d *Sequencer) PlanNextSequencerAction() time.Duration {
+	// If the engine is busy building safe blocks (and thus changing the head that we would sync on top of),
+	// then give it time to sync up.
+	if onto, _, safe := d.engine.BuildingPayload(); safe {
+		d.log.Warn("delaying sequencing to not interrupt safe-head changes", "onto", onto, "onto_time", onto.Time)
+		// approximates the worst-case time it takes to build a block, to reattempt sequencing after.
+		return time.Second * time.Duration(d.config.BlockTime)
+	}
+
 	head := d.engine.UnsafeL2Head()
 	now := d.timeNow()
 
@@ -173,7 +181,7 @@ func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
 // Only critical errors are bubbled up, other errors are handled internally.
 // Internally starting or sealing of a block may fail with a derivation-like error:
 //   - If it is a critical error, the error is bubbled up to the caller.
-//   - If it is a reset error, the ResettableEngineControl used to build blocks is requested to reset, and a backoff aplies.
+//   - If it is a reset error, the ResettableEngineControl used to build blocks is requested to reset, and a backoff applies.
 //     No attempt is made at completing the block building.
 //   - If it is a temporary error, a backoff is applied to reattempt building later.
 //   - If it is any other error, a backoff is applied and building is cancelled.
@@ -187,8 +195,15 @@ func (d *Sequencer) BuildingOnto() eth.L2BlockRef {
 // since it can consolidate previously sequenced blocks by comparing sequenced inputs with derived inputs.
 // If the derivation pipeline does force a conflicting block, then an ongoing sequencer task might still finish,
 // but the derivation can continue to reset until the chain is correct.
+// If the engine is currently building safe blocks, then that building is not interrupted, and sequencing is delayed.
 func (d *Sequencer) RunNextSequencerAction(ctx context.Context) (*eth.ExecutionPayload, error) {
-	if _, buildingID, _ := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) {
+	if onto, buildingID, safe := d.engine.BuildingPayload(); buildingID != (eth.PayloadID{}) {
+		if safe {
+			d.log.Warn("avoiding sequencing to not interrupt safe-head changes", "onto", onto, "onto_time", onto.Time)
+			// approximates the worst-case time it takes to build a block, to reattempt sequencing after.
+			d.nextAction = d.timeNow().Add(time.Second * time.Duration(d.config.BlockTime))
+			return nil, nil
+		}
 		payload, err := d.CompleteBuildingBlock(ctx)
 		if err != nil {
 			if errors.Is(err, derive.ErrCritical) {
