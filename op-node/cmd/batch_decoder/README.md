@@ -26,6 +26,16 @@ the transaction hash.
 into channels. It then stores the channels with metadata on disk where the file name is the Channel ID.
 
 
+### Force Close
+
+`batch_decoder force-close` will create a transaction data that can be sent from the batcher address to
+the batch inbox address which will force close the given channels. This will allow future channels to
+be read without waiting for the channel timeout. It uses uses the results from `batch_decoder fetch` to
+create the close transaction because the transaction it creates for a specific channel requires information
+about if the channel has been closed or not. If it has been closed already but is missing specific frames
+those frames need to be generated differently than simply closing the channel.
+
+
 ## JQ Cheat Sheet
 
 `jq` is a really useful utility for manipulating JSON files.
@@ -48,7 +58,6 @@ jq "select(.is_ready == false)|[.id, .frames[0].inclusion_block, .frames[0].tran
 ## Roadmap
 
 - Parallel transaction fetching (CLI-3563)
-- Create force-close channel tx data from channel ID (CLI-3564)
 - Pull the batches out of channels & store that information inside the ChannelWithMetadata (CLI-3565)
 	- Transaction Bytes used
 	- Total uncompressed (different from tx bytes) + compressed bytes
