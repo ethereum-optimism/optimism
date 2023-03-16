@@ -1,5 +1,15 @@
 # @eth-optimism/fault-detector
 
+## 0.6.2
+
+### Patch Changes
+
+- f9b579d55: Fixes a bug that would cause the fault detector to error out if no outputs had been proposed yet.
+- Updated dependencies [fecd42d67]
+- Updated dependencies [66cafc00a]
+  - @eth-optimism/common-ts@0.8.1
+  - @eth-optimism/sdk@2.0.1
+
 ## 0.6.1
 
 ### Patch Changes
