@@ -97,7 +97,6 @@ jobs:
             - "packages/migration-data/node_modules"
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
-            - "packages/two-step-monitor/node_modules"
       - run:
           name: print forge version
           command: forge --version
@@ -543,10 +542,6 @@ jobs:
           name: Check integration-tests
           command: npx depcheck
           working_directory: integration-tests
-      - run:
-          name: Check two-step-monitor
-          command: npx depcheck
-          working_directory: packages/two-step-monitor
 
   go-lint:
     parameters:
@@ -611,7 +606,7 @@ jobs:
           command: |
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
+            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
             -- -timeout=20m ./...
           working_directory: <<parameters.module>>

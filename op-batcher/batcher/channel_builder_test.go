@@ -29,6 +29,25 @@ var defaultTestChannelConfig = ChannelConfig{
 	ApproxComprRatio:   0.4,
 }
 
+// TestConfigValidation tests the validation of the [ChannelConfig] struct.
+func TestConfigValidation(t *testing.T) {
+	// Construct a valid config.
+	validChannelConfig := defaultTestChannelConfig
+	require.NoError(t, validChannelConfig.Check())
+
+	// Set the config to have a zero max frame size.
+	validChannelConfig.MaxFrameSize = 0
+	require.ErrorIs(t, validChannelConfig.Check(), ErrInvalidMaxFrameSize)
+
+	// Reset the config and test the Timeout error.
+	// NOTE: We should be fuzzing these values with the constraint that
+	// 		 SubSafetyMargin > ChannelTimeout to ensure validation.
+	validChannelConfig = defaultTestChannelConfig
+	validChannelConfig.ChannelTimeout = 0
+	validChannelConfig.SubSafetyMargin = 1
+	require.ErrorIs(t, validChannelConfig.Check(), ErrInvalidChannelTimeout)
+}
+
 // addNonsenseBlock is a helper function that adds a nonsense block
 // to the channel builder using the [channelBuilder.AddBlock] method.
 func addNonsenseBlock(cb *channelBuilder) error {

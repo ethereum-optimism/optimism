@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
 )
 
@@ -63,7 +64,11 @@ type Driver struct {
 	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
 
+	// Backup unsafe sync client
+	L2SyncCl *sources.SyncClient
+
 	// L2 Signals:
+
 	unsafeL2Payloads chan *eth.ExecutionPayload
 
 	l1        L1Chain
@@ -195,6 +200,12 @@ func (s *Driver) eventLoop() {
 		sequencerTimer.Reset(delay)
 	}
 
+	// Create a ticker to check if there is a gap in the engine queue every 15 seconds
+	// If there is, we send requests to the backup RPC to retrieve the missing payloads
+	// and add them to the unsafe queue.
+	altSyncTicker := time.NewTicker(15 * time.Second)
+	defer altSyncTicker.Stop()
+
 	for {
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 		// This may adjust at any time based on fork-choice changes or previous errors.
@@ -223,6 +234,12 @@ func (s *Driver) eventLoop() {
 				}
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
+		case <-altSyncTicker.C:
+			// Check if there is a gap in the current unsafe payload queue. If there is, attempt to fetch
+			// missing payloads from the backup RPC (if it is configured).
+			if s.L2SyncCl != nil {
+				s.checkForGapInUnsafeQueue(ctx)
+			}
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
@@ -441,4 +458,37 @@ type hashAndError struct {
 type hashAndErrorChannel struct {
 	hash common.Hash
 	err  chan error
+}
+
+// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from the backup RPC.
+// WARNING: The sync client's attempt to retrieve the missing payloads is not guaranteed to succeed, and it will fail silently (besides
+// emitting warning logs) if the requests fail.
+func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) {
+	// subtract genesis time from wall clock to get the time elapsed since genesis, and then divide that
+	// difference by the block time to get the expected L2 block number at the current time. If the
+	// unsafe head does not have this block number, then there is a gap in the queue.
+	wallClock := uint64(time.Now().Unix())
+	genesisTimestamp := s.config.Genesis.L2Time
+	wallClockGenesisDiff := wallClock - genesisTimestamp
+	expectedL2Block := wallClockGenesisDiff / s.config.BlockTime
+
+	start, end := s.derivation.GetUnsafeQueueGap(expectedL2Block)
+	size := end - start
+
+	// Check if there is a gap between the unsafe head and the expected L2 block number at the current time.
+	if size > 0 {
+		s.log.Warn("Gap in payload queue tip and expected unsafe chain detected", "start", start, "end", end, "size", size)
+		s.log.Info("Attempting to fetch missing payloads from backup RPC", "start", start, "end", end, "size", size)
+
+		// Attempt to fetch the missing payloads from the backup unsafe sync RPC concurrently.
+		// Concurrent requests are safe here due to the engine queue being a priority queue.
+		for blockNumber := start; blockNumber <= end; blockNumber++ {
+			select {
+			case s.L2SyncCl.FetchUnsafeBlock <- blockNumber:
+				// Do nothing- the block number was successfully sent into the channel
+			default:
+				return // If the channel is full, return and wait for the next iteration of the event loop
+			}
+		}
+	}
 }
