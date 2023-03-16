@@ -1,8 +1,10 @@
 package batcher
 
 import (
+	"context"
 	"fmt"
 	"math/big"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -21,13 +23,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func constructDefaultBatchSubmitter(l log.Logger, l1Client L1ConfigProvider, l2Client L2ConfigProvider, rollupNode RollupNodeConfigProvider) (*BatchSubmitter, error) {
+func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l1Client L1ConfigProvider, l2Client L2ConfigProvider, rollupNode RollupNodeConfigProvider) (*BatchSubmitter, error) {
 	resubmissionTimeout, err := time.ParseDuration("30s")
 	if err != nil {
 		return nil, err
 	}
 
-	pollInterval, err := time.ParseDuration("1s")
+	pollInterval, err := time.ParseDuration("10s")
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +46,9 @@ func constructDefaultBatchSubmitter(l log.Logger, l1Client L1ConfigProvider, l2C
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 3,
 			From:                      common.Address{},
-			Signer:                    nil,
+			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+				return tx, nil
+			},
 		},
 		From:   common.Address{},
 		Rollup: &rollup.Config{},
@@ -66,8 +70,8 @@ func constructDefaultBatchSubmitter(l log.Logger, l1Client L1ConfigProvider, l2C
 		batchInboxAddress: batcherConfig.Rollup.BatchInboxAddress,
 		senderAddress:     batcherConfig.From,
 		chainID:           batcherConfig.Rollup.L1ChainID,
-		txMgr:             &mocks.ExternalTxManager{},
-		l1Client:          &mocks.TxManagerProvider{},
+		txMgr:             mockTxMgr,
+		l1Client:          l1Client,
 		signerFn:          batcherConfig.TxManagerConfig.Signer,
 		log:               l,
 	}
@@ -86,12 +90,20 @@ func constructDefaultBatchSubmitter(l log.Logger, l1Client L1ConfigProvider, l2C
 
 // TestDriverLoadBlocksIntoState ensures that the [BatchSubmitter] can load blocks into the state.
 func TestDriverLoadBlocksIntoState(t *testing.T) {
+	// Setup the batch submitter
 	l1Client := mocks.L1ConfigProvider{}
 	l2Client := mocks.L2ConfigProvider{}
 	rollupNode := mocks.RollupNodeConfigProvider{}
-	// rng := rand.New(rand.NewSource(1234))
+	txMgr := mocks.ExternalTxManager{}
+	log := testlog.Logger(t, log.LvlCrit)
+	fmt.Printf("Constructing default batch submitter...\n")
+	b, err := constructDefaultBatchSubmitter(log, &txMgr, &l1Client, &l2Client, &rollupNode)
+	require.NoError(t, err)
 
-	// Mocks 2 unsafe blocks (SafeL1.Number = 100, UnsafeL1.Number = 102)
+	// The first block range will only be the first block.
+	// This allows the batch submitter to construct a pending transaction
+	// and then have the second block range be the second block
+	// which will re-org the pending transaction and clear state.
 	rollupNode.On("SyncStatus", mock.Anything).Return(&eth.SyncStatus{
 		HeadL1: eth.L1BlockRef{
 			Number:     100,
@@ -106,13 +118,12 @@ func TestDriverLoadBlocksIntoState(t *testing.T) {
 			Time:       0,
 		},
 		UnsafeL2: eth.L2BlockRef{
-			Number:     102,
+			Number:     101,
 			Hash:       common.Hash{},
 			ParentHash: common.Hash{},
 			Time:       0,
 		},
-		// Other fields aren't used in the driver
-	}, nil)
+	}, nil).Once()
 
 	// Mock the first L2 BlockByNumber call
 	oneZeroOne := new(big.Int).SetUint64(uint64(101))
@@ -126,40 +137,83 @@ func TestDriverLoadBlocksIntoState(t *testing.T) {
 	}, nil, nil, nil, trie.NewStackTrie(nil))
 	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, false)
 	require.NoError(t, err)
-	txs := []*types.Transaction{}
-	for i := 0; i < 10; i++ {
-		txs = append(txs, types.NewTx(l1InfoTx))
+	l1Client.On("HeaderByNumber", mock.Anything, mock.Anything).Return(&header, nil).Once()
+
+	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
+	for i := 0; i < 500_000; i++ {
+		txData := make([]byte, 32)
+		_, _ = rand.Read(txData)
+		tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), 0, big.NewInt(0), txData)
+		txs = append(txs, tx)
 	}
 	block := types.NewBlock(&header, txs, nil, nil, trie.NewStackTrie(nil))
 	l2Client.On("BlockByNumber", mock.Anything, oneZeroOne).Return(block, nil).Once()
 
+	// Mock internal calls for the batch transaction manager's sending transaction
+	l1Client.On("SuggestGasTipCap", mock.Anything).Return(big.NewInt(10), nil).Once()
+	l1Client.On("HeaderByNumber", mock.Anything, mock.Anything).Return(&types.Header{
+		BaseFee: big.NewInt(10),
+	}, nil).Once()
+	l1Client.On("NonceAt", mock.Anything, mock.Anything, mock.Anything).Return(uint64(0), nil).Once().Run(func(args mock.Arguments) {
+		// At this point, the batch submitter should have a pending transaction
+		// in the state.
+		fmt.Printf("Batch submitter pending transactions: %v\n", b.state.pendingTransactions)
+		require.Equal(t, 1, len(b.state.pendingTransactions))
+
+		// The number of frames should also be > 1, ie the batch submitter is not finished.
+		require.Greater(t, b.state.pendingChannel.NumFrames(), 1)
+		require.False(t, b.state.pendingChannelIsFullySubmitted())
+	})
+
+	// Block on the send call to allow
+	// .WaitUntil(time.After(100*time.Second))
+	txMgr.On("Send", mock.Anything, mock.Anything).Return(&types.Receipt{
+		TxHash:      common.Hash{},
+		BlockNumber: big.NewInt(1),
+	}, nil).Once()
+
+	// Once the polling interval fires the tick again,
+	// new unsafe L2 blocks will be loaded into the state.
+	// So we need to mock the sync status again with the new unsafe L2 block.
+	rollupNode.On("SyncStatus", mock.Anything).Return(&eth.SyncStatus{
+		HeadL1: eth.L1BlockRef{
+			Number:     100,
+			Hash:       common.Hash{},
+			ParentHash: common.Hash{},
+			Time:       0,
+		},
+		SafeL2: eth.L2BlockRef{
+			Number:     101,
+			Hash:       common.Hash{},
+			ParentHash: common.Hash{},
+			Time:       0,
+		},
+		UnsafeL2: eth.L2BlockRef{
+			Number:     102,
+			Hash:       common.Hash{},
+			ParentHash: common.Hash{},
+			Time:       0,
+		},
+	}, nil).Once()
+
 	// Make the second L2 BlockByNumber call return a reorg error
 	oneZeroTwo := new(big.Int).SetUint64(uint64(102))
-	// header2 := types.Header{
-	// 	Number: oneZeroTwo,
-	// }
-	// block2 := types.NewBlock(&header2, []*types.Transaction{}, nil, nil, trie.NewStackTrie(nil))
-	l2Client.On("BlockByNumber", mock.Anything, oneZeroTwo).After(10*time.Second).Return(nil, ErrReorg).Once()
+	header = types.Header{
+		Number: oneZeroTwo,
+	}
+	l2Client.On("BlockByNumber", mock.Anything, oneZeroTwo).Return(nil, ErrReorg).Once()
+	l1Client.On("HeaderByNumber", mock.Anything, mock.Anything).Return(&header, nil).Once()
+	rollupNode.On("SyncStatus", mock.Anything).WaitUntil(time.After(10*time.Second)).Return(nil, nil).Once().Run(func(args mock.Arguments) {
+		fmt.Println("Batch submitter called sync status...")
+	})
+	l1Client.On("HeaderByNumber", mock.Anything, mock.Anything).Return(&header, nil).Once().Run(func(args mock.Arguments) {
+		fmt.Println("Batch submitter called header by number...")
+		b.wg.Done()
+	})
 
-	// Create a new [BatchSubmitter]
-	log := testlog.Logger(t, log.LvlCrit)
-	fmt.Printf("Constructing default batch submitter...\n")
-	b, err := constructDefaultBatchSubmitter(log, &l1Client, &l2Client, &rollupNode)
-	require.NoError(t, err)
-
-	l1Client.On("HeaderByNumber", mock.Anything, mock.Anything).Return(&header, nil)
-
-	// Load blocks into the state
-	// fmt.Println("Loading blocks into state...")
-	// b.loadBlocksIntoState(context.Background())
-	fmt.Println("Starting the driver...")
+	// Start the batch submitter
 	err = b.Start()
 	require.NoError(t, err)
-
-	// Wait for the driver to run
-	time.Sleep(1 * time.Second)
-
-	// Wait for the driver to finish
-	fmt.Println("Waiting for driver to finish...")
 	b.wg.Wait()
+	require.Equal(t, 0, len(b.state.pendingTransactions))
 }

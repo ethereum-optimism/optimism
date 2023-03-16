@@ -151,5 +151,6 @@ func (t *TransactionManager) CraftTx(ctx context.Context, data []byte) (*types.T
 	ctx, cancel = context.WithTimeout(ctx, networkTimeout)
 	defer cancel()
 	tx := types.NewTx(rawTx)
+
 	return t.signerFn(ctx, t.senderAddress, tx)
 }
