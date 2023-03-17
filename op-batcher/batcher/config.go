@@ -21,11 +21,11 @@ import (
 	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
-// L1ConfigProvider is a minimal interface that allows the batch submitter to query
+// L1DataProvider is a minimal interface that allows the batch submitter to query
 // the L1 chain, and is coalesced into a [txmgr.ETHBackend] for the [TransactionManager].
 //
-//go:generate mockery --name L1ConfigProvider --output ./mocks
-type L1ConfigProvider interface {
+//go:generate mockery --name L1DataProvider --output ./mocks
+type L1DataProvider interface {
 	// BlockNumber returns the most recent block number.
 	BlockNumber(ctx context.Context) (uint64, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
@@ -36,10 +36,10 @@ type L1ConfigProvider interface {
 	SendTransaction(ctx context.Context, tx *types.Transaction) error
 }
 
-// L2ConfigProvider is a minimal interface that allows the batch submitter to query L2.
+// L2DataProvider is a minimal interface that allows the batch submitter to query L2.
 //
-//go:generate mockery --name L2ConfigProvider --output ./mocks
-type L2ConfigProvider interface {
+//go:generate mockery --name L2DataProvider --output ./mocks
+type L2DataProvider interface {
 	BlockByNumber(ctx context.Context, number *big.Int) (*types.Block, error)
 }
 
@@ -53,8 +53,8 @@ type RollupNodeConfigProvider interface {
 
 type Config struct {
 	log             log.Logger
-	L1Client        L1ConfigProvider
-	L2Client        L2ConfigProvider
+	L1Client        L1DataProvider
+	L2Client        L2DataProvider
 	RollupNode      RollupNodeConfigProvider
 	PollInterval    time.Duration
 	TxManagerConfig txmgr.Config

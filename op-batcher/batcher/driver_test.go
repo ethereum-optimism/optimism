@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l1Client L1ConfigProvider, l2Client L2ConfigProvider, rollupNode RollupNodeConfigProvider) *BatchSubmitter {
+func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l1Client L1DataProvider, l2Client L2DataProvider, rollupNode RollupNodeConfigProvider) *BatchSubmitter {
 	resubmissionTimeout := 30 * time.Second
 	pollInterval := 5 * time.Second
 	batcherConfig := Config{
@@ -82,8 +82,8 @@ func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l
 // TestDriverLoadBlocksIntoState ensures that the [BatchSubmitter] can load blocks into the state.
 func TestDriverLoadBlocksIntoState(t *testing.T) {
 	// Setup the batch submitter
-	l1Client := mocks.L1ConfigProvider{}
-	l2Client := mocks.L2ConfigProvider{}
+	l1Client := mocks.L1DataProvider{}
+	l2Client := mocks.L2DataProvider{}
 	rollupNode := mocks.RollupNodeConfigProvider{}
 	txMgr := mocks.ExternalTxManager{}
 	log := testlog.Logger(t, log.LvlCrit)

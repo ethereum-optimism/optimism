@@ -75,7 +75,7 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 		l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
 		if err != nil {
-			l.Error("Failed to connect to L1 provider to enable ")
+			l.Error("Failed to dial L1 provider")
 		}
 		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l1Client, batchSubmitter.From)
 	}
