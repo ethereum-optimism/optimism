@@ -222,7 +222,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @notice Returns the minimum gas limit allowed by the system. If the L2
      *         gas limit is set to a value smaller than this, then it is
      *         possible for a block to be produced that uses more gas than what
-     *         is allowed on L2, resulting in a liveliness failure.
+     *         is allowed on L2, resulting in a liveness failure.
      */
     function minimumGasLimit() public view returns (uint256) {
         uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
