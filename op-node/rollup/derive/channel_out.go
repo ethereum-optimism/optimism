@@ -147,16 +147,17 @@ func (co *ChannelOut) Close() error {
 // OutputFrame writes a frame to w with a given max size and returns the frame
 // number.
 // Use `ReadyBytes`, `Flush`, and `Close` to modify the ready buffer.
-// Returns io.EOF when the channel is closed & there are no more frames
+// Returns an error if the `maxSize` < FrameV0OverHeadSize.
+// Returns io.EOF when the channel is closed & there are no more frames.
 // Returns nil if there is still more buffered data.
-// Returns and error if it ran into an error during processing.
+// Returns anderror if it ran into an error during processing.
 func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error) {
 	f := Frame{
 		ID:          co.id,
 		FrameNumber: uint16(co.frame),
 	}
 
-	// Error if the `maxSize` is smaller than the [FrameV0OverHeadSize].
+	// Check that the maxSize is large enough for the frame overhead size.
 	if maxSize < FrameV0OverHeadSize {
 		return 0, ErrMaxFrameSizeTooSmall
 	}
