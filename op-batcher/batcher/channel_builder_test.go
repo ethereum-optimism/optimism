@@ -634,3 +634,38 @@ func TestFramePublished(t *testing.T) {
 	// Now the timeout will be 1000
 	require.Equal(t, uint64(1000), cb.timeout)
 }
+
+func TestChannelBuilder_InputBytes(t *testing.T) {
+	require := require.New(t)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	cb, _ := defaultChannelBuilderSetup(t)
+
+	require.Zero(cb.InputBytes())
+
+	var l int
+	for i := 0; i < 5; i++ {
+		block := newMiniL2Block(rng.Intn(32))
+		l += blockBatchRlpSize(t, block)
+
+		_, err := cb.AddBlock(block)
+		require.NoError(err)
+		require.Equal(cb.InputBytes(), l)
+	}
+}
+
+func defaultChannelBuilderSetup(t *testing.T) (*channelBuilder, ChannelConfig) {
+	t.Helper()
+	cfg := defaultTestChannelConfig
+	cb, err := newChannelBuilder(cfg)
+	require.NoError(t, err, "newChannelBuilder")
+	return cb, cfg
+}
+
+func blockBatchRlpSize(t *testing.T, b *types.Block) int {
+	t.Helper()
+	batch, _, err := derive.BlockToBatch(b)
+	require.NoError(t, err)
+	var buf bytes.Buffer
+	require.NoError(t, batch.EncodeRLP(&buf), "RLP-encoding batch")
+	return buf.Len()
+}

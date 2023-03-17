@@ -196,6 +196,9 @@ func (c *channelBuilder) Reset() error {
 // AddBlock returns a ChannelFullError if called even though the channel is
 // already full. See description of FullErr for details.
 //
+// AddBlock also returns the L1BlockInfo that got extracted from the block's
+// first transaction for subsequent use by the caller.
+//
 // Call OutputFrames() afterwards to create frames.
 func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error) {
 	if c.IsFull() {
