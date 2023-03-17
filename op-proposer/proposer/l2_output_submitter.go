@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/prometheus/client_golang/prometheus"
 	"math/big"
 	_ "net/http/pprof"
 	"os"
@@ -78,17 +79,16 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 	}
 
-	registry := opmetrics.NewRegistry()
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		go func() {
-			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+			if err := opmetrics.ListenAndServe(ctx, l2OutputSubmitter.metricsRegistry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
 				l.Error("error starting metrics server", err)
 			}
 		}()
 		addr := l2OutputSubmitter.from
-		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l1Client, addr)
+		opmetrics.LaunchBalanceMetrics(ctx, l, l2OutputSubmitter.metricsRegistry, "", l2OutputSubmitter.l1Client, addr)
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -113,10 +113,11 @@ func Main(version string, cliCtx *cli.Context) error {
 
 // L2OutputSubmitter is responsible for proposing outputs
 type L2OutputSubmitter struct {
-	txMgr txmgr.TxManager
-	wg    sync.WaitGroup
-	done  chan struct{}
-	log   log.Logger
+	txMgr           txmgr.TxManager
+	wg              sync.WaitGroup
+	done            chan struct{}
+	log             log.Logger
+	metricsRegistry *prometheus.Registry
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -223,11 +224,12 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 	rawL2ooContract := bind.NewBoundContract(cfg.L2OutputOracleAddr, parsed, cfg.L1Client, cfg.L1Client, cfg.L1Client)
 
 	return &L2OutputSubmitter{
-		txMgr:  txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
-		done:   make(chan struct{}),
-		log:    l,
-		ctx:    ctx,
-		cancel: cancel,
+		txMgr:           txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
+		done:            make(chan struct{}),
+		log:             l,
+		metricsRegistry: opmetrics.NewRegistry(),
+		ctx:             ctx,
+		cancel:          cancel,
 
 		l1Client:     cfg.L1Client,
 		rollupClient: cfg.RollupClient,
@@ -374,6 +376,9 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 		l.log.Error("proposer unable to publish tx", "err", err)
 		return err
 	}
+
+	// Emit the proposed block Number
+	opmetrics.EmitBlockNumber(l.metricsRegistry, "", receipt.BlockNumber)
 
 	// The transaction was successfully submitted
 	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
