@@ -2,10 +2,11 @@ package batcher
 
 import (
 	"bytes"
-	"crypto/rand"
 	"math"
 	"math/big"
+	"math/rand"
 	"testing"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -52,54 +53,64 @@ func TestConfigValidation(t *testing.T) {
 	require.ErrorIs(t, validChannelConfig.Check(), ErrInvalidChannelTimeout)
 }
 
-// addNonsenseBlock is a helper function that adds a nonsense block
-// to the channel builder using the [channelBuilder.AddBlock] method.
-func addNonsenseBlock(cb *channelBuilder) error {
-	lBlock := types.NewBlock(&types.Header{
-		BaseFee:    big.NewInt(10),
-		Difficulty: common.Big0,
-		Number:     big.NewInt(100),
-	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
-	if err != nil {
-		return err
-	}
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
-	_, err = cb.AddBlock(a)
+// addMiniBlock adds a minimal valid L2 block to the channel builder using the
+// channelBuilder.AddBlock method.
+func addMiniBlock(cb *channelBuilder) error {
+	a := newMiniL2Block(0)
+	_, err := cb.AddBlock(a)
 	return err
 }
 
-// buildTooLargeRlpEncodedBlockBatch is a helper function that builds a batch
-// of blocks that are too large to be added to a channel.
-func buildTooLargeRlpEncodedBlockBatch(cb *channelBuilder) error {
-	// Construct a block with way too many txs
-	lBlock := types.NewBlock(&types.Header{
+// newMiniL2Block returns a minimal L2 block with a minimal valid L1InfoDeposit
+// transaction as first transaction. Both blocks are minimal in the sense that
+// most fields are left at defaults or are unset.
+//
+// If numTx > 0, that many empty DynamicFeeTxs will be added to the txs.
+func newMiniL2Block(numTx int) *types.Block {
+	return newMiniL2BlockWithNumberParent(numTx, new(big.Int), (common.Hash{}))
+}
+
+// newMiniL2Block returns a minimal L2 block with a minimal valid L1InfoDeposit
+// transaction as first transaction. Both blocks are minimal in the sense that
+// most fields are left at defaults or are unset. Block number and parent hash
+// will be set to the given parameters number and parent.
+//
+// If numTx > 0, that many empty DynamicFeeTxs will be added to the txs.
+func newMiniL2BlockWithNumberParent(numTx int, number *big.Int, parent common.Hash) *types.Block {
+	l1Block := types.NewBlock(&types.Header{
 		BaseFee:    big.NewInt(10),
 		Difficulty: common.Big0,
 		Number:     big.NewInt(100),
 	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, _ := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
-	for i := 0; i < 500_000; i++ {
-		txData := make([]byte, 32)
-		_, _ = rand.Read(txData)
-		tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), 0, big.NewInt(0), txData)
-		txs = append(txs, tx)
+	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, false)
+	if err != nil {
+		panic(err)
 	}
-	block := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
 
-	// Try to add the block to the channel builder
-	// This should fail since the block is too large
-	// When a batch is constructed from the block and
-	// then rlp encoded in the channel out, the size
-	// will exceed [derive.MaxRLPBytesPerChannel]
-	_, err := cb.AddBlock(block)
-	return err
+	txs := make([]*types.Transaction, 0, 1+numTx)
+	txs = append(txs, types.NewTx(l1InfoTx))
+	for i := 0; i < numTx; i++ {
+		txs = append(txs, types.NewTx(&types.DynamicFeeTx{}))
+	}
+
+	return types.NewBlock(&types.Header{
+		Number:     number,
+		ParentHash: parent,
+	}, txs, nil, nil, trie.NewStackTrie(nil))
+}
+
+// addTooManyBlocks adds blocks to the channel until it hits an error,
+// which is presumably ErrTooManyRLPBytes.
+func addTooManyBlocks(cb *channelBuilder) error {
+	for i := 0; i < 10_000; i++ {
+		block := newMiniL2Block(100)
+		_, err := cb.AddBlock(block)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // FuzzDurationTimeoutZeroMaxChannelDuration ensures that when whenever the MaxChannelDuration
@@ -391,7 +402,7 @@ func TestOutputFrames(t *testing.T) {
 	require.Equal(t, 0, readyBytes)
 
 	// Let's add a block
-	err = addNonsenseBlock(cb)
+	err = addMiniBlock(cb)
 	require.NoError(t, err)
 
 	// Check how many ready bytes
@@ -421,17 +432,18 @@ func TestOutputFrames(t *testing.T) {
 // TestMaxRLPBytesPerChannel tests the [channelBuilder.OutputFrames]
 // function errors when the max RLP bytes per channel is reached.
 func TestMaxRLPBytesPerChannel(t *testing.T) {
+	t.Parallel()
 	channelConfig := defaultTestChannelConfig
-	channelConfig.MaxFrameSize = 2
+	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
+	channelConfig.TargetFrameSize = derive.MaxRLPBytesPerChannel * 2
+	channelConfig.ApproxComprRatio = 1
 
 	// Construct the channel builder
 	cb, err := newChannelBuilder(channelConfig)
 	require.NoError(t, err)
-	require.False(t, cb.IsFull())
-	require.Equal(t, 0, cb.NumFrames())
 
 	// Add a block that overflows the [ChannelOut]
-	err = buildTooLargeRlpEncodedBlockBatch(cb)
+	err = addTooManyBlocks(cb)
 	require.ErrorIs(t, err, derive.ErrTooManyRLPBytes)
 }
 
@@ -494,7 +506,7 @@ func TestBuilderAddBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a nonsense block to the channel builder
-	err = addNonsenseBlock(cb)
+	err = addMiniBlock(cb)
 	require.NoError(t, err)
 
 	// Check the fields reset in the AddBlock function
@@ -505,7 +517,7 @@ func TestBuilderAddBlock(t *testing.T) {
 
 	// Since the channel output is full, the next call to AddBlock
 	// should return the channel out full error
-	err = addNonsenseBlock(cb)
+	err = addMiniBlock(cb)
 	require.ErrorIs(t, err, ErrInputTargetReached)
 }
 
@@ -520,7 +532,7 @@ func TestBuilderReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a nonsense block to the channel builder
-	err = addNonsenseBlock(cb)
+	err = addMiniBlock(cb)
 	require.NoError(t, err)
 
 	// Check the fields reset in the Reset function
@@ -536,7 +548,7 @@ func TestBuilderReset(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add another block to increment the block count
-	err = addNonsenseBlock(cb)
+	err = addMiniBlock(cb)
 	require.NoError(t, err)
 
 	// Check the fields reset in the Reset function

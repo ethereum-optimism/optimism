@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/stretchr/testify/require"
 )
 
@@ -108,24 +107,11 @@ func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 			MaxFrameSize:     120_000,
 			ApproxComprRatio: 1.0,
 		})
-	l1Block := types.NewBlock(&types.Header{
-		BaseFee:    big.NewInt(10),
-		Difficulty: common.Big0,
-		Number:     big.NewInt(100),
-	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, false)
-	require.NoError(t, err)
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
 
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
-	x := types.NewBlock(&types.Header{
-		Number:     big.NewInt(1),
-		ParentHash: common.Hash{0xff},
-	}, txs, nil, nil, trie.NewStackTrie(nil))
+	a := newMiniL2Block(0)
+	x := newMiniL2BlockWithNumberParent(0, big.NewInt(1), common.Hash{0xff})
 
-	err = m.AddL2Block(a)
+	err := m.AddL2Block(a)
 	require.NoError(t, err)
 
 	_, err = m.TxData(eth.BlockID{})
