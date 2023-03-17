@@ -61,6 +61,12 @@ func addNonsenseBlock(cb *channelBuilder) error {
 		return err
 	}
 	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
+	for i := 0; i < 100; i++ {
+		txData := make([]byte, 32)
+		_, _ = rand.Read(txData)
+		tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), 0, big.NewInt(0), txData)
+		txs = append(txs, tx)
+	}
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
 	}, txs, nil, nil, trie.NewStackTrie(nil))
@@ -366,15 +372,14 @@ func TestBuilderWrongFramePanic(t *testing.T) {
 	})
 }
 
-// TestOutputFrames tests the OutputFrames function
-func TestOutputFrames(t *testing.T) {
+// TestOutputFramesHappy tests the OutputFrames function happy path
+func TestOutputFramesHappy(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
-	channelConfig.MaxFrameSize = 2
+	channelConfig.MaxFrameSize = 24
 
 	// Construct the channel builder
 	cb, err := newChannelBuilder(channelConfig)
 	require.NoError(t, err)
-
 	require.False(t, cb.IsFull())
 	require.Equal(t, 0, cb.NumFrames())
 
@@ -383,35 +388,28 @@ func TestOutputFrames(t *testing.T) {
 	require.NoError(t, cb.OutputFrames())
 
 	// There should be no ready bytes yet
-	readyBytes := cb.co.ReadyBytes()
-	require.Equal(t, 0, readyBytes)
+	require.Equal(t, 0, cb.co.ReadyBytes())
 
 	// Let's add a block
-	err = addNonsenseBlock(cb)
-	require.NoError(t, err)
+	require.NoError(t, addNonsenseBlock(cb))
+
+	// Force a compression flush to the output buffer
+	require.NoError(t, cb.co.Flush())
 
 	// Check how many ready bytes
-	readyBytes = cb.co.ReadyBytes()
-	require.Equal(t, 2, readyBytes)
-
+	// There should be more than the max frame size ready
+	require.Greater(t, uint64(cb.co.ReadyBytes()), channelConfig.MaxFrameSize)
 	require.Equal(t, 0, cb.NumFrames())
 
 	// The channel should not be full
 	// but we want to output the frames for testing anyways
-	isFull := cb.IsFull()
-	require.False(t, isFull)
+	require.False(t, cb.IsFull())
 
-	// Since we manually set the max frame size to 2,
-	// we should be able to compress the two frames now
-	err = cb.OutputFrames()
-	require.NoError(t, err)
+	// We should be able to output the frames
+	require.NoError(t, cb.OutputFrames())
 
-	// There should be one frame in the channel builder now
-	require.Equal(t, 1, cb.NumFrames())
-
-	// There should no longer be any ready bytes
-	readyBytes = cb.co.ReadyBytes()
-	require.Equal(t, 0, readyBytes)
+	// There should be many frames in the channel builder now
+	require.Greater(t, cb.NumFrames(), 1)
 }
 
 // TestMaxRLPBytesPerChannel tests the [channelBuilder.OutputFrames]
@@ -435,9 +433,9 @@ func TestMaxRLPBytesPerChannel(t *testing.T) {
 // function errors when the max frame index is reached.
 func TestOutputFramesMaxFrameIndex(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
-	channelConfig.MaxFrameSize = 1
+	channelConfig.MaxFrameSize = 24
 	channelConfig.TargetNumFrames = math.MaxInt
-	channelConfig.TargetFrameSize = 1
+	channelConfig.TargetFrameSize = 24
 	channelConfig.ApproxComprRatio = 0
 
 	// Continuously add blocks until the max frame index is reached
@@ -459,6 +457,7 @@ func TestOutputFramesMaxFrameIndex(t *testing.T) {
 			Number: big.NewInt(0),
 		}, txs, nil, nil, trie.NewStackTrie(nil))
 		err = cb.AddBlock(a)
+		require.NoError(t, cb.co.Flush())
 		if cb.IsFull() {
 			fullErr := cb.FullErr()
 			require.ErrorIs(t, fullErr, ErrMaxFrameIndex)
@@ -476,12 +475,10 @@ func TestBuilderAddBlock(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
 	// Lower the max frame size so that we can batch
-	channelConfig.MaxFrameSize = 2
+	channelConfig.MaxFrameSize = 30
 
 	// Configure the Input Threshold params so we observe a full channel
-	// In reality, we only need the input bytes (74) below to be greater than
-	// or equal to the input threshold (3 * 2) / 1 = 6
-	channelConfig.TargetFrameSize = 3
+	channelConfig.TargetFrameSize = 30
 	channelConfig.TargetNumFrames = 2
 	channelConfig.ApproxComprRatio = 1
 
@@ -490,19 +487,18 @@ func TestBuilderAddBlock(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add a nonsense block to the channel builder
-	err = addNonsenseBlock(cb)
-	require.NoError(t, err)
+	require.NoError(t, addNonsenseBlock(cb))
+	require.NoError(t, cb.co.Flush())
 
 	// Check the fields reset in the AddBlock function
-	require.Equal(t, 74, cb.co.InputBytes())
+	require.Equal(t, 6578, cb.co.InputBytes())
 	require.Equal(t, 1, len(cb.blocks))
 	require.Equal(t, 0, len(cb.frames))
 	require.True(t, cb.IsFull())
 
 	// Since the channel output is full, the next call to AddBlock
 	// should return the channel out full error
-	err = addNonsenseBlock(cb)
-	require.ErrorIs(t, err, ErrInputTargetReached)
+	require.ErrorIs(t, addNonsenseBlock(cb), ErrInputTargetReached)
 }
 
 // TestBuilderReset tests the Reset function
@@ -510,14 +506,14 @@ func TestBuilderReset(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
 	// Lower the max frame size so that we can batch
-	channelConfig.MaxFrameSize = 2
+	channelConfig.MaxFrameSize = 24
 
 	cb, err := newChannelBuilder(channelConfig)
 	require.NoError(t, err)
 
 	// Add a nonsense block to the channel builder
-	err = addNonsenseBlock(cb)
-	require.NoError(t, err)
+	require.NoError(t, addNonsenseBlock(cb))
+	require.NoError(t, cb.co.Flush())
 
 	// Check the fields reset in the Reset function
 	require.Equal(t, 1, len(cb.blocks))
@@ -528,22 +524,20 @@ func TestBuilderReset(t *testing.T) {
 	require.NoError(t, cb.fullErr)
 
 	// Output frames so we can set the channel builder frames
-	err = cb.OutputFrames()
-	require.NoError(t, err)
+	require.NoError(t, cb.OutputFrames())
 
 	// Add another block to increment the block count
-	err = addNonsenseBlock(cb)
-	require.NoError(t, err)
+	require.NoError(t, addNonsenseBlock(cb))
+	require.NoError(t, cb.co.Flush())
 
 	// Check the fields reset in the Reset function
 	require.Equal(t, 2, len(cb.blocks))
-	require.Equal(t, 1, len(cb.frames))
+	require.Greater(t, len(cb.frames), 1)
 	require.Equal(t, timeout, cb.timeout)
 	require.NoError(t, cb.fullErr)
 
 	// Reset the channel builder
-	err = cb.Reset()
-	require.NoError(t, err)
+	require.NoError(t, cb.Reset())
 
 	// Check the fields reset in the Reset function
 	require.Equal(t, 0, len(cb.blocks))

@@ -188,7 +188,7 @@ func TestClearChannelManager(t *testing.T) {
 		ChannelTimeout: 10,
 		// Have to set the max frame size here otherwise the channel builder would not
 		// be able to output any frames
-		MaxFrameSize: 1,
+		MaxFrameSize: 24,
 	})
 
 	// Channel Manager state should be empty by default
