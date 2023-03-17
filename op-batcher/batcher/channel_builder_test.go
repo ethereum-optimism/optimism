@@ -2,6 +2,7 @@ package batcher
 
 import (
 	"bytes"
+	"errors"
 	"math"
 	"math/big"
 	"math/rand"
@@ -11,6 +12,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
+	dtest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -651,6 +653,41 @@ func TestChannelBuilder_InputBytes(t *testing.T) {
 		require.NoError(err)
 		require.Equal(cb.InputBytes(), l)
 	}
+}
+
+func TestChannelBuilder_OutputBytes(t *testing.T) {
+	require := require.New(t)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	cfg := defaultTestChannelConfig
+	cfg.TargetFrameSize = 1000
+	cfg.MaxFrameSize = 1000
+	cfg.TargetNumFrames = 16
+	cfg.ApproxComprRatio = 1.0
+	cb, err := newChannelBuilder(cfg)
+	require.NoError(err, "newChannelBuilder")
+
+	require.Zero(cb.OutputBytes())
+
+	for {
+		block, _ := dtest.RandomL2Block(rng, rng.Intn(32))
+		_, err := cb.AddBlock(block)
+		if errors.Is(err, ErrInputTargetReached) {
+			break
+		}
+		require.NoError(err)
+	}
+
+	require.NoError(cb.OutputFrames())
+	require.True(cb.IsFull())
+	require.Greater(cb.NumFrames(), 1)
+
+	var flen int
+	for cb.HasFrame() {
+		f := cb.NextFrame()
+		flen += len(f.data)
+	}
+
+	require.Equal(cb.OutputBytes(), flen)
 }
 
 func defaultChannelBuilderSetup(t *testing.T) (*channelBuilder, ChannelConfig) {
