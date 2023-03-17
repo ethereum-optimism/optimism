@@ -20,6 +20,6 @@ func InitProposerMetricsRegistry(r *prometheus.Registry, ns string) *ProposerMet
 
 	return &ProposerMetricsRegistry{BlockNumberGauge: blockNumberGauge}
 }
-func EmitBlockNumber(gauge prometheus.Gauge, ns string, blockNumber *big.Int) {
+func EmitBlockNumber(gauge prometheus.Gauge, blockNumber *big.Int) {
 	gauge.Set(float64(blockNumber.Uint64()))
 }

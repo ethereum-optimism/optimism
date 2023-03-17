@@ -383,7 +383,7 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 
 	if l.metricsEnabled {
 		// Emit the proposed block Number
-		opmetrics.EmitBlockNumber(l.mr.BlockNumberGauge, "", receipt.BlockNumber)
+		opmetrics.EmitBlockNumber(l.mr.BlockNumberGauge, receipt.BlockNumber)
 	}
 
 	// The transaction was successfully submitted
