@@ -37,7 +37,11 @@ func TestConfigValidation(t *testing.T) {
 
 	// Set the config to have a zero max frame size.
 	validChannelConfig.MaxFrameSize = 0
-	require.ErrorIs(t, validChannelConfig.Check(), ErrInvalidMaxFrameSize)
+	require.ErrorIs(t, validChannelConfig.Check(), ErrZeroMaxFrameSize)
+
+	// Set the config to have a max frame size less than 23.
+	validChannelConfig.MaxFrameSize = 22
+	require.ErrorIs(t, validChannelConfig.Check(), ErrSmallMaxFrameSize)
 
 	// Reset the config and test the Timeout error.
 	// NOTE: We should be fuzzing these values with the constraint that
