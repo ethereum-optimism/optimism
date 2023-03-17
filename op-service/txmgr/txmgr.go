@@ -101,6 +101,8 @@ type ETHBackend interface {
 	// TODO(CLI-3318): Maybe need a generic interface to support different RPC providers
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	// NonceAt returns the account nonce of the given account.
+	// The block number can be nil, in which case the nonce is taken from the latest known block.
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 }
 
@@ -166,6 +168,7 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 		return nil, err
 	}
 
+	// Fetch the sender's nonce from the latest known block (nil `blockNumber`)
 	childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
 	nonce, err := m.backend.NonceAt(childCtx, candidate.From, nil)
 	cancel()
@@ -181,8 +184,9 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 		GasFeeCap: gasFeeCap,
 		Data:      candidate.TxData,
 	}
-	m.l.Info("creating tx", "to", rawTx.To, "from", candidate.From)
 
+	// Calculate the intrinsic gas for the transaction
+	m.l.Info("creating tx", "to", rawTx.To, "from", candidate.From)
 	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
@@ -277,6 +281,9 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBackend) *SimpleTxManager {
 	if cfg.NumConfirmations == 0 {
 		panic("txmgr: NumConfirmations cannot be zero")
+	}
+	if cfg.NetworkTimeout == 0 {
+		cfg.NetworkTimeout = 2 * time.Second
 	}
 
 	return &SimpleTxManager{
