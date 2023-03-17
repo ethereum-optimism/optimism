@@ -36,14 +36,10 @@ func TestOutputFrameSmallMaxSize(t *testing.T) {
 	cout, err := NewChannelOut()
 	require.NoError(t, err)
 
-	// Set the channel out frame details
-	cout.id = ChannelID{0x01}
-	cout.frame = 0
-
 	// Call OutputFrame with the range of small max size values that err
-	w := bytes.NewBuffer([]byte{})
+	var w bytes.Buffer
 	for i := 0; i < 23; i++ {
-		fid, err := cout.OutputFrame(w, uint64(i))
+		fid, err := cout.OutputFrame(&w, uint64(i))
 		require.ErrorIs(t, err, ErrMaxFrameSizeTooSmall)
 		require.Zero(t, fid)
 	}
