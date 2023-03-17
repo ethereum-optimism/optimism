@@ -232,6 +232,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		memDB.CreateAccount(depAddr)
 
 		bytecode := dep.Bytecode
+		// Ensure that the immutable values in the system config are set correctly
 		if dep.Name == "SystemConfig" {
 			bytecode = bytes.Replace(bytecode, depsByName["OptimismPortal"].Address.Bytes(), predeploys.DevOptimismPortalAddr.Bytes(), 1)
 		}
@@ -336,7 +337,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 
 	deployments, err := deployer.Deploy(backend, constructors, l1Deployer)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot deploy L1 contracts: %w", err)
 	}
 	return deployments, nil
 }

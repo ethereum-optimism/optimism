@@ -85,7 +85,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     /**
      * @custom:semver 1.1.0
      * @notice The gas limit value should be checked offchain at deploy time to ensure that it
-     *         is larger than the _minimumGasLimit. This check does not happen in the constructor
+     *         is larger than the minimumGasLimit. This check does not happen in the constructor
      *         because all contracts are deployed first and then initialized together
      *         and calls to uninitialized contracts revert.
      *
@@ -198,7 +198,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _gasLimit New gas limit.
      */
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
-        require(_gasLimit >= _minimumGasLimit(), "SystemConfig: gas limit too low");
+        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
@@ -224,7 +224,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         possible for a block to be produced that uses more gas than what
      *         is allowed on L2, resulting in a liveliness failure.
      */
-    function _minimumGasLimit() internal view returns (uint256) {
+    function minimumGasLimit() public view returns (uint256) {
         uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
         return maxResourceLimit + SYSTEM_TRANSACTION_MAX_GAS;
     }
