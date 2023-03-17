@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var ErrMaxFrameSizeTooSmall = errors.New("maxSize is too small to fit the fixed frame overhead")
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
 
@@ -148,6 +149,12 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 	f := Frame{
 		ID:          co.id,
 		FrameNumber: uint16(co.frame),
+	}
+
+	// Error if the `maxSize` is too small to fit the fixed frame
+	// overhead as specified below.
+	if maxSize < 23 {
+		return 0, ErrMaxFrameSizeTooSmall
 	}
 
 	// Copy data from the local buffer into the frame data buffer

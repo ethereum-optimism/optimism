@@ -29,6 +29,26 @@ func TestChannelOutAddBlock(t *testing.T) {
 	})
 }
 
+// TestOutputFrameSmallMaxSize tests that calling [OutputFrame] with a small
+// max size that is below the fixed frame size overhead of 23, will return
+// an error.
+func TestOutputFrameSmallMaxSize(t *testing.T) {
+	cout, err := NewChannelOut()
+	require.NoError(t, err)
+
+	// Set the channel out frame details
+	cout.id = ChannelID{0x01}
+	cout.frame = 0
+
+	// Call OutputFrame with the range of small max size values that err
+	w := bytes.NewBuffer([]byte{})
+	for i := 0; i < 23; i++ {
+		fid, err := cout.OutputFrame(w, uint64(i))
+		require.ErrorIs(t, err, ErrMaxFrameSizeTooSmall)
+		require.Zero(t, fid)
+	}
+}
+
 // TestRLPByteLimit ensures that stream encoder is properly limiting the length.
 // It will decode the input if `len(input) <= inputLimit`.
 func TestRLPByteLimit(t *testing.T) {
@@ -64,42 +84,42 @@ func TestForceCloseTxData(t *testing.T) {
 			output: "",
 		},
 		{
-			frames: []Frame{Frame{FrameNumber: 0, IsLast: false}, Frame{ID: id, FrameNumber: 1, IsLast: true}},
+			frames: []Frame{{FrameNumber: 0, IsLast: false}, {ID: id, FrameNumber: 1, IsLast: true}},
 			errors: true,
 			output: "",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 0, IsLast: false}},
+			frames: []Frame{{ID: id, FrameNumber: 0, IsLast: false}},
 			errors: false,
 			output: "00deadbeefdeadbeefdeadbeefdeadbeef00000000000001",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 0, IsLast: true}},
+			frames: []Frame{{ID: id, FrameNumber: 0, IsLast: true}},
 			errors: false,
 			output: "00",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 1, IsLast: false}},
+			frames: []Frame{{ID: id, FrameNumber: 1, IsLast: false}},
 			errors: false,
 			output: "00deadbeefdeadbeefdeadbeefdeadbeef00000000000001",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 1, IsLast: true}},
+			frames: []Frame{{ID: id, FrameNumber: 1, IsLast: true}},
 			errors: false,
 			output: "00deadbeefdeadbeefdeadbeefdeadbeef00000000000000",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 2, IsLast: true}},
+			frames: []Frame{{ID: id, FrameNumber: 2, IsLast: true}},
 			errors: false,
 			output: "00deadbeefdeadbeefdeadbeefdeadbeef00000000000000deadbeefdeadbeefdeadbeefdeadbeef00010000000000",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 1, IsLast: false}, Frame{ID: id, FrameNumber: 3, IsLast: true}},
+			frames: []Frame{{ID: id, FrameNumber: 1, IsLast: false}, {ID: id, FrameNumber: 3, IsLast: true}},
 			errors: false,
 			output: "00deadbeefdeadbeefdeadbeefdeadbeef00000000000000deadbeefdeadbeefdeadbeefdeadbeef00020000000000",
 		},
 		{
-			frames: []Frame{Frame{ID: id, FrameNumber: 1, IsLast: false}, Frame{ID: id, FrameNumber: 3, IsLast: true}, Frame{ID: id, FrameNumber: 5, IsLast: true}},
+			frames: []Frame{{ID: id, FrameNumber: 1, IsLast: false}, {ID: id, FrameNumber: 3, IsLast: true}, {ID: id, FrameNumber: 5, IsLast: true}},
 			errors: false,
 			output: "00deadbeefdeadbeefdeadbeefdeadbeef00000000000000deadbeefdeadbeefdeadbeefdeadbeef00020000000000",
 		},
