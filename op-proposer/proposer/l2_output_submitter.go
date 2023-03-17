@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -80,16 +78,19 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 	}
 
+	registry := opmetrics.NewRegistry()
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
+		metricsRegistry := opmetrics.InitProposerMetricsRegistry(registry, "")
+		l2OutputSubmitter.mr = metricsRegistry
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		go func() {
-			if err := opmetrics.ListenAndServe(ctx, l2OutputSubmitter.metricsRegistry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
 				l.Error("error starting metrics server", err)
 			}
 		}()
 		addr := l2OutputSubmitter.from
-		opmetrics.LaunchBalanceMetrics(ctx, l, l2OutputSubmitter.metricsRegistry, "", l2OutputSubmitter.l1Client, addr)
+		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l1Client, addr)
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -114,11 +115,12 @@ func Main(version string, cliCtx *cli.Context) error {
 
 // L2OutputSubmitter is responsible for proposing outputs
 type L2OutputSubmitter struct {
-	txMgr           txmgr.TxManager
-	wg              sync.WaitGroup
-	done            chan struct{}
-	log             log.Logger
-	metricsRegistry *prometheus.Registry
+	txMgr          txmgr.TxManager
+	wg             sync.WaitGroup
+	done           chan struct{}
+	log            log.Logger
+	mr             *opmetrics.ProposerMetricsRegistry
+	metricsEnabled bool
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -185,6 +187,7 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		AllowNonFinalized:  cfg.AllowNonFinalized,
 		From:               fromAddress,
 		SignerFnFactory:    signer,
+		metricsEnabled:     cfg.MetricsConfig.Enabled,
 	}
 
 	return NewL2OutputSubmitter(proposerCfg, l)
@@ -225,12 +228,12 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 	rawL2ooContract := bind.NewBoundContract(cfg.L2OutputOracleAddr, parsed, cfg.L1Client, cfg.L1Client, cfg.L1Client)
 
 	return &L2OutputSubmitter{
-		txMgr:           txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
-		done:            make(chan struct{}),
-		log:             l,
-		metricsRegistry: opmetrics.NewRegistry(),
-		ctx:             ctx,
-		cancel:          cancel,
+		txMgr:          txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
+		done:           make(chan struct{}),
+		log:            l,
+		ctx:            ctx,
+		cancel:         cancel,
+		metricsEnabled: cfg.metricsEnabled,
 
 		l1Client:     cfg.L1Client,
 		rollupClient: cfg.RollupClient,
@@ -378,8 +381,10 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 		return err
 	}
 
-	// Emit the proposed block Number
-	opmetrics.EmitBlockNumber(l.metricsRegistry, "", receipt.BlockNumber)
+	if l.metricsEnabled {
+		// Emit the proposed block Number
+		opmetrics.EmitBlockNumber(l.mr.BlockNumberGauge, "", receipt.BlockNumber)
+	}
 
 	// The transaction was successfully submitted
 	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)

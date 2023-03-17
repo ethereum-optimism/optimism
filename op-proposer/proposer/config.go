@@ -30,6 +30,7 @@ type Config struct {
 	AllowNonFinalized  bool
 	From               common.Address
 	SignerFnFactory    opcrypto.SignerFactory
+	metricsEnabled     bool
 }
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
