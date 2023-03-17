@@ -185,7 +185,10 @@ func (b *mockBackend) SendTransaction(ctx context.Context, tx *types.Transaction
 		panic("set sender function was not set")
 	}
 	return b.send(ctx, tx)
+}
 
+func (b *mockBackend) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
+	return 0, nil
 }
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is
@@ -575,6 +578,10 @@ func (b *failingBackend) SendTransaction(_ context.Context, _ *types.Transaction
 
 func (b *failingBackend) SuggestGasTipCap(_ context.Context) (*big.Int, error) {
 	return b.gasTip, nil
+}
+
+func (b *failingBackend) NonceAt(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {
+	return 0, errors.New("unimplemented")
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to

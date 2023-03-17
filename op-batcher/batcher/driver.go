@@ -22,7 +22,7 @@ import (
 type BatchSubmitter struct {
 	Config // directly embed the config + sources
 
-	txMgr *TransactionManager
+	txMgr txmgr.TxManager
 	wg    sync.WaitGroup
 	done  chan struct{}
 
@@ -120,9 +120,10 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSub
 
 	return &BatchSubmitter{
 		Config: cfg,
-		txMgr: NewTransactionManager(l,
-			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
-			cfg.From, cfg.L1Client),
+		txMgr:  txmgr.NewSimpleTxManager("batcher", l, cfg.TxManagerConfig, cfg.L1Client),
+		// NewTransactionManager(l,
+		// 	cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
+		// 	cfg.From, cfg.L1Client),
 		state: NewChannelManager(l, cfg.Channel),
 	}, nil
 
@@ -209,7 +210,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
 func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (eth.BlockID, error) {
-	ctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
 	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	cancel()
 	if err != nil {
@@ -226,7 +227,7 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 // calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
 // It also takes care of initializing some local state (i.e. will modify l.lastStoredBlock in certain conditions)
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
-	childCtx, cancel := context.WithTimeout(ctx, networkTimeout)
+	childCtx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
 	defer cancel()
 	syncStatus, err := l.RollupNode.SyncStatus(childCtx)
 	// Ensure that we have the sync status
@@ -294,7 +295,7 @@ func (l *BatchSubmitter) loop() {
 					break
 				}
 				// Record TX Status
-				if receipt, err := l.txMgr.SendTransaction(l.ctx, txdata.Bytes()); err != nil {
+				if receipt, err := l.SendTransaction(l.ctx, txdata.Bytes()); err != nil {
 					l.recordFailedTx(txdata.ID(), err)
 				} else {
 					l.recordConfirmedTx(txdata.ID(), receipt)
@@ -313,6 +314,36 @@ func (l *BatchSubmitter) loop() {
 		case <-l.done:
 			return
 		}
+	}
+}
+
+// SendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// It currently uses the underlying `txmgr` to handle transaction sending & price management.
+// This is a blocking method. It should not be called concurrently.
+// TODO: where to put concurrent transaction handling logic.
+func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+	tx, err := l.txMgr.CraftTx(ctx, txmgr.TxCandidate{
+		Recipient: l.Rollup.BatchInboxAddress,
+		TxData:    data,
+		From:      l.From,
+		ChainID:   l.Rollup.L1ChainID,
+		// Explicit instantiation here so we can make a note that a gas
+		// limit of 0 will cause the [txmgr] to estimate the gas limit.
+		GasLimit: 0,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tx: %w", err)
+	}
+
+	// TODO: Select a timeout that makes sense here.
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	defer cancel()
+	if receipt, err := l.txMgr.Send(ctx, tx); err != nil {
+		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
+		return nil, err
+	} else {
+		l.log.Info("tx successfully published", "tx_hash", receipt.TxHash, "data_size", len(data))
+		return receipt, nil
 	}
 }
 

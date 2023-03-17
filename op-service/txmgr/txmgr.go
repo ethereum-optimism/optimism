@@ -3,14 +3,17 @@ package txmgr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
@@ -37,6 +40,12 @@ type Config struct {
 	// price will be published. Only one publication at MaxGasPrice will be
 	// attempted.
 	ResubmissionTimeout time.Duration
+
+	// NetworkTimeout is the allowed duration for a single network request.
+	// This is intended to be used for network requests that can be replayed.
+	//
+	// If not set, this will default to 2 seconds.
+	NetworkTimeout time.Duration
 
 	// RequireQueryInterval is the interval at which the tx manager will
 	// query the backend to check for confirmations after a tx at a
@@ -69,6 +78,9 @@ type TxManager interface {
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
 	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
+
+	// CraftTx is used to craft a transaction using a [TxCandidate].
+	CraftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error)
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -89,6 +101,7 @@ type ETHBackend interface {
 	// TODO(CLI-3318): Maybe need a generic interface to support different RPC providers
 	HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error)
 	SuggestGasTipCap(ctx context.Context) (*big.Int, error)
+	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -99,6 +112,86 @@ type SimpleTxManager struct {
 
 	backend ETHBackend
 	l       log.Logger
+}
+
+// TxCandidate is a transaction candidate that can be submitted to ask the
+// [TxManager] to construct a transaction with gas price bounds.
+type TxCandidate struct {
+	// TxData is the transaction data to be used in the constructed tx.
+	TxData []byte
+	// Recipient is the recipient (or `to`) of the constructed tx.
+	Recipient common.Address
+	// GasLimit is the gas limit to be used in the constructed tx.
+	GasLimit uint64
+	// From is the sender (or `from`) of the constructed tx.
+	From common.Address
+	/// ChainID is the chain ID to be used in the constructed tx.
+	ChainID *big.Int
+}
+
+// calcGasTipAndFeeCap queries L1 to determine what a suitable miner tip & basefee limit would be for timely inclusion
+func (m *SimpleTxManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap *big.Int, gasFeeCap *big.Int, err error) {
+	childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	gasTipCap, err = m.backend.SuggestGasTipCap(childCtx)
+	cancel()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get suggested gas tip cap: %w", err)
+	}
+
+	if gasTipCap == nil {
+		m.l.Warn("unexpected unset gasTipCap, using default 2 gwei")
+		gasTipCap = new(big.Int).SetUint64(params.GWei * 2)
+	}
+
+	childCtx, cancel = context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	head, err := m.backend.HeaderByNumber(childCtx, nil)
+	cancel()
+	if err != nil || head == nil {
+		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
+	}
+	if head.BaseFee == nil {
+		return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
+	}
+	gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
+
+	return gasTipCap, gasFeeCap, nil
+}
+
+// CraftTx creates the signed transaction to the batchInboxAddress.
+// It queries L1 for the current fee market conditions as well as for the nonce.
+// NOTE: This method SHOULD NOT publish the resulting transaction.
+func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+	gasTipCap, gasFeeCap, err := m.calcGasTipAndFeeCap(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	nonce, err := m.backend.NonceAt(childCtx, candidate.From, nil)
+	cancel()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get nonce: %w", err)
+	}
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:   candidate.ChainID,
+		Nonce:     nonce,
+		To:        &candidate.Recipient,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Data:      candidate.TxData,
+	}
+	m.l.Info("creating tx", "to", rawTx.To, "from", candidate.From)
+
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+	}
+	rawTx.Gas = gas
+
+	ctx, cancel = context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	defer cancel()
+	return m.Signer(ctx, candidate.From, types.NewTx(rawTx))
 }
 
 // IncreaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
