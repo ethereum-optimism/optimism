@@ -2,10 +2,13 @@ package derive
 
 import (
 	"context"
+	"fmt"
 	"io"
+	"math/big"
 	"math/rand"
 	"testing"
 
+	"github.com/holiman/uint256"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -19,6 +22,7 @@ import (
 
 type fakeAttributesQueue struct {
 	origin eth.L1BlockRef
+	attrs  *eth.PayloadAttributes
 }
 
 func (f *fakeAttributesQueue) Origin() eth.L1BlockRef {
@@ -26,7 +30,10 @@ func (f *fakeAttributesQueue) Origin() eth.L1BlockRef {
 }
 
 func (f *fakeAttributesQueue) NextAttributes(_ context.Context, _ eth.L2BlockRef) (*eth.PayloadAttributes, error) {
-	return nil, io.EOF
+	if f.attrs == nil {
+		return nil, io.EOF
+	}
+	return f.attrs, nil
 }
 
 var _ NextAttributesProvider = (*fakeAttributesQueue)(nil)
@@ -836,4 +843,167 @@ func TestVerifyNewL1Origin(t *testing.T) {
 			eng.AssertExpectations(t)
 		})
 	}
+}
+
+func TestBlockBuildingRace(t *testing.T) {
+	logger := testlog.Logger(t, log.LvlInfo)
+	eng := &testutils.MockEngine{}
+
+	rng := rand.New(rand.NewSource(1234))
+
+	refA := testutils.RandomBlockRef(rng)
+	refA0 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         0,
+		ParentHash:     common.Hash{},
+		Time:           refA.Time,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 0,
+	}
+	cfg := &rollup.Config{
+		Genesis: rollup.Genesis{
+			L1:     refA.ID(),
+			L2:     refA0.ID(),
+			L2Time: refA0.Time,
+			SystemConfig: eth.SystemConfig{
+				BatcherAddr: common.Address{42},
+				Overhead:    [32]byte{123},
+				Scalar:      [32]byte{42},
+				GasLimit:    20_000_000,
+			},
+		},
+		BlockTime:     1,
+		SeqWindowSize: 2,
+	}
+	refA1 := eth.L2BlockRef{
+		Hash:           testutils.RandomHash(rng),
+		Number:         refA0.Number + 1,
+		ParentHash:     refA0.Hash,
+		Time:           refA0.Time + cfg.BlockTime,
+		L1Origin:       refA.ID(),
+		SequenceNumber: 1,
+	}
+
+	l1F := &testutils.MockL1Source{}
+
+	eng.ExpectL2BlockRefByLabel(eth.Finalized, refA0, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Safe, refA0, nil)
+	eng.ExpectL2BlockRefByLabel(eth.Unsafe, refA0, nil)
+	l1F.ExpectL1BlockRefByNumber(refA.Number, refA, nil)
+	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
+	l1F.ExpectL1BlockRefByHash(refA.Hash, refA, nil)
+
+	eng.ExpectSystemConfigByL2Hash(refA0.Hash, cfg.Genesis.SystemConfig, nil)
+
+	metrics := &testutils.TestDerivationMetrics{}
+
+	gasLimit := eth.Uint64Quantity(20_000_000)
+	attrs := &eth.PayloadAttributes{
+		Timestamp:             eth.Uint64Quantity(refA1.Time),
+		PrevRandao:            eth.Bytes32{},
+		SuggestedFeeRecipient: common.Address{},
+		Transactions:          nil,
+		NoTxPool:              false,
+		GasLimit:              &gasLimit,
+	}
+
+	prev := &fakeAttributesQueue{origin: refA, attrs: attrs}
+	eq := NewEngineQueue(logger, cfg, eng, metrics, prev, l1F)
+	require.ErrorIs(t, eq.Reset(context.Background(), eth.L1BlockRef{}, eth.SystemConfig{}), io.EOF)
+
+	id := eth.PayloadID{0xff}
+
+	preFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA0.Hash,
+		SafeBlockHash:      refA0.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	preFcRes := &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{
+			Status:          eth.ExecutionValid,
+			LatestValidHash: &refA0.Hash,
+			ValidationError: nil,
+		},
+		PayloadID: &id,
+	}
+
+	// Expect initial forkchoice update
+	eng.ExpectForkchoiceUpdate(preFc, nil, preFcRes, nil)
+	require.NoError(t, eq.Step(context.Background()), "clean forkchoice state after reset")
+
+	// Expect initial building update, to process the attributes we queued up
+	eng.ExpectForkchoiceUpdate(preFc, attrs, preFcRes, nil)
+	// Don't let the payload be confirmed straight away
+	mockErr := fmt.Errorf("mock error")
+	eng.ExpectGetPayload(id, nil, mockErr)
+	// The job will be not be cancelled, the untyped error is a temporary error
+
+	require.ErrorIs(t, eq.Step(context.Background()), NotEnoughData, "queue up attributes")
+	require.ErrorIs(t, eq.Step(context.Background()), mockErr, "expecting to fail to process attributes")
+	require.NotNil(t, eq.safeAttributes, "still have attributes")
+
+	// Now allow the building to complete
+	a1InfoTx, err := L1InfoDepositBytes(refA1.SequenceNumber, &testutils.MockBlockInfo{
+		InfoHash:        refA.Hash,
+		InfoParentHash:  refA.ParentHash,
+		InfoCoinbase:    common.Address{},
+		InfoRoot:        common.Hash{},
+		InfoNum:         refA.Number,
+		InfoTime:        refA.Time,
+		InfoMixDigest:   [32]byte{},
+		InfoBaseFee:     big.NewInt(7),
+		InfoReceiptRoot: common.Hash{},
+		InfoGasUsed:     0,
+	}, cfg.Genesis.SystemConfig, false)
+
+	require.NoError(t, err)
+	payloadA1 := &eth.ExecutionPayload{
+		ParentHash:    refA1.ParentHash,
+		FeeRecipient:  attrs.SuggestedFeeRecipient,
+		StateRoot:     eth.Bytes32{},
+		ReceiptsRoot:  eth.Bytes32{},
+		LogsBloom:     eth.Bytes256{},
+		PrevRandao:    eth.Bytes32{},
+		BlockNumber:   eth.Uint64Quantity(refA1.Number),
+		GasLimit:      gasLimit,
+		GasUsed:       0,
+		Timestamp:     eth.Uint64Quantity(refA1.Time),
+		ExtraData:     nil,
+		BaseFeePerGas: *uint256.NewInt(7),
+		BlockHash:     refA1.Hash,
+		Transactions: []eth.Data{
+			a1InfoTx,
+		},
+	}
+	eng.ExpectGetPayload(id, payloadA1, nil)
+	eng.ExpectNewPayload(payloadA1, &eth.PayloadStatusV1{
+		Status:          eth.ExecutionValid,
+		LatestValidHash: &refA1.Hash,
+		ValidationError: nil,
+	}, nil)
+	postFc := &eth.ForkchoiceState{
+		HeadBlockHash:      refA1.Hash,
+		SafeBlockHash:      refA1.Hash,
+		FinalizedBlockHash: refA0.Hash,
+	}
+	postFcRes := &eth.ForkchoiceUpdatedResult{
+		PayloadStatus: eth.PayloadStatusV1{
+			Status:          eth.ExecutionValid,
+			LatestValidHash: &refA1.Hash,
+			ValidationError: nil,
+		},
+		PayloadID: &id,
+	}
+	eng.ExpectForkchoiceUpdate(postFc, nil, postFcRes, nil)
+
+	// Now complete the job, as external user of the engine
+	_, _, err = eq.ConfirmPayload(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, refA1, eq.SafeL2Head(), "safe head should have changed")
+
+	require.NoError(t, eq.Step(context.Background()))
+	require.Nil(t, eq.safeAttributes, "attributes should now be invalidated")
+
+	l1F.AssertExpectations(t)
+	eng.AssertExpectations(t)
 }
