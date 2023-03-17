@@ -216,17 +216,17 @@ func TestEngineQueue_Finalize(t *testing.T) {
 	eng.ExpectL2BlockRefByHash(refF0.ParentHash, refE1, nil)
 
 	// meet previous safe, counts 1/2
-	l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
+	l1F.ExpectL1BlockRefByHash(refE.Hash, refE, nil)
 	eng.ExpectL2BlockRefByHash(refE1.ParentHash, refE0, nil)
 	eng.ExpectL2BlockRefByHash(refE0.ParentHash, refD1, nil)
 
 	// now full seq window, inclusive
-	l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
+	l1F.ExpectL1BlockRefByHash(refD.Hash, refD, nil)
 	eng.ExpectL2BlockRefByHash(refD1.ParentHash, refD0, nil)
 	eng.ExpectL2BlockRefByHash(refD0.ParentHash, refC1, nil)
 
 	// now one more L1 origin
-	l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil)
+	l1F.ExpectL1BlockRefByHash(refC.Hash, refC, nil)
 	eng.ExpectL2BlockRefByHash(refC1.ParentHash, refC0, nil)
 	// parent of that origin will be considered safe
 	eng.ExpectL2BlockRefByHash(refC0.ParentHash, refB1, nil)
@@ -450,17 +450,17 @@ func TestEngineQueue_ResetWhenUnsafeOriginNotCanonical(t *testing.T) {
 	eng.ExpectL2BlockRefByHash(refF0.ParentHash, refE1, nil)
 
 	// meet previous safe, counts 1/2
-	l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
+	l1F.ExpectL1BlockRefByHash(refE.Hash, refE, nil)
 	eng.ExpectL2BlockRefByHash(refE1.ParentHash, refE0, nil)
 	eng.ExpectL2BlockRefByHash(refE0.ParentHash, refD1, nil)
 
 	// now full seq window, inclusive
-	l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
+	l1F.ExpectL1BlockRefByHash(refD.Hash, refD, nil)
 	eng.ExpectL2BlockRefByHash(refD1.ParentHash, refD0, nil)
 	eng.ExpectL2BlockRefByHash(refD0.ParentHash, refC1, nil)
 
 	// now one more L1 origin
-	l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil)
+	l1F.ExpectL1BlockRefByHash(refC.Hash, refC, nil)
 	eng.ExpectL2BlockRefByHash(refC1.ParentHash, refC0, nil)
 	// parent of that origin will be considered safe
 	eng.ExpectL2BlockRefByHash(refC0.ParentHash, refB1, nil)
@@ -782,17 +782,17 @@ func TestVerifyNewL1Origin(t *testing.T) {
 			}
 
 			// meet previous safe, counts 1/2
-			l1F.ExpectL1BlockRefByNumber(refE.Number, refE, nil)
+			l1F.ExpectL1BlockRefByHash(refE.Hash, refE, nil)
 			eng.ExpectL2BlockRefByHash(refE1.ParentHash, refE0, nil)
 			eng.ExpectL2BlockRefByHash(refE0.ParentHash, refD1, nil)
 
 			// now full seq window, inclusive
-			l1F.ExpectL1BlockRefByNumber(refD.Number, refD, nil)
+			l1F.ExpectL1BlockRefByHash(refD.Hash, refD, nil)
 			eng.ExpectL2BlockRefByHash(refD1.ParentHash, refD0, nil)
 			eng.ExpectL2BlockRefByHash(refD0.ParentHash, refC1, nil)
 
 			// now one more L1 origin
-			l1F.ExpectL1BlockRefByNumber(refC.Number, refC, nil)
+			l1F.ExpectL1BlockRefByHash(refC.Hash, refC, nil)
 			eng.ExpectL2BlockRefByHash(refC1.ParentHash, refC0, nil)
 			// parent of that origin will be considered safe
 			eng.ExpectL2BlockRefByHash(refC0.ParentHash, refB1, nil)
