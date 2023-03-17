@@ -99,10 +99,7 @@ func Deploy(backend *backends.SimulatedBackend, constructors []Constructor, cb D
 	opts.GasLimit = 15_000_000
 
 	ctx := context.Background()
-	// Deterministic iteration is important here
-	for i := 0; i < len(constructors); i++ {
-		deployment := constructors[i]
-
+	for i, deployment := range constructors {
 		tx, err := cb(backend, opts, deployment)
 		if err != nil {
 			return nil, err
