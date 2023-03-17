@@ -18,6 +18,11 @@ var ErrMaxFrameSizeTooSmall = errors.New("maxSize is too small to fit the fixed 
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
 
+// FrameV0OverHeadSize is the absolute minimum size of a frame.
+// This is the fixed overhead frame size,
+// calculated as follows: 16 + 2 + 4 + 1 = 23 bytes.
+const FrameV0OverHeadSize = 23
+
 type ChannelOut struct {
 	id ChannelID
 	// Frame ID of the next frame to emit. Increment after emitting
@@ -151,16 +156,13 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 		FrameNumber: uint16(co.frame),
 	}
 
-	// Error if the `maxSize` is too small to fit the fixed frame
-	// overhead as specified below.
-	if maxSize < 23 {
+	// Error if the `maxSize` is smaller than the [FrameV0OverHeadSize].
+	if maxSize < FrameV0OverHeadSize {
 		return 0, ErrMaxFrameSizeTooSmall
 	}
 
 	// Copy data from the local buffer into the frame data buffer
-	// Don't go past the maxSize with the fixed frame overhead.
-	// Fixed overhead: 16 + 2 + 4 + 1 = 23 bytes.
-	maxDataSize := maxSize - 23
+	maxDataSize := maxSize - FrameV0OverHeadSize
 	if maxDataSize > uint64(co.buf.Len()) {
 		maxDataSize = uint64(co.buf.Len())
 		// If we are closed & will not spill past the current frame
