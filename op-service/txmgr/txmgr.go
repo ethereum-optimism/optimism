@@ -154,11 +154,22 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 	thresholdFeeCap := new(big.Int).Mul(priceBumpPercent, tx.GasFeeCap())
 	thresholdFeeCap = thresholdFeeCap.Div(thresholdFeeCap, oneHundred)
 	if tx.GasFeeCapIntCmp(gasFeeCap) >= 0 {
-		m.l.Debug("Reusing the previous fee cap", "previous", tx.GasFeeCap(), "suggested", gasFeeCap)
-		gasFeeCap = tx.GasFeeCap()
-		reusedFeeCap = true
+		if reusedTip {
+			m.l.Debug("Reusing the previous fee cap", "previous", tx.GasFeeCap(), "suggested", gasFeeCap)
+			gasFeeCap = tx.GasFeeCap()
+			reusedFeeCap = true
+		} else {
+			m.l.Debug("Overriding the fee cap to enforce a price bump because we increased the tip", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
+			gasFeeCap = thresholdFeeCap
+		}
 	} else if thresholdFeeCap.Cmp(gasFeeCap) > 0 {
-		m.l.Debug("Overriding the fee cap to enforce a price bump", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
+		if reusedTip {
+			// TODO (CLI-3620): Increase the basefee then recompute the feecap
+			m.l.Warn("Overriding the fee cap to enforce a price bump without increasing the tip. Will likely result in ErrReplacementUnderpriced",
+				"previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
+		} else {
+			m.l.Debug("Overriding the fee cap to enforce a price bump", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
+		}
 		gasFeeCap = thresholdFeeCap
 	}
 
