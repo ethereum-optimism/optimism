@@ -172,6 +172,7 @@ func TestChannelManagerNextTxData(t *testing.T) {
 func TestClearChannelManager(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	m := NewChannelManager(log, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
@@ -192,23 +193,7 @@ func TestClearChannelManager(t *testing.T) {
 	require.Empty(t, m.confirmedTransactions)
 
 	// Add a block to the channel manager
-	lBlock := types.NewBlock(&types.Header{
-		BaseFee:    big.NewInt(10),
-		Difficulty: common.Big0,
-		Number:     big.NewInt(100),
-	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, lBlock, eth.SystemConfig{}, false)
-	require.NoError(t, err)
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
-	for i := 0; i < 100; i++ {
-		txData := make([]byte, 32)
-		_, _ = rand.Read(txData)
-		tx := types.NewTransaction(0, common.Address{}, big.NewInt(0), 0, big.NewInt(0), txData)
-		txs = append(txs, tx)
-	}
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
+	a, _ := derivetest.RandomL2Block(rng, 4)
 	newL1Tip := a.Hash()
 	l1BlockID := eth.BlockID{
 		Hash:   a.Hash(),
@@ -226,8 +211,9 @@ func TestClearChannelManager(t *testing.T) {
 	// and no more blocks since processBlocks consumes
 	// the list
 	require.NoError(t, m.processBlocks())
+	require.NoError(t, m.pendingChannel.co.Flush())
 	require.NoError(t, m.pendingChannel.OutputFrames())
-	_, err = m.nextTxData()
+	_, err := m.nextTxData()
 	require.NoError(t, err)
 	require.Equal(t, 0, len(m.blocks))
 	require.Equal(t, newL1Tip, m.tip)
