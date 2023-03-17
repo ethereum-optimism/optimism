@@ -23,17 +23,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l1Client L1ConfigProvider, l2Client L2ConfigProvider, rollupNode RollupNodeConfigProvider) (*BatchSubmitter, error) {
-	resubmissionTimeout, err := time.ParseDuration("30s")
-	if err != nil {
-		return nil, err
-	}
-
-	pollInterval, err := time.ParseDuration("5s")
-	if err != nil {
-		return nil, err
-	}
-
+func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l1Client L1ConfigProvider, l2Client L2ConfigProvider, rollupNode RollupNodeConfigProvider) *BatchSubmitter {
+	resubmissionTimeout := 30 * time.Second
+	pollInterval := 5 * time.Second
 	batcherConfig := Config{
 		log:          l,
 		L1Client:     l1Client,
@@ -84,10 +76,7 @@ func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l
 		state:  NewChannelManager(l, batcherConfig.Channel),
 	}
 
-	if err != nil {
-		return nil, err
-	}
-	return &b, nil
+	return &b
 }
 
 // TestDriverLoadBlocksIntoState ensures that the [BatchSubmitter] can load blocks into the state.
@@ -98,8 +87,7 @@ func TestDriverLoadBlocksIntoState(t *testing.T) {
 	rollupNode := mocks.RollupNodeConfigProvider{}
 	txMgr := mocks.ExternalTxManager{}
 	log := testlog.Logger(t, log.LvlCrit)
-	b, err := constructDefaultBatchSubmitter(log, &txMgr, &l1Client, &l2Client, &rollupNode)
-	require.NoError(t, err)
+	b := constructDefaultBatchSubmitter(log, &txMgr, &l1Client, &l2Client, &rollupNode)
 
 	// The first block range will only be the first block.
 	// This allows the batch submitter to construct a pending transaction
