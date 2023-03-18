@@ -150,7 +150,7 @@ func (co *ChannelOut) Close() error {
 // Returns an error if the `maxSize` < FrameV0OverHeadSize.
 // Returns io.EOF when the channel is closed & there are no more frames.
 // Returns nil if there is still more buffered data.
-// Returns anderror if it ran into an error during processing.
+// Returns an error if it ran into an error during processing.
 func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error) {
 	f := Frame{
 		ID:          co.id,
