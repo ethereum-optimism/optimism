@@ -1,5 +1,6 @@
 {
   "finalSystemOwner": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
+  "portalGuardian": "0x62790eFcB3a5f3A5D398F95B47930A9Addd83807",
   "controller": "0x2d30335B0b807bBa1682C487BaAFD2Ad6da5D675",
 
   "l1StartingBlockTag": "0x4104895a540d87127ff11eef0d51d8f63ce00a6fc211db751a45a4b3a61a9c83",

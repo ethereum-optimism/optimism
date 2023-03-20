@@ -104,8 +104,10 @@ type EngineQueue struct {
 
 	finalizedL1 eth.L1BlockRef
 
-	safeAttributes *eth.PayloadAttributes
-	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
+	// The queued-up attributes
+	safeAttributesParent eth.L2BlockRef
+	safeAttributes       *eth.PayloadAttributes
+	unsafePayloads       PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
@@ -225,6 +227,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		return err
 	} else {
 		eq.safeAttributes = next
+		eq.safeAttributesParent = eq.safeHead
 		eq.log.Debug("Adding next safe attributes", "safe_head", eq.safeHead, "next", eq.safeAttributes)
 		return NotEnoughData
 	}
@@ -427,6 +430,20 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 }
 
 func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
+	if eq.safeAttributes == nil { // sanity check the attributes are there
+		return nil
+	}
+	// validate the safe attributes before processing them. The engine may have completed processing them through other means.
+	if eq.safeHead != eq.safeAttributesParent {
+		if eq.safeHead.ParentHash != eq.safeAttributesParent.Hash {
+			return NewResetError(fmt.Errorf("safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
+				eq.safeHead, eq.safeHead.ParentID(), eq.safeAttributesParent))
+		}
+		eq.log.Warn("queued safe attributes are stale, safe-head progressed",
+			"safe_head", eq.safeHead, "safe_head_parent", eq.safeHead.ParentID(), "attributes_parent", eq.safeAttributesParent)
+		eq.safeAttributes = nil
+		return nil
+	}
 	if eq.safeHead.Number < eq.unsafeHead.Number {
 		return eq.consolidateNextSafeAttributes(ctx)
 	} else if eq.safeHead.Number == eq.unsafeHead.Number {
@@ -486,14 +503,15 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		_, errType, err = eq.ConfirmPayload(ctx)
 	}
 	if err != nil {
-		_ = eq.CancelPayload(ctx, true)
 		switch errType {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
 			return NewTemporaryError(fmt.Errorf("temporarily cannot insert new safe block: %w", err))
 		case BlockInsertPrestateErr:
+			_ = eq.CancelPayload(ctx, true)
 			return NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
 		case BlockInsertPayloadErr:
+			_ = eq.CancelPayload(ctx, true)
 			eq.log.Warn("could not process payload derived from L1 data, dropping batch", "err", err)
 			// Count the number of deposits to see if the tx list is deposit only.
 			depositCount := 0

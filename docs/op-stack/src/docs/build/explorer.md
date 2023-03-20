@@ -59,3 +59,66 @@ Download and install [Docker engine](https://docs.docker.com/engine/install/#ser
 After the docker containers start, browse to http:// < *computer running Blockscout* > :4000 to view the user interface. 
 
 You can also use the [API](https://docs.blockscout.com/for-users/api)
+
+### GraphQL
+
+Blockscout's API includes [GraphQL](https://graphql.org/) support under `/graphiql`. 
+For example, this query looks at addresses.
+
+```
+query {
+  addresses(hashes:[
+   "0xcB69A90Aa5311e0e9141a66212489bAfb48b9340", 
+   "0xC2dfA7205088179A8644b9fDCecD6d9bED854Cfe"])
+```
+
+GraphQL queries start with a top level entity (or entities).
+In this case, our [top level query](https://docs.blockscout.com/for-users/api/graphql#queries) is for multiple addresses.
+
+Note that you can only query on fields that are indexed.
+For example, here we query on the addresses.
+However, we couldn't query on `contractCode` or `fetchedCoinBalance`.
+
+```
+ {
+    hash
+    contractCode
+    fetchedCoinBalance
+```
+
+The fields above are fetched from the address table.
+
+```
+    transactions(first:5) {
+```
+
+We can also fetch the transactions that include the address (either as source or destination).
+The API does not let us fetch an unlimited number of transactions, so here we ask for the first 5.
+
+
+```
+      edges {
+        node {
+```
+
+Because this is a [graph](https://en.wikipedia.org/wiki/Graph_(discrete_mathematics)), the entities that connect two types, for example addresses and transactions, are called `edges`.
+At the other end of each edge there is a transaction, which is a separate `node`.
+
+```
+          hash
+          fromAddressHash
+          toAddressHash
+          input
+        }
+```
+
+These are the fields we read for each transaction. 
+
+```
+      }
+    }
+  }
+}
+```
+
+Finally, close all the brackets. 

@@ -27,7 +27,7 @@ func checkOk(ok bool) {
 // Shorthand to ease go's god awful error handling
 func checkErr(err error, failReason string) {
 	if err != nil {
-		panic(fmt.Errorf("%s: %s", failReason, err))
+		panic(fmt.Errorf("%s: %w", failReason, err))
 	}
 }
 
