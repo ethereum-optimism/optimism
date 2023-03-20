@@ -440,20 +440,27 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
     cd ~/optimism/packages/contracts-bedrock
     ```
 
-1. Grab the address of the `OptimismPortalProxy` contract:
+1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/OptimismPortalProxy.json | grep \"address\":
+    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json.json | grep \"address\":
     ```
 
     You should see a result like the following (**your address will be different**):
 
     ```
-    "address": "0x264B5fde6B37fb6f1C92AaC17BA144cf9e3DcFE9",
-            "address": "0x264B5fde6B37fb6f1C92AaC17BA144cf9e3DcFE9",
+    "address": "0x874f2E16D803c044F10314A978322da3c9b075c7",
+            "internalType": "address",
+            "type": "address"
+            "internalType": "address",
+            "type": "address"
+            "internalType": "address",
+            "type": "address"
+            "internalType": "address",
+            "type": "address"
     ```
 
-1. Grab the `OptimismPortalProxy` address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
+1. Grab the L1 bridge proxy contract address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
 
 ## Use your Rollup
 
