@@ -98,6 +98,9 @@ func Main(version string, cliCtx *cli.Context) error {
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
 
+	m.RecordInfo(version)
+	m.RecordUp()
+
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
 		os.Interrupt,
@@ -113,12 +116,11 @@ func Main(version string, cliCtx *cli.Context) error {
 
 // L2OutputSubmitter is responsible for proposing outputs
 type L2OutputSubmitter struct {
-	txMgr          txmgr.TxManager
-	wg             sync.WaitGroup
-	done           chan struct{}
-	log            log.Logger
-	metricsEnabled bool
-	metr           metrics.Metricer
+	txMgr txmgr.TxManager
+	wg    sync.WaitGroup
+	done  chan struct{}
+	log   log.Logger
+	metr  metrics.Metricer
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -226,13 +228,12 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 	rawL2ooContract := bind.NewBoundContract(cfg.L2OutputOracleAddr, parsed, cfg.L1Client, cfg.L1Client, cfg.L1Client)
 
 	return &L2OutputSubmitter{
-		txMgr:          txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
-		done:           make(chan struct{}),
-		log:            l,
-		ctx:            ctx,
-		cancel:         cancel,
-		metricsEnabled: cfg.metricsEnabled,
-		metr:           m,
+		txMgr:  txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
+		done:   make(chan struct{}),
+		log:    l,
+		ctx:    ctx,
+		cancel: cancel,
+		metr:   m,
 
 		l1Client:     cfg.L1Client,
 		rollupClient: cfg.RollupClient,
@@ -380,16 +381,6 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 		return err
 	}
 
-	if l.metricsEnabled {
-		// Emit the proposed block Number
-		block, err := l.rollupClient.OutputAtBlock(ctx, receipt.BlockNumber.Uint64())
-		if err != nil {
-			l.log.Warn("unable to fetch block", "block_number", receipt.BlockNumber)
-		} else {
-			l.metr.RecordL2BlocksProposed(block.BlockRef)
-		}
-	}
-
 	// The transaction was successfully submitted
 	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
 	return nil
@@ -429,6 +420,7 @@ func (l *L2OutputSubmitter) loop() {
 				cancel()
 				break
 			} else {
+				l.metr.RecordL2BlocksProposed(output.BlockRef)
 				cancel()
 			}
 
