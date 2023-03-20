@@ -215,7 +215,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Configures the ProxyAdmin contract.
      */
-    function step1() external onlyOwner step(1) {
+    function step1() public onlyOwner step(1) {
         // Set the AddressManager in the ProxyAdmin.
         config.globalConfig.proxyAdmin.setAddressManager(config.globalConfig.addressManager);
 
@@ -260,7 +260,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Pauses the system by shutting down the L1CrossDomainMessenger and setting the
      *         deposit halt flag to tell the Sequencer's DTL to stop accepting deposits.
      */
-    function step2() external onlyOwner step(2) {
+    function step2() public onlyOwner step(2) {
         // Store the address of the old L1CrossDomainMessenger implementation. We will need this
         // address in the case that we have to exit early.
         oldL1CrossDomainMessenger = config.globalConfig.addressManager.getAddress(
@@ -285,7 +285,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Removes deprecated addresses from the AddressManager.
      */
-    function step3() external onlyOwner step(EXIT_1_NO_RETURN_STEP) {
+    function step3() public onlyOwner step(EXIT_1_NO_RETURN_STEP) {
         // Remove all deprecated addresses from the AddressManager
         string[17] memory deprecated = [
             "OVM_CanonicalTransactionChain",
@@ -315,7 +315,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Transfers system ownership to the ProxyAdmin.
      */
-    function step4() external onlyOwner step(PROXY_TRANSFER_STEP) {
+    function step4() public onlyOwner step(PROXY_TRANSFER_STEP) {
         // Transfer ownership of the AddressManager to the ProxyAdmin.
         config.globalConfig.addressManager.transferOwnership(
             address(config.globalConfig.proxyAdmin)
@@ -335,7 +335,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Upgrades and initializes proxy contracts.
      */
-    function step5() external onlyOwner step(5) {
+    function step5() public onlyOwner step(5) {
         // Dynamic config must be set before we can initialize the L2OutputOracle.
         require(dynamicConfigSet, "SystemDictator: dynamic oracle config is not yet initialized");
 
@@ -408,6 +408,23 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
+    }
+
+    /**
+     * @notice Calls the first 2 steps of the migration process.
+     */
+    function phase1() external onlyOwner {
+        step1();
+        step2();
+    }
+
+    /**
+     * @notice Calls the remaining steps of the migration process.
+     */
+    function phase2() external onlyOwner {
+        step3();
+        step4();
+        step5();
     }
 
     /**
