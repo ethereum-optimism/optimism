@@ -109,7 +109,7 @@ const deployFn: DeployFunction = async (hre) => {
         const owner = await AddressManager.owner()
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -149,7 +149,7 @@ const deployFn: DeployFunction = async (hre) => {
         })
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -187,7 +187,7 @@ const deployFn: DeployFunction = async (hre) => {
         })
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {

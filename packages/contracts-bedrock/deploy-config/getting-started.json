@@ -2,6 +2,7 @@
   "numDeployConfirmations": 1,
 
   "finalSystemOwner": "ADMIN",
+  "portalGuardian": "ADMIN",
   "controller": "ADMIN",
 
   "l1StartingBlockTag": "BLOCKHASH",

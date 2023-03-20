@@ -76,6 +76,8 @@ type DeployConfig struct {
 	ProxyAdminOwner common.Address `json:"proxyAdminOwner"`
 	// Owner of the system on L1
 	FinalSystemOwner common.Address `json:"finalSystemOwner"`
+	// GUARDIAN account in the OptimismPortal
+	PortalGuardian common.Address `json:"portalGuardian"`
 	// L1 recipient of fees accumulated in the BaseFeeVault
 	BaseFeeVaultRecipient common.Address `json:"baseFeeVaultRecipient"`
 	// L1 recipient of fees accumulated in the L1FeeVault
@@ -127,6 +129,9 @@ func (d *DeployConfig) Check() error {
 	}
 	if d.FinalizationPeriodSeconds == 0 {
 		return fmt.Errorf("%w: FinalizationPeriodSeconds cannot be 0", ErrInvalidDeployConfig)
+	}
+	if d.PortalGuardian == (common.Address{}) {
+		return fmt.Errorf("%w: PortalGuardian cannot be address(0)", ErrInvalidDeployConfig)
 	}
 	if d.MaxSequencerDrift == 0 {
 		return fmt.Errorf("%w: MaxSequencerDrift cannot be 0", ErrInvalidDeployConfig)
