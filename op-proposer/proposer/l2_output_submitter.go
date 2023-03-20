@@ -187,7 +187,6 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 		AllowNonFinalized:  cfg.AllowNonFinalized,
 		From:               fromAddress,
 		SignerFnFactory:    signer,
-		metricsEnabled:     cfg.MetricsConfig.Enabled,
 	}
 
 	return NewL2OutputSubmitter(proposerCfg, l, m)
