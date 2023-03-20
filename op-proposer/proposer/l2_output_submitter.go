@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,7 +28,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -49,9 +50,10 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
-	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l)
+	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
 		return err
@@ -78,19 +80,15 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 	}
 
-	registry := opmetrics.NewRegistry()
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
-		metricsRegistry := opmetrics.InitProposerMetricsRegistry(registry, "")
-		l2OutputSubmitter.mr = metricsRegistry
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		go func() {
-			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		addr := l2OutputSubmitter.from
-		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l1Client, addr)
+		m.StartBalanceMetrics(ctx, l, l2OutputSubmitter.l1Client, l2OutputSubmitter.from)
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -119,8 +117,8 @@ type L2OutputSubmitter struct {
 	wg             sync.WaitGroup
 	done           chan struct{}
 	log            log.Logger
-	mr             *opmetrics.ProposerMetricsRegistry
 	metricsEnabled bool
+	metr           metrics.Metricer
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -147,7 +145,7 @@ type L2OutputSubmitter struct {
 }
 
 // NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
-func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
+func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
 	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
 	if err != nil {
 		return nil, err
@@ -190,11 +188,11 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		metricsEnabled:     cfg.MetricsConfig.Enabled,
 	}
 
-	return NewL2OutputSubmitter(proposerCfg, l)
+	return NewL2OutputSubmitter(proposerCfg, l, m)
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
-func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) {
+func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
@@ -234,6 +232,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 		ctx:            ctx,
 		cancel:         cancel,
 		metricsEnabled: cfg.metricsEnabled,
+		metr:           m,
 
 		l1Client:     cfg.L1Client,
 		rollupClient: cfg.RollupClient,
@@ -383,7 +382,6 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 
 	if l.metricsEnabled {
 		// Emit the proposed block Number
-		opmetrics.EmitBlockNumber(l.mr.BlockNumberGauge, receipt.BlockNumber)
 	}
 
 	// The transaction was successfully submitted
