@@ -9,6 +9,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
@@ -20,18 +21,21 @@ import (
 )
 
 type Config struct {
-	log             log.Logger
-	L1Client        *ethclient.Client
-	L2Client        *ethclient.Client
-	RollupNode      *sources.RollupClient
-	PollInterval    time.Duration
+	log        log.Logger
+	metr       metrics.Metricer
+	L1Client   *ethclient.Client
+	L2Client   *ethclient.Client
+	RollupNode *sources.RollupClient
+
+	PollInterval time.Duration
+	From         common.Address
+
 	TxManagerConfig txmgr.Config
-	From            common.Address
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
 
-	// Channel creation parameters
+	// Channel builder parameters
 	Channel ChannelConfig
 }
 

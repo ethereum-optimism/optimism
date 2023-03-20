@@ -38,14 +38,8 @@ type Config struct {
 	OutDirectory string
 }
 
-// Channels loads all transactions from the given input directory that are submitted to the
-// specified batch inbox and then re-assembles all channels & writes the re-assembled channels
-// to the out directory.
-func Channels(config Config) {
-	if err := os.MkdirAll(config.OutDirectory, 0750); err != nil {
-		log.Fatal(err)
-	}
-	txns := loadTransactions(config.InDirectory, config.BatchInbox)
+func LoadFrames(directory string, inbox common.Address) []FrameWithMetadata {
+	txns := loadTransactions(directory, inbox)
 	// Sort first by block number then by transaction index inside the block number range.
 	// This is to match the order they are processed in derivation.
 	sort.Slice(txns, func(i, j int) bool {
@@ -56,7 +50,17 @@ func Channels(config Config) {
 		}
 
 	})
-	frames := transactionsToFrames(txns)
+	return transactionsToFrames(txns)
+}
+
+// Channels loads all transactions from the given input directory that are submitted to the
+// specified batch inbox and then re-assembles all channels & writes the re-assembled channels
+// to the out directory.
+func Channels(config Config) {
+	if err := os.MkdirAll(config.OutDirectory, 0750); err != nil {
+		log.Fatal(err)
+	}
+	frames := LoadFrames(config.InDirectory, config.BatchInbox)
 	framesByChannel := make(map[derive.ChannelID][]FrameWithMetadata)
 	for _, frame := range frames {
 		framesByChannel[frame.Frame.ID] = append(framesByChannel[frame.Frame.ID], frame)
@@ -143,6 +147,7 @@ func transactionsToFrames(txns []fetch.TransactionWithMetadata) []FrameWithMetad
 	return out
 }
 
+// if inbox is the zero address, it will load all frames
 func loadTransactions(dir string, inbox common.Address) []fetch.TransactionWithMetadata {
 	files, err := os.ReadDir(dir)
 	if err != nil {
@@ -152,7 +157,7 @@ func loadTransactions(dir string, inbox common.Address) []fetch.TransactionWithM
 	for _, file := range files {
 		f := path.Join(dir, file.Name())
 		txm := loadTransactionsFile(f)
-		if txm.InboxAddr == inbox && txm.ValidSender {
+		if (inbox == common.Address{} || txm.InboxAddr == inbox) && txm.ValidSender {
 			out = append(out, txm)
 		}
 	}

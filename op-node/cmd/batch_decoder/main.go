@@ -9,6 +9,7 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/fetch"
 	"github.com/ethereum-optimism/optimism/op-node/cmd/batch_decoder/reassemble"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/urfave/cli"
@@ -110,6 +111,46 @@ func main() {
 					OutDirectory: cliCtx.String("out"),
 				}
 				reassemble.Channels(config)
+				return nil
+			},
+		},
+		{
+			Name:  "force-close",
+			Usage: "Create the tx data which will force close a channel",
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:     "id",
+					Required: true,
+					Usage:    "ID of the channel to close",
+				},
+				cli.StringFlag{
+					Name:  "inbox",
+					Value: "0x0000000000000000000000000000000000000000",
+					Usage: "(Optional) Batch Inbox Address",
+				},
+				cli.StringFlag{
+					Name:  "in",
+					Value: "/tmp/batch_decoder/transactions_cache",
+					Usage: "Cache directory for the found transactions",
+				},
+			},
+			Action: func(cliCtx *cli.Context) error {
+				var id derive.ChannelID
+				if err := (&id).UnmarshalText([]byte(cliCtx.String("id"))); err != nil {
+					log.Fatal(err)
+				}
+				frames := reassemble.LoadFrames(cliCtx.String("in"), common.HexToAddress(cliCtx.String("inbox")))
+				var filteredFrames []derive.Frame
+				for _, frame := range frames {
+					if frame.Frame.ID == id {
+						filteredFrames = append(filteredFrames, frame.Frame)
+					}
+				}
+				data, err := derive.ForceCloseTxData(filteredFrames)
+				if err != nil {
+					log.Fatal(err)
+				}
+				fmt.Printf("%x\n", data)
 				return nil
 			},
 		},

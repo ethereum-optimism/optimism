@@ -12,6 +12,7 @@ import (
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
@@ -341,7 +342,7 @@ func TestMigration(t *testing.T) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(secrets.Batcher),
-	}, lgr.New("module", "batcher"))
+	}, lgr.New("module", "batcher"), batchermetrics.NoopMetrics)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		batcher.StopIfRunning()

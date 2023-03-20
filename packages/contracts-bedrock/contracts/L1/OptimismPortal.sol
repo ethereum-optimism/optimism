@@ -49,7 +49,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
-     * @notice Address that has the ability to pause and unpause deposits and withdrawals.
+     * @notice Address that has the ability to pause and unpause withdrawals.
      */
     address public immutable GUARDIAN;
 
