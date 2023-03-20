@@ -377,9 +377,12 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
     }
 }
 
-/// @dev A non-compliant ERC721 token that does not implement the full ERC721 interface.
-/// This is used to test that the bridge will revert if the token does not claim to support
-/// the ERC721 interface.
+/**
+ * @dev A non-compliant ERC721 token that does not implement the full ERC721 interface.
+ *
+ * This is used to test that the bridge will revert if the token does not claim to support
+ * the ERC721 interface.
+ */
 contract NonCompliantERC721 {
     address internal immutable owner;
 
