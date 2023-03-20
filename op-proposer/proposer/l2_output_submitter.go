@@ -382,6 +382,12 @@ func (l *L2OutputSubmitter) SendTransaction(ctx context.Context, tx *types.Trans
 
 	if l.metricsEnabled {
 		// Emit the proposed block Number
+		block, err := l.rollupClient.OutputAtBlock(ctx, receipt.BlockNumber.Uint64())
+		if err != nil {
+			l.log.Warn("unable to fetch block", "block_number", receipt.BlockNumber)
+		} else {
+			l.metr.RecordL2BlocksProposed(block.BlockRef)
+		}
 	}
 
 	// The transaction was successfully submitted
