@@ -48,8 +48,8 @@ mechanisms.
 
 ### L1 Components
 
-- **DepositFeed**: A feed of L2 transactions which originated as smart contract calls in the L1 state.
-  - The `DepositFeed` contract emits `TransactionDeposited` events, which the rollup driver reads in order to process
+- **OptimismPortal**: A feed of L2 transactions which originated as smart contract calls in the L1 state.
+  - The `OptimismPortal` contract emits `TransactionDeposited` events, which the rollup driver reads in order to process
 deposits.
   - Deposits are guaranteed to be reflected in the L2 state within the _sequencing window_.
   - Beware that _transactions_ are deposited, not tokens. However deposited transactions are a key part of implementing
@@ -106,7 +106,7 @@ The below diagram illustrates how the sequencer and verifiers fit together:
 - [Deposits](./deposits.md)
 
 Optimism supports two types of deposits: user deposits, and L1 attributes deposits. To perform a user deposit, users
-call the `depositTransaction` method on the `DepositFeed` contract. This in turn emits `TransactionDeposited` events,
+call the `depositTransaction` method on the `OptimismPortal` contract. This in turn emits `TransactionDeposited` events,
 which the rollup node reads during block derivation.
 
 L1 attributes deposits are used to register L1 block attributes (number, timestamp, etc.) on L2 via a call to the L1
@@ -141,8 +141,8 @@ worth of blocks has passed, i.e. after L1 block number `n + SEQUENCING_WINDOW_SI
 
 Each epoch contains at least one block. Every block in the epoch contains an L1 info transaction which contains
 contextual information about L1 such as the block hash and timestamp. The first block in the epoch also contains all
-deposits initiated via the `DepositFeed` contract on L1. All L2 blocks can also contain _sequenced transactions_, i.e.
-transactions submitted directly to the sequencer.
+deposits initiated via the `OptimismPortal` contract on L1. All L2 blocks can also contain _sequenced transactions_,
+i.e.  transactions submitted directly to the sequencer.
 
 Whenever the sequencer creates a new L2 block for a given epoch, it must submit it to L1 as part of a _batch_, within
 the epoch's sequencing window (i.e. the batch must land before L1 block `n + SEQUENCING_WINDOW_SIZE`). These batches are
