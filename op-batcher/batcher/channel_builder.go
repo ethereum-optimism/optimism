@@ -136,6 +136,8 @@ type channelBuilder struct {
 	blocks []*types.Block
 	// frames data queue, to be send as txs
 	frames []frameData
+	// total amount of output data of all frames created yet
+	outputBytes int
 }
 
 // newChannelBuilder creates a new channel builder or returns an error if the
@@ -156,9 +158,19 @@ func (c *channelBuilder) ID() derive.ChannelID {
 	return c.co.ID()
 }
 
-// InputBytes returns to total amount of input bytes added to the channel.
+// InputBytes returns the total amount of input bytes added to the channel.
 func (c *channelBuilder) InputBytes() int {
 	return c.co.InputBytes()
+}
+
+// ReadyBytes returns the amount of bytes ready in the compression pipeline to
+// output into a frame.
+func (c *channelBuilder) ReadyBytes() int {
+	return c.co.ReadyBytes()
+}
+
+func (c *channelBuilder) OutputBytes() int {
+	return c.outputBytes
 }
 
 // Blocks returns a backup list of all blocks that were added to the channel. It
@@ -184,22 +196,25 @@ func (c *channelBuilder) Reset() error {
 // AddBlock returns a ChannelFullError if called even though the channel is
 // already full. See description of FullErr for details.
 //
+// AddBlock also returns the L1BlockInfo that got extracted from the block's
+// first transaction for subsequent use by the caller.
+//
 // Call OutputFrames() afterwards to create frames.
-func (c *channelBuilder) AddBlock(block *types.Block) error {
+func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error) {
 	if c.IsFull() {
-		return c.FullErr()
+		return derive.L1BlockInfo{}, c.FullErr()
 	}
 
-	batch, err := derive.BlockToBatch(block)
+	batch, l1info, err := derive.BlockToBatch(block)
 	if err != nil {
-		return fmt.Errorf("converting block to batch: %w", err)
+		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
 	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
 		c.setFullErr(err)
-		return c.FullErr()
+		return l1info, c.FullErr()
 	} else if err != nil {
-		return fmt.Errorf("adding block to channel out: %w", err)
+		return l1info, fmt.Errorf("adding block to channel out: %w", err)
 	}
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
@@ -209,7 +224,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 		// Adding this block still worked, so don't return error, just mark as full
 	}
 
-	return nil
+	return l1info, nil
 }
 
 // Timeout management
@@ -381,10 +396,11 @@ func (c *channelBuilder) outputFrame() error {
 	}
 
 	frame := frameData{
-		id:   txID{chID: c.co.ID(), frameNumber: fn},
+		id:   frameID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
 	}
 	c.frames = append(c.frames, frame)
+	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
 }
 
