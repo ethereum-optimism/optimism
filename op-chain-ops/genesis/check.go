@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
+
 	"github.com/ethereum-optimism/optimism/op-chain-ops/ether"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -508,7 +510,9 @@ func CheckWithdrawalsAfter(db vm.StateDB, data crossdomain.MigrationData, l1Cros
 	// Now, iterate over each legacy withdrawal and check if there is a corresponding
 	// migrated withdrawal.
 	var innerErr error
+	progress := util.ProgressLogger(1000, "checking withdrawals")
 	err = db.ForEachStorage(predeploys.LegacyMessagePasserAddr, func(key, value common.Hash) bool {
+		progress()
 		// The legacy message passer becomes a proxy during the migration,
 		// so we need to ignore the implementation/admin slots.
 		if key == ImplementationSlot || key == AdminSlot {

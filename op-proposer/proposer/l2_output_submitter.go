@@ -208,6 +208,13 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 		return nil, err
 	}
 
+	version, err := l2ooContract.Version(&bind.CallOpts{})
+	if err != nil {
+		cancel()
+		return nil, err
+	}
+	log.Info("Connected to L2OutputOracle", "address", cfg.L2OutputOracleAddr, "version", version)
+
 	parsed, err := abi.JSON(strings.NewReader(bindings.L2OutputOracleMetaData.ABI))
 	if err != nil {
 		cancel()
