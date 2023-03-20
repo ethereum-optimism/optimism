@@ -17,18 +17,19 @@ type PeerScorerTestSuite struct {
 	suite.Suite
 
 	// mockConnGater *p2pMocks.ConnectionGater
-	mockGater    *p2pMocks.PeerGater
-	mockStore    *p2pMocks.Peerstore
-	mockMetricer *p2pMocks.GossipMetricer
-	logger       log.Logger
+	mockGater      *p2pMocks.PeerGater
+	mockStore      *p2pMocks.Peerstore
+	mockMetricer   *p2pMocks.GossipMetricer
+	mockBandScorer *p2pMocks.BandScorer
+	logger         log.Logger
 }
 
 // SetupTest sets up the test suite.
 func (testSuite *PeerScorerTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.PeerGater{}
-	// testSuite.mockConnGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
+	testSuite.mockBandScorer = &p2pMocks.BandScorer{}
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
@@ -43,6 +44,7 @@ func (testSuite *PeerScorerTestSuite) TestPeerScorerOnConnect() {
 		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
+		testSuite.mockBandScorer,
 		testSuite.logger,
 	)
 	scorer.OnConnect()
@@ -54,6 +56,7 @@ func (testSuite *PeerScorerTestSuite) TestPeerScorerOnDisconnect() {
 		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
+		testSuite.mockBandScorer,
 		testSuite.logger,
 	)
 	scorer.OnDisconnect()
@@ -65,16 +68,22 @@ func (testSuite *PeerScorerTestSuite) TestSnapshotHook() {
 		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
+		testSuite.mockBandScorer,
 		testSuite.logger,
 	)
 	inspectFn := scorer.SnapshotHook()
 
-	// Mock the snapshot updates
-	// This doesn't return anything
-	testSuite.mockMetricer.On("RecordPeerScoring", peer.ID("peer1"), float64(-100)).Return(nil)
+	// Mock the band scorer calls
+	testSuite.mockBandScorer.On("Reset").Return(nil)
+	testSuite.mockBandScorer.On("Bucket", float64(-100)).Return("graylist")
 
 	// Mock the peer gater call
 	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-100)).Return(nil)
+
+	// The metricer should then be called with the peer score band map
+	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
+		"graylist": 1,
+	}).Return(nil)
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{
@@ -92,16 +101,22 @@ func (testSuite *PeerScorerTestSuite) TestSnapshotHookBlockPeer() {
 		testSuite.mockGater,
 		testSuite.mockStore,
 		testSuite.mockMetricer,
+		testSuite.mockBandScorer,
 		testSuite.logger,
 	)
 	inspectFn := scorer.SnapshotHook()
 
-	// Mock the snapshot updates
-	// This doesn't return anything
-	testSuite.mockMetricer.On("RecordPeerScoring", peer.ID("peer1"), float64(-101)).Return(nil)
+	// Mock the band scorer calls
+	testSuite.mockBandScorer.On("Reset").Return(nil)
+	testSuite.mockBandScorer.On("Bucket", float64(-101)).Return("graylist")
 
 	// Mock the peer gater call
 	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-101)).Return(nil)
+
+	// The metricer should then be called with the peer score band map
+	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
+		"graylist": 1,
+	}).Return(nil)
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{

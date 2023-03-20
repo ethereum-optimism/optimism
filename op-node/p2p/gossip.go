@@ -55,6 +55,7 @@ type GossipSetupConfigurables interface {
 	TopicScoringParams() *pubsub.TopicScoreParams
 	BanPeers() bool
 	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
+	PeerBandScorer() BandScorer
 }
 
 type GossipRuntimeConfig interface {
@@ -64,7 +65,8 @@ type GossipRuntimeConfig interface {
 //go:generate mockery --name GossipMetricer
 type GossipMetricer interface {
 	RecordGossipEvent(evType int32)
-	RecordPeerScoring(peerID peer.ID, score float64)
+	// Peer Scoring Metric Funcs
+	SetPeerScores(map[string]float64)
 }
 
 func blocksTopicV1(cfg *rollup.Config) string {
