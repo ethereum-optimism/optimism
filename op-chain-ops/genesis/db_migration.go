@@ -143,16 +143,6 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 		filteredWithdrawals = crossdomain.SafeFilteredWithdrawals(unfilteredWithdrawals)
 	}
 
-	// We also need to verify that we have all of the storage slots for the LegacyERC20ETH contract
-	// that we expect to have. An error will be thrown if there are any missing storage slots.
-	// Unlike with withdrawals, we do not need to filter out extra addresses because their balances
-	// would necessarily be zero and therefore not affect the migration.
-	log.Info("Checking addresses...", "no-check", noCheck)
-	addrs, err := ether.PreCheckBalances(dbFactory, migrationData.Addresses(), migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
-	if err != nil {
-		return nil, fmt.Errorf("addresses mismatch: %w", err)
-	}
-
 	// At this point we've fully verified the witness data for the migration, so we can begin the
 	// actual migration process. This involves modifying parts of the legacy database and inserting
 	// a transition block.
@@ -202,11 +192,12 @@ func MigrateDB(ldb ethdb.Database, config *DeployConfig, l1Block *types.Block, m
 	}
 
 	// Finally we migrate the balances held inside the LegacyERC20ETH contract into the state trie.
-	// We also delete the balances from the LegacyERC20ETH contract.
+	// We also delete the balances from the LegacyERC20ETH contract. Unlike the steps above, this step
+	// combines the check and mutation steps into one in order to reduce migration time.
 	log.Info("Starting to migrate ERC20 ETH")
-	err = ether.MigrateLegacyETH(db, addrs, int(config.L1ChainID), noCheck)
+	err = ether.MigrateBalances(db, dbFactory, migrationData.Addresses(), migrationData.OvmAllowances, int(config.L1ChainID), noCheck)
 	if err != nil {
-		return nil, fmt.Errorf("cannot migrate legacy eth: %w", err)
+		return nil, fmt.Errorf("failed to migrate OVM_ETH: %w", err)
 	}
 
 	// We're done messing around with the database, so we can now commit the changes to the DB.
