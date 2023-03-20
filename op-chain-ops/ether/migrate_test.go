@@ -1,14 +1,12 @@
 package ether
 
 import (
-	"bytes"
+	"fmt"
 	"math/big"
 	"math/rand"
-	"os"
-	"sort"
 	"testing"
 
-	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum/go-ethereum/common"
@@ -18,9 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPreCheckBalances(t *testing.T) {
-	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(true)))
-
+func TestMigrateBalances(t *testing.T) {
 	tests := []struct {
 		name            string
 		totalSupply     *big.Int
@@ -29,7 +25,7 @@ func TestPreCheckBalances(t *testing.T) {
 		stateAllowances map[common.Address]common.Address
 		inputAddresses  []common.Address
 		inputAllowances []*crossdomain.Allowance
-		check           func(t *testing.T, addrs FilteredOVMETHAddresses, err error)
+		check           func(t *testing.T, db *state.StateDB, err error)
 	}{
 		{
 			name:        "everything matches",
@@ -52,12 +48,11 @@ func TestPreCheckBalances(t *testing.T) {
 					To:   common.HexToAddress("0x456"),
 				},
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.NoError(t, err)
-				require.EqualValues(t, FilteredOVMETHAddresses{
-					common.HexToAddress("0x123"),
-					common.HexToAddress("0x456"),
-				}, addrs)
+				require.EqualValues(t, common.Big1, db.GetBalance(common.HexToAddress("0x123")))
+				require.EqualValues(t, common.Big2, db.GetBalance(common.HexToAddress("0x456")))
+				require.EqualValues(t, common.Hash{}, db.GetState(predeploys.LegacyERC20ETHAddr, GetOVMETHTotalSupplySlot()))
 			},
 		},
 		{
@@ -71,11 +66,11 @@ func TestPreCheckBalances(t *testing.T) {
 				common.HexToAddress("0x123"),
 				common.HexToAddress("0x456"),
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.NoError(t, err)
-				require.EqualValues(t, FilteredOVMETHAddresses{
-					common.HexToAddress("0x123"),
-				}, addrs)
+				require.EqualValues(t, common.Big1, db.GetBalance(common.HexToAddress("0x123")))
+				require.EqualValues(t, common.Big0, db.GetBalance(common.HexToAddress("0x456")))
+				require.EqualValues(t, common.Hash{}, db.GetState(predeploys.LegacyERC20ETHAddr, GetOVMETHTotalSupplySlot()))
 			},
 		},
 		{
@@ -102,11 +97,11 @@ func TestPreCheckBalances(t *testing.T) {
 					To:   common.HexToAddress("0x789"),
 				},
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.NoError(t, err)
-				require.EqualValues(t, FilteredOVMETHAddresses{
-					common.HexToAddress("0x123"),
-				}, addrs)
+				require.EqualValues(t, common.Big1, db.GetBalance(common.HexToAddress("0x123")))
+				require.EqualValues(t, common.Big0, db.GetBalance(common.HexToAddress("0x456")))
+				require.EqualValues(t, common.Hash{}, db.GetState(predeploys.LegacyERC20ETHAddr, GetOVMETHTotalSupplySlot()))
 			},
 		},
 		{
@@ -120,7 +115,7 @@ func TestPreCheckBalances(t *testing.T) {
 			inputAddresses: []common.Address{
 				common.HexToAddress("0x123"),
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, "unknown storage slot")
 			},
@@ -145,7 +140,7 @@ func TestPreCheckBalances(t *testing.T) {
 					To:   common.HexToAddress("0x456"),
 				},
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, "unknown storage slot")
 			},
@@ -162,7 +157,7 @@ func TestPreCheckBalances(t *testing.T) {
 				common.HexToAddress("0x123"),
 				common.HexToAddress("0x456"),
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.Error(t, err)
 				require.ErrorContains(t, err, "supply mismatch")
 			},
@@ -179,35 +174,25 @@ func TestPreCheckBalances(t *testing.T) {
 				common.HexToAddress("0x123"),
 				common.HexToAddress("0x456"),
 			},
-			check: func(t *testing.T, addrs FilteredOVMETHAddresses, err error) {
+			check: func(t *testing.T, db *state.StateDB, err error) {
 				require.NoError(t, err)
-				require.EqualValues(t, FilteredOVMETHAddresses{
-					common.HexToAddress("0x123"),
-					common.HexToAddress("0x456"),
-				}, addrs)
+				require.EqualValues(t, common.Big1, db.GetBalance(common.HexToAddress("0x123")))
+				require.EqualValues(t, common.Big2, db.GetBalance(common.HexToAddress("0x456")))
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			db := makeLegacyETH(t, tt.totalSupply, tt.stateBalances, tt.stateAllowances)
-			factory := func() (*state.StateDB, error) {
-				return db, nil
-			}
-			addrs, err := doMigration(factory, tt.inputAddresses, tt.inputAllowances, tt.expDiff, false)
-
-			// Sort the addresses since they come in in a random order.
-			sort.Slice(addrs, func(i, j int) bool {
-				return bytes.Compare(addrs[i][:], addrs[j][:]) < 0
-			})
-
-			tt.check(t, addrs, err)
+			db, factory := makeLegacyETH(t, tt.totalSupply, tt.stateBalances, tt.stateAllowances)
+			err := doMigration(db, factory, tt.inputAddresses, tt.inputAllowances, tt.expDiff, false)
+			tt.check(t, db, err)
 		})
 	}
 }
 
-func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Address]*big.Int, allowances map[common.Address]common.Address) *state.StateDB {
-	db, err := state.New(common.Hash{}, state.NewDatabaseWithConfig(rawdb.NewMemoryDatabase(), &trie.Config{
+func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Address]*big.Int, allowances map[common.Address]common.Address) (*state.StateDB, DBFactory) {
+	memDB := rawdb.NewMemoryDatabase()
+	db, err := state.New(common.Hash{}, state.NewDatabaseWithConfig(memDB, &trie.Config{
 		Preimages: true,
 		Cache:     1024,
 	}), nil)
@@ -235,34 +220,35 @@ func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Addre
 	err = db.Database().TrieDB().Commit(root, true)
 	require.NoError(t, err)
 
-	return db
+	return db, func() (*state.StateDB, error) {
+		return state.New(root, state.NewDatabaseWithConfig(memDB, &trie.Config{
+			Preimages: true,
+			Cache:     1024,
+		}), nil)
+	}
 }
 
-// TestPreCheckBalancesRandom tests that the pre-check balances function works
+// TestMigrateBalancesRandom tests that the pre-check balances function works
 // with random addresses. This test makes sure that the partition logic doesn't
 // miss anything.
-func TestPreCheckBalancesRandom(t *testing.T) {
-	addresses := make([]common.Address, 0)
-	stateBalances := make(map[common.Address]*big.Int)
-
-	allowances := make([]*crossdomain.Allowance, 0)
-	stateAllowances := make(map[common.Address]common.Address)
-
-	totalSupply := big.NewInt(0)
-
+func TestMigrateBalancesRandom(t *testing.T) {
 	for i := 0; i < 100; i++ {
-		for i := 0; i < rand.Intn(1000); i++ {
+		addresses := make([]common.Address, 0)
+		stateBalances := make(map[common.Address]*big.Int)
+
+		allowances := make([]*crossdomain.Allowance, 0)
+		stateAllowances := make(map[common.Address]common.Address)
+
+		totalSupply := big.NewInt(0)
+
+		for j := 0; j < rand.Intn(10000); j++ {
 			addr := randAddr(t)
 			addresses = append(addresses, addr)
 			stateBalances[addr] = big.NewInt(int64(rand.Intn(1_000_000)))
 			totalSupply = new(big.Int).Add(totalSupply, stateBalances[addr])
 		}
 
-		sort.Slice(addresses, func(i, j int) bool {
-			return bytes.Compare(addresses[i][:], addresses[j][:]) < 0
-		})
-
-		for i := 0; i < rand.Intn(1000); i++ {
+		for j := 0; j < rand.Intn(1000); j++ {
 			addr := randAddr(t)
 			to := randAddr(t)
 			allowances = append(allowances, &crossdomain.Allowance{
@@ -272,19 +258,94 @@ func TestPreCheckBalancesRandom(t *testing.T) {
 			stateAllowances[addr] = to
 		}
 
-		db := makeLegacyETH(t, totalSupply, stateBalances, stateAllowances)
-		factory := func() (*state.StateDB, error) {
-			return db, nil
-		}
-
-		outAddrs, err := doMigration(factory, addresses, allowances, big.NewInt(0), false)
+		db, factory := makeLegacyETH(t, totalSupply, stateBalances, stateAllowances)
+		err := doMigration(db, factory, addresses, allowances, big.NewInt(0), false)
 		require.NoError(t, err)
 
-		sort.Slice(outAddrs, func(i, j int) bool {
-			return bytes.Compare(outAddrs[i][:], outAddrs[j][:]) < 0
-		})
-		require.EqualValues(t, addresses, outAddrs)
+		for addr, expBal := range stateBalances {
+			actBal := db.GetBalance(addr)
+			require.EqualValues(t, expBal, actBal)
+		}
 	}
+}
+
+func TestPartitionKeyspace(t *testing.T) {
+	tests := []struct {
+		i        int
+		count    int
+		expected [2]common.Hash
+	}{
+		{
+			i:     0,
+			count: 1,
+			expected: [2]common.Hash{
+				common.HexToHash("0x00"),
+				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+			},
+		},
+		{
+			i:     0,
+			count: 2,
+			expected: [2]common.Hash{
+				common.HexToHash("0x00"),
+				common.HexToHash("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+			},
+		},
+		{
+			i:     1,
+			count: 2,
+			expected: [2]common.Hash{
+				common.HexToHash("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+			},
+		},
+		{
+			i:     0,
+			count: 3,
+			expected: [2]common.Hash{
+				common.HexToHash("0x00"),
+				common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555"),
+			},
+		},
+		{
+			i:     1,
+			count: 3,
+			expected: [2]common.Hash{
+				common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555"),
+				common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+			},
+		},
+		{
+			i:     2,
+			count: 3,
+			expected: [2]common.Hash{
+				common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("i %d, count %d", tt.i, tt.count), func(t *testing.T) {
+			start, end := PartitionKeyspace(tt.i, tt.count)
+			require.Equal(t, tt.expected[0], start)
+			require.Equal(t, tt.expected[1], end)
+		})
+	}
+
+	t.Run("panics on invalid i or count", func(t *testing.T) {
+		require.Panics(t, func() {
+			PartitionKeyspace(1, 1)
+		})
+		require.Panics(t, func() {
+			PartitionKeyspace(-1, 1)
+		})
+		require.Panics(t, func() {
+			PartitionKeyspace(0, -1)
+		})
+		require.Panics(t, func() {
+			PartitionKeyspace(-1, -1)
+		})
+	})
 }
 
 func randAddr(t *testing.T) common.Address {
