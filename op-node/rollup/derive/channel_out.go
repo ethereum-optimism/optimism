@@ -76,7 +76,7 @@ func (co *ChannelOut) AddBlock(block *types.Block) (uint64, error) {
 		return 0, errors.New("already closed")
 	}
 
-	batch, err := BlockToBatch(block)
+	batch, _, err := BlockToBatch(block)
 	if err != nil {
 		return 0, err
 	}
@@ -182,7 +182,7 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 }
 
 // BlockToBatch transforms a block into a batch object that can easily be RLP encoded.
-func BlockToBatch(block *types.Block) (*BatchData, error) {
+func BlockToBatch(block *types.Block) (*BatchData, L1BlockInfo, error) {
 	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
 		if tx.Type() == types.DepositTxType {
@@ -190,17 +190,17 @@ func BlockToBatch(block *types.Block) (*BatchData, error) {
 		}
 		otx, err := tx.MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("could not encode tx %v in block %v: %w", i, tx.Hash(), err)
+			return nil, L1BlockInfo{}, fmt.Errorf("could not encode tx %v in block %v: %w", i, tx.Hash(), err)
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
 	l1InfoTx := block.Transactions()[0]
 	if l1InfoTx.Type() != types.DepositTxType {
-		return nil, ErrNotDepositTx
+		return nil, L1BlockInfo{}, ErrNotDepositTx
 	}
 	l1Info, err := L1InfoDepositTxData(l1InfoTx.Data())
 	if err != nil {
-		return nil, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
+		return nil, l1Info, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
 	}
 
 	return &BatchData{
@@ -211,7 +211,7 @@ func BlockToBatch(block *types.Block) (*BatchData, error) {
 			Timestamp:    block.Time(),
 			Transactions: opaqueTxs,
 		},
-	}, nil
+	}, l1Info, nil
 }
 
 // ForceCloseTxData generates the transaction data for a transaction which will force close
