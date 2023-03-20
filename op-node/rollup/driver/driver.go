@@ -84,6 +84,7 @@ type Network interface {
 type AltSync interface {
 	// RequestL2Range informs the sync source that the given range of L2 blocks is missing,
 	// and should be retrieved from any available alternative syncing source.
+	// The start of the range is inclusive, the end is exclusive.
 	// The sync results should be returned back to the driver via the OnUnsafeL2Payload(ctx, payload) method.
 	// The latest requested range should always take priority over previous requests.
 	// There may be overlaps in requested ranges.

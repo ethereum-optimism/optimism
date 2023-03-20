@@ -215,7 +215,6 @@ func (n *OpNode) initRPCSync(ctx context.Context, cfg *Config) error {
 		return nil
 	}
 
-	// The sync client's RPC is always trusted
 	config := sources.SyncClientDefaultConfig(&cfg.Rollup, trustRPC)
 
 	syncClient, err := sources.NewSyncClient(n.OnUnsafeL2Payload, rpcSyncClient, n.log, n.metrics.L2SourceCache, config)
