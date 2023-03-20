@@ -419,6 +419,9 @@ func TestOutputFramesHappy(t *testing.T) {
 
 	// There should be many frames in the channel builder now
 	require.Greater(t, cb.NumFrames(), 1)
+	for _, frame := range cb.frames {
+		require.Len(t, frame.data, int(channelConfig.MaxFrameSize))
+	}
 }
 
 // TestMaxRLPBytesPerChannel tests the [channelBuilder.OutputFrames]
