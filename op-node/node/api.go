@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -114,7 +115,16 @@ func (n *nodeAPI) OutputAtBlock(ctx context.Context, number hexutil.Uint64) (*et
 	}
 
 	var l2OutputRootVersion eth.Bytes32 // it's zero for now
-	l2OutputRoot := rollup.ComputeL2OutputRoot(l2OutputRootVersion, head.Hash(), head.Root(), proof.StorageHash)
+	l2OutputRoot, err := rollup.ComputeL2OutputRoot(&bindings.TypesOutputRootProof{
+		Version:                  l2OutputRootVersion,
+		StateRoot:                head.Root(),
+		MessagePasserStorageRoot: proof.StorageHash,
+		LatestBlockhash:          head.Hash(),
+	})
+	if err != nil {
+		n.log.Error("Error computing L2 output root, nil ptr passed to hashing function")
+		return nil, err
+	}
 
 	return &eth.OutputResponse{
 		Version:               l2OutputRootVersion,

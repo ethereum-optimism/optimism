@@ -11,6 +11,29 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+var (
+	ErrZeroMaxFrameSize      = errors.New("max frame size cannot be zero")
+	ErrSmallMaxFrameSize     = errors.New("max frame size cannot be less than 23")
+	ErrInvalidChannelTimeout = errors.New("channel timeout is less than the safety margin")
+	ErrInputTargetReached    = errors.New("target amount of input data reached")
+	ErrMaxFrameIndex         = errors.New("max frame index reached (uint16)")
+	ErrMaxDurationReached    = errors.New("max channel duration reached")
+	ErrChannelTimeoutClose   = errors.New("close to channel timeout")
+	ErrSeqWindowClose        = errors.New("close to sequencer window timeout")
+)
+
+type ChannelFullError struct {
+	Err error
+}
+
+func (e *ChannelFullError) Error() string {
+	return "channel full: " + e.Err.Error()
+}
+
+func (e *ChannelFullError) Unwrap() error {
+	return e.Err
+}
+
 type ChannelConfig struct {
 	// Number of epochs (L1 blocks) per sequencing window, including the epoch
 	// L1 origin block itself
@@ -46,6 +69,32 @@ type ChannelConfig struct {
 	// average from experiments to avoid the chances of creating a small
 	// additional leftover frame.
 	ApproxComprRatio float64
+}
+
+// Check validates the [ChannelConfig] parameters.
+func (cc *ChannelConfig) Check() error {
+	// The [ChannelTimeout] must be larger than the [SubSafetyMargin].
+	// Otherwise, new blocks would always be considered timed out.
+	if cc.ChannelTimeout < cc.SubSafetyMargin {
+		return ErrInvalidChannelTimeout
+	}
+
+	// If the [MaxFrameSize] is set to 0, the channel builder
+	// will infinitely loop when trying to create frames in the
+	// [channelBuilder.OutputFrames] function.
+	if cc.MaxFrameSize == 0 {
+		return ErrZeroMaxFrameSize
+	}
+
+	// If the [MaxFrameSize] is set to < 23, the channel out
+	// will underflow the maxSize variable in the [derive.ChannelOut].
+	// Since it is of type uint64, it will wrap around to a very large
+	// number, making the frame size extremely large.
+	if cc.MaxFrameSize < 23 {
+		return ErrSmallMaxFrameSize
+	}
+
+	return nil
 }
 
 // InputThreshold calculates the input data threshold in bytes from the given
@@ -87,8 +136,12 @@ type channelBuilder struct {
 	blocks []*types.Block
 	// frames data queue, to be send as txs
 	frames []frameData
+	// total amount of output data of all frames created yet
+	outputBytes int
 }
 
+// newChannelBuilder creates a new channel builder or returns an error if the
+// channel out could not be created.
 func newChannelBuilder(cfg ChannelConfig) (*channelBuilder, error) {
 	co, err := derive.NewChannelOut()
 	if err != nil {
@@ -105,9 +158,19 @@ func (c *channelBuilder) ID() derive.ChannelID {
 	return c.co.ID()
 }
 
-// InputBytes returns to total amount of input bytes added to the channel.
+// InputBytes returns the total amount of input bytes added to the channel.
 func (c *channelBuilder) InputBytes() int {
 	return c.co.InputBytes()
+}
+
+// ReadyBytes returns the amount of bytes ready in the compression pipeline to
+// output into a frame.
+func (c *channelBuilder) ReadyBytes() int {
+	return c.co.ReadyBytes()
+}
+
+func (c *channelBuilder) OutputBytes() int {
+	return c.outputBytes
 }
 
 // Blocks returns a backup list of all blocks that were added to the channel. It
@@ -133,22 +196,25 @@ func (c *channelBuilder) Reset() error {
 // AddBlock returns a ChannelFullError if called even though the channel is
 // already full. See description of FullErr for details.
 //
+// AddBlock also returns the L1BlockInfo that got extracted from the block's
+// first transaction for subsequent use by the caller.
+//
 // Call OutputFrames() afterwards to create frames.
-func (c *channelBuilder) AddBlock(block *types.Block) error {
+func (c *channelBuilder) AddBlock(block *types.Block) (derive.L1BlockInfo, error) {
 	if c.IsFull() {
-		return c.FullErr()
+		return derive.L1BlockInfo{}, c.FullErr()
 	}
 
-	batch, err := derive.BlockToBatch(block)
+	batch, l1info, err := derive.BlockToBatch(block)
 	if err != nil {
-		return fmt.Errorf("converting block to batch: %w", err)
+		return l1info, fmt.Errorf("converting block to batch: %w", err)
 	}
 
 	if _, err = c.co.AddBatch(batch); errors.Is(err, derive.ErrTooManyRLPBytes) {
 		c.setFullErr(err)
-		return c.FullErr()
+		return l1info, c.FullErr()
 	} else if err != nil {
-		return fmt.Errorf("adding block to channel out: %w", err)
+		return l1info, fmt.Errorf("adding block to channel out: %w", err)
 	}
 	c.blocks = append(c.blocks, block)
 	c.updateSwTimeout(batch)
@@ -158,7 +224,7 @@ func (c *channelBuilder) AddBlock(block *types.Block) error {
 		// Adding this block still worked, so don't return error, just mark as full
 	}
 
-	return nil
+	return l1info, nil
 }
 
 // Timeout management
@@ -215,7 +281,7 @@ func (c *channelBuilder) updateTimeout(timeoutBlockNum uint64, reason error) {
 }
 
 // checkTimeout checks if the channel is timed out at the given block number and
-// in this case marks the channel as full, if it wasn't full alredy.
+// in this case marks the channel as full, if it wasn't full already.
 func (c *channelBuilder) checkTimeout(blockNum uint64) {
 	if !c.IsFull() && c.TimedOut(blockNum) {
 		c.setFullErr(c.timeoutReason)
@@ -330,10 +396,11 @@ func (c *channelBuilder) outputFrame() error {
 	}
 
 	frame := frameData{
-		id:   txID{chID: c.co.ID(), frameNumber: fn},
+		id:   frameID{chID: c.co.ID(), frameNumber: fn},
 		data: buf.Bytes(),
 	}
 	c.frames = append(c.frames, frame)
+	c.outputBytes += len(frame.data)
 	return err // possibly io.EOF (last frame)
 }
 
@@ -370,24 +437,4 @@ func (c *channelBuilder) PushFrame(frame frameData) {
 		panic("wrong channel")
 	}
 	c.frames = append(c.frames, frame)
-}
-
-var (
-	ErrInputTargetReached  = errors.New("target amount of input data reached")
-	ErrMaxFrameIndex       = errors.New("max frame index reached (uint16)")
-	ErrMaxDurationReached  = errors.New("max channel duration reached")
-	ErrChannelTimeoutClose = errors.New("close to channel timeout")
-	ErrSeqWindowClose      = errors.New("close to sequencer window timeout")
-)
-
-type ChannelFullError struct {
-	Err error
-}
-
-func (e *ChannelFullError) Error() string {
-	return "channel full: " + e.Err.Error()
-}
-
-func (e *ChannelFullError) Unwrap() error {
-	return e.Err
 }

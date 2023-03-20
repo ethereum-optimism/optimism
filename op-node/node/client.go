@@ -19,6 +19,11 @@ type L2EndpointSetup interface {
 	Check() error
 }
 
+type L2SyncEndpointSetup interface {
+	Setup(ctx context.Context, log log.Logger) (cl client.RPC, err error)
+	Check() error
+}
+
 type L1EndpointSetup interface {
 	// Setup a RPC client to a L1 node to pull rollup input-data from.
 	// The results of the RPC client may be trusted for faster processing, or strictly validated.
@@ -73,6 +78,50 @@ var _ L2EndpointSetup = (*PreparedL2Endpoints)(nil)
 
 func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger) (client.RPC, error) {
 	return p.Client, nil
+}
+
+// L2SyncEndpointConfig contains configuration for the fallback sync endpoint
+type L2SyncEndpointConfig struct {
+	// Address of the L2 RPC to use for backup sync
+	L2NodeAddr string
+}
+
+var _ L2SyncEndpointSetup = (*L2SyncEndpointConfig)(nil)
+
+func (cfg *L2SyncEndpointConfig) Setup(ctx context.Context, log log.Logger) (client.RPC, error) {
+	l2Node, err := client.NewRPC(ctx, log, cfg.L2NodeAddr)
+	if err != nil {
+		return nil, err
+	}
+
+	return l2Node, nil
+}
+
+func (cfg *L2SyncEndpointConfig) Check() error {
+	if cfg.L2NodeAddr == "" {
+		return errors.New("empty L2 Node Address")
+	}
+
+	return nil
+}
+
+type L2SyncRPCConfig struct {
+	// RPC endpoint to use for syncing
+	Rpc client.RPC
+}
+
+var _ L2SyncEndpointSetup = (*L2SyncRPCConfig)(nil)
+
+func (cfg *L2SyncRPCConfig) Setup(ctx context.Context, log log.Logger) (client.RPC, error) {
+	return cfg.Rpc, nil
+}
+
+func (cfg *L2SyncRPCConfig) Check() error {
+	if cfg.Rpc == nil {
+		return errors.New("rpc cannot be nil")
+	}
+
+	return nil
 }
 
 type L1EndpointConfig struct {

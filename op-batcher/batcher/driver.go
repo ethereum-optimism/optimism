@@ -10,7 +10,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
+	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -34,13 +36,14 @@ type BatchSubmitter struct {
 
 	// lastStoredBlock is the last block loaded into `state`. If it is empty it should be set to the l2 safe head.
 	lastStoredBlock eth.BlockID
+	lastL1Tip       eth.L1BlockRef
 
 	state *channelManager
 }
 
 // NewBatchSubmitterFromCLIConfig initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitter, error) {
+func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
 	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerConfig)
@@ -99,12 +102,17 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*BatchSubmitte
 		},
 	}
 
-	return NewBatchSubmitter(ctx, batcherCfg, l)
+	// Validate the batcher config
+	if err := batcherCfg.Check(); err != nil {
+		return nil, err
+	}
+
+	return NewBatchSubmitter(ctx, batcherCfg, l, m)
 }
 
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
-func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSubmitter, error) {
+func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
 	if err != nil {
 		return nil, err
@@ -113,12 +121,14 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger) (*BatchSub
 	cfg.log = l
 	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
 
+	cfg.metr = m
+
 	return &BatchSubmitter{
 		Config: cfg,
 		txMgr: NewTransactionManager(l,
 			cfg.TxManagerConfig, cfg.Rollup.BatchInboxAddress, cfg.Rollup.L1ChainID,
 			cfg.From, cfg.L1Client),
-		state: NewChannelManager(l, cfg.Channel),
+		state: NewChannelManager(l, m, cfg.Channel),
 	}, nil
 
 }
@@ -182,13 +192,16 @@ func (l *BatchSubmitter) Stop() error {
 func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 	start, end, err := l.calculateL2BlockRangeToStore(ctx)
 	if err != nil {
-		l.log.Trace("was not able to calculate L2 block range", "err", err)
+		l.log.Warn("Error calculating L2 block range", "err", err)
+		return
+	} else if start.Number == end.Number {
 		return
 	}
 
+	var latestBlock *types.Block
 	// Add all blocks to "state"
 	for i := start.Number + 1; i < end.Number+1; i++ {
-		id, err := l.loadBlockIntoState(ctx, i)
+		block, err := l.loadBlockIntoState(ctx, i)
 		if errors.Is(err, ErrReorg) {
 			l.log.Warn("Found L2 reorg", "block_number", i)
 			l.state.Clear()
@@ -198,24 +211,34 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 			l.log.Warn("failed to load block into state", "err", err)
 			return
 		}
-		l.lastStoredBlock = id
+		l.lastStoredBlock = eth.ToBlockID(block)
+		latestBlock = block
 	}
+
+	l2ref, err := derive.L2BlockToBlockRef(latestBlock, &l.Rollup.Genesis)
+	if err != nil {
+		l.log.Warn("Invalid L2 block loaded into state", "err", err)
+		return
+	}
+
+	l.metr.RecordL2BlocksLoaded(l2ref)
 }
 
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
-func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (eth.BlockID, error) {
+func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
 	ctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	defer cancel()
 	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
-	cancel()
 	if err != nil {
-		return eth.BlockID{}, err
+		return nil, fmt.Errorf("getting L2 block: %w", err)
 	}
+
 	if err := l.state.AddL2Block(block); err != nil {
-		return eth.BlockID{}, err
+		return nil, fmt.Errorf("adding L2 block to state: %w", err)
 	}
-	id := eth.ToBlockID(block)
-	l.log.Info("added L2 block to local state", "block", id, "tx_count", len(block.Transactions()), "time", block.Time())
-	return id, nil
+
+	l.log.Info("added L2 block to local state", "block", eth.ToBlockID(block), "tx_count", len(block.Transactions()), "time", block.Time())
+	return block, nil
 }
 
 // calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
@@ -278,6 +301,7 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("Failed to query L1 tip", "error", err)
 					break
 				}
+				l.recordL1Tip(l1tip)
 
 				// Collect next transaction data
 				txdata, err := l.state.TxData(l1tip.ID())
@@ -309,6 +333,14 @@ func (l *BatchSubmitter) loop() {
 			return
 		}
 	}
+}
+
+func (l *BatchSubmitter) recordL1Tip(l1tip eth.L1BlockRef) {
+	if l.lastL1Tip == l1tip {
+		return
+	}
+	l.lastL1Tip = l1tip
+	l.metr.RecordLatestL1Block(l1tip)
 }
 
 func (l *BatchSubmitter) recordFailedTx(id txID, err error) {

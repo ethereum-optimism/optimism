@@ -634,6 +634,84 @@ func TestIncreaseGasPriceEnforcesMinBump(t *testing.T) {
 		},
 		name:    "TEST",
 		backend: &borkedBackend,
+		l:       testlog.Logger(t, log.LvlTrace),
+	}
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: big.NewInt(100),
+		GasFeeCap: big.NewInt(1000),
+	})
+
+	ctx := context.Background()
+	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
+	require.NoError(t, err)
+	require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
+	require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+}
+
+// TestIncreaseGasPriceEnforcesMinBumpForBothOnTipIncrease asserts that if the gasTip goes up,
+// but the baseFee doesn't, both values are increased by 10%
+func TestIncreaseGasPriceEnforcesMinBumpForBothOnTipIncrease(t *testing.T) {
+	t.Parallel()
+
+	borkedBackend := failingBackend{
+		gasTip:  big.NewInt(101),
+		baseFee: big.NewInt(440),
+	}
+
+	mgr := &SimpleTxManager{
+		Config: Config{
+			ResubmissionTimeout:       time.Second,
+			ReceiptQueryInterval:      50 * time.Millisecond,
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+				return tx, nil
+			},
+			From: common.Address{},
+		},
+		name:    "TEST",
+		backend: &borkedBackend,
+		l:       testlog.Logger(t, log.LvlCrit),
+	}
+
+	tx := types.NewTx(&types.DynamicFeeTx{
+		GasTipCap: big.NewInt(100),
+		GasFeeCap: big.NewInt(1000),
+	})
+
+	ctx := context.Background()
+	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
+	require.NoError(t, err)
+	require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
+	require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+}
+
+// TestIncreaseGasPriceEnforcesMinBumpForBothOnBaseFeeIncrease asserts that if the baseFee goes up,
+// but the tip doesn't, both values are increased by 10%
+// TODO(CLI-3620): This test will fail until we implemented CLI-3620.
+func TestIncreaseGasPriceEnforcesMinBumpForBothOnBaseFeeIncrease(t *testing.T) {
+	t.Skip("Failing until CLI-3620 is implemented")
+	t.Parallel()
+
+	borkedBackend := failingBackend{
+		gasTip:  big.NewInt(99),
+		baseFee: big.NewInt(460),
+	}
+
+	mgr := &SimpleTxManager{
+		Config: Config{
+			ResubmissionTimeout:       time.Second,
+			ReceiptQueryInterval:      50 * time.Millisecond,
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
+				return tx, nil
+			},
+			From: common.Address{},
+		},
+		name:    "TEST",
+		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LvlCrit),
 	}
 
