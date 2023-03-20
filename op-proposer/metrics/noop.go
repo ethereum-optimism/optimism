@@ -7,6 +7,8 @@ import (
 
 type noopMetrics struct{ opmetrics.NoopRefMetrics }
 
+var NoopMetrics Metricer = new(noopMetrics)
+
 func (*noopMetrics) RecordInfo(version string) {}
 func (*noopMetrics) RecordUp()                 {}
 
