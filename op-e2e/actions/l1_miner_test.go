@@ -31,7 +31,7 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 		ChainID:   sd.L1Cfg.Config.ChainID,
 		Nonce:     0,
 		GasTipCap: big.NewInt(2 * params.GWei),
-		GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee(), big.NewInt(2*params.GWei)),
+		GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 		Gas:       params.TxGas,
 		To:        &dp.Addresses.Bob,
 		Value:     e2eutils.Ether(2),
@@ -41,7 +41,8 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 	// make an empty block, even though a tx may be waiting
 	miner.ActL1StartBlock(10)(t)
 	miner.ActL1EndBlock(t)
-	bl := miner.l1Chain.CurrentBlock()
+	header := miner.l1Chain.CurrentBlock()
+	bl := miner.l1Chain.GetBlockByHash(header.Hash())
 	require.Equal(t, uint64(1), bl.NumberU64())
 	require.Zero(gt, bl.Transactions().Len())
 
@@ -49,7 +50,8 @@ func TestL1Miner_BuildBlock(gt *testing.T) {
 	miner.ActL1StartBlock(10)(t)
 	miner.ActL1IncludeTx(dp.Addresses.Alice)(t)
 	miner.ActL1EndBlock(t)
-	bl = miner.l1Chain.CurrentBlock()
+	header = miner.l1Chain.CurrentBlock()
+	bl = miner.l1Chain.GetBlockByHash(header.Hash())
 	require.Equal(t, uint64(2), bl.NumberU64())
 	require.Equal(t, 1, bl.Transactions().Len())
 	require.Equal(t, tx.Hash(), bl.Transactions()[0].Hash())

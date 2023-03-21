@@ -202,30 +202,30 @@ func (ea *L2EngineAPI) ForkchoiceUpdatedV1(ctx context.Context, state *eth.Forkc
 	// chain final and completely in PoS mode.
 	if state.FinalizedBlockHash != (common.Hash{}) {
 		// If the finalized block is not in our canonical tree, somethings wrong
-		finalBlock := ea.l2Chain.GetBlockByHash(state.FinalizedBlockHash)
-		if finalBlock == nil {
+		finalHeader := ea.l2Chain.GetHeaderByHash(state.FinalizedBlockHash)
+		if finalHeader == nil {
 			ea.log.Warn("Final block not available in database", "hash", state.FinalizedBlockHash)
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not available in database"))
-		} else if rawdb.ReadCanonicalHash(ea.l2Database, finalBlock.NumberU64()) != state.FinalizedBlockHash {
+		} else if rawdb.ReadCanonicalHash(ea.l2Database, finalHeader.Number.Uint64()) != state.FinalizedBlockHash {
 			ea.log.Warn("Final block not in canonical chain", "number", block.NumberU64(), "hash", state.HeadBlockHash)
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("final block not in canonical chain"))
 		}
 		// Set the finalized block
-		ea.l2Chain.SetFinalized(finalBlock)
+		ea.l2Chain.SetFinalized(finalHeader)
 	}
 	// Check if the safe block hash is in our canonical tree, if not somethings wrong
 	if state.SafeBlockHash != (common.Hash{}) {
-		safeBlock := ea.l2Chain.GetBlockByHash(state.SafeBlockHash)
-		if safeBlock == nil {
+		safeHeader := ea.l2Chain.GetHeaderByHash(state.SafeBlockHash)
+		if safeHeader == nil {
 			ea.log.Warn("Safe block not available in database")
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not available in database"))
 		}
-		if rawdb.ReadCanonicalHash(ea.l2Database, safeBlock.NumberU64()) != state.SafeBlockHash {
+		if rawdb.ReadCanonicalHash(ea.l2Database, safeHeader.Number.Uint64()) != state.SafeBlockHash {
 			ea.log.Warn("Safe block not in canonical chain")
 			return STATUS_INVALID, engine.InvalidForkChoiceState.With(errors.New("safe block not in canonical chain"))
 		}
 		// Set the safe block
-		ea.l2Chain.SetSafe(safeBlock)
+		ea.l2Chain.SetSafe(safeHeader)
 	}
 	// If payload generation was requested, create a new block to be potentially
 	// sealed by the beacon client. The payload will be requested later, and we
