@@ -11,6 +11,7 @@ import { SecureMerkleTrie } from "../libraries/trie/SecureMerkleTrie.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { ResourceMetering } from "./ResourceMetering.sol";
 import { Semver } from "../universal/Semver.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 
 /**
  * @custom:proxied
@@ -144,8 +145,9 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     constructor(
         L2OutputOracle _l2Oracle,
         address _guardian,
-        bool _paused
-    ) Semver(1, 2, 0) {
+        bool _paused,
+        SystemConfig _systemConfig
+    ) Semver(1, 2, 0) ResourceMetering(_systemConfig) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
         initialize(_paused);

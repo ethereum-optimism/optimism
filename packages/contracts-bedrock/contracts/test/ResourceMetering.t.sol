@@ -4,9 +4,10 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 
 contract MeterUser is ResourceMetering {
-    constructor() {
+    constructor() ResourceMetering(SystemConfig(address(0))) {
         initialize();
     }
 
@@ -174,7 +175,7 @@ contract CustomMeterUser is ResourceMetering {
         uint128 _prevBaseFee,
         uint64 _prevBoughtGas,
         uint64 _prevBlockNum
-    ) {
+    ) ResourceMetering(SystemConfig(address(0))) {
         params = ResourceMetering.ResourceParams({
             prevBaseFee: _prevBaseFee,
             prevBoughtGas: _prevBoughtGas,

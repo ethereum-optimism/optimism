@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Arithmetic } from "../libraries/Arithmetic.sol";
 import { StdUtils } from "forge-std/Test.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 
 contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     bool internal failedMaxGasPerBlock;
@@ -16,7 +17,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     // in the test contracts, not the target contracts themselves.
     bool internal underflow;
 
-    constructor() {
+    constructor() ResourceMetering(SystemConfig(address(0))) {
         initialize();
     }
 
@@ -39,7 +40,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
             failedNeverBelowMinBaseFee = true;
         }
         // check that the last block didn't consume more than the max amount of gas
-        if (cachedPrevBoughtGas > uint256(MAX_RESOURCE_LIMIT)) {
+        if (cachedPrevBoughtGas > uint256(MAX_RESOURCE_LIMIT())) {
             failedMaxGasPerBlock = true;
         }
 
@@ -51,11 +52,11 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         if (_raiseBaseFee) {
             gasToBurn = bound(
                 _gasToBurn,
-                uint256(TARGET_RESOURCE_LIMIT),
-                uint256(MAX_RESOURCE_LIMIT)
+                uint256(TARGET_RESOURCE_LIMIT()),
+                uint256(MAX_RESOURCE_LIMIT())
             );
         } else {
-            gasToBurn = bound(_gasToBurn, 0, uint256(TARGET_RESOURCE_LIMIT));
+            gasToBurn = bound(_gasToBurn, 0, uint256(TARGET_RESOURCE_LIMIT()));
         }
 
         _burnInternal(uint64(gasToBurn));
@@ -69,7 +70,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         // empty blocks in between), ensure this block's baseFee increased, but not by
         // more than the max amount per block
         if (
-            (cachedPrevBoughtGas > uint256(TARGET_RESOURCE_LIMIT)) &&
+            (cachedPrevBoughtGas > uint256(TARGET_RESOURCE_LIMIT())) &&
             (uint256(params.prevBlockNum) - cachedPrevBlockNum == 1)
         ) {
             failedRaiseBaseFee = failedRaiseBaseFee || (params.prevBaseFee <= cachedPrevBaseFee);
@@ -81,7 +82,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         // If the last block used less than the target amount of gas, (or was empty),
         // ensure that: this block's baseFee was decreased, but not by more than the max amount
         if (
-            (cachedPrevBoughtGas < uint256(TARGET_RESOURCE_LIMIT)) ||
+            (cachedPrevBoughtGas < uint256(TARGET_RESOURCE_LIMIT())) ||
             (uint256(params.prevBlockNum) - cachedPrevBlockNum > 1)
         ) {
             // Invariant: baseFee should decrease

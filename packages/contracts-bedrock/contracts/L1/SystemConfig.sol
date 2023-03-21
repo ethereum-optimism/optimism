@@ -48,6 +48,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      */
     uint256 public immutable SYSTEM_TRANSACTION_MAX_GAS;
 
+    int256 public immutable MAX_RESOURCE_LIMIT;
+
     /**
      * @notice Address of the OptimismPortal.
      */
@@ -97,7 +99,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _batcherHash       Initial batcher hash.
      * @param _gasLimit          Initial gas limit.
      * @param _unsafeBlockSigner Initial unsafe block signer address.
-     * @param _portal            Address of the OptimismPortal
+     * @param _maxResourceLimit  Maximum amount of deposit tx gas per block.
+     * @param _systemTxMaxGas    Maximum amount of gas the system tx can consume.
      */
     constructor(
         address _owner,
@@ -106,10 +109,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        address _portal,
+        int256 _maxResourceLimit,
         uint64 _systemTxMaxGas
     ) Semver(1, 1, 0) {
-        PORTAL = _portal;
+        MAX_RESOURCE_LIMIT = _maxResourceLimit;
         SYSTEM_TRANSACTION_MAX_GAS = _systemTxMaxGas;
         initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
     }
@@ -232,7 +235,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         gas the system transaction can consume in a block.
      */
     function minimumGasLimit() public view returns (uint256) {
-        uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
-        return maxResourceLimit + SYSTEM_TRANSACTION_MAX_GAS;
+        // we can technically not break this up into 2 variables. It
+        // is a bit more explicit with 2 variables but more complex.
+        return uint256(MAX_RESOURCE_LIMIT) + SYSTEM_TRANSACTION_MAX_GAS;
     }
 }

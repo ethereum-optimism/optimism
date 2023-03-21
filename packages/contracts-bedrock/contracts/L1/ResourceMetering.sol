@@ -5,6 +5,7 @@ import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable
 import { Math } from "@openzeppelin/contracts/utils/math/Math.sol";
 import { Burn } from "../libraries/Burn.sol";
 import { Arithmetic } from "../libraries/Arithmetic.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 
 /**
  * @custom:upgradeable
@@ -28,20 +29,9 @@ abstract contract ResourceMetering is Initializable {
     }
 
     /**
-     * @notice Maximum amount of the resource that can be used within this block.
-     *         This value cannot be larger than the L2 block gas limit.
-     */
-    int256 public constant MAX_RESOURCE_LIMIT = 20_000_000;
-
-    /**
      * @notice Along with the resource limit, determines the target resource limit.
      */
     int256 public constant ELASTICITY_MULTIPLIER = 10;
-
-    /**
-     * @notice Target amount of the resource that should be used within this block.
-     */
-    int256 public constant TARGET_RESOURCE_LIMIT = MAX_RESOURCE_LIMIT / ELASTICITY_MULTIPLIER;
 
     /**
      * @notice Denominator that determines max change on fee per block.
@@ -68,6 +58,11 @@ abstract contract ResourceMetering is Initializable {
     uint128 public constant INITIAL_BASE_FEE = 1 gwei;
 
     /**
+     *
+     */
+    SystemConfig public immutable SYSTEM_CONFIG;
+
+    /**
      * @notice EIP-1559 style gas parameters.
      */
     ResourceParams public params;
@@ -76,6 +71,22 @@ abstract contract ResourceMetering is Initializable {
      * @notice Reserve extra slots (to a total of 50) in the storage layout for future upgrades.
      */
     uint256[48] private __gap;
+
+    /**
+     *
+     */
+    constructor(SystemConfig _config) {
+        SYSTEM_CONFIG = _config;
+    }
+
+    // we have some all caps functions that are no longer const
+    function MAX_RESOURCE_LIMIT() public returns (int256) {
+        return SYSTEM_CONFIG.MAX_RESOURCE_LIMIT();
+    }
+
+    function TARGET_RESOURCE_LIMIT() public returns (int256) {
+        return MAX_RESOURCE_LIMIT() / ELASTICITY_MULTIPLIER;
+    }
 
     /**
      * @notice Meters access to a function based an amount of a requested resource.
@@ -102,13 +113,15 @@ abstract contract ResourceMetering is Initializable {
     function _metered(uint64 _amount, uint256 _initialGas) internal {
         // Update block number and base fee if necessary.
         uint256 blockDiff = block.number - params.prevBlockNum;
+        int256 targetResourceLimit = TARGET_RESOURCE_LIMIT();
+
         if (blockDiff > 0) {
             // Handle updating EIP-1559 style gas parameters. We use EIP-1559 to restrict the rate
             // at which deposits can be created and therefore limit the potential for deposits to
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
-            int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
+            int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - targetResourceLimit;
             int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
-                (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
+                (targetResourceLimit * BASE_FEE_MAX_CHANGE_DENOMINATOR);
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
@@ -145,7 +158,7 @@ abstract contract ResourceMetering is Initializable {
         // Make sure we can actually buy the resource amount requested by the user.
         params.prevBoughtGas += _amount;
         require(
-            int256(uint256(params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
+            int256(uint256(params.prevBoughtGas)) <= targetResourceLimit,
             "ResourceMetering: cannot buy more gas than available gas limit"
         );
 
