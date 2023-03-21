@@ -2,6 +2,7 @@ package p2p
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -18,11 +19,15 @@ type scorer struct {
 	bandScoreThresholds BandScorer
 }
 
-// bandScoreThresholds holds the thresholds for classifying peers
+type scorePair struct {
+	band      string
+	threshold float64
+}
+
+// BandScoreThresholds holds the thresholds for classifying peers
 // into different score bands.
-type bandScoreThresholds struct {
-	bands      map[string]float64
-	lowestBand string
+type BandScoreThresholds struct {
+	bands []scorePair
 }
 
 // BandScorer is an interface for placing peer scores
@@ -40,21 +45,20 @@ type BandScorer interface {
 }
 
 // NewBandScorer constructs a new [BandScorer] instance.
-func NewBandScorer() BandScorer {
-	return &bandScoreThresholds{
-		bands: make(map[string]float64),
+func NewBandScorer() *BandScoreThresholds {
+	return &BandScoreThresholds{
+		bands: make([]scorePair, 0),
 	}
 }
 
 // Reset wipes the internal state of the [BandScorer].
-func (s *bandScoreThresholds) Reset() {
-	s.bands = make(map[string]float64)
+func (s *BandScoreThresholds) Reset() {
+	s.bands = s.bands[:0]
 }
 
 // Parse creates a [BandScorer] from a given string.
-func (s *bandScoreThresholds) Parse(str string) error {
-	var lowestThreshold float64
-	for i, band := range strings.Split(str, ";") {
+func (s *BandScoreThresholds) Parse(str string) error {
+	for _, band := range strings.Split(str, ";") {
 		// Skip empty band strings.
 		band := strings.TrimSpace(band)
 		if band == "" {
@@ -68,25 +72,33 @@ func (s *bandScoreThresholds) Parse(str string) error {
 		if err != nil {
 			return err
 		}
-		s.bands[split[1]] = threshold
-		if threshold < lowestThreshold || i == 0 {
-			s.lowestBand = split[1]
-			lowestThreshold = threshold
-		}
+		s.bands = append(s.bands, scorePair{
+			band:      split[1],
+			threshold: threshold,
+		})
 	}
+
+	// Order the bands by threshold in ascending order.
+	sort.Slice(s.bands, func(i, j int) bool {
+		return s.bands[i].threshold < s.bands[j].threshold
+	})
+
 	return nil
 }
 
 // Bucket returns the appropriate band for a given score.
-func (s *bandScoreThresholds) Bucket(score float64) string {
-	for band, threshold := range s.bands {
-		if score >= threshold {
-			return band
+func (s *BandScoreThresholds) Bucket(score float64) string {
+	for _, pair := range s.bands {
+		if score <= pair.threshold {
+			return pair.band
 		}
 	}
-	// If there is no band threshold lower than the score,
-	// the peer must be placed in the lowest bucket.
-	return s.lowestBand
+	// If there is no band threshold higher than the score,
+	// the peer must be placed in the highest bucket.
+	if len(s.bands) > 0 {
+		return s.bands[len(s.bands)-1].band
+	}
+	return ""
 }
 
 // Peerstore is a subset of the libp2p peerstore.Peerstore interface.
