@@ -377,5 +377,4 @@ func (s *channelManager) Close() {
 	}
 
 	s.pendingChannel.Close()
-	return
 }
