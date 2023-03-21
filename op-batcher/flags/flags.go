@@ -153,6 +153,8 @@ var requiredFlags = []cli.Flag{
 }
 
 var optionalFlags = []cli.Flag{
+	OfflineGasEstimationFlag,
+	TxManagerTimeoutFlag,
 	MaxChannelDurationFlag,
 	MaxL1TxSizeBytesFlag,
 	TargetL1TxSizeBytesFlag,

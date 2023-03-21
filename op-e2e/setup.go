@@ -586,6 +586,8 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		TxManagerTimeout:          10 * time.Minute,
+		OfflineGasEstimation:      true,
 		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
 		TargetL1TxSize:            100_000,

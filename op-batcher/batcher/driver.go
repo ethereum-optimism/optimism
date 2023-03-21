@@ -84,14 +84,15 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	}
 
 	batcherCfg := Config{
-		L1Client:         l1Client,
-		L2Client:         l2Client,
-		RollupNode:       rollupClient,
-		PollInterval:     cfg.PollInterval,
-		TxManagerConfig:  txManagerConfig,
-		TxManagerTimeout: cfg.TxManagerTimeout,
-		From:             fromAddress,
-		Rollup:           rcfg,
+		L1Client:             l1Client,
+		L2Client:             l2Client,
+		RollupNode:           rollupClient,
+		PollInterval:         cfg.PollInterval,
+		TxManagerConfig:      txManagerConfig,
+		TxManagerTimeout:     cfg.TxManagerTimeout,
+		OfflineGasEstimation: cfg.OfflineGasEstimation,
+		From:                 fromAddress,
+		Rollup:               rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
