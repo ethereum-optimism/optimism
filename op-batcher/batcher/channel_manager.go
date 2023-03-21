@@ -360,9 +360,9 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 // creation of any new channels.
 // This ensures that no new frames will be produced, but there may be any number
 // of pending frames produced before this call which should still be published.
-func (s *channelManager) Close() error {
+func (s *channelManager) Close() {
 	if s.closed {
-		return nil
+		return
 	}
 
 	s.closed = true
@@ -373,9 +373,9 @@ func (s *channelManager) Close() error {
 	}
 
 	if s.pendingChannel == nil {
-		return nil
+		return
 	}
 
 	s.pendingChannel.Close()
-	return nil
+	return
 }
