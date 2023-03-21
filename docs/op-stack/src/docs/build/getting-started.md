@@ -409,10 +409,10 @@ To avoid this , we start with peer to peer synchronization disabled (`--p2p.disa
 Once you have multiple nodes, it makes sense to use these command line parameters to synchronize between them without getting confused by other blockchains.
 
 ```
-    --p2p.static=<nodes>
-	--p2p.listen.ip=0.0.0.0 \
-	--p2p.listen.tcp=9003 \
-	--p2p.listen.udp=9003 \
+    --p2p.static=<nodes> \
+    --p2p.listen.ip=0.0.0.0 \
+    --p2p.listen.tcp=9003 \
+    --p2p.listen.udp=9003 \
 ```
 
 :::
@@ -629,7 +629,6 @@ You should *not* add an `op-bathcer`, there should be only one.
     ```
     
 1. Start `op-geth` (using the same command line you used on the initial node)
-1. Wait while the node synchronizes
 1. Start `op-node` (using the same command line you used on the initial node)
 
 
