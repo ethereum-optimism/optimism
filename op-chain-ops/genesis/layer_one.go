@@ -1,7 +1,6 @@
 package genesis
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -230,14 +229,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		}
 
 		memDB.CreateAccount(depAddr)
-
-		bytecode := dep.Bytecode
-		// Ensure that the immutable values in the system config are set correctly
-		if dep.Name == "SystemConfig" {
-			bytecode = bytes.Replace(bytecode, depsByName["OptimismPortal"].Address.Bytes(), predeploys.DevOptimismPortalAddr.Bytes(), 1)
-		}
-
-		memDB.SetCode(depAddr, bytecode)
+		memDB.SetCode(depAddr, dep.Bytecode)
 
 		for iter.Next() {
 			_, data, _, err := rlp.Split(iter.Value)
