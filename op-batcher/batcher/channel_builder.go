@@ -308,8 +308,8 @@ func (c *channelBuilder) IsFull() bool {
 // FullErr returns the reason why the channel is full. If not full yet, it
 // returns nil.
 //
-// It returns a ChannelFullError wrapping one of six possible reasons for the
-// channel being full:
+// It returns a ChannelFullError wrapping one of the following possible reasons
+// for the channel being full:
 //   - ErrInputTargetReached if the target amount of input data has been reached,
 //   - derive.MaxRLPBytesPerChannel if the general maximum amount of input data
 //     would have been exceeded by the latest AddBlock call,
@@ -405,12 +405,11 @@ func (c *channelBuilder) outputFrame() error {
 }
 
 // Close immediately marks the channel as full with an ErrTerminated
-// if the channel is not already full, then outputs any remaining frames.
-func (c *channelBuilder) Close() error {
+// if the channel is not already full.
+func (c *channelBuilder) Close() {
 	if !c.IsFull() {
 		c.setFullErr(ErrTerminated)
 	}
-	return c.closeAndOutputAllFrames()
 }
 
 // HasFrame returns whether there's any available frame. If true, it can be

@@ -293,9 +293,18 @@ func (l *BatchSubmitter) loop() {
 	for {
 		select {
 		case <-ticker.C:
+			// prioritize the `done` condition over the ticker, even though select ordering is randomized
+			select {
+			case <-l.done:
+				l.publishStateToL1(ctx)
+				return
+			default:
+			}
+
 			l.loadBlocksIntoState(l.ctx)
 			l.publishStateToL1(ctx)
 		case <-l.done:
+			l.publishStateToL1(ctx)
 			return
 		}
 	}
@@ -305,6 +314,14 @@ func (l *BatchSubmitter) loop() {
 // submits the associated data to the L1 in the form of channel frames.
 func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 	for {
+		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
+		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
+		select {
+		case <-l.done:
+			l.state.Close()
+		default:
+		}
+
 		l1tip, err := l.l1Tip(ctx)
 		if err != nil {
 			l.log.Error("Failed to query L1 tip", "error", err)
@@ -326,14 +343,6 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 			l.recordFailedTx(txdata.ID(), err)
 		} else {
 			l.recordConfirmedTx(txdata.ID(), receipt)
-		}
-
-		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
-		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
-		select {
-		case <-l.done:
-			l.state.Close()
-		default:
 		}
 	}
 }

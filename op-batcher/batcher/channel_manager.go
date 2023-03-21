@@ -81,12 +81,9 @@ func (s *channelManager) TxFailed(id txID) {
 	}
 
 	s.metr.RecordBatchTxFailed()
-	// If this channel has no submitted transactions, put the pending blocks back into the
-	// local saved blocks and reset this state so it can try to build a new channel.
-	if len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
-		s.log.Info("Channel has no submitted transactions", "chID", s.pendingChannel.ID())
-		s.blocks = append(s.pendingChannel.Blocks(), s.blocks...)
-		s.clearPendingChannel()
+	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+		s.log.Info("Channel has no submitted transactions, clearing for shutdown", "chID", s.pendingChannel.ID())
+		s.Clear()
 	}
 }
 
@@ -194,11 +191,6 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return s.nextTxData()
 	}
 
-	// Avoid producing new frames if the channel has been explicitly closed.
-	if s.closed {
-		return txData{}, io.EOF
-	}
-
 	// No pending frame, so we have to add new blocks to the channel
 
 	// If we have no saved blocks, we will not be able to create valid frames
@@ -210,8 +202,11 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return txData{}, err
 	}
 
-	if err := s.processBlocks(); err != nil {
-		return txData{}, err
+	// Avoid processing blocks if the channel manager has been explicitly closed.
+	if !s.closed {
+		if err := s.processBlocks(); err != nil {
+			return txData{}, err
+		}
 	}
 
 	// Register current L1 head only after all pending blocks have been
@@ -365,9 +360,21 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 // This ensures that no new frames will be produced, but there may be any number
 // of pending frames produced before this call which should still be published.
 func (s *channelManager) Close() error {
+	if s.closed {
+		return nil
+	}
+
 	s.closed = true
+
+	// Any pending state can be proactively cleared if there are no submitted transactions
+	if len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+		s.Clear()
+	}
+
 	if s.pendingChannel == nil {
 		return nil
 	}
-	return s.pendingChannel.Close()
+
+	s.pendingChannel.Close()
+	return nil
 }
