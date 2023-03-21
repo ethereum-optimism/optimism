@@ -160,11 +160,11 @@ func (f *fakeSafeFinalizedL1) Start() error {
 			case head := <-headChanges:
 				num := head.Block.NumberU64()
 				if num > f.finalizedDistance {
-					toFinalize := f.eth.BlockChain().GetBlockByNumber(num - f.finalizedDistance)
+					toFinalize := f.eth.BlockChain().GetHeaderByNumber(num - f.finalizedDistance)
 					f.eth.BlockChain().SetFinalized(toFinalize)
 				}
 				if num > f.safeDistance {
-					toSafe := f.eth.BlockChain().GetBlockByNumber(num - f.safeDistance)
+					toSafe := f.eth.BlockChain().GetHeaderByNumber(num - f.safeDistance)
 					f.eth.BlockChain().SetSafe(toSafe)
 				}
 			case <-quit:

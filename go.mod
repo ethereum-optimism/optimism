@@ -1,6 +1,6 @@
 module github.com/ethereum-optimism/optimism
 
-go 1.18
+go 1.19
 
 require (
 	github.com/btcsuite/btcd v0.23.3
@@ -9,7 +9,7 @@ require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum/go-ethereum v1.11.2
+	github.com/ethereum/go-ethereum v1.11.4
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.9
@@ -69,11 +69,11 @@ require (
 	github.com/francoispqt/gojay v1.2.13 // indirect
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08 // indirect
 	github.com/getsentry/sentry-go v0.18.0 // indirect
-	github.com/go-kit/kit v0.10.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/go-stack/stack v1.8.1 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
+	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
@@ -86,7 +86,6 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-bexpr v0.1.11 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.1 // indirect
-	github.com/holiman/big v0.0.0-20221017200358-a027dc42d04e // indirect
 	github.com/holiman/bloomfilter/v2 v2.0.3 // indirect
 	github.com/huin/goupnp v1.1.0 // indirect
 	github.com/influxdata/influxdb v1.8.3 // indirect
@@ -147,7 +146,6 @@ require (
 	github.com/prometheus/client_model v0.3.0 // indirect
 	github.com/prometheus/common v0.39.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
-	github.com/prometheus/tsdb v0.10.0 // indirect
 	github.com/quic-go/qpack v0.4.0 // indirect
 	github.com/quic-go/qtls-go1-18 v0.2.0 // indirect
 	github.com/quic-go/qtls-go1-19 v0.2.0 // indirect
@@ -191,6 +189,6 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.11.2 => github.com/ethereum-optimism/op-geth v1.11.2-de8c5df46.0.20230308025559-13ee9ab9153b
+replace github.com/ethereum/go-ethereum v1.11.4 => github.com/ethereum-optimism/op-geth v1.11.2-de8c5df46.0.20230321002540-11f0554a4313
 
-//replace github.com/ethereum/go-ethereum v1.11.2 => ../go-ethereum
+//replace github.com/ethereum/go-ethereum v1.11.4 => ../go-ethereum

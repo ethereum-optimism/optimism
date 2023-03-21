@@ -209,7 +209,7 @@ func NewConfig(ctx *cli.Context) (Config, error) {
 		MaxL1TxSize:               ctx.GlobalUint64(flags.MaxL1TxSizeFlag.Name),
 		MaxPlaintextBatchSize:     ctx.GlobalUint64(flags.MaxPlaintextBatchSizeFlag.Name),
 		MinStateRootElements:      ctx.GlobalUint64(flags.MinStateRootElementsFlag.Name),
-		MaxStateRootElements:      ctx.GlobalUint64(flags.MinStateRootElementsFlag.Name),
+		MaxStateRootElements:      ctx.GlobalUint64(flags.MaxStateRootElementsFlag.Name),
 		MaxBatchSubmissionTime:    ctx.GlobalDuration(flags.MaxBatchSubmissionTimeFlag.Name),
 		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
