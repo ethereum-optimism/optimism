@@ -3,6 +3,7 @@ package batcher
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"math/rand"
@@ -32,27 +33,79 @@ var defaultTestChannelConfig = ChannelConfig{
 	ApproxComprRatio:   0.4,
 }
 
-// TestConfigValidation tests the validation of the [ChannelConfig] struct.
-func TestConfigValidation(t *testing.T) {
-	// Construct a valid config.
-	validChannelConfig := defaultTestChannelConfig
-	require.NoError(t, validChannelConfig.Check())
+// TestChannelConfig_Check tests the [ChannelConfig] [Check] function.
+func TestChannelConfig_Check(t *testing.T) {
+	type test struct {
+		input     ChannelConfig
+		assertion func(error)
+	}
 
-	// Set the config to have a zero max frame size.
-	validChannelConfig.MaxFrameSize = 0
-	require.ErrorIs(t, validChannelConfig.Check(), ErrZeroMaxFrameSize)
+	// Construct test cases that test the boundary conditions
+	zeroChannelConfig := defaultTestChannelConfig
+	zeroChannelConfig.MaxFrameSize = 0
+	timeoutChannelConfig := defaultTestChannelConfig
+	timeoutChannelConfig.ChannelTimeout = 0
+	timeoutChannelConfig.SubSafetyMargin = 1
+	tests := []test{
+		{
+			input: defaultTestChannelConfig,
+			assertion: func(output error) {
+				require.NoError(t, output)
+			},
+		},
+		{
+			input: timeoutChannelConfig,
+			assertion: func(output error) {
+				require.ErrorIs(t, output, ErrInvalidChannelTimeout)
+			},
+		},
+		{
+			input: zeroChannelConfig,
+			assertion: func(output error) {
+				require.EqualError(t, output, "max frame size cannot be zero")
+			},
+		},
+	}
+	for i := 1; i < derive.FrameV0OverHeadSize; i++ {
+		smallChannelConfig := defaultTestChannelConfig
+		smallChannelConfig.MaxFrameSize = uint64(i)
+		expectedErr := fmt.Sprintf("max frame size %d is less than the minimum 23", i)
+		tests = append(tests, test{
+			input: smallChannelConfig,
+			assertion: func(output error) {
+				require.EqualError(t, output, expectedErr)
+			},
+		})
+	}
 
-	// Set the config to have a max frame size less than 23.
-	validChannelConfig.MaxFrameSize = 22
-	require.ErrorIs(t, validChannelConfig.Check(), ErrSmallMaxFrameSize)
+	// Run the table tests
+	for _, test := range tests {
+		test.assertion(test.input.Check())
+	}
+}
 
-	// Reset the config and test the Timeout error.
-	// NOTE: We should be fuzzing these values with the constraint that
-	// 		 SubSafetyMargin > ChannelTimeout to ensure validation.
-	validChannelConfig = defaultTestChannelConfig
-	validChannelConfig.ChannelTimeout = 0
-	validChannelConfig.SubSafetyMargin = 1
-	require.ErrorIs(t, validChannelConfig.Check(), ErrInvalidChannelTimeout)
+// FuzzChannelConfig_CheckTimeout tests the [ChannelConfig] [Check] function
+// with fuzzing to make sure that a [ErrInvalidChannelTimeout] is thrown when
+// the [ChannelTimeout] is less than the [SubSafetyMargin].
+func FuzzChannelConfig_CheckTimeout(f *testing.F) {
+	for i := range [10]int{} {
+		f.Add(uint64(i+1), uint64(i))
+	}
+	f.Fuzz(func(t *testing.T, channelTimeout uint64, subSafetyMargin uint64) {
+		// We only test where [ChannelTimeout] is less than the [SubSafetyMargin]
+		// So we cannot have [ChannelTimeout] be [math.MaxUint64]
+		if channelTimeout == math.MaxUint64 {
+			channelTimeout = math.MaxUint64 - 1
+		}
+		if subSafetyMargin <= channelTimeout {
+			subSafetyMargin = channelTimeout + 1
+		}
+
+		channelConfig := defaultTestChannelConfig
+		channelConfig.ChannelTimeout = channelTimeout
+		channelConfig.SubSafetyMargin = subSafetyMargin
+		require.ErrorIs(t, channelConfig.Check(), ErrInvalidChannelTimeout)
+	})
 }
 
 // addMiniBlock adds a minimal valid L2 block to the channel builder using the
