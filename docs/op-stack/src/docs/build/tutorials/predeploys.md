@@ -23,7 +23,7 @@ We do this using the [Foundry](https://book.getfoundry.sh/) command `cast`.
 
 1. We'll need several constants.
 
-    - Set these addresses.
+    - Set these addresses as variables in your terminal.
 
         ```sh
         L1BLOCKNUM=0x4200000000000000000000000000000000000013
