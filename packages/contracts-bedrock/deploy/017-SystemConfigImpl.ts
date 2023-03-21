@@ -80,6 +80,11 @@ const deployFn: DeployFunction = async (hre) => {
         'PORTAL',
         Artifact__OptimismPortalProxy.address
       )
+      await assertContractVariable(
+        contract,
+        'SYSTEM_TRANSACTION_MAX_GAS',
+        systemTransactionMaxGas
+      )
     },
   })
 }
