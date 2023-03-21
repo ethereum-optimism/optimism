@@ -93,6 +93,9 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	portalAddr, err = sysCfg.PORTAL(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, predeploys.DevOptimismPortalAddr, portalAddr)
+	systemTxMaxGas, err := sysCfg.SYSTEMTRANSACTIONMAXGAS(callOpts)
+	require.NoError(t, err)
+	require.Equal(t, new(big.Int).SetUint64(config.SystemTransactionMaxGas), systemTxMaxGas)
 
 	weth9, err := bindings.NewWETH9(predeploys.DevWETH9Addr, sim)
 	require.NoError(t, err)

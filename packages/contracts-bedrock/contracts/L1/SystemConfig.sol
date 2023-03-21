@@ -44,8 +44,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @notice The amount of gas that is supplied to the system transaction.
+     *         This value is value is set to 1_000_000 after the Regolith hardfork.
      */
-    uint256 public constant SYSTEM_TRANSACTION_MAX_GAS = 1_000_000;
+    uint256 public immutable SYSTEM_TRANSACTION_MAX_GAS;
 
     /**
      * @notice Address of the OptimismPortal.
@@ -104,9 +105,11 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        address _portal
+        address _portal,
+        uint64 _systemTxMaxGas
     ) Semver(1, 1, 0) {
         PORTAL = _portal;
+        SYSTEM_TRANSACTION_MAX_GAS = _systemTxMaxGas;
         initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
     }
 

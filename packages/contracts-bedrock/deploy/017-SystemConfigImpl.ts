@@ -25,8 +25,12 @@ const deployFn: DeployFunction = async (hre) => {
     },
   ])
 
+  const systemTransactionMaxGas = hre.deployConfig.systemTransactionMaxGas
+  if (systemTransactionMaxGas === 0) {
+    throw new Error(`Must define systemTransactionMaxGas`)
+  }
   const MAX_RESOURCE_LIMIT = await OptimismPortal.MAX_RESOURCE_LIMIT()
-  const minGasLimit = MAX_RESOURCE_LIMIT.add(1_000_000)
+  const minGasLimit = MAX_RESOURCE_LIMIT.add(systemTransactionMaxGas)
   if (minGasLimit.lt(hre.deployConfig.l2GenesisBlockGasLimit)) {
     throw new Error(`Initial L2 gas limit is too low`)
   }
@@ -42,6 +46,7 @@ const deployFn: DeployFunction = async (hre) => {
       hre.deployConfig.l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
       Artifact__OptimismPortalProxy.address,
+      hre.deployConfig.systemTransactionMaxGas,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(

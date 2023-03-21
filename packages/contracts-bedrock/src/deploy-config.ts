@@ -83,6 +83,12 @@ interface RequiredDeployConfig {
   batchSenderAddress: string
 
   /**
+   * The maximum amount of gas that can be used by the first transaction in every block.
+   * This number is set to 1_000_000 in the op-node after the Regolith hardfork.
+   */
+  systemTransactionMaxGas: number
+
+  /**
    * Output Oracle submission interval in L2 blocks.
    */
   l2OutputOracleSubmissionInterval: number
@@ -324,6 +330,10 @@ export const deployConfigSpec: {
     default: 2100,
   },
   gasPriceOracleScalar: {
+    type: 'number',
+    default: 1_000_000,
+  },
+  systemTransactionMaxGas: {
     type: 'number',
     default: 1_000_000,
   },
