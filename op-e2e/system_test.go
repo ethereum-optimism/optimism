@@ -476,7 +476,8 @@ func TestMissingBatchE2E(t *testing.T) {
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
 	defer func() {
-		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
 		sys.Close(ctx)
 	}()
 
