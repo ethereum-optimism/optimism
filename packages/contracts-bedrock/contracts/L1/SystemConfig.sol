@@ -54,12 +54,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     address public immutable PORTAL;
 
     /**
-     * @notice Fixed L2 gas overhead.
+     * @notice Fixed L2 gas overhead, used as part of fee calculations.
      */
     uint256 public overhead;
 
     /**
-     * @notice Dynamic L2 gas overhead.
+     * @notice Dynamic L2 gas overhead, used as part of fee calculations.
      */
     uint256 public scalar;
 
@@ -70,7 +70,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public batcherHash;
 
     /**
-     * @notice L2 gas limit.
+     * @notice L2 block gas limit. Can be configured and must be larger than the
+     *         value returned by `minimumGasLimit()`.
      */
     uint64 public gasLimit;
 
@@ -225,7 +226,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @notice Returns the minimum gas limit allowed by the system. If the L2
      *         gas limit is set to a value smaller than this, then it is
      *         possible for a block to be produced that uses more gas than what
-     *         is allowed on L2, resulting in a liveness failure.
+     *         is allowed on L2, resulting in a liveness failure. The MAX_RESOURCE_LIMIT
+     *         represents the amount of gas that can be consumed by deposits and
+     *         the SYSTEM_TRANSACTION_MAX_GAS represents the maximum amount of
+     *         gas the system transaction can consume in a block.
      */
     function minimumGasLimit() public view returns (uint256) {
         uint256 maxResourceLimit = uint256(ResourceMetering(PORTAL).MAX_RESOURCE_LIMIT());
