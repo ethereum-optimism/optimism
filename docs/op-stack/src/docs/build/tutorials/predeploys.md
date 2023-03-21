@@ -63,7 +63,7 @@ We do this using the [Foundry](https://book.getfoundry.sh/) command `cast`.
 1. See that the implementation is address zero, and that calling it fails.
 
    ```sh
-   cast call $L1BLOCKNUM "implementation()"
+   cast call $L1BLOCKNUM 'implementation()'
    cast call $L1BLOCKNUM 'number()'
    ```
 
