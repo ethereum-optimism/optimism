@@ -165,6 +165,8 @@ func (m *SimpleTxManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap *b
 // CraftTx creates the signed transaction to the batchInboxAddress.
 // It queries L1 for the current fee market conditions as well as for the nonce.
 // NOTE: This method SHOULD NOT publish the resulting transaction.
+// NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transaction's gas.
+// NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	gasTipCap, gasFeeCap, err := m.calcGasTipAndFeeCap(ctx)
 	if err != nil {
