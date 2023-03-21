@@ -390,9 +390,7 @@ Head over to the `op-node` package and start the `op-node` using the following c
 	--rollup.config=./rollup.json \
 	--rpc.addr=0.0.0.0 \
 	--rpc.port=8547 \
-	--p2p.listen.ip=0.0.0.0 \
-	--p2p.listen.tcp=9003 \
-	--p2p.listen.udp=9003 \
+    --p2p.disable \
 	--rpc.enable-admin \
 	--p2p.sequencer.key=<SEQUENCERKEY> \
 	--l1=<RPC> \
@@ -400,6 +398,26 @@ Head over to the `op-node` package and start the `op-node` using the following c
 ```
 
 Once you run this command, you should start seeing the `op-node` begin to process all of the L1 information after the starting block number that you picked earlier. Once the `op-node` has enough information, it’ll begin sending Engine API payloads to `op-geth`. At that point, you’ll start to see blocks being created inside of `op-geth`. We’re live!
+
+
+::: tip Peer to peer synchronization
+
+If you use a chain ID that is also used by others, for example the default (42069), your `op-node` will try to use peer to peer to speed up synchronization.
+These attempts will fail, because they will be signed with the wrong key, but they will waste time and network resources.
+
+To avoid this , we start with peer to peer synchronization disabled (`--p2p.disable`).
+Once you have multiple nodes, it makes sense to use these command line parameters to synchronize between them without getting confused by other blockchains.
+
+```
+    --p2p.static=<nodes>
+	--p2p.listen.ip=0.0.0.0 \
+	--p2p.listen.tcp=9003 \
+	--p2p.listen.udp=9003 \
+```
+
+:::
+
+
 
 
 ## Run op-batcher
@@ -531,6 +549,20 @@ To restart the blockchain, use the same order of components you did when you ini
 1. `op-node`
 1. `op-batcher`
 
+::: tip Synchronization takes time
+
+`op-batcher` might have warning messages similar to:
+
+```
+WARN [03-21|14:13:55.248] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+WARN [03-21|14:13:57.328] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+```
+
+This means that `op-node` is not yet synchronized up to the present time.
+Just wait until it is.
+
+:::
+
 
 ### Errors
 
@@ -554,27 +586,18 @@ echo "<SEQUENCER KEY HERE>" > datadir/block-signer-key
 ./build/bin/geth init --datadir=./datadir ./genesis.json
 ```
 
-#### `op-geth` not synchronized yet
 
-You might get these errors when starting `op-node`:
+#### Batcher out of ETH
 
-```
-t=2023-03-21T11:02:16-0500 lvl=info msg="Initializing Rollup Node"
-ERROR[03-21|11:02:16.891] Unable to create the rollup node config  error="failed to load p2p config: failed to load p2p discovery options: failed to open discovery db: resource temporarily unavailable"
-CRIT [03-21|11:02:16.902] Application failed                       message="failed to load p2p config: failed to load p2p discovery options: failed to open discovery db: resource temporarily unavailable"
-```
-
-This usually means that `op-geth` is still synchronizing. 
-You will see these messages on its console:
+If `op-batcher` runs out of ETH, it cannot submit write new transaction batches to L1.
+You will get error messages similar to this one:
 
 ```
-INFO [03-21|11:01:01.296] Chain head was updated                   number=23650 hash=64d626..3762b7 root=b8f5cf..78bfc0 elapsed="69.897µs"  age=8h36m41s
-INFO [03-21|11:01:01.373] Starting work on payload                 id=0x76c8267ac16b0ec0
-INFO [03-21|11:01:01.374] Updated payload                          id=0x76c8267ac16b0ec0 number=23651 hash=e846d2..af628e txs=1 gas=46913 fees=0 root=85ef2b..33ce37 elapsed="297.264µs"
-INFO [03-21|11:01:01.376] Stopping work on payload                 id=0x76c8267ac16b0ec0 reason=delivery
+INFO [03-21|14:22:32.754] publishing transaction                   service=batcher txHash=2ace6d..7eb248 nonce=2516 gasTipCap=2,340,741 gasFeeCap=172,028,434,515
+ERROR[03-21|14:22:32.844] unable to publish transaction            service=batcher txHash=2ace6d..7eb248 nonce=2516 gasTipCap=2,340,741 gasFeeCap=172,028,434,515 err="insufficient funds for gas * price + value"
 ```
 
-In this case wait to start `op-node` until `op-geth` is fully synchronized.
+Just send more ETH and to the batcher, and the problem will be resolved.
 
 ## Adding nodes
 
