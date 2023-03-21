@@ -27,10 +27,10 @@ func TestSetup(t *testing.T) {
 	alloc := &AllocParams{PrefundTestUsers: true}
 	sd := Setup(t, dp, alloc)
 	require.Contains(t, sd.L1Cfg.Alloc, dp.Addresses.Alice)
-	require.Equal(t, sd.L1Cfg.Alloc[dp.Addresses.Alice].Balance, Ether(1e6))
+	require.Equal(t, sd.L1Cfg.Alloc[dp.Addresses.Alice].Balance, Ether(1e12))
 
 	require.Contains(t, sd.L2Cfg.Alloc, dp.Addresses.Alice)
-	require.Equal(t, sd.L2Cfg.Alloc[dp.Addresses.Alice].Balance, Ether(1e6))
+	require.Equal(t, sd.L2Cfg.Alloc[dp.Addresses.Alice].Balance, Ether(1e12))
 
 	require.Contains(t, sd.L1Cfg.Alloc, predeploys.DevOptimismPortalAddr)
 	require.Contains(t, sd.L2Cfg.Alloc, predeploys.L1BlockAddr)
