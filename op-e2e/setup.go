@@ -214,12 +214,12 @@ type System struct {
 	Mocknet           mocknet.Mocknet
 }
 
-func (sys *System) Close() {
+func (sys *System) Close(ctx context.Context) {
 	if sys.L2OutputSubmitter != nil {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		sys.BatchSubmitter.StopIfRunning()
+		sys.BatchSubmitter.StopIfRunning(ctx)
 	}
 
 	for _, node := range sys.RollupNodes {

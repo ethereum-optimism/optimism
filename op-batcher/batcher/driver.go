@@ -160,8 +160,8 @@ func (l *BatchSubmitter) Start() error {
 	return nil
 }
 
-func (l *BatchSubmitter) StopIfRunning() {
-	_ = l.Stop(context.Background())
+func (l *BatchSubmitter) StopIfRunning(ctx context.Context) {
+	_ = l.Stop(ctx)
 }
 
 func (l *BatchSubmitter) Stop(ctx context.Context) error {

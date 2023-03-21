@@ -73,7 +73,7 @@ func TestL2OutputSubmitter(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l1Client := sys.Clients["l1"]
 
@@ -146,7 +146,7 @@ func TestSystemE2E(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	log := testlog.Logger(t, log.LvlInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
@@ -261,7 +261,7 @@ func TestConfirmationDepth(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	log := testlog.Logger(t, log.LvlInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
@@ -320,7 +320,7 @@ func TestPendingGasLimit(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	log := testlog.Logger(t, log.LvlInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
@@ -365,7 +365,7 @@ func TestFinalize(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l2Seq := sys.Clients["sequencer"]
 
@@ -392,7 +392,7 @@ func TestMintOnRevertedDeposit(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l1Client := sys.Clients["l1"]
 	l2Verif := sys.Clients["verifier"]
@@ -475,7 +475,10 @@ func TestMissingBatchE2E(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer func() {
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		sys.Close(ctx)
+	}()
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -609,7 +612,7 @@ func TestSystemMockP2P(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -697,7 +700,7 @@ func TestSystemRPCAltSync(t *testing.T) {
 		},
 	})
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -809,7 +812,7 @@ func TestSystemDenseTopology(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -874,7 +877,7 @@ func TestL1InfoContract(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
@@ -1003,7 +1006,7 @@ func TestWithdrawals(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l1Client := sys.Clients["l1"]
 	l2Seq := sys.Clients["sequencer"]
@@ -1210,7 +1213,7 @@ func TestFees(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l2Seq := sys.Clients["sequencer"]
 	l2Verif := sys.Clients["verifier"]
@@ -1356,7 +1359,7 @@ func TestStopStartSequencer(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	l2Seq := sys.Clients["sequencer"]
 	rollupNode := sys.RollupNodes["sequencer"]
@@ -1400,7 +1403,7 @@ func TestStopStartBatcher(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	rollupRPCClient, err := rpc.DialContext(context.Background(), sys.RollupNodes["verifier"].HTTPEndpoint())
 	require.Nil(t, err)
@@ -1449,7 +1452,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
 	// stop the batch submission
-	err = sys.BatchSubmitter.Stop()
+	err = sys.BatchSubmitter.Stop(context.Background())
 	require.Nil(t, err)
 
 	// wait for any old safe blocks being submitted / derived

@@ -1,6 +1,7 @@
 package op_e2e
 
 import (
+	"context"
 	"math"
 	"math/big"
 	"testing"
@@ -29,7 +30,7 @@ func TestERC20BridgeDeposits(t *testing.T) {
 
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close()
+	defer sys.Close(context.Background())
 
 	log := testlog.Logger(t, log.LvlInfo)
 	log.Info("genesis", "l2", sys.RollupConfig.Genesis.L2, "l1", sys.RollupConfig.Genesis.L1, "l2_time", sys.RollupConfig.Genesis.L2Time)
