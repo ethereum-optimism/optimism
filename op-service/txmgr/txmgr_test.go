@@ -51,6 +51,20 @@ func newTestHarness(t *testing.T) *testHarness {
 	return newTestHarnessWithConfig(t, configWithNumConfs(1))
 }
 
+// createTxCandidate creates a mock [TxCandidate].
+func (h testHarness) createTxCandidate() TxCandidate {
+	inbox := common.HexToAddress("0x42000000000000000000000000000000000000ff")
+	chainID := big.NewInt(1)
+	sender := common.HexToAddress("0xdeadbeef")
+	return TxCandidate{
+		Recipient: inbox,
+		TxData:    []byte{0x00, 0x01, 0x02},
+		From:      sender,
+		ChainID:   chainID,
+		GasLimit:  uint64(1337),
+	}
+}
+
 func configWithNumConfs(numConfirmations uint64) Config {
 	return Config{
 		ResubmissionTimeout:       time.Second,
@@ -336,6 +350,51 @@ func TestTxMgrBlocksOnFailingRpcCalls(t *testing.T) {
 	receipt, err := h.mgr.Send(ctx, tx)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
+}
+
+// TestTxMgr_CraftTx ensures that the tx manager will create transactions as expected.
+func TestTxMgr_CraftTx(t *testing.T) {
+	t.Parallel()
+	h := newTestHarness(t)
+	candidate := h.createTxCandidate()
+
+	// Craft the transaction.
+	gasTipCap, gasFeeCap := h.gasPricer.feesForEpoch(h.gasPricer.epoch + 1)
+	tx, err := h.mgr.CraftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.NotNil(t, tx)
+
+	// Validate the gas tip cap and fee cap.
+	require.Equal(t, gasTipCap, tx.GasTipCap())
+	require.Equal(t, gasFeeCap, tx.GasFeeCap())
+
+	// Validate the nonce was set correctly using the backend.
+	require.Zero(t, tx.Nonce())
+
+	// Check that the gas was set using the gas limit.
+	require.Equal(t, candidate.GasLimit, tx.Gas())
+}
+
+// TestTxMgr_EstimateGas ensures that the tx manager will estimate
+// the gas when candidate gas limit is zero in [CraftTx].
+func TestTxMgr_EstimateGas(t *testing.T) {
+	t.Parallel()
+	h := newTestHarness(t)
+	candidate := h.createTxCandidate()
+
+	// Set the gas limit to zero to trigger gas estimation.
+	candidate.GasLimit = 0
+
+	// Gas estimate
+	gasEstimate := h.gasPricer.baseBaseFee.Uint64()
+
+	// Craft the transaction.
+	tx, err := h.mgr.CraftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.NotNil(t, tx)
+
+	// Check that the gas was estimated correctly.
+	require.Equal(t, gasEstimate, tx.Gas())
 }
 
 // TestTxMgrOnlyOnePublicationSucceeds asserts that the tx manager will return a

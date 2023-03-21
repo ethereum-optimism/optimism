@@ -203,7 +203,7 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 			From:      candidate.From,
 			To:        &candidate.Recipient,
 			GasFeeCap: gasFeeCap,
-			GasTipCap: gasFeeCap,
+			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,
 		})
 		if err != nil {
