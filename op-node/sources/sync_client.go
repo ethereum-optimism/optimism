@@ -12,6 +12,8 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -21,14 +23,9 @@ var ErrNoUnsafeL2PayloadChannel = errors.New("unsafeL2Payloads channel must not 
 // RpcSyncPeer is a mock PeerID for the RPC sync client.
 var RpcSyncPeer peer.ID = "ALT_RPC_SYNC"
 
-// Limit the maximum range to request at a time.
-const maxRangePerWorker = 10
-
+// receivePayload queues the received payload for processing.
+// This may return an error if there's no capacity for the payload.
 type receivePayload = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error
-
-type syncRequest struct {
-	start, end uint64
-}
 
 type RPCSync interface {
 	io.Closer
@@ -41,7 +38,7 @@ type RPCSync interface {
 type SyncClient struct {
 	*L2Client
 
-	requests chan syncRequest
+	requests chan uint64
 
 	resCtx    context.Context
 	resCancel context.CancelFunc
@@ -71,7 +68,7 @@ func NewSyncClient(receiver receivePayload, client client.RPC, log log.Logger, m
 		L2Client:       l2Client,
 		resCtx:         resCtx,
 		resCancel:      resCancel,
-		requests:       make(chan syncRequest, 128),
+		requests:       make(chan uint64, 128),
 		receivePayload: receiver,
 	}, nil
 }
@@ -101,15 +98,9 @@ func (s *SyncClient) RequestL2Range(ctx context.Context, start, end uint64) erro
 
 	s.log.Info("Scheduling to fetch missing payloads from backup RPC", "start", start, "end", end, "size", end-start)
 
-	for i := start; i < end; i += maxRangePerWorker {
-		r := syncRequest{start: i, end: i + maxRangePerWorker}
-		if r.end > end {
-			r.end = end
-		}
-		s.log.Info("Scheduling range request", "start", r.start, "end", r.end, "size", r.end-r.start)
-		// schedule new range to be requested
+	for i := start; i < end; i++ {
 		select {
-		case s.requests <- r:
+		case s.requests <- i:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
@@ -122,26 +113,33 @@ func (s *SyncClient) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("Starting sync client event loop")
 
+	backoffStrategy := &backoff.ExponentialStrategy{
+		Min:       1000,
+		Max:       20_000,
+		MaxJitter: 250,
+	}
+
 	for {
 		select {
 		case <-s.resCtx.Done():
 			s.log.Debug("Shutting down RPC sync worker")
 			return
-		case r := <-s.requests:
-			// Limit the maximum time for fetching payloads
-			ctx, cancel := context.WithTimeout(s.resCtx, time.Second*10)
-			// We are only fetching one block at a time here.
-			err := s.fetchUnsafeBlockFromRpc(ctx, r.start)
-			cancel()
-			if err != nil {
-				s.log.Error("failed syncing L2 block via RPC", "err", err)
-			} else {
-				r.start += 1 // continue with next block
+		case reqNum := <-s.requests:
+			err := backoff.DoCtx(s.resCtx, 5, backoffStrategy, func() error {
+				// Limit the maximum time for fetching payloads
+				ctx, cancel := context.WithTimeout(s.resCtx, time.Second*10)
+				defer cancel()
+				// We are only fetching one block at a time here.
+				return s.fetchUnsafeBlockFromRpc(ctx, reqNum)
+			})
+			if err == s.resCtx.Err() {
+				return
 			}
-			// Reschedule
-			if r.start < r.end {
+			if err != nil {
+				s.log.Error("failed syncing L2 block via RPC", "err", err, "num", reqNum)
+				// Reschedule at end of queue
 				select {
-				case s.requests <- r:
+				case s.requests <- reqNum:
 				default:
 					// drop syncing job if we are too busy with sync jobs already.
 				}
