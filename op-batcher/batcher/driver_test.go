@@ -24,11 +24,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l1Client L1DataProvider, l2Client L2DataProvider, rollupNode RollupNodeConfigProvider) *BatchSubmitter {
+func constructDefaultBatchSubmitter(l log.Logger, metr metrics.Metricer, mockTxMgr ExternalTxManager, l1Client L1DataProvider, l2Client L2DataProvider, rollupNode RollupNodeConfigProvider) *BatchSubmitter {
 	resubmissionTimeout := 30 * time.Second
 	pollInterval := 5 * time.Second
 	batcherConfig := Config{
 		log:          l,
+		metr:         metr,
 		L1Client:     l1Client,
 		L2Client:     l2Client,
 		RollupNode:   rollupNode,
@@ -88,7 +89,8 @@ func TestDriverLoadBlocksIntoState(t *testing.T) {
 	rollupNode := mocks.RollupNodeConfigProvider{}
 	txMgr := mocks.ExternalTxManager{}
 	log := testlog.Logger(t, log.LvlCrit)
-	b := constructDefaultBatchSubmitter(log, &txMgr, &l1Client, &l2Client, &rollupNode)
+	metr := metrics.NoopMetrics
+	b := constructDefaultBatchSubmitter(log, metr, &txMgr, &l1Client, &l2Client, &rollupNode)
 
 	// The first block range will only be the first block.
 	// This allows the batch submitter to construct a pending transaction
