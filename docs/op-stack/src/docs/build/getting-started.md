@@ -150,11 +150,11 @@ Sequencer: 0x0324a4c8c1955cb8364e8f07558238b3d2aa5f55
 Private Key: fba31658f320bb8ce1ce39fab3c7c2acea6b4dd69cc8483fd85388a461d8426b
 ```
 
-Save these accounts and their respective private keys somewhere, you’ll need them later. Fund the `Admin` address with a small amount of Goerli ETH as we’ll use that account to deploy our smart contracts. You’ll also need to fund the `Proposer` and `Batcher` address — note that the `Batcher` burns through the most ETH because it publishes transaction data to L1.
+Save these accounts and their respective private keys somewhere, you’ll need them later. Fund the `Admin` address with a good amount of Goerli ETH as we’ll use that account to deploy our smart contracts. You’ll also need to fund the `Proposer` and `Batcher` address — note that the `Batcher` burns through the most ETH because it publishes transaction data to L1.
 
 Recommended funding amounts are as follows:
 
-- `Admin` — 0.2 ETH
+- `Admin` — 3 ETH
 - `Proposer` — 0.5 ETH
 - `Batcher` — 1.0 ETH
 
@@ -443,7 +443,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json.json | grep \"address\":
+    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json | grep \"address\":
     ```
 
     You should see a result like the following (**your address will be different**):
