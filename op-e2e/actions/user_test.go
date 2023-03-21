@@ -132,7 +132,7 @@ func runCrossLayerUserTest(gt *testing.T, test regolithScheduledTest) {
 	seq.ActL1HeadSignal(t)
 
 	// sync sequencer build enough blocks to adopt latest L1 origin
-	for seq.SyncStatus().UnsafeL2.L1Origin.Number < miner.l1Chain.CurrentBlock().NumberU64() {
+	for seq.SyncStatus().UnsafeL2.L1Origin.Number < miner.l1Chain.CurrentBlock().Number.Uint64() {
 		seq.ActL2StartBlock(t)
 		seq.ActL2EndBlock(t)
 	}

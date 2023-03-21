@@ -107,7 +107,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		ChainID:   sd.L2Cfg.Config.ChainID,
 		Nonce:     0,
 		GasTipCap: big.NewInt(2 * params.GWei),
-		GasFeeCap: new(big.Int).Add(engine.l2Chain.CurrentBlock().BaseFee(), big.NewInt(2*params.GWei)),
+		GasFeeCap: new(big.Int).Add(engine.l2Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 		Gas:       params.TxGas,
 		To:        &dp.Addresses.Bob,
 		Value:     e2eutils.Ether(2),
@@ -125,7 +125,7 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 			SafeBlockHash:      genesisBlock.Hash(),
 			FinalizedBlockHash: genesisBlock.Hash(),
 		}, &eth.PayloadAttributes{
-			Timestamp:             eth.Uint64Quantity(parent.Time()) + 2,
+			Timestamp:             eth.Uint64Quantity(parent.Time) + 2,
 			PrevRandao:            eth.Bytes32{},
 			SuggestedFeeRecipient: common.Address{'C'},
 			Transactions:          nil,
@@ -161,12 +161,12 @@ func TestL2EngineAPIBlockBuilding(gt *testing.T) {
 		require.Equal(t, payload.BlockHash, engine.l2Chain.CurrentBlock().Hash(), "now payload is canonical")
 	}
 	buildBlock(false)
-	require.Zero(t, engine.l2Chain.CurrentBlock().Transactions().Len(), "no tx included")
+	require.Zero(t, engine.l2Chain.GetBlockByHash(engine.l2Chain.CurrentBlock().Hash()).Transactions().Len(), "no tx included")
 	buildBlock(true)
-	require.Equal(gt, 1, engine.l2Chain.CurrentBlock().Transactions().Len(), "tx from alice is included")
+	require.Equal(gt, 1, engine.l2Chain.GetBlockByHash(engine.l2Chain.CurrentBlock().Hash()).Transactions().Len(), "tx from alice is included")
 	buildBlock(false)
-	require.Zero(t, engine.l2Chain.CurrentBlock().Transactions().Len(), "no tx included")
-	require.Equal(t, uint64(3), engine.l2Chain.CurrentBlock().NumberU64(), "built 3 blocks")
+	require.Zero(t, engine.l2Chain.GetBlockByHash(engine.l2Chain.CurrentBlock().Hash()).Transactions().Len(), "no tx included")
+	require.Equal(t, uint64(3), engine.l2Chain.CurrentBlock().Number.Uint64(), "built 3 blocks")
 }
 
 func TestL2EngineAPIFail(gt *testing.T) {
