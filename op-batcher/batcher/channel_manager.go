@@ -63,6 +63,7 @@ func (s *channelManager) Clear() {
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
 	s.tip = common.Hash{}
+	s.closed = false
 	s.clearPendingChannel()
 }
 
@@ -83,7 +84,7 @@ func (s *channelManager) TxFailed(id txID) {
 	s.metr.RecordBatchTxFailed()
 	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
 		s.log.Info("Channel has no submitted transactions, clearing for shutdown", "chID", s.pendingChannel.ID())
-		s.Clear()
+		s.clearPendingChannel()
 	}
 }
 
@@ -368,7 +369,7 @@ func (s *channelManager) Close() error {
 
 	// Any pending state can be proactively cleared if there are no submitted transactions
 	if len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
-		s.Clear()
+		s.clearPendingChannel()
 	}
 
 	if s.pendingChannel == nil {
