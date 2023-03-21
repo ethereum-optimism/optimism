@@ -150,6 +150,7 @@ module.exports = {
           '/docs/build/getting-started.md',
           '/docs/build/conf.md',
           '/docs/build/explorer.md',
+          '/docs/build/sdk.md',
           {
             title: "OP Stack Hacks",
             collapsable: true,

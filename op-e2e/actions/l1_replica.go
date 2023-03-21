@@ -103,9 +103,9 @@ func (s *L1Replica) ActL1RewindDepth(depth uint64) Action {
 			t.InvalidAction("cannot rewind L1 past genesis (current: %d, rewind depth: %d)", head, depth)
 			return
 		}
-		finalized := s.l1Chain.CurrentFinalizedBlock()
-		if finalized != nil && head < finalized.NumberU64()+depth {
-			t.InvalidAction("cannot rewind head of chain past finalized block %d with rewind depth %d", finalized.NumberU64(), depth)
+		finalized := s.l1Chain.CurrentFinalBlock()
+		if finalized != nil && head < finalized.Number.Uint64()+depth {
+			t.InvalidAction("cannot rewind head of chain past finalized block %d with rewind depth %d", finalized.Number.Uint64(), depth)
 			return
 		}
 		if err := s.l1Chain.SetHead(head - depth); err != nil {
@@ -188,7 +188,7 @@ func (s *L1Replica) UnsafeNum() uint64 {
 	head := s.l1Chain.CurrentBlock()
 	headNum := uint64(0)
 	if head != nil {
-		headNum = head.NumberU64()
+		headNum = head.Number.Uint64()
 	}
 	return headNum
 }
@@ -197,16 +197,16 @@ func (s *L1Replica) SafeNum() uint64 {
 	safe := s.l1Chain.CurrentSafeBlock()
 	safeNum := uint64(0)
 	if safe != nil {
-		safeNum = safe.NumberU64()
+		safeNum = safe.Number.Uint64()
 	}
 	return safeNum
 }
 
 func (s *L1Replica) FinalizedNum() uint64 {
-	finalized := s.l1Chain.CurrentFinalizedBlock()
+	finalized := s.l1Chain.CurrentFinalBlock()
 	finalizedNum := uint64(0)
 	if finalized != nil {
-		finalizedNum = finalized.NumberU64()
+		finalizedNum = finalized.Number.Uint64()
 	}
 	return finalizedNum
 }
@@ -219,7 +219,7 @@ func (s *L1Replica) ActL1Finalize(t Testing, num uint64) {
 		t.InvalidAction("need to move forward safe block before moving finalized block")
 		return
 	}
-	newFinalized := s.l1Chain.GetBlockByNumber(num)
+	newFinalized := s.l1Chain.GetHeaderByNumber(num)
 	if newFinalized == nil {
 		t.Fatalf("expected block at %d after finalized L1 block %d, safe head is ahead", num, finalizedNum)
 	}
@@ -234,7 +234,7 @@ func (s *L1Replica) ActL1FinalizeNext(t Testing) {
 
 // ActL1Safe marks the given unsafe block as safe.
 func (s *L1Replica) ActL1Safe(t Testing, num uint64) {
-	newSafe := s.l1Chain.GetBlockByNumber(num)
+	newSafe := s.l1Chain.GetHeaderByNumber(num)
 	if newSafe == nil {
 		t.InvalidAction("could not find L1 block %d, cannot label it as safe", num)
 		return
