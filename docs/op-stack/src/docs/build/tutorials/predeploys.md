@@ -57,20 +57,20 @@ We do this using the [Foundry](https://book.getfoundry.sh/) command `cast`.
 1. Change the implementation to the zero address   
 
    ```sh
-   cast send --private-key $PRIVKEY $PROXY_ADMIN "upgrade(address,address)" $PROXY $ZERO_ADDR
+   cast send --private-key $PRIVKEY $PROXY_ADMIN "upgrade(address,address)" $L1BLOCKNUM $ZERO_ADDR
    ```
 
 1. See that the implementation is address zero, and that calling it fails.
 
    ```sh
-   cast call $PROXY "implementation()"
-   cast call $PROXY 'number()'
+   cast call $L1BLOCKNUM "implementation()"
+   cast call $L1BLOCKNUM 'number()'
    ```
 
 1. Fix the predeploy by returning it to the previous implementation, and verify it works. 
 
 
    ```sh
-   cast send --private-key $PRIVKEY $PROXY_ADMIN "upgrade(address,address)" $PROXY $L1BLOCKNUM_IMPLEMENTATION
-   cast call $PROXY 'number()' | cast --to-dec
+   cast send --private-key $PRIVKEY $PROXY_ADMIN "upgrade(address,address)" $L1BLOCKNUM $L1BLOCKNUM_IMPLEMENTATION
+   cast call $L1BLOCKNUM 'number()' | cast --to-dec
    ```
