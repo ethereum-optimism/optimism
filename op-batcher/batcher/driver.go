@@ -339,9 +339,9 @@ func (l *BatchSubmitter) loop() {
 // SendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-// TODO: where to put concurrent transaction handling logic.
 func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
 	// Do the gas estimation offline if specified
+	// A value of 0 will cause the [txmgr] to estimate the gas limit.
 	var gas uint64
 	if l.OfflineGasEstimation {
 		intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
@@ -357,9 +357,7 @@ func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*typ
 		TxData:    data,
 		From:      l.From,
 		ChainID:   l.Rollup.L1ChainID,
-		// Explicit instantiation here so we can make a note that a gas
-		// limit of 0 will cause the [txmgr] to estimate the gas limit.
-		GasLimit: gas,
+		GasLimit:  gas,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
