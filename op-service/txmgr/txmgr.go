@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
@@ -104,6 +104,9 @@ type ETHBackend interface {
 	// NonceAt returns the account nonce of the given account.
 	// The block number can be nil, in which case the nonce is taken from the latest known block.
 	NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error)
+	/// EstimateGas returns an estimate of the amount of gas needed to execute the given
+	/// transaction against the current pending block.
+	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -185,13 +188,25 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 		Data:      candidate.TxData,
 	}
 
-	// Calculate the intrinsic gas for the transaction
 	m.l.Info("creating tx", "to", rawTx.To, "from", candidate.From)
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+
+	// If the gas limit is set, we can use that as the gas
+	if candidate.GasLimit != 0 {
+		rawTx.Gas = candidate.GasLimit
+	} else {
+		// Calculate the intrinsic gas for the transaction
+		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
+			From:      candidate.From,
+			To:        &candidate.Recipient,
+			GasFeeCap: gasFeeCap,
+			GasTipCap: gasFeeCap,
+			Data:      rawTx.Data,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to estimate gas: %w", err)
+		}
+		rawTx.Gas = gas
 	}
-	rawTx.Gas = gas
 
 	ctx, cancel = context.WithTimeout(ctx, m.Config.NetworkTimeout)
 	defer cancel()

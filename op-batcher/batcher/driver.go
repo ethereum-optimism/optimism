@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
@@ -83,13 +84,14 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	}
 
 	batcherCfg := Config{
-		L1Client:        l1Client,
-		L2Client:        l2Client,
-		RollupNode:      rollupClient,
-		PollInterval:    cfg.PollInterval,
-		TxManagerConfig: txManagerConfig,
-		From:            fromAddress,
-		Rollup:          rcfg,
+		L1Client:         l1Client,
+		L2Client:         l2Client,
+		RollupNode:       rollupClient,
+		PollInterval:     cfg.PollInterval,
+		TxManagerConfig:  txManagerConfig,
+		TxManagerTimeout: cfg.TxManagerTimeout,
+		From:             fromAddress,
+		Rollup:           rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -310,6 +312,7 @@ func (l *BatchSubmitter) loop() {
 					l.log.Error("unable to get tx data", "err", err)
 					break
 				}
+
 				// Record TX Status
 				if receipt, err := l.SendTransaction(l.ctx, txdata.Bytes()); err != nil {
 					l.recordFailedTx(txdata.ID(), err)
@@ -338,6 +341,17 @@ func (l *BatchSubmitter) loop() {
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
 func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+	// Do the gas estimation offline if specified
+	var gas uint64
+	if l.OfflineGasEstimation {
+		intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
+		}
+		gas = intrinsicGas
+	}
+
+	// Create the transaction
 	tx, err := l.txMgr.CraftTx(ctx, txmgr.TxCandidate{
 		Recipient: l.Rollup.BatchInboxAddress,
 		TxData:    data,
@@ -345,14 +359,14 @@ func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*typ
 		ChainID:   l.Rollup.L1ChainID,
 		// Explicit instantiation here so we can make a note that a gas
 		// limit of 0 will cause the [txmgr] to estimate the gas limit.
-		GasLimit: 0,
+		GasLimit: gas,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
 
-	// TODO: Select a timeout that makes sense here.
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	// Send the transaction through the txmgr
+	ctx, cancel := context.WithTimeout(ctx, l.TxManagerTimeout)
 	defer cancel()
 	if receipt, err := l.txMgr.Send(ctx, tx); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
