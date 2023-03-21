@@ -68,6 +68,8 @@ type Config struct {
 
 // TxManager is an interface that allows callers to reliably publish txs,
 // bumping the gas price if needed, and obtain the receipt of the resulting tx.
+//
+//go:generate mockery --name TxManager --output ./mocks
 type TxManager interface {
 	// Send is used to publish a transaction with incrementally higher gas
 	// prices until the transaction eventually confirms. This method blocks
