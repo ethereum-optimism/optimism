@@ -516,15 +516,33 @@ To use any other development stack, see the getting started tutorial, just repla
 
 ### Stopping your Rollup
 
-To stop `op-geth` you should use Ctrl-C. 
+An orderly shutdown is done in the reverse order to the order in which components were started:
 
-If `op-geth` aborts (for example, because the computer it is running on crashes), you will get these errors on `op-node`: 
+1. Stop `op-batcher`.
+1. Stop `op-node`.
+1. Stop `op-geth`.
+
+
+### Starting your Rollup
+
+To restart the blockchain, use the same order of components you did when you initialized it.
+
+1. `op-geth`
+1. `op-node`
+1. `op-batcher`
+
+
+### Errors
+
+#### Corrupt data directory
+
+If `op-geth` aborts (for example, because the computer it is running on crashes), you might get these errors on `op-node`: 
 
 ```
 WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000: failed to determine block-hash of hash 0x0000000000000000000000000000000000000000000000000000000000000000, could not get payload: not found"
 ```
 
-In that case, you need to remove `datadir`, reinitialize it:
+This means that the data directory is corrupt and you need to reinitialize it:
 
 ```bash
 cd ~/op-geth
@@ -536,17 +554,32 @@ echo "<SEQUENCER KEY HERE>" > datadir/block-signer-key
 ./build/bin/geth init --datadir=./datadir ./genesis.json
 ```
 
-### Starting your Rollup
+#### `op-geth` not synchronized yet
 
-To restart the blockchain, use the same order of components you did when you initialized it.
+You might get these errors when starting `op-node`:
 
-1. `op-geth`
-2. `op-node`
-3. `op-batcher`
+```
+t=2023-03-21T11:02:16-0500 lvl=info msg="Initializing Rollup Node"
+ERROR[03-21|11:02:16.891] Unable to create the rollup node config  error="failed to load p2p config: failed to load p2p discovery options: failed to open discovery db: resource temporarily unavailable"
+CRIT [03-21|11:02:16.902] Application failed                       message="failed to load p2p config: failed to load p2p discovery options: failed to open discovery db: resource temporarily unavailable"
+```
+
+This usually means that `op-geth` is still synchronizing. 
+You will see these messages on its console:
+
+```
+INFO [03-21|11:01:01.296] Chain head was updated                   number=23650 hash=64d626..3762b7 root=b8f5cf..78bfc0 elapsed="69.897µs"  age=8h36m41s
+INFO [03-21|11:01:01.373] Starting work on payload                 id=0x76c8267ac16b0ec0
+INFO [03-21|11:01:01.374] Updated payload                          id=0x76c8267ac16b0ec0 number=23651 hash=e846d2..af628e txs=1 gas=46913 fees=0 root=85ef2b..33ce37 elapsed="297.264µs"
+INFO [03-21|11:01:01.376] Stopping work on payload                 id=0x76c8267ac16b0ec0 reason=delivery
+```
+
+In this case wait to start `op-node` until `op-geth` is fully synchronized.
 
 ## Adding nodes
 
-To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node:
+To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node.
+You should *not* add an `op-bathcer`, there should be only one.
 
 1. Configure the OS and prerequisites as you did for the first node.
 1. Build the Optimism monorepo and `op-geth` as you did for the first node.
@@ -573,8 +606,9 @@ To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, simi
     ```
     
 1. Start `op-geth` (using the same command line you used on the initial node)
-1. Start `op-node` (using the same command line you used on the initial node)
 1. Wait while the node synchronizes
+1. Start `op-node` (using the same command line you used on the initial node)
+
 
 ## What’s next?
 
