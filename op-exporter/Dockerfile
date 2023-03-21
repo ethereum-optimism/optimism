@@ -1,4 +1,4 @@
-FROM golang:1.18.0-alpine3.15 as builder
+FROM golang:1.19.0-alpine3.15 as builder
 
 # build from root of repo
 COPY ./op-exporter /app
