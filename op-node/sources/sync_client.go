@@ -91,7 +91,11 @@ func (s *SyncClient) Close() error {
 func (s *SyncClient) RequestL2Range(ctx context.Context, start, end uint64) error {
 	// Drain previous requests now that we have new information
 	for len(s.requests) > 0 {
-		<-s.requests
+		select { // in case requests is being read at the same time, don't block on draining it.
+		case <-s.requests:
+		default:
+			break
+		}
 	}
 
 	// TODO(CLI-3635): optimize the by-range fetching with the Engine API payloads-by-range method.
@@ -132,10 +136,10 @@ func (s *SyncClient) eventLoop() {
 				// We are only fetching one block at a time here.
 				return s.fetchUnsafeBlockFromRpc(ctx, reqNum)
 			})
-			if err == s.resCtx.Err() {
-				return
-			}
 			if err != nil {
+				if err == s.resCtx.Err() {
+					return
+				}
 				s.log.Error("failed syncing L2 block via RPC", "err", err, "num", reqNum)
 				// Reschedule at end of queue
 				select {
