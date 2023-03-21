@@ -132,10 +132,10 @@ func FuzzDurationTimeoutZeroMaxChannelDuration(f *testing.F) {
 	})
 }
 
-// FuzzDurationZero ensures that when whenever the MaxChannelDuration
+// FuzzChannelBuilder_DurationZero ensures that when whenever the MaxChannelDuration
 // is not set to 0, the channel builder will always have a duration timeout
 // as long as the channel builder's timeout is set to 0.
-func FuzzDurationZero(f *testing.F) {
+func FuzzChannelBuilder_DurationZero(f *testing.F) {
 	for i := range [10]int{} {
 		f.Add(uint64(i), uint64(i))
 	}
@@ -313,8 +313,8 @@ func FuzzSeqWindowZeroTimeoutClose(f *testing.F) {
 	})
 }
 
-// TestBuilderNextFrame tests calling NextFrame on a ChannelBuilder with only one frame
-func TestBuilderNextFrame(t *testing.T) {
+// TestChannelBuilder_NextFrame tests calling NextFrame on a ChannelBuilder with only one frame
+func TestChannelBuilder_NextFrame(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
 	// Create a new channel builder
@@ -353,8 +353,8 @@ func TestBuilderNextFrame(t *testing.T) {
 	require.PanicsWithValue(t, "no next frame", func() { cb.NextFrame() })
 }
 
-// TestBuilderInvalidFrameId tests that a panic is thrown when a frame is pushed with an invalid frame id
-func TestBuilderWrongFramePanic(t *testing.T) {
+// TestChannelBuilder_OutputWrongFramePanic tests that a panic is thrown when a frame is pushed with an invalid frame id
+func TestChannelBuilder_OutputWrongFramePanic(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
 	// Construct a channel builder
@@ -383,8 +383,8 @@ func TestBuilderWrongFramePanic(t *testing.T) {
 	})
 }
 
-// TestOutputFramesHappy tests the OutputFrames function happy path
-func TestOutputFramesHappy(t *testing.T) {
+// TestChannelBuilder_OutputFramesWorks tests the [ChannelBuilder] OutputFrames is successful.
+func TestChannelBuilder_OutputFramesWorks(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 	channelConfig.MaxFrameSize = 24
 
@@ -424,9 +424,9 @@ func TestOutputFramesHappy(t *testing.T) {
 	}
 }
 
-// TestMaxRLPBytesPerChannel tests the [channelBuilder.OutputFrames]
+// TestChannelBuilder_MaxRLPBytesPerChannel tests the [channelBuilder.OutputFrames]
 // function errors when the max RLP bytes per channel is reached.
-func TestMaxRLPBytesPerChannel(t *testing.T) {
+func TestChannelBuilder_MaxRLPBytesPerChannel(t *testing.T) {
 	t.Parallel()
 	channelConfig := defaultTestChannelConfig
 	channelConfig.MaxFrameSize = derive.MaxRLPBytesPerChannel * 2
@@ -442,9 +442,9 @@ func TestMaxRLPBytesPerChannel(t *testing.T) {
 	require.ErrorIs(t, err, derive.ErrTooManyRLPBytes)
 }
 
-// TestOutputFramesMaxFrameIndex tests the [channelBuilder.OutputFrames]
+// TestChannelBuilder_OutputFramesMaxFrameIndex tests the [ChannelBuilder.OutputFrames]
 // function errors when the max frame index is reached.
-func TestOutputFramesMaxFrameIndex(t *testing.T) {
+func TestChannelBuilder_OutputFramesMaxFrameIndex(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 	channelConfig.MaxFrameSize = 24
 	channelConfig.TargetNumFrames = math.MaxInt
@@ -483,8 +483,8 @@ func TestOutputFramesMaxFrameIndex(t *testing.T) {
 	}
 }
 
-// TestBuilderAddBlock tests the AddBlock function
-func TestBuilderAddBlock(t *testing.T) {
+// TestChannelBuilder_AddBlock tests the AddBlock function
+func TestChannelBuilder_AddBlock(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
 	// Lower the max frame size so that we can batch
@@ -514,8 +514,8 @@ func TestBuilderAddBlock(t *testing.T) {
 	require.ErrorIs(t, addMiniBlock(cb), ErrInputTargetReached)
 }
 
-// TestBuilderReset tests the Reset function
-func TestBuilderReset(t *testing.T) {
+// TestChannelBuilder_Reset tests the [Reset] function
+func TestChannelBuilder_Reset(t *testing.T) {
 	channelConfig := defaultTestChannelConfig
 
 	// Lower the max frame size so that we can batch
