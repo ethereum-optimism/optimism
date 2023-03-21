@@ -212,8 +212,22 @@ func (s *Driver) eventLoop() {
 		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
 		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped &&
 			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.derivation.EngineReady() {
-			// update sequencer time if the head changed
-			if s.sequencer.BuildingOnto().ID() != s.derivation.UnsafeL2Head().ID() {
+			if s.driverConfig.SequencerMaxSafeLag > 0 && s.derivation.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.derivation.UnsafeL2Head().Number {
+				// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
+				// until the safe lag is below SequencerMaxSafeLag.
+				if sequencerCh != nil {
+					s.log.Warn(
+						"Delay creating new block since safe lag exceeds limit",
+						"safe_l2", s.derivation.SafeL2Head(),
+						"unsafe_l2", s.derivation.UnsafeL2Head(),
+					)
+					sequencerCh = nil
+				}
+			} else if s.sequencer.BuildingOnto().ID() != s.derivation.UnsafeL2Head().ID() {
+				// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
+				// This may adjust at any time based on fork-choice changes or previous errors.
+				//
+				// update sequencer time if the head changed
 				planSequencerAction()
 			}
 		} else {
