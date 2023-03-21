@@ -11,6 +11,7 @@ import (
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
@@ -53,17 +54,18 @@ type RollupNodeConfigProvider interface {
 
 type Config struct {
 	log             log.Logger
+	metr            metrics.Metricer
 	L1Client        L1DataProvider
 	L2Client        L2DataProvider
 	RollupNode      RollupNodeConfigProvider
 	PollInterval    time.Duration
-	TxManagerConfig txmgr.Config
 	From            common.Address
+	TxManagerConfig txmgr.Config
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
 
-	// Channel creation parameters
+	// Channel builder parameters
 	Channel ChannelConfig
 }
 

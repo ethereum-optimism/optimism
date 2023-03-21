@@ -12,6 +12,7 @@ import (
 	gethrpc "github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
@@ -36,9 +37,10 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	m := metrics.NewMetrics("default")
 	l.Info("Initializing Batch Submitter")
 
-	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l)
+	batchSubmitter, err := NewBatchSubmitterFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create Batch Submitter", "error", err)
 		return err
@@ -69,15 +71,11 @@ func Main(version string, cliCtx *cli.Context) error {
 	if metricsCfg.Enabled {
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		go func() {
-			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
-		if err != nil {
-			l.Error("Failed to dial L1 provider")
-		}
-		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l1Client, batchSubmitter.From)
+		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", batchSubmitter.L1Client, batchSubmitter.From)
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -98,6 +96,9 @@ func Main(version string, cliCtx *cli.Context) error {
 		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
+
+	m.RecordInfo(version)
+	m.RecordUp()
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/batcher/mocks"
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
@@ -73,7 +74,7 @@ func constructDefaultBatchSubmitter(l log.Logger, mockTxMgr ExternalTxManager, l
 	b := BatchSubmitter{
 		Config: batcherConfig,
 		txMgr:  &txMgr,
-		state:  NewChannelManager(l, batcherConfig.Channel),
+		state:  NewChannelManager(l, metrics.NoopMetrics, batcherConfig.Channel),
 	}
 
 	return &b

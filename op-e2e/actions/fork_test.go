@@ -21,7 +21,7 @@ func TestShapellaL1Fork(gt *testing.T) {
 
 	_, _, miner, sequencer, _, verifier, _, batcher := setupReorgTestActors(t, dp, sd, log)
 
-	require.False(t, sd.L1Cfg.Config.IsShanghai(miner.l1Chain.CurrentBlock().Time()), "not active yet")
+	require.False(t, sd.L1Cfg.Config.IsShanghai(miner.l1Chain.CurrentBlock().Time), "not active yet")
 
 	// start op-nodes
 	sequencer.ActL2PipelineFull(t)
@@ -34,7 +34,7 @@ func TestShapellaL1Fork(gt *testing.T) {
 
 	// verify Shanghai is active
 	l1Head := miner.l1Chain.CurrentBlock()
-	require.True(t, sd.L1Cfg.Config.IsShanghai(l1Head.Time()))
+	require.True(t, sd.L1Cfg.Config.IsShanghai(l1Head.Time))
 
 	// build L2 chain up to and including L2 blocks referencing shanghai L1 blocks
 	sequencer.ActL1HeadSignal(t)
