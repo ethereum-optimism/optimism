@@ -109,7 +109,7 @@ func doMigration(mutableDB *state.StateDB, dbFactory DBFactory, addresses []comm
 	outCh := make(chan accountData)
 	// Channel to receive errors from each iteration job.
 	errCh := make(chan error, checkJobs)
-	// Channel to cancel all iteration jobs as well as the collector.
+	// Channel to cancel all iteration jobs.
 	cancelCh := make(chan struct{})
 
 	// Define a worker function to iterate over each partition.
@@ -244,16 +244,17 @@ func doMigration(mutableDB *state.StateDB, dbFactory DBFactory, addresses []comm
 		go worker(start, end)
 	}
 
-	// Make a channel to make sure that the collector process completes.
-	collectorCloseCh := make(chan struct{})
+	// Make a channel to track when collector process completes.
+	collectorClosedCh := make(chan struct{})
+
+	// Make a channel to cancel the collector process.
+	collectorCancelCh := make(chan struct{})
 
 	// Keep track of the last error seen.
 	var lastErr error
 
-	// There are multiple ways that the cancel channel can be closed:
-	// - if we receive an error from the errCh
-	// - if the collector process completes
-	// To prevent panics, we wrap the close in a sync.Once.
+	// The cancel channel can be closed if any of the workers returns an error.
+	// We wrap the close in a sync.Once to ensure that it's only closed once.
 	var cancelOnce sync.Once
 
 	// Create a map of accounts we've seen so that we can filter out duplicates.
@@ -268,7 +269,7 @@ func doMigration(mutableDB *state.StateDB, dbFactory DBFactory, addresses []comm
 	progress := util.ProgressLogger(1000, "Migrated OVM_ETH storage slot")
 	go func() {
 		defer func() {
-			collectorCloseCh <- struct{}{}
+			collectorClosedCh <- struct{}{}
 		}()
 		for {
 			select {
@@ -291,10 +292,20 @@ func doMigration(mutableDB *state.StateDB, dbFactory DBFactory, addresses []comm
 				seenAccounts[account.address] = true
 			case err := <-errCh:
 				cancelOnce.Do(func() {
-					lastErr = err
 					close(cancelCh)
+					lastErr = err
 				})
-			case <-cancelCh:
+			case <-collectorCancelCh:
+				// Explicitly drain the error channel. Since the error channel is buffered, it's possible
+				// for the wg.Wait() call below to unblock and cancel this goroutine before the error gets
+				// processed by the case statement above.
+				for len(errCh) > 0 {
+					err := <-errCh
+					if lastErr == nil {
+						lastErr = err
+					}
+				}
+
 				return
 			}
 		}
@@ -302,13 +313,10 @@ func doMigration(mutableDB *state.StateDB, dbFactory DBFactory, addresses []comm
 
 	// Wait for the workers to finish.
 	wg.Wait()
-	// Close the cancel channel to signal the collector process to stop.
-	cancelOnce.Do(func() {
-		close(cancelCh)
-	})
 
-	// Wait for the collector process to finish.
-	<-collectorCloseCh
+	// Close the collector, and wait for it to finish.
+	close(collectorCancelCh)
+	<-collectorClosedCh
 
 	// If we saw an error, return it.
 	if lastErr != nil {

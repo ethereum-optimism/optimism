@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"math/rand"
 
 	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 
@@ -26,11 +27,21 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 )
 
-// MaxSlotChecks is the maximum number of storage slots to check
-// when validating the untouched predeploys. This limit is in place
-// to bound execution time of the migration. We can parallelize this
-// in the future.
-const MaxSlotChecks = 1000
+const (
+	// MaxPredeploySlotChecks is the maximum number of storage slots to check
+	// when validating the untouched predeploys. This limit is in place
+	// to bound execution time of the migration. We can parallelize this
+	// in the future.
+	MaxPredeploySlotChecks = 1000
+
+	// MaxOVMETHSlotChecks is the maximum number of OVM ETH storage slots to check
+	// when validating the OVM ETH migration.
+	MaxOVMETHSlotChecks = 5000
+
+	// OVMETHSampleLikelihood is the probability that a storage slot will be checked
+	// when validating the OVM ETH migration.
+	OVMETHSampleLikelihood = 0.1
+)
 
 type StorageCheckMap = map[common.Hash]common.Hash
 
@@ -148,7 +159,7 @@ func PostCheckMigratedDB(
 	}
 	log.Info("checked L1Block")
 
-	if err := PostCheckLegacyETH(db); err != nil {
+	if err := PostCheckLegacyETH(prevDB, db, migrationData); err != nil {
 		return err
 	}
 	log.Info("checked legacy eth")
@@ -210,7 +221,7 @@ func PostCheckUntouchables(udb state.Database, currDB *state.StateDB, prevRoot c
 		if err := prevDB.ForEachStorage(addr, func(key, value common.Hash) bool {
 			count++
 			expSlots[key] = value
-			return count < MaxSlotChecks
+			return count < MaxPredeploySlotChecks
 		}); err != nil {
 			return fmt.Errorf("error iterating over storage: %w", err)
 		}
@@ -365,14 +376,94 @@ func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, p
 }
 
 // PostCheckLegacyETH checks that the legacy eth migration was successful.
-// It currently only checks that the total supply was set to 0.
-func PostCheckLegacyETH(db vm.StateDB) error {
+// It checks that the total supply was set to 0, and randomly samples storage
+// slots pre- and post-migration to ensure that balances were correctly migrated.
+func PostCheckLegacyETH(prevDB, migratedDB *state.StateDB, migrationData crossdomain.MigrationData) error {
+	allowanceSlots := make(map[common.Hash]bool)
+	addresses := make(map[common.Hash]common.Address)
+
+	log.Info("recomputing witness data")
+	for _, allowance := range migrationData.OvmAllowances {
+		key := ether.CalcAllowanceStorageKey(allowance.From, allowance.To)
+		allowanceSlots[key] = true
+	}
+
+	for _, addr := range migrationData.Addresses() {
+		addresses[ether.CalcOVMETHStorageKey(addr)] = addr
+	}
+
+	log.Info("checking legacy eth fixed storage slots")
 	for slot, expValue := range LegacyETHCheckSlots {
-		actValue := db.GetState(predeploys.LegacyERC20ETHAddr, slot)
+		actValue := migratedDB.GetState(predeploys.LegacyERC20ETHAddr, slot)
 		if actValue != expValue {
 			return fmt.Errorf("expected slot %s on %s to be %s, but got %s", slot, predeploys.LegacyERC20ETHAddr, expValue, actValue)
 		}
 	}
+
+	var count int
+	threshold := 100 - int(100*OVMETHSampleLikelihood)
+	progress := util.ProgressLogger(100, "checking legacy eth balance slots")
+	var innerErr error
+	err := prevDB.ForEachStorage(predeploys.LegacyERC20ETHAddr, func(key, value common.Hash) bool {
+		val := rand.Intn(100)
+
+		// Randomly sample storage slots.
+		if val > threshold {
+			return true
+		}
+
+		// Ignore fixed slots.
+		if _, ok := LegacyETHCheckSlots[key]; ok {
+			return true
+		}
+
+		// Ignore allowances.
+		if allowanceSlots[key] {
+			return true
+		}
+
+		// Grab the address, and bail if we can't find it.
+		addr, ok := addresses[key]
+		if !ok {
+			innerErr = fmt.Errorf("unknown OVM_ETH storage slot %s", key)
+			return false
+		}
+
+		// Pull out the pre-migration OVM ETH balance, and the state balance.
+		ovmETHBalance := value.Big()
+		ovmETHStateBalance := prevDB.GetBalance(addr)
+		// Pre-migration state balance should be zero.
+		if ovmETHStateBalance.Cmp(common.Big0) != 0 {
+			innerErr = fmt.Errorf("expected OVM_ETH pre-migration state balance for %s to be 0, but got %s", addr, ovmETHStateBalance)
+			return false
+		}
+
+		// Migrated state balance should equal the OVM ETH balance.
+		migratedStateBalance := migratedDB.GetBalance(addr)
+		if migratedStateBalance.Cmp(ovmETHBalance) != 0 {
+			innerErr = fmt.Errorf("expected OVM_ETH post-migration state balance for %s to be %s, but got %s", addr, ovmETHStateBalance, migratedStateBalance)
+			return false
+		}
+		// Migrated OVM ETH balance should be zero, since we wipe the slots.
+		migratedBalance := migratedDB.GetState(predeploys.LegacyERC20ETHAddr, key)
+		if migratedBalance.Big().Cmp(common.Big0) != 0 {
+			innerErr = fmt.Errorf("expected OVM_ETH post-migration ERC20 balance for %s to be 0, but got %s", addr, migratedBalance)
+			return false
+		}
+
+		progress()
+		count++
+
+		// Stop iterating if we've checked enough slots.
+		return count < MaxOVMETHSlotChecks
+	})
+	if err != nil {
+		return fmt.Errorf("error iterating over OVM_ETH storage: %w", err)
+	}
+	if innerErr != nil {
+		return innerErr
+	}
+
 	return nil
 }
 
