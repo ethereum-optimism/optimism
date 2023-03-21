@@ -228,6 +228,7 @@ jobs:
           file: ./ops/docker/Dockerfile.packages
           target: fault-detector
           push: true
+          provenance: false
           tags: ethereumoptimism/fault-detector:${{ needs.canary-publish.outputs.canary-docker-tag }}
 
   drippie-mon:
