@@ -107,7 +107,7 @@ type EngineQueue struct {
 	// The queued-up attributes
 	safeAttributesParent eth.L2BlockRef
 	safeAttributes       *eth.PayloadAttributes
-	unsafePayloads       PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
+	unsafePayloads       *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
@@ -127,18 +127,14 @@ var _ EngineControl = (*EngineQueue)(nil)
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
 func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher) *EngineQueue {
 	return &EngineQueue{
-		log:          log,
-		cfg:          cfg,
-		engine:       engine,
-		metrics:      metrics,
-		finalityData: make([]FinalityData, 0, finalityLookback),
-		unsafePayloads: PayloadsQueue{
-			MaxSize:  maxUnsafePayloadsMemory,
-			SizeFn:   payloadMemSize,
-			blockNos: make(map[uint64]bool),
-		},
-		prev:      prev,
-		l1Fetcher: l1Fetcher,
+		log:            log,
+		cfg:            cfg,
+		engine:         engine,
+		metrics:        metrics,
+		finalityData:   make([]FinalityData, 0, finalityLookback),
+		unsafePayloads: NewPayloadsQueue(maxUnsafePayloadsMemory, payloadMemSize),
+		prev:           prev,
+		l1Fetcher:      l1Fetcher,
 	}
 }
 

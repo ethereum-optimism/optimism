@@ -74,11 +74,7 @@ func TestPayloadMemSize(t *testing.T) {
 }
 
 func TestPayloadsQueue(t *testing.T) {
-	pq := PayloadsQueue{
-		MaxSize:  payloadMemFixedCost * 3,
-		SizeFn:   payloadMemSize,
-		blockNos: make(map[uint64]bool),
-	}
+	pq := NewPayloadsQueue(payloadMemFixedCost * 3, payloadMemSize)
 	require.Equal(t, 0, pq.Len())
 	require.Equal(t, (*eth.ExecutionPayload)(nil), pq.Peek())
 	require.Equal(t, (*eth.ExecutionPayload)(nil), pq.Pop())
