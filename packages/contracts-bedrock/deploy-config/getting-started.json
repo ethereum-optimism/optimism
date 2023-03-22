@@ -40,7 +40,7 @@
   "governanceTokenName": "Optimism",
   "governanceTokenOwner": "ADMIN",
 
-  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockGasLimit": "0x1c9c380",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
   "l2GenesisRegolithTimeOffset": "0x0",
 
