@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	derivetest "github.com/ethereum-optimism/optimism/op-node/rollup/derive/test"
@@ -14,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,7 +23,7 @@ import (
 func TestPendingChannelTimeout(t *testing.T) {
 	// Create a new channel manager with a ChannelTimeout
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		ChannelTimeout: 100,
 	})
 
@@ -32,8 +32,7 @@ func TestPendingChannelTimeout(t *testing.T) {
 	require.False(t, timeout)
 
 	// Set the pending channel
-	err := m.ensurePendingChannel(eth.BlockID{})
-	require.NoError(t, err)
+	require.NoError(t, m.ensurePendingChannel(eth.BlockID{}))
 
 	// There are no confirmed transactions so
 	// the pending channel cannot be timed out
@@ -67,7 +66,7 @@ func TestPendingChannelTimeout(t *testing.T) {
 // detects a reorg when it has cached L1 blocks.
 func TestChannelManagerReturnsErrReorg(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	a := types.NewBlock(&types.Header{
 		Number: big.NewInt(0),
@@ -85,14 +84,10 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 		ParentHash: common.Hash{0xff},
 	}, nil, nil, nil, nil)
 
-	err := m.AddL2Block(a)
-	require.NoError(t, err)
-	err = m.AddL2Block(b)
-	require.NoError(t, err)
-	err = m.AddL2Block(c)
-	require.NoError(t, err)
-	err = m.AddL2Block(x)
-	require.ErrorIs(t, err, ErrReorg)
+	require.NoError(t, m.AddL2Block(a))
+	require.NoError(t, m.AddL2Block(b))
+	require.NoError(t, m.AddL2Block(c))
+	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 
 	require.Equal(t, []*types.Block{a, b, c}, m.blocks)
 }
@@ -101,44 +96,30 @@ func TestChannelManagerReturnsErrReorg(t *testing.T) {
 // detects a reorg even if it does not have any blocks inside it.
 func TestChannelManagerReturnsErrReorgWhenDrained(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{
-		TargetFrameSize:  0,
-		MaxFrameSize:     120_000,
-		ApproxComprRatio: 1.0,
-	})
-	l1Block := types.NewBlock(&types.Header{
-		BaseFee:    big.NewInt(10),
-		Difficulty: common.Big0,
-		Number:     big.NewInt(100),
-	}, nil, nil, nil, trie.NewStackTrie(nil))
-	l1InfoTx, err := derive.L1InfoDeposit(0, l1Block, eth.SystemConfig{}, false)
-	require.NoError(t, err)
-	txs := []*types.Transaction{types.NewTx(l1InfoTx)}
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetFrameSize:  0,
+			MaxFrameSize:     120_000,
+			ApproxComprRatio: 1.0,
+		})
 
-	a := types.NewBlock(&types.Header{
-		Number: big.NewInt(0),
-	}, txs, nil, nil, trie.NewStackTrie(nil))
-	x := types.NewBlock(&types.Header{
-		Number:     big.NewInt(1),
-		ParentHash: common.Hash{0xff},
-	}, txs, nil, nil, trie.NewStackTrie(nil))
+	a := newMiniL2Block(0)
+	x := newMiniL2BlockWithNumberParent(0, big.NewInt(1), common.Hash{0xff})
 
-	err = m.AddL2Block(a)
-	require.NoError(t, err)
+	require.NoError(t, m.AddL2Block(a))
 
-	_, err = m.TxData(eth.BlockID{})
+	_, err := m.TxData(eth.BlockID{})
 	require.NoError(t, err)
 	_, err = m.TxData(eth.BlockID{})
 	require.ErrorIs(t, err, io.EOF)
 
-	err = m.AddL2Block(x)
-	require.ErrorIs(t, err, ErrReorg)
+	require.ErrorIs(t, m.AddL2Block(x), ErrReorg)
 }
 
 // TestChannelManagerNextTxData checks the nextTxData function.
 func TestChannelManagerNextTxData(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	// Nil pending channel should return EOF
 	returnedTxData, err := m.nextTxData()
@@ -148,8 +129,7 @@ func TestChannelManagerNextTxData(t *testing.T) {
 	// Set the pending channel
 	// The nextTxData function should still return EOF
 	// since the pending channel has no frames
-	err = m.ensurePendingChannel(eth.BlockID{})
-	require.NoError(t, err)
+	require.NoError(t, m.ensurePendingChannel(eth.BlockID{}))
 	returnedTxData, err = m.nextTxData()
 	require.ErrorIs(t, err, io.EOF)
 	require.Equal(t, txData{}, returnedTxData)
@@ -176,27 +156,31 @@ func TestChannelManagerNextTxData(t *testing.T) {
 	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
 }
 
-// TestClearChannelManager tests clearing the channel manager.
-func TestClearChannelManager(t *testing.T) {
+// TestChannelManager_Clear tests clearing the channel manager.
+func TestChannelManager_Clear(t *testing.T) {
+	require := require.New(t)
+
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	m := NewChannelManager(log, ChannelConfig{
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
 		// clearing confirmed transactions, and reseting the pendingChannels map
 		ChannelTimeout: 10,
 		// Have to set the max frame size here otherwise the channel builder would not
 		// be able to output any frames
-		MaxFrameSize: 1,
+		MaxFrameSize:     24,
+		TargetFrameSize:  24,
+		ApproxComprRatio: 1.0,
 	})
 
 	// Channel Manager state should be empty by default
-	require.Empty(t, m.blocks)
-	require.Equal(t, common.Hash{}, m.tip)
-	require.Nil(t, m.pendingChannel)
-	require.Empty(t, m.pendingTransactions)
-	require.Empty(t, m.confirmedTransactions)
+	require.Empty(m.blocks)
+	require.Equal(common.Hash{}, m.tip)
+	require.Nil(m.pendingChannel)
+	require.Empty(m.pendingTransactions)
+	require.Empty(m.confirmedTransactions)
 
 	// Add a block to the channel manager
 	a, _ := derivetest.RandomL2Block(rng, 4)
@@ -205,28 +189,25 @@ func TestClearChannelManager(t *testing.T) {
 		Hash:   a.Hash(),
 		Number: a.NumberU64(),
 	}
-	err := m.AddL2Block(a)
-	require.NoError(t, err)
+	require.NoError(m.AddL2Block(a))
 
 	// Make sure there is a channel builder
-	err = m.ensurePendingChannel(l1BlockID)
-	require.NoError(t, err)
-	require.NotNil(t, m.pendingChannel)
-	require.Equal(t, 0, len(m.confirmedTransactions))
+	require.NoError(m.ensurePendingChannel(l1BlockID))
+	require.NotNil(m.pendingChannel)
+	require.Len(m.confirmedTransactions, 0)
 
 	// Process the blocks
 	// We should have a pending channel with 1 frame
 	// and no more blocks since processBlocks consumes
 	// the list
-	err = m.processBlocks()
-	require.NoError(t, err)
-	err = m.pendingChannel.OutputFrames()
-	require.NoError(t, err)
-	_, err = m.nextTxData()
-	require.NoError(t, err)
-	require.Equal(t, 0, len(m.blocks))
-	require.Equal(t, newL1Tip, m.tip)
-	require.Equal(t, 1, len(m.pendingTransactions))
+	require.NoError(m.processBlocks())
+	require.NoError(m.pendingChannel.co.Flush())
+	require.NoError(m.pendingChannel.OutputFrames())
+	_, err := m.nextTxData()
+	require.NoError(err)
+	require.Len(m.blocks, 0)
+	require.Equal(newL1Tip, m.tip)
+	require.Len(m.pendingTransactions, 1)
 
 	// Add a new block so we can test clearing
 	// the channel manager with a full state
@@ -234,27 +215,26 @@ func TestClearChannelManager(t *testing.T) {
 		Number:     big.NewInt(1),
 		ParentHash: a.Hash(),
 	}, nil, nil, nil, nil)
-	err = m.AddL2Block(b)
-	require.NoError(t, err)
-	require.Equal(t, 1, len(m.blocks))
-	require.Equal(t, b.Hash(), m.tip)
+	require.NoError(m.AddL2Block(b))
+	require.Len(m.blocks, 1)
+	require.Equal(b.Hash(), m.tip)
 
 	// Clear the channel manager
 	m.Clear()
 
 	// Check that the entire channel manager state cleared
-	require.Empty(t, m.blocks)
-	require.Equal(t, common.Hash{}, m.tip)
-	require.Nil(t, m.pendingChannel)
-	require.Empty(t, m.pendingTransactions)
-	require.Empty(t, m.confirmedTransactions)
+	require.Empty(m.blocks)
+	require.Equal(common.Hash{}, m.tip)
+	require.Nil(m.pendingChannel)
+	require.Empty(m.pendingTransactions)
+	require.Empty(m.confirmedTransactions)
 }
 
 // TestChannelManagerTxConfirmed checks the [ChannelManager.TxConfirmed] function.
 func TestChannelManagerTxConfirmed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{
 		// Need to set the channel timeout here so we don't clear pending
 		// channels on confirmation. This would result in [TxConfirmed]
 		// clearing confirmed transactions, and reseting the pendingChannels map
@@ -263,8 +243,7 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 
 	// Let's add a valid pending transaction to the channel manager
 	// So we can demonstrate that TxConfirmed's correctness
-	err := m.ensurePendingChannel(eth.BlockID{})
-	require.NoError(t, err)
+	require.NoError(t, m.ensurePendingChannel(eth.BlockID{}))
 	channelID := m.pendingChannel.ID()
 	frame := frameData{
 		data: []byte{},
@@ -282,7 +261,7 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 	require.Equal(t, expectedTxData, returnedTxData)
 	require.Equal(t, 0, m.pendingChannel.NumFrames())
 	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
-	require.Equal(t, 1, len(m.pendingTransactions))
+	require.Len(t, m.pendingTransactions, 1)
 
 	// An unknown pending transaction should not be marked as confirmed
 	// and should not be removed from the pending transactions map
@@ -293,14 +272,14 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 	blockID := eth.BlockID{Number: 0, Hash: common.Hash{0x69}}
 	m.TxConfirmed(unknownTxID, blockID)
 	require.Empty(t, m.confirmedTransactions)
-	require.Equal(t, 1, len(m.pendingTransactions))
+	require.Len(t, m.pendingTransactions, 1)
 
 	// Now let's mark the pending transaction as confirmed
 	// and check that it is removed from the pending transactions map
 	// and added to the confirmed transactions map
 	m.TxConfirmed(expectedChannelID, blockID)
 	require.Empty(t, m.pendingTransactions)
-	require.Equal(t, 1, len(m.confirmedTransactions))
+	require.Len(t, m.confirmedTransactions, 1)
 	require.Equal(t, blockID, m.confirmedTransactions[expectedChannelID])
 }
 
@@ -308,12 +287,11 @@ func TestChannelManagerTxConfirmed(t *testing.T) {
 func TestChannelManagerTxFailed(t *testing.T) {
 	// Create a channel manager
 	log := testlog.Logger(t, log.LvlCrit)
-	m := NewChannelManager(log, ChannelConfig{})
+	m := NewChannelManager(log, metrics.NoopMetrics, ChannelConfig{})
 
 	// Let's add a valid pending transaction to the channel
 	// manager so we can demonstrate correctness
-	err := m.ensurePendingChannel(eth.BlockID{})
-	require.NoError(t, err)
+	require.NoError(t, m.ensurePendingChannel(eth.BlockID{}))
 	channelID := m.pendingChannel.ID()
 	frame := frameData{
 		data: []byte{},
@@ -331,7 +309,7 @@ func TestChannelManagerTxFailed(t *testing.T) {
 	require.Equal(t, expectedTxData, returnedTxData)
 	require.Equal(t, 0, m.pendingChannel.NumFrames())
 	require.Equal(t, expectedTxData, m.pendingTransactions[expectedChannelID])
-	require.Equal(t, 1, len(m.pendingTransactions))
+	require.Len(t, m.pendingTransactions, 1)
 
 	// Trying to mark an unknown pending transaction as failed
 	// shouldn't modify state
@@ -351,16 +329,16 @@ func TestChannelManager_TxResend(t *testing.T) {
 	require := require.New(t)
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	log := testlog.Logger(t, log.LvlError)
-	m := NewChannelManager(log, ChannelConfig{
-		TargetFrameSize:  0,
-		MaxFrameSize:     120_000,
-		ApproxComprRatio: 1.0,
-	})
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetFrameSize:  0,
+			MaxFrameSize:     120_000,
+			ApproxComprRatio: 1.0,
+		})
 
 	a, _ := derivetest.RandomL2Block(rng, 4)
 
-	err := m.AddL2Block(a)
-	require.NoError(err)
+	require.NoError(m.AddL2Block(a))
 
 	txdata0, err := m.TxData(eth.BlockID{})
 	require.NoError(err)

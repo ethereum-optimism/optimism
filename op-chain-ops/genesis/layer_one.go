@@ -295,7 +295,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 			Name: "OptimismPortal",
 			Args: []interface{}{
 				predeploys.DevL2OutputOracleAddr,
-				config.FinalSystemOwner,
+				config.PortalGuardian,
 				true, // _paused
 			},
 		},

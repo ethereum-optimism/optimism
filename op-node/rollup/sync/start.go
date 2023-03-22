@@ -126,8 +126,17 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 	// then we return the last L2 block of the epoch before that as safe head.
 	// Each loop iteration we traverse a single L2 block, and we check if the L1 origins are consistent.
 	for {
-		// Fetch L1 information if we never had it, or if we do not have it for the current origin
-		if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
+		// Fetch L1 information if we never had it, or if we do not have it for the current origin.
+		// Optimization: as soon as we have a previous L1 block, try to traverse L1 by hash instead of by number, to fill the cache.
+		if n.L1Origin.Hash == l1Block.ParentHash {
+			b, err := l1.L1BlockRefByHash(ctx, n.L1Origin.Hash)
+			if err != nil {
+				// Exit, find-sync start should start over, to move to an available L1 chain with block-by-number / not-found case.
+				return nil, fmt.Errorf("failed to retrieve L1 block: %w", err)
+			}
+			l1Block = b
+			ahead = false
+		} else if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
 			b, err := l1.L1BlockRefByNumber(ctx, n.L1Origin.Number)
 			// if L2 is ahead of L1 view, then consider it a "plausible" head
 			notFound := errors.Is(err, ethereum.NotFound)

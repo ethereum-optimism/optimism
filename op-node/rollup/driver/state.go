@@ -209,7 +209,9 @@ func (s *Driver) eventLoop() {
 	for {
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 		// This may adjust at any time based on fork-choice changes or previous errors.
-		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped && s.l1State.L1Head() != (eth.L1BlockRef{}) {
+		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
+		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped &&
+			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.derivation.EngineReady() {
 			// update sequencer time if the head changed
 			if s.sequencer.BuildingOnto().ID() != s.derivation.UnsafeL2Head().ID() {
 				planSequencerAction()
