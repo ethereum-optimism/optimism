@@ -24,9 +24,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
@@ -49,9 +49,10 @@ func Main(version string, cliCtx *cli.Context) error {
 	}
 
 	l := oplog.NewLogger(cfg.LogConfig)
+	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
-	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l)
+	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
 		return err
@@ -78,17 +79,15 @@ func Main(version string, cliCtx *cli.Context) error {
 		}()
 	}
 
-	registry := opmetrics.NewRegistry()
 	metricsCfg := cfg.MetricsConfig
 	if metricsCfg.Enabled {
 		l.Info("starting metrics server", "addr", metricsCfg.ListenAddr, "port", metricsCfg.ListenPort)
 		go func() {
-			if err := opmetrics.ListenAndServe(ctx, registry, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
+			if err := m.Serve(ctx, metricsCfg.ListenAddr, metricsCfg.ListenPort); err != nil {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		addr := l2OutputSubmitter.from
-		opmetrics.LaunchBalanceMetrics(ctx, l, registry, "", l2OutputSubmitter.l1Client, addr)
+		m.StartBalanceMetrics(ctx, l, l2OutputSubmitter.l1Client, l2OutputSubmitter.from)
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -97,6 +96,9 @@ func Main(version string, cliCtx *cli.Context) error {
 		cancel()
 		return fmt.Errorf("error starting RPC server: %w", err)
 	}
+
+	m.RecordInfo(version)
+	m.RecordUp()
 
 	interruptChannel := make(chan os.Signal, 1)
 	signal.Notify(interruptChannel, []os.Signal{
@@ -117,6 +119,7 @@ type L2OutputSubmitter struct {
 	wg    sync.WaitGroup
 	done  chan struct{}
 	log   log.Logger
+	metr  metrics.Metricer
 
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -143,7 +146,7 @@ type L2OutputSubmitter struct {
 }
 
 // NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
-func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSubmitter, error) {
+func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
 	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
 	if err != nil {
 		return nil, err
@@ -185,11 +188,11 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		SignerFnFactory:    signer,
 	}
 
-	return NewL2OutputSubmitter(proposerCfg, l)
+	return NewL2OutputSubmitter(proposerCfg, l, m)
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
-func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) {
+func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
@@ -228,6 +231,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger) (*L2OutputSubmitter, error) 
 		log:    l,
 		ctx:    ctx,
 		cancel: cancel,
+		metr:   m,
 
 		l1Client:     cfg.L1Client,
 		rollupClient: cfg.RollupClient,
@@ -413,9 +417,9 @@ func (l *L2OutputSubmitter) loop() {
 				l.log.Error("Failed to send proposal transaction", "err", err)
 				cancel()
 				break
-			} else {
-				cancel()
 			}
+			l.metr.RecordL2BlocksProposed(output.BlockRef)
+			cancel()
 
 		case <-l.done:
 			return

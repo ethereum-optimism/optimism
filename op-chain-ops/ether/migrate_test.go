@@ -1,10 +1,11 @@
 package ether
 
 import (
-	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
@@ -190,7 +191,7 @@ func TestMigrateBalances(t *testing.T) {
 	}
 }
 
-func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Address]*big.Int, allowances map[common.Address]common.Address) (*state.StateDB, DBFactory) {
+func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Address]*big.Int, allowances map[common.Address]common.Address) (*state.StateDB, util.DBFactory) {
 	memDB := rawdb.NewMemoryDatabase()
 	db, err := state.New(common.Hash{}, state.NewDatabaseWithConfig(memDB, &trie.Config{
 		Preimages: true,
@@ -281,85 +282,6 @@ func TestMigrateBalancesRandomMissing(t *testing.T) {
 		err := doMigration(db, factory, addresses, allowances, big.NewInt(0), false)
 		require.ErrorContains(t, err, "unknown storage slot")
 	}
-}
-
-func TestPartitionKeyspace(t *testing.T) {
-	tests := []struct {
-		i        int
-		count    int
-		expected [2]common.Hash
-	}{
-		{
-			i:     0,
-			count: 1,
-			expected: [2]common.Hash{
-				common.HexToHash("0x00"),
-				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-		{
-			i:     0,
-			count: 2,
-			expected: [2]common.Hash{
-				common.HexToHash("0x00"),
-				common.HexToHash("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-		{
-			i:     1,
-			count: 2,
-			expected: [2]common.Hash{
-				common.HexToHash("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-		{
-			i:     0,
-			count: 3,
-			expected: [2]common.Hash{
-				common.HexToHash("0x00"),
-				common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555"),
-			},
-		},
-		{
-			i:     1,
-			count: 3,
-			expected: [2]common.Hash{
-				common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555"),
-				common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-			},
-		},
-		{
-			i:     2,
-			count: 3,
-			expected: [2]common.Hash{
-				common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("i %d, count %d", tt.i, tt.count), func(t *testing.T) {
-			start, end := PartitionKeyspace(tt.i, tt.count)
-			require.Equal(t, tt.expected[0], start)
-			require.Equal(t, tt.expected[1], end)
-		})
-	}
-
-	t.Run("panics on invalid i or count", func(t *testing.T) {
-		require.Panics(t, func() {
-			PartitionKeyspace(1, 1)
-		})
-		require.Panics(t, func() {
-			PartitionKeyspace(-1, 1)
-		})
-		require.Panics(t, func() {
-			PartitionKeyspace(0, -1)
-		})
-		require.Panics(t, func() {
-			PartitionKeyspace(-1, -1)
-		})
-	})
 }
 
 func randAddr(t *testing.T) common.Address {
