@@ -126,8 +126,8 @@ type SimpleTxManager struct {
 type TxCandidate struct {
 	// TxData is the transaction data to be used in the constructed tx.
 	TxData []byte
-	// Recipient is the recipient (or `to`) of the constructed tx.
-	Recipient common.Address
+	// To is the recipient of the constructed tx.
+	To common.Address
 	// GasLimit is the gas limit to be used in the constructed tx.
 	GasLimit uint64
 	// From is the sender (or `from`) of the constructed tx.
@@ -186,7 +186,7 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   candidate.ChainID,
 		Nonce:     nonce,
-		To:        &candidate.Recipient,
+		To:        &candidate.To,
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
 		Data:      candidate.TxData,
@@ -201,7 +201,7 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 		// Calculate the intrinsic gas for the transaction
 		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
 			From:      candidate.From,
-			To:        &candidate.Recipient,
+			To:        &candidate.To,
 			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,

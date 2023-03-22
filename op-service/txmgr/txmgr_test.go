@@ -57,11 +57,11 @@ func (h testHarness) createTxCandidate() TxCandidate {
 	chainID := big.NewInt(1)
 	sender := common.HexToAddress("0xdeadbeef")
 	return TxCandidate{
-		Recipient: inbox,
-		TxData:    []byte{0x00, 0x01, 0x02},
-		From:      sender,
-		ChainID:   chainID,
-		GasLimit:  uint64(1337),
+		To:       inbox,
+		TxData:   []byte{0x00, 0x01, 0x02},
+		From:     sender,
+		ChainID:  chainID,
+		GasLimit: uint64(1337),
 	}
 }
 

@@ -44,11 +44,11 @@ func TestSendTransaction(t *testing.T) {
 	gas := uint64(1337)
 
 	candidate := txmgr.TxCandidate{
-		Recipient: batcherInboxAddress,
-		TxData:    txData,
-		From:      sender,
-		ChainID:   chainID,
-		GasLimit:  uint64(0),
+		To:       batcherInboxAddress,
+		TxData:   txData,
+		From:     sender,
+		ChainID:  chainID,
+		GasLimit: uint64(0),
 	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{

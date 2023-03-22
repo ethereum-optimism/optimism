@@ -354,11 +354,11 @@ func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*typ
 
 	// Create the transaction
 	tx, err := l.txMgr.CraftTx(ctx, txmgr.TxCandidate{
-		Recipient: l.Rollup.BatchInboxAddress,
-		TxData:    data,
-		From:      l.From,
-		ChainID:   l.Rollup.L1ChainID,
-		GasLimit:  gas,
+		To:       l.Rollup.BatchInboxAddress,
+		TxData:   data,
+		From:     l.From,
+		ChainID:  l.Rollup.L1ChainID,
+		GasLimit: gas,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
