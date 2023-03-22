@@ -15,6 +15,7 @@ import (
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
@@ -363,7 +364,7 @@ func TestMigration(t *testing.T) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(secrets.Proposer),
-	}, lgr.New("module", "proposer"))
+	}, lgr.New("module", "proposer"), proposermetrics.NoopMetrics)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

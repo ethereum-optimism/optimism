@@ -12,8 +12,6 @@ import (
 )
 
 var (
-	ErrZeroMaxFrameSize      = errors.New("max frame size cannot be zero")
-	ErrSmallMaxFrameSize     = errors.New("max frame size cannot be less than 23")
 	ErrInvalidChannelTimeout = errors.New("channel timeout is less than the safety margin")
 	ErrInputTargetReached    = errors.New("target amount of input data reached")
 	ErrMaxFrameIndex         = errors.New("max frame index reached (uint16)")
@@ -83,15 +81,15 @@ func (cc *ChannelConfig) Check() error {
 	// will infinitely loop when trying to create frames in the
 	// [channelBuilder.OutputFrames] function.
 	if cc.MaxFrameSize == 0 {
-		return ErrZeroMaxFrameSize
+		return errors.New("max frame size cannot be zero")
 	}
 
-	// If the [MaxFrameSize] is set to < 23, the channel out
-	// will underflow the maxSize variable in the [derive.ChannelOut].
+	// If the [MaxFrameSize] is less than [FrameV0OverHeadSize], the channel
+	// out will underflow the maxSize variable in the [derive.ChannelOut].
 	// Since it is of type uint64, it will wrap around to a very large
 	// number, making the frame size extremely large.
-	if cc.MaxFrameSize < 23 {
-		return ErrSmallMaxFrameSize
+	if cc.MaxFrameSize < derive.FrameV0OverHeadSize {
+		return fmt.Errorf("max frame size %d is less than the minimum 23", cc.MaxFrameSize)
 	}
 
 	return nil

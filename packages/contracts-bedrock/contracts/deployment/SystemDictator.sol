@@ -156,6 +156,33 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
+     * @notice Constructor required to ensure that the implementation of the SystemDictator is
+     *         initialized upon deployment.
+     */
+    constructor() {
+        // Using this shorter variable as an alias for address(0) just prevents us from having to
+        // to use a new line for every single parameter.
+        address zero = address(0);
+        initialize(
+            DeployConfig(
+                GlobalConfig(AddressManager(zero), ProxyAdmin(zero), zero, zero),
+                ProxyAddressConfig(zero, zero, zero, zero, zero, zero, zero),
+                ImplementationAddressConfig(
+                    L2OutputOracle(zero),
+                    OptimismPortal(payable(zero)),
+                    L1CrossDomainMessenger(zero),
+                    L1StandardBridge(payable(zero)),
+                    OptimismMintableERC20Factory(zero),
+                    L1ERC721Bridge(zero),
+                    PortalSender(zero),
+                    SystemConfig(zero)
+                ),
+                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero)
+            )
+        );
+    }
+
+    /**
      * @param _config System configuration.
      */
     function initialize(DeployConfig memory _config) public initializer {

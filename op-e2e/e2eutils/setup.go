@@ -169,7 +169,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
 			l1Genesis.Alloc[addr] = core.GenesisAccount{
-				Balance: Ether(1e6),
+				Balance: Ether(1e12),
 			}
 		}
 	}
@@ -184,7 +184,7 @@ func Setup(t require.TestingT, deployParams *DeployParams, alloc *AllocParams) *
 	if alloc.PrefundTestUsers {
 		for _, addr := range deployParams.Addresses.All() {
 			l2Genesis.Alloc[addr] = core.GenesisAccount{
-				Balance: Ether(1e6),
+				Balance: Ether(1e12),
 			}
 		}
 	}
