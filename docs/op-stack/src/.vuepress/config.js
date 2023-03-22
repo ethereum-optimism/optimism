@@ -166,6 +166,7 @@ module.exports = {
                 children: [
                   "/docs/build/tutorials/add-attr.md",
                   "/docs/build/tutorials/new-precomp.md",
+                  "/docs/build/tutorials/predeploys.md"
                 ]
               }  // End of tutorials
             ],
