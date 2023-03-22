@@ -390,7 +390,7 @@ Head over to the `op-node` package and start the `op-node` using the following c
 	--rollup.config=./rollup.json \
 	--rpc.addr=0.0.0.0 \
 	--rpc.port=8547 \
-    --p2p.disable \
+	--p2p.disable \
 	--rpc.enable-admin \
 	--p2p.sequencer.key=<SEQUENCERKEY> \
 	--l1=<RPC> \
@@ -409,10 +409,10 @@ To avoid this , we start with peer to peer synchronization disabled (`--p2p.disa
 Once you have multiple nodes, it makes sense to use these command line parameters to synchronize between them without getting confused by other blockchains.
 
 ```
-    --p2p.static=<nodes> \
-    --p2p.listen.ip=0.0.0.0 \
-    --p2p.listen.tcp=9003 \
-    --p2p.listen.udp=9003 \
+	--p2p.static=<nodes> \
+	--p2p.listen.ip=0.0.0.0 \
+	--p2p.listen.tcp=9003 \
+	--p2p.listen.udp=9003 \
 ```
 
 :::
