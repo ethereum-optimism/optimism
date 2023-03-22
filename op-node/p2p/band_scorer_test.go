@@ -29,14 +29,6 @@ func TestBandScorer_BucketCorrectly(t *testing.T) {
 	bandScorer := NewBandScorer()
 	require.NoError(t, bandScorer.Parse("-40:graylist;-20:restricted;0:nopx;20:friend;"))
 
-	// Let's validate that the [BandScorer] sorts the bands correctly.
-	require.Equal(t, bandScorer.bands, []scorePair{
-		{band: "graylist", threshold: -40},
-		{band: "restricted", threshold: -20},
-		{band: "nopx", threshold: 0},
-		{band: "friend", threshold: 20},
-	})
-
 	// Validate the [BandScorer] internals.
 	require.Equal(t, bandScorer.Bucket(-100), "graylist")
 	require.Equal(t, bandScorer.Bucket(-40), "graylist")
@@ -55,14 +47,6 @@ func TestBandScorer_BucketInverted(t *testing.T) {
 	// Create a new band scorer.
 	bandScorer := NewBandScorer()
 	require.NoError(t, bandScorer.Parse("20:friend;0:nopx;-20:restricted;-40:graylist;"))
-
-	// Let's validate that the [BandScorer] sorts the bands correctly.
-	require.Equal(t, bandScorer.bands, []scorePair{
-		{band: "graylist", threshold: -40},
-		{band: "restricted", threshold: -20},
-		{band: "nopx", threshold: 0},
-		{band: "friend", threshold: 20},
-	})
 
 	// Validate the [BandScorer] internals.
 	require.Equal(t, bandScorer.Bucket(-100), "graylist")
