@@ -54,13 +54,11 @@ func newTestHarness(t *testing.T) *testHarness {
 // createTxCandidate creates a mock [TxCandidate].
 func (h testHarness) createTxCandidate() TxCandidate {
 	inbox := common.HexToAddress("0x42000000000000000000000000000000000000ff")
-	chainID := big.NewInt(1)
 	sender := common.HexToAddress("0xdeadbeef")
 	return TxCandidate{
 		To:       inbox,
 		TxData:   []byte{0x00, 0x01, 0x02},
 		From:     sender,
-		ChainID:  chainID,
 		GasLimit: uint64(1337),
 	}
 }
@@ -208,6 +206,10 @@ func (b *mockBackend) SendTransaction(ctx context.Context, tx *types.Transaction
 
 func (b *mockBackend) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
 	return 0, nil
+}
+
+func (*mockBackend) ChainID(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(1), nil
 }
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is
@@ -650,6 +652,10 @@ func (b *failingBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) 
 
 func (b *failingBackend) NonceAt(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {
 	return 0, errors.New("unimplemented")
+}
+
+func (b *failingBackend) ChainID(ctx context.Context) (*big.Int, error) {
+	return nil, errors.New("unimplemented")
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to

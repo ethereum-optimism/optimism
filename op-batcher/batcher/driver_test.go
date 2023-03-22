@@ -47,7 +47,6 @@ func TestSendTransaction(t *testing.T) {
 		To:       batcherInboxAddress,
 		TxData:   txData,
 		From:     sender,
-		ChainID:  chainID,
 		GasLimit: uint64(0),
 	}
 

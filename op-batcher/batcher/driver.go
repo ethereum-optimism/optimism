@@ -357,7 +357,6 @@ func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*typ
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
 		From:     l.From,
-		ChainID:  l.Rollup.L1ChainID,
 		GasLimit: gas,
 	})
 	if err != nil {

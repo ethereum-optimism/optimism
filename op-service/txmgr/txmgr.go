@@ -109,13 +109,16 @@ type ETHBackend interface {
 	/// EstimateGas returns an estimate of the amount of gas needed to execute the given
 	/// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
+	// ChainID returns the chain ID for this ethereum chain.
+	ChainID(ctx context.Context) (*big.Int, error)
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
 // bumping of a tx until it confirms.
 type SimpleTxManager struct {
-	Config // embed the config directly
-	name   string
+	Config  // embed the config directly
+	name    string
+	chainID *big.Int
 
 	backend ETHBackend
 	l       log.Logger
@@ -132,8 +135,6 @@ type TxCandidate struct {
 	GasLimit uint64
 	// From is the sender (or `from`) of the constructed tx.
 	From common.Address
-	/// ChainID is the chain ID to be used in the constructed tx.
-	ChainID *big.Int
 }
 
 // calcGasTipAndFeeCap queries L1 to determine what a suitable miner tip & basefee limit would be for timely inclusion
@@ -183,8 +184,19 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
 
+	// If the configured chain ID is nil (can occur if the fetch fails in the constructor),
+	// we need to try to fetch it again from the backend.
+	if m.chainID == nil {
+		childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
+		m.chainID, err = m.backend.ChainID(childCtx)
+		cancel()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get chain ID: %w", err)
+		}
+	}
+
 	rawTx := &types.DynamicFeeTx{
-		ChainID:   candidate.ChainID,
+		ChainID:   m.chainID,
 		Nonce:     nonce,
 		To:        &candidate.To,
 		GasTipCap: gasTipCap,
@@ -316,7 +328,11 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBacken
 		cfg.NetworkTimeout = 2 * time.Second
 	}
 
+	// On error, ignore. We will try to get the chainID again when used.
+	chainID, _ := backend.ChainID(context.Background())
+
 	return &SimpleTxManager{
+		chainID: chainID,
 		name:    name,
 		Config:  cfg,
 		backend: backend,
