@@ -188,11 +188,12 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 	// we need to try to fetch it again from the backend.
 	if m.chainID == nil {
 		childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
-		m.chainID, err = m.backend.ChainID(childCtx)
+		chainID, err := m.backend.ChainID(childCtx)
 		cancel()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get chain ID: %w", err)
 		}
+		m.chainID = chainID
 	}
 
 	rawTx := &types.DynamicFeeTx{
