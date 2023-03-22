@@ -16,7 +16,7 @@ type scorer struct {
 	metricer            GossipMetricer
 	log                 log.Logger
 	gater               PeerGater
-	bandScoreThresholds BandScorer
+	bandScoreThresholds BandScoreThresholds
 }
 
 // scorePair holds a band and its corresponding threshold.
@@ -29,17 +29,6 @@ type scorePair struct {
 // into different score bands.
 type BandScoreThresholds struct {
 	bands []scorePair
-}
-
-// BandScorer is an interface for placing peer scores
-// into various bands.
-//
-// Implementations are expected to construct internals using the
-// [Parse] function and then expose the [Bucket] function for
-// downstream [BandScorer] consumers.
-type BandScorer interface {
-	Bucket(score float64) string
-	Reset()
 }
 
 // NewBandScorer constructs a new [BandScoreThresholds] instance.
@@ -74,11 +63,6 @@ func NewBandScorer(str string) (*BandScoreThresholds, error) {
 	})
 
 	return s, nil
-}
-
-// Reset wipes the internal state of the [BandScorer].
-func (s *BandScoreThresholds) Reset() {
-	s.bands = s.bands[:0]
 }
 
 // Bucket returns the appropriate band for a given score.
@@ -117,7 +101,7 @@ type Scorer interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds BandScorer, log log.Logger) Scorer {
+func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds BandScoreThresholds, log log.Logger) Scorer {
 	return &scorer{
 		peerStore:           peerStore,
 		metricer:            metricer,

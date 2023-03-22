@@ -132,7 +132,7 @@ func loadPeerScoreBands(conf *p2p.Config, ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	conf.BandScoreThresholds = bandScorer
+	conf.BandScoreThresholds = *bandScorer
 	return nil
 }
 

@@ -30,7 +30,7 @@ type PeerScoresTestSuite struct {
 	mockGater    *p2pMocks.ConnectionGater
 	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
-	bandScorer   p2p.BandScorer
+	bandScorer   p2p.BandScoreThresholds
 	logger       log.Logger
 }
 
@@ -41,7 +41,7 @@ func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
 	bandScorer, err := p2p.NewBandScorer("0:graylist;")
 	testSuite.NoError(err)
-	testSuite.bandScorer = bandScorer
+	testSuite.bandScorer = *bandScorer
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 

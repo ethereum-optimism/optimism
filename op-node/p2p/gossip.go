@@ -55,7 +55,7 @@ type GossipSetupConfigurables interface {
 	TopicScoringParams() *pubsub.TopicScoreParams
 	BanPeers() bool
 	ConfigureGossip(params *pubsub.GossipSubParams) []pubsub.Option
-	PeerBandScorer() BandScorer
+	PeerBandScorer() *BandScoreThresholds
 }
 
 type GossipRuntimeConfig interface {
