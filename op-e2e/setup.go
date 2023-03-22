@@ -194,6 +194,9 @@ type SystemConfig struct {
 
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
+
+	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
+	DisableBatcher bool
 }
 
 type System struct {
@@ -418,6 +421,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			L2EngineAddr:      l2EndpointConfig,
 			L2EngineJWTSecret: cfg.JWTSecret,
 		}
+		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
+			Client:   nil,
+			TrustRPC: false,
+		}
 	}
 
 	// Geth Clients
@@ -607,8 +614,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
 
-	if err := sys.BatchSubmitter.Start(); err != nil {
-		return nil, fmt.Errorf("unable to start batch submitter: %w", err)
+	// Batcher may be enabled later
+	if !sys.cfg.DisableBatcher {
+		if err := sys.BatchSubmitter.Start(); err != nil {
+			return nil, fmt.Errorf("unable to start batch submitter: %w", err)
+		}
 	}
 
 	return sys, nil

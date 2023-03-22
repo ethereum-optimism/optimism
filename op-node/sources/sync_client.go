@@ -3,12 +3,17 @@ package sources
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"sync"
+	"time"
 
 	"github.com/ethereum-optimism/optimism/op-node/client"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources/caching"
+	"github.com/ethereum-optimism/optimism/op-service/backoff"
+
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
@@ -18,23 +23,29 @@ var ErrNoUnsafeL2PayloadChannel = errors.New("unsafeL2Payloads channel must not 
 // RpcSyncPeer is a mock PeerID for the RPC sync client.
 var RpcSyncPeer peer.ID = "ALT_RPC_SYNC"
 
+// receivePayload queues the received payload for processing.
+// This may return an error if there's no capacity for the payload.
 type receivePayload = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error
 
-type SyncClientInterface interface {
+type RPCSync interface {
+	io.Closer
+	// Start starts an additional worker syncing job
 	Start() error
-	Close() error
-	fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64)
+	// RequestL2Range signals that the given range should be fetched, implementing the alt-sync interface.
+	RequestL2Range(ctx context.Context, start, end uint64) error
 }
 
 type SyncClient struct {
 	*L2Client
-	FetchUnsafeBlock chan uint64
-	done             chan struct{}
-	receivePayload   receivePayload
-	wg               sync.WaitGroup
-}
 
-var _ SyncClientInterface = (*SyncClient)(nil)
+	requests chan uint64
+
+	resCtx    context.Context
+	resCancel context.CancelFunc
+
+	receivePayload receivePayload
+	wg             sync.WaitGroup
+}
 
 type SyncClientConfig struct {
 	L2ClientConfig
@@ -51,27 +62,53 @@ func NewSyncClient(receiver receivePayload, client client.RPC, log log.Logger, m
 	if err != nil {
 		return nil, err
 	}
-
+	// This resource context is shared between all workers that may be started
+	resCtx, resCancel := context.WithCancel(context.Background())
 	return &SyncClient{
-		L2Client:         l2Client,
-		FetchUnsafeBlock: make(chan uint64, 128),
-		done:             make(chan struct{}),
-		receivePayload:   receiver,
+		L2Client:       l2Client,
+		resCtx:         resCtx,
+		resCancel:      resCancel,
+		requests:       make(chan uint64, 128),
+		receivePayload: receiver,
 	}, nil
 }
 
-// Start starts up the state loop.
-// The loop will have been started if err is not nil.
+// Start starts the syncing background work. This may not be called after Close().
 func (s *SyncClient) Start() error {
+	// TODO(CLI-3635): we can start multiple event loop runners as workers, to parallelize the work
 	s.wg.Add(1)
 	go s.eventLoop()
 	return nil
 }
 
-// Close sends a signal to the event loop to stop.
+// Close sends a signal to close all concurrent syncing work.
 func (s *SyncClient) Close() error {
-	s.done <- struct{}{}
+	s.resCancel()
 	s.wg.Wait()
+	return nil
+}
+
+func (s *SyncClient) RequestL2Range(ctx context.Context, start, end uint64) error {
+	// Drain previous requests now that we have new information
+	for len(s.requests) > 0 {
+		select { // in case requests is being read at the same time, don't block on draining it.
+		case <-s.requests:
+		default:
+			break
+		}
+	}
+
+	// TODO(CLI-3635): optimize the by-range fetching with the Engine API payloads-by-range method.
+
+	s.log.Info("Scheduling to fetch missing payloads from backup RPC", "start", start, "end", end, "size", end-start)
+
+	for i := start; i < end; i++ {
+		select {
+		case s.requests <- i:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 	return nil
 }
 
@@ -80,12 +117,37 @@ func (s *SyncClient) eventLoop() {
 	defer s.wg.Done()
 	s.log.Info("Starting sync client event loop")
 
+	backoffStrategy := &backoff.ExponentialStrategy{
+		Min:       1000,
+		Max:       20_000,
+		MaxJitter: 250,
+	}
+
 	for {
 		select {
-		case <-s.done:
+		case <-s.resCtx.Done():
+			s.log.Debug("Shutting down RPC sync worker")
 			return
-		case blockNumber := <-s.FetchUnsafeBlock:
-			s.fetchUnsafeBlockFromRpc(context.Background(), blockNumber)
+		case reqNum := <-s.requests:
+			err := backoff.DoCtx(s.resCtx, 5, backoffStrategy, func() error {
+				// Limit the maximum time for fetching payloads
+				ctx, cancel := context.WithTimeout(s.resCtx, time.Second*10)
+				defer cancel()
+				// We are only fetching one block at a time here.
+				return s.fetchUnsafeBlockFromRpc(ctx, reqNum)
+			})
+			if err != nil {
+				if err == s.resCtx.Err() {
+					return
+				}
+				s.log.Error("failed syncing L2 block via RPC", "err", err, "num", reqNum)
+				// Reschedule at end of queue
+				select {
+				case s.requests <- reqNum:
+				default:
+					// drop syncing job if we are too busy with sync jobs already.
+				}
+			}
 		}
 	}
 }
@@ -95,28 +157,22 @@ func (s *SyncClient) eventLoop() {
 //
 // Post Shanghai hardfork, the engine API's `PayloadBodiesByRange` method will be much more efficient, but for now,
 // the `eth_getBlockByNumber` method is more widely available.
-func (s *SyncClient) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64) {
+func (s *SyncClient) fetchUnsafeBlockFromRpc(ctx context.Context, blockNumber uint64) error {
 	s.log.Info("Requesting unsafe payload from backup RPC", "block number", blockNumber)
 
 	payload, err := s.PayloadByNumber(ctx, blockNumber)
 	if err != nil {
-		s.log.Warn("Failed to convert block to execution payload", "block number", blockNumber, "err", err)
-		return
+		return fmt.Errorf("failed to fetch payload by number (%d): %w", blockNumber, err)
 	}
-
-	// Signature validation is not necessary here since the backup RPC is trusted.
-	if _, ok := payload.CheckBlockHash(); !ok {
-		s.log.Warn("Received invalid payload from backup RPC; invalid block hash", "payload", payload.ID())
-		return
-	}
+	// Note: the underlying RPC client used for syncing verifies the execution payload blockhash, if set to untrusted.
 
 	s.log.Info("Received unsafe payload from backup RPC", "payload", payload.ID())
 
 	// Send the retrieved payload to the `unsafeL2Payloads` channel.
 	if err = s.receivePayload(ctx, RpcSyncPeer, payload); err != nil {
-		s.log.Warn("Failed to send payload into the driver's unsafeL2Payloads channel", "payload", payload.ID(), "err", err)
-		return
+		return fmt.Errorf("failed to send payload %s into the driver's unsafeL2Payloads channel: %w", payload.ID(), err)
 	} else {
-		s.log.Info("Sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
+		s.log.Debug("Sent received payload into the driver's unsafeL2Payloads channel", "payload", payload.ID())
+		return nil
 	}
 }
