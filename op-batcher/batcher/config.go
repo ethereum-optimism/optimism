@@ -21,6 +21,7 @@ import (
 )
 
 type Config struct {
+	L1Module common.Address
 	log        log.Logger
 	metr       metrics.Metricer
 	L1Client   *ethclient.Client
@@ -52,6 +53,9 @@ func (c *Config) Check() error {
 
 type CLIConfig struct {
 	/* Required Params */
+
+	// L1 Module contract which returns the selected sequencer for the block.
+	L1Module common.Address
 
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
@@ -156,8 +160,11 @@ func (c CLIConfig) Check() error {
 
 // NewConfig parses the Config from the provided flags or environment variables.
 func NewConfig(ctx *cli.Context) CLIConfig {
+	addr := ctx.GlobalString(flags.L1ModuleFlag.Name)
+
 	return CLIConfig{
 		/* Required Flags */
+		L1Module:                  common.HexToAddress(addr),
 		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
 		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
 		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),

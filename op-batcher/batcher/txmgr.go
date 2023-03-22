@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -30,9 +31,10 @@ type TransactionManager struct {
 	l1Client *ethclient.Client
 	signerFn opcrypto.SignerFn
 	log      log.Logger
+	sequencerModule *bindings.OptimismModule
 }
 
-func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client) *TransactionManager {
+func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAddress common.Address, chainID *big.Int, senderAddress common.Address, l1Client *ethclient.Client, sequencerModule *bindings.OptimismModule) *TransactionManager {
 	t := &TransactionManager{
 		batchInboxAddress: batchInboxAddress,
 		senderAddress:     senderAddress,
@@ -41,6 +43,7 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 		l1Client:          l1Client,
 		signerFn:          txMgrConfg.Signer,
 		log:               log,
+		sequencerModule:   sequencerModule,
 	}
 	return t
 }
@@ -50,6 +53,8 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
 func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+	// if ...
+
 	tx, err := t.CraftTx(ctx, data)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
