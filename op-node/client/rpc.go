@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/time/rate"
 
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -24,27 +25,85 @@ type RPC interface {
 	EthSubscribe(ctx context.Context, channel any, args ...any) (ethereum.Subscription, error)
 }
 
+type rpcConfig struct {
+	gethRPCOptions   []rpc.ClientOption
+	httpPollInterval time.Duration
+	backoffAttempts  int
+	limit            float64
+	burst            int
+}
+
+type RPCOption func(cfg *rpcConfig) error
+
+// WithDialBackoff configures the number of attempts for the initial dial to the RPC,
+// attempts are executed with an exponential backoff strategy.
+func WithDialBackoff(attempts int) RPCOption {
+	return func(cfg *rpcConfig) error {
+		cfg.backoffAttempts = attempts
+		return nil
+	}
+}
+
+// WithHttpPollInterval configures the RPC to poll at the given rate, in case RPC subscriptions are not available.
+func WithHttpPollInterval(duration time.Duration) RPCOption {
+	return func(cfg *rpcConfig) error {
+		cfg.httpPollInterval = duration
+		return nil
+	}
+}
+
+// WithGethRPCOptions passes the list of go-ethereum RPC options to the internal RPC instance.
+func WithGethRPCOptions(gethRPCOptions ...rpc.ClientOption) RPCOption {
+	return func(cfg *rpcConfig) error {
+		cfg.gethRPCOptions = append(cfg.gethRPCOptions, gethRPCOptions...)
+		return nil
+	}
+}
+
+// WithRateLimit configures the RPC to target the given rate limit (in requests / second).
+// See NewRateLimitingClient for more details.
+func WithRateLimit(rateLimit float64, burst int) RPCOption {
+	return func(cfg *rpcConfig) error {
+		cfg.limit = rateLimit
+		cfg.burst = burst
+		return nil
+	}
+}
+
 // NewRPC returns the correct client.RPC instance for a given RPC url.
-func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...rpc.ClientOption) (RPC, error) {
-	underlying, err := DialRPCClientWithBackoff(ctx, lgr, addr, opts...)
+func NewRPC(ctx context.Context, lgr log.Logger, addr string, opts ...RPCOption) (RPC, error) {
+	var cfg rpcConfig
+	for i, opt := range opts {
+		if err := opt(&cfg); err != nil {
+			return nil, fmt.Errorf("rpc option %d failed to apply to RPC config: %w", i, err)
+		}
+	}
+	if cfg.backoffAttempts < 1 { // default to at least 1 attempt, or it always fails to dial.
+		cfg.backoffAttempts = 1
+	}
+	underlying, err := dialRPCClientWithBackoff(ctx, lgr, addr, cfg.backoffAttempts, cfg.gethRPCOptions...)
 	if err != nil {
 		return nil, err
 	}
 
-	wrapped := &BaseRPCClient{
-		c: underlying,
+	var wrapped RPC = &BaseRPCClient{c: underlying}
+
+	if cfg.limit != 0 {
+		wrapped = NewRateLimitingClient(wrapped, rate.Limit(cfg.limit), cfg.burst)
 	}
+
 	if httpRegex.MatchString(addr) {
-		return NewPollingClient(ctx, lgr, wrapped), nil
+		wrapped = NewPollingClient(ctx, lgr, wrapped, WithPollRate(cfg.httpPollInterval))
 	}
+
 	return wrapped, nil
 }
 
 // Dials a JSON-RPC endpoint repeatedly, with a backoff, until a client connection is established. Auth is optional.
-func DialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, opts ...rpc.ClientOption) (*rpc.Client, error) {
+func dialRPCClientWithBackoff(ctx context.Context, log log.Logger, addr string, attempts int, opts ...rpc.ClientOption) (*rpc.Client, error) {
 	bOff := backoff.Exponential()
 	var ret *rpc.Client
-	err := backoff.DoCtx(ctx, 10, bOff, func() error {
+	err := backoff.DoCtx(ctx, attempts, bOff, func() error {
 		client, err := rpc.DialOptions(ctx, addr, opts...)
 		if err != nil {
 			if client == nil {

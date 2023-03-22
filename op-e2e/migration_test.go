@@ -270,9 +270,12 @@ func TestMigration(t *testing.T) {
 	snapLog.SetHandler(log.DiscardHandler())
 	rollupNodeConfig := &node.Config{
 		L1: &node.L1EndpointConfig{
-			L1NodeAddr: forkedL1URL,
-			L1TrustRPC: false,
-			L1RPCKind:  sources.RPCKindBasic,
+			L1NodeAddr:       forkedL1URL,
+			L1TrustRPC:       false,
+			L1RPCKind:        sources.RPCKindBasic,
+			RateLimit:        0,
+			BatchSize:        20,
+			HttpPollInterval: 12 * time.Second,
 		},
 		L2: &node.L2EndpointConfig{
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),

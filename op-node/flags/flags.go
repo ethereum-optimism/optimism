@@ -75,6 +75,24 @@ var (
 			return &out
 		}(),
 	}
+	L1RPCRateLimit = cli.Float64Flag{
+		Name:   "l1.rpc-rate-limit",
+		Usage:  "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
+		EnvVar: prefixEnvVar("L1_RPC_RATE_LIMIT"),
+		Value:  0,
+	}
+	L1RPCMaxBatchSize = cli.IntFlag{
+		Name:   "l1.rpc-max-batch-size",
+		Usage:  "Maximum number of RPC requests to bundle, e.g. during L1 blocks receipt fetching. The L1 RPC rate limit counts this as N items, but allows it to burst at once.",
+		EnvVar: prefixEnvVar("L1_RPC_MAX_BATCH_SIZE"),
+		Value:  20,
+	}
+	L1HTTPPollInterval = cli.DurationFlag{
+		Name:   "l1.http-poll-interval",
+		Usage:  "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
+		EnvVar: prefixEnvVar("L1_HTTP_POLL_INTERVAL"),
+		Value:  time.Second * 12,
+	}
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -196,6 +214,9 @@ var optionalFlags = []cli.Flag{
 	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	L1RPCRateLimit,
+	L1RPCMaxBatchSize,
+	L1HTTPPollInterval,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
