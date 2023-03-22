@@ -27,11 +27,11 @@ import (
 type PeerScoresTestSuite struct {
 	suite.Suite
 
-	mockGater      *p2pMocks.ConnectionGater
-	mockStore      *p2pMocks.Peerstore
-	mockMetricer   *p2pMocks.GossipMetricer
-	mockBandScorer *p2pMocks.BandScorer
-	logger         log.Logger
+	mockGater    *p2pMocks.ConnectionGater
+	mockStore    *p2pMocks.Peerstore
+	mockMetricer *p2pMocks.GossipMetricer
+	bandScorer   p2p.BandScorer
+	logger       log.Logger
 }
 
 // SetupTest sets up the test suite.
@@ -39,7 +39,8 @@ func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	testSuite.mockBandScorer = &p2pMocks.BandScorer{}
+	testSuite.bandScorer = &p2p.BandScoreThresholds{}
+	testSuite.NoError(testSuite.bandScorer.Parse("0:graylist;"))
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
@@ -70,7 +71,7 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 		rt := pubsub.DefaultGossipSubRouter(h)
 		opts := []pubsub.Option{}
 		opts = append(opts, p2p.ConfigurePeerScoring(h, testSuite.mockGater, &p2p.Config{
-			BandScoreThresholds: testSuite.mockBandScorer,
+			BandScoreThresholds: testSuite.bandScorer,
 			PeerScoring: pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {
 					if p == hosts[0].ID() {
@@ -121,9 +122,6 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testSuite.mockBandScorer.On("Reset").Return(nil)
-	testSuite.mockBandScorer.On("Bucket", float64(0)).Return("nopx")
-	testSuite.mockBandScorer.On("Bucket", float64(-1000)).Return("graylist")
 	testSuite.mockMetricer.On("SetPeerScores", mock.Anything).Return(nil)
 
 	testSuite.mockGater.On("ListBlockedPeers").Return([]peer.ID{})

@@ -19,6 +19,7 @@ type scorer struct {
 	bandScoreThresholds BandScorer
 }
 
+// scorePair holds a band and its corresponding threshold.
 type scorePair struct {
 	band      string
 	threshold float64
@@ -36,8 +37,6 @@ type BandScoreThresholds struct {
 // Implementations are expected to construct internals using the
 // [Parse] function and then expose the [Bucket] function for
 // downstream [BandScorer] consumers.
-//
-//go:generate mockery --name BandScorer --output mocks/
 type BandScorer interface {
 	Parse(str string) error
 	Bucket(score float64) string
