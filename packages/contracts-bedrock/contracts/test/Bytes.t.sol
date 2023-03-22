@@ -139,16 +139,20 @@ contract Bytes_slice_Test is Test {
         vm.assume(_length <= _input.length - _start);
 
         // Grab the free memory pointer before the slice operation
-        uint256 initPtr;
+        uint64 initPtr;
         assembly {
             initPtr := mload(0x40)
         }
+        uint64 expectedPtr = uint64(initPtr + 0x20 + ((_length + 0x1f) & ~uint256(0x1f)));
+
+        // Ensure that all memory outside of the expected range is safe.
+        vm.expectSafeMemory(initPtr, expectedPtr);
 
         // Slice the input bytes array from `_start` to `_start + _length`
         bytes memory slice = Bytes.slice(_input, _start, _length);
 
         // Grab the free memory pointer after the slice operation
-        uint256 finalPtr;
+        uint64 finalPtr;
         assembly {
             finalPtr := mload(0x40)
         }
@@ -165,10 +169,11 @@ contract Bytes_slice_Test is Test {
             // Note that we use a slightly less efficient, but equivalent method of rounding
             // up `_length` to the next multiple of 32 than is used in the `slice` function.
             // This is to diff test the method used in `slice`.
-            assertEq(finalPtr, initPtr + 0x20 + (((_length + 0x1F) >> 5) << 5));
+            uint64 _expectedPtr = uint64(initPtr + 0x20 + (((_length + 0x1F) >> 5) << 5));
+            assertEq(finalPtr, _expectedPtr);
 
             // Sanity check for equivalence of the rounding methods.
-            assertEq(((_length + 0x1F) >> 5) << 5, (_length + 0x1F) & ~uint256(0x1F));
+            assertEq(_expectedPtr, expectedPtr);
         }
 
         // The slice length should be equal to `_length`
