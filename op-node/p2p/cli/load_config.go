@@ -128,8 +128,8 @@ func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64)
 // loadPeerScoreBands loads [p2p.BandScorer] from the CLI context.
 func loadPeerScoreBands(conf *p2p.Config, ctx *cli.Context) error {
 	scoreBands := ctx.GlobalString(flags.PeerScoreBands.Name)
-	bandScorer := p2p.NewBandScorer()
-	if err := bandScorer.Parse(scoreBands); err != nil {
+	bandScorer, err := p2p.NewBandScorer(scoreBands)
+	if err != nil {
 		return err
 	}
 	conf.BandScoreThresholds = bandScorer

@@ -10,8 +10,8 @@ import (
 // on the default band scores cli flag value.
 func TestBandScorer_ParseDefault(t *testing.T) {
 	// Create a new band scorer.
-	bandScorer := NewBandScorer()
-	require.NoError(t, bandScorer.Parse("-40:graylist;-20:restricted;0:nopx;20:friend;"))
+	bandScorer, err := NewBandScorer("-40:graylist;-20:restricted;0:nopx;20:friend;")
+	require.NoError(t, err)
 
 	// Validate the [BandScorer] internals.
 	require.ElementsMatch(t, bandScorer.bands, []scorePair{
@@ -26,8 +26,8 @@ func TestBandScorer_ParseDefault(t *testing.T) {
 // on a variety of scores.
 func TestBandScorer_BucketCorrectly(t *testing.T) {
 	// Create a new band scorer.
-	bandScorer := NewBandScorer()
-	require.NoError(t, bandScorer.Parse("-40:graylist;-20:restricted;0:nopx;20:friend;"))
+	bandScorer, err := NewBandScorer("-40:graylist;-20:restricted;0:nopx;20:friend;")
+	require.NoError(t, err)
 
 	// Validate the [BandScorer] internals.
 	require.Equal(t, bandScorer.Bucket(-100), "graylist")
@@ -45,8 +45,8 @@ func TestBandScorer_BucketCorrectly(t *testing.T) {
 // on a variety of scores, in descending order.
 func TestBandScorer_BucketInverted(t *testing.T) {
 	// Create a new band scorer.
-	bandScorer := NewBandScorer()
-	require.NoError(t, bandScorer.Parse("20:friend;0:nopx;-20:restricted;-40:graylist;"))
+	bandScorer, err := NewBandScorer("20:friend;0:nopx;-20:restricted;-40:graylist;")
+	require.NoError(t, err)
 
 	// Validate the [BandScorer] internals.
 	require.Equal(t, bandScorer.Bucket(-100), "graylist")
@@ -64,8 +64,8 @@ func TestBandScorer_BucketInverted(t *testing.T) {
 // on an empty string.
 func TestBandScorer_ParseEmpty(t *testing.T) {
 	// Create a band scorer on an empty string.
-	bandScorer := NewBandScorer()
-	require.NoError(t, bandScorer.Parse(""))
+	bandScorer, err := NewBandScorer("")
+	require.NoError(t, err)
 
 	// Validate the [BandScorer] internals.
 	require.Len(t, bandScorer.bands, 0)
@@ -75,8 +75,8 @@ func TestBandScorer_ParseEmpty(t *testing.T) {
 // on a variety of whitespaced strings.
 func TestBandScorer_ParseWhitespace(t *testing.T) {
 	// Create a band scorer on an empty string.
-	bandScorer := NewBandScorer()
-	require.NoError(t, bandScorer.Parse("  ;  ;  ;  "))
+	bandScorer, err := NewBandScorer("  ;  ;  ;  ")
+	require.NoError(t, err)
 
 	// Validate the [BandScorer] internals.
 	require.Len(t, bandScorer.bands, 0)

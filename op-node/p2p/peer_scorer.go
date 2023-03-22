@@ -38,25 +38,16 @@ type BandScoreThresholds struct {
 // [Parse] function and then expose the [Bucket] function for
 // downstream [BandScorer] consumers.
 type BandScorer interface {
-	Parse(str string) error
 	Bucket(score float64) string
 	Reset()
 }
 
-// NewBandScorer constructs a new [BandScorer] instance.
-func NewBandScorer() *BandScoreThresholds {
-	return &BandScoreThresholds{
+// NewBandScorer constructs a new [BandScoreThresholds] instance.
+func NewBandScorer(str string) (*BandScoreThresholds, error) {
+	s := &BandScoreThresholds{
 		bands: make([]scorePair, 0),
 	}
-}
 
-// Reset wipes the internal state of the [BandScorer].
-func (s *BandScoreThresholds) Reset() {
-	s.bands = s.bands[:0]
-}
-
-// Parse creates a [BandScorer] from a given string.
-func (s *BandScoreThresholds) Parse(str string) error {
 	for _, band := range strings.Split(str, ";") {
 		// Skip empty band strings.
 		band := strings.TrimSpace(band)
@@ -65,11 +56,11 @@ func (s *BandScoreThresholds) Parse(str string) error {
 		}
 		split := strings.Split(band, ":")
 		if len(split) != 2 {
-			return fmt.Errorf("invalid score band: %s", band)
+			return nil, fmt.Errorf("invalid score band: %s", band)
 		}
 		threshold, err := strconv.ParseFloat(split[0], 64)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		s.bands = append(s.bands, scorePair{
 			band:      split[1],
@@ -82,7 +73,12 @@ func (s *BandScoreThresholds) Parse(str string) error {
 		return s.bands[i].threshold < s.bands[j].threshold
 	})
 
-	return nil
+	return s, nil
+}
+
+// Reset wipes the internal state of the [BandScorer].
+func (s *BandScoreThresholds) Reset() {
+	s.bands = s.bands[:0]
 }
 
 // Bucket returns the appropriate band for a given score.

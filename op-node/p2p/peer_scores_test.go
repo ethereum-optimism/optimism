@@ -39,8 +39,9 @@ func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	testSuite.bandScorer = &p2p.BandScoreThresholds{}
-	testSuite.NoError(testSuite.bandScorer.Parse("0:graylist;"))
+	bandScorer, err := p2p.NewBandScorer("0:graylist;")
+	testSuite.NoError(err)
+	testSuite.bandScorer = bandScorer
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
