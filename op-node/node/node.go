@@ -197,7 +197,28 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 		return err
 	}
 
-	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, n, n.log, snapshotLog, n.metrics)
+	var syncClient *sources.SyncClient
+	// If the L2 sync config is present, use it to create a sync client
+	if cfg.L2Sync != nil {
+		if err := cfg.L2Sync.Check(); err != nil {
+			log.Info("L2 sync config is not present, skipping L2 sync client setup", "err", err)
+		} else {
+			rpcSyncClient, err := cfg.L2Sync.Setup(ctx, n.log)
+			if err != nil {
+				return fmt.Errorf("failed to setup L2 execution-engine RPC client for backup sync: %w", err)
+			}
+
+			// The sync client's RPC is always trusted
+			config := sources.SyncClientDefaultConfig(&cfg.Rollup, true)
+
+			syncClient, err = sources.NewSyncClient(n.OnUnsafeL2Payload, rpcSyncClient, n.log, n.metrics.L2SourceCache, config)
+			if err != nil {
+				return fmt.Errorf("failed to create sync client: %w", err)
+			}
+		}
+	}
+
+	n.l2Driver = driver.NewDriver(&cfg.Driver, &cfg.Rollup, n.l2Source, n.l1Source, syncClient, n, n.log, snapshotLog, n.metrics)
 
 	return nil
 }
@@ -263,11 +284,19 @@ func (n *OpNode) initP2PSigner(ctx context.Context, cfg *Config) error {
 
 func (n *OpNode) Start(ctx context.Context) error {
 	n.log.Info("Starting execution engine driver")
+
 	// start driving engine: sync blocks by deriving them from L1 and driving them into the engine
-	err := n.l2Driver.Start()
-	if err != nil {
+	if err := n.l2Driver.Start(); err != nil {
 		n.log.Error("Could not start a rollup node", "err", err)
 		return err
+	}
+
+	// If the backup unsafe sync client is enabled, start its event loop
+	if n.l2Driver.L2SyncCl != nil {
+		if err := n.l2Driver.L2SyncCl.Start(); err != nil {
+			n.log.Error("Could not start the backup sync client", "err", err)
+			return err
+		}
 	}
 
 	return nil
@@ -381,6 +410,13 @@ func (n *OpNode) Close() error {
 	if n.l2Driver != nil {
 		if err := n.l2Driver.Close(); err != nil {
 			result = multierror.Append(result, fmt.Errorf("failed to close L2 engine driver cleanly: %w", err))
+		}
+
+		// If the L2 sync client is present & running, close it.
+		if n.l2Driver.L2SyncCl != nil {
+			if err := n.l2Driver.L2SyncCl.Close(); err != nil {
+				result = multierror.Append(result, fmt.Errorf("failed to close L2 engine backup sync client cleanly: %w", err))
+			}
 		}
 	}
 

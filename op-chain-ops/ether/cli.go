@@ -25,8 +25,8 @@ func GetOVMETHTotalSupplySlot() common.Hash {
 	return getOVMETHTotalSupplySlot()
 }
 
-// getOVMETHBalance gets a user's OVM ETH balance from state by querying the
+// GetOVMETHBalance gets a user's OVM ETH balance from state by querying the
 // appropriate storage slot directly.
-func getOVMETHBalance(db *state.StateDB, addr common.Address) *big.Int {
+func GetOVMETHBalance(db *state.StateDB, addr common.Address) *big.Int {
 	return db.GetState(OVMETHAddress, CalcOVMETHStorageKey(addr)).Big()
 }

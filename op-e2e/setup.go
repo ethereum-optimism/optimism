@@ -7,6 +7,7 @@ import (
 	"math/big"
 	"os"
 	"path"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -23,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -35,6 +37,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -119,14 +122,6 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		JWTFilePath:            writeDefaultJWT(t),
 		JWTSecret:              testingJWTSecret,
 		Nodes: map[string]*rollupNode.Config{
-			"verifier": {
-				Driver: driver.Config{
-					VerifierConfDepth:  0,
-					SequencerConfDepth: 0,
-					SequencerEnabled:   false,
-				},
-				L1EpochPollInterval: time.Second * 4,
-			},
 			"sequencer": {
 				Driver: driver.Config{
 					VerifierConfDepth:  0,
@@ -138,6 +133,14 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 					ListenAddr:  "127.0.0.1",
 					ListenPort:  0,
 					EnableAdmin: true,
+				},
+				L1EpochPollInterval: time.Second * 4,
+			},
+			"verifier": {
+				Driver: driver.Config{
+					VerifierConfDepth:  0,
+					SequencerConfDepth: 0,
+					SequencerEnabled:   false,
 				},
 				L1EpochPollInterval: time.Second * 4,
 			},
@@ -225,7 +228,43 @@ func (sys *System) Close() {
 	sys.Mocknet.Close()
 }
 
-func (cfg SystemConfig) Start() (*System, error) {
+type systemConfigHook func(sCfg *SystemConfig, s *System)
+
+type SystemConfigOption struct {
+	key    string
+	role   string
+	action systemConfigHook
+}
+
+type SystemConfigOptions struct {
+	opts map[string]systemConfigHook
+}
+
+func NewSystemConfigOptions(_opts []SystemConfigOption) (SystemConfigOptions, error) {
+	opts := make(map[string]systemConfigHook)
+	for _, opt := range _opts {
+		if _, ok := opts[opt.key+":"+opt.role]; ok {
+			return SystemConfigOptions{}, fmt.Errorf("duplicate option for key %s and role %s", opt.key, opt.role)
+		}
+		opts[opt.key+":"+opt.role] = opt.action
+	}
+
+	return SystemConfigOptions{
+		opts: opts,
+	}, nil
+}
+
+func (s *SystemConfigOptions) Get(key, role string) (systemConfigHook, bool) {
+	v, ok := s.opts[key+":"+role]
+	return v, ok
+}
+
+func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
+	opts, err := NewSystemConfigOptions(_opts)
+	if err != nil {
+		return nil, err
+	}
+
 	sys := &System{
 		cfg:         cfg,
 		Nodes:       make(map[string]*node.Node),
@@ -457,7 +496,17 @@ func (cfg SystemConfig) Start() (*System, error) {
 	snapLog.SetHandler(log.DiscardHandler())
 
 	// Rollup nodes
-	for name, nodeConfig := range cfg.Nodes {
+
+	// Ensure we are looping through the nodes in alphabetical order
+	ks := make([]string, 0, len(cfg.Nodes))
+	for k := range cfg.Nodes {
+		ks = append(ks, k)
+	}
+	// Sort strings in ascending alphabetical order
+	sort.Strings(ks)
+
+	for _, name := range ks {
+		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()
 
@@ -482,6 +531,10 @@ func (cfg SystemConfig) Start() (*System, error) {
 			return nil, err
 		}
 		sys.RollupNodes[name] = node
+
+		if action, ok := opts.Get("afterRollupNodeStart", name); ok {
+			action(&cfg, sys)
+		}
 	}
 
 	if cfg.P2PTopology != nil {
@@ -520,7 +573,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(cfg.Secrets.Proposer),
-	}, sys.cfg.Loggers["proposer"])
+	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
@@ -549,7 +602,7 @@ func (cfg SystemConfig) Start() (*System, error) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(cfg.Secrets.Batcher),
-	}, sys.cfg.Loggers["batcher"])
+	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}

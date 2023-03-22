@@ -1,0 +1,22 @@
+{
+  "name": "@eth-optimism/op-stack-docs",
+  "version": "0.0.2",
+  "description": "The OP Stack Docs",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vuepress dev src",
+    "build": "vuepress build src"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@vuepress/plugin-medium-zoom": "^1.8.2",
+    "@vuepress/plugin-pwa": "^1.9.7",
+    "vuepress": "^1.8.2",
+    "vuepress-plugin-plausible-analytics": "^0.2.1",
+    "vuepress-theme-hope": "^1.22.0"
+  },
+  "dependencies": {
+    "check-md": "^1.0.2",
+    "dayjs": "^1.11.7"
+  }
+}

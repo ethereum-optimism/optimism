@@ -130,7 +130,7 @@ recognize that having the same address does not imply that a contract on L2 will
 ## The Optimism Portal Contract
 
 The Optimism Portal serves as both the entry and exit point to the Optimism L2. It is a contract which inherits from
-the [DepositFeed](./deposits.md#deposit-contract) contract, and in addition provides the following interface for
+the [OptimismPortal](./deposits.md#deposit-contract) contract, and in addition provides the following interface for
 withdrawals:
 
 - [`WithdrawalTransaction` type]

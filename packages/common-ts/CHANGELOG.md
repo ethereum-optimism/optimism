@@ -1,5 +1,11 @@
 # @eth-optimism/common-ts
 
+## 0.8.1
+
+### Patch Changes
+
+- fecd42d67: Fix BaseServiceV2 configuration for caseCase options
+
 ## 0.8.0
 
 ### Minor Changes

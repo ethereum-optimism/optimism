@@ -1,5 +1,12 @@
 # @eth-optimism/contracts-bedrock
 
+## 0.13.1
+
+### Patch Changes
+
+- 22c3885f5: Optionally print cast commands during migration
+- f52c07529: Print tenderly simulation links during deployment
+
 ## 0.13.0
 
 ### Minor Changes

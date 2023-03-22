@@ -15,6 +15,12 @@ interface RequiredDeployConfig {
   finalSystemOwner?: string
 
   /**
+   * Address that is deployed as the GUARDIAN in the OptimismPortal. Has the
+   * ability to pause withdrawals.
+   */
+  portalGuardian: string
+
+  /**
    * Address that will own the entire system on L1 during the deployment process. This address will
    * not own the system after the deployment is complete, ownership will be transferred to the
    * final system owner.
@@ -179,6 +185,9 @@ export const deployConfigSpec: {
     default: 1,
   },
   finalSystemOwner: {
+    type: 'address',
+  },
+  portalGuardian: {
     type: 'address',
   },
   controller: {

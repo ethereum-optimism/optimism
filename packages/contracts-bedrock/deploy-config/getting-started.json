@@ -2,6 +2,7 @@
   "numDeployConfirmations": 1,
 
   "finalSystemOwner": "ADMIN",
+  "portalGuardian": "ADMIN",
   "controller": "ADMIN",
 
   "l1StartingBlockTag": "BLOCKHASH",
@@ -39,8 +40,9 @@
   "governanceTokenName": "Optimism",
   "governanceTokenOwner": "ADMIN",
 
-  "l2GenesisBlockGasLimit": "0x17D7840",
+  "l2GenesisBlockGasLimit": "0x1c9c380",
   "l2GenesisBlockBaseFeePerGas": "0x3b9aca00",
+  "l2GenesisRegolithTimeOffset": "0x0",
 
   "eip1559Denominator": 50,
   "eip1559Elasticity": 10

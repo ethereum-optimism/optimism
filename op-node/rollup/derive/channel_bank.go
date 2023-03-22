@@ -69,6 +69,7 @@ func (cb *ChannelBank) prune() {
 		ch := cb.channels[id]
 		cb.channelQueue = cb.channelQueue[1:]
 		delete(cb.channels, id)
+		cb.log.Info("pruning channel", "channel", id, "totalSize", totalSize, "channel_size", ch.size, "remaining_channel_count", len(cb.channels))
 		totalSize -= ch.size
 	}
 }
@@ -77,7 +78,7 @@ func (cb *ChannelBank) prune() {
 // Read() should be called repeatedly first, until everything has been read, before adding new data.
 func (cb *ChannelBank) IngestFrame(f Frame) {
 	origin := cb.Origin()
-	log := log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber, "is_last", f.IsLast)
+	log := cb.log.New("origin", origin, "channel", f.ID, "length", len(f.Data), "frame_number", f.FrameNumber, "is_last", f.IsLast)
 	log.Debug("channel bank got new data")
 
 	currentCh, ok := cb.channels[f.ID]
@@ -86,6 +87,7 @@ func (cb *ChannelBank) IngestFrame(f Frame) {
 		currentCh = NewChannel(f.ID, origin)
 		cb.channels[f.ID] = currentCh
 		cb.channelQueue = append(cb.channelQueue, f.ID)
+		log.Info("created new channel")
 	}
 
 	// check if the channel is not timed out
@@ -114,7 +116,7 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 	ch := cb.channels[first]
 	timedOut := ch.OpenBlockNumber()+cb.cfg.ChannelTimeout < cb.Origin().Number
 	if timedOut {
-		cb.log.Debug("channel timed out", "channel", first, "frames", len(ch.inputs))
+		cb.log.Info("channel timed out", "channel", first, "frames", len(ch.inputs))
 		delete(cb.channels, first)
 		cb.channelQueue = cb.channelQueue[1:]
 		return nil, nil // multiple different channels may all be timed out
@@ -137,7 +139,6 @@ func (cb *ChannelBank) Read() (data []byte, err error) {
 // consistency around channel bank pruning which depends upon the order
 // of operations.
 func (cb *ChannelBank) NextData(ctx context.Context) ([]byte, error) {
-
 	// Do the read from the channel bank first
 	data, err := cb.Read()
 	if err == io.EOF {

@@ -51,6 +51,7 @@ type EngineQueueStage interface {
 
 	Finalize(l1Origin eth.L1BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
+	GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64)
 	Step(context.Context) error
 }
 
@@ -106,6 +107,12 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	}
 }
 
+// EngineReady returns true if the engine is ready to be used.
+// When it's being reset its state is inconsistent, and should not be used externally.
+func (dp *DerivationPipeline) EngineReady() bool {
+	return dp.resetting > 0
+}
+
 func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
@@ -158,6 +165,12 @@ func (dp *DerivationPipeline) BuildingPayload() (onto eth.L2BlockRef, id eth.Pay
 // AddUnsafePayload schedules an execution payload to be processed, ahead of deriving it from L1
 func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	dp.eng.AddUnsafePayload(payload)
+}
+
+// GetUnsafeQueueGap retrieves the current [start, end] range of the gap between the tip of the unsafe priority queue and the unsafe head.
+// If there is no gap, the start and end will be 0.
+func (dp *DerivationPipeline) GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64) {
+	return dp.eng.GetUnsafeQueueGap(expectedNumber)
 }
 
 // Step tries to progress the buffer.

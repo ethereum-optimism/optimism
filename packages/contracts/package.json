@@ -22,6 +22,7 @@
   "scripts": {
     "build": "yarn build:contracts && yarn copy:contracts && yarn autogen:artifacts && yarn build:typescript",
     "build:typescript": "tsc -p ./tsconfig.json",
+    "build:bindings": "./scripts/legacy-bindings.sh ./../../op-bindings/legacy-bindings",
     "build:contracts": "hardhat compile --show-stack-traces",
     "autogen:markdown": "ts-node scripts/generate-markdown.ts",
     "autogen:artifacts": "ts-node scripts/generate-artifacts.ts && ts-node scripts/generate-deployed-artifacts.ts",
