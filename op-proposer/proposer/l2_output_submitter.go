@@ -417,10 +417,9 @@ func (l *L2OutputSubmitter) loop() {
 				l.log.Error("Failed to send proposal transaction", "err", err)
 				cancel()
 				break
-			} else {
-				l.metr.RecordL2BlocksProposed(output.BlockRef)
-				cancel()
 			}
+			l.metr.RecordL2BlocksProposed(output.BlockRef)
+			cancel()
 
 		case <-l.done:
 			return
