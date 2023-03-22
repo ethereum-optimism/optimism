@@ -41,20 +41,20 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	miner.ActL1SetFeeRecipient(common.Address{'A'})
 
 	// Make two sequence windows worth of empty L1 blocks. After we pass the first sequence window, the L2 chain should get blocks
-	for miner.l1Chain.CurrentBlock().NumberU64() < sd.RollupCfg.SeqWindowSize*2 {
+	for miner.l1Chain.CurrentBlock().Number.Uint64() < sd.RollupCfg.SeqWindowSize*2 {
 		miner.ActL1StartBlock(10)(t)
 		miner.ActL1EndBlock(t)
 
 		verifier.ActL2PipelineFull(t)
 
-		l1Head := miner.l1Chain.CurrentBlock().NumberU64()
+		l1Head := miner.l1Chain.CurrentBlock().Number.Uint64()
 		expectedL1Origin := uint64(0)
 		// as soon as we complete the sequence window, we force-adopt the L1 origin
 		if l1Head >= sd.RollupCfg.SeqWindowSize {
 			expectedL1Origin = l1Head - sd.RollupCfg.SeqWindowSize
 		}
 		require.Equal(t, expectedL1Origin, verifier.SyncStatus().SafeL2.L1Origin.Number, "L1 origin is forced in, given enough L1 blocks pass by")
-		require.LessOrEqual(t, miner.l1Chain.GetBlockByNumber(expectedL1Origin).Time(), engine.l2Chain.CurrentBlock().Time(), "L2 time higher than L1 origin time")
+		require.LessOrEqual(t, miner.l1Chain.GetBlockByNumber(expectedL1Origin).Time(), engine.l2Chain.CurrentBlock().Time, "L2 time higher than L1 origin time")
 	}
 	tip2N := verifier.SyncStatus()
 
@@ -75,7 +75,7 @@ func TestL2Verifier_SequenceWindow(gt *testing.T) {
 	verifier.ActL2PipelineFull(t)
 	require.Equal(t, tip2N.SafeL2, verifier.SyncStatus().SafeL2)
 
-	for miner.l1Chain.CurrentBlock().NumberU64() < sd.RollupCfg.SeqWindowSize*2 {
+	for miner.l1Chain.CurrentBlock().Number.Uint64() < sd.RollupCfg.SeqWindowSize*2 {
 		miner.ActL1StartBlock(10)(t)
 		miner.ActL1EndBlock(t)
 	}

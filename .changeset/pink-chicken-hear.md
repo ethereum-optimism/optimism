@@ -2,4 +2,4 @@
 '@eth-optimism/contracts-bedrock': patch
 ---
 
-Optionally print cast commands during migration
+Added a contsructor to the System Dictator

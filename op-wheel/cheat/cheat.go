@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -80,11 +81,11 @@ type HeadFn func(headState *state.StateDB) error
 // and updates the blockchain headers indexes to reflect the new state-root, so geth will believe the cheat
 // (unless it ever re-applies the block).
 func (ch *Cheater) RunAndClose(fn HeadFn) error {
-	preBlock := ch.Blockchain.CurrentBlock()
-	if a, b := preBlock.NumberU64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
+	preHeader := ch.Blockchain.CurrentBlock()
+	if a, b := preHeader.Number.Uint64(), ch.Blockchain.Genesis().NumberU64(); a <= b {
 		return fmt.Errorf("cheating at genesis (head block %d <= genesis block %d) is not supported", a, b)
 	}
-	state, err := ch.Blockchain.StateAt(preBlock.Root())
+	state, err := ch.Blockchain.StateAt(preHeader.Root)
 	if err != nil {
 		_ = ch.Close()
 		return fmt.Errorf("failed to look up head state: %w", err)
@@ -103,7 +104,7 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 		_ = ch.Close()
 		return fmt.Errorf("failed to commit state change: %w", err)
 	}
-	header := preBlock.Header()
+	header := preHeader // copy the header
 	header.Root = stateRoot
 	blockHash := header.Hash()
 
@@ -115,14 +116,15 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// based on core.BlockChain.writeHeadBlock:
 	// Add the block to the canonical chain number scheme and mark as the head
 	batch := ch.DB.NewBatch()
-	if ch.Blockchain.CurrentFinalizedBlock().Hash() == preBlock.Hash() {
+	preID := eth.BlockID{Hash: preHeader.Hash(), Number: preHeader.Number.Uint64()}
+	if ch.Blockchain.CurrentFinalBlock().Hash() == preID.Hash {
 		rawdb.WriteFinalizedBlockHash(batch, blockHash)
 	}
-	rawdb.DeleteHeaderNumber(batch, preBlock.Hash())
+	rawdb.DeleteHeaderNumber(batch, preHeader.Hash())
 	rawdb.WriteHeadHeaderHash(batch, blockHash)
 	rawdb.WriteHeadFastBlockHash(batch, blockHash)
-	rawdb.WriteCanonicalHash(batch, blockHash, preBlock.NumberU64())
-	rawdb.WriteHeaderNumber(batch, blockHash, preBlock.NumberU64())
+	rawdb.WriteCanonicalHash(batch, blockHash, preID.Number)
+	rawdb.WriteHeaderNumber(batch, blockHash, preID.Number)
 	rawdb.WriteHeader(batch, header)
 	// not keyed by blockhash, and we didn't remove any txs, so we just leave this one as-is.
 	// rawdb.WriteTxLookupEntriesByBlock(batch, block)
@@ -131,17 +133,17 @@ func (ch *Cheater) RunAndClose(fn HeadFn) error {
 	// Geth stores the TD for each block separately from the block itself. We must update this
 	// manually, otherwise Geth thinks we haven't reached TTD yet and tries to build a block
 	// using Clique consensus, which causes a panic.
-	rawdb.WriteTd(batch, blockHash, preBlock.NumberU64(), ch.Blockchain.GetTd(preBlock.Hash(), preBlock.NumberU64()))
+	rawdb.WriteTd(batch, blockHash, preID.Number, ch.Blockchain.GetTd(preID.Hash, preID.Number))
 
 	// Need to copy over receipts since they are keyed by block hash.
-	receipts := rawdb.ReadReceipts(ch.DB, preBlock.Hash(), preBlock.NumberU64(), ch.Blockchain.Config())
-	rawdb.WriteReceipts(batch, blockHash, preBlock.NumberU64(), receipts)
+	receipts := rawdb.ReadReceipts(ch.DB, preID.Hash, preID.Number, ch.Blockchain.Config())
+	rawdb.WriteReceipts(batch, blockHash, preID.Number, receipts)
 
 	// Geth maintains an internal mapping between block bodies and their hashes. None of the database
 	// accessors above update this mapping, so we need to do it manually.
-	oldKey := blockBodyKey(preBlock.NumberU64(), preBlock.Hash())
-	oldBody := rawdb.ReadBodyRLP(ch.DB, preBlock.Hash(), preBlock.NumberU64())
-	newKey := blockBodyKey(preBlock.NumberU64(), blockHash)
+	oldKey := blockBodyKey(preID.Number, preID.Hash)
+	oldBody := rawdb.ReadBodyRLP(ch.DB, preID.Hash, preID.Number)
+	newKey := blockBodyKey(preID.Number, blockHash)
 	if err := batch.Delete(oldKey); err != nil {
 		return fmt.Errorf("error deleting old block body key")
 	}

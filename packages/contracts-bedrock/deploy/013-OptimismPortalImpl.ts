@@ -17,13 +17,11 @@ const deployFn: DeployFunction = async (hre) => {
     'L2OutputOracleProxy'
   )
 
-  const finalSystemOwner = hre.deployConfig.finalSystemOwner
-  const finalSystemOwnerCode = await hre.ethers.provider.getCode(
-    finalSystemOwner
-  )
-  if (finalSystemOwnerCode === '0x') {
+  const portalGuardian = hre.deployConfig.portalGuardian
+  const portalGuardianCode = await hre.ethers.provider.getCode(portalGuardian)
+  if (portalGuardianCode === '0x') {
     console.log(
-      `WARNING: setting OptimismPortal.GUARDIAN to ${finalSystemOwner} and it has no code`
+      `WARNING: setting OptimismPortal.GUARDIAN to ${portalGuardian} and it has no code`
     )
     if (!isLiveDeployer) {
       throw new Error(
@@ -35,13 +33,13 @@ const deployFn: DeployFunction = async (hre) => {
   // Deploy the OptimismPortal implementation as paused to
   // ensure that users do not interact with it and instead
   // interact with the proxied contract.
-  // The `finalSystemOwner` is set at the GUARDIAN.
+  // The `portalGuardian` is set at the GUARDIAN.
   await deploy({
     hre,
     name: 'OptimismPortal',
     args: [
       L2OutputOracleProxy.address,
-      finalSystemOwner,
+      portalGuardian,
       true, // paused
     ],
     postDeployAction: async (contract) => {
@@ -53,7 +51,7 @@ const deployFn: DeployFunction = async (hre) => {
       await assertContractVariable(
         contract,
         'GUARDIAN',
-        hre.deployConfig.finalSystemOwner
+        hre.deployConfig.portalGuardian
       )
     },
   })

@@ -278,6 +278,33 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
         assertEq(localToken.ownerOf(tokenId), alice);
     }
 
+    function test_finalizeBridgeERC721_interfaceNotCompliant_reverts() external {
+        // Create a non-compliant token
+        NonCompliantERC721 nonCompliantToken = new NonCompliantERC721(alice);
+
+        // Bridge the non-compliant token.
+        vm.prank(alice);
+        bridge.bridgeERC721(address(nonCompliantToken), address(0x01), tokenId, 1234, hex"5678");
+
+        // Attempt to finalize the withdrawal. Should revert because the token does not claim
+        // to be compliant with the `IOptimismMintableERC721` interface.
+        vm.mockCall(
+            address(L2Messenger),
+            abi.encodeWithSelector(L2Messenger.xDomainMessageSender.selector),
+            abi.encode(otherBridge)
+        );
+        vm.prank(address(L2Messenger));
+        vm.expectRevert("L2ERC721Bridge: local token interface is not compliant");
+        bridge.finalizeBridgeERC721(
+            address(address(nonCompliantToken)),
+            address(address(0x01)),
+            alice,
+            alice,
+            tokenId,
+            hex"5678"
+        );
+    }
+
     function test_finalizeBridgeERC721_notViaLocalMessenger_reverts() external {
         // Finalize a withdrawal.
         vm.prank(alice);
@@ -347,5 +374,35 @@ contract L2ERC721Bridge_Test is Messenger_Initializer {
             tokenId,
             hex"5678"
         );
+    }
+}
+
+/**
+ * @dev A non-compliant ERC721 token that does not implement the full ERC721 interface.
+ *
+ * This is used to test that the bridge will revert if the token does not claim to support
+ * the ERC721 interface.
+ */
+contract NonCompliantERC721 {
+    address internal immutable owner;
+
+    constructor(address _owner) {
+        owner = _owner;
+    }
+
+    function ownerOf(uint256) external view returns (address) {
+        return owner;
+    }
+
+    function remoteToken() external pure returns (address) {
+        return address(0x01);
+    }
+
+    function burn(address, uint256) external {
+        // Do nothing.
+    }
+
+    function supportsInterface(bytes4) external pure returns (bool) {
+        return false;
     }
 }

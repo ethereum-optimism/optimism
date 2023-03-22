@@ -107,6 +107,12 @@ func NewDerivationPipeline(log log.Logger, cfg *rollup.Config, l1Fetcher L1Fetch
 	}
 }
 
+// EngineReady returns true if the engine is ready to be used.
+// When it's being reset its state is inconsistent, and should not be used externally.
+func (dp *DerivationPipeline) EngineReady() bool {
+	return dp.resetting > 0
+}
+
 func (dp *DerivationPipeline) Reset() {
 	dp.resetting = 0
 }
