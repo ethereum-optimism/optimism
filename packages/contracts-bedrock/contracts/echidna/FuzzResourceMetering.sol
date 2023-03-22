@@ -1,6 +1,7 @@
 pragma solidity 0.8.15;
 
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 import { Arithmetic } from "../libraries/Arithmetic.sol";
 import { StdUtils } from "forge-std/Test.sol";
 
@@ -24,6 +25,18 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         __ResourceMetering_init();
     }
 
+    function resourceConfig() public pure override returns (SystemConfig.ResourceConfig memory) {
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+        return config;
+    }
+
     /**
      * @notice Takes the necessary parameters to allow us to burn arbitrary amounts of gas to test
      *         the underlying resource metering/gas market logic
@@ -34,12 +47,15 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         uint256 cachedPrevBoughtGas = uint256(params.prevBoughtGas);
         uint256 cachedPrevBlockNum = uint256(params.prevBlockNum);
 
+        SystemConfig.ResourceConfig memory rcfg = resourceConfig();
+        uint256 targetResourceLimit = uint256(rcfg.maxResourceLimit) / uint256(rcfg.elasticityMultiplier);
+
         // check that the last block's base fee hasn't dropped below the minimum
-        if (cachedPrevBaseFee < uint256(MINIMUM_BASE_FEE)) {
+        if (cachedPrevBaseFee < uint256(rcfg.minimumBaseFee)) {
             failedNeverBelowMinBaseFee = true;
         }
         // check that the last block didn't consume more than the max amount of gas
-        if (cachedPrevBoughtGas > uint256(MAX_RESOURCE_LIMIT)) {
+        if (cachedPrevBoughtGas > uint256(rcfg.maxResourceLimit)) {
             failedMaxGasPerBlock = true;
         }
 
@@ -51,11 +67,11 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         if (_raiseBaseFee) {
             gasToBurn = bound(
                 _gasToBurn,
-                uint256(TARGET_RESOURCE_LIMIT),
-                uint256(MAX_RESOURCE_LIMIT)
+                uint256(targetResourceLimit),
+                uint256(rcfg.maxResourceLimit)
             );
         } else {
-            gasToBurn = bound(_gasToBurn, 0, uint256(TARGET_RESOURCE_LIMIT));
+            gasToBurn = bound(_gasToBurn, 0, targetResourceLimit);
         }
 
         _burnInternal(uint64(gasToBurn));
@@ -63,13 +79,13 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         // Part 3: we run checks and modify our invariant flags based on the updated params values
 
         // Calculate the maximum allowed baseFee change (per block)
-        uint256 maxBaseFeeChange = cachedPrevBaseFee / uint256(BASE_FEE_MAX_CHANGE_DENOMINATOR);
+        uint256 maxBaseFeeChange = cachedPrevBaseFee / uint256(rcfg.baseFeeMaxChangeDenominator);
 
         // If the last block used more than the target amount of gas (and there were no
         // empty blocks in between), ensure this block's baseFee increased, but not by
         // more than the max amount per block
         if (
-            (cachedPrevBoughtGas > uint256(TARGET_RESOURCE_LIMIT)) &&
+            (cachedPrevBoughtGas > uint256(targetResourceLimit)) &&
             (uint256(params.prevBlockNum) - cachedPrevBlockNum == 1)
         ) {
             failedRaiseBaseFee = failedRaiseBaseFee || (params.prevBaseFee <= cachedPrevBaseFee);
@@ -81,7 +97,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         // If the last block used less than the target amount of gas, (or was empty),
         // ensure that: this block's baseFee was decreased, but not by more than the max amount
         if (
-            (cachedPrevBoughtGas < uint256(TARGET_RESOURCE_LIMIT)) ||
+            (cachedPrevBoughtGas < uint256(targetResourceLimit)) ||
             (uint256(params.prevBlockNum) - cachedPrevBlockNum > 1)
         ) {
             // Invariant: baseFee should decrease
@@ -104,11 +120,11 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
                             Arithmetic.clamp(
                                 Arithmetic.cdexp(
                                     int256(cachedPrevBaseFee),
-                                    BASE_FEE_MAX_CHANGE_DENOMINATOR,
+                                    int256(uint256(rcfg.baseFeeMaxChangeDenominator)),
                                     int256(uint256(params.prevBlockNum) - cachedPrevBlockNum)
                                 ),
-                                MINIMUM_BASE_FEE,
-                                MAXIMUM_BASE_FEE
+                                int256(uint256(rcfg.minimumBaseFee)),
+                                int256(uint256(rcfg.maximumBaseFee))
                             )
                     );
                 }

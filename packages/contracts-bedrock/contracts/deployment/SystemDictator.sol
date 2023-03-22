@@ -79,6 +79,7 @@ contract SystemDictator is OwnableUpgradeable {
         bytes32 batcherHash;
         uint64 gasLimit;
         address unsafeBlockSigner;
+        SystemConfig.ResourceConfig resourceConfig;
     }
 
     /**
@@ -160,6 +161,15 @@ contract SystemDictator is OwnableUpgradeable {
      *         initialized upon deployment.
      */
     constructor() {
+        SystemConfig.ResourceConfig memory rcfg = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
         // Using this shorter variable as an alias for address(0) just prevents us from having to
         // to use a new line for every single parameter.
         address zero = address(0);
@@ -177,7 +187,7 @@ contract SystemDictator is OwnableUpgradeable {
                     PortalSender(zero),
                     SystemConfig(zero)
                 ),
-                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero)
+                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero, rcfg)
             )
         );
     }
@@ -244,7 +254,8 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.scalar,
                     config.systemConfigConfig.batcherHash,
                     config.systemConfigConfig.gasLimit,
-                    config.systemConfigConfig.unsafeBlockSigner
+                    config.systemConfigConfig.unsafeBlockSigner,
+                    config.systemConfigConfig.resourceConfig
                 )
             )
         );

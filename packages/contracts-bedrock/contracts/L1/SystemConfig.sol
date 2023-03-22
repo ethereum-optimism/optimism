@@ -26,7 +26,20 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
+        UNSAFE_BLOCK_SIGNER,
+        RESOURCE_CONFIG
+    }
+
+    /**
+     * @notice
+     */
+    struct ResourceConfig {
+        uint32 maxResourceLimit;
+        uint8 elasticityMultiplier;
+        uint8 baseFeeMaxChangeDenominator;
+        uint32 minimumBaseFee;
+        uint32 systemTxMaxGas;
+        uint128 maximumBaseFee;
     }
 
     /**
@@ -69,6 +82,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      */
     uint64 public gasLimit;
 
+    ResourceConfig public resourceConfig;
+
     /**
      * @notice Emitted when configuration is updated
      *
@@ -79,7 +94,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.0.1
+     * @custom:semver 1.1.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -95,12 +110,22 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner
-    ) Semver(1, 0, 1) {
-        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
+    ) Semver(1, 1, 0) {
+        ResourceConfig memory config = ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
+        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, config);
     }
 
     /**
-     * @notice Initializer.
+     * @notice Initializer. The resource config must be set before the
+     *         require check.
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -115,9 +140,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _scalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
-        address _unsafeBlockSigner
+        address _unsafeBlockSigner,
+        ResourceConfig memory _resourceConfig
     ) public initializer {
-        require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;
@@ -125,6 +150,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setResourceConfig(_resourceConfig);
+        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
 
     /**
@@ -188,7 +215,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _gasLimit New gas limit.
      */
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
-        require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
+        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
@@ -197,7 +224,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @notice Low level setter for the unsafe block signer address. This function exists to
-     *         deduplicate code around storing the unsafeBlockSigner address in storage.
+     *         deduplicate code arou,nd storing the unsafeBlockSigner address in storage.
      *
      * @param _unsafeBlockSigner New unsafeBlockSigner value.
      */
@@ -206,5 +233,24 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         assembly {
             sstore(slot, _unsafeBlockSigner)
         }
+    }
+
+    function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
+        _setResourceConfig(_config);
+
+        bytes memory data = abi.encode(_config);
+        emit ConfigUpdate(VERSION, UpdateType.RESOURCE_CONFIG, data);
+    }
+
+    function _setResourceConfig(ResourceConfig memory _config) internal {
+        require(_config.minimumBaseFee <= _config.maximumBaseFee);
+        require(_config.baseFeeMaxChangeDenominator > 0);
+        require(_config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit);
+
+        resourceConfig = _config;
+    }
+
+    function minimumGasLimit() public view returns (uint256) {
+        return resourceConfig.maxResourceLimit + resourceConfig.systemTxMaxGas;
     }
 }

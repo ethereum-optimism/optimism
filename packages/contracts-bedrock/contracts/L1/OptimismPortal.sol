@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import { SystemConfig } from "./SystemConfig.sol";
 import { Constants } from "../libraries/Constants.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
@@ -47,6 +48,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      * @notice Address of the L2OutputOracle.
      */
     L2OutputOracle public immutable L2_ORACLE;
+
+    /**
+     *
+     */
+    SystemConfig public immutable SYSTEM_CONFIG;
 
     /**
      * @notice Address that has the ability to pause and unpause withdrawals.
@@ -135,19 +141,22 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.2.0
+     * @custom:semver 1.3.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
      * @param _paused                    Sets the contract's pausability state.
+     * @param _config                    Address of the SystemConfig contract.
      */
     constructor(
         L2OutputOracle _l2Oracle,
         address _guardian,
-        bool _paused
-    ) Semver(1, 2, 0) {
+        bool _paused,
+        SystemConfig _config
+    ) Semver(1, 3, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
+        SYSTEM_CONFIG = _config;
         initialize(_paused);
     }
 
@@ -195,6 +204,30 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     function donateETH() external payable {
         // Intentionally empty.
+    }
+
+    // TODO: I don't like having so many return args but I also don't like
+    // wrapping them into a struct
+    function resourceConfig() public view override returns (SystemConfig.ResourceConfig memory) {
+        (
+            uint32 maxResourceLimit,
+            uint8 elasticityMultiplier,
+            uint8 baseFeeMaxChangeDenominator,
+            uint32 minimumBaseFee,
+            uint32 systemTxMaxGas,
+            uint128 maximumBaseFee
+        ) = SYSTEM_CONFIG.resourceConfig();
+
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: maxResourceLimit,
+            elasticityMultiplier: elasticityMultiplier,
+            baseFeeMaxChangeDenominator: baseFeeMaxChangeDenominator,
+            minimumBaseFee: minimumBaseFee,
+            systemTxMaxGas: systemTxMaxGas,
+            maximumBaseFee: maximumBaseFee
+        });
+
+        return config;
     }
 
     /**

@@ -3,16 +3,27 @@ pragma solidity 0.8.15;
 import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
+import { SystemConfig } from "../L1/SystemConfig.sol";
 
 contract EchidnaFuzzOptimismPortal {
     OptimismPortal internal portal;
     bool internal failedToComplete;
 
     constructor() {
+        SystemConfig config = new SystemConfig({
+            _owner: address(0),
+            _overhead: 0,
+            _scalar: 10000,
+            _batcherHash: bytes32(0),
+            _gasLimit: 30_000_000,
+            _unsafeBlockSigner: address(0)
+        });
+
         portal = new OptimismPortal({
             _l2Oracle: L2OutputOracle(address(0)),
             _guardian: address(0),
-            _paused: false
+            _paused: false,
+            _config: config
         });
     }
 
