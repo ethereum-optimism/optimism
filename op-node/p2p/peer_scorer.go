@@ -16,7 +16,7 @@ type scorer struct {
 	metricer            GossipMetricer
 	log                 log.Logger
 	gater               PeerGater
-	bandScoreThresholds BandScoreThresholds
+	bandScoreThresholds *BandScoreThresholds
 }
 
 // scorePair holds a band and its corresponding threshold.
@@ -101,7 +101,7 @@ type Scorer interface {
 }
 
 // NewScorer returns a new peer scorer.
-func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds BandScoreThresholds, log log.Logger) Scorer {
+func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer, bandScoreThresholds *BandScoreThresholds, log log.Logger) Scorer {
 	return &scorer{
 		peerStore:           peerStore,
 		metricer:            metricer,
