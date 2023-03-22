@@ -82,7 +82,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      */
     uint64 public gasLimit;
 
-    ResourceConfig public resourceConfig;
+    /**
+     * @notice
+     */
+    ResourceConfig internal _resourceConfig;
 
     /**
      * @notice Emitted when configuration is updated
@@ -141,7 +144,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceConfig memory _resourceConfig
+        ResourceConfig memory _config
     ) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
@@ -150,7 +153,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
         _setUnsafeBlockSigner(_unsafeBlockSigner);
-        _setResourceConfig(_resourceConfig);
+        _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
 
@@ -235,6 +238,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
     }
 
+    function resourceConfig() external view returns (ResourceConfig memory) {
+        return _resourceConfig;
+    }
+
     function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
 
@@ -247,10 +254,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         require(_config.baseFeeMaxChangeDenominator > 0);
         require(_config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit);
 
-        resourceConfig = _config;
+        _resourceConfig = _config;
     }
 
     function minimumGasLimit() public view returns (uint256) {
-        return resourceConfig.maxResourceLimit + resourceConfig.systemTxMaxGas;
+        return _resourceConfig.maxResourceLimit + _resourceConfig.systemTxMaxGas;
     }
 }

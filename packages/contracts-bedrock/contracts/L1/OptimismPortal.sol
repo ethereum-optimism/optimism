@@ -206,28 +206,11 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         // Intentionally empty.
     }
 
-    // TODO: I don't like having so many return args but I also don't like
-    // wrapping them into a struct
+    /**
+     * @notice
+     */
     function resourceConfig() public view override returns (SystemConfig.ResourceConfig memory) {
-        (
-            uint32 maxResourceLimit,
-            uint8 elasticityMultiplier,
-            uint8 baseFeeMaxChangeDenominator,
-            uint32 minimumBaseFee,
-            uint32 systemTxMaxGas,
-            uint128 maximumBaseFee
-        ) = SYSTEM_CONFIG.resourceConfig();
-
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
-            maxResourceLimit: maxResourceLimit,
-            elasticityMultiplier: elasticityMultiplier,
-            baseFeeMaxChangeDenominator: baseFeeMaxChangeDenominator,
-            minimumBaseFee: minimumBaseFee,
-            systemTxMaxGas: systemTxMaxGas,
-            maximumBaseFee: maximumBaseFee
-        });
-
-        return config;
+        return SYSTEM_CONFIG.resourceConfig();
     }
 
     /**
