@@ -13,8 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -26,6 +24,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
