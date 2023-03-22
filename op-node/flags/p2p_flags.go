@@ -286,6 +286,7 @@ var p2pFlags = []cli.Flag{
 	P2PPrivPath,
 	P2PPrivRaw,
 	PeerScoring,
+	PeerScoreBands,
 	Banning,
 	TopicScoring,
 	ListenIP,

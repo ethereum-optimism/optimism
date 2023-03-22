@@ -63,6 +63,7 @@ services:
       --p2p.listen.udp=9003
       --p2p.scoring.peers=light
       --p2p.ban.peers=true
+      --p2p.score.bands="-40:graylist;-20:restricted;0:nopx;20:friend;"
       --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
       --metrics.enabled

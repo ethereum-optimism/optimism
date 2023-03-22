@@ -137,17 +137,10 @@ func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer
 // The returned [pubsub.ExtendedPeerScoreInspectFn] is called with a mapping of peer IDs to peer score snapshots.
 func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
-		// Reset the score bands
-		s.bandScoreThresholds.Reset()
-
-		// First clear the peer score bands
 		scoreMap := make(map[string]float64)
 		for id, snap := range m {
-			// Increment the bucket for the peer's score
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
-
-			// Update with the peer gater
 			s.gater.Update(id, snap.Score)
 		}
 		s.metricer.SetPeerScores(scoreMap)
