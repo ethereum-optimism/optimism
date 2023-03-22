@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -320,7 +319,7 @@ func PostCheckPredeploys(prevDB, currDB *state.StateDB) error {
 
 // PostCheckPredeployStorage will ensure that the predeploys had their storage
 // wiped correctly.
-func PostCheckPredeployStorage(db vm.StateDB, finalSystemOwner common.Address, proxyAdminOwner common.Address) error {
+func PostCheckPredeployStorage(db *state.StateDB, finalSystemOwner common.Address, proxyAdminOwner common.Address) error {
 	for name, addr := range predeploys.Predeploys {
 		if addr == nil {
 			return fmt.Errorf("nil address in predeploys mapping for %s", name)
@@ -468,7 +467,7 @@ func PostCheckLegacyETH(prevDB, migratedDB *state.StateDB, migrationData crossdo
 }
 
 // PostCheckL1Block checks that the L1Block contract was properly set to the L1 origin.
-func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
+func PostCheckL1Block(db *state.StateDB, info *derive.L1BlockInfo) error {
 	// Slot 0 is the concatenation of the block number and timestamp
 	data := db.GetState(predeploys.L1BlockAddr, common.Hash{}).Bytes()
 	blockNumber := binary.BigEndian.Uint64(data[24:])
@@ -558,7 +557,7 @@ func PostCheckL1Block(db vm.StateDB, info *derive.L1BlockInfo) error {
 	return nil
 }
 
-func CheckWithdrawalsAfter(db vm.StateDB, data crossdomain.MigrationData, l1CrossDomainMessenger *common.Address) error {
+func CheckWithdrawalsAfter(db *state.StateDB, data crossdomain.MigrationData, l1CrossDomainMessenger *common.Address) error {
 	wds, invalidMessages, err := data.ToWithdrawals()
 	if err != nil {
 		return err
