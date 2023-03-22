@@ -1,10 +1,11 @@
 package ether
 
 import (
-	"fmt"
 	"math/big"
 	"math/rand"
 	"testing"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 
@@ -190,7 +191,7 @@ func TestMigrateBalances(t *testing.T) {
 	}
 }
 
-func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Address]*big.Int, allowances map[common.Address]common.Address) (*state.StateDB, DBFactory) {
+func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Address]*big.Int, allowances map[common.Address]common.Address) (*state.StateDB, util.DBFactory) {
 	memDB := rawdb.NewMemoryDatabase()
 	db, err := state.New(common.Hash{}, state.NewDatabaseWithConfig(memDB, &trie.Config{
 		Preimages: true,
@@ -228,35 +229,12 @@ func makeLegacyETH(t *testing.T, totalSupply *big.Int, balances map[common.Addre
 	}
 }
 
-// TestMigrateBalancesRandom tests that the pre-check balances function works
+// TestMigrateBalancesRandomOK tests that the pre-check balances function works
 // with random addresses. This test makes sure that the partition logic doesn't
-// miss anything.
-func TestMigrateBalancesRandom(t *testing.T) {
+// miss anything, and helps detect concurrency errors.
+func TestMigrateBalancesRandomOK(t *testing.T) {
 	for i := 0; i < 100; i++ {
-		addresses := make([]common.Address, 0)
-		stateBalances := make(map[common.Address]*big.Int)
-
-		allowances := make([]*crossdomain.Allowance, 0)
-		stateAllowances := make(map[common.Address]common.Address)
-
-		totalSupply := big.NewInt(0)
-
-		for j := 0; j < rand.Intn(10000); j++ {
-			addr := randAddr(t)
-			addresses = append(addresses, addr)
-			stateBalances[addr] = big.NewInt(int64(rand.Intn(1_000_000)))
-			totalSupply = new(big.Int).Add(totalSupply, stateBalances[addr])
-		}
-
-		for j := 0; j < rand.Intn(1000); j++ {
-			addr := randAddr(t)
-			to := randAddr(t)
-			allowances = append(allowances, &crossdomain.Allowance{
-				From: addr,
-				To:   to,
-			})
-			stateAllowances[addr] = to
-		}
+		addresses, stateBalances, allowances, stateAllowances, totalSupply := setupRandTest(t)
 
 		db, factory := makeLegacyETH(t, totalSupply, stateBalances, stateAllowances)
 		err := doMigration(db, factory, addresses, allowances, big.NewInt(0), false)
@@ -269,83 +247,41 @@ func TestMigrateBalancesRandom(t *testing.T) {
 	}
 }
 
-func TestPartitionKeyspace(t *testing.T) {
-	tests := []struct {
-		i        int
-		count    int
-		expected [2]common.Hash
-	}{
-		{
-			i:     0,
-			count: 1,
-			expected: [2]common.Hash{
-				common.HexToHash("0x00"),
-				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-		{
-			i:     0,
-			count: 2,
-			expected: [2]common.Hash{
-				common.HexToHash("0x00"),
-				common.HexToHash("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-		{
-			i:     1,
-			count: 2,
-			expected: [2]common.Hash{
-				common.HexToHash("0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-		{
-			i:     0,
-			count: 3,
-			expected: [2]common.Hash{
-				common.HexToHash("0x00"),
-				common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555"),
-			},
-		},
-		{
-			i:     1,
-			count: 3,
-			expected: [2]common.Hash{
-				common.HexToHash("0x5555555555555555555555555555555555555555555555555555555555555555"),
-				common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-			},
-		},
-		{
-			i:     2,
-			count: 3,
-			expected: [2]common.Hash{
-				common.HexToHash("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-				common.HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("i %d, count %d", tt.i, tt.count), func(t *testing.T) {
-			start, end := PartitionKeyspace(tt.i, tt.count)
-			require.Equal(t, tt.expected[0], start)
-			require.Equal(t, tt.expected[1], end)
-		})
+// TestMigrateBalancesRandomMissing tests that the pre-check balances function works
+// with random addresses when some of them are missing. This helps make sure that the
+// partition logic doesn't miss anything, and helps detect concurrency errors.
+func TestMigrateBalancesRandomMissing(t *testing.T) {
+	for i := 0; i < 100; i++ {
+		addresses, stateBalances, allowances, stateAllowances, totalSupply := setupRandTest(t)
+
+		if len(addresses) == 0 {
+			continue
+		}
+
+		// Remove a random address from the list of witnesses
+		idx := rand.Intn(len(addresses))
+		addresses = append(addresses[:idx], addresses[idx+1:]...)
+
+		db, factory := makeLegacyETH(t, totalSupply, stateBalances, stateAllowances)
+		err := doMigration(db, factory, addresses, allowances, big.NewInt(0), false)
+		require.ErrorContains(t, err, "unknown storage slot")
 	}
 
-	t.Run("panics on invalid i or count", func(t *testing.T) {
-		require.Panics(t, func() {
-			PartitionKeyspace(1, 1)
-		})
-		require.Panics(t, func() {
-			PartitionKeyspace(-1, 1)
-		})
-		require.Panics(t, func() {
-			PartitionKeyspace(0, -1)
-		})
-		require.Panics(t, func() {
-			PartitionKeyspace(-1, -1)
-		})
-	})
+	for i := 0; i < 100; i++ {
+		addresses, stateBalances, allowances, stateAllowances, totalSupply := setupRandTest(t)
+
+		if len(allowances) == 0 {
+			continue
+		}
+
+		// Remove a random allowance from the list of witnesses
+		idx := rand.Intn(len(allowances))
+		allowances = append(allowances[:idx], allowances[idx+1:]...)
+
+		db, factory := makeLegacyETH(t, totalSupply, stateBalances, stateAllowances)
+		err := doMigration(db, factory, addresses, allowances, big.NewInt(0), false)
+		require.ErrorContains(t, err, "unknown storage slot")
+	}
 }
 
 func randAddr(t *testing.T) common.Address {
@@ -353,4 +289,33 @@ func randAddr(t *testing.T) common.Address {
 	_, err := rand.Read(addr[:])
 	require.NoError(t, err)
 	return addr
+}
+
+func setupRandTest(t *testing.T) ([]common.Address, map[common.Address]*big.Int, []*crossdomain.Allowance, map[common.Address]common.Address, *big.Int) {
+	addresses := make([]common.Address, 0)
+	stateBalances := make(map[common.Address]*big.Int)
+
+	allowances := make([]*crossdomain.Allowance, 0)
+	stateAllowances := make(map[common.Address]common.Address)
+
+	totalSupply := big.NewInt(0)
+
+	for j := 0; j < rand.Intn(10000); j++ {
+		addr := randAddr(t)
+		addresses = append(addresses, addr)
+		stateBalances[addr] = big.NewInt(int64(rand.Intn(1_000_000)))
+		totalSupply = new(big.Int).Add(totalSupply, stateBalances[addr])
+	}
+
+	for j := 0; j < rand.Intn(1000); j++ {
+		addr := randAddr(t)
+		to := randAddr(t)
+		allowances = append(allowances, &crossdomain.Allowance{
+			From: addr,
+			To:   to,
+		})
+		stateAllowances[addr] = to
+	}
+
+	return addresses, stateBalances, allowances, stateAllowances, totalSupply
 }

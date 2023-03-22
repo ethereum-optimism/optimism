@@ -517,12 +517,14 @@ New frames for timed-out channels are dropped instead of buffered.
 
 The channel-bank can only output data from the first opened channel.
 
-Upon reading, first all timed-out channels are dropped.
+Upon reading, while the first opened channel is timed-out, remove it from the channel-bank.
 
-After pruning timed-out channels, the first remaining channel, if any, is read if it is ready:
+Once the first opened channel, if any, is not timed-out and is ready, then it is read and removed from the channel-bank.
 
-- The channel must be closed
-- The channel must have a contiguous sequence of frames until the closing frame
+A channel is ready if:
+
+- The channel is closed
+- The channel has a contiguous sequence of frames until the closing frame
 
 If no channel is ready, the next frame is read and ingested into the channel bank.
 
@@ -533,11 +535,15 @@ a new channel is opened, tagged with the current L1 block, and appended to the c
 
 Frame insertion conditions:
 
-- New frames matching existing timed-out channels are dropped.
-- Duplicate frames (by frame number) are dropped.
-- Duplicate closes (new frame `is_last == 1`, but the channel has already seen a closing frame) are dropped.
+- New frames matching timed-out channels that have not yet been pruned from the channel-bank are dropped.
+- Duplicate frames (by frame number) for frames that have not yet been pruned from the channel-bank are dropped.
+- Duplicate closes (new frame `is_last == 1`, but the channel has already seen a closing frame and has not yet been
+    pruned from the channel-bank) are dropped.
 
 If a frame is closing (`is_last == 1`) any existing higher-numbered frames are removed from the channel.
+
+Note that while this allows channel IDs to be reused once they have been pruned from the channel-bank, it is recommended
+that batcher implementations use unique channel IDs.
 
 ### Channel Reader (Batch Decoding)
 

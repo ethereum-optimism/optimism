@@ -85,7 +85,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 	})
 	syncFromA := replica1.ActL1Sync(canonL1(chainA))
 	// sync canonical chain A
-	for replica1.l1Chain.CurrentBlock().NumberU64()+1 < uint64(len(chainA)) {
+	for replica1.l1Chain.CurrentBlock().Number.Uint64()+1 < uint64(len(chainA)) {
 		syncFromA(t)
 	}
 	require.Equal(t, replica1.l1Chain.CurrentBlock().Hash(), chainA[len(chainA)-1].Hash(), "sync replica1 to head of chain A")
@@ -94,7 +94,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 
 	// sync new canonical chain B
 	syncFromB := replica1.ActL1Sync(canonL1(chainB))
-	for replica1.l1Chain.CurrentBlock().NumberU64()+1 < uint64(len(chainB)) {
+	for replica1.l1Chain.CurrentBlock().Number.Uint64()+1 < uint64(len(chainB)) {
 		syncFromB(t)
 	}
 	require.Equal(t, replica1.l1Chain.CurrentBlock().Hash(), chainB[len(chainB)-1].Hash(), "sync replica1 to head of chain B")
@@ -105,7 +105,7 @@ func TestL1Replica_ActL1Sync(gt *testing.T) {
 		_ = replica2.Close()
 	})
 	syncFromOther := replica2.ActL1Sync(replica1.CanonL1Chain())
-	for replica2.l1Chain.CurrentBlock().NumberU64()+1 < uint64(len(chainB)) {
+	for replica2.l1Chain.CurrentBlock().Number.Uint64()+1 < uint64(len(chainB)) {
 		syncFromOther(t)
 	}
 	require.Equal(t, replica2.l1Chain.CurrentBlock().Hash(), chainB[len(chainB)-1].Hash(), "sync replica2 to head of chain B")

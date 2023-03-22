@@ -519,6 +519,10 @@ jobs:
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
       - run:
+          name: Check common-ts
+          command: npx depcheck
+          working_directory: packages/common-ts
+      - run:
           name: Check contracts
           command: npx depcheck
           working_directory: packages/contracts

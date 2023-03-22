@@ -17,7 +17,7 @@
     "lint": "yarn lint:fix && yarn lint:check",
     "pre-commit": "lint-staged",
     "test": "ts-mocha test/*.spec.ts",
-    "test:coverage": "echo 'no coverage'"
+    "test:coverage": "nyc ts-mocha test/*.spec.ts && nyc merge .nyc_output coverage.json"
   },
   "keywords": [
     "optimism",
@@ -48,8 +48,7 @@
     "pino": "^6.11.3",
     "pino-multi-stream": "^5.3.0",
     "pino-sentry": "^0.7.0",
-    "prom-client": "^13.1.0",
-    "qs": "^6.10.5"
+    "prom-client": "^13.1.0"
   },
   "devDependencies": {
     "@ethersproject/abstract-provider": "^5.7.0",
