@@ -222,11 +222,6 @@ func (p *AppendSequencerBatchParams) Write(
 		return ErrMalformedBatch
 	}
 
-	// There must be transactions if there are contexts
-	if len(p.Txs) == 0 && len(p.Contexts) != 0 {
-		return ErrMalformedBatch
-	}
-
 	// copy the contexts as to not malleate the struct
 	// when it is a typed batch
 	contexts := make([]BatchContext, 0, len(p.Contexts)+1)
@@ -359,9 +354,6 @@ func (p *AppendSequencerBatchParams) Read(r io.Reader) error {
 		// the batch is well formed.
 		if err == io.EOF {
 			if len(p.Contexts) == 0 && len(p.Txs) != 0 {
-				return ErrMalformedBatch
-			}
-			if len(p.Txs) == 0 && len(p.Contexts) != 0 {
 				return ErrMalformedBatch
 			}
 			return closeReader()

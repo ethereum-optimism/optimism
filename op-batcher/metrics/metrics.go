@@ -185,7 +185,7 @@ func (m *Metrics) RecordLatestL1Block(l1ref eth.L1BlockRef) {
 	m.RecordL1Ref("latest", l1ref)
 }
 
-// RecordL2BlockLoaded should be called when a new L2 block was loaded into the
+// RecordL2BlocksLoaded should be called when a new L2 block was loaded into the
 // channel manager (but not processed yet).
 func (m *Metrics) RecordL2BlocksLoaded(l2ref eth.L2BlockRef) {
 	m.RecordL2Ref(StageLoaded, l2ref)
