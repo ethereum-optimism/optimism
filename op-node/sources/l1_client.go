@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -40,6 +41,7 @@ func L1ClientDefaultConfig(config *rollup.Config, trustRPC bool, kind RPCProvide
 			TrustRPC:              trustRPC,
 			MustBePostMerge:       false,
 			RPCProviderKind:       kind,
+			MethodResetDuration:   time.Minute,
 		},
 		// Not bounded by span, to cover find-sync-start range fully for speedy recovery after errors.
 		L1BlockRefsCacheSize: fullSpan,

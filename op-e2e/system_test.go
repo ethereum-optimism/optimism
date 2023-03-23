@@ -649,7 +649,7 @@ func TestSystemMockP2P(t *testing.T) {
 	require.Contains(t, received, receiptVerif.BlockHash)
 }
 
-// TestSystemMockP2P sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
+// TestSystemRPCAltSync sets up a L1 Geth node, a rollup node, and a L2 geth node and then confirms that
 // the nodes can sync L2 blocks before they are confirmed on L1.
 //
 // Test steps:
@@ -660,24 +660,28 @@ func TestSystemMockP2P(t *testing.T) {
 // 6. Wait for the RPC sync method to grab the block from the sequencer over RPC and insert it into the verifier's unsafe chain.
 // 7. Wait for the verifier to sync the unsafe chain into the safe chain.
 // 8. Verify that the TX is included in the verifier's safe chain.
-func TestSystemMockAltSync(t *testing.T) {
+func TestSystemRPCAltSync(t *testing.T) {
 	parallel(t)
 	if !verboseGethNodes {
 		log.Root().SetHandler(log.DiscardHandler())
 	}
 
 	cfg := DefaultSystemConfig(t)
-	// slow down L1 blocks so we can see the L2 blocks arrive well before the L1 blocks do.
-	// Keep the seq window small so the L2 chain is started quick
-	cfg.DeployConfig.L1BlockTime = 10
+	// the default is nil, but this may change in the future.
+	// This test must ensure the blocks are not synced via Gossip, but instead via the alt RPC based sync.
+	cfg.P2PTopology = nil
+	// Disable batcher, so there will not be any L1 data to sync from
+	cfg.DisableBatcher = true
 
-	var published, received []common.Hash
+	var published, received []string
 	seqTracer, verifTracer := new(FnTracer), new(FnTracer)
+	// The sequencer still publishes the blocks to the tracer, even if they do not reach the network due to disabled P2P
 	seqTracer.OnPublishL2PayloadFn = func(ctx context.Context, payload *eth.ExecutionPayload) {
-		published = append(published, payload.BlockHash)
+		published = append(published, payload.ID().String())
 	}
+	// Blocks are now received via the RPC based alt-sync method
 	verifTracer.OnUnsafeL2PayloadFn = func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) {
-		received = append(received, payload.BlockHash)
+		received = append(received, payload.ID().String())
 	}
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
@@ -687,8 +691,8 @@ func TestSystemMockAltSync(t *testing.T) {
 		role: "sequencer",
 		action: func(sCfg *SystemConfig, system *System) {
 			rpc, _ := system.Nodes["sequencer"].Attach() // never errors
-			cfg.Nodes["verifier"].L2Sync = &rollupNode.L2SyncRPCConfig{
-				Rpc: client.NewBaseRPCClient(rpc),
+			cfg.Nodes["verifier"].L2Sync = &rollupNode.PreparedL2SyncEndpoint{
+				Client: client.NewBaseRPCClient(rpc),
 			}
 		},
 	})
@@ -726,7 +730,7 @@ func TestSystemMockAltSync(t *testing.T) {
 	require.Equal(t, receiptSeq, receiptVerif)
 
 	// Verify that the tx was received via RPC sync (P2P is disabled)
-	require.Contains(t, received, receiptVerif.BlockHash)
+	require.Contains(t, received, eth.BlockID{Hash: receiptVerif.BlockHash, Number: receiptVerif.BlockNumber.Uint64()}.String())
 
 	// Verify that everything that was received was published
 	require.GreaterOrEqual(t, len(published), len(received))
