@@ -9,6 +9,7 @@
     "dist/*"
   ],
   "scripts": {
+    "start:balance-mon": "ts-node ./src/balance-mon/service.ts",
     "start:drippie-mon": "ts-node ./src/drippie-mon/service.ts",
     "start:wd-mon": "ts-node ./src/wd-mon/service.ts",
     "test:coverage": "echo 'No tests defined.'",
