@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/common"
@@ -53,7 +54,16 @@ func NewTransactionManager(log log.Logger, txMgrConfg txmgr.Config, batchInboxAd
 // This is a blocking method. It should not be called concurrently.
 // TODO: where to put concurrent transaction handling logic.
 func (t *TransactionManager) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
-	// if ...
+	sequencer, err := t.sequencerModule.GetSequencer(&bind.CallOpts{})
+	if err != nil {
+		return nil, fmt.Errorf("get sequencer error: %w", err)
+	}
+
+	t.log.Info("sequencer found", "sequencer", sequencer.Hex(), "sender", t.senderAddress.Hex())
+
+	if sequencer.Hex() != t.senderAddress.Hex() {
+		return nil, fmt.Errorf("sequencer not match")
+	}
 
 	tx, err := t.CraftTx(ctx, data)
 	if err != nil {

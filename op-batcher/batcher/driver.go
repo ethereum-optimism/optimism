@@ -127,9 +127,11 @@ func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.
 
 	sequencerModule, err := bindings.NewOptimismModule(cfg.L1Module, cfg.L1Client)
 	if err != nil {
-		log.Error("sequencer selector binding", err)
+		cfg.log.Error("sequencer selector binding", err)
 		return nil, err
 	}
+
+	cfg.log.Info("Sequencer module initialised!")
 
 	return &BatchSubmitter{
 		Config: cfg,
