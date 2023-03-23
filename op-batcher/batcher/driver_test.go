@@ -17,9 +17,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr/mocks"
 )
 
-// TestSendTransaction tests that the driver can send a transaction
-// through the txmgr.
-func TestSendTransaction(t *testing.T) {
+// TestBatchSubmitter_SendTransaction tests the driver's
+// [SendTransaction] external facing function.
+func TestBatchSubmitter_SendTransaction(t *testing.T) {
 	log := testlog.Logger(t, log.LvlCrit)
 	txMgr := mocks.TxManager{}
 	batcherInboxAddress := common.HexToAddress("0x42000000000000000000000000000000000000ff")
