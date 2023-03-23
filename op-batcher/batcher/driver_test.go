@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/mock"
@@ -42,11 +43,14 @@ func TestBatchSubmitter_SendTransaction(t *testing.T) {
 	gasFeeCap := big.NewInt(137)
 	gas := uint64(1337)
 
+	// Candidate gas should be calculated with [core.IntrinsicGas]
+	intrinsicGas, err := core.IntrinsicGas(txData, nil, false, true, true, false)
+	require.NoError(t, err)
 	candidate := txmgr.TxCandidate{
 		To:       batcherInboxAddress,
 		TxData:   txData,
 		From:     sender,
-		GasLimit: uint64(0),
+		GasLimit: intrinsicGas,
 	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{
