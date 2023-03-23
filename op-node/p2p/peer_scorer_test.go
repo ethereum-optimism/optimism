@@ -29,7 +29,7 @@ func (testSuite *PeerScorerTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.PeerGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
-	bandScorer, err := p2p.NewBandScorer("0:graylist;")
+	bandScorer, err := p2p.NewBandScorer("-40:graylist;0:friend;")
 	testSuite.NoError(err)
 	testSuite.bandScorer = bandScorer
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
@@ -76,17 +76,35 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHook() {
 	inspectFn := scorer.SnapshotHook()
 
 	// Mock the peer gater call
-	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-100)).Return(nil)
+	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(-100)).Return(nil).Once()
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
+		"friend":   0,
 		"graylist": 1,
-	}).Return(nil)
+	}).Return(nil).Once()
 
 	// Apply the snapshot
 	snapshotMap := map[peer.ID]*pubsub.PeerScoreSnapshot{
 		peer.ID("peer1"): {
 			Score: -100,
+		},
+	}
+	inspectFn(snapshotMap)
+
+	// Change the peer score now to a different band
+	testSuite.mockGater.On("Update", peer.ID("peer1"), float64(0)).Return(nil).Once()
+
+	// The metricer should then be called with the peer score band map
+	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
+		"friend":   1,
+		"graylist": 0,
+	}).Return(nil).Once()
+
+	// Apply the snapshot
+	snapshotMap = map[peer.ID]*pubsub.PeerScoreSnapshot{
+		peer.ID("peer1"): {
+			Score: 0,
 		},
 	}
 	inspectFn(snapshotMap)
@@ -109,6 +127,7 @@ func (testSuite *PeerScorerTestSuite) TestScorer_SnapshotHookBlocksPeer() {
 
 	// The metricer should then be called with the peer score band map
 	testSuite.mockMetricer.On("SetPeerScores", map[string]float64{
+		"friend":   0,
 		"graylist": 1,
 	}).Return(nil)
 
