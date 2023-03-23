@@ -14,24 +14,23 @@ contract SystemConfig_Init is CommonTest {
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 9_000_000,
+            _gasLimit: 30_000_000,
             _unsafeBlockSigner: address(1)
         });
     }
 }
 
-contract SystemConfig_Initialize_TestFail is CommonTest {
+contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     function test_initialize_lowGasLimit_reverts() external {
-        vm.expectRevert("SystemConfig: gas limit too low");
+        uint64 minimumGasLimit = sysConf.minimumGasLimit();
 
-        // The minimum gas limit defined in SystemConfig:
-        uint64 MINIMUM_GAS_LIMIT = 8_000_000;
+        vm.expectRevert("SystemConfig: gas limit too low");
         new SystemConfig({
             _owner: alice,
             _overhead: 0,
             _scalar: 0,
             _batcherHash: bytes32(hex""),
-            _gasLimit: MINIMUM_GAS_LIMIT - 1,
+            _gasLimit: minimumGasLimit - 1,
             _unsafeBlockSigner: address(1)
         });
     }
@@ -56,6 +55,63 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setUnsafeBlockSigner_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
         sysConf.setUnsafeBlockSigner(address(0x20));
+    }
+
+    function test_setResourceConfig_notOwner_reverts() external {
+        vm.expectRevert("Ownable: caller is not the owner");
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+        sysConf.setResourceConfig(config);
+    }
+
+    function test_setResourceConfig_badMinMax_reverts() external {
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 2 gwei,
+            maximumBaseFee: 1 gwei
+        });
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: min base fee must be less than max base");
+        sysConf.setResourceConfig(config);
+    }
+
+    function test_setResourceConfig_zeroDenominator_reverts() external {
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 0,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: denominator cannot be 0");
+        sysConf.setResourceConfig(config);
+    }
+
+    function test_setResourceConfig_lowGasLimit_reverts() external {
+        uint64 gasLimit = sysConf.gasLimit();
+
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: uint32(gasLimit),
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: uint32(gasLimit),
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: gas limit too low");
+        sysConf.setResourceConfig(config);
     }
 }
 

@@ -172,7 +172,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
         super.setUp();
 
         systemConfig = new SystemConfig({
-            _owner: address(0),
+            _owner: address(1),
             _overhead: 0,
             _scalar: 10000,
             _batcherHash: bytes32(0),

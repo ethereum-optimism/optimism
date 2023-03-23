@@ -239,14 +239,14 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice
+     * @notice A getter for the resource config.
      */
     function resourceConfig() external view returns (ResourceConfig memory) {
         return _resourceConfig;
     }
 
     /**
-     * @notice
+     * @notice An external setter for the resource config.
      */
     function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
@@ -256,20 +256,31 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice
+     * @notice An internal setter for the resource config. Ensures that the
+     *         config is sane before storing it.
      */
     function _setResourceConfig(ResourceConfig memory _config) internal {
-        require(_config.minimumBaseFee <= _config.maximumBaseFee);
-        require(_config.baseFeeMaxChangeDenominator > 0);
-        require(_config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit);
+        require(
+            _config.minimumBaseFee <= _config.maximumBaseFee,
+            "SystemConfig: min base fee must be less than max base"
+        );
+        require(
+            _config.baseFeeMaxChangeDenominator > 0,
+            "SystemConfig: denominator cannot be 0"
+        );
+        require(
+            _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
+            "SystemConfig: gas limit too low"
+        );
 
         _resourceConfig = _config;
     }
 
     /**
-     * @notice
+     * @notice Returns the minimum L2 gas limit that can be safely set for the system to
+     *         operate.
      */
-    function minimumGasLimit() public view returns (uint256) {
-        return _resourceConfig.maxResourceLimit + _resourceConfig.systemTxMaxGas;
+    function minimumGasLimit() public view returns (uint64) {
+        return uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
     }
 }

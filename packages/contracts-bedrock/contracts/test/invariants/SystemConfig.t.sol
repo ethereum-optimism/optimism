@@ -12,7 +12,7 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 8_000_000,
+            _gasLimit: 30_000_000,
             _unsafeBlockSigner: address(1)
         });
 

@@ -11,7 +11,7 @@ contract EchidnaFuzzOptimismPortal {
 
     constructor() {
         SystemConfig config = new SystemConfig({
-            _owner: address(0),
+            _owner: address(1),
             _overhead: 0,
             _scalar: 10000,
             _batcherHash: bytes32(0),
