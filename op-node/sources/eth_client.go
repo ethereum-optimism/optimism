@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
@@ -56,6 +57,11 @@ type EthClientConfig struct {
 
 	// RPCProviderKind is a hint at what type of RPC provider we are dealing with
 	RPCProviderKind RPCProviderKind
+
+	// Method reset duration defines how long we stick to available RPC methods,
+	// till we re-attempt the user-preferred methods.
+	// If this is 0 then the client does not fall back to less optimal but available methods.
+	MethodResetDuration time.Duration
 }
 
 func (c *EthClientConfig) Check() error {
@@ -118,9 +124,25 @@ type EthClient struct {
 	// This may be modified concurrently, but we don't lock since it's a single
 	// uint64 that's not critical (fine to miss or mix up a modification)
 	availableReceiptMethods ReceiptsFetchingMethod
+
+	// lastMethodsReset tracks when availableReceiptMethods was last reset.
+	// When receipt-fetching fails it falls back to available methods,
+	// but periodically it will try to reset to the preferred optimal methods.
+	lastMethodsReset time.Time
+
+	// methodResetDuration defines how long we take till we reset lastMethodsReset
+	methodResetDuration time.Duration
 }
 
 func (s *EthClient) PickReceiptsMethod(txCount uint64) ReceiptsFetchingMethod {
+	if now := time.Now(); now.Sub(s.lastMethodsReset) > s.methodResetDuration {
+		m := AvailableReceiptsFetchingMethods(s.provKind)
+		if s.availableReceiptMethods != m {
+			s.log.Warn("resetting back RPC preferences, please review RPC provider kind setting", "kind", s.provKind.String())
+		}
+		s.availableReceiptMethods = m
+		s.lastMethodsReset = now
+	}
 	return PickBestReceiptsFetchingMethod(s.provKind, s.availableReceiptMethods, txCount)
 }
 
@@ -128,7 +150,7 @@ func (s *EthClient) OnReceiptsMethodErr(m ReceiptsFetchingMethod, err error) {
 	if unusableMethod(err) {
 		// clear the bit of the method that errored
 		s.availableReceiptMethods &^= m
-		s.log.Warn("failed to use selected RPC method for receipt fetching, falling back to alternatives",
+		s.log.Warn("failed to use selected RPC method for receipt fetching, temporarily falling back to alternatives",
 			"provider_kind", s.provKind, "failed_method", m, "fallback", s.availableReceiptMethods, "err", err)
 	} else {
 		s.log.Debug("failed to use selected RPC method for receipt fetching, but method does appear to be available, so we continue to use it",
@@ -155,6 +177,8 @@ func NewEthClient(client client.RPC, log log.Logger, metrics caching.Metrics, co
 		headersCache:            caching.NewLRUCache(metrics, "headers", config.HeadersCacheSize),
 		payloadsCache:           caching.NewLRUCache(metrics, "payloads", config.PayloadsCacheSize),
 		availableReceiptMethods: AvailableReceiptsFetchingMethods(config.RPCProviderKind),
+		lastMethodsReset:        time.Now(),
+		methodResetDuration:     config.MethodResetDuration,
 	}, nil
 }
 
