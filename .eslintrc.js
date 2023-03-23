@@ -23,7 +23,7 @@ module.exports = {
   ],
   overrides: [
     {
-      files: ['**/*.ts'],
+      files: ['hardhat.config.ts', '**/*.ts'],
       parser: '@typescript-eslint/parser',
       parserOptions: {
         project: './packages/**/tsconfig.json',

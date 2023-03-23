@@ -71,6 +71,7 @@
     "@typechain/ethers-v5": "^10.1.0",
     "@typescript-eslint/eslint-plugin": "^5.45.1",
     "@typescript-eslint/parser": "^5.45.1",
+    "@conduitxyz/hardhat-gcp-kms-signer": "1.1.6",
     "bip39": "^3.0.4",
     "chai": "^4.2.0",
     "command-exists": "1.2.9",

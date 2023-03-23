@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 
 // Hardhat plugins
 import '@eth-optimism/hardhat-deploy-config'
+import '@conduitxyz/hardhat-gcp-kms-signer'
 import '@foundry-rs/hardhat-forge'
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
@@ -59,6 +60,7 @@ const config: HardhatUserConfig = {
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
       live: process.env.VERIFY_CONTRACTS === 'true',
+      gcpKmsKeyName: process.env.KMS_KEY_DEPLOYER,
     },
     'mainnet-forked': {
       chainId: 1,
