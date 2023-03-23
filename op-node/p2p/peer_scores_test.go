@@ -11,7 +11,7 @@ import (
 	p2pMocks "github.com/ethereum-optimism/optimism/op-node/p2p/mocks"
 	testlog "github.com/ethereum-optimism/optimism/op-node/testlog"
 
-	mock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/mock"
 	suite "github.com/stretchr/testify/suite"
 
 	log "github.com/ethereum/go-ethereum/log"
@@ -30,6 +30,7 @@ type PeerScoresTestSuite struct {
 	mockGater    *p2pMocks.ConnectionGater
 	mockStore    *p2pMocks.Peerstore
 	mockMetricer *p2pMocks.GossipMetricer
+	bandScorer   p2p.BandScoreThresholds
 	logger       log.Logger
 }
 
@@ -38,6 +39,9 @@ func (testSuite *PeerScoresTestSuite) SetupTest() {
 	testSuite.mockGater = &p2pMocks.ConnectionGater{}
 	testSuite.mockStore = &p2pMocks.Peerstore{}
 	testSuite.mockMetricer = &p2pMocks.GossipMetricer{}
+	bandScorer, err := p2p.NewBandScorer("0:graylist;")
+	testSuite.NoError(err)
+	testSuite.bandScorer = *bandScorer
 	testSuite.logger = testlog.Logger(testSuite.T(), log.LvlError)
 }
 
@@ -68,6 +72,7 @@ func newGossipSubs(testSuite *PeerScoresTestSuite, ctx context.Context, hosts []
 		rt := pubsub.DefaultGossipSubRouter(h)
 		opts := []pubsub.Option{}
 		opts = append(opts, p2p.ConfigurePeerScoring(h, testSuite.mockGater, &p2p.Config{
+			BandScoreThresholds: testSuite.bandScorer,
 			PeerScoring: pubsub.PeerScoreParams{
 				AppSpecificScore: func(p peer.ID) float64 {
 					if p == hosts[0].ID() {
@@ -118,8 +123,7 @@ func (testSuite *PeerScoresTestSuite) TestNegativeScores() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	testSuite.mockMetricer.On("RecordPeerScoring", mock.Anything, float64(0)).Return(nil)
-	testSuite.mockMetricer.On("RecordPeerScoring", mock.Anything, float64(-1000)).Return(nil)
+	testSuite.mockMetricer.On("SetPeerScores", mock.Anything).Return(nil)
 
 	testSuite.mockGater.On("ListBlockedPeers").Return([]peer.ID{})
 
