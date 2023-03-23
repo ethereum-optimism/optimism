@@ -109,6 +109,9 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 		return nil, fmt.Errorf("failed to fetch current L2 forkchoice state: %w", err)
 	}
 
+	lgr.Info("Loaded current L2 heads", "unsafe", result.Unsafe, "safe", result.Safe, "finalized", result.Finalized,
+		"unsafe_origin", result.Unsafe.L1Origin, "unsafe_origin", result.Safe.L1Origin)
+
 	// Remember original unsafe block to determine reorg depth
 	prevUnsafe := result.Unsafe
 
@@ -134,6 +137,7 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 				// Exit, find-sync start should start over, to move to an available L1 chain with block-by-number / not-found case.
 				return nil, fmt.Errorf("failed to retrieve L1 block: %w", err)
 			}
+			lgr.Info("Walking back L1Block by hash", "curr", l1Block, "next", b, "l2block", n)
 			l1Block = b
 			ahead = false
 		} else if l1Block == (eth.L1BlockRef{}) || n.L1Origin.Hash != l1Block.Hash {
@@ -145,9 +149,10 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 			}
 			l1Block = b
 			ahead = notFound
+			lgr.Info("Walking back L1Block by number", "curr", l1Block, "next", b, "l2block", n)
 		}
 
-		lgr.Trace("walking sync start", "number", n.Number)
+		lgr.Trace("walking sync start", "l2block", n)
 
 		// Don't walk past genesis. If we were at the L2 genesis, but could not find its L1 origin,
 		// the L2 chain is building on the wrong L1 branch.
@@ -201,6 +206,8 @@ func FindL2Heads(ctx context.Context, cfg *rollup.Config, l1 L1Chain, l2 L2Chain
 
 		// Don't traverse further than the finalized head to find a safe head
 		if n.Number == result.Finalized.Number {
+			lgr.Info("Hit finalized L2 head, returning immediately", "unsafe", result.Unsafe, "safe", result.Safe,
+				"finalized", result.Finalized, "unsafe_origin", result.Unsafe.L1Origin, "unsafe_origin", result.Safe.L1Origin)
 			result.Safe = n
 			return result, nil
 		}

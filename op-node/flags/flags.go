@@ -14,10 +14,10 @@ import (
 
 // Flags
 
-const envVarPrefix = "OP_NODE_"
+const envVarPrefix = "OP_NODE"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + name
+	return envVarPrefix + "_" + name
 }
 
 var (
