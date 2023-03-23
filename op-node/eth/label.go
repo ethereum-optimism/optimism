@@ -17,3 +17,9 @@ const (
 	// - L2: Derived chain tip from finalized L1 data
 	Finalized = "finalized"
 )
+
+func (label BlockLabel) Arg() any { return string(label) }
+
+func (BlockLabel) CheckID(id BlockID) error {
+	return nil
+}
