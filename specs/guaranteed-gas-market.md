@@ -49,7 +49,6 @@ of this credit is greater than the ETH value of the requested guaranteed gas
 | Maximum Base Fee                | type(uint128).max |
 | System Tx Max Gas               | 1,000,000         |
 
-
 ## Limiting Guaranteed Gas
 
 The total amount of guaranteed gas that can be bought in a single L1 block must be limited to
