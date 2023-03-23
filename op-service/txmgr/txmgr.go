@@ -178,8 +178,8 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 
 	// Fetch the sender's nonce from the latest known block (nil `blockNumber`)
 	childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	defer cancel()
 	nonce, err := m.backend.NonceAt(childCtx, candidate.From, nil)
-	cancel()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
@@ -188,8 +188,8 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 	// we need to try to fetch it again from the backend.
 	if m.chainID == nil {
 		childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
+		defer cancel()
 		chainID, err := m.backend.ChainID(childCtx)
-		cancel()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get chain ID: %w", err)
 		}
