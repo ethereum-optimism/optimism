@@ -136,7 +136,15 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         address _unsafeBlockSigner,
         ResourceConfig memory _config
     ) Semver(1, 1, 0) {
-        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config);
+        initialize({
+            _owner: _owner,
+            _overhead: _overhead,
+            _scalar: _scalar,
+            _batcherHash: _batcherHash,
+            _gasLimit: _gasLimit,
+            _unsafeBlockSigner: _unsafeBlockSigner,
+            _config: _config
+        });
     }
 
     /**
