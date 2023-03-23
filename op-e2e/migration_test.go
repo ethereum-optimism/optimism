@@ -329,6 +329,8 @@ func TestMigration(t *testing.T) {
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
+		TxManagerTimeout:          10 * time.Minute,
+		OfflineGasEstimation:      true,
 		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
 		TargetL1TxSize:            100_000,
