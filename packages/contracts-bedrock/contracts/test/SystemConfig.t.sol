@@ -134,6 +134,20 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
         vm.expectRevert("SystemConfig: gas limit too low");
         sysConf.setResourceConfig(config);
     }
+
+    function test_setResourceConfig_badPrecision_reverts() external {
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 11,
+            baseFeeMaxChangeDenominator: 8,
+            systemTxMaxGas: 1_000_000,
+            minimumBaseFee: 1 gwei,
+            maximumBaseFee: 2 gwei
+        });
+        vm.prank(sysConf.owner());
+        vm.expectRevert("SystemConfig: precision loss with target resource limit");
+        sysConf.setResourceConfig(config);
+    }
 }
 
 contract SystemConfig_Setters_Test is SystemConfig_Init {

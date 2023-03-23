@@ -104,7 +104,7 @@ const deployFn: DeployFunction = async (hre) => {
         maxResourceLimit: 20_000_000,
         elasticityMultiplier: 10,
         baseFeeMaxChangeDenominator: 8,
-        minimumBaseFee: 1000000000,
+        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
         systemTxMaxGas: 1_000_000,
         maximumBaseFee: BigNumber.from(
           '0xffffffffffffffffffffffffffffffff'
