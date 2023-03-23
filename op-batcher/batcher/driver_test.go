@@ -73,10 +73,9 @@ func TestBatchSubmitter_SendTransaction(t *testing.T) {
 		GasUsed:           gas,
 	}
 
-	txMgr.On("CraftTx", mock.Anything, candidate).Return(tx, nil)
-	txMgr.On("Send", mock.Anything, tx).Return(&expectedReceipt, nil)
+	txMgr.On("Send", mock.Anything, candidate).Return(&expectedReceipt, nil)
 
-	receipt, err := bs.SendTransaction(context.Background(), tx.Data())
+	receipt, err := bs.sendTransaction(context.Background(), tx.Data())
 	require.NoError(t, err)
 	require.Equal(t, receipt, &expectedReceipt)
 }
