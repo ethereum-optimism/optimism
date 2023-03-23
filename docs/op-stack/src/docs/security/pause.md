@@ -6,8 +6,8 @@ lang: en-US
 
 ## Why do it?
 
-The bridge is the way that assets move between blockchains.
-If there is a problem with the security of the blockchain, pausing the bridge is a way to mitigate the damage until the issue is resolved.
+The bridge allows movement between blockchains. 
+If the security of a blockchain is compromised, pausing the bridge will mitigate damage until the issue is resolved.
 
 ## Who can do it?
 
