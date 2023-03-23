@@ -17,7 +17,9 @@ const deployFn: DeployFunction = async (hre) => {
     'L2OutputOracleProxy'
   )
 
-  const Artifact__SystemConfigProxy = await hre.deployments.get('SystemConfigProxy')
+  const Artifact__SystemConfigProxy = await hre.deployments.get(
+    'SystemConfigProxy'
+  )
 
   const portalGuardian = hre.deployConfig.portalGuardian
   const portalGuardianCode = await hre.ethers.provider.getCode(portalGuardian)

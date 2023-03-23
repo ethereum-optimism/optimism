@@ -52,7 +52,8 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         uint256 cachedPrevBlockNum = uint256(params.prevBlockNum);
 
         SystemConfig.ResourceConfig memory rcfg = resourceConfig();
-        uint256 targetResourceLimit = uint256(rcfg.maxResourceLimit) / uint256(rcfg.elasticityMultiplier);
+        uint256 targetResourceLimit = uint256(rcfg.maxResourceLimit) /
+            uint256(rcfg.elasticityMultiplier);
 
         // check that the last block's base fee hasn't dropped below the minimum
         if (cachedPrevBaseFee < uint256(rcfg.minimumBaseFee)) {
