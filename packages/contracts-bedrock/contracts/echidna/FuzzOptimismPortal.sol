@@ -10,20 +10,30 @@ contract EchidnaFuzzOptimismPortal {
     bool internal failedToComplete;
 
     constructor() {
-        SystemConfig config = new SystemConfig({
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
+        SystemConfig systemConfig = new SystemConfig({
             _owner: address(1),
             _overhead: 0,
             _scalar: 10000,
             _batcherHash: bytes32(0),
             _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(0)
+            _unsafeBlockSigner: address(0),
+            _config: config
         });
 
         portal = new OptimismPortal({
             _l2Oracle: L2OutputOracle(address(0)),
             _guardian: address(0),
             _paused: false,
-            _config: config
+            _config: systemConfig
         });
     }
 

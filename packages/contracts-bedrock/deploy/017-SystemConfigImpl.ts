@@ -1,5 +1,6 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
+import { ethers } from 'ethers'
 
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
@@ -18,6 +19,16 @@ const deployFn: DeployFunction = async (hre) => {
       batcherHash,
       hre.deployConfig.l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
+      {
+        maxResourceLimit: 20_000_000,
+        elasticityMultiplier: 10,
+        baseFeeMaxChangeDenominator: 8,
+        systemTxMaxGas: 1_000_000,
+        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
+        maximumBaseFee: ethers.BigNumber.from(
+          '0xffffffffffffffffffffffffffffffff'
+        ),
+      },
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(

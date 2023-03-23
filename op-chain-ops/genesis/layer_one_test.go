@@ -100,6 +100,12 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "Wrapped Ether", name)
 
+	sysCfg, err := bindings.NewSystemConfig(predeploys.DevSystemConfigAddr, sim)
+	require.NoError(t, err)
+	cfg, err := sysCfg.ResourceConfig(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, cfg, defaultResourceConfig)
+
 	// test that we can do deposits, etc.
 	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")
 	require.NoError(t, err)

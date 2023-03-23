@@ -7,13 +7,23 @@ contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
 
     function setUp() public {
+        SystemConfig.ResourceConfig memory cfg = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
         config = new SystemConfig({
             _owner: address(0xbeef),
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(1)
+            _unsafeBlockSigner: address(1),
+            _config: cfg
         });
 
         // Set the target contract to the `config`

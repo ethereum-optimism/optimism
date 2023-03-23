@@ -9,13 +9,24 @@ contract SystemConfig_Init is CommonTest {
 
     function setUp() public virtual override {
         super.setUp();
+
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
         sysConf = new SystemConfig({
             _owner: alice,
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
             _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(1)
+            _unsafeBlockSigner: address(1),
+            _config: config
         });
     }
 }
@@ -24,6 +35,15 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
 
+        SystemConfig.ResourceConfig memory cfg = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
         vm.expectRevert("SystemConfig: gas limit too low");
         new SystemConfig({
             _owner: alice,
@@ -31,7 +51,8 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
             _scalar: 0,
             _batcherHash: bytes32(hex""),
             _gasLimit: minimumGasLimit - 1,
-            _unsafeBlockSigner: address(1)
+            _unsafeBlockSigner: address(1),
+            _config: cfg
         });
     }
 }

@@ -23,18 +23,37 @@ import (
 	"github.com/ethereum-optimism/optimism/op-chain-ops/state"
 )
 
-var proxies = []string{
-	"SystemConfigProxy",
-	"L2OutputOracleProxy",
-	"L1CrossDomainMessengerProxy",
-	"L1StandardBridgeProxy",
-	"OptimismPortalProxy",
-	"OptimismMintableERC20FactoryProxy",
+var (
+	proxies = []string{
+		"SystemConfigProxy",
+		"L2OutputOracleProxy",
+		"L1CrossDomainMessengerProxy",
+		"L1StandardBridgeProxy",
+		"OptimismPortalProxy",
+		"OptimismMintableERC20FactoryProxy",
+	}
+
+	portalMeteringSlot = common.Hash{31: 0x01}
+	zeroHash           = common.Hash{}
+	uint128Max         = new(big.Int)
+
+	defaultResourceConfig = bindings.SystemConfigResourceConfig{
+		MaxResourceLimit:            20_000_000,
+		ElasticityMultiplier:        10,
+		BaseFeeMaxChangeDenominator: 8,
+		MinimumBaseFee:              params.GWei,
+		SystemTxMaxGas:              1_000_000,
+	}
+)
+
+func init() {
+	var ok bool
+	uint128Max, ok = new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+	if !ok {
+		panic("bad uint128Max")
+	}
+	defaultResourceConfig.MaximumBaseFee = uint128Max
 }
-
-var portalMeteringSlot = common.Hash{31: 0x01}
-
-var zeroHash common.Hash
 
 func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if config.L2OutputOracleStartingTimestamp != -1 {
@@ -97,11 +116,6 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		gasLimit = defaultL2GasLimit
 	}
 
-	uint128Max, ok := new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
-	if !ok {
-		return nil, errors.New("bad uint128Max")
-	}
-
 	data, err = sysCfgABI.Pack(
 		"initialize",
 		config.FinalSystemOwner,
@@ -110,14 +124,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		config.BatchSenderAddress.Hash(),
 		gasLimit,
 		config.P2PSequencerAddress,
-		bindings.SystemConfigResourceConfig{
-			MaxResourceLimit:            20_000_000,
-			ElasticityMultiplier:        10,
-			BaseFeeMaxChangeDenominator: 8,
-			MinimumBaseFee:              params.GWei,
-			SystemTxMaxGas:              1_000_000,
-			MaximumBaseFee:              uint128Max,
-		},
+		defaultResourceConfig,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for SystemConfig: %w", err)
@@ -292,6 +299,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				config.BatchSenderAddress.Hash(), // left-padded 32 bytes value, version is zero anyway
 				gasLimit,
 				config.P2PSequencerAddress,
+				defaultResourceConfig,
 			},
 		},
 		{
@@ -361,6 +369,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[3].(common.Hash),
 			deployment.Args[4].(uint64),
 			deployment.Args[5].(common.Address),
+			deployment.Args[6].(bindings.SystemConfigResourceConfig),
 		)
 	case "L2OutputOracle":
 		_, tx, _, err = bindings.DeployL2OutputOracle(

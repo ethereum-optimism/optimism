@@ -171,13 +171,23 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
+        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+
         systemConfig = new SystemConfig({
             _owner: address(1),
             _overhead: 0,
             _scalar: 10000,
             _batcherHash: bytes32(0),
             _gasLimit: 30_000_000,
-            _unsafeBlockSigner: address(0)
+            _unsafeBlockSigner: address(0),
+            _config: config
         });
 
         opImpl = new OptimismPortal({

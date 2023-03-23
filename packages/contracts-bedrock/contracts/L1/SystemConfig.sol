@@ -81,12 +81,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
 
     /**
-     * @notice Fixed L2 gas overhead.
+     * @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public overhead;
 
     /**
-     * @notice Dynamic L2 gas overhead.
+     * @notice Dynamic L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public scalar;
 
@@ -97,12 +97,13 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public batcherHash;
 
     /**
-     * @notice L2 gas limit.
+     * @notice L2 block gas limit.
      */
     uint64 public gasLimit;
 
     /**
-     * @notice
+     * @notice The configuration for the deposit fee market. Used by the OptimismPortal
+     *         to meter the cost of buying L2 gas on L1.
      */
     ResourceConfig internal _resourceConfig;
 
@@ -124,6 +125,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _batcherHash       Initial batcher hash.
      * @param _gasLimit          Initial gas limit.
      * @param _unsafeBlockSigner Initial unsafe block signer address.
+     * @param _config            Initial resource config.
      */
     constructor(
         address _owner,
@@ -131,18 +133,10 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _scalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
-        address _unsafeBlockSigner
+        address _unsafeBlockSigner,
+        ResourceConfig memory _config
     ) Semver(1, 1, 0) {
-        ResourceConfig memory config = ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
-
-        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, config);
+        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner, _config);
     }
 
     /**
@@ -259,7 +253,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice A getter for the resource config.
+     * @notice A getter for the resource config. Ensures that the struct is
+     *         returned instead of a tuple.
      */
     function resourceConfig() external view returns (ResourceConfig memory) {
         return _resourceConfig;
@@ -284,6 +279,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         - max resource limit plus system tx gas must be less than or
      *           equal to the L2 gas limit
      *         - elasticity multiplier must be greater than 0
+     *         - no precision loss when computing target resource limit
      *
      * @param _config The new resource config
      */
@@ -304,7 +300,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         require(
             ((_config.maxResourceLimit / _config.elasticityMultiplier) *
                 _config.elasticityMultiplier) == _config.maxResourceLimit,
-            "SystemConfig: precision loss with max and elasticity"
+            "SystemConfig: precision loss with target resource limit"
         );
 
         _resourceConfig = _config;
