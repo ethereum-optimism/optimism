@@ -14,10 +14,10 @@ import (
 
 // Flags
 
-const envVarPrefix = "OP_NODE_"
+const envVarPrefix = "OP_NODE"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + name
+	return envVarPrefix + "_" + name
 }
 
 var (
@@ -175,6 +175,13 @@ var (
 		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC"),
 		Required: false,
 	}
+	BackupL2UnsafeSyncRPCTrustRPC = cli.StringFlag{
+		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
+		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
+			"This does not include checks if the blockhash is part of the canonical chain.",
+		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -207,6 +214,7 @@ var optionalFlags = []cli.Flag{
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
 	BackupL2UnsafeSyncRPC,
+	BackupL2UnsafeSyncRPCTrustRPC,
 }
 
 // Flags contains the list of configuration options available to the binary.

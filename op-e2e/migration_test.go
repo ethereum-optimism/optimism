@@ -15,6 +15,7 @@ import (
 	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
@@ -277,6 +278,7 @@ func TestMigration(t *testing.T) {
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
+		L2Sync: &node.PreparedL2SyncEndpoint{Client: nil, TrustRPC: false},
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
 			SequencerConfDepth: 0,
@@ -327,6 +329,8 @@ func TestMigration(t *testing.T) {
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
+		TxManagerTimeout:          10 * time.Minute,
+		OfflineGasEstimation:      true,
 		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
 		TargetL1TxSize:            100_000,
@@ -362,7 +366,7 @@ func TestMigration(t *testing.T) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(secrets.Proposer),
-	}, lgr.New("module", "proposer"))
+	}, lgr.New("module", "proposer"), proposermetrics.NoopMetrics)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

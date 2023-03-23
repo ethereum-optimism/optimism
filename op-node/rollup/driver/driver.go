@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 )
 
 type Metrics interface {
@@ -82,8 +81,19 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
+type AltSync interface {
+	// RequestL2Range informs the sync source that the given range of L2 blocks is missing,
+	// and should be retrieved from any available alternative syncing source.
+	// The start of the range is inclusive, the end is exclusive.
+	// The sync results should be returned back to the driver via the OnUnsafeL2Payload(ctx, payload) method.
+	// The latest requested range should always take priority over previous requests.
+	// There may be overlaps in requested ranges.
+	// An error may be returned if the scheduling fails immediately, e.g. a context timeout.
+	RequestL2Range(ctx context.Context, start, end uint64) error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, syncClient *sources.SyncClient, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
@@ -115,6 +125,6 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, sy
 		l1SafeSig:        make(chan eth.L1BlockRef, 10),
 		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
 		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
-		L2SyncCl:         syncClient,
+		altSync:          altSync,
 	}
 }

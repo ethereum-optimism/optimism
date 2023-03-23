@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 )
@@ -193,6 +194,9 @@ type SystemConfig struct {
 
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
+
+	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
+	DisableBatcher bool
 }
 
 type System struct {
@@ -417,6 +421,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			L2EngineAddr:      l2EndpointConfig,
 			L2EngineJWTSecret: cfg.JWTSecret,
 		}
+		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
+			Client:   nil,
+			TrustRPC: false,
+		}
 	}
 
 	// Geth Clients
@@ -572,7 +580,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			Format: "text",
 		},
 		PrivateKey: hexPriv(cfg.Secrets.Proposer),
-	}, sys.cfg.Loggers["proposer"])
+	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
@@ -582,10 +590,13 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	// Batch Submitter
+	txManagerTimeout := 10 * time.Minute
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		TxManagerTimeout:          txManagerTimeout,
+		OfflineGasEstimation:      true,
 		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
 		TargetL1TxSize:            100_000,
@@ -606,8 +617,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
 
-	if err := sys.BatchSubmitter.Start(); err != nil {
-		return nil, fmt.Errorf("unable to start batch submitter: %w", err)
+	// Batcher may be enabled later
+	if !sys.cfg.DisableBatcher {
+		if err := sys.BatchSubmitter.Start(); err != nil {
+			return nil, fmt.Errorf("unable to start batch submitter: %w", err)
+		}
 	}
 
 	return sys, nil

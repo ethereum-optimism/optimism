@@ -16,7 +16,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-service/backoff"
 )
 
@@ -64,8 +63,8 @@ type Driver struct {
 	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
 
-	// Backup unsafe sync client
-	L2SyncCl *sources.SyncClient
+	// Interface to signal the L2 block range to sync.
+	altSync AltSync
 
 	// L2 Signals:
 
@@ -200,11 +199,12 @@ func (s *Driver) eventLoop() {
 		sequencerTimer.Reset(delay)
 	}
 
-	// Create a ticker to check if there is a gap in the engine queue every 15 seconds
-	// If there is, we send requests to the backup RPC to retrieve the missing payloads
-	// and add them to the unsafe queue.
-	altSyncTicker := time.NewTicker(15 * time.Second)
+	// Create a ticker to check if there is a gap in the engine queue. Whenever
+	// there is, we send requests to sync source to retrieve the missing payloads.
+	syncCheckInterval := time.Duration(s.config.BlockTime) * time.Second * 2
+	altSyncTicker := time.NewTicker(syncCheckInterval)
 	defer altSyncTicker.Stop()
+	lastUnsafeL2 := s.derivation.UnsafeL2Head()
 
 	for {
 		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
@@ -218,6 +218,13 @@ func (s *Driver) eventLoop() {
 			}
 		} else {
 			sequencerCh = nil
+		}
+
+		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
+		// there is no need to request L2 blocks when we are syncing already.
+		if head := s.derivation.UnsafeL2Head(); head != lastUnsafeL2 || !s.derivation.EngineReady() {
+			lastUnsafeL2 = head
+			altSyncTicker.Reset(syncCheckInterval)
 		}
 
 		select {
@@ -237,10 +244,12 @@ func (s *Driver) eventLoop() {
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
 		case <-altSyncTicker.C:
-			// Check if there is a gap in the current unsafe payload queue. If there is, attempt to fetch
-			// missing payloads from the backup RPC (if it is configured).
-			if s.L2SyncCl != nil {
-				s.checkForGapInUnsafeQueue(ctx)
+			// Check if there is a gap in the current unsafe payload queue.
+			ctx, cancel := context.WithTimeout(ctx, time.Second*2)
+			err := s.checkForGapInUnsafeQueue(ctx)
+			cancel()
+			if err != nil {
+				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
 			}
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
@@ -462,35 +471,29 @@ type hashAndErrorChannel struct {
 	err  chan error
 }
 
-// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from the backup RPC.
-// WARNING: The sync client's attempt to retrieve the missing payloads is not guaranteed to succeed, and it will fail silently (besides
-// emitting warning logs) if the requests fail.
-func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) {
+// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from an alt-sync method.
+// WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
+// Results are received through OnUnsafeL2Payload.
+func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
 	// subtract genesis time from wall clock to get the time elapsed since genesis, and then divide that
 	// difference by the block time to get the expected L2 block number at the current time. If the
 	// unsafe head does not have this block number, then there is a gap in the queue.
 	wallClock := uint64(time.Now().Unix())
 	genesisTimestamp := s.config.Genesis.L2Time
+	if wallClock < genesisTimestamp {
+		s.log.Debug("nothing to sync, did not reach genesis L2 time yet", "genesis", genesisTimestamp)
+		return nil
+	}
 	wallClockGenesisDiff := wallClock - genesisTimestamp
-	expectedL2Block := wallClockGenesisDiff / s.config.BlockTime
+	// Note: round down, we should not request blocks into the future.
+	blocksSinceGenesis := wallClockGenesisDiff / s.config.BlockTime
+	expectedL2Block := s.config.Genesis.L2.Number + blocksSinceGenesis
 
 	start, end := s.derivation.GetUnsafeQueueGap(expectedL2Block)
-	size := end - start
-
 	// Check if there is a gap between the unsafe head and the expected L2 block number at the current time.
-	if size > 0 {
-		s.log.Warn("Gap in payload queue tip and expected unsafe chain detected", "start", start, "end", end, "size", size)
-		s.log.Info("Attempting to fetch missing payloads from backup RPC", "start", start, "end", end, "size", size)
-
-		// Attempt to fetch the missing payloads from the backup unsafe sync RPC concurrently.
-		// Concurrent requests are safe here due to the engine queue being a priority queue.
-		for blockNumber := start; blockNumber <= end; blockNumber++ {
-			select {
-			case s.L2SyncCl.FetchUnsafeBlock <- blockNumber:
-				// Do nothing- the block number was successfully sent into the channel
-			default:
-				return // If the channel is full, return and wait for the next iteration of the event loop
-			}
-		}
+	if end > start {
+		s.log.Debug("requesting missing unsafe L2 block range", "start", start, "end", end, "size", end-start)
+		return s.altSync.RequestL2Range(ctx, start, end)
 	}
+	return nil
 }

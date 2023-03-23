@@ -43,11 +43,15 @@ func (s *gater) Update(id peer.ID, score float64) {
 	if score < PeerScoreThreshold && s.banEnabled {
 		s.log.Warn("peer blocking enabled, blocking peer", "id", id.String(), "score", score)
 		err := s.connGater.BlockPeer(id)
-		s.log.Warn("connection gater failed to block peer", id.String(), "err", err)
+		if err != nil {
+			s.log.Warn("connection gater failed to block peer", "id", id.String(), "err", err)
+		}
 	}
 	// Unblock peers whose score has recovered to an acceptable level
 	if (score > PeerScoreThreshold) && slices.Contains(s.connGater.ListBlockedPeers(), id) {
 		err := s.connGater.UnblockPeer(id)
-		s.log.Warn("connection gater failed to unblock peer", id.String(), "err", err)
+		if err != nil {
+			s.log.Warn("connection gater failed to unblock peer", "id", id.String(), "err", err)
+		}
 	}
 }
