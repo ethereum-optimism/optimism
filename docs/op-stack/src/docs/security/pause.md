@@ -7,7 +7,7 @@ lang: en-US
 ## Why do it?
 
 The bridge allows movement between blockchains. 
-If the security of a blockchain is compromised, pausing the bridge will mitigate damage until the issue is resolved.
+If the security of a blockchain is compromised, pausing bridge withdrawals will mitigate damage until the issue is resolved.
 
 ## Who can do it?
 
@@ -24,6 +24,7 @@ The guardian is immutable, there is no way to change it while using the same con
 Luckily, it isn't supposed to be called directly, but through a proxy.
 [You can tell the proxy to go to a new contract](../build/tutorials/new-precomp.md).
 
+<!--
 ## Seeing it in action
 
 1. Set these environment variables
@@ -80,3 +81,4 @@ Luckily, it isn't supposed to be called directly, but through a proxy.
    ```sh
    cast send --private-key $PRIV_KEY $PORTAL_ADDR "pause()"
    ```
+-->
