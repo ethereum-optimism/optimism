@@ -20,7 +20,9 @@ type L2EndpointSetup interface {
 }
 
 type L2SyncEndpointSetup interface {
-	Setup(ctx context.Context, log log.Logger) (cl client.RPC, err error)
+	// Setup a RPC client to another L2 node to sync L2 blocks from.
+	// It may return a nil client with nil error if RPC based sync is not enabled.
+	Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, err error)
 	Check() error
 }
 
@@ -82,45 +84,45 @@ func (p *PreparedL2Endpoints) Setup(ctx context.Context, log log.Logger) (client
 
 // L2SyncEndpointConfig contains configuration for the fallback sync endpoint
 type L2SyncEndpointConfig struct {
-	// Address of the L2 RPC to use for backup sync
+	// Address of the L2 RPC to use for backup sync, may be empty if RPC alt-sync is disabled.
 	L2NodeAddr string
+	TrustRPC   bool
 }
 
 var _ L2SyncEndpointSetup = (*L2SyncEndpointConfig)(nil)
 
-func (cfg *L2SyncEndpointConfig) Setup(ctx context.Context, log log.Logger) (client.RPC, error) {
+// Setup creates an RPC client to sync from.
+// It will return nil without error if no sync method is configured.
+func (cfg *L2SyncEndpointConfig) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, err error) {
+	if cfg.L2NodeAddr == "" {
+		return nil, false, nil
+	}
 	l2Node, err := client.NewRPC(ctx, log, cfg.L2NodeAddr)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return l2Node, nil
+	return l2Node, cfg.TrustRPC, nil
 }
 
 func (cfg *L2SyncEndpointConfig) Check() error {
-	if cfg.L2NodeAddr == "" {
-		return errors.New("empty L2 Node Address")
-	}
-
+	// empty addr is valid, as it is optional.
 	return nil
 }
 
-type L2SyncRPCConfig struct {
-	// RPC endpoint to use for syncing
-	Rpc client.RPC
+type PreparedL2SyncEndpoint struct {
+	// RPC endpoint to use for syncing, may be nil if RPC alt-sync is disabled.
+	Client   client.RPC
+	TrustRPC bool
 }
 
-var _ L2SyncEndpointSetup = (*L2SyncRPCConfig)(nil)
+var _ L2SyncEndpointSetup = (*PreparedL2SyncEndpoint)(nil)
 
-func (cfg *L2SyncRPCConfig) Setup(ctx context.Context, log log.Logger) (client.RPC, error) {
-	return cfg.Rpc, nil
+func (cfg *PreparedL2SyncEndpoint) Setup(ctx context.Context, log log.Logger) (cl client.RPC, trust bool, err error) {
+	return cfg.Client, cfg.TrustRPC, nil
 }
 
-func (cfg *L2SyncRPCConfig) Check() error {
-	if cfg.Rpc == nil {
-		return errors.New("rpc cannot be nil")
-	}
-
+func (cfg *PreparedL2SyncEndpoint) Check() error {
 	return nil
 }
 

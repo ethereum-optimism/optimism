@@ -58,6 +58,10 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 		return nil, fmt.Errorf("failed to load p2p peer scoring options: %w", err)
 	}
 
+	if err := loadPeerScoreBands(conf, ctx); err != nil {
+		return nil, fmt.Errorf("failed to load p2p peer score bands: %w", err)
+	}
+
 	if err := loadBanningOption(conf, ctx); err != nil {
 		return nil, fmt.Errorf("failed to load banning option: %w", err)
 	}
@@ -118,6 +122,17 @@ func loadPeerScoringParams(conf *p2p.Config, ctx *cli.Context, blockTime uint64)
 		conf.PeerScoring = peerScoreParams
 	}
 
+	return nil
+}
+
+// loadPeerScoreBands loads [p2p.BandScorer] from the CLI context.
+func loadPeerScoreBands(conf *p2p.Config, ctx *cli.Context) error {
+	scoreBands := ctx.GlobalString(flags.PeerScoreBands.Name)
+	bandScorer, err := p2p.NewBandScorer(scoreBands)
+	if err != nil {
+		return err
+	}
+	conf.BandScoreThresholds = *bandScorer
 	return nil
 }
 
