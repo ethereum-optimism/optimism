@@ -80,6 +80,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 		From:                      fromAddress,
+		ChainID:                   rcfg.L1ChainID,
 		Signer:                    signer(rcfg.L1ChainID),
 	}
 

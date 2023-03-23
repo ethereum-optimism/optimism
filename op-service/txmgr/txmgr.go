@@ -41,6 +41,9 @@ type Config struct {
 	// attempted.
 	ResubmissionTimeout time.Duration
 
+	// ChainID is the chain ID of the L1 chain.
+	ChainID *big.Int
+
 	// NetworkTimeout is the allowed duration for a single network request.
 	// This is intended to be used for network requests that can be replayed.
 	//
@@ -109,8 +112,6 @@ type ETHBackend interface {
 	/// EstimateGas returns an estimate of the amount of gas needed to execute the given
 	/// transaction against the current pending block.
 	EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error)
-	// ChainID returns the chain ID for this ethereum chain.
-	ChainID(ctx context.Context) (*big.Int, error)
 }
 
 // SimpleTxManager is a implementation of TxManager that performs linear fee
@@ -182,18 +183,6 @@ func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*
 	nonce, err := m.backend.NonceAt(childCtx, candidate.From, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
-	}
-
-	// If the configured chain ID is nil (can occur if the fetch fails in the constructor),
-	// we need to try to fetch it again from the backend.
-	if m.chainID == nil {
-		childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
-		defer cancel()
-		chainID, err := m.backend.ChainID(childCtx)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get chain ID: %w", err)
-		}
-		m.chainID = chainID
 	}
 
 	rawTx := &types.DynamicFeeTx{
@@ -329,11 +318,8 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBacken
 		cfg.NetworkTimeout = 2 * time.Second
 	}
 
-	// On error, ignore. We will try to get the chainID again when used.
-	chainID, _ := backend.ChainID(context.Background())
-
 	return &SimpleTxManager{
-		chainID: chainID,
+		chainID: cfg.ChainID,
 		name:    name,
 		Config:  cfg,
 		backend: backend,

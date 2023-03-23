@@ -166,12 +166,18 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger) (*L2OutputSu
 		return nil, err
 	}
 
+	chainID, err := l1Client.ChainID(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
 	txMgrConfg := txmgr.Config{
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ReceiptQueryInterval:      time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 		From:                      fromAddress,
+		ChainID:                   chainID,
 	}
 
 	proposerCfg := Config{
