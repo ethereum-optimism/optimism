@@ -64,7 +64,7 @@ abstract contract ResourceMetering is Initializable {
         // Update block number and base fee if necessary.
         uint256 blockDiff = block.number - params.prevBlockNum;
 
-        SystemConfig.ResourceConfig memory config = resourceConfig();
+        SystemConfig.ResourceConfig memory config = _resourceConfig();
         int256 targetResourceLimit = int256(uint256(config.maxResourceLimit)) / int256(uint256(config.elasticityMultiplier));
 
         if (blockDiff > 0) {
@@ -136,7 +136,7 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice
      */
-    function resourceConfig() public virtual returns (SystemConfig.ResourceConfig memory);
+    function _resourceConfig() internal virtual returns (SystemConfig.ResourceConfig memory);
 
     /**
      * @notice Sets initial resource parameter values. This function must either be called by the
@@ -144,10 +144,8 @@ abstract contract ResourceMetering is Initializable {
      */
     // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
-        SystemConfig.ResourceConfig memory config = resourceConfig();
-
         params = ResourceParams({
-            prevBaseFee: config.minimumBaseFee,
+            prevBaseFee: 1 gwei,
             prevBoughtGas: 0,
             prevBlockNum: uint64(block.number)
         });

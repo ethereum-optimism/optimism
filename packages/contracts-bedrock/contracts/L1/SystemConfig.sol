@@ -238,10 +238,16 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         }
     }
 
+    /**
+     * @notice
+     */
     function resourceConfig() external view returns (ResourceConfig memory) {
         return _resourceConfig;
     }
 
+    /**
+     * @notice
+     */
     function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
 
@@ -249,6 +255,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         emit ConfigUpdate(VERSION, UpdateType.RESOURCE_CONFIG, data);
     }
 
+    /**
+     * @notice
+     */
     function _setResourceConfig(ResourceConfig memory _config) internal {
         require(_config.minimumBaseFee <= _config.maximumBaseFee);
         require(_config.baseFeeMaxChangeDenominator > 0);
@@ -257,6 +266,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         _resourceConfig = _config;
     }
 
+    /**
+     * @notice
+     */
     function minimumGasLimit() public view returns (uint256) {
         return _resourceConfig.maxResourceLimit + _resourceConfig.systemTxMaxGas;
     }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
@@ -67,6 +68,26 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	portalABI, err := bindings.OptimismPortalMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	// Initialize the OptimismPortal without being paused
+	data, err := portalABI.Pack("initialize", false)
+	if err != nil {
+		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
+	}
+	if _, err := upgradeProxy(
+		backend,
+		opts,
+		depsByName["OptimismPortalProxy"].Address,
+		depsByName["OptimismPortal"].Address,
+		data,
+	); err != nil {
+		return nil, fmt.Errorf("cannot upgrade OptimismPortalProxy: %w", err)
+	}
+
 	sysCfgABI, err := bindings.SystemConfigMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -75,7 +96,13 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 	if gasLimit == 0 {
 		gasLimit = defaultL2GasLimit
 	}
-	data, err := sysCfgABI.Pack(
+
+	uint128Max, ok := new(big.Int).SetString("ffffffffffffffffffffffffffffffff", 16)
+	if !ok {
+		return nil, errors.New("bad uint128Max")
+	}
+
+	data, err = sysCfgABI.Pack(
 		"initialize",
 		config.FinalSystemOwner,
 		uint642Big(config.GasPriceOracleOverhead),
@@ -83,6 +110,14 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		config.BatchSenderAddress.Hash(),
 		gasLimit,
 		config.P2PSequencerAddress,
+		bindings.SystemConfigResourceConfig{
+			MaxResourceLimit:            20_000_000,
+			ElasticityMultiplier:        10,
+			BaseFeeMaxChangeDenominator: 8,
+			MinimumBaseFee:              params.GWei,
+			SystemTxMaxGas:              1_000_000,
+			MaximumBaseFee:              uint128Max,
+		},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("cannot abi encode initialize for SystemConfig: %w", err)
@@ -94,7 +129,7 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		depsByName["SystemConfig"].Address,
 		data,
 	); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot upgrade SystemConfigProxy: %w", err)
 	}
 
 	l2ooABI, err := bindings.L2OutputOracleMetaData.GetAbi()
@@ -119,24 +154,6 @@ func BuildL1DeveloperGenesis(config *DeployConfig) (*core.Genesis, error) {
 		return nil, err
 	}
 
-	portalABI, err := bindings.OptimismPortalMetaData.GetAbi()
-	if err != nil {
-		return nil, err
-	}
-	// Initialize the OptimismPortal without being paused
-	data, err = portalABI.Pack("initialize", false)
-	if err != nil {
-		return nil, fmt.Errorf("cannot abi encode initialize for OptimismPortal: %w", err)
-	}
-	if _, err := upgradeProxy(
-		backend,
-		opts,
-		depsByName["OptimismPortalProxy"].Address,
-		depsByName["OptimismPortal"].Address,
-		data,
-	); err != nil {
-		return nil, err
-	}
 	l1XDMABI, err := bindings.L1CrossDomainMessengerMetaData.GetAbi()
 	if err != nil {
 		return nil, err
@@ -264,6 +281,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 	if gasLimit == 0 {
 		gasLimit = defaultL2GasLimit
 	}
+
 	constructors = append(constructors, []deployer.Constructor{
 		{
 			Name: "SystemConfig",
@@ -297,6 +315,7 @@ func deployL1Contracts(config *DeployConfig, backend *backends.SimulatedBackend)
 				predeploys.DevL2OutputOracleAddr,
 				config.PortalGuardian,
 				true, // _paused
+				predeploys.DevSystemConfigAddr,
 			},
 		},
 		{
@@ -362,6 +381,7 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 			deployment.Args[0].(common.Address),
 			deployment.Args[1].(common.Address),
 			deployment.Args[2].(bool),
+			deployment.Args[3].(common.Address),
 		)
 	case "L1CrossDomainMessenger":
 		_, tx, _, err = bindings.DeployL1CrossDomainMessenger(
@@ -421,6 +441,15 @@ func l1Deployer(backend *backends.SimulatedBackend, opts *bind.TransactOpts, dep
 
 func upgradeProxy(backend *backends.SimulatedBackend, opts *bind.TransactOpts, proxyAddr common.Address, implAddr common.Address, callData []byte) (*types.Transaction, error) {
 	var tx *types.Transaction
+
+	code, err := backend.CodeAt(context.Background(), implAddr, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(code) == 0 {
+		return nil, fmt.Errorf("no code at %s", implAddr)
+	}
+
 	proxy, err := bindings.NewProxy(proxyAddr, backend)
 	if err != nil {
 		return nil, err

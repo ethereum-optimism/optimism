@@ -25,7 +25,11 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public pure override returns (SystemConfig.ResourceConfig memory) {
+    function resourceConfig() public pure returns (SystemConfig.ResourceConfig memory) {
+        return _resourceConfig();
+    }
+
+    function _resourceConfig() internal pure override returns (SystemConfig.ResourceConfig memory) {
         SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,

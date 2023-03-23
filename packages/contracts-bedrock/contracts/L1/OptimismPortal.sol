@@ -45,12 +45,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /**
-     * @notice Address of the L2OutputOracle.
+     * @notice Address of the L2OutputOracle contract.
      */
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
-     *
+     * @notice Address of the SystemConfig contract.
      */
     SystemConfig public immutable SYSTEM_CONFIG;
 
@@ -209,7 +209,7 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice
      */
-    function resourceConfig() public view override returns (SystemConfig.ResourceConfig memory) {
+    function _resourceConfig() internal view override returns (SystemConfig.ResourceConfig memory) {
         return SYSTEM_CONFIG.resourceConfig();
     }
 

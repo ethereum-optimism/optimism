@@ -1050,7 +1050,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = p.params();
 
-        SystemConfig.ResourceConfig memory rcfg = p.resourceConfig();
+        SystemConfig.ResourceConfig memory rcfg = systemConfig.resourceConfig();
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);

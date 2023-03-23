@@ -15,7 +15,11 @@ contract MeterUser is ResourceMetering {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public override pure returns (SystemConfig.ResourceConfig memory) {
+    function resourceConfig() public pure returns (SystemConfig.ResourceConfig memory) {
+        return _resourceConfig();
+    }
+
+    function _resourceConfig() internal override pure returns (SystemConfig.ResourceConfig memory) {
         SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
@@ -180,7 +184,7 @@ contract CustomMeterUser is ResourceMetering {
         });
     }
 
-    function resourceConfig() public override pure returns (SystemConfig.ResourceConfig memory) {
+    function _resourceConfig() internal override pure returns (SystemConfig.ResourceConfig memory) {
         SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
