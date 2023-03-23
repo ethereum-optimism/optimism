@@ -84,15 +84,13 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	}
 
 	batcherCfg := Config{
-		L1Client:             l1Client,
-		L2Client:             l2Client,
-		RollupNode:           rollupClient,
-		PollInterval:         cfg.PollInterval,
-		TxManagerConfig:      txManagerConfig,
-		TxManagerTimeout:     cfg.TxManagerTimeout,
-		OfflineGasEstimation: cfg.OfflineGasEstimation,
-		From:                 fromAddress,
-		Rollup:               rcfg,
+		L1Client:        l1Client,
+		L2Client:        l2Client,
+		RollupNode:      rollupClient,
+		PollInterval:    cfg.PollInterval,
+		TxManagerConfig: txManagerConfig,
+		From:            fromAddress,
+		Rollup:          rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -227,7 +225,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
 func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
-	ctx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
+	ctx, cancel := context.WithTimeout(ctx, txManagerTimeout)
 	defer cancel()
 	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
@@ -245,7 +243,7 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 // calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
 // It also takes care of initializing some local state (i.e. will modify l.lastStoredBlock in certain conditions)
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
-	childCtx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
+	childCtx, cancel := context.WithTimeout(ctx, txManagerTimeout)
 	defer cancel()
 	syncStatus, err := l.RollupNode.SyncStatus(childCtx)
 	// Ensure that we have the sync status
@@ -337,19 +335,21 @@ func (l *BatchSubmitter) loop() {
 	}
 }
 
+const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
+
+// fix(refcell):
+// combined with above, these config variables should also be replicated in the op-proposer
+// along with op-proposer changes to include the updated tx manager
+const txManagerTimeout = 2 * time.Minute // How long the tx manager can take to send a transaction.
+
 // SendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
 func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
-	// Do the gas estimation offline if specified
-	// A value of 0 will cause the [txmgr] to estimate the gas limit.
-	var gas uint64
-	if l.OfflineGasEstimation {
-		intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
-		if err != nil {
-			return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
-		}
-		gas = intrinsicGas
+	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
+	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}
 
 	// Create the transaction
@@ -357,14 +357,14 @@ func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*typ
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
 		From:     l.From,
-		GasLimit: gas,
+		GasLimit: intrinsicGas,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tx: %w", err)
 	}
 
 	// Send the transaction through the txmgr
-	ctx, cancel := context.WithTimeout(ctx, l.TxManagerTimeout)
+	ctx, cancel := context.WithTimeout(ctx, txManagerTimeout)
 	defer cancel()
 	if receipt, err := l.txMgr.Send(ctx, tx); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))

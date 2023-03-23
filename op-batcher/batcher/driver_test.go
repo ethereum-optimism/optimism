@@ -27,9 +27,8 @@ func TestSendTransaction(t *testing.T) {
 	sender := common.HexToAddress("0xdeadbeef")
 	bs := BatchSubmitter{
 		Config: Config{
-			log:                  log,
-			From:                 sender,
-			OfflineGasEstimation: false,
+			log:  log,
+			From: sender,
 			Rollup: &rollup.Config{
 				L1ChainID:         chainID,
 				BatchInboxAddress: batcherInboxAddress,

@@ -31,15 +31,6 @@ type Config struct {
 	From         common.Address
 
 	TxManagerConfig txmgr.Config
-	NetworkTimeout  time.Duration
-
-	// TxManagerTimeout is the maximum amount of time
-	// the driver should wait for the [txmgr] to send a transaction.
-	TxManagerTimeout time.Duration
-
-	// OfflineGasEstimation specifies whether the batcher should calculate
-	// gas estimations offline using the [core.IntrinsicGas] function.
-	OfflineGasEstimation bool
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
