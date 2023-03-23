@@ -117,13 +117,13 @@ FROM base as replica-healthcheck
 WORKDIR /opt/optimism/packages/replica-healthcheck
 ENTRYPOINT ["npm", "run", "start"]
 
+FROM base as balance-mon
+WORKDIR /opt/optimism/packages/chain-mon
+ENTRYPOINT ["npm", "run", "start:balance-mon"]
+
 FROM base as drippie-mon
 WORKDIR /opt/optimism/packages/chain-mon
 ENTRYPOINT ["npm", "run", "start:drippie-mon"]
-
-FROM base as balance-monitor
-WORKDIR /opt/optimism/packages/balance-monitor
-ENTRYPOINT ["yarn", "run", "start:prod"]
 
 FROM base as wd-mon
 WORKDIR /opt/optimism/packages/chain-mon

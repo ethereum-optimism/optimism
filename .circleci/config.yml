@@ -1030,12 +1030,6 @@ workflows:
           dependencies: "(contracts|core-utils)"
           requires:
             - yarn-monorepo
-      - js-lint-test:
-          name: balance-monitor-tests
-          coverage_flag: balance-monitor-tests
-          package_name: balance-monitor
-          requires:
-            - yarn-monorepo
       - depcheck:
           requires:
             - yarn-monorepo
