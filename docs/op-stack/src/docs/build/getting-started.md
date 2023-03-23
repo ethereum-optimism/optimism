@@ -201,7 +201,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
     - Replace `"BATCHER"` with the address of the Batcher account you generated earlier.
     - Replace `"SEQUENCER"` with the address of the Sequencer account you generated earlier.
     - Replace `"BLOCKHASH"` with the blockhash you got from the `cast` command.
-    - Replace `"TIMESTAMP"` with the timestamp you got from the `cast` command. Note that although all the other fields are strings, this field is a number! Don’t include the quotation marks.
+    - Replace `TIMESTAMP` with the timestamp you got from the `cast` command. Note that although all the other fields are strings, this field is a number! Don’t include the quotation marks.
 
 ## Deploy the L1 contracts
 
