@@ -21,14 +21,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
      * @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
      *                                    block distrubution.
-     * @custom:value RESOURCE_CONFIG      Represents an update to the resource config.
      */
     enum UpdateType {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER,
-        RESOURCE_CONFIG
+        UNSAFE_BLOCK_SIGNER
     }
 
     /**
@@ -269,14 +267,14 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice An external setter for the resource config.
+     * @notice An external setter for the resource config. In the future, this
+     *         method may emit an event that the `op-node` picks up for when the
+     *         resource config is changed.
+     *
      * @param _config The new resource config values.
      */
     function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
-
-        bytes memory data = abi.encode(_config);
-        emit ConfigUpdate(VERSION, UpdateType.RESOURCE_CONFIG, data);
     }
 
     /**
