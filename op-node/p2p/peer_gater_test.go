@@ -44,6 +44,9 @@ func (testSuite *PeerGaterTestSuite) TestPeerGaterUpdate() {
 		true,
 	)
 
+	// Return an empty list of already blocked peers
+	testSuite.mockGater.On("ListBlockedPeers").Return([]peer.ID{})
+
 	// Mock a connection gater peer block call
 	// Since the peer score is below the [PeerScoreThreshold] of -100,
 	// the [BlockPeer] method should be called
@@ -60,6 +63,9 @@ func (testSuite *PeerGaterTestSuite) TestPeerGaterUpdateNoBanning() {
 		testSuite.logger,
 		false,
 	)
+
+	// Return an empty list of already blocked peers
+	testSuite.mockGater.On("ListBlockedPeers").Return([]peer.ID{})
 
 	// Notice: [BlockPeer] should not be called since banning is not enabled
 	gater.Update(peer.ID("peer1"), float64(-100000))
