@@ -21,6 +21,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @custom:value GAS_LIMIT            Represents an update to gas limit on L2.
      * @custom:value UNSAFE_BLOCK_SIGNER  Represents an update to the signer key for unsafe
      *                                    block distrubution.
+     * @custom:value RESOURCE_CONFIG      Represents an update to the resource config.
      */
     enum UpdateType {
         BATCHER,
@@ -31,7 +32,25 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     }
 
     /**
-     * @notice
+     * @notice Represents the configuration for the EIP-1559 based curve for
+     *         the deposit gas market. These values should be set with care
+     *         as it is possible to set them in a way that breaks the deposit
+     *         gas market. The target resource limit is defined as
+     *         maxResourceLimit / elasticityMultiplier.
+     *         This struct was designed to fit within a single word. There is
+     *         additional space for additions in the future.
+     *
+     * @custom:field maxResourceLimit             Represents the maximum amount of deposit
+     *                                            gas that can be purchased per block.
+     * @custom:field elasticityMultiplier         Determines the target resource limit
+     *                                            along with the resource limit.
+     * @custom:field baseFeeMaxChangeDenominator  Determines max change on fee per block.
+     * @custom:field minimumBaseFee               The min deposit base fee, it is clamped to this
+     *                                            value.
+     * @custom:field systemTxMaxGas               The amount of gas supplied to the system
+     *                                            transaction.
+     * @custom:field maximumBaseFee               The max deposit base fee, it is clamped to this
+     *                                            value.
      */
     struct ResourceConfig {
         uint32 maxResourceLimit;
@@ -136,6 +155,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _batcherHash       Initial batcher hash.
      * @param _gasLimit          Initial gas limit.
      * @param _unsafeBlockSigner Initial unsafe block signer address.
+     * @param _config            Initial ResourceConfig.
      */
     function initialize(
         address _owner,
@@ -227,7 +247,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @notice Low level setter for the unsafe block signer address. This function exists to
-     *         deduplicate code arou,nd storing the unsafeBlockSigner address in storage.
+     *         deduplicate code around storing the unsafeBlockSigner address in storage.
      *
      * @param _unsafeBlockSigner New unsafeBlockSigner value.
      */
@@ -247,6 +267,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @notice An external setter for the resource config.
+     * @param _config The new resource config values.
      */
     function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
@@ -257,7 +278,14 @@ contract SystemConfig is OwnableUpgradeable, Semver {
 
     /**
      * @notice An internal setter for the resource config. Ensures that the
-     *         config is sane before storing it.
+     *         config is sane before storing it. Holds the following invariants:
+     *         - min base fee must be less than or equal to max base fee
+     *         - base fee change denominator must be greater than 0
+     *         - max resource limit plus system tx gas must be less than or
+     *           equal to the L2 gas limit
+     *         - elasticity multiplier must be greater than 0
+     *
+     * @param _config The new resource config
      */
     function _setResourceConfig(ResourceConfig memory _config) internal {
         require(
@@ -272,13 +300,25 @@ contract SystemConfig is OwnableUpgradeable, Semver {
             _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
             "SystemConfig: gas limit too low"
         );
+        require(
+            _config.elasticityMultiplier > 0,
+            "SystemConfig: elasticity multiplier cannot be 0"
+        );
+        require(
+            ((_config.maxResourceLimit / _config.elasticityMultiplier) *
+                _config.elasticityMultiplier) == _config.maxResourceLimit,
+            "SystemConfig: precision loss with max and elasticity"
+        );
 
         _resourceConfig = _config;
     }
 
     /**
      * @notice Returns the minimum L2 gas limit that can be safely set for the system to
-     *         operate.
+     *         operate. The L2 gas limit must be larger than or equal to the amount of
+     *         gas that is allocated for deposits per block plus the amount of gas that
+     *         is allocated for the system transaction.
+     *         This function is used to determine if changes to parameters are safe.
      */
     function minimumGasLimit() public view returns (uint64) {
         return uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
