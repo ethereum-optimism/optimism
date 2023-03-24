@@ -72,6 +72,7 @@ func NewL1Replica(t Testing, log log.Logger, genesis *core.Genesis) *L1Replica {
 
 	backend, err := eth.New(n, ethCfg)
 	require.NoError(t, err)
+	backend.Merger().FinalizePoS()
 
 	n.RegisterAPIs(tracers.APIs(backend.APIBackend))
 
