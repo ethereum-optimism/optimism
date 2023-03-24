@@ -5,6 +5,7 @@ import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "../universal/Semver.sol";
+import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
  * @title SystemConfig
@@ -27,38 +28,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         GAS_CONFIG,
         GAS_LIMIT,
         UNSAFE_BLOCK_SIGNER
-    }
-
-    /**
-     * @notice Represents the configuration for the EIP-1559 based curve for
-     *         the deposit gas market. These values should be set with care
-     *         as it is possible to set them in a way that breaks the deposit
-     *         gas market. The target resource limit is defined as
-     *         maxResourceLimit / elasticityMultiplier.
-     *         This struct was designed to fit within a single word. There is
-     *         additional space for additions in the future.
-     *
-     * @custom:field maxResourceLimit             Represents the maximum amount of deposit
-     *                                            gas that can be purchased per block.
-     * @custom:field elasticityMultiplier         Determines the target resource limit
-     *                                            along with the resource limit.
-     * @custom:field baseFeeMaxChangeDenominator  Determines max change on fee per block.
-     * @custom:field minimumBaseFee               The min deposit base fee, it is clamped to this
-     *                                            value.
-     * @custom:field systemTxMaxGas               The amount of gas supplied to the system
-     *                                            transaction. This should be set to the same number
-     *                                            that the op-node sets as the gas limit for the
-     *                                            system transaction.
-     * @custom:field maximumBaseFee               The max deposit base fee, it is clamped to this
-     *                                            value.
-     */
-    struct ResourceConfig {
-        uint32 maxResourceLimit;
-        uint8 elasticityMultiplier;
-        uint8 baseFeeMaxChangeDenominator;
-        uint32 minimumBaseFee;
-        uint32 systemTxMaxGas;
-        uint128 maximumBaseFee;
     }
 
     /**
@@ -106,7 +75,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *         to meter the cost of buying L2 gas on L1. Set as internal and wrapped with a getter
      *         so that the struct is returned instead of a tuple.
      */
-    ResourceConfig internal _resourceConfig;
+    ResourceMetering.ResourceConfig internal _resourceConfig;
 
     /**
      * @notice Emitted when configuration is updated
@@ -135,7 +104,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceConfig memory _config
+        ResourceMetering.ResourceConfig memory _config
     ) Semver(1, 1, 0) {
         initialize({
             _owner: _owner,
@@ -167,7 +136,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         bytes32 _batcherHash,
         uint64 _gasLimit,
         address _unsafeBlockSigner,
-        ResourceConfig memory _config
+        ResourceMetering.ResourceConfig memory _config
     ) public initializer {
         __Ownable_init();
         transferOwnership(_owner);
@@ -279,7 +248,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *
      * @return ResourceConfig
      */
-    function resourceConfig() external view returns (ResourceConfig memory) {
+    function resourceConfig() external view returns (ResourceMetering.ResourceConfig memory) {
         return _resourceConfig;
     }
 
@@ -290,7 +259,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *
      * @param _config The new resource config values.
      */
-    function setResourceConfig(ResourceConfig memory _config) external onlyOwner {
+    function setResourceConfig(ResourceMetering.ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
     }
 
@@ -300,7 +269,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      *
      * @param _config The new resource config
      */
-    function _setResourceConfig(ResourceConfig memory _config) internal {
+    function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // min base fee must be less than or equal to max base fee
         require(
             _config.minimumBaseFee <= _config.maximumBaseFee,

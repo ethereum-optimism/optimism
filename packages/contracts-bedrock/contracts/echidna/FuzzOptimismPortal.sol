@@ -4,13 +4,14 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
 import { AddressAliasHelper } from "../vendor/AddressAliasHelper.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
 contract EchidnaFuzzOptimismPortal {
     OptimismPortal internal portal;
     bool internal failedToComplete;
 
     constructor() {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,

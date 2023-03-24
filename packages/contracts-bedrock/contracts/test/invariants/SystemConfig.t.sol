@@ -2,19 +2,14 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { SystemConfig } from "../../L1/SystemConfig.sol";
+import { ResourceMetering } from "../../L1/ResourceMetering.sol";
+import { Constants } from "../../libraries/Constants.sol";
 
 contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
 
     function setUp() public {
-        SystemConfig.ResourceConfig memory cfg = SystemConfig.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
+        ResourceMetering.ResourceConfig memory cfg = Constants.DEFAULT_RESOURCE_CONFIG();
 
         config = new SystemConfig({
             _owner: address(0xbeef),

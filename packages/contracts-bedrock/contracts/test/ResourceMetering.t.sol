@@ -3,8 +3,8 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
-import { SystemConfig } from "../L1/SystemConfig.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 contract MeterUser is ResourceMetering {
     constructor() {
@@ -15,20 +15,12 @@ contract MeterUser is ResourceMetering {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public pure returns (SystemConfig.ResourceConfig memory) {
+    function resourceConfig() public pure returns (ResourceMetering.ResourceConfig memory) {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (SystemConfig.ResourceConfig memory) {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
-        return config;
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+        return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
     function use(uint64 _amount) public metered(_amount) {}
@@ -62,7 +54,7 @@ contract ResourceMetering_Test is Test {
 
     function test_meter_initialResourceParams_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
-        SystemConfig.ResourceConfig memory rcfg = meter.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
 
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
@@ -111,7 +103,7 @@ contract ResourceMetering_Test is Test {
     }
 
     function test_meter_updateNoGasDelta_succeeds() external {
-        SystemConfig.ResourceConfig memory rcfg = meter.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint256 target = uint256(rcfg.maxResourceLimit) / uint256(rcfg.elasticityMultiplier);
         meter.use(uint64(target));
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
@@ -122,7 +114,7 @@ contract ResourceMetering_Test is Test {
     }
 
     function test_meter_useMax_succeeds() external {
-        SystemConfig.ResourceConfig memory rcfg = meter.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
@@ -138,7 +130,7 @@ contract ResourceMetering_Test is Test {
     }
 
     function test_meter_useMoreThanMax_reverts() external {
-        SystemConfig.ResourceConfig memory rcfg = meter.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
@@ -153,7 +145,7 @@ contract ResourceMetering_Test is Test {
         // At 12 seconds per block, this number is effectively unreachable.
         vm.assume(_blockDiff < 433576281058164217753225238677900874458691);
 
-        SystemConfig.ResourceConfig memory rcfg = meter.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
         uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
         uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
 
@@ -184,16 +176,8 @@ contract CustomMeterUser is ResourceMetering {
         });
     }
 
-    function _resourceConfig() internal pure override returns (SystemConfig.ResourceConfig memory) {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
-        return config;
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+        return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
     function use(uint64 _amount) public returns (uint256) {
@@ -238,7 +222,7 @@ contract ArtifactResourceMetering_Test is Test {
         vm.roll(1_000_000);
 
         MeterUser base = new MeterUser();
-        SystemConfig.ResourceConfig memory rcfg = base.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = base.resourceConfig();
         minimumBaseFee = uint128(rcfg.minimumBaseFee);
         maximumBaseFee = rcfg.maximumBaseFee;
         maxResourceLimit = uint64(rcfg.maxResourceLimit);

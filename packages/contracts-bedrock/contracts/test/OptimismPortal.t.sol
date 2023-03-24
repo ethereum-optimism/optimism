@@ -9,7 +9,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
-import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
     event Paused(address);
@@ -1050,7 +1050,7 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
 
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = p.params();
 
-        SystemConfig.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
         assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);

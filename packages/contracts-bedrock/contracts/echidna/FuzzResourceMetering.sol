@@ -1,7 +1,6 @@
 pragma solidity 0.8.15;
 
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
-import { SystemConfig } from "../L1/SystemConfig.sol";
 import { Arithmetic } from "../libraries/Arithmetic.sol";
 import { StdUtils } from "forge-std/Test.sol";
 
@@ -25,12 +24,12 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         __ResourceMetering_init();
     }
 
-    function resourceConfig() public pure returns (SystemConfig.ResourceConfig memory) {
+    function resourceConfig() public pure returns (ResourceMetering.ResourceConfig memory) {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (SystemConfig.ResourceConfig memory) {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -51,7 +50,7 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         uint256 cachedPrevBoughtGas = uint256(params.prevBoughtGas);
         uint256 cachedPrevBlockNum = uint256(params.prevBlockNum);
 
-        SystemConfig.ResourceConfig memory rcfg = resourceConfig();
+        ResourceMetering.ResourceConfig memory rcfg = resourceConfig();
         uint256 targetResourceLimit = uint256(rcfg.maxResourceLimit) /
             uint256(rcfg.elasticityMultiplier);
 

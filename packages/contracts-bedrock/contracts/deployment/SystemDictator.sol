@@ -16,6 +16,7 @@ import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
 /**
  * @title SystemDictator
@@ -79,7 +80,7 @@ contract SystemDictator is OwnableUpgradeable {
         bytes32 batcherHash;
         uint64 gasLimit;
         address unsafeBlockSigner;
-        SystemConfig.ResourceConfig resourceConfig;
+        ResourceMetering.ResourceConfig resourceConfig;
     }
 
     /**
@@ -161,7 +162,7 @@ contract SystemDictator is OwnableUpgradeable {
      *         initialized upon deployment.
      */
     constructor() {
-        SystemConfig.ResourceConfig memory rcfg = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory rcfg = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,

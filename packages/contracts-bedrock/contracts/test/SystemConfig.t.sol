@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { CommonTest } from "./CommonTest.t.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
 contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
@@ -10,7 +11,7 @@ contract SystemConfig_Init is CommonTest {
     function setUp() public virtual override {
         super.setUp();
 
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -35,7 +36,7 @@ contract SystemConfig_Initialize_TestFail is SystemConfig_Init {
     function test_initialize_lowGasLimit_reverts() external {
         uint64 minimumGasLimit = sysConf.minimumGasLimit();
 
-        SystemConfig.ResourceConfig memory cfg = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory cfg = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -80,7 +81,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
 
     function test_setResourceConfig_notOwner_reverts() external {
         vm.expectRevert("Ownable: caller is not the owner");
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -92,7 +93,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 
     function test_setResourceConfig_badMinMax_reverts() external {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -106,7 +107,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 
     function test_setResourceConfig_zeroDenominator_reverts() external {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 0,
@@ -122,7 +123,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     function test_setResourceConfig_lowGasLimit_reverts() external {
         uint64 gasLimit = sysConf.gasLimit();
 
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: uint32(gasLimit),
             elasticityMultiplier: 10,
             baseFeeMaxChangeDenominator: 8,
@@ -136,7 +137,7 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 
     function test_setResourceConfig_badPrecision_reverts() external {
-        SystemConfig.ResourceConfig memory config = SystemConfig.ResourceConfig({
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
             maxResourceLimit: 20_000_000,
             elasticityMultiplier: 11,
             baseFeeMaxChangeDenominator: 8,
