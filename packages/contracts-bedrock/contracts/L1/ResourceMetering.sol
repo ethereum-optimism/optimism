@@ -166,6 +166,8 @@ abstract contract ResourceMetering is Initializable {
     /**
      * @notice Virtual function that returns the resource config. Contracts that inherit this
      *         contract must implement this function.
+     *
+     * @return ResourceConfig
      */
     function _resourceConfig() internal virtual returns (ResourceConfig memory);
 
