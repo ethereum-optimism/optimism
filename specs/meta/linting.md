@@ -24,7 +24,7 @@ Justification for linting rules in [.markdownlint.json](/.markdownlint.json):
 - *no-emphasis-as-heading*: enable emphasized paragraphs
 
 ```shell
-pnpm                   # Install dependencies
+pnpm i                 # Install dependencies
 pnpm lint:specs:check  # Run linter
 pnpm lint:specs:fix    # Fix lint issues
 pnpm lint:specs:toc    # Update TOC docs
