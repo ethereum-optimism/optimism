@@ -27,12 +27,11 @@ type BatchSubmitter struct {
 
 	txMgr txmgr.TxManager
 	wg    sync.WaitGroup
-	done  chan struct{}
 
-	loadCtx    context.Context
-	cancelLoad context.CancelFunc
-	txCtx      context.Context
-	cancelTx   context.CancelFunc
+	shutdownCtx       context.Context
+	cancelShutdownCtx context.CancelFunc
+	killCtx           context.Context
+	cancelKillCtx     context.CancelFunc
 
 	mutex   sync.Mutex
 	running bool
@@ -146,9 +145,8 @@ func (l *BatchSubmitter) Start() error {
 	}
 	l.running = true
 
-	l.done = make(chan struct{})
-	l.loadCtx, l.cancelLoad = context.WithCancel(context.Background())
-	l.txCtx, l.cancelTx = context.WithCancel(context.Background())
+	l.shutdownCtx, l.cancelShutdownCtx = context.WithCancel(context.Background())
+	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
 	l.state.Clear()
 	l.lastStoredBlock = eth.BlockID{}
 
@@ -175,18 +173,9 @@ func (l *BatchSubmitter) Stop(ctx context.Context) error {
 	}
 	l.running = false
 
-	// go routine will call cancelTx() if the passed in ctx is ever Done
-	cancelTx := l.cancelTx
-	wrapped, cancel := context.WithCancel(ctx)
-	defer cancel()
-	go func() {
-		<-wrapped.Done()
-		cancelTx()
-	}()
-
-	l.cancelLoad()
-	close(l.done)
+	l.cancelShutdownCtx()
 	l.wg.Wait()
+	l.cancelKillCtx()
 
 	l.log.Info("Batch Submitter stopped")
 
@@ -302,18 +291,10 @@ func (l *BatchSubmitter) loop() {
 	for {
 		select {
 		case <-ticker.C:
-			// prioritize the `done` condition over the ticker, even though select ordering is randomized
-			select {
-			case <-l.done:
-				l.publishStateToL1(l.txCtx)
-				return
-			default:
-			}
-
-			l.loadBlocksIntoState(l.loadCtx)
-			l.publishStateToL1(l.txCtx)
-		case <-l.done:
-			l.publishStateToL1(l.txCtx)
+			l.loadBlocksIntoState(l.shutdownCtx)
+			l.publishStateToL1(l.killCtx)
+		case <-l.shutdownCtx.Done():
+			l.publishStateToL1(l.killCtx)
 			return
 		}
 	}
@@ -328,7 +309,7 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			l.state.Close()
-		case <-l.done:
+		case <-l.shutdownCtx.Done():
 			l.state.Close()
 		default:
 		}

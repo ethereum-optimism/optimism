@@ -358,8 +358,9 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 
 // Close closes the current pending channel, if one exists, and prevents the
 // creation of any new channels.
-// This ensures that no new frames will be produced, but there may be any number
-// of pending frames produced before this call which should still be published.
+// This ensures that no new blocks will be added to the channel, but there may be any number
+// of frames still produced by calling `OutputFrames()`, which flushes the compression buffer.
+// These frames still need to be published.
 func (s *channelManager) Close() {
 	if s.closed {
 		return
