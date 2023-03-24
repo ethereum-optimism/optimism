@@ -6,7 +6,7 @@ COPY ./gas-oracle /gas-oracle
 
 RUN cd /gas-oracle && make gas-oracle
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 RUN apk add --no-cache ca-certificates jq curl
 COPY --from=builder /gas-oracle/gas-oracle /usr/local/bin/
