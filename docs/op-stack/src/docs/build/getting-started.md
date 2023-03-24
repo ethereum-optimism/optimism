@@ -461,7 +461,7 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
 1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json.json | grep \"address\":
+    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json | grep \"address\":
     ```
 
     You should see a result like the following (**your address will be different**):
@@ -529,39 +529,6 @@ To see your rollup in action, you can use the [Optimism Mainnet Getting Started 
     ```
 
 To use any other development stack, see the getting started tutorial, just replace the Greeter address with the address of your rollup, and the Optimism Goerli URL with `http://localhost:8545`.
-
-## Rollup operations
-
-### Stopping your Rollup
-
-An orderly shutdown is done in the reverse order to the order in which components were started:
-
-1. Stop `op-batcher`.
-1. Stop `op-node`.
-1. Stop `op-geth`.
-
-
-### Starting your Rollup
-
-To restart the blockchain, use the same order of components you did when you initialized it.
-
-1. `op-geth`
-1. `op-node`
-1. `op-batcher`
-
-::: tip Synchronization takes time
-
-`op-batcher` might have warning messages similar to:
-
-```
-WARN [03-21|14:13:55.248] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
-WARN [03-21|14:13:57.328] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
-```
-
-This means that `op-node` is not yet synchronized up to the present time.
-Just wait until it is.
-
-:::
 
 
 ### Errors
