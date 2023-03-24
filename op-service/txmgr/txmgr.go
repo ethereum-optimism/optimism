@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 )
@@ -133,32 +132,67 @@ type TxCandidate struct {
 	From common.Address
 }
 
-// calcGasTipAndFeeCap queries L1 to determine what a suitable miner tip & basefee limit would be for timely inclusion
-func (m *SimpleTxManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap *big.Int, gasFeeCap *big.Int, err error) {
-	childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
-	gasTipCap, err = m.backend.SuggestGasTipCap(childCtx)
-	cancel()
+// calcThresholdValue returns x * priceBumpPercent / 100
+func calcThresholdValue(x *big.Int) *big.Int {
+	threshold := new(big.Int).Mul(priceBumpPercent, x)
+	threshold = threshold.Div(threshold, oneHundred)
+	return threshold
+}
+
+// updateFees takes the old tip/basefee & the new tip/basefee and then suggests
+// a gasTipCap and gasFeeCap that satisfies geth's required fee bumps
+// Geth: FC and Tip must be bumped if any increase
+func updateFees(oldTip, oldFeeCap, newTip, newBaseFee *big.Int, lgr log.Logger) (*big.Int, *big.Int) {
+	newFeeCap := CalcGasFeeCap(newBaseFee, newTip)
+	lgr = lgr.New("old_tip", oldTip, "old_feecap", oldFeeCap, "new_tip", newTip, "new_feecap", newFeeCap)
+	// If the new prices are less than the old price, reuse the old prices
+	if oldTip.Cmp(newTip) >= 0 && oldFeeCap.Cmp(newFeeCap) >= 0 {
+		lgr.Debug("Reusing old tip and feecap")
+		return oldTip, oldFeeCap
+	}
+	// Determine if we need to increase the suggested values
+	thresholdTip := calcThresholdValue(oldTip)
+	thresholdFeeCap := calcThresholdValue(oldFeeCap)
+	if newTip.Cmp(thresholdTip) >= 0 && newFeeCap.Cmp(thresholdFeeCap) >= 0 {
+		lgr.Debug("Using new tip and feecap")
+		return newTip, newFeeCap
+	} else if newTip.Cmp(thresholdTip) >= 0 && newFeeCap.Cmp(thresholdFeeCap) < 0 {
+		// Tip has gone up, but basefee is flat or down.
+		// TODO(CLI-3714): Do we need to recalculate the FC here?
+		lgr.Debug("Using new tip and threshold feecap")
+		return newTip, thresholdFeeCap
+	} else if newTip.Cmp(thresholdTip) < 0 && newFeeCap.Cmp(thresholdFeeCap) >= 0 {
+		// Basefee has gone up, but the tip hasn't. Recalculate the feecap because if the tip went up a lot
+		// not enough of the feecap may be dedicated to paying the basefee.
+		lgr.Debug("Using threshold tip and recalculated feecap")
+		return thresholdTip, CalcGasFeeCap(newBaseFee, thresholdTip)
+
+	} else {
+		// TODO(CLI-3713): Should we skip the bump in this case?
+		lgr.Debug("Using threshold tip and threshold feecap")
+		return thresholdTip, thresholdFeeCap
+	}
+}
+
+// suggestGasPriceCaps suggests what the new tip & new basefee should be based on the current L1 conditions
+func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *big.Int, error) {
+	cCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	defer cancel()
+	tip, err := m.backend.SuggestGasTipCap(cCtx)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get suggested gas tip cap: %w", err)
+		return nil, nil, fmt.Errorf("failed to fetch the suggested gas tip cap: %w", err)
+	} else if tip == nil {
+		return nil, nil, errors.New("the suggested tip was nil")
 	}
-
-	if gasTipCap == nil {
-		m.l.Warn("unexpected unset gasTipCap, using default 2 gwei")
-		gasTipCap = new(big.Int).SetUint64(params.GWei * 2)
+	cCtx, cancel = context.WithTimeout(ctx, m.Config.NetworkTimeout)
+	defer cancel()
+	head, err := m.backend.HeaderByNumber(cCtx, nil)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch the suggested basefee: %w", err)
+	} else if head.BaseFee == nil {
+		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
 	}
-
-	childCtx, cancel = context.WithTimeout(ctx, m.Config.NetworkTimeout)
-	head, err := m.backend.HeaderByNumber(childCtx, nil)
-	cancel()
-	if err != nil || head == nil {
-		return nil, nil, fmt.Errorf("failed to get L1 head block for fee cap: %w", err)
-	}
-	if head.BaseFee == nil {
-		return nil, nil, fmt.Errorf("failed to get L1 basefee in block %d for fee cap", head.Number)
-	}
-	gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
-
-	return gasTipCap, gasFeeCap, nil
+	return tip, head.BaseFee, nil
 }
 
 // craftTx creates the signed transaction
@@ -167,10 +201,11 @@ func (m *SimpleTxManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap *b
 // NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transaction's gas.
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
-	gasTipCap, gasFeeCap, err := m.calcGasTipAndFeeCap(ctx)
+	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		return nil, err
 	}
+	gasFeeCap := CalcGasFeeCap(basefee, gasTipCap)
 
 	// Fetch the sender's nonce from the latest known block (nil `blockNumber`)
 	childCtx, cancel := context.WithTimeout(ctx, m.Config.NetworkTimeout)
@@ -222,71 +257,13 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 // We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
 // act of including the transaction renders the repeat of the transaction invalid.
 func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	var gasTipCap, gasFeeCap *big.Int
-
-	if tip, err := m.backend.SuggestGasTipCap(ctx); err != nil {
+	tip, basefee, err := m.suggestGasPriceCaps(ctx)
+	if err != nil {
 		return nil, err
-	} else if tip == nil {
-		return nil, errors.New("the suggested tip was nil")
-	} else {
-		gasTipCap = tip
 	}
+	gasTipCap, gasFeeCap := updateFees(tx.GasTipCap(), tx.GasFeeCap(), tip, basefee, m.l)
 
-	// Return the same transaction if we don't update any fields.
-	// We do this because ethereum signatures are not deterministic and therefore the transaction hash will change
-	// when we re-sign the tx. We don't want to do that because we want to see ErrAlreadyKnown instead of ErrReplacementUnderpriced
-	var reusedTip, reusedFeeCap bool
-
-	// new = old * (100 + priceBump) / 100
-	// Enforce a min priceBump on the tip. Do this before the feeCap is calculated
-	thresholdTip := new(big.Int).Mul(priceBumpPercent, tx.GasTipCap())
-	thresholdTip = thresholdTip.Div(thresholdTip, oneHundred)
-	if tx.GasTipCapIntCmp(gasTipCap) >= 0 {
-		m.l.Debug("Reusing the previous tip", "previous", tx.GasTipCap(), "suggested", gasTipCap)
-		gasTipCap = tx.GasTipCap()
-		reusedTip = true
-	} else if thresholdTip.Cmp(gasTipCap) > 0 {
-		m.l.Debug("Overriding the tip to enforce a price bump", "previous", tx.GasTipCap(), "suggested", gasTipCap, "new", thresholdTip)
-		gasTipCap = thresholdTip
-	}
-
-	if head, err := m.backend.HeaderByNumber(ctx, nil); err != nil {
-		return nil, err
-	} else if head.BaseFee == nil {
-		return nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")
-	} else {
-		// CalcGasFeeCap ensure that the fee cap is large enough for the tip.
-		gasFeeCap = CalcGasFeeCap(head.BaseFee, gasTipCap)
-	}
-
-	// new = old * (100 + priceBump) / 100
-	// Enforce a min priceBump on the feeCap
-	thresholdFeeCap := new(big.Int).Mul(priceBumpPercent, tx.GasFeeCap())
-	thresholdFeeCap = thresholdFeeCap.Div(thresholdFeeCap, oneHundred)
-	if tx.GasFeeCapIntCmp(gasFeeCap) >= 0 {
-		if reusedTip {
-			m.l.Debug("Reusing the previous fee cap", "previous", tx.GasFeeCap(), "suggested", gasFeeCap)
-			gasFeeCap = tx.GasFeeCap()
-			reusedFeeCap = true
-		} else {
-			m.l.Debug("Overriding the fee cap to enforce a price bump because we increased the tip", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
-			gasFeeCap = thresholdFeeCap
-		}
-	} else if thresholdFeeCap.Cmp(gasFeeCap) > 0 {
-		if reusedTip {
-			// TODO (CLI-3620): Increase the basefee then recompute the feecap
-			m.l.Warn("Overriding the fee cap to enforce a price bump without increasing the tip. Will likely result in ErrReplacementUnderpriced",
-				"previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
-		} else {
-			m.l.Debug("Overriding the fee cap to enforce a price bump", "previous", tx.GasFeeCap(), "suggested", gasFeeCap, "new", thresholdFeeCap)
-		}
-		gasFeeCap = thresholdFeeCap
-	}
-
-	if reusedTip && reusedFeeCap {
+	if tx.GasTipCapIntCmp(gasTipCap) == 0 && tx.GasFeeCapIntCmp(gasFeeCap) == 0 {
 		return tx, nil
 	}
 
