@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/decred/dcrd/dcrec/secp256k1/v4"
+	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -19,6 +21,9 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/p2p"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
+	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -28,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/libp2p/go-libp2p/core/crypto"
+	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
@@ -46,7 +52,7 @@ func TestSystem_PeerScoring(t *testing.T) {
 	cfg.DeployConfig.L1BlockTime = 10
 
 	// Dial the nodes to each other
-	cfg.P2PTopology = map[string][]string{"verifier":  {"sequencer"}}
+	cfg.P2PTopology = map[string][]string{"verifier": {"sequencer"}}
 
 	// Set peer scoring for each node, but without banning
 	for _, node := range cfg.Nodes {
@@ -78,8 +84,7 @@ func TestSystem_PeerScoring(t *testing.T) {
 	cfg.Nodes["sequencer"].Tracer = seqTracer
 	cfg.Nodes["verifier"].Tracer = verifTracer
 
-
-	sys, err := startConfig(cfg)
+	sys, p2pNodes, err := startConfig(&cfg)
 	require.NoError(t, err, "Error starting up system")
 	defer sys.Close()
 
@@ -92,8 +97,11 @@ func TestSystem_PeerScoring(t *testing.T) {
 	// Create a malicious node
 
 	// Connect the malicious verifier node to the mocknet
-	_, err = sys.Mocknet.ConnectPeers(peerA.HostP2P.ID(), cfg.Nodes["verifier"]..HostP2P.ID());
-	require.NoError(t, err, "failed to setup mocknet connection between %s and %s", k, v)
+	verifierPeerID := p2pNodes["verifier"].HostP2P.ID()
+	// TODO: Construct a malicious node and get the peer id here since p2pNodes["malicious"] is nil
+	maliciousPeerID := p2pNodes["malicious"].HostP2P.ID()
+	_, err = sys.Mocknet.ConnectPeers(verifierPeerID, maliciousPeerID)
+	require.NoError(t, err, "failed to setup mocknet connection between %s and %s", verifierPeerID, maliciousPeerID)
 
 	// TODO: Have the malicious verifier node broadcast a tx to the second verifier node
 
@@ -127,7 +135,6 @@ func TestSystem_PeerScoring(t *testing.T) {
 	// Verify that the tx was received via p2p
 	require.Contains(t, received, receiptVerif.BlockHash)
 
-
 	// fmt.Printf("Publishing L2 payload to the first verifier rollup node...")
 	// require.NoError(t, sys.RollupNodes["verifier"].PublishL2Payload(context.Background(), &eth.ExecutionPayload{
 	// 	BlockHash: common.HexToHash("0xdeadbeef"),
@@ -135,15 +142,9 @@ func TestSystem_PeerScoring(t *testing.T) {
 	// }))
 }
 
-
-func startConfig(cfg *SystemConfig) (*System, error) {
-	opts, err := NewSystemConfigOptions()
-	if err != nil {
-		return nil, err
-	}
-
+func startConfig(cfg *SystemConfig) (*System, map[string]*p2p.Prepared, error) {
 	sys := &System{
-		cfg:         cfg,
+		cfg:         *cfg,
 		Nodes:       make(map[string]*node.Node),
 		Backends:    make(map[string]*geth_eth.Ethereum),
 		Clients:     make(map[string]*ethclient.Client),
@@ -163,7 +164,7 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 
 	l1Genesis, err := genesis.BuildL1DeveloperGenesis(cfg.DeployConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	for addr, amount := range cfg.Premine {
@@ -185,7 +186,7 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	l1Block := l1Genesis.ToBlock()
 	l2Genesis, err := genesis.BuildL2DeveloperGenesis(cfg.DeployConfig, l1Block)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l2Genesis.Alloc[addr]; ok {
@@ -233,9 +234,9 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	sys.RollupConfig = &defaultConfig
 
 	// Initialize nodes
-	l1Node, l1Backend, err := initL1Geth(&cfg, l1Genesis, cfg.GethOptions["l1"]...)
+	l1Node, l1Backend, err := initL1Geth(cfg, l1Genesis, cfg.GethOptions["l1"]...)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	sys.Nodes["l1"] = l1Node
 	sys.Backends["l1"] = l1Backend
@@ -243,7 +244,7 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	for name := range cfg.Nodes {
 		node, backend, err := initL2Geth(name, big.NewInt(int64(cfg.DeployConfig.L2ChainID)), l2Genesis, cfg.JWTFilePath, cfg.GethOptions[name]...)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		sys.Nodes[name] = node
 		sys.Backends[name] = backend
@@ -253,12 +254,12 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	err = l1Node.Start()
 	if err != nil {
 		didErrAfterStart = true
-		return nil, err
+		return nil, nil, err
 	}
 	err = l1Backend.StartMining(1)
 	if err != nil {
 		didErrAfterStart = true
-		return nil, err
+		return nil, nil, err
 	}
 	for name, node := range sys.Nodes {
 		if name == "l1" {
@@ -267,7 +268,7 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 		err = node.Start()
 		if err != nil {
 			didErrAfterStart = true
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -305,7 +306,7 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	l1Srv, err := l1Node.RPCHandler()
 	if err != nil {
 		didErrAfterStart = true
-		return nil, err
+		return nil, nil, err
 	}
 	l1Client := ethclient.NewClient(rpc.DialInProc(l1Srv))
 	sys.Clients["l1"] = l1Client
@@ -313,14 +314,14 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 		client, err := ethclient.DialContext(ctx, node.WSEndpoint())
 		if err != nil {
 			didErrAfterStart = true
-			return nil, err
+			return nil, nil, err
 		}
 		sys.Clients[name] = client
 	}
 
 	_, err = waitForBlock(big.NewInt(2), l1Client, 6*time.Second*time.Duration(cfg.DeployConfig.L1BlockTime))
 	if err != nil {
-		return nil, fmt.Errorf("waiting for blocks: %w", err)
+		return nil, nil, fmt.Errorf("waiting for blocks: %w", err)
 	}
 
 	// Create the custom mocknet
@@ -353,22 +354,25 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	// Create the verifier and sequencer hosts
 	verifierHost, err := initHostMaybe("verifier")
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup mocknet peer %s", k)
+		return nil, nil, err
 	}
 	sequencerHost, err := initHostMaybe("sequencer")
 	if err != nil {
-		return nil, fmt.Errorf("failed to setup mocknet peer %s (peer of %s)", v, k)
+		return nil, nil, err
 	}
 	if _, err := sys.Mocknet.LinkPeers(verifierHost.HostP2P.ID(), sequencerHost.HostP2P.ID()); err != nil {
-		return nil, fmt.Errorf("failed to setup mocknet link between %s and %s", k, v)
+		return nil, nil, err
 	}
 
 	// Start the nodes
-	sys.RollupNodes["sequencer"], err = startNode(cfg, "sequencer", p2pNodes)
-	require.NoError(t, err)
-	sys.RollupNodes["verifier"], err = startNode(cfg, "verifier", p2pNodes)
-	require.NoError(t, err)
-
+	sys.RollupNodes["sequencer"], err = startNode(cfg, "sequencer", &p2pNodes, makeRollupConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+	sys.RollupNodes["verifier"], err = startNode(cfg, "verifier", &p2pNodes, makeRollupConfig)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	// Node topology:
 	//
@@ -376,26 +380,89 @@ func startConfig(cfg *SystemConfig) (*System, error) {
 	//  	 / /
 	//	verifier = malicious
 
-	require.NoError(t, connectNodes(p2pNodes["sequencer"], p2pNodes["verifier"]))
-	require.NoError(t, connectNodes(p2pNodes["verifier"], p2pNodes["sequencer"]))
-	require.NoError(t, connectNodes(p2pNodes["verifier"], p2pNodes["malicious"]))
-	require.NoError(t, connectNodes(p2pNodes["malicious"], p2pNodes["verifier"]))
+	if _, err := connectNodes(p2pNodes["sequencer"], p2pNodes["verifier"], sys.Mocknet); err != nil {
+		return nil, nil, err
+	}
+	if _, err := connectNodes(p2pNodes["verifier"], p2pNodes["sequencer"], sys.Mocknet); err != nil {
+		return nil, nil, err
+	}
+	if _, err := connectNodes(p2pNodes["verifier"], p2pNodes["malicious"], sys.Mocknet); err != nil {
+		return nil, nil, err
+	}
+	if _, err := connectNodes(p2pNodes["malicious"], p2pNodes["verifier"], sys.Mocknet); err != nil {
+		return nil, nil, err
+	}
 
+	// L2Output Submitter
+	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
+		PollInterval:              50 * time.Millisecond,
+		NumConfirmations:          1,
+		ResubmissionTimeout:       3 * time.Second,
+		SafeAbortNonceTooLowCount: 3,
+		AllowNonFinalized:         cfg.NonFinalizedProposals,
+		LogConfig: oplog.CLIConfig{
+			Level:  "info",
+			Format: "text",
+		},
+		PrivateKey: hexPriv(cfg.Secrets.Proposer),
+	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
+	if err != nil {
+		return nil, nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
+	}
 
+	if err := sys.L2OutputSubmitter.Start(); err != nil {
+		return nil, nil, fmt.Errorf("unable to start l2 output submitter: %w", err)
+	}
 
+	// Batch Submitter
+	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
+		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
+		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxChannelDuration:        1,
+		MaxL1TxSize:               120_000,
+		TargetL1TxSize:            100_000,
+		TargetNumFrames:           1,
+		ApproxComprRatio:          0.4,
+		SubSafetyMargin:           4,
+		PollInterval:              50 * time.Millisecond,
+		NumConfirmations:          1,
+		ResubmissionTimeout:       5 * time.Second,
+		SafeAbortNonceTooLowCount: 3,
+		LogConfig: oplog.CLIConfig{
+			Level:  "info",
+			Format: "text",
+		},
+		PrivateKey: hexPriv(cfg.Secrets.Batcher),
+	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to setup batch submitter: %w", err)
+	}
+
+	// Batcher may be enabled later
+	if !sys.cfg.DisableBatcher {
+		if err := sys.BatchSubmitter.Start(); err != nil {
+			return nil, nil, fmt.Errorf("unable to start batch submitter: %w", err)
+		}
+	}
+
+	return sys, p2pNodes, nil
 }
 
-func connectNodes(nodeA *p2p.Prepared, nodeB *p2p.Prepared) error {
-	return sys.Mocknet.ConnectPeers(nodeA.HostP2P.ID(), nodeB.HostP2P.ID())
+func connectNodes(nodeA *p2p.Prepared, nodeB *p2p.Prepared, mocknet mocknet.Mocknet) (network.Conn, error) {
+	return mocknet.ConnectPeers(nodeA.HostP2P.ID(), nodeB.HostP2P.ID())
 }
 
-func startNode(cfg *SystemConfig, name string, p2pNodes *map[string]*p2p.Prepared) (*rollupNode.OpNode, error) {
+func startNode(cfg *SystemConfig, name string, p2pNodes *map[string]*p2p.Prepared, makeRollupConfig func() rollup.Config) (*rollupNode.OpNode, error) {
 	fmt.Printf("Starting node: %s with config: %+v\n", name, cfg.Nodes[name])
 	nodeConfig := cfg.Nodes[name]
 	c := *nodeConfig
 	c.Rollup = makeRollupConfig()
 
-	if p, ok := p2pNodes[name]; ok {
+	if p, ok := (*p2pNodes)[name]; ok {
 		c.P2P = p
 
 		if c.Driver.SequencerEnabled && c.P2PSigner == nil {
@@ -409,12 +476,10 @@ func startNode(cfg *SystemConfig, name string, p2pNodes *map[string]*p2p.Prepare
 	snapLog.SetHandler(log.DiscardHandler())
 	node, err := rollupNode.New(context.Background(), &c, cfg.Loggers[name], snapLog, "", metrics.NewMetrics(""))
 	if err != nil {
-		didErrAfterStart = true
 		return nil, err
 	}
 	err = node.Start(context.Background())
 	if err != nil {
-		didErrAfterStart = true
 		return nil, err
 	}
 
