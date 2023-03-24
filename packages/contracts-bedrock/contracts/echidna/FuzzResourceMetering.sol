@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Arithmetic } from "../libraries/Arithmetic.sol";
 import { StdUtils } from "forge-std/Test.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     bool internal failedMaxGasPerBlock;
@@ -29,15 +30,8 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
     }
 
     function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
-        return config;
+        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+        return rcfg;
     }
 
     /**

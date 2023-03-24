@@ -30,6 +30,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { LegacyMintableERC20 } from "../legacy/LegacyMintableERC20.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 contract CommonTest is Test {
     address alice = address(128);
@@ -172,14 +173,7 @@ contract Portal_Initializer is L2OutputOracle_Initializer {
     function setUp() public virtual override {
         super.setUp();
 
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
+        ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
 
         systemConfig = new SystemConfig({
             _owner: address(1),

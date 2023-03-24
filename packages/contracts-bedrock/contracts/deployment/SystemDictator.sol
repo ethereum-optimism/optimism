@@ -17,6 +17,7 @@ import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @title SystemDictator
@@ -162,14 +163,7 @@ contract SystemDictator is OwnableUpgradeable {
      *         initialized upon deployment.
      */
     constructor() {
-        ResourceMetering.ResourceConfig memory rcfg = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
+        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
 
         // Using this shorter variable as an alias for address(0) just prevents us from having to
         // to use a new line for every single parameter.
