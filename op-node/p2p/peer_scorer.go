@@ -117,6 +117,11 @@ func NewScorer(peerGater PeerGater, peerStore Peerstore, metricer GossipMetricer
 func (s *scorer) SnapshotHook() pubsub.ExtendedPeerScoreInspectFn {
 	return func(m map[peer.ID]*pubsub.PeerScoreSnapshot) {
 		scoreMap := make(map[string]float64)
+		// Zero out all bands.
+		for _, b := range s.bandScoreThresholds.bands {
+			scoreMap[b.band] = 0
+		}
+		// Now set the new scores.
 		for id, snap := range m {
 			band := s.bandScoreThresholds.Bucket(snap.Score)
 			scoreMap[band] += 1
