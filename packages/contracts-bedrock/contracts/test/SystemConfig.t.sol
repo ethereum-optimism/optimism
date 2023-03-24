@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { CommonTest } from "./CommonTest.t.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 contract SystemConfig_Init is CommonTest {
     SystemConfig sysConf;
@@ -80,15 +81,8 @@ contract SystemConfig_Setters_TestFail is SystemConfig_Init {
     }
 
     function test_setResourceConfig_notOwner_reverts() external {
+        ResourceMetering.ResourceConfig memory config = Constants.DEFAULT_RESOURCE_CONFIG();
         vm.expectRevert("Ownable: caller is not the owner");
-        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
-            maxResourceLimit: 20_000_000,
-            elasticityMultiplier: 10,
-            baseFeeMaxChangeDenominator: 8,
-            minimumBaseFee: 1 gwei,
-            systemTxMaxGas: 1_000_000,
-            maximumBaseFee: type(uint128).max
-        });
         sysConf.setResourceConfig(config);
     }
 
