@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"math/big"
-	"math/rand"
 	"sync"
 	"testing"
 	"time"
@@ -12,13 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum-optimism/optimism/op-node/testutils"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 )
 
@@ -691,53 +687,10 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	require.Equal(t, receipt.TxHash, txHash)
 }
 
-// TestIncreaseGasPriceEnforcesMinBump asserts that if the suggest gas tip
-// returned from L1 is less than the required price bump the price bump is
-// used instead.
-func TestIncreaseGasPriceEnforcesMinBump(t *testing.T) {
-	t.Parallel()
-
+func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int64) (*types.Transaction, *types.Transaction) {
 	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(101),
-		baseFee: big.NewInt(460),
-	}
-
-	mgr := &SimpleTxManager{
-		Config: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return tx, nil
-			},
-			From: common.Address{},
-		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlTrace),
-	}
-
-	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(100),
-		GasFeeCap: big.NewInt(1000),
-	})
-
-	ctx := context.Background()
-	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
-	require.NoError(t, err)
-	require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
-	require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
-}
-
-// TestIncreaseGasPriceEnforcesMinBumpForBothOnTipIncrease asserts that if the gasTip goes up,
-// but the baseFee doesn't, both values are increased by 10%
-func TestIncreaseGasPriceEnforcesMinBumpForBothOnTipIncrease(t *testing.T) {
-	t.Parallel()
-
-	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(101),
-		baseFee: big.NewInt(440),
+		gasTip:  big.NewInt(newTip),
+		baseFee: big.NewInt(newBaseFee),
 	}
 
 	mgr := &SimpleTxManager{
@@ -757,55 +710,80 @@ func TestIncreaseGasPriceEnforcesMinBumpForBothOnTipIncrease(t *testing.T) {
 	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(100),
-		GasFeeCap: big.NewInt(1000),
+		GasTipCap: big.NewInt(txTipCap),
+		GasFeeCap: big.NewInt(txFeeCap),
 	})
-
-	ctx := context.Background()
-	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
+	newTx, err := mgr.IncreaseGasPrice(context.Background(), tx)
 	require.NoError(t, err)
-	require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
-	require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+	return tx, newTx
 }
 
-// TestIncreaseGasPriceEnforcesMinBumpForBothOnBaseFeeIncrease asserts that if the baseFee goes up,
-// but the tip doesn't, both values are increased by 10%
-// TODO(CLI-3620): This test will fail until we implemented CLI-3620.
-func TestIncreaseGasPriceEnforcesMinBumpForBothOnBaseFeeIncrease(t *testing.T) {
-	t.Skip("Failing until CLI-3620 is implemented")
-	t.Parallel()
-
-	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(99),
-		baseFee: big.NewInt(460),
-	}
-
-	mgr := &SimpleTxManager{
-		Config: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return tx, nil
+func TestIncreaseGasPrice(t *testing.T) {
+	// t.Parallel()
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "enforces min bump",
+			run: func(t *testing.T) {
+				tx, newTx := doGasPriceIncrease(t, 100, 1000, 101, 460)
+				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
+				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
 			},
-			From: common.Address{},
 		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlCrit),
+		{
+			name: "enforces min bump on only tip incrase",
+			run: func(t *testing.T) {
+				tx, newTx := doGasPriceIncrease(t, 100, 1000, 101, 440)
+				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
+				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+			},
+		},
+		{
+			name: "enforces min bump on only basefee incrase",
+			run: func(t *testing.T) {
+				tx, newTx := doGasPriceIncrease(t, 100, 1000, 99, 460)
+				require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
+				require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+			},
+		},
+		{
+			name: "uses L1 values when larger",
+			run: func(t *testing.T) {
+				_, newTx := doGasPriceIncrease(t, 10, 100, 50, 200)
+				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(450)) == 0, "new tx fee cap must be equal L1")
+				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(50)) == 0, "new tx tip must be equal L1")
+			},
+		},
+		{
+			name: "uses L1 tip when larger and threshold FC",
+			run: func(t *testing.T) {
+				_, newTx := doGasPriceIncrease(t, 100, 2200, 120, 1050)
+				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(120)) == 0, "new tx tip must be equal L1")
+				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(2530)) == 0, "new tx fee cap must be equal to the threshold value")
+			},
+		},
+		{
+			name: "uses L1 FC when larger and threshold tip",
+			run: func(t *testing.T) {
+				_, newTx := doGasPriceIncrease(t, 100, 2200, 100, 2000)
+				require.True(t, newTx.GasTipCap().Cmp(big.NewInt(115)) == 0, "new tx tip must be equal the threshold value")
+				require.True(t, newTx.GasFeeCap().Cmp(big.NewInt(4115)) == 0, "new tx fee cap must be equal L1")
+			},
+		},
+		{
+			name: "reuses tx when no bump",
+			run: func(t *testing.T) {
+				tx, newTx := doGasPriceIncrease(t, 10, 100, 10, 45)
+				require.Equal(t, tx.Hash(), newTx.Hash(), "tx hash must be the same")
+			},
+		},
 	}
-
-	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(100),
-		GasFeeCap: big.NewInt(1000),
-	})
-
-	ctx := context.Background()
-	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
-	require.NoError(t, err)
-	require.True(t, newTx.GasFeeCap().Cmp(tx.GasFeeCap()) > 0, "new tx fee cap must be larger")
-	require.True(t, newTx.GasTipCap().Cmp(tx.GasTipCap()) > 0, "new tx tip must be larger")
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, test.run)
+	}
 }
 
 // TestIncreaseGasPriceNotExponential asserts that if the L1 basefee & tip remain the
@@ -849,83 +827,4 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 		tx = newTx
 	}
 
-}
-
-// TestIncreaseGasPriceUseLargeIncrease asserts that if the suggest gas tip
-// returned from L1 is much larger than the required price bump the L1 value
-// is used instead of the price bump
-func TestIncreaseGasPriceUseLargeIncrease(t *testing.T) {
-	t.Parallel()
-
-	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(50),
-		baseFee: big.NewInt(200),
-	}
-	feeCap := CalcGasFeeCap(borkedBackend.baseFee, borkedBackend.gasTip)
-
-	mgr := &SimpleTxManager{
-		Config: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return tx, nil
-			},
-			From: common.Address{},
-		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlCrit),
-	}
-
-	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(100),
-	})
-
-	ctx := context.Background()
-	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
-	require.NoError(t, err)
-	require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
-	require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
-}
-
-// TestIncreaseGasPriceReusesTransaction asserts that if the L1 basefee & tip remain the
-// same, the transaction is returned with the same signature values. The means that the error
-// when submitting the transaction to the network is ErrAlreadyKnown instead of ErrReplacementUnderpriced
-func TestIncreaseGasPriceReusesTransaction(t *testing.T) {
-	t.Parallel()
-
-	borkedBackend := failingBackend{
-		gasTip:  big.NewInt(10),
-		baseFee: big.NewInt(45),
-	}
-	pk := testutils.InsecureRandomKey(rand.New(rand.NewSource(123)))
-	signer := opcrypto.PrivateKeySignerFn(pk, big.NewInt(10))
-
-	mgr := &SimpleTxManager{
-		Config: Config{
-			ResubmissionTimeout:       time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
-				return signer(from, tx)
-			},
-			From: crypto.PubkeyToAddress(pk.PublicKey),
-		},
-		name:    "TEST",
-		backend: &borkedBackend,
-		l:       testlog.Logger(t, log.LvlCrit),
-	}
-	tx := types.NewTx(&types.DynamicFeeTx{
-		GasTipCap: big.NewInt(10),
-		GasFeeCap: big.NewInt(100),
-	})
-
-	ctx := context.Background()
-	newTx, err := mgr.IncreaseGasPrice(ctx, tx)
-	require.NoError(t, err)
-	require.Equal(t, tx.Hash(), newTx.Hash())
 }
