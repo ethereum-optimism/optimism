@@ -6,7 +6,7 @@ WORKDIR /app/
 RUN apk --no-cache add make jq bash git
 RUN make build
 
-FROM alpine:3.15
+FROM alpine:3.16
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
 COPY --from=builder /app/l2geth-exporter /usr/local/bin/
