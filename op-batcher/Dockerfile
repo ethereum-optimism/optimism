@@ -16,7 +16,7 @@ WORKDIR /app/op-batcher
 
 RUN make op-batcher
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 COPY --from=builder /app/op-batcher/bin/op-batcher /usr/local/bin
 
