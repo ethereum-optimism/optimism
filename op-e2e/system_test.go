@@ -304,7 +304,7 @@ func TestPendingGasLimit(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 
 	// configure the L2 gas limit to be high, and the pending gas limits to be lower for resource saving.
-	cfg.DeployConfig.L2GenesisBlockGasLimit = 20_000_000
+	cfg.DeployConfig.L2GenesisBlockGasLimit = 30_000_000
 	cfg.GethOptions["sequencer"] = []GethOption{
 		func(ethCfg *ethconfig.Config, nodeCfg *node.Config) error {
 			ethCfg.Miner.GasCeil = 10_000_000
@@ -342,8 +342,8 @@ func TestPendingGasLimit(t *testing.T) {
 	for {
 		checkGasLimit(l2Seq, big.NewInt(-1), 10_000_000)
 		checkGasLimit(l2Verif, big.NewInt(-1), 9_000_000)
-		checkGasLimit(l2Seq, nil, 20_000_000)
-		latestVerifHeader := checkGasLimit(l2Verif, nil, 20_000_000)
+		checkGasLimit(l2Seq, nil, 30_000_000)
+		latestVerifHeader := checkGasLimit(l2Verif, nil, 30_000_000)
 
 		// Stop once the verifier passes genesis:
 		// this implies we checked a new block from the sequencer, on both sequencer and verifier nodes.
