@@ -1246,6 +1246,14 @@ workflows:
             - op-node-docker-build
             - op-batcher-docker-build
             - op-proposer-docker-build
+      - hive-test:
+          name: hive-test-daisy-chain
+          version: <<pipeline.git.revision>>
+          sim: optimism/daisy-chain
+          requires:
+            - op-node-docker-build
+            - op-batcher-docker-build
+            - op-proposer-docker-build
   release:
     jobs:
       - hold:
