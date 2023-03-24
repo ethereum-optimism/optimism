@@ -52,6 +52,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 			NumConfirmations:          1,
 			SafeAbortNonceTooLowCount: 4,
 			From:                      from,
+			ChainID:                   big.NewInt(420),
 			// Signer is loaded in `proposer.NewL2OutputSubmitter`
 		},
 		L1Client:          l1,

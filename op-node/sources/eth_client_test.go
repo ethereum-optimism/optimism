@@ -140,3 +140,40 @@ func TestEthClient_InfoByNumber(t *testing.T) {
 	require.Equal(t, info, expectedInfo)
 	m.Mock.AssertExpectations(t)
 }
+
+func TestEthClient_WrongInfoByNumber(t *testing.T) {
+	m := new(mockRPC)
+	_, rhdr := randHeader()
+	rhdr2 := *rhdr
+	rhdr2.Number += 1
+	n := rhdr.Number
+	ctx := context.Background()
+	m.On("CallContext", ctx, new(*rpcHeader),
+		"eth_getBlockByNumber", []any{n.String(), false}).Run(func(args mock.Arguments) {
+		*args[1].(**rpcHeader) = &rhdr2
+	}).Return([]error{nil})
+	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindBasic))
+	require.NoError(t, err)
+	_, err = s.InfoByNumber(ctx, uint64(n))
+	require.Error(t, err, "cannot accept the wrong block")
+	m.Mock.AssertExpectations(t)
+}
+
+func TestEthClient_WrongInfoByHash(t *testing.T) {
+	m := new(mockRPC)
+	_, rhdr := randHeader()
+	rhdr2 := *rhdr
+	rhdr2.Root[0] += 1
+	rhdr2.Hash = rhdr2.computeBlockHash()
+	k := rhdr.Hash
+	ctx := context.Background()
+	m.On("CallContext", ctx, new(*rpcHeader),
+		"eth_getBlockByHash", []any{k, false}).Run(func(args mock.Arguments) {
+		*args[1].(**rpcHeader) = &rhdr2
+	}).Return([]error{nil})
+	s, err := NewL1Client(m, nil, nil, L1ClientDefaultConfig(&rollup.Config{SeqWindowSize: 10}, true, RPCKindBasic))
+	require.NoError(t, err)
+	_, err = s.InfoByHash(ctx, k)
+	require.Error(t, err, "cannot accept the wrong block")
+	m.Mock.AssertExpectations(t)
+}

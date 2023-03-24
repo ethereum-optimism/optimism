@@ -15,7 +15,6 @@ import (
 
 	pb "github.com/libp2p/go-libp2p-pubsub/pb"
 	libp2pmetrics "github.com/libp2p/go-libp2p/core/metrics"
-	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -66,7 +65,7 @@ type Metricer interface {
 	RecordSequencerSealingTime(duration time.Duration)
 	Document() []metrics.DocumentedMetric
 	// P2P Metrics
-	RecordPeerScoring(peerID peer.ID, score float64)
+	SetPeerScores(scores map[string]float64)
 }
 
 // Metrics tracks all the metrics for the op-node.
@@ -287,21 +286,24 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "peer_count",
 			Help:      "Count of currently connected p2p peers",
 		}),
+		// Notice: We cannot use peer ids as [Labels] in the GaugeVec
+		// since peer ids would open a service attack vector.
+		// Each peer id would be a separate metric, flooding prometheus.
+		//
+		// [Labels]: https://prometheus.io/docs/practices/naming/#labels
+		PeerScores: factory.NewGaugeVec(prometheus.GaugeOpts{
+			Namespace: ns,
+			Subsystem: "p2p",
+			Name:      "peer_scores",
+			Help:      "Count of peer scores grouped by score",
+		}, []string{
+			"band",
+		}),
 		StreamCount: factory.NewGauge(prometheus.GaugeOpts{
 			Namespace: ns,
 			Subsystem: "p2p",
 			Name:      "stream_count",
 			Help:      "Count of currently connected p2p streams",
-		}),
-		PeerScores: factory.NewGaugeVec(prometheus.GaugeOpts{
-			Namespace: ns,
-			Subsystem: "p2p",
-			Name:      "peer_scores",
-			Help:      "Peer scoring",
-		}, []string{
-			// No label names here since peer ids would open a service attack vector.
-			// Each peer id would be a separate metric, flooding prometheus.
-			// See: https://prometheus.io/docs/practices/naming/#labels
 		}),
 		GossipEventsTotal: factory.NewCounterVec(prometheus.CounterOpts{
 			Namespace: ns,
@@ -347,6 +349,14 @@ func NewMetrics(procName string) *Metrics {
 
 		registry: registry,
 		factory:  factory,
+	}
+}
+
+// SetPeerScores updates the peer score [prometheus.GaugeVec].
+// This takes a map of labels to scores.
+func (m *Metrics) SetPeerScores(scores map[string]float64) {
+	for label, score := range scores {
+		m.PeerScores.WithLabelValues(label).Set(score)
 	}
 }
 
@@ -491,10 +501,6 @@ func (m *Metrics) RecordGossipEvent(evType int32) {
 	m.GossipEventsTotal.WithLabelValues(pb.TraceEvent_Type_name[evType]).Inc()
 }
 
-func (m *Metrics) RecordPeerScoring(peerID peer.ID, score float64) {
-	m.PeerScores.WithLabelValues(peerID.String()).Set(score)
-}
-
 func (m *Metrics) IncPeerCount() {
 	m.PeerCount.Inc()
 }
@@ -627,7 +633,7 @@ func (n *noopMetricer) RecordSequencerReset() {
 func (n *noopMetricer) RecordGossipEvent(evType int32) {
 }
 
-func (n *noopMetricer) RecordPeerScoring(peerID peer.ID, score float64) {
+func (n *noopMetricer) SetPeerScores(scores map[string]float64) {
 }
 
 func (n *noopMetricer) IncPeerCount() {
