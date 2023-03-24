@@ -74,18 +74,13 @@ type Config struct {
 //
 //go:generate mockery --name TxManager --output ./mocks
 type TxManager interface {
-	// Send is used to publish a transaction with incrementally higher gas
-	// prices until the transaction eventually confirms. This method blocks
-	// until an invocation of sendTx returns (called with differing gas
-	// prices). The method may be canceled using the passed context.
-	//
-	// The initial transaction MUST be signed & ready to submit.
+	// Send is used to create & send a transaction. It will handle increasing
+	// the gas price & ensuring that the transaction remains in the transaction pool.
+	// It can be stopped by cancelling the provided context; however, the transaction
+	// may be included on L1 even if the context is cancelled.
 	//
 	// NOTE: Send should be called by AT MOST one caller at a time.
-	Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error)
-
-	// CraftTx is used to craft a transaction using a [TxCandidate].
-	CraftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error)
+	Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error)
 }
 
 // ETHBackend is the set of methods that the transaction manager uses to resubmit gas & determine
@@ -166,12 +161,12 @@ func (m *SimpleTxManager) calcGasTipAndFeeCap(ctx context.Context) (gasTipCap *b
 	return gasTipCap, gasFeeCap, nil
 }
 
-// CraftTx creates the signed transaction to the batchInboxAddress.
+// craftTx creates the signed transaction
 // It queries L1 for the current fee market conditions as well as for the nonce.
 // NOTE: This method SHOULD NOT publish the resulting transaction.
 // NOTE: If the [TxCandidate.GasLimit] is non-zero, it will be used as the transaction's gas.
 // NOTE: Otherwise, the [SimpleTxManager] will query the specified backend for an estimate.
-func (m *SimpleTxManager) CraftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
+func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	gasTipCap, gasFeeCap, err := m.calcGasTipAndFeeCap(ctx)
 	if err != nil {
 		return nil, err
@@ -337,8 +332,16 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config, backend ETHBacken
 // but retain the gas used, the nonce, and the data.
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
-func (m *SimpleTxManager) Send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
+func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	tx, err := m.craftTx(ctx, candidate)
+	if err != nil {
+		m.l.Error("Failed to create the transaction", "err", err)
+		return nil, err
+	}
+	return m.send(ctx, tx)
+}
 
+func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*types.Receipt, error) {
 	// Initialize a wait group to track any spawned goroutines, and ensure
 	// we properly clean up any dangling resources this method generates.
 	// We assert that this is the case thoroughly in our unit tests.

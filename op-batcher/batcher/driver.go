@@ -314,7 +314,7 @@ func (l *BatchSubmitter) loop() {
 				}
 
 				// Record TX Status
-				if receipt, err := l.SendTransaction(l.ctx, txdata.Bytes()); err != nil {
+				if receipt, err := l.sendTransaction(l.ctx, txdata.Bytes()); err != nil {
 					l.recordFailedTx(txdata.ID(), err)
 				} else {
 					l.recordConfirmedTx(txdata.ID(), receipt)
@@ -343,31 +343,25 @@ const networkTimeout = 2 * time.Second // How long a single network request can 
 // along with op-proposer changes to include the updated tx manager
 const txManagerTimeout = 2 * time.Minute // How long the tx manager can take to send a transaction.
 
-// SendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
+// sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
-func (l *BatchSubmitter) SendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
+func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*types.Receipt, error) {
 	// Do the gas estimation offline. A value of 0 will cause the [txmgr] to estimate the gas limit.
 	intrinsicGas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to calculate intrinsic gas: %w", err)
 	}
 
-	// Create the transaction
-	tx, err := l.txMgr.CraftTx(ctx, txmgr.TxCandidate{
+	// Send the transaction through the txmgr
+	ctx, cancel := context.WithTimeout(ctx, txManagerTimeout)
+	defer cancel()
+	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
 		From:     l.From,
 		GasLimit: intrinsicGas,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tx: %w", err)
-	}
-
-	// Send the transaction through the txmgr
-	ctx, cancel := context.WithTimeout(ctx, txManagerTimeout)
-	defer cancel()
-	if receipt, err := l.txMgr.Send(ctx, tx); err != nil {
+	}); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
 		return nil, err
 	} else {
