@@ -209,6 +209,8 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     /**
      * @notice Getter for the resource config. Used internally by the ResourceMetering
      *         contract. The SystemConfig is the source of truth for the resource config.
+     *
+     * @return ResourceMetering.ResourceConfig
      */
     function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
         return SYSTEM_CONFIG.resourceConfig();
