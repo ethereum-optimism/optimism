@@ -6,8 +6,10 @@ lang: en-US
 
 ## Why do it?
 
-The bridge allows movement between blockchains. 
-If the security of a blockchain is compromised, pausing bridge withdrawals will mitigate damage until the issue is resolved.
+The `OptimismPortal` is a bridge contract that makes it possible to send messages between your L1 and your L2 OP Stack chain. 
+The `OptimismPortal` is pausable as a backup safety mechanism that allows a specific `GUARDIAN` address to temporarily halt deposits and withdrawals to mitigate security issues if necessary. 
+An OP Stack chain does not have to specify a usable `GUARDIAN` address if it does not want to make the `OptimismPortal` contract pausable, it can specify an address such as zero.
+
 
 ## Who can do it?
 
@@ -20,9 +22,8 @@ That address can call [`pause`](https://github.com/ethereum-optimism/optimism/bl
 The guardian created by the setup script is the admin account.
 This is sufficient for testing, but for a production system you would want the guardian to be a multisig with trusted security council.
 
-The guardian is immutable, there is no way to change it while using the same contract.
-Luckily, it isn't supposed to be called directly, but through a proxy.
-[You can tell the proxy to go to a new contract](../build/tutorials/new-precomp.md).
+The `GUARDIAN` variable is immutable, but the `OptimismPortal` contract sits behind a proxy, so the `GUARDIAN` can be modified by changing the `OptimismPortal` proxy to point to a new implementation contract.
+You do this using the L1 [`ProxyAdmin`](https://github.com/ethereum-optimism/optimism/blob/develop/packages/contracts-bedrock/contracts/universal/ProxyAdmin.sol) contract.
 
 <!--
 ## Seeing it in action
