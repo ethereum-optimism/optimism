@@ -244,3 +244,8 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
 - `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
+
+## Withdrawaing From Fee Vaults
+
+See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
+instructions on how to run it. `foundry` is required.
