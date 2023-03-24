@@ -142,6 +142,20 @@ func (_m *ConnectionGater) InterceptUpgraded(_a0 network.Conn) (bool, control.Di
 	return r0, r1
 }
 
+// IsBlocked provides a mock function with given fields: p
+func (_m *ConnectionGater) IsBlocked(p peer.ID) bool {
+	ret := _m.Called(p)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(peer.ID) bool); ok {
+		r0 = rf(p)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
 // ListBlockedAddrs provides a mock function with given fields:
 func (_m *ConnectionGater) ListBlockedAddrs() []net.IP {
 	ret := _m.Called()
