@@ -27,7 +27,8 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         BATCHER,
         GAS_CONFIG,
         GAS_LIMIT,
-        UNSAFE_BLOCK_SIGNER
+        UNSAFE_BLOCK_SIGNER,
+        RESOURCE_CONFIG
     }
 
     /**
@@ -262,6 +263,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      */
     function setResourceConfig(ResourceMetering.ResourceConfig memory _config) external onlyOwner {
         _setResourceConfig(_config);
+
+        bytes memory data = abi.encode(_config);
+        emit ConfigUpdate(VERSION, UpdateType.RESOURCE_CONFIG, data);
     }
 
     /**
