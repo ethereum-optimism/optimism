@@ -7,7 +7,7 @@ specified threshold.
 
 ## Installing and building
 
-`pnpm && pnpm build`
+`pnpm i && pnpm build`
 
 ## Running
 

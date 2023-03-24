@@ -49,7 +49,7 @@ RUN apt-get update && \
   ln -s /usr/local/go/bin/gofmt /usr/local/bin/gofmt && \
   bash nodesource_setup.sh && \
   apt-get install -y nodejs && \
-  curl -fsSL https://get.pnpm.io/install.sh | sh - && \
+  npm i -g pnpm && \
   npm i -g depcheck && \
   pip install slither-analyzer==0.9.1 && \
   go install gotest.tools/gotestsum@latest && \
