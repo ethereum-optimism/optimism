@@ -418,7 +418,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			L1RPCKind:        sources.RPCKindBasic,
 			RateLimit:        0,
 			BatchSize:        20,
-			HttpPollInterval: time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second,
+			HttpPollInterval: time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second / 10,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
 			L2EngineAddr:      l2EndpointConfig,
