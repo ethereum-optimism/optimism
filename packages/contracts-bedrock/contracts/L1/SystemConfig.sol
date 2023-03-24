@@ -270,25 +270,25 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _config The new resource config.
      */
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
-        // min base fee must be less than or equal to max base fee
+        // Min base fee must be less than or equal to max base fee.
         require(
             _config.minimumBaseFee <= _config.maximumBaseFee,
             "SystemConfig: min base fee must be less than max base"
         );
-        // base fee change denominator must be greater than 0
+        // Base fee change denominator must be greater than 0.
         require(_config.baseFeeMaxChangeDenominator > 0, "SystemConfig: denominator cannot be 0");
-        // max resource limit plus system tx gas must be less than or
-        // equal to the L2 gas limit
+        // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
+        // The gas limit must be increased before these values can be increased.
         require(
             _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
             "SystemConfig: gas limit too low"
         );
-        // elasticity multiplier must be greater than 0
+        // Elasticity multiplier must be greater than 0.
         require(
             _config.elasticityMultiplier > 0,
             "SystemConfig: elasticity multiplier cannot be 0"
         );
-        // no precision loss when computing target resource limit
+        // No precision loss when computing target resource limit.
         require(
             ((_config.maxResourceLimit / _config.elasticityMultiplier) *
                 _config.elasticityMultiplier) == _config.maxResourceLimit,
