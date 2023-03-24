@@ -13,16 +13,16 @@
 After cloning and switching to the repository, install dependencies:
 
 ```bash
-$ yarn
+$ pnpm i
 ```
 
 Use the following commands to build, use, test, and lint:
 
 ```bash
-$ yarn build
-$ yarn start
-$ yarn test
-$ yarn lint
+$ pnpm build
+$ pnpm start
+$ pnpm test
+$ pnpm lint
 ```
 
 ### L2 Fees

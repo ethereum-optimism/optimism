@@ -14,4 +14,4 @@ fi
 
 export OPTIMISM_PORTAL_ADDRESS=$(jq -r '.address' < "$DEPLOYMENTS_DIR/OptimismPortal.json")
 cd ./packages/integration-tests-bedrock
-yarn test
+pnpm test

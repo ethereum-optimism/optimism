@@ -10,8 +10,8 @@ Clone, install, and build the Optimism monorepo:
 
 ```
 git clone https://github.com/ethereum-optimism/optimism.git
-yarn install
-yarn build
+pnpm install
+pnpm build
 ```
 
 ## Running a service
@@ -20,11 +20,11 @@ Copy `.env.example` into a new file named `.env`, then set the environment varia
 Once your environment variables have been set, run via:
 
 ```
-yarn start:<service name>
+pnpm start:<service name>
 ```
 
 For example, to run `drippie-mon`, execute:
 
 ```
-yarn start:drippie-mon
+pnpm start:drippie-mon
 ```

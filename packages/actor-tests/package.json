@@ -9,13 +9,13 @@
     "lib": "lib"
   },
   "scripts": {
-    "lint": "yarn lint:fix && yarn lint:check",
+    "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
-    "lint:fix": "yarn lint:check --fix",
+    "lint:fix": "pnpm lint:check --fix",
     "pre-commit": "lint-staged",
     "run:bedrock": "ts-node ./lib/runner.ts -f",
     "test": "echo 'No tests specified.'",
-    "test:coverage": "yarn test"
+    "test:coverage": "pnpm test"
   },
   "dependencies": {
     "@eth-optimism/contracts-bedrock": "0.13.1",

@@ -7,14 +7,14 @@ specified threshold.
 
 ## Installing and building
 
-`yarn && yarn build`
+`pnpm && pnpm build`
 
 ## Running
 
 1. Copy `.env.example` into `.env` and set the appropriate values.
 2. Copy `forta.config.example.json` into `forta.config.json`, and set the RPC endpoint (yes, this is
    duplicated in the .env file).
-2. `yarn run start:prod`
+2. `pnpm run start:prod`
 
 ## Alerts
 

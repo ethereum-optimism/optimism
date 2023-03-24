@@ -11,8 +11,8 @@
   "scripts": {
     "clean": "rimraf ./dist ./tsconfig.tsbuildinfo",
     "clean:db": "rimraf ./db",
-    "lint": "yarn run lint:fix && yarn run lint:check",
-    "lint:fix": "yarn lint:check --fix",
+    "lint": "pnpm run lint:fix && pnpm run lint:check",
+    "lint:fix": "pnpm lint:check --fix",
     "lint:check": "eslint . --max-warnings=0",
     "start": "ts-node ./src/services/run.ts",
     "start:local": "ts-node ./src/services/run.ts | pino-pretty",

@@ -26,13 +26,13 @@
   "scripts": {
     "dev": "tsx src/cli.ts",
     "clean": "rm -rf ./node_modules && rm -rf ./dist && rm -rf ./coverage",
-    "build": "yarn tsup",
+    "build": "pnpm tsup",
     "generate": "wagmi generate",
-    "lint": "yarn lint:fix && yarn lint:check",
+    "lint": "pnpm lint:fix && pnpm lint:check",
     "lint:check": "eslint . --max-warnings=0",
-    "lint:fix": "yarn lint:check --fix",
+    "lint:fix": "pnpm lint:check --fix",
     "test": "vitest",
-    "typecheck": "yarn tsc --noEmit"
+    "typecheck": "pnpm tsc --noEmit"
   },
   "dependencies": {
     "cac": "^6.7.14",

@@ -10,7 +10,7 @@ A lightweight input fuzzing utility used for testing various Bedrock contracts.
 
 ## Usage
 
-To build, run `yarn build:fuzz` from this directory or the `contract-bedrock` package.
+To build, run `pnpm build:fuzz` from this directory or the `contract-bedrock` package.
 
 To generate an abi-encoded fuzz case, pass in a mode via the `-m` flag as well as an optional variant via the `-v` flag.
 

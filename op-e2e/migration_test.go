@@ -380,7 +380,7 @@ func untar(t *testing.T, src, dst string) {
 
 func migrateL1(t *testing.T) {
 	cmd := exec.Command(
-		"yarn",
+		"pnpm",
 		"hardhat",
 		"--network",
 		networkName,

@@ -16,4 +16,4 @@ curl \
     $MESSAGE_RELAYER__L2_RPC_PROVIDER
 
 # go
-exec yarn start
+exec pnpm start

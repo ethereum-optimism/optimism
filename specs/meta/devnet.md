@@ -13,7 +13,7 @@ You can spin up a local devnet via `docker-compose`.
 For convenience, we have defined `make` targets to start and stop the devnet with a single command.
 To run the devnet, you will need `docker` and `docker-compose` installed.
 Then, as a precondition, make sure that you have compiled the contracts by `cd`ing into `packages/contracts`
-and running `yarn` followed by `yarn build`. You'll only need to do this if you change the contracts in the future.
+and running `pnpm i` followed by `pnpm build`. You'll only need to do this if you change the contracts in the future.
 
 Then, run the following:
 

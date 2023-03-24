@@ -8,7 +8,7 @@ COPY [ \
 
 # install deps
 WORKDIR /hardhat
-RUN yarn install && yarn cache clean
+RUN pnpm install && pnpm cache clean
 
 # bring in dockerenv so that hardhat launches with host = 0.0.0.0 instead of 127.0.0.1
 # so that it's accessible from other boxes as well
@@ -20,4 +20,4 @@ COPY [ "hardhat.config.js" , "/hardhat/" ]
 EXPOSE 8545
 
 # runs the script (assumes that the `CONTRACT` and `ARGS` are passed as args to `--env`)
-CMD ["yarn", "start"]
+CMD ["pnpm", "start"]

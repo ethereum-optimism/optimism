@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "author": "Optimism PBC",
   "license": "MIT",
+  "private": true,
   "workspaces": {
     "packages": [
       "packages/*",
@@ -33,24 +34,23 @@
       "forta-agent"
     ]
   },
-  "private": true,
   "scripts": {
-    "clean": "yarn lerna run clean --parallel",
-    "build": "yarn lerna run build",
-    "test": "yarn lerna run test --parallel",
-    "test:coverage": "yarn lerna run test:coverage --parallel",
-    "lint": "yarn lerna run lint",
-    "lint:ts:check": "yarn lerna run lint:ts:check",
-    "lint:check": "yarn lerna run lint:check",
-    "lint:fix": "yarn lerna run lint:fix --parallel",
-    "lint:specs:fix": "yarn run markdownlint-cli2-fix \"./specs/**/*.md\"",
-    "lint:specs:check": "yarn run markdownlint-cli2  \"./specs/**/*.md\"",
-    "lint:specs:toc": "yarn run doctoc '--title=**Table of Contents**' ./specs",
+    "clean": "pnpm lerna run clean --parallel",
+    "build": "pnpm lerna run build",
+    "test": "pnpm lerna run test --parallel",
+    "test:coverage": "pnpm lerna run test:coverage --parallel",
+    "lint": "pnpm lerna run lint",
+    "lint:ts:check": "pnpm lerna run lint:ts:check",
+    "lint:check": "pnpm lerna run lint:check",
+    "lint:fix": "pnpm lerna run lint:fix --parallel",
+    "lint:specs:fix": "pnpm markdownlint-cli2-fix \"./specs/**/*.md\"",
+    "lint:specs:check": "pnpm markdownlint-cli2  \"./specs/**/*.md\"",
+    "lint:specs:toc": "pnpm doctoc '--title=**Table of Contents**' ./specs",
     "postinstall": "patch-package",
-    "ready": "yarn lint && yarn test",
+    "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
-    "release": "yarn build && yarn changeset publish",
-    "update:yarn": "yarn set version 1.x"
+    "release": "pnpm build && pnpm changeset publish",
+    "update:pnpm": "pnpm set version 1.x"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",

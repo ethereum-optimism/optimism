@@ -10,7 +10,7 @@ If neither `EVM` nor `OVM` are listed, the contract is likely intended to be use
 ## Usage (npm)
 
 You can import `@eth-optimism/contracts` to use the Optimism contracts within your own codebase.
-Install via `npm` or `yarn`:
+Install via `npm`, `yarn`, or `pnpm`:
 
 ```shell
 npm install @eth-optimism/contracts
@@ -38,7 +38,7 @@ import { L1CrossDomainMessenger } from "@eth-optimism/contracts/L1/messaging/L1C
 Install the following:
 - [`Node.js` (14+)](https://nodejs.org/en/)
 - [`npm`](https://www.npmjs.com/get-npm)
-- [`yarn`](https://classic.yarnpkg.com/en/docs/install/)
+- [`pnpm`](https://pnpm.io/installation)
 
 Clone the repo:
 
@@ -50,27 +50,27 @@ cd contracts
 Install `npm` packages:
 
 ```shell
-yarn install
+pnpm install
 ```
 
 ### Running Tests
 
-Tests are executed via `yarn`:
+Tests are executed via `pnpm`:
 
 ```shell
-yarn test
+pnpm test
 ```
 
 Run specific tests by giving a path to the file you want to run:
 
 ```shell
-yarn test ./test/path/to/my/test.spec.ts
+pnpm test ./test/path/to/my/test.spec.ts
 ```
 
 ### Measuring test coverage:
 
 ```shell
-yarn test:coverage
+pnpm test:coverage
 ```
 
 The output is most easily viewable by opening the html file in your browser:
@@ -84,7 +84,7 @@ open ./coverage/index.html
 Compile and build the various required with the `build` command:
 
 ```shell
-yarn build
+pnpm build
 ```
 
 ### Deploying the Contracts

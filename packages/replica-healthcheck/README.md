@@ -13,8 +13,8 @@ Clone, install, and build the Optimism monorepo:
 
 ```
 git clone https://github.com/ethereum-optimism/optimism.git
-yarn install
-yarn build
+pnpm install
+pnpm build
 ```
 
 ## Running the service (manual)
@@ -23,11 +23,11 @@ Copy `.env.example` into a new file named `.env`, then set the environment varia
 You can view a list of all environment variables and descriptions for each via:
 
 ```
-yarn start --help
+pnpm start --help
 ```
 
 Once your environment variables have been set, run the relayer via:
 
 ```
-yarn start
+pnpm start
 ```

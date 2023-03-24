@@ -13,7 +13,7 @@
 
 ## Linting
 
-Respect the [linting rules] (you can run the linter with `yarn lint`).
+Respect the [linting rules] (you can run the linter with `pnpm lint`).
 
 Notably:
 

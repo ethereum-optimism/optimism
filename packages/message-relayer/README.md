@@ -11,8 +11,8 @@ Clone, install, and build the Optimism monorepo:
 
 ```
 git clone https://github.com/ethereum-optimism/optimism.git
-yarn install
-yarn build
+pnpm install
+pnpm build
 ```
 
 ## Running the relayer (Docker)
@@ -31,5 +31,5 @@ Copy `.env.example` into a new file named `.env`, then set the environment varia
 Once your environment variables have been set, run the relayer via:
 
 ```
-yarn start
+pnpm start
 ```

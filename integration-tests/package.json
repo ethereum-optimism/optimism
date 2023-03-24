@@ -4,8 +4,8 @@
   "version": "0.5.22",
   "description": "[Optimism] Integration tests",
   "scripts": {
-    "lint": "yarn lint:fix && yarn lint:check",
-    "lint:fix": "yarn lint:check --fix",
+    "lint": "pnpm lint:fix && pnpm lint:check",
+    "lint:fix": "pnpm lint:check --fix",
     "lint:check": "eslint . --max-warnings=0",
     "build": "hardhat compile",
     "test:integration": "hardhat --network optimism test",
