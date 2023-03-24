@@ -29,7 +29,12 @@ contract EchidnaFuzzResourceMetering is ResourceMetering, StdUtils {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig()
+        internal
+        pure
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
         ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
         return rcfg;
     }

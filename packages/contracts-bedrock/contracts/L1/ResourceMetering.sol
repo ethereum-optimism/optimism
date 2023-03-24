@@ -39,7 +39,8 @@ abstract contract ResourceMetering is Initializable {
      * @custom:field elasticityMultiplier         Determines the target resource limit along with
      *                                            the resource limit.
      * @custom:field baseFeeMaxChangeDenominator  Determines max change on fee per block.
-     * @custom:field minimumBaseFee               The min deposit base fee, it is clamped to this value.
+     * @custom:field minimumBaseFee               The min deposit base fee, it is clamped to this
+     *                                            value.
      * @custom:field systemTxMaxGas               The amount of gas supplied to the system
      *                                            transaction. This should be set to the same number
      *                                            that the op-node sets as the gas limit for the
@@ -55,7 +56,6 @@ abstract contract ResourceMetering is Initializable {
         uint32 systemTxMaxGas;
         uint128 maximumBaseFee;
     }
-
 
     /**
      * @notice EIP-1559 style gas parameters.

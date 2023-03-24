@@ -19,7 +19,12 @@ contract MeterUser is ResourceMetering {
         return _resourceConfig();
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig()
+        internal
+        pure
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
         return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
@@ -176,7 +181,12 @@ contract CustomMeterUser is ResourceMetering {
         });
     }
 
-    function _resourceConfig() internal pure override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig()
+        internal
+        pure
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
         return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 

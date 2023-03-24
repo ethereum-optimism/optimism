@@ -148,6 +148,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         _setResourceConfig(_config);
         require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
     }
+
     /**
      * @notice Returns the minimum L2 gas limit that can be safely set for the system to
      *         operate. The L2 gas limit must be larger than or equal to the amount of

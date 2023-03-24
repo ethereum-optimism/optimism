@@ -212,7 +212,12 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      *
      * @return ResourceMetering.ResourceConfig
      */
-    function _resourceConfig() internal view override returns (ResourceMetering.ResourceConfig memory) {
+    function _resourceConfig()
+        internal
+        view
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
         return SYSTEM_CONFIG.resourceConfig();
     }
 
