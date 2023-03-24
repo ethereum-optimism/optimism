@@ -33,13 +33,15 @@ func TestProcessSystemConfigUpdateLogEvent(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		config := eth.SystemConfig{}
-		err := ProcessSystemConfigUpdateLogEvent(&config, test.log)
-		if test.err {
-			require.Error(t, err)
-		} else {
-			require.NoError(t, err)
-		}
-		require.Equal(t, config, test.config)
+		t.Run(test.name, func(t *testing.T) {
+			config := eth.SystemConfig{}
+			err := ProcessSystemConfigUpdateLogEvent(&config, test.log)
+			if test.err {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+			require.Equal(t, config, test.config)
+		})
 	}
 }
