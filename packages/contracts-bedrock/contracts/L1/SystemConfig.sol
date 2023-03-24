@@ -5,6 +5,7 @@ import {
     OwnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Semver } from "../universal/Semver.sol";
+import { ResourceMetering } from "./ResourceMetering.sol";
 
 /**
  * @title SystemConfig
@@ -49,12 +50,12 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
 
     /**
-     * @notice Fixed L2 gas overhead.
+     * @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public overhead;
 
     /**
-     * @notice Dynamic L2 gas overhead.
+     * @notice Dynamic L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public scalar;
 
@@ -65,9 +66,16 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public batcherHash;
 
     /**
-     * @notice L2 gas limit.
+     * @notice L2 block gas limit.
      */
     uint64 public gasLimit;
+
+    /**
+     * @notice The configuration for the deposit fee market. Used by the OptimismPortal
+     *         to meter the cost of buying L2 gas on L1. Set as internal and wrapped with a getter
+     *         so that the struct is returned instead of a tuple.
+     */
+    ResourceMetering.ResourceConfig internal _resourceConfig;
 
     /**
      * @notice Emitted when configuration is updated
@@ -79,7 +87,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.0.1
+     * @custom:semver 1.1.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -87,6 +95,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _batcherHash       Initial batcher hash.
      * @param _gasLimit          Initial gas limit.
      * @param _unsafeBlockSigner Initial unsafe block signer address.
+     * @param _config            Initial resource config.
      */
     constructor(
         address _owner,
@@ -94,13 +103,23 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _scalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
-        address _unsafeBlockSigner
-    ) Semver(1, 0, 1) {
-        initialize(_owner, _overhead, _scalar, _batcherHash, _gasLimit, _unsafeBlockSigner);
+        address _unsafeBlockSigner,
+        ResourceMetering.ResourceConfig memory _config
+    ) Semver(1, 1, 0) {
+        initialize({
+            _owner: _owner,
+            _overhead: _overhead,
+            _scalar: _scalar,
+            _batcherHash: _batcherHash,
+            _gasLimit: _gasLimit,
+            _unsafeBlockSigner: _unsafeBlockSigner,
+            _config: _config
+        });
     }
 
     /**
-     * @notice Initializer.
+     * @notice Initializer. The resource config must be set before the
+     *         require check.
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -108,6 +127,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _batcherHash       Initial batcher hash.
      * @param _gasLimit          Initial gas limit.
      * @param _unsafeBlockSigner Initial unsafe block signer address.
+     * @param _config            Initial ResourceConfig.
      */
     function initialize(
         address _owner,
@@ -115,9 +135,9 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint256 _scalar,
         bytes32 _batcherHash,
         uint64 _gasLimit,
-        address _unsafeBlockSigner
+        address _unsafeBlockSigner,
+        ResourceMetering.ResourceConfig memory _config
     ) public initializer {
-        require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
         __Ownable_init();
         transferOwnership(_owner);
         overhead = _overhead;
@@ -125,6 +145,21 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         batcherHash = _batcherHash;
         gasLimit = _gasLimit;
         _setUnsafeBlockSigner(_unsafeBlockSigner);
+        _setResourceConfig(_config);
+        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
+    }
+
+    /**
+     * @notice Returns the minimum L2 gas limit that can be safely set for the system to
+     *         operate. The L2 gas limit must be larger than or equal to the amount of
+     *         gas that is allocated for deposits per block plus the amount of gas that
+     *         is allocated for the system transaction.
+     *         This function is used to determine if changes to parameters are safe.
+     *
+     * @return uint64
+     */
+    function minimumGasLimit() public view returns (uint64) {
+        return uint64(_resourceConfig.maxResourceLimit) + uint64(_resourceConfig.systemTxMaxGas);
     }
 
     /**
@@ -188,7 +223,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @param _gasLimit New gas limit.
      */
     function setGasLimit(uint64 _gasLimit) external onlyOwner {
-        require(_gasLimit >= MINIMUM_GAS_LIMIT, "SystemConfig: gas limit too low");
+        require(_gasLimit >= minimumGasLimit(), "SystemConfig: gas limit too low");
         gasLimit = _gasLimit;
 
         bytes memory data = abi.encode(_gasLimit);
@@ -206,5 +241,61 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         assembly {
             sstore(slot, _unsafeBlockSigner)
         }
+    }
+
+    /**
+     * @notice A getter for the resource config. Ensures that the struct is
+     *         returned instead of a tuple.
+     *
+     * @return ResourceConfig
+     */
+    function resourceConfig() external view returns (ResourceMetering.ResourceConfig memory) {
+        return _resourceConfig;
+    }
+
+    /**
+     * @notice An external setter for the resource config. In the future, this
+     *         method may emit an event that the `op-node` picks up for when the
+     *         resource config is changed.
+     *
+     * @param _config The new resource config values.
+     */
+    function setResourceConfig(ResourceMetering.ResourceConfig memory _config) external onlyOwner {
+        _setResourceConfig(_config);
+    }
+
+    /**
+     * @notice An internal setter for the resource config. Ensures that the
+     *         config is sane before storing it by checking for invariants.
+     *
+     * @param _config The new resource config.
+     */
+    function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
+        // Min base fee must be less than or equal to max base fee.
+        require(
+            _config.minimumBaseFee <= _config.maximumBaseFee,
+            "SystemConfig: min base fee must be less than max base"
+        );
+        // Base fee change denominator must be greater than 0.
+        require(_config.baseFeeMaxChangeDenominator > 0, "SystemConfig: denominator cannot be 0");
+        // Max resource limit plus system tx gas must be less than or equal to the L2 gas limit.
+        // The gas limit must be increased before these values can be increased.
+        require(
+            _config.maxResourceLimit + _config.systemTxMaxGas <= gasLimit,
+            "SystemConfig: gas limit too low"
+        );
+        // Elasticity multiplier must be greater than 0.
+        require(
+            _config.elasticityMultiplier > 0,
+            "SystemConfig: elasticity multiplier cannot be 0"
+        );
+        // No precision loss when computing target resource limit.
+        require(
+            ((_config.maxResourceLimit / _config.elasticityMultiplier) *
+                _config.elasticityMultiplier) == _config.maxResourceLimit,
+            "SystemConfig: precision loss with target resource limit"
+        );
+
+        _resourceConfig = _config;
     }
 }

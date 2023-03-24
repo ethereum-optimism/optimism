@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
@@ -99,6 +100,30 @@ func TestBuildL1DeveloperGenesis(t *testing.T) {
 	name, err := weth9.Name(callOpts)
 	require.NoError(t, err)
 	require.Equal(t, "Wrapped Ether", name)
+
+	sysCfg, err := bindings.NewSystemConfig(predeploys.DevSystemConfigAddr, sim)
+	require.NoError(t, err)
+	cfg, err := sysCfg.ResourceConfig(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, cfg, defaultResourceConfig)
+	owner, err = sysCfg.Owner(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, owner, config.FinalSystemOwner)
+	overhead, err := sysCfg.Overhead(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, overhead.Uint64(), config.GasPriceOracleOverhead)
+	scalar, err := sysCfg.Scalar(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, scalar.Uint64(), config.GasPriceOracleScalar)
+	batcherHash, err := sysCfg.BatcherHash(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, common.Hash(batcherHash), config.BatchSenderAddress.Hash())
+	gasLimit, err := sysCfg.GasLimit(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, gasLimit, uint64(config.L2GenesisBlockGasLimit))
+	unsafeBlockSigner, err := sysCfg.UnsafeBlockSigner(&bind.CallOpts{})
+	require.NoError(t, err)
+	require.Equal(t, unsafeBlockSigner, config.P2PSequencerAddress)
 
 	// test that we can do deposits, etc.
 	priv, err := crypto.HexToECDSA("ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80")

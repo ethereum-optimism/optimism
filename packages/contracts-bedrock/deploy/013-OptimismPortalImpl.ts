@@ -17,6 +17,10 @@ const deployFn: DeployFunction = async (hre) => {
     'L2OutputOracleProxy'
   )
 
+  const Artifact__SystemConfigProxy = await hre.deployments.get(
+    'SystemConfigProxy'
+  )
+
   const portalGuardian = hre.deployConfig.portalGuardian
   const portalGuardianCode = await hre.ethers.provider.getCode(portalGuardian)
   if (portalGuardianCode === '0x') {
@@ -41,6 +45,7 @@ const deployFn: DeployFunction = async (hre) => {
       L2OutputOracleProxy.address,
       portalGuardian,
       true, // paused
+      Artifact__SystemConfigProxy.address,
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -52,6 +57,11 @@ const deployFn: DeployFunction = async (hre) => {
         contract,
         'GUARDIAN',
         hre.deployConfig.portalGuardian
+      )
+      await assertContractVariable(
+        contract,
+        'SYSTEM_CONFIG',
+        Artifact__SystemConfigProxy.address
       )
     },
   })

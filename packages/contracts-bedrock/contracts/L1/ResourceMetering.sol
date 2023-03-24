@@ -28,44 +28,34 @@ abstract contract ResourceMetering is Initializable {
     }
 
     /**
-     * @notice Maximum amount of the resource that can be used within this block.
-     *         This value cannot be larger than the L2 block gas limit.
+     * @notice Represents the configuration for the EIP-1559 based curve for the deposit gas
+     *         market. These values should be set with care as it is possible to set them in
+     *         a way that breaks the deposit gas market. The target resource limit is defined as
+     *         maxResourceLimit / elasticityMultiplier. This struct was designed to fit within a
+     *         single word. There is additional space for additions in the future.
+     *
+     * @custom:field maxResourceLimit             Represents the maximum amount of deposit gas that
+     *                                            can be purchased per block.
+     * @custom:field elasticityMultiplier         Determines the target resource limit along with
+     *                                            the resource limit.
+     * @custom:field baseFeeMaxChangeDenominator  Determines max change on fee per block.
+     * @custom:field minimumBaseFee               The min deposit base fee, it is clamped to this
+     *                                            value.
+     * @custom:field systemTxMaxGas               The amount of gas supplied to the system
+     *                                            transaction. This should be set to the same number
+     *                                            that the op-node sets as the gas limit for the
+     *                                            system transaction.
+     * @custom:field maximumBaseFee               The max deposit base fee, it is clamped to this
+     *                                            value.
      */
-    int256 public constant MAX_RESOURCE_LIMIT = 20_000_000;
-
-    /**
-     * @notice Along with the resource limit, determines the target resource limit.
-     */
-    int256 public constant ELASTICITY_MULTIPLIER = 10;
-
-    /**
-     * @notice Target amount of the resource that should be used within this block.
-     */
-    int256 public constant TARGET_RESOURCE_LIMIT = MAX_RESOURCE_LIMIT / ELASTICITY_MULTIPLIER;
-
-    /**
-     * @notice Denominator that determines max change on fee per block.
-     */
-    int256 public constant BASE_FEE_MAX_CHANGE_DENOMINATOR = 8;
-
-    /**
-     * @notice Minimum base fee value, cannot go lower than this.
-     */
-    int256 public constant MINIMUM_BASE_FEE = 1 gwei;
-
-    /**
-     * @notice Maximum base fee value, cannot go higher than this.
-     *         It is possible for the MAXIMUM_BASE_FEE to raise to a value
-     *         that is so large it will consume the entire gas limit of
-     *         an L1 block.
-     */
-    int256 public constant MAXIMUM_BASE_FEE = int256(uint256(type(uint128).max));
-
-    /**
-     * @notice Initial base fee value. This value must be smaller than the
-     *         MAXIMUM_BASE_FEE.
-     */
-    uint128 public constant INITIAL_BASE_FEE = 1 gwei;
+    struct ResourceConfig {
+        uint32 maxResourceLimit;
+        uint8 elasticityMultiplier;
+        uint8 baseFeeMaxChangeDenominator;
+        uint32 minimumBaseFee;
+        uint32 systemTxMaxGas;
+        uint128 maximumBaseFee;
+    }
 
     /**
      * @notice EIP-1559 style gas parameters.
@@ -102,20 +92,25 @@ abstract contract ResourceMetering is Initializable {
     function _metered(uint64 _amount, uint256 _initialGas) internal {
         // Update block number and base fee if necessary.
         uint256 blockDiff = block.number - params.prevBlockNum;
+
+        ResourceConfig memory config = _resourceConfig();
+        int256 targetResourceLimit = int256(uint256(config.maxResourceLimit)) /
+            int256(uint256(config.elasticityMultiplier));
+
         if (blockDiff > 0) {
             // Handle updating EIP-1559 style gas parameters. We use EIP-1559 to restrict the rate
             // at which deposits can be created and therefore limit the potential for deposits to
             // spam the L2 system. Fee scheme is very similar to EIP-1559 with minor changes.
-            int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - TARGET_RESOURCE_LIMIT;
+            int256 gasUsedDelta = int256(uint256(params.prevBoughtGas)) - targetResourceLimit;
             int256 baseFeeDelta = (int256(uint256(params.prevBaseFee)) * gasUsedDelta) /
-                (TARGET_RESOURCE_LIMIT * BASE_FEE_MAX_CHANGE_DENOMINATOR);
+                (targetResourceLimit * int256(uint256(config.baseFeeMaxChangeDenominator)));
 
             // Update base fee by adding the base fee delta and clamp the resulting value between
             // min and max.
             int256 newBaseFee = Arithmetic.clamp({
                 _value: int256(uint256(params.prevBaseFee)) + baseFeeDelta,
-                _min: MINIMUM_BASE_FEE,
-                _max: MAXIMUM_BASE_FEE
+                _min: int256(uint256(config.minimumBaseFee)),
+                _max: int256(uint256(config.maximumBaseFee))
             });
 
             // If we skipped more than one block, we also need to account for every empty block.
@@ -128,11 +123,11 @@ abstract contract ResourceMetering is Initializable {
                 newBaseFee = Arithmetic.clamp({
                     _value: Arithmetic.cdexp({
                         _coefficient: newBaseFee,
-                        _denominator: BASE_FEE_MAX_CHANGE_DENOMINATOR,
+                        _denominator: int256(uint256(config.baseFeeMaxChangeDenominator)),
                         _exponent: int256(blockDiff - 1)
                     }),
-                    _min: MINIMUM_BASE_FEE,
-                    _max: MAXIMUM_BASE_FEE
+                    _min: int256(uint256(config.minimumBaseFee)),
+                    _max: int256(uint256(config.maximumBaseFee))
                 });
             }
 
@@ -145,7 +140,7 @@ abstract contract ResourceMetering is Initializable {
         // Make sure we can actually buy the resource amount requested by the user.
         params.prevBoughtGas += _amount;
         require(
-            int256(uint256(params.prevBoughtGas)) <= MAX_RESOURCE_LIMIT,
+            int256(uint256(params.prevBoughtGas)) <= int256(uint256(config.maxResourceLimit)),
             "ResourceMetering: cannot buy more gas than available gas limit"
         );
 
@@ -169,13 +164,21 @@ abstract contract ResourceMetering is Initializable {
     }
 
     /**
+     * @notice Virtual function that returns the resource config. Contracts that inherit this
+     *         contract must implement this function.
+     *
+     * @return ResourceConfig
+     */
+    function _resourceConfig() internal virtual returns (ResourceConfig memory);
+
+    /**
      * @notice Sets initial resource parameter values. This function must either be called by the
      *         initializer function of an upgradeable child contract.
      */
     // solhint-disable-next-line func-name-mixedcase
     function __ResourceMetering_init() internal onlyInitializing {
         params = ResourceParams({
-            prevBaseFee: INITIAL_BASE_FEE,
+            prevBaseFee: 1 gwei,
             prevBoughtGas: 0,
             prevBlockNum: uint64(block.number)
         });
