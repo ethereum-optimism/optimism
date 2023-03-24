@@ -13,7 +13,7 @@ WORKDIR /app/op-heartbeat
 
 RUN make op-heartbeat
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 COPY --from=builder /app/op-heartbeat/bin/op-heartbeat /usr/local/bin
 
