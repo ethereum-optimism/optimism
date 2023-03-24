@@ -17,7 +17,6 @@ import (
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 type Config struct {
@@ -29,8 +28,7 @@ type Config struct {
 
 	PollInterval time.Duration
 	From         common.Address
-
-	TxManagerConfig txmgr.Config
+	TxManager    txmgr.TxManager
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config
@@ -51,8 +49,6 @@ func (c *Config) Check() error {
 }
 
 type CLIConfig struct {
-	/* Required Params */
-
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
@@ -81,43 +77,6 @@ type CLIConfig struct {
 	// and creating a new batch.
 	PollInterval time.Duration
 
-	// NumConfirmations is the number of confirmations which we will wait after
-	// appending new batches.
-	NumConfirmations uint64
-
-	// SafeAbortNonceTooLowCount is the number of ErrNonceTooLowObservations
-	// required to give up on a tx at a particular nonce without receiving
-	// confirmation.
-	SafeAbortNonceTooLowCount uint64
-
-	// ResubmissionTimeout is time we will wait before resubmitting a
-	// transaction.
-	ResubmissionTimeout time.Duration
-
-	// Mnemonic is the HD seed used to derive the wallet private keys for both
-	// the sequence and proposer. Must be used in conjunction with
-	// SequencerHDPath and ProposerHDPath.
-	Mnemonic string
-
-	// SequencerHDPath is the derivation path used to obtain the private key for
-	// batched submission of sequencer transactions.
-	SequencerHDPath string
-
-	// PrivateKey is the private key used to submit sequencer transactions.
-	PrivateKey string
-
-	RPCConfig rpc.CLIConfig
-
-	/* Optional Params */
-
-	// TxManagerTimeout is the max amount of time to wait for the [txmgr].
-	// This will default to: 10 * time.Minute.
-	TxManagerTimeout time.Duration
-
-	// OfflineGasEstimation specifies whether the batcher should calculate
-	// gas estimations offline using the [core.IntrinsicGas] function.
-	OfflineGasEstimation bool
-
 	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
 	MaxL1TxSize uint64
 
@@ -133,14 +92,11 @@ type CLIConfig struct {
 
 	Stopped bool
 
-	LogConfig oplog.CLIConfig
-
+	TxMgrConfig   txmgr.CLIConfig
+	RPCConfig     rpc.CLIConfig
+	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
-
-	PprofConfig oppprof.CLIConfig
-
-	// SignerConfig contains the client config for op-signer service
-	SignerConfig opsigner.CLIConfig
+	PprofConfig   oppprof.CLIConfig
 }
 
 func (c CLIConfig) Check() error {
@@ -156,7 +112,7 @@ func (c CLIConfig) Check() error {
 	if err := c.PprofConfig.Check(); err != nil {
 		return err
 	}
-	if err := c.SignerConfig.Check(); err != nil {
+	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -166,31 +122,23 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		/* Required Flags */
-		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                  ctx.GlobalString(flags.L2EthRpcFlag.Name),
-		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
-		SubSafetyMargin:           ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),
-		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
-		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
+		L1EthRpc:        ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:        ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		RollupRpc:       ctx.GlobalString(flags.RollupRpcFlag.Name),
+		SubSafetyMargin: ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),
+		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
 
 		/* Optional Flags */
-		OfflineGasEstimation: ctx.GlobalBool(flags.OfflineGasEstimationFlag.Name),
-		TxManagerTimeout:     ctx.GlobalDuration(flags.TxManagerTimeoutFlag.Name),
-		MaxChannelDuration:   ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
-		MaxL1TxSize:          ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		TargetL1TxSize:       ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
-		TargetNumFrames:      ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
-		ApproxComprRatio:     ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
-		Stopped:              ctx.GlobalBool(flags.StoppedFlag.Name),
-		Mnemonic:             ctx.GlobalString(flags.MnemonicFlag.Name),
-		SequencerHDPath:      ctx.GlobalString(flags.SequencerHDPathFlag.Name),
-		PrivateKey:           ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		RPCConfig:            rpc.ReadCLIConfig(ctx),
-		LogConfig:            oplog.ReadCLIConfig(ctx),
-		MetricsConfig:        opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:          oppprof.ReadCLIConfig(ctx),
-		SignerConfig:         opsigner.ReadCLIConfig(ctx),
+		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
+		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
+		TargetNumFrames:    ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:   ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
+		Stopped:            ctx.GlobalBool(flags.StoppedFlag.Name),
+		TxMgrConfig:        txmgr.ReadCLIConfig(ctx),
+		RPCConfig:          rpc.ReadCLIConfig(ctx),
+		LogConfig:          oplog.ReadCLIConfig(ctx),
+		MetricsConfig:      opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:        oppprof.ReadCLIConfig(ctx),
 	}
 }

@@ -1,7 +1,6 @@
 package actions
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"math/big"
 	"time"
@@ -18,8 +17,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	"github.com/ethereum-optimism/optimism/op-proposer/proposer"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 type ProposerCfg struct {
@@ -34,37 +31,19 @@ type L2Proposer struct {
 	driver       *proposer.L2OutputSubmitter
 	address      common.Address
 	privKey      *ecdsa.PrivateKey
-	signer       opcrypto.SignerFn
 	contractAddr common.Address
 	lastTx       common.Hash
 }
 
 func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Client, rollupCl *sources.RollupClient) *L2Proposer {
-	signer := func(chainID *big.Int) opcrypto.SignerFn {
-		s := opcrypto.PrivateKeySignerFn(cfg.ProposerKey, chainID)
-		return func(_ context.Context, addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
-			return s(addr, tx)
-		}
-	}
-	from := crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey)
 
 	proposerCfg := proposer.Config{
 		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		PollInterval:       time.Second,
-		TxManagerConfig: txmgr.Config{
-			ResubmissionTimeout:       5 * time.Second,
-			ReceiptQueryInterval:      time.Second,
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 4,
-			From:                      from,
-			ChainID:                   big.NewInt(420),
-			// Signer is loaded in `proposer.NewL2OutputSubmitter`
-		},
-		L1Client:          l1,
-		RollupClient:      rollupCl,
-		AllowNonFinalized: cfg.AllowNonFinalized,
-		From:              from,
-		SignerFnFactory:   signer,
+		L1Client:           l1,
+		RollupClient:       rollupCl,
+		AllowNonFinalized:  cfg.AllowNonFinalized,
+		// We use custom signing here instead of using the transaction manager.
 	}
 
 	dr, err := proposer.NewL2OutputSubmitter(proposerCfg, log, metrics.NoopMetrics)
@@ -76,7 +55,6 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 		driver:       dr,
 		address:      crypto.PubkeyToAddress(cfg.ProposerKey.PublicKey),
 		privKey:      cfg.ProposerKey,
-		signer:       proposerCfg.TxManagerConfig.Signer,
 		contractAddr: cfg.OutputOracleAddr,
 	}
 }

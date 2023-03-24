@@ -40,6 +40,7 @@ import (
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 var (
@@ -570,19 +571,22 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
-		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
-		PollInterval:              50 * time.Millisecond,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       3 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
-		AllowNonFinalized:         cfg.NonFinalizedProposals,
+		L1EthRpc:     sys.Nodes["l1"].WSEndpoint(),
+		RollupRpc:    sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		L2OOAddress:  predeploys.DevL2OutputOracleAddr.String(),
+		PollInterval: 50 * time.Millisecond,
+		TxMgrConfig: txmgr.CLIConfig{
+			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
+			PrivateKey:                hexPriv(cfg.Secrets.Proposer),
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			ResubmissionTimeout:       3 * time.Second,
+		},
+		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey: hexPriv(cfg.Secrets.Proposer),
 	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
@@ -593,28 +597,28 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	// Batch Submitter
-	txManagerTimeout := 10 * time.Minute
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		TxManagerTimeout:          txManagerTimeout,
-		OfflineGasEstimation:      true,
-		MaxChannelDuration:        1,
-		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            100_000,
-		TargetNumFrames:           1,
-		ApproxComprRatio:          0.4,
-		SubSafetyMargin:           4,
-		PollInterval:              50 * time.Millisecond,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       5 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
+		L1EthRpc:           sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:           sys.Nodes["sequencer"].WSEndpoint(),
+		RollupRpc:          sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxChannelDuration: 1,
+		MaxL1TxSize:        120_000,
+		TargetL1TxSize:     100_000,
+		TargetNumFrames:    1,
+		ApproxComprRatio:   0.4,
+		SubSafetyMargin:    4,
+		PollInterval:       50 * time.Millisecond,
+		TxMgrConfig: txmgr.CLIConfig{
+			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
+			PrivateKey:                hexPriv(cfg.Secrets.Batcher),
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			ResubmissionTimeout:       3 * time.Second,
+		},
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey: hexPriv(cfg.Secrets.Batcher),
 	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
