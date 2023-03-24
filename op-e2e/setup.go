@@ -513,6 +513,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	sort.Strings(ks)
 
 	for _, name := range ks {
+		fmt.Printf("Starting node: %s with config: %+v\n", name, cfg.Nodes[name])
 		nodeConfig := cfg.Nodes[name]
 		c := *nodeConfig // copy
 		c.Rollup = makeRollupConfig()

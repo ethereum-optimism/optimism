@@ -433,6 +433,8 @@ func (p *publisher) PublishL2Payload(ctx context.Context, payload *eth.Execution
 	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
 
+	fmt.Printf("Inside p2p/gossip.go: publishing %d bytes\n", len(out))
+
 	return p.blocksTopic.Publish(ctx, out)
 }
 
