@@ -267,7 +267,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
      * @notice An internal setter for the resource config. Ensures that the
      *         config is sane before storing it by checking for invariants.
      *
-     * @param _config The new resource config
+     * @param _config The new resource config.
      */
     function _setResourceConfig(ResourceMetering.ResourceConfig memory _config) internal {
         // min base fee must be less than or equal to max base fee
