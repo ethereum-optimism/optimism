@@ -75,7 +75,7 @@ func NewOpGeth(t *testing.T, ctx context.Context, cfg *SystemConfig) (*OpGeth, e
 	require.Nil(t, node.Start())
 
 	auth := rpc.WithHTTPAuth(gn.NewJWTAuth(cfg.JWTSecret))
-	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), auth)
+	l2Node, err := client.NewRPC(ctx, logger, node.WSAuthEndpoint(), client.WithGethRPCOptions(auth))
 	require.Nil(t, err)
 
 	// Finally create the engine client

@@ -413,9 +413,12 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			l2EndpointConfig = sys.Nodes[name].HTTPAuthEndpoint()
 		}
 		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
-			L1NodeAddr: l1EndpointConfig,
-			L1TrustRPC: false,
-			L1RPCKind:  sources.RPCKindBasic,
+			L1NodeAddr:       l1EndpointConfig,
+			L1TrustRPC:       false,
+			L1RPCKind:        sources.RPCKindBasic,
+			RateLimit:        0,
+			BatchSize:        20,
+			HttpPollInterval: time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second / 10,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
 			L2EngineAddr:      l2EndpointConfig,
@@ -590,10 +593,13 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	// Batch Submitter
+	txManagerTimeout := 10 * time.Minute
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
 		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
 		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
 		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		TxManagerTimeout:          txManagerTimeout,
+		OfflineGasEstimation:      true,
 		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
 		TargetL1TxSize:            100_000,

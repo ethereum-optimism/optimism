@@ -57,7 +57,7 @@ func NewPollingClient(ctx context.Context, lgr log.Logger, c RPC, opts ...Wrappe
 	res := &PollingClient{
 		c:         c,
 		lgr:       lgr,
-		pollRate:  250 * time.Millisecond,
+		pollRate:  12 * time.Second,
 		ctx:       ctx,
 		cancel:    cancel,
 		pollReqCh: make(chan struct{}, 1),

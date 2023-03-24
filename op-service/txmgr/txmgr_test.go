@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,6 +49,18 @@ func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
 // suitable for most tests.
 func newTestHarness(t *testing.T) *testHarness {
 	return newTestHarnessWithConfig(t, configWithNumConfs(1))
+}
+
+// createTxCandidate creates a mock [TxCandidate].
+func (h testHarness) createTxCandidate() TxCandidate {
+	inbox := common.HexToAddress("0x42000000000000000000000000000000000000ff")
+	sender := common.HexToAddress("0xdeadbeef")
+	return TxCandidate{
+		To:       inbox,
+		TxData:   []byte{0x00, 0x01, 0x02},
+		From:     sender,
+		GasLimit: uint64(1337),
+	}
 }
 
 func configWithNumConfs(numConfirmations uint64) Config {
@@ -175,6 +188,10 @@ func (b *mockBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*typ
 	}, nil
 }
 
+func (b *mockBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	return b.g.basefee().Uint64(), nil
+}
+
 func (b *mockBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
 	tip, _ := b.g.sample()
 	return tip, nil
@@ -185,7 +202,14 @@ func (b *mockBackend) SendTransaction(ctx context.Context, tx *types.Transaction
 		panic("set sender function was not set")
 	}
 	return b.send(ctx, tx)
+}
 
+func (b *mockBackend) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
+	return 0, nil
+}
+
+func (*mockBackend) ChainID(ctx context.Context) (*big.Int, error) {
+	return big.NewInt(1), nil
 }
 
 // TransactionReceipt queries the mockBackend for a mined txHash. If none is
@@ -328,6 +352,51 @@ func TestTxMgrBlocksOnFailingRpcCalls(t *testing.T) {
 	receipt, err := h.mgr.Send(ctx, tx)
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
+}
+
+// TestTxMgr_CraftTx ensures that the tx manager will create transactions as expected.
+func TestTxMgr_CraftTx(t *testing.T) {
+	t.Parallel()
+	h := newTestHarness(t)
+	candidate := h.createTxCandidate()
+
+	// Craft the transaction.
+	gasTipCap, gasFeeCap := h.gasPricer.feesForEpoch(h.gasPricer.epoch + 1)
+	tx, err := h.mgr.CraftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.NotNil(t, tx)
+
+	// Validate the gas tip cap and fee cap.
+	require.Equal(t, gasTipCap, tx.GasTipCap())
+	require.Equal(t, gasFeeCap, tx.GasFeeCap())
+
+	// Validate the nonce was set correctly using the backend.
+	require.Zero(t, tx.Nonce())
+
+	// Check that the gas was set using the gas limit.
+	require.Equal(t, candidate.GasLimit, tx.Gas())
+}
+
+// TestTxMgr_EstimateGas ensures that the tx manager will estimate
+// the gas when candidate gas limit is zero in [CraftTx].
+func TestTxMgr_EstimateGas(t *testing.T) {
+	t.Parallel()
+	h := newTestHarness(t)
+	candidate := h.createTxCandidate()
+
+	// Set the gas limit to zero to trigger gas estimation.
+	candidate.GasLimit = 0
+
+	// Gas estimate
+	gasEstimate := h.gasPricer.baseBaseFee.Uint64()
+
+	// Craft the transaction.
+	tx, err := h.mgr.CraftTx(context.Background(), candidate)
+	require.Nil(t, err)
+	require.NotNil(t, tx)
+
+	// Check that the gas was estimated correctly.
+	require.Equal(t, gasEstimate, tx.Gas())
 }
 
 // TestTxMgrOnlyOnePublicationSucceeds asserts that the tx manager will return a
@@ -575,6 +644,18 @@ func (b *failingBackend) SendTransaction(_ context.Context, _ *types.Transaction
 
 func (b *failingBackend) SuggestGasTipCap(_ context.Context) (*big.Int, error) {
 	return b.gasTip, nil
+}
+
+func (b *failingBackend) EstimateGas(ctx context.Context, msg ethereum.CallMsg) (uint64, error) {
+	return b.baseFee.Uint64(), nil
+}
+
+func (b *failingBackend) NonceAt(_ context.Context, _ common.Address, _ *big.Int) (uint64, error) {
+	return 0, errors.New("unimplemented")
+}
+
+func (b *failingBackend) ChainID(ctx context.Context) (*big.Int, error) {
+	return nil, errors.New("unimplemented")
 }
 
 // TestWaitMinedReturnsReceiptAfterFailure asserts that WaitMined is able to

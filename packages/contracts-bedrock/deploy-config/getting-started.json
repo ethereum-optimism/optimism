@@ -21,7 +21,7 @@
 
   "l2OutputOracleSubmissionInterval": 120,
   "l2OutputOracleStartingBlockNumber": 0,
-  "l2OutputOracleStartingTimestamp": "TIMESTAMP",
+  "l2OutputOracleStartingTimestamp": TIMESTAMP,
 
   "l2OutputOracleProposer": "PROPOSER",
   "l2OutputOracleChallenger": "ADMIN",

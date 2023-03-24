@@ -116,14 +116,13 @@ func (n *OpNode) initTracer(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL1(ctx context.Context, cfg *Config) error {
-	l1Node, trustRPC, rpcProvKind, err := cfg.L1.Setup(ctx, n.log)
+	l1Node, rpcCfg, err := cfg.L1.Setup(ctx, n.log, &cfg.Rollup)
 	if err != nil {
 		return fmt.Errorf("failed to get L1 RPC client: %w", err)
 	}
 
 	n.l1Source, err = sources.NewL1Client(
-		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache,
-		sources.L1ClientDefaultConfig(&cfg.Rollup, trustRPC, rpcProvKind))
+		client.NewInstrumentedRPC(l1Node, n.metrics), n.log, n.metrics.L1SourceCache, rpcCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create L1 source: %w", err)
 	}
@@ -184,14 +183,13 @@ func (n *OpNode) initRuntimeConfig(ctx context.Context, cfg *Config) error {
 }
 
 func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger) error {
-	rpcClient, err := cfg.L2.Setup(ctx, n.log)
+	rpcClient, rpcCfg, err := cfg.L2.Setup(ctx, n.log, &cfg.Rollup)
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client: %w", err)
 	}
 
 	n.l2Source, err = sources.NewEngineClient(
-		client.NewInstrumentedRPC(rpcClient, n.metrics), n.log, n.metrics.L2SourceCache,
-		sources.EngineClientDefaultConfig(&cfg.Rollup),
+		client.NewInstrumentedRPC(rpcClient, n.metrics), n.log, n.metrics.L2SourceCache, rpcCfg,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create Engine client: %w", err)
@@ -207,17 +205,14 @@ func (n *OpNode) initL2(ctx context.Context, cfg *Config, snapshotLog log.Logger
 }
 
 func (n *OpNode) initRPCSync(ctx context.Context, cfg *Config) error {
-	rpcSyncClient, trustRPC, err := cfg.L2Sync.Setup(ctx, n.log)
+	rpcSyncClient, rpcCfg, err := cfg.L2Sync.Setup(ctx, n.log, &cfg.Rollup)
 	if err != nil {
 		return fmt.Errorf("failed to setup L2 execution-engine RPC client for backup sync: %w", err)
 	}
 	if rpcSyncClient == nil { // if no RPC client is configured to sync from, then don't add the RPC sync client
 		return nil
 	}
-
-	config := sources.SyncClientDefaultConfig(&cfg.Rollup, trustRPC)
-
-	syncClient, err := sources.NewSyncClient(n.OnUnsafeL2Payload, rpcSyncClient, n.log, n.metrics.L2SourceCache, config)
+	syncClient, err := sources.NewSyncClient(n.OnUnsafeL2Payload, rpcSyncClient, n.log, n.metrics.L2SourceCache, rpcCfg)
 	if err != nil {
 		return fmt.Errorf("failed to create sync client: %w", err)
 	}

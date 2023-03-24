@@ -270,9 +270,12 @@ func TestMigration(t *testing.T) {
 	snapLog.SetHandler(log.DiscardHandler())
 	rollupNodeConfig := &node.Config{
 		L1: &node.L1EndpointConfig{
-			L1NodeAddr: forkedL1URL,
-			L1TrustRPC: false,
-			L1RPCKind:  sources.RPCKindBasic,
+			L1NodeAddr:       forkedL1URL,
+			L1TrustRPC:       false,
+			L1RPCKind:        sources.RPCKindBasic,
+			RateLimit:        0,
+			BatchSize:        20,
+			HttpPollInterval: 12 * time.Second,
 		},
 		L2: &node.L2EndpointConfig{
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),
@@ -329,6 +332,8 @@ func TestMigration(t *testing.T) {
 		L1EthRpc:                  forkedL1URL,
 		L2EthRpc:                  gethNode.WSEndpoint(),
 		RollupRpc:                 rollupNode.HTTPEndpoint(),
+		TxManagerTimeout:          10 * time.Minute,
+		OfflineGasEstimation:      true,
 		MaxChannelDuration:        1,
 		MaxL1TxSize:               120_000,
 		TargetL1TxSize:            100_000,
