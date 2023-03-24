@@ -15,6 +15,7 @@ import {
   jsonifyTransaction,
   getTenderlySimulationLink,
   getCastCommand,
+  isStep,
 } from '../src/deploy-utils'
 
 const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
@@ -196,6 +197,71 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`L1ERC721Bridge already owned by MSD`)
   }
 
+  // Make sure the dynamic system configuration has been set.
+  if (
+    (await isStep(SystemDictator, 1)) &&
+    !(await SystemDictator.dynamicConfigSet())
+  ) {
+    console.log(`
+      You must now set the dynamic L2OutputOracle configuration by calling the function
+      updateL2OutputOracleDynamicConfig. You will need to provide the
+      l2OutputOracleStartingBlockNumber and the l2OutputOracleStartingTimestamp which can both be
+      found by querying the last finalized block in the L2 node.
+    `)
+
+    if (isLiveDeployer) {
+      console.log(`Updating dynamic oracle config...`)
+
+      // Use default starting time if not provided
+      let deployL2StartingTimestamp =
+        hre.deployConfig.l2OutputOracleStartingTimestamp
+      if (deployL2StartingTimestamp < 0) {
+        const l1StartingBlock = await hre.ethers.provider.getBlock(
+          hre.deployConfig.l1StartingBlockTag
+        )
+        if (l1StartingBlock === null) {
+          throw new Error(
+            `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
+          )
+        }
+        deployL2StartingTimestamp = l1StartingBlock.timestamp
+      }
+
+      await SystemDictator.updateDynamicConfig(
+        {
+          l2OutputOracleStartingBlockNumber:
+            hre.deployConfig.l2OutputOracleStartingBlockNumber,
+          l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+        },
+        false // do not pause the the OptimismPortal when initializing
+      )
+    } else {
+      const tx = await SystemDictator.populateTransaction.updateDynamicConfig(
+        {
+          l2OutputOracleStartingBlockNumber:
+            hre.deployConfig.l2OutputOracleStartingBlockNumber,
+          l2OutputOracleStartingTimestamp:
+            hre.deployConfig.l2OutputOracleStartingTimestamp,
+        },
+        true
+      )
+      console.log(`Please update dynamic oracle config...`)
+      console.log(`MSD address: ${SystemDictator.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+    }
+
+    await awaitCondition(
+      async () => {
+        return SystemDictator.dynamicConfigSet()
+      },
+      5000,
+      1000
+    )
+  }
+
   // Step 1 is a freebie, it doesn't impact the system.
   await doStep({
     isLiveDeployer,
@@ -279,10 +345,10 @@ const deployFn: DeployFunction = async (hre) => {
       need to restart the system, run exit1() followed by finalize().
     `,
     checks: async () => {
-      assert(
-        (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
-          ethers.constants.AddressZero
+      const address = await AddressManager.getAddress(
+        'OVM_L1CrossDomainMessenger'
       )
+      assert(address === ethers.constants.AddressZero)
     },
   })
 }

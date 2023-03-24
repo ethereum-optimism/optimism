@@ -116,10 +116,8 @@ const deployFn: DeployFunction = async (hre) => {
         'BondManager',
       ]
       for (const dead of deads) {
-        assert(
-          (await AddressManager.getAddress(dead)) ===
-            ethers.constants.AddressZero
-        )
+        const address = await AddressManager.getAddress(dead)
+        assert(address === ethers.constants.AddressZero)
       }
     },
   })
@@ -142,71 +140,6 @@ const deployFn: DeployFunction = async (hre) => {
       )
     },
   })
-
-  // Make sure the dynamic system configuration has been set.
-  if (
-    (await isStep(SystemDictator, 5)) &&
-    !(await SystemDictator.dynamicConfigSet())
-  ) {
-    console.log(`
-      You must now set the dynamic L2OutputOracle configuration by calling the function
-      updateL2OutputOracleDynamicConfig. You will need to provide the
-      l2OutputOracleStartingBlockNumber and the l2OutputOracleStartingTimestamp which can both be
-      found by querying the last finalized block in the L2 node.
-    `)
-
-    if (isLiveDeployer) {
-      console.log(`Updating dynamic oracle config...`)
-
-      // Use default starting time if not provided
-      let deployL2StartingTimestamp =
-        hre.deployConfig.l2OutputOracleStartingTimestamp
-      if (deployL2StartingTimestamp < 0) {
-        const l1StartingBlock = await hre.ethers.provider.getBlock(
-          hre.deployConfig.l1StartingBlockTag
-        )
-        if (l1StartingBlock === null) {
-          throw new Error(
-            `Cannot fetch block tag ${hre.deployConfig.l1StartingBlockTag}`
-          )
-        }
-        deployL2StartingTimestamp = l1StartingBlock.timestamp
-      }
-
-      await SystemDictator.updateDynamicConfig(
-        {
-          l2OutputOracleStartingBlockNumber:
-            hre.deployConfig.l2OutputOracleStartingBlockNumber,
-          l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
-        },
-        false // do not pause the the OptimismPortal when initializing
-      )
-    } else {
-      const tx = await SystemDictator.populateTransaction.updateDynamicConfig(
-        {
-          l2OutputOracleStartingBlockNumber:
-            hre.deployConfig.l2OutputOracleStartingBlockNumber,
-          l2OutputOracleStartingTimestamp:
-            hre.deployConfig.l2OutputOracleStartingTimestamp,
-        },
-        true
-      )
-      console.log(`Please update dynamic oracle config...`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
-    }
-
-    await awaitCondition(
-      async () => {
-        return SystemDictator.dynamicConfigSet()
-      },
-      5000,
-      1000
-    )
-  }
 
   // Step 5 initializes all contracts.
   await doStep({
