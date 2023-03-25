@@ -77,7 +77,7 @@ jobs:
             corepack prepare pnpm@latest-7 --activate
       - run:
           name: Install dependencies
-          command: pnpm install --no-frozen-lockfile # todo: freeze lockfile
+          command: pnpm install --frozen-lockfile
       - save_cache:
           name: Save PNPM Package Cache
           key: pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
