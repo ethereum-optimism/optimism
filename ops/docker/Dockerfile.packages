@@ -64,7 +64,7 @@ COPY integration-tests/package.json ./integration-tests/package.json
 COPY --from=manifests /tmp/manifests  ./
 COPY *.json ./
 
-RUN pnpm install --frozen-lockfile && pnpm cache clean
+RUN pnpm install && pnpm cache clean
 
 COPY ./packages ./packages
 COPY ./integration-tests ./integration-tests
