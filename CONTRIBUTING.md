@@ -89,7 +89,7 @@ nvm use
 ### Install node modules with pnpm
 
 ```bash
-pnpm install
+pnpm i
 ```
 
 ### Building the TypeScript packages
