@@ -31,32 +31,27 @@ RUN mkdir manifests && \
   cp .nvmrc ../manifests/
 
 FROM ethereumoptimism/foundry:latest as foundry
-FROM node:16-alpine3.14 as base
+# bullseye-slim is debian based
+# we use it rather than alpien because it's not much
+# bigger and alpine is often missing packages for node applications
+# alpine is not officially supported by node.js
+FROM node:16.16.0-bullseye-slim as base
 
 # Base: install deps
-RUN apk --no-cache add curl \
+RUN apt-get update && apt-get install -y \
+  curl \
   jq \
   python3 \
   ca-certificates \
   git \
   make \
   gcc \
-  pkgconfig \
+  pkg-config \
   musl-dev \
-  linux-headers \
   bash \
-  build-base \
-  gcompat
+  --no-install-recommends
 
 RUN npm install pnpm --global
-
-ENV GLIBC_KEY=https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub
-ENV GLIBC_KEY_FILE=/etc/apk/keys/sgerrand.rsa.pub
-ENV GLIBC_RELEASE=https://github.com/sgerrand/alpine-pkg-glibc/releases/download/2.35-r0/glibc-2.35-r0.apk
-
-RUN wget -q -O ${GLIBC_KEY_FILE} ${GLIBC_KEY} \
-  && wget -O glibc.apk ${GLIBC_RELEASE} \
-  && apk add glibc.apk --force
 
 COPY --from=foundry /usr/local/bin/forge /usr/local/bin/forge
 COPY --from=foundry /usr/local/bin/cast /usr/local/bin/cast
