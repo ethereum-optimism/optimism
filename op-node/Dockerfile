@@ -14,7 +14,7 @@ WORKDIR /app/op-node
 
 RUN make op-node
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 COPY --from=builder /app/op-node/bin/op-node /usr/local/bin
 
