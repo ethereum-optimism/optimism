@@ -29,6 +29,9 @@ func Do(maxAttempts int, strategy Strategy, op Operation) error {
 }
 
 func DoCtx(ctx context.Context, maxAttempts int, strategy Strategy, op Operation) error {
+	if maxAttempts < 1 {
+		return fmt.Errorf("need at least 1 attempt to run op, but have %d max attempts", maxAttempts)
+	}
 	var attempt int
 
 	reattemptCh := make(chan struct{}, 1)

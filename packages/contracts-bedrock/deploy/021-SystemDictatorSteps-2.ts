@@ -234,7 +234,7 @@ const deployFn: DeployFunction = async (hre) => {
       )
       const resourceParams = await OptimismPortal.params()
       assert(
-        resourceParams.prevBaseFee.eq(await OptimismPortal.INITIAL_BASE_FEE()),
+        resourceParams.prevBaseFee.eq(ethers.utils.parseUnits('1', 'gwei')),
         `OptimismPortal was not initialized with the correct initial base fee`
       )
       assert(

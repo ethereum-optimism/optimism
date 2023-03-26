@@ -9,6 +9,7 @@ import { OptimismPortal } from "../L1/OptimismPortal.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
 contract OptimismPortal_Test is Portal_Initializer {
     event Paused(address);
@@ -1045,10 +1046,12 @@ contract OptimismPortalUpgradeable_Test is Portal_Initializer {
     }
 
     function test_params_initValuesOnProxy_succeeds() external {
-        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = OptimismPortal(
-            payable(address(proxy))
-        ).params();
-        assertEq(prevBaseFee, opImpl.INITIAL_BASE_FEE());
+        OptimismPortal p = OptimismPortal(payable(address(proxy)));
+
+        (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = p.params();
+
+        ResourceMetering.ResourceConfig memory rcfg = systemConfig.resourceConfig();
+        assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);
     }

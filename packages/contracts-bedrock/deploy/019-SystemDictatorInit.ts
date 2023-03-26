@@ -1,6 +1,6 @@
 import assert from 'assert'
 
-import { ethers } from 'ethers'
+import { ethers, BigNumber } from 'ethers'
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import { awaitCondition } from '@eth-optimism/core-utils'
 import '@eth-optimism/hardhat-deploy-config'
@@ -100,6 +100,18 @@ const deployFn: DeployFunction = async (hre) => {
       ),
       gasLimit: hre.deployConfig.l2GenesisBlockGasLimit,
       unsafeBlockSigner: hre.deployConfig.p2pSequencerAddress,
+      // The resource config is not exposed to the end user
+      // to simplify deploy config. It may be introduced in the future.
+      resourceConfig: {
+        maxResourceLimit: 20_000_000,
+        elasticityMultiplier: 10,
+        baseFeeMaxChangeDenominator: 8,
+        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
+        systemTxMaxGas: 1_000_000,
+        maximumBaseFee: BigNumber.from(
+          '0xffffffffffffffffffffffffffffffff'
+        ).toString(),
+      },
     },
   }
 
