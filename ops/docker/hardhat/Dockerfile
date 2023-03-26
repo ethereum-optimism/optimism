@@ -4,11 +4,17 @@ FROM node:16-alpine
 COPY [ \
     "package.json", \
     "/hardhat/" \
-]
+    ]
 
 # install deps
 WORKDIR /hardhat
-RUN pnpm install && pnpm cache clean
+
+RUN npm install pnpm --global
+# Note this is not using the pnpm lockfile but rather installing from scratch
+# this is not deterministic and the versions being installed here are not guaranteed to match
+# the versions in the lockfile.
+# be aware of this when debugging issues
+RUN pnpm install
 
 # bring in dockerenv so that hardhat launches with host = 0.0.0.0 instead of 127.0.0.1
 # so that it's accessible from other boxes as well
