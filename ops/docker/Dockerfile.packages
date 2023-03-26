@@ -41,6 +41,7 @@ RUN apk --no-cache add curl \
   git \
   make \
   gcc \
+  openssh \
   musl-dev \
   linux-headers \
   bash \
