@@ -484,8 +484,13 @@ jobs:
       - check-changed:
           patterns: specs/(.*)\.md$
       - run:
-          name: pnpm dev deps # todo: what's the best way to pull in the dependencies for linting? pnpm install above is using production env without dev dependencies
-          command: pnpm install --production=false
+          name: Install pnpm package manager
+          command: |
+            corepack enable
+            corepack prepare pnpm@latest-7 --activate
+      - run:
+          name: pnpm dev deps
+          command: pnpm install
       - run:
           name: specs toc
           command: pnpm lint:specs:toc && git diff --exit-code ./specs
