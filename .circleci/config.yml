@@ -73,8 +73,7 @@ jobs:
       - run:
           name: Install pnpm package manager
           command: |
-            corepack enable
-            corepack prepare pnpm@latest-7 --activate
+            npm i pnpm --global
       - run:
           name: Install dependencies
           command: pnpm install --frozen-lockfile
@@ -486,8 +485,7 @@ jobs:
       - run:
           name: Install pnpm package manager
           command: |
-            corepack enable
-            corepack prepare pnpm@latest-7 --activate
+            npm i pnpm --global
       - run:
           name: pnpm dev deps
           command: pnpm install
@@ -715,8 +713,7 @@ jobs:
       - run:
           name: Install pnpm package manager
           command: |
-            corepack enable
-            corepack prepare pnpm@latest-7 --activate
+            npm i pnpm --global
       - run:
           name: Install and build
           command: |
