@@ -23,6 +23,9 @@
       "forta-agent"
     ]
   },
+  "engines": {
+    "pnpm": ">=7"
+  },
   "scripts": {
     "clean": "npx nx run-many --target=clean",
     "build": "npx nx run-many --target=build",
