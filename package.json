@@ -38,8 +38,7 @@
     "postinstall": "patch-package",
     "ready": "pnpm lint && pnpm test",
     "prepare": "husky install",
-    "release": "pnpm build && pnpm changeset publish",
-    "update:pnpm": "pnpm set version 1.x"
+    "release": "pnpm build && changeset publish"
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.18.2",
