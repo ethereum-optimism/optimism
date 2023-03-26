@@ -47,7 +47,6 @@ RUN apt-get update && apt-get install -y \
   g++ \
   make \
   gcc \
-  pkg-config \
   musl-dev \
   bash \
   # the following 4 deps are needed for node-hid
