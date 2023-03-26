@@ -12,7 +12,7 @@ WORKDIR /app/op-chain-ops
 
 RUN make op-migrate
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 COPY --from=builder /app/op-chain-ops/bin/op-migrate /usr/local/bin
 
