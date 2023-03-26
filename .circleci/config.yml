@@ -464,6 +464,10 @@ jobs:
       - check-changed:
           patterns: <<parameters.package_name>>,<<parameters.dependencies>>
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Lint
           command: pnpm lint && git diff --exit-code
           working_directory: packages/<<parameters.package_name>>
