@@ -6,7 +6,7 @@ orbs:
   slack: circleci/slack@4.10.1
 commands:
   gcp-oidc-authenticate:
-    description: "Authenticate with GCP using a CircleCI OIDC token."
+    description: 'Authenticate with GCP using a CircleCI OIDC token.'
     parameters:
       project_id:
         type: env_var_name
@@ -28,7 +28,7 @@ commands:
         default: /home/circleci/oidc_token.json
     steps:
       - run:
-          name: "Create OIDC credential configuration"
+          name: 'Create OIDC credential configuration'
           command: |
             # Store OIDC token in temp file
             echo $CIRCLE_OIDC_TOKEN > << parameters.oidc_token_file_path >>
@@ -39,21 +39,21 @@ commands:
                 --service-account="${<< parameters.service_account_email >>}" \
                 --credential-source-file=<< parameters.oidc_token_file_path >>
       - run:
-          name: "Authenticate with GCP using OIDC"
+          name: 'Authenticate with GCP using OIDC'
           command: |
             # Configure gcloud to leverage the generated credential configuration
             gcloud auth login --brief --cred-file "<< parameters.gcp_cred_config_file_path >>"
             # Configure ADC
             echo "export GOOGLE_APPLICATION_CREDENTIALS='<< parameters.gcp_cred_config_file_path >>'" | tee -a "$BASH_ENV"
   check-changed:
-    description: "Conditionally halts a step if certain modules change"
+    description: 'Conditionally halts a step if certain modules change'
     parameters:
       patterns:
         type: string
-        description: "Comma-separated list of dependencies"
+        description: 'Comma-separated list of dependencies'
     steps:
       - run:
-          name: "Check for changes"
+          name: 'Check for changes'
           command: |
             cd ops/check-changed
             pip3 install -r requirements.txt
@@ -133,7 +133,7 @@ jobs:
           name: Build monorepo
           command: pnpm build
       - persist_to_workspace:
-          root: "."
+          root: '.'
           paths:
             - "packages/*/dist"
             - "packages/*/artifacts"
@@ -157,11 +157,11 @@ jobs:
       registry:
         description: Docker registry
         type: string
-        default: "us-docker.pkg.dev"
+        default: 'us-docker.pkg.dev'
       repo:
         description: Docker repo
         type: string
-        default: "oplabs-tools-artifacts/images"
+        default: 'oplabs-tools-artifacts/images'
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
@@ -192,7 +192,7 @@ jobs:
       - persist_to_workspace:
           root: /tmp/docker_images
           paths:
-            - "."
+            - '.'
 
   docker-publish:
     environment:
@@ -210,23 +210,23 @@ jobs:
       docker_context:
         description: Docker build context
         type: string
-        default: "."
+        default: '.'
       docker_target:
-        description: "target build stage"
+        description: 'target build stage'
         type: string
-        default: ""
+        default: ''
       registry:
         description: Docker registry
         type: string
-        default: "us-docker.pkg.dev"
+        default: 'us-docker.pkg.dev'
       repo:
         description: Docker repo
         type: string
-        default: "oplabs-tools-artifacts/images"
+        default: 'oplabs-tools-artifacts/images'
       platforms:
         description: Platforms to build for
         type: string
-        default: "linux/amd64"
+        default: 'linux/amd64'
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
@@ -276,15 +276,15 @@ jobs:
       registry:
         description: Docker registry
         type: string
-        default: "us-docker.pkg.dev"
+        default: 'us-docker.pkg.dev'
       repo:
         description: Docker repo
         type: string
-        default: "oplabs-tools-artifacts/images"
+        default: 'oplabs-tools-artifacts/images'
       platforms:
         description: Platforms to build for
         type: string
-        default: "linux/amd64"
+        default: 'linux/amd64'
     machine:
       image: ubuntu-2204:2022.07.1
       resource_class: medium
@@ -318,7 +318,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -350,9 +350,9 @@ jobs:
       - checkout
       - attach_workspace: { at: "." }
       - restore_cache:
-          name: Restore Yarn Package Cache
+          name: Restore PNPM Package Cache
           keys:
-            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+            - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
@@ -371,7 +371,7 @@ jobs:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -468,7 +468,7 @@ jobs:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -485,7 +485,7 @@ jobs:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - check-changed:
           patterns: contracts-bedrock,contracts
       - run:
@@ -495,7 +495,7 @@ jobs:
       - persist_to_workspace:
           root: .
           paths:
-            - "node_modules"
+            - 'node_modules'
             - packages/contracts-bedrock
 
   bedrock-echidna-run:
@@ -512,7 +512,7 @@ jobs:
     resource_class: <<parameters.size>>
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -531,7 +531,7 @@ jobs:
     resource_class: medium
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -560,7 +560,7 @@ jobs:
     resource_class: large
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -635,7 +635,7 @@ jobs:
       - check-changed:
           patterns: specs/(.*)\.md$
       - run:
-          name: pnpm dev deps  # todo: what's the best way to pull in the dependencies for linting? pnpm install above is using production env without dev dependencies
+          name: pnpm dev deps # todo: what's the best way to pull in the dependencies for linting? pnpm install above is using production env without dev dependencies
           command: pnpm install --production=false
       - run:
           name: specs toc
@@ -688,7 +688,7 @@ jobs:
       - image: us-docker.pkg.dev/oplabs-tools-artifacts/images/ci-builder:latest
     steps:
       - checkout
-      - attach_workspace: { at: "." }
+      - attach_workspace: { at: '.' }
       - restore_cache:
           name: Restore PNPM Package Cache
           keys:
@@ -822,7 +822,7 @@ jobs:
           working_directory: <<parameters.working_directory>>
       - when:
           condition:
-            equal: [ true, <<parameters.build>> ]
+            equal: [true, <<parameters.build>>]
           steps:
             - run:
                 name: Build
@@ -859,6 +859,11 @@ jobs:
             foundryup
             echo 'export PATH=$HOME/.foundry/bin:$PATH' >> $BASH_ENV
       - run:
+          name: Install pnpm package manager
+          command: |
+            corepack enable
+            corepack prepare pnpm@latest-7 --activate
+      - run:
           name: Install and build
           command: |
             pnpm install
@@ -866,7 +871,7 @@ jobs:
       - when:
           condition:
             and:
-              - equal: [ true, <<parameters.deploy>> ]
+              - equal: [true, <<parameters.deploy>>]
           steps:
             - run:
                 name: Bring up the stack
@@ -916,7 +921,7 @@ jobs:
       - when:
           condition:
             and:
-              - equal: [ false, <<parameters.deploy>> ]
+              - equal: [false, <<parameters.deploy>>]
           steps:
             - run:
                 name: Bring up the stack
@@ -990,22 +995,22 @@ jobs:
       - checkout
       - unless:
           condition:
-            equal: [ "develop", << pipeline.git.branch >> ]
+            equal: ['develop', << pipeline.git.branch >>]
           steps:
             - run:
                 # Scan changed files in PRs, block on new issues only (existing issues ignored)
                 # Do a full scan when scanning develop, otherwise do an incremental scan.
-                name: "Conditionally set BASELINE env var"
+                name: 'Conditionally set BASELINE env var'
                 command: |
                   echo 'export SEMGREP_BASELINE_REF=${TEMPORARY_BASELINE_REF}' >> $BASH_ENV
       - run:
-          name: "Set environment variables" # for PR comments and in-app hyperlinks to findings
+          name: 'Set environment variables' # for PR comments and in-app hyperlinks to findings
           command: |
             echo 'export SEMGREP_PR_ID=${CIRCLE_PULL_REQUEST##*/}' >> $BASH_ENV
             echo 'export SEMGREP_JOB_URL=$CIRCLE_BUILD_URL' >> $BASH_ENV
             echo 'export SEMGREP_REPO_NAME=$CIRCLE_PROJECT_USERNAME/$CIRCLE_PROJECT_REPONAME' >> $BASH_ENV
       - run:
-          name: "Semgrep scan"
+          name: 'Semgrep scan'
           command: semgrep ci
 
   go-mod-tidy:
@@ -1014,7 +1019,7 @@ jobs:
     steps:
       - checkout
       - run:
-          name: "Go mod tidy"
+          name: 'Go mod tidy'
           command: make mod-tidy && git diff --exit-code
 
   hive-test:
@@ -1042,7 +1047,7 @@ jobs:
       - go/load-cache
       - go/mod-download
       - go/save-cache
-      - run: { command: "go build ." }
+      - run: { command: 'go build .' }
       - run:
           command: |
             ./hive \
@@ -1052,7 +1057,7 @@ jobs:
       - run:
           command: |
             tar -cvf /tmp/workspace.tgz -C /home/circleci/project /home/circleci/project/workspace
-          name: "Archive workspace"
+          name: 'Archive workspace'
       - store_artifacts:
           path: /tmp/workspace.tgz
           destination: hive-workspace.tgz
@@ -1138,35 +1143,45 @@ workflows:
           requires:
             - pnpm-monorepo
       - js-lint-test:
+      - js-lint-test:
           name: contracts-periphery-tests
           coverage_flag: contracts-periphery-tests
           package_name: contracts-periphery
-          dependencies: "(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)"
+          dependencies: '(contracts|contracts-bedrock|core-utils|hardhat-deploy-config)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: chain-mon-tests
           coverage_flag: chain-mon-tests
           package_name: chain-mon
-          dependencies: "(common-ts|contracts-periphery|core-utils|sdk)"
+          dependencies: '(common-ts|contracts-periphery|core-utils|sdk)'
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: fault-detector-tests
           coverage_flag: fault-detector-tests
           package_name: fault-detector
-          dependencies: "(common-ts|contracts|core-utils|sdk)"
+          dependencies: '(common-ts|core-utils|sdk)'
           requires:
             - pnpm-monorepo
       - sdk-next-tests:
           name: sdk-next-tests
+          package_name: sdk
+          dependencies: '(common-ts|contracts-bedrock|core-utils)'
+          requires:
+            - pnpm-monorepo
+      - js-lint-test:
+          name: replica-healthcheck-tests
+          coverage_flag: replica-healthcheck-tests
+          package_name: replica-healthcheck
+          dependencies: "(common-ts|core-utils)"
           requires:
             - pnpm-monorepo
       - js-lint-test:
           name: sdk-tests
           coverage_flag: sdk-tests
           package_name: sdk
-          dependencies: "(contracts|core-utils)"
+          dependencies: '(contracts-bedrock|core-utils)'
           requires:
             - pnpm-monorepo
       - depcheck:
@@ -1257,11 +1272,11 @@ workflows:
       - go-e2e-test:
           name: op-e2e-WS-tests
           module: op-e2e
-          use_http: "false"
+          use_http: 'false'
       - go-e2e-test:
           name: op-e2e-HTTP-tests
           module: op-e2e
-          use_http: "true"
+          use_http: 'true'
       - bedrock-go-tests:
           requires:
             - op-batcher-lint
@@ -1297,7 +1312,7 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
+          platforms: 'linux/amd64,linux/arm64'
       - docker-build:
           name: op-batcher-docker-build
           docker_file: op-batcher/Dockerfile
@@ -1311,7 +1326,7 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
+          platforms: 'linux/amd64,linux/arm64'
       - docker-build:
           name: op-program-docker-build
           docker_file: op-program/Dockerfile
@@ -1339,7 +1354,7 @@ workflows:
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           context:
             - oplabs-gcr
-          platforms: "linux/amd64,linux/arm64"
+          platforms: 'linux/amd64,linux/arm64'
       - docker-build:
           name: op-challenger-docker-build
           docker_file: op-challenger/Dockerfile
@@ -1446,7 +1461,7 @@ workflows:
           docker_name: op-node
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          platforms: "linux/amd64,linux/arm64"
+          platforms: 'linux/amd64,linux/arm64'
           context:
             - oplabs-gcr-release
           requires:
@@ -1462,7 +1477,7 @@ workflows:
           docker_name: op-batcher
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          platforms: "linux/amd64,linux/arm64"
+          platforms: 'linux/amd64,linux/arm64'
           context:
             - oplabs-gcr-release
           requires:
@@ -1478,7 +1493,7 @@ workflows:
           docker_name: op-proposer
           docker_tags: <<pipeline.git.revision>>,<<pipeline.git.branch>>
           docker_context: .
-          platforms: "linux/amd64,linux/arm64"
+          platforms: 'linux/amd64,linux/arm64'
           context:
             - oplabs-gcr-release
           requires:
