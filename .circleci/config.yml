@@ -333,6 +333,10 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: lint
           command: pnpm lint:check
           working_directory: packages/contracts-bedrock
@@ -372,6 +376,10 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: validate spacers
           command: pnpm validate-spacers
           working_directory: packages/contracts-bedrock
@@ -384,6 +392,10 @@ jobs:
       - attach_workspace: { at: '.' }
       - check-changed:
           patterns: contracts-bedrock,contracts
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       - run:
           name: Compile with metadata hash
           command: pnpm clean && pnpm build:with-metadata
@@ -416,6 +428,10 @@ jobs:
       - check-changed:
           patterns: contracts-bedrock,contracts
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Echidna Fuzz <<parameters.echidna_target>>
           command: pnpm echidna:<<parameters.echidna_target>>
           working_directory: packages/contracts-bedrock
@@ -434,6 +450,10 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: contracts-bedrock,op-bindings
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       - run:
           name: check go bindings
           command: make && git diff --exit-code
@@ -512,6 +532,10 @@ jobs:
       - check-changed:
           patterns: op-node
       - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
+      - run:
           name: Fuzz
           command: make fuzz
           working_directory: op-node
@@ -528,6 +552,10 @@ jobs:
             - pnpm-packages-v2-{{ checksum "pnpm-lock.yaml" }}
       - check-changed:
           patterns: packages
+      - run:
+          name: Install pnpm package manager
+          command: |
+            npm i pnpm --global
       # Note: The below needs to be manually configured whenever we
       # add a new package to CI.
       - run:
