@@ -50,6 +50,12 @@ RUN apt-get update && apt-get install -y \
   pkg-config \
   musl-dev \
   bash \
+  # the following 4 deps are needed for node-hid
+  # which is a deep sub dependency of ethers to install
+  # correctly
+  pkg-config \
+  libusb-1.0-0-dev \
+  libudev-dev \
   --no-install-recommends
 
 RUN npm install pnpm --global
