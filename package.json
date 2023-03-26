@@ -4,6 +4,9 @@
   "author": "Optimism PBC",
   "license": "MIT",
   "private": true,
+  "engines": {
+    "pnpm": ">=7"
+  },
   "scripts": {
     "clean": "lerna run clean --parallel",
     "build": "lerna run build",
