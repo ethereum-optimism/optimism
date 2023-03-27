@@ -100,6 +100,9 @@ func (m CLIConfig) Check() error {
 	if m.L1RPCURL == "" {
 		return errors.New("must provide a L1 RPC url")
 	}
+	if m.NumConfirmations == 0 {
+		return errors.New("num confirmations must not be 0")
+	}
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
 	}
