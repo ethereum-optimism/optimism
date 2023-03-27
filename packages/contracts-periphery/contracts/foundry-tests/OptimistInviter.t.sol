@@ -681,7 +681,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         _commitInviteAs(eve, signature4);
 
         vm.expectRevert("OptimistInviter: issuer has no invites");
-        vm.prank(sally);
+        vm.prank(eve);
         optimistInviter.claimInvite(eve, claimableInvite4, signature4);
 
         assertEq(_getInviteCount(bob), 0);
