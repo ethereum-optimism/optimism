@@ -365,7 +365,7 @@ jobs:
           push: true
           tags: ethereumoptimism/wd-mon:${{ needs.release.outputs.wd-mon }},ethereumoptimism/wd-mon:latest
 
-  drippie-mon:
+  balance-mon:
     name: Publish Balance Monitor Version ${{ needs.release.outputs.balance-mon }}
     needs: release
     if: needs.release.outputs.balance-mon != ''

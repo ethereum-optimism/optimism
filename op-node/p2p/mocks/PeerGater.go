@@ -13,6 +13,20 @@ type PeerGater struct {
 	mock.Mock
 }
 
+// IsBlocked provides a mock function with given fields: _a0
+func (_m *PeerGater) IsBlocked(_a0 peer.ID) bool {
+	ret := _m.Called(_a0)
+
+	var r0 bool
+	if rf, ok := ret.Get(0).(func(peer.ID) bool); ok {
+		r0 = rf(_a0)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+
 // Update provides a mock function with given fields: _a0, _a1
 func (_m *PeerGater) Update(_a0 peer.ID, _a1 float64) {
 	_m.Called(_a0, _a1)

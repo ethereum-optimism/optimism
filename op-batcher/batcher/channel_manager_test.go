@@ -363,3 +363,145 @@ func TestChannelManager_TxResend(t *testing.T) {
 	require.NoError(err)
 	require.Len(fs, 1)
 }
+
+// TestChannelManagerCloseBeforeFirstUse ensures that the channel manager
+// will not produce any frames if closed immediately.
+func TestChannelManagerCloseBeforeFirstUse(t *testing.T) {
+	require := require.New(t)
+	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetFrameSize:  0,
+			MaxFrameSize:     100,
+			ApproxComprRatio: 1.0,
+			ChannelTimeout:   1000,
+		})
+
+	a, _ := derivetest.RandomL2Block(rng, 4)
+
+	m.Close()
+
+	err := m.AddL2Block(a)
+	require.NoError(err, "Failed to add L2 block")
+
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected closed channel manager to contain no tx data")
+}
+
+// TestChannelManagerCloseNoPendingChannel ensures that the channel manager
+// can gracefully close with no pending channels, and will not emit any new
+// channel frames.
+func TestChannelManagerCloseNoPendingChannel(t *testing.T) {
+	require := require.New(t)
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetFrameSize:  0,
+			MaxFrameSize:     100,
+			ApproxComprRatio: 1.0,
+			ChannelTimeout:   1000,
+		})
+	a := newMiniL2Block(0)
+	b := newMiniL2BlockWithNumberParent(0, big.NewInt(1), a.Hash())
+
+	err := m.AddL2Block(a)
+	require.NoError(err, "Failed to add L2 block")
+
+	txdata, err := m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to return valid tx data")
+
+	m.TxConfirmed(txdata.ID(), eth.BlockID{})
+
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected channel manager to EOF")
+
+	m.Close()
+
+	err = m.AddL2Block(b)
+	require.NoError(err, "Failed to add L2 block")
+
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected closed channel manager to return no new tx data")
+}
+
+// TestChannelManagerCloseNoPendingChannel ensures that the channel manager
+// can gracefully close with a pending channel, and will not produce any
+// new channel frames after this point.
+func TestChannelManagerClosePendingChannel(t *testing.T) {
+	require := require.New(t)
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetNumFrames:  100,
+			TargetFrameSize:  1000,
+			MaxFrameSize:     1000,
+			ApproxComprRatio: 1.0,
+			ChannelTimeout:   1000,
+		})
+
+	a := newMiniL2Block(50_000)
+	b := newMiniL2BlockWithNumberParent(10, big.NewInt(1), a.Hash())
+
+	err := m.AddL2Block(a)
+	require.NoError(err, "Failed to add L2 block")
+
+	txdata, err := m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to produce valid tx data")
+
+	m.TxConfirmed(txdata.ID(), eth.BlockID{})
+
+	m.Close()
+
+	txdata, err = m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to produce tx data from remaining L2 block data")
+
+	m.TxConfirmed(txdata.ID(), eth.BlockID{})
+
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected channel manager to have no more tx data")
+
+	err = m.AddL2Block(b)
+	require.NoError(err, "Failed to add L2 block")
+
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
+}
+
+// TestChannelManagerCloseAllTxsFailed ensures that the channel manager
+// can gracefully close after producing transaction frames if none of these
+// have successfully landed on chain.
+func TestChannelManagerCloseAllTxsFailed(t *testing.T) {
+	require := require.New(t)
+	log := testlog.Logger(t, log.LvlCrit)
+	m := NewChannelManager(log, metrics.NoopMetrics,
+		ChannelConfig{
+			TargetNumFrames:  100,
+			TargetFrameSize:  1000,
+			MaxFrameSize:     1000,
+			ApproxComprRatio: 1.0,
+			ChannelTimeout:   1000,
+		})
+
+	a := newMiniL2Block(50_000)
+
+	err := m.AddL2Block(a)
+	require.NoError(err, "Failed to add L2 block")
+
+	txdata, err := m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to produce valid tx data")
+
+	m.TxFailed(txdata.ID())
+
+	// Show that this data will continue to be emitted as long as the transaction
+	// fails and the channel manager is not closed
+	txdata, err = m.TxData(eth.BlockID{})
+	require.NoError(err, "Expected channel manager to re-attempt the failed transaction")
+
+	m.TxFailed(txdata.ID())
+
+	m.Close()
+
+	_, err = m.TxData(eth.BlockID{})
+	require.ErrorIs(err, io.EOF, "Expected closed channel manager to produce no more tx data")
+}

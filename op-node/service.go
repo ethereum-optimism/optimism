@@ -145,10 +145,11 @@ func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
-		VerifierConfDepth:  ctx.GlobalUint64(flags.VerifierL1Confs.Name),
-		SequencerConfDepth: ctx.GlobalUint64(flags.SequencerL1Confs.Name),
-		SequencerEnabled:   ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
-		SequencerStopped:   ctx.GlobalBool(flags.SequencerStoppedFlag.Name),
+		VerifierConfDepth:   ctx.GlobalUint64(flags.VerifierL1Confs.Name),
+		SequencerConfDepth:  ctx.GlobalUint64(flags.SequencerL1Confs.Name),
+		SequencerEnabled:    ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
+		SequencerStopped:    ctx.GlobalBool(flags.SequencerStoppedFlag.Name),
+		SequencerMaxSafeLag: ctx.GlobalUint64(flags.SequencerMaxSafeLagFlag.Name),
 	}
 }
 

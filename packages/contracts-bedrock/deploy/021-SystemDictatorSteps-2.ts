@@ -182,6 +182,8 @@ const deployFn: DeployFunction = async (hre) => {
         false // do not pause the the OptimismPortal when initializing
       )
     } else {
+      // pause the OptimismPortal when initializing
+      const optimismPortalPaused = true
       const tx = await SystemDictator.populateTransaction.updateDynamicConfig(
         {
           l2OutputOracleStartingBlockNumber:
@@ -189,9 +191,22 @@ const deployFn: DeployFunction = async (hre) => {
           l2OutputOracleStartingTimestamp:
             hre.deployConfig.l2OutputOracleStartingTimestamp,
         },
-        true
+        optimismPortalPaused
       )
       console.log(`Please update dynamic oracle config...`)
+      console.log(
+        JSON.stringify(
+          {
+            l2OutputOracleStartingBlockNumber:
+              hre.deployConfig.l2OutputOracleStartingBlockNumber,
+            l2OutputOracleStartingTimestamp:
+              hre.deployConfig.l2OutputOracleStartingTimestamp,
+            optimismPortalPaused,
+          },
+          null,
+          2
+        )
+      )
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
