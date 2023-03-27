@@ -359,6 +359,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	if err != nil {
 		return err
 	}
+	l.metr.RecordL1GasFee(receipt)
 	l.log.Info("proposer tx successfully published", "tx_hash", receipt.TxHash)
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/prometheus/client_golang/prometheus"
@@ -23,6 +24,7 @@ type Metricer interface {
 	opmetrics.RefMetricer
 
 	RecordL2BlocksProposed(l2ref eth.L2BlockRef)
+	RecordL1GasFee(receipt *types.Receipt)
 }
 
 type Metrics struct {
@@ -34,6 +36,8 @@ type Metrics struct {
 
 	Info prometheus.GaugeVec
 	Up   prometheus.Gauge
+
+	L1GasFee prometheus.Gauge
 }
 
 var _ Metricer = (*Metrics)(nil)
@@ -66,6 +70,11 @@ func NewMetrics(procName string) *Metrics {
 			Name:      "up",
 			Help:      "1 if the op-proposer has finished starting up",
 		}),
+		L1GasFee: factory.NewGauge(prometheus.GaugeOpts{
+			Namespace: ns,
+			Name:      "l1_gas_fee",
+			Help:      "Metric tracking L1 gas fee for L2 transaction",
+		}),
 	}
 }
 
@@ -97,4 +106,8 @@ const (
 // RecordL2BlocksProposed should be called when new L2 block is proposed
 func (m *Metrics) RecordL2BlocksProposed(l2ref eth.L2BlockRef) {
 	m.RecordL2Ref(BlockProposed, l2ref)
+}
+
+func (m *Metrics) RecordL1GasFee(receipt *types.Receipt) {
+	m.L1GasFee.Set(float64(receipt.L1Fee.Uint64()))
 }
