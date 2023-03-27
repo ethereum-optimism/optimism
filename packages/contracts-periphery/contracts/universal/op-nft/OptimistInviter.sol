@@ -11,10 +11,12 @@ import {
 } from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
 
 /**
+ * @custom:upgradeable
  * @title OptimistInviter
- * @notice OptimistInviter is a contract that allows a user to issue invites as a signature,
- *         allowing the invitee to claim the invite to an address of their choosing. The invitee
- *         can claim the invite using a commit and reveal flow.
+ * @notice OptimistInviter is a contract that issues "optimist.can-invite" and
+ *         "optimist.can-mint-from-invite" attestations. Accounts that have a "optimist.can-invite"
+ *         attestation can issue signatures that allow other accounts to claim an invite. The
+ *         invitee uses a claim and reveal flow to claim the invite to an address of their choosing.
  */
 contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
@@ -48,7 +50,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice Struct that represents a claimable invite.
+     * @notice Struct that represents a claimable invite that will be signed by the issuer.
      *
      * @custom:field issuer   Address that issued the signature. Reason this is explicitly included,
      *                        and not implicitly assumed to be the recovered address from the
@@ -74,6 +76,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
 
     /**
      * @custom:semver 1.0.0
+     *
      * @param _inviteGranter      Address of the invite granter.
      * @param _attestationStation Address of the AttestationStation contract.
      */
