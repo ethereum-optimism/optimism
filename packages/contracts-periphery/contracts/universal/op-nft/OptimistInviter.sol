@@ -15,6 +15,24 @@ import {
  *         "optimist.can-mint-from-invite" attestations. Accounts that have a "optimist.can-invite"
  *         attestation can issue signatures that allow other accounts to claim an invite. The
  *         invitee uses a claim and reveal flow to claim the invite to an address of their choosing.
+ *
+ *         Parties involved:
+ *           1) INVITE_GRANTER: trusted account that can allow accounts to issue invites
+ *           2) issuer: account that is allowed to issue invites
+ *           3) claimer: account that receives the invites
+ *
+ *         Flow:
+ *           1) INVITE_GRANTER calls _setInviteCount to allow an issuer to issue a certain number
+ *              of invites, creating "optimist.can-invite" attestations for the issuer
+ *           2) Off-chain, the issuer signs (EIP-712) a ClaimableInvite to produce a signature
+ *           3) Off-chain, invite issuer sends the plaintext ClaimableInvite and the signature
+ *              to the recipient
+ *           4) claimer chooses an address they want to receive the invite on
+ *           5) claimer commits the hash of the address they want to receive the invite on and the
+                received signature [keccak256(abi.encode(addressToReceiveTo, receivedSignature))]
+ *              using the commitInvite function
+ *           6) claimer reveals the plaintext ClaimableInvite and the signature using the
+ *              claimInvite function, receiving the "optimist.can-mint-from-invite" attestation
  */
 contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
@@ -27,24 +45,20 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
 
     /**
      * @notice EIP712 typehash for the ClaimableInvite type.
-     *         keccak256("ClaimableInvite(address issuer,bytes32 nonce)")
      */
     bytes32 public constant CLAIMABLE_INVITE_TYPEHASH =
-        0x6529fd129351e725d7bcbc468b0b0b4675477e56b58514e69ab7e66ddfd20fce;
+        keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
 
     /**
      * @notice Attestation key for granting invites.
-     *         bytes32("optimist.can-invite")
      */
-    bytes32 public constant CAN_INVITE_ATTESTATION_KEY =
-        0x6f7074696d6973742e63616e2d696e7669746500000000000000000000000000;
+    bytes32 public constant CAN_INVITE_ATTESTATION_KEY = bytes32("optimist.can-invite");
 
     /**
      * @notice Attestation key allowing the attested account to mint.
-     *         bytes32("optimist.can-mint-from-invite")
      */
     bytes32 public constant CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
-        0x6f7074696d6973742e63616e2d6d696e742d66726f6d2d696e76697465000000;
+        bytes32("optimist.can-mint-from-invite");
 
     /**
      * @notice Granter who can set accounts' invite counts.
@@ -116,25 +130,48 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
 
         uint256 length = _accounts.length;
 
+        AttestationStation.AttestationData[]
+            memory attestations = new AttestationStation.AttestationData[](length);
+
         for (uint256 i; i < length; ) {
             // The granted invites are stored as an attestation from this contract on the
             // AttestationStation contract. Number of invites is stored as a encoded uint256 in the
             // data field of the attestation.
-            ATTESTATION_STATION.attest(
-                _accounts[i],
-                CAN_INVITE_ATTESTATION_KEY,
-                abi.encode(_inviteCount)
-            );
+            attestations[i] = AttestationStation.AttestationData({
+                about: _accounts[i],
+                key: CAN_INVITE_ATTESTATION_KEY,
+                val: abi.encode(_inviteCount)
+            });
 
             unchecked {
                 ++i;
             }
         }
+
+        ATTESTATION_STATION.attest(attestations);
+    }
+
+    function attest(AttestationStation.AttestationData[] calldata _attestations) public {
+        // Only invite granter can grant invites
+        require(
+            msg.sender == INVITE_GRANTER,
+            "OptimistInviter: only invite granter can issue attestations"
+        );
+
+        ATTESTATION_STATION.attest(_attestations);
     }
 
     /**
-     * @notice Allows anyone to commit a received signature along with the address to claim to.
-     *         This is necessary to prevent front-running when the invitee is claiming the invite.
+     * @notice Allows anyone (but likely the claimer) to commit a received signature along with the
+     *         address to claim to.
+     *
+     *         Before calling this function, the claimer should have received a signature from the
+     *         issuer off-chain. The claimer then calls this function with the hash of the
+     *         claimer's address and the received signature. This is necessary to prevent
+     *         front-running when the invitee is claiming the invite. Without a commit and reveal
+     *         scheme, anyone who is watching the mempool can take the signature being submitted
+     *         and front run the transaction to claim the invite to their own address.
+     *
      *
      * @param _commitment A hash of the claimer and signature concatenated.
      *                    keccak256(abi.encode(_claimer, _signature))
@@ -145,8 +182,15 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
 
     /**
      * @notice Allows anyone to reveal a commitment and claim an invite.
-     *         The claimer ++ signature pair should have been previously committed using
-     *         commitInvite. Doesn't require that the claimer is calling this function.
+     *
+     *         The hash, keccak256(abi.encode(_claimer, _signature)), should have been already
+     *         committed using commitInvite. Before issuing the "optimist.can-mint-from-invite"
+     *         attestation, this function checks that
+     *           1) the hash corresponding to the _claimer and the _signature was committed
+     *           2) the _signature is signed correctly by the issuer
+     *           3) the _signature hasn't already been used to claim an invite before
+     *           4) the _signature issuer has not used up all of their invites
+     *         This function doesn't require that the _claimer is calling this function.
      *
      * @param _claimer Address that will be granted the invite.
      * @param _claimableInvite ClaimableInvite struct containing the issuer and nonce.
@@ -218,7 +262,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         );
 
         // Reduce the issuer's invite count by 1 by re-attesting the optimist.can-invite attestation
-        // with the new count.
+        // with the new count. Can be unchecked because we check that the count is > 0 above.
         unchecked {
             --count;
         }

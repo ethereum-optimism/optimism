@@ -20,7 +20,6 @@ contract OptimistInviter_Initializer is Test {
         bytes val
     );
 
-    bytes32 CLAIMABLE_INVITE_TYPEHASH;
     bytes32 EIP712_DOMAIN_TYPEHASH;
 
     address internal alice_inviteGranter;
@@ -63,7 +62,6 @@ contract OptimistInviter_Initializer is Test {
         vm.deal(ted, 1 ether);
         vm.deal(eve, 1 ether);
 
-        CLAIMABLE_INVITE_TYPEHASH = keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
         EIP712_DOMAIN_TYPEHASH = keccak256(
             "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
         );
@@ -99,7 +97,7 @@ contract OptimistInviter_Initializer is Test {
         bytes memory attestation = attestationStation.attestations(
             address(optimistInviter),
             _issuer,
-            bytes32("optimist.can-invite")
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY()
         );
         return abi.decode(attestation, (uint256));
     }
@@ -111,7 +109,7 @@ contract OptimistInviter_Initializer is Test {
         bytes memory attestation = attestationStation.attestations(
             address(optimistInviter),
             _claimer,
-            bytes32("optimist.can-mint-from-invite")
+            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY()
         );
         return attestation.length > 0;
     }
@@ -221,7 +219,7 @@ contract OptimistInviter_Initializer is Test {
         emit AttestationCreated(
             address(optimistInviter),
             _claimer,
-            bytes32("optimist.can-mint-from-invite"),
+            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
             abi.encode(issuer)
         );
 
@@ -230,7 +228,7 @@ contract OptimistInviter_Initializer is Test {
         emit AttestationCreated(
             address(optimistInviter),
             issuer,
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(prevInviteCount - 1)
         );
 
@@ -265,7 +263,7 @@ contract OptimistInviter_Initializer is Test {
         emit AttestationCreated(
             address(optimistInviter),
             _to,
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(3)
         );
 
@@ -286,7 +284,7 @@ contract OptimistInviter_Initializer is Test {
         return
             keccak256(
                 abi.encode(
-                    CLAIMABLE_INVITE_TYPEHASH,
+                    optimistInviter.CLAIMABLE_INVITE_TYPEHASH(),
                     _claimableInvite.issuer,
                     _claimableInvite.nonce
                 )
@@ -341,7 +339,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             bob,
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(3)
         );
 
@@ -349,7 +347,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             sally,
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(3)
         );
 
@@ -357,7 +355,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             address(carolERC1271Wallet),
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(3)
         );
 
@@ -438,7 +436,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             sally,
-            bytes32("optimist.can-mint-from-invite"),
+            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
             abi.encode(bob)
         );
 
@@ -447,7 +445,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             bob,
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(2)
         );
 
@@ -588,7 +586,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             sally,
-            bytes32("optimist.can-mint-from-invite"),
+            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
             abi.encode(address(carolERC1271Wallet))
         );
 
@@ -597,7 +595,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             address(carolERC1271Wallet),
-            bytes32("optimist.can-invite"),
+            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
             abi.encode(2)
         );
 
