@@ -6,6 +6,7 @@ import {
     ERC721BurnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import { AttestationStation } from "./AttestationStation.sol";
+import { OptimistAllowlist } from "./OptimistAllowlist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
@@ -21,25 +22,33 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice Attestor who attests to baseURI and allowlist.
+     * @notice Attestor who attests to baseURI.
      */
     address public immutable ATTESTOR;
 
     /**
-     * @custom:semver 1.0.0
+     * @notice Address of the OptimistAllowlist contract.
+     */
+    OptimistAllowlist public immutable OPTIMIST_ALLOWLIST;
+
+    /**
+     * @custom:semver 1.1.0
      * @param _name               Token name.
      * @param _symbol             Token symbol.
      * @param _attestor           Address of the attestor.
      * @param _attestationStation Address of the AttestationStation contract.
+     * @param _optimistAllowlist  Address of the OptimistAllowlist contract.
      */
     constructor(
         string memory _name,
         string memory _symbol,
         address _attestor,
-        AttestationStation _attestationStation
-    ) Semver(1, 0, 0) {
+        AttestationStation _attestationStation,
+        OptimistAllowlist _optimistAllowlist
+    ) Semver(1, 1, 0) {
         ATTESTOR = _attestor;
         ATTESTATION_STATION = _attestationStation;
+        OPTIMIST_ALLOWLIST = _optimistAllowlist;
         initialize(_name, _symbol);
     }
 
@@ -112,10 +121,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
      * @return Whether or not the address is allowed to mint yet.
      */
     function isOnAllowList(address _recipient) public view returns (bool) {
-        return
-            ATTESTATION_STATION
-                .attestations(ATTESTOR, _recipient, bytes32("optimist.can-mint"))
-                .length > 0;
+        return OPTIMIST_ALLOWLIST.isAllowedToMint(_recipient);
     }
 
     /**

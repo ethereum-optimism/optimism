@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
+import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
 import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -21,6 +22,7 @@ contract Optimist_Initializer is Test {
         "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
     AttestationStation attestationStation;
     Optimist optimist;
+    OptimistAllowlist optimistAllowlist;
 
     function attestBaseuri(string memory _baseUri) internal {
         AttestationStation.AttestationData[]
@@ -63,7 +65,9 @@ contract Optimist_Initializer is Test {
         attestationStation = new AttestationStation();
         vm.expectEmit(true, true, false, false);
         emit Initialized(1);
-        optimist = new Optimist(name, symbol, alice_admin, attestationStation);
+
+        optimistAllowlist = new OptimistAllowlist(alice_admin, attestationStation);
+        optimist = new Optimist(name, symbol, alice_admin, attestationStation, optimistAllowlist);
     }
 }
 
@@ -75,8 +79,10 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.symbol(), symbol);
         // expect attestationStation to be set
         assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
+        assertEq(address(optimist.OPTIMIST_ALLOWLIST()), address(optimistAllowlist));
+
         assertEq(optimist.ATTESTOR(), alice_admin);
-        assertEq(optimist.version(), "1.0.0");
+        assertEq(optimist.version(), "1.1.0");
     }
 
     /**
