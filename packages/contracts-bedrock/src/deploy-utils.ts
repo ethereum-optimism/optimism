@@ -319,6 +319,25 @@ export const isStep = async (
 }
 
 /**
+ * Mini helper for checking if the current step is the first step in target phase.
+ *
+ * @param dictator SystemDictator contract.
+ * @param phase Target phase.
+ * @returns True if the current step is the first step in target phase.
+ */
+export const isStartOfPhase = async (
+  dictator: ethers.Contract,
+  phase: number
+): Promise<boolean> => {
+  const phaseToStep = {
+    1: 1,
+    2: 3,
+    3: 6,
+  }
+  return (await dictator.currentStep()) === phaseToStep[phase]
+}
+
+/**
  * Mini helper for executing a given step.
  *
  * @param opts Options for executing the step.
@@ -335,7 +354,8 @@ export const doStep = async (opts: {
   message: string
   checks: () => Promise<void>
 }): Promise<void> => {
-  if (!(await isStep(opts.SystemDictator, opts.step))) {
+  const isStepVal = await isStep(opts.SystemDictator, opts.step)
+  if (!isStepVal) {
     console.log(`Step already completed: ${opts.step}`)
     return
   }
@@ -364,6 +384,62 @@ export const doStep = async (opts: {
   await awaitCondition(
     async () => {
       return isStep(opts.SystemDictator, opts.step + 1)
+    },
+    30000,
+    1000
+  )
+
+  // Perform post-step checks.
+  await opts.checks()
+}
+
+/**
+ * Mini helper for executing a given phase.
+ *
+ * @param opts Options for executing the step.
+ * @param opts.isLiveDeployer True if the deployer is live.
+ * @param opts.SystemDictator SystemDictator contract.
+ * @param opts.step Step to execute.
+ * @param opts.message Message to print before executing the step.
+ * @param opts.checks Checks to perform after executing the step.
+ */
+export const doPhase = async (opts: {
+  isLiveDeployer?: boolean
+  SystemDictator: ethers.Contract
+  phase: number
+  message: string
+  checks: () => Promise<void>
+}): Promise<void> => {
+  const isStart = await isStartOfPhase(opts.SystemDictator, opts.phase)
+  if (!isStart) {
+    console.log(`Start of phase ${opts.phase} already completed`)
+    return
+  }
+
+  // Extra message to help the user understand what's going on.
+  console.log(opts.message)
+
+  // Either automatically or manually execute the step.
+  if (opts.isLiveDeployer) {
+    console.log(`Executing phase ${opts.phase}...`)
+    await opts.SystemDictator[`phase${opts.phase}`]()
+  } else {
+    const tx = await opts.SystemDictator.populateTransaction[
+      `phase${opts.phase}`
+    ]()
+    console.log(`Please execute phase ${opts.phase}...`)
+    console.log(`MSD address: ${opts.SystemDictator.address}`)
+    console.log(`JSON:`)
+    console.log(jsonifyTransaction(tx))
+    console.log(
+      await getTenderlySimulationLink(opts.SystemDictator.provider, tx)
+    )
+  }
+
+  // Wait for the step to complete.
+  await awaitCondition(
+    async () => {
+      return isStartOfPhase(opts.SystemDictator, opts.phase + 1)
     },
     30000,
     1000

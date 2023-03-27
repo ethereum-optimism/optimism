@@ -11,7 +11,7 @@ import {
   assertContractVariable,
   getContractsFromArtifacts,
   getDeploymentAddress,
-  doStep,
+  doPhase,
   jsonifyTransaction,
   getTenderlySimulationLink,
   getCastCommand,
@@ -196,16 +196,23 @@ const deployFn: DeployFunction = async (hre) => {
     console.log(`L1ERC721Bridge already owned by MSD`)
   }
 
-  // Step 1 is a freebie, it doesn't impact the system.
-  await doStep({
+  await doPhase({
     isLiveDeployer,
     SystemDictator,
-    step: 1,
+    phase: 1,
     message: `
+      Phase 1 includes the following steps:
+
       Step 1 will configure the ProxyAdmin contract, you can safely execute this step at any time
       without impacting the functionality of the rest of the system.
+
+      Step 2 will stop deposits and withdrawals via the L1CrossDomainMessenger and will stop the
+      DTL from syncing new deposits via the CTC, effectively shutting down the legacy system. Once
+      this step has been executed, you should immediately begin the L2 migration process. If you
+      need to restart the system, run exit1() followed by finalize().
     `,
     checks: async () => {
+      // Step 1 checks
       await assertContractVariable(
         ProxyAdmin,
         'addressManager',
@@ -264,21 +271,8 @@ const deployFn: DeployFunction = async (hre) => {
       assert(config.systemTxMaxGas === 1_000_000)
       assert(ethers.utils.parseUnits('1', 'gwei').eq(config.minimumBaseFee))
       assert(config.maximumBaseFee.eq(uint128Max))
-    },
-  })
 
-  // Step 2 shuts down the system.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 2,
-    message: `
-      Step 2 will stop deposits and withdrawals via the L1CrossDomainMessenger and will stop the
-      DTL from syncing new deposits via the CTC, effectively shutting down the legacy system. Once
-      this step has been executed, you should immediately begin the L2 migration process. If you
-      need to restart the system, run exit1() followed by finalize().
-    `,
-    checks: async () => {
+      // Step 2 checks
       const messenger = await AddressManager.getAddress(
         'OVM_L1CrossDomainMessenger'
       )

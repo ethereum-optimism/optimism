@@ -12,9 +12,10 @@ import {
   getContractsFromArtifacts,
   jsonifyTransaction,
   isStep,
-  doStep,
+  doPhase,
   getTenderlySimulationLink,
   getCastCommand,
+  isStartOfPhase,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -85,65 +86,10 @@ const deployFn: DeployFunction = async (hre) => {
   const isLiveDeployer =
     deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
 
-  // Step 3 clears out some state from the AddressManager.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 3,
-    message: `
-      Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
-      you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2
-      system is entirely operational before executing this step.
-    `,
-    checks: async () => {
-      const deads = [
-        'OVM_CanonicalTransactionChain',
-        'OVM_L2CrossDomainMessenger',
-        'OVM_DecompressionPrecompileAddress',
-        'OVM_Sequencer',
-        'OVM_Proposer',
-        'OVM_ChainStorageContainer-CTC-batches',
-        'OVM_ChainStorageContainer-CTC-queue',
-        'OVM_CanonicalTransactionChain',
-        'OVM_StateCommitmentChain',
-        'OVM_BondManager',
-        'OVM_ExecutionManager',
-        'OVM_FraudVerifier',
-        'OVM_StateManagerFactory',
-        'OVM_StateTransitionerFactory',
-        'OVM_SafetyChecker',
-        'OVM_L1MultiMessageRelayer',
-        'BondManager',
-      ]
-      for (const dead of deads) {
-        const addr = await AddressManager.getAddress(dead)
-        assert(addr === ethers.constants.AddressZero)
-      }
-    },
-  })
-
-  // Step 4 transfers ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 4,
-    message: `
-      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
-    `,
-    checks: async () => {
-      await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
-
-      assert(
-        (await L1StandardBridgeProxy.callStatic.getOwner({
-          from: ethers.constants.AddressZero,
-        })) === ProxyAdmin.address
-      )
-    },
-  })
 
   // Make sure the dynamic system configuration has been set.
   if (
-    (await isStep(SystemDictator, 5)) &&
+    (await isStartOfPhase(SystemDictator, 2)) &&
     !(await SystemDictator.dynamicConfigSet())
   ) {
     console.log(`
@@ -221,17 +167,60 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  // Step 5 initializes all contracts.
-  await doStep({
+
+  await doPhase({
     isLiveDeployer,
     SystemDictator,
-    step: 5,
+    phase: 2,
     message: `
+      Phase 2 consists of the following steps:
+
+      Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
+      you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2
+      system is entirely operational before executing this step.
+
+      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
+
       Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
       will be open for deposits but withdrawals will be paused if deploying a production network.
       The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
     `,
+    // Step 3 checks
     checks: async () => {
+      const deads = [
+        'OVM_CanonicalTransactionChain',
+        'OVM_L2CrossDomainMessenger',
+        'OVM_DecompressionPrecompileAddress',
+        'OVM_Sequencer',
+        'OVM_Proposer',
+        'OVM_ChainStorageContainer-CTC-batches',
+        'OVM_ChainStorageContainer-CTC-queue',
+        'OVM_CanonicalTransactionChain',
+        'OVM_StateCommitmentChain',
+        'OVM_BondManager',
+        'OVM_ExecutionManager',
+        'OVM_FraudVerifier',
+        'OVM_StateManagerFactory',
+        'OVM_StateTransitionerFactory',
+        'OVM_SafetyChecker',
+        'OVM_L1MultiMessageRelayer',
+        'BondManager',
+      ]
+      for (const dead of deads) {
+        const addr = await AddressManager.getAddress(dead)
+        assert(addr === ethers.constants.AddressZero)
+      }
+
+      // Step 4 checks
+      await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
+
+      assert(
+        (await L1StandardBridgeProxy.callStatic.getOwner({
+          from: ethers.constants.AddressZero,
+        })) === ProxyAdmin.address
+      )
+
+      // Step 5 checks
       // Check L2OutputOracle was initialized properly.
       await assertContractVariable(
         L2OutputOracle,
