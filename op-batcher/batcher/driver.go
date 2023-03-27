@@ -317,9 +317,15 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
 		select {
 		case <-ctx.Done():
-			l.state.Close()
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("error closing the channel manager", "err", err)
+			}
 		case <-l.shutdownCtx.Done():
-			l.state.Close()
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("error closing the channel manager", "err", err)
+			}
 		default:
 		}
 

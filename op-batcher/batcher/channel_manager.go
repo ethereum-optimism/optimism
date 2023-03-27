@@ -187,8 +187,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
-	// Short circuit if there is a pending frame.
-	if dataPending {
+	// Short circuit if there is a pending frame or the channel manager is closed.
+	if dataPending || s.closed {
 		return s.nextTxData()
 	}
 
@@ -203,11 +203,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 		return txData{}, err
 	}
 
-	// Avoid processing blocks if the channel manager has been explicitly closed.
-	if !s.closed {
-		if err := s.processBlocks(); err != nil {
-			return txData{}, err
-		}
+	if err := s.processBlocks(); err != nil {
+		return txData{}, err
 	}
 
 	// Register current L1 head only after all pending blocks have been
@@ -356,14 +353,12 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 	}
 }
 
-// Close closes the current pending channel, if one exists, and prevents the
-// creation of any new channels.
-// This ensures that no new blocks will be added to the channel, but there may be any number
-// of frames still produced by calling `OutputFrames()`, which flushes the compression buffer.
-// These frames still need to be published.
-func (s *channelManager) Close() {
+// Close closes the current pending channel, if one exists, outputs any remaining frames,
+// and prevents the creation of any new channels.
+// Any outputted frames still need to be published.
+func (s *channelManager) Close() error {
 	if s.closed {
-		return
+		return nil
 	}
 
 	s.closed = true
@@ -374,8 +369,10 @@ func (s *channelManager) Close() {
 	}
 
 	if s.pendingChannel == nil {
-		return
+		return nil
 	}
 
 	s.pendingChannel.Close()
+
+	return s.outputFrames()
 }
