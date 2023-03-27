@@ -54,6 +54,9 @@ type Config struct {
 	PeerScoring  pubsub.PeerScoreParams
 	TopicScoring pubsub.TopicScoreParams
 
+	// Peer Score Band Thresholds
+	BandScoreThresholds BandScoreThresholds
+
 	// Whether to ban peers based on their [PeerScoring] score.
 	BanningEnabled bool
 
@@ -149,6 +152,10 @@ func (conf *Config) Disabled() bool {
 
 func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
 	return &conf.PeerScoring
+}
+
+func (conf *Config) PeerBandScorer() *BandScoreThresholds {
+	return &conf.BandScoreThresholds
 }
 
 func (conf *Config) BanPeers() bool {

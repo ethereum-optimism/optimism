@@ -16,6 +16,8 @@ import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @title SystemDictator
@@ -79,6 +81,7 @@ contract SystemDictator is OwnableUpgradeable {
         bytes32 batcherHash;
         uint64 gasLimit;
         address unsafeBlockSigner;
+        ResourceMetering.ResourceConfig resourceConfig;
     }
 
     /**
@@ -160,6 +163,8 @@ contract SystemDictator is OwnableUpgradeable {
      *         initialized upon deployment.
      */
     constructor() {
+        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+
         // Using this shorter variable as an alias for address(0) just prevents us from having to
         // to use a new line for every single parameter.
         address zero = address(0);
@@ -177,7 +182,7 @@ contract SystemDictator is OwnableUpgradeable {
                     PortalSender(zero),
                     SystemConfig(zero)
                 ),
-                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero)
+                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero, rcfg)
             )
         );
     }
@@ -244,7 +249,8 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.scalar,
                     config.systemConfigConfig.batcherHash,
                     config.systemConfigConfig.gasLimit,
-                    config.systemConfigConfig.unsafeBlockSigner
+                    config.systemConfigConfig.unsafeBlockSigner,
+                    config.systemConfigConfig.resourceConfig
                 )
             )
         );

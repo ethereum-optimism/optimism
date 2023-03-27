@@ -14,10 +14,10 @@ import (
 
 // Flags
 
-const envVarPrefix = "OP_NODE_"
+const envVarPrefix = "OP_NODE"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + name
+	return envVarPrefix + "_" + name
 }
 
 var (
@@ -75,6 +75,24 @@ var (
 			return &out
 		}(),
 	}
+	L1RPCRateLimit = cli.Float64Flag{
+		Name:   "l1.rpc-rate-limit",
+		Usage:  "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
+		EnvVar: prefixEnvVar("L1_RPC_RATE_LIMIT"),
+		Value:  0,
+	}
+	L1RPCMaxBatchSize = cli.IntFlag{
+		Name:   "l1.rpc-max-batch-size",
+		Usage:  "Maximum number of RPC requests to bundle, e.g. during L1 blocks receipt fetching. The L1 RPC rate limit counts this as N items, but allows it to burst at once.",
+		EnvVar: prefixEnvVar("L1_RPC_MAX_BATCH_SIZE"),
+		Value:  20,
+	}
+	L1HTTPPollInterval = cli.DurationFlag{
+		Name:   "l1.http-poll-interval",
+		Usage:  "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
+		EnvVar: prefixEnvVar("L1_HTTP_POLL_INTERVAL"),
+		Value:  time.Second * 12,
+	}
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -99,6 +117,13 @@ var (
 		Name:   "sequencer.stopped",
 		Usage:  "Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC",
 		EnvVar: prefixEnvVar("SEQUENCER_STOPPED"),
+	}
+	SequencerMaxSafeLagFlag = cli.Uint64Flag{
+		Name:     "sequencer.max-safe-lag",
+		Usage:    "Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.",
+		EnvVar:   prefixEnvVar("SEQUENCER_MAX_SAFE_LAG"),
+		Required: false,
+		Value:    0,
 	}
 	SequencerL1Confs = cli.Uint64Flag{
 		Name:     "sequencer.l1-confs",
@@ -175,6 +200,13 @@ var (
 		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC"),
 		Required: false,
 	}
+	BackupL2UnsafeSyncRPCTrustRPC = cli.StringFlag{
+		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
+		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
+			"This does not include checks if the blockhash is part of the canonical chain.",
+		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -189,10 +221,14 @@ var optionalFlags = []cli.Flag{
 	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	L1RPCRateLimit,
+	L1RPCMaxBatchSize,
+	L1HTTPPollInterval,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
+	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
 	RPCEnableAdmin,
@@ -207,6 +243,7 @@ var optionalFlags = []cli.Flag{
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
 	BackupL2UnsafeSyncRPC,
+	BackupL2UnsafeSyncRPCTrustRPC,
 }
 
 // Flags contains the list of configuration options available to the binary.

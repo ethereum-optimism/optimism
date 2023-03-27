@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 contract MeterUser is ResourceMetering {
     constructor() {
@@ -12,6 +13,19 @@ contract MeterUser is ResourceMetering {
 
     function initialize() public initializer {
         __ResourceMetering_init();
+    }
+
+    function resourceConfig() public pure returns (ResourceMetering.ResourceConfig memory) {
+        return _resourceConfig();
+    }
+
+    function _resourceConfig()
+        internal
+        pure
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
+        return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
     function use(uint64 _amount) public metered(_amount) {}
@@ -29,6 +43,11 @@ contract MeterUser is ResourceMetering {
     }
 }
 
+/**
+ * @title ResourceConfig
+ * @notice The tests are based on the default config values. It is expected that
+ *         the config values used in these tests are ran in production.
+ */
 contract ResourceMetering_Test is Test {
     MeterUser internal meter;
     uint64 initialBlockNum;
@@ -38,40 +57,13 @@ contract ResourceMetering_Test is Test {
         initialBlockNum = uint64(block.number);
     }
 
-    /**
-     * @notice The INITIAL_BASE_FEE must be less than the MAXIMUM_BASE_FEE
-     *         and greater than the MINIMUM_BASE_FEE.
-     */
-    function test_meter_initialBaseFee_succeeds() external {
-        uint256 max = uint256(meter.MAXIMUM_BASE_FEE());
-        uint256 min = uint256(meter.MINIMUM_BASE_FEE());
-        uint256 initial = uint256(meter.INITIAL_BASE_FEE());
-        assertTrue(max >= initial);
-        assertTrue(min <= initial);
-    }
-
-    /**
-     * @notice The MINIMUM_BASE_FEE must be less than the MAXIMUM_BASE_FEE.
-     */
-    function test_meter_minBaseFeeLessThanMaxBaseFee_succeeds() external {
-        uint256 max = uint256(meter.MAXIMUM_BASE_FEE());
-        uint256 min = uint256(meter.MINIMUM_BASE_FEE());
-        assertTrue(max > min);
-    }
-
     function test_meter_initialResourceParams_succeeds() external {
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
 
-        assertEq(prevBaseFee, meter.INITIAL_BASE_FEE());
+        assertEq(prevBaseFee, rcfg.minimumBaseFee);
         assertEq(prevBoughtGas, 0);
         assertEq(prevBlockNum, initialBlockNum);
-    }
-
-    function test_meter_maxValue_succeeds() external {
-        uint256 max = uint256(meter.MAX_RESOURCE_LIMIT());
-        uint256 target = uint256(meter.TARGET_RESOURCE_LIMIT());
-        uint256 elasticity = uint256(meter.ELASTICITY_MULTIPLIER());
-        assertEq(max / elasticity, target);
     }
 
     function test_meter_updateParamsNoChange_succeeds() external {
@@ -116,8 +108,9 @@ contract ResourceMetering_Test is Test {
     }
 
     function test_meter_updateNoGasDelta_succeeds() external {
-        uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
-        meter.use(target);
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        uint256 target = uint256(rcfg.maxResourceLimit) / uint256(rcfg.elasticityMultiplier);
+        meter.use(uint64(target));
         (uint128 prevBaseFee, uint64 prevBoughtGas, uint64 prevBlockNum) = meter.params();
 
         assertEq(prevBaseFee, 1000000000);
@@ -126,12 +119,14 @@ contract ResourceMetering_Test is Test {
     }
 
     function test_meter_useMax_succeeds() external {
-        uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
-        uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
-        meter.use(target * elasticity);
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
+        uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
+
+        meter.use(target * elasticityMultiplier);
 
         (, uint64 prevBoughtGas, ) = meter.params();
-        assertEq(prevBoughtGas, target * elasticity);
+        assertEq(prevBoughtGas, target * elasticityMultiplier);
 
         vm.roll(initialBlockNum + 1);
         meter.use(0);
@@ -140,10 +135,12 @@ contract ResourceMetering_Test is Test {
     }
 
     function test_meter_useMoreThanMax_reverts() external {
-        uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
-        uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
+        uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
+
         vm.expectRevert("ResourceMetering: cannot buy more gas than available gas limit");
-        meter.use(target * elasticity + 1);
+        meter.use(target * elasticityMultiplier + 1);
     }
 
     // Demonstrates that the resource metering arithmetic can tolerate very large gaps between
@@ -153,9 +150,11 @@ contract ResourceMetering_Test is Test {
         // At 12 seconds per block, this number is effectively unreachable.
         vm.assume(_blockDiff < 433576281058164217753225238677900874458691);
 
-        uint64 target = uint64(uint256(meter.TARGET_RESOURCE_LIMIT()));
-        uint64 elasticity = uint64(uint256(meter.ELASTICITY_MULTIPLIER()));
-        vm.assume(_amount < target * elasticity);
+        ResourceMetering.ResourceConfig memory rcfg = meter.resourceConfig();
+        uint64 target = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
+        uint64 elasticityMultiplier = uint64(rcfg.elasticityMultiplier);
+
+        vm.assume(_amount < target * elasticityMultiplier);
         vm.roll(initialBlockNum + _blockDiff);
         meter.use(_amount);
     }
@@ -180,6 +179,15 @@ contract CustomMeterUser is ResourceMetering {
             prevBoughtGas: _prevBoughtGas,
             prevBlockNum: _prevBlockNum
         });
+    }
+
+    function _resourceConfig()
+        internal
+        pure
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
+        return Constants.DEFAULT_RESOURCE_CONFIG();
     }
 
     function use(uint64 _amount) public returns (uint256) {
@@ -224,10 +232,11 @@ contract ArtifactResourceMetering_Test is Test {
         vm.roll(1_000_000);
 
         MeterUser base = new MeterUser();
-        minimumBaseFee = uint128(uint256(base.MINIMUM_BASE_FEE()));
-        maximumBaseFee = uint128(uint256(base.MAXIMUM_BASE_FEE()));
-        maxResourceLimit = uint64(uint256(base.MAX_RESOURCE_LIMIT()));
-        targetResourceLimit = uint64(uint256(base.TARGET_RESOURCE_LIMIT()));
+        ResourceMetering.ResourceConfig memory rcfg = base.resourceConfig();
+        minimumBaseFee = uint128(rcfg.minimumBaseFee);
+        maximumBaseFee = rcfg.maximumBaseFee;
+        maxResourceLimit = uint64(rcfg.maxResourceLimit);
+        targetResourceLimit = uint64(rcfg.maxResourceLimit) / uint64(rcfg.elasticityMultiplier);
 
         outfile = string.concat(vm.projectRoot(), "/.resource-metering.csv");
         try vm.removeFile(outfile) {} catch {}

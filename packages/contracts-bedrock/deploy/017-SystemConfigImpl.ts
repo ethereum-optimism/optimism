@@ -1,7 +1,12 @@
+import assert from 'assert'
+
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
+import { ethers } from 'ethers'
 
 import { assertContractVariable, deploy } from '../src/deploy-utils'
+
+const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
 
 const deployFn: DeployFunction = async (hre) => {
   const batcherHash = hre.ethers.utils
@@ -18,6 +23,14 @@ const deployFn: DeployFunction = async (hre) => {
       batcherHash,
       hre.deployConfig.l2GenesisBlockGasLimit,
       hre.deployConfig.p2pSequencerAddress,
+      {
+        maxResourceLimit: 20_000_000,
+        elasticityMultiplier: 10,
+        baseFeeMaxChangeDenominator: 8,
+        systemTxMaxGas: 1_000_000,
+        minimumBaseFee: ethers.utils.parseUnits('1', 'gwei'),
+        maximumBaseFee: uint128Max,
+      },
     ],
     postDeployAction: async (contract) => {
       await assertContractVariable(
@@ -41,6 +54,14 @@ const deployFn: DeployFunction = async (hre) => {
         'unsafeBlockSigner',
         hre.deployConfig.p2pSequencerAddress
       )
+
+      const config = await contract.resourceConfig()
+      assert(config.maxResourceLimit === 20_000_000)
+      assert(config.elasticityMultiplier === 10)
+      assert(config.baseFeeMaxChangeDenominator === 8)
+      assert(config.systemTxMaxGas === 1_000_000)
+      assert(ethers.utils.parseUnits('1', 'gwei').eq(config.minimumBaseFee))
+      assert(config.maximumBaseFee.eq(uint128Max))
     },
   })
 }

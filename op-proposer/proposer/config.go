@@ -10,13 +10,11 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/flags"
 
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
-	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
 )
 
 // Config contains the well typed fields that are used to initialize the output submitter.
@@ -24,12 +22,10 @@ import (
 type Config struct {
 	L2OutputOracleAddr common.Address
 	PollInterval       time.Duration
-	TxManagerConfig    txmgr.Config
+	TxManager          txmgr.TxManager
 	L1Client           *ethclient.Client
 	RollupClient       *sources.RollupClient
 	AllowNonFinalized  bool
-	From               common.Address
-	SignerFnFactory    opcrypto.SignerFactory
 }
 
 // CLIConfig is a well typed config that is parsed from the CLI params.
@@ -51,47 +47,19 @@ type CLIConfig struct {
 	// and creating a new batch.
 	PollInterval time.Duration
 
-	// NumConfirmations is the number of confirmations which we will wait after
-	// appending new batches.
-	NumConfirmations uint64
-
-	// SafeAbortNonceTooLowCount is the number of ErrNonceTooLowObservations
-	// required to give up on a tx at a particular nonce without receiving
-	// confirmation.
-	SafeAbortNonceTooLowCount uint64
-
-	// ResubmissionTimeout is time we will wait before resubmitting a
-	// transaction.
-	ResubmissionTimeout time.Duration
-
-	// Mnemonic is the HD seed used to derive the wallet private keys for both
-	// the sequence and proposer. Must be used in conjunction with
-	// SequencerHDPath and ProposerHDPath.
-	Mnemonic string
-
-	// L2OutputHDPath is the derivation path used to obtain the private key for
-	// the l2output transactions.
-	L2OutputHDPath string
-
-	// PrivateKey is the private key used for l2output transactions.
-	PrivateKey string
-
-	RPCConfig oprpc.CLIConfig
-
-	/* Optional Params */
-
 	// AllowNonFinalized can be set to true to propose outputs
 	// for L2 blocks derived from non-finalized L1 data.
 	AllowNonFinalized bool
+
+	TxMgrConfig txmgr.CLIConfig
+
+	RPCConfig oprpc.CLIConfig
 
 	LogConfig oplog.CLIConfig
 
 	MetricsConfig opmetrics.CLIConfig
 
 	PprofConfig oppprof.CLIConfig
-
-	// SignerConfig contains the client config for op-signer service
-	SignerConfig opsigner.CLIConfig
 }
 
 func (c CLIConfig) Check() error {
@@ -107,7 +75,7 @@ func (c CLIConfig) Check() error {
 	if err := c.PprofConfig.Check(); err != nil {
 		return err
 	}
-	if err := c.SignerConfig.Check(); err != nil {
+	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
 	return nil
@@ -117,22 +85,16 @@ func (c CLIConfig) Check() error {
 func NewConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		// Required Flags
-		L1EthRpc:                  ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		RollupRpc:                 ctx.GlobalString(flags.RollupRpcFlag.Name),
-		L2OOAddress:               ctx.GlobalString(flags.L2OOAddressFlag.Name),
-		PollInterval:              ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		NumConfirmations:          ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		SafeAbortNonceTooLowCount: ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
-		ResubmissionTimeout:       ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
-		Mnemonic:                  ctx.GlobalString(flags.MnemonicFlag.Name),
-		L2OutputHDPath:            ctx.GlobalString(flags.L2OutputHDPathFlag.Name),
-		PrivateKey:                ctx.GlobalString(flags.PrivateKeyFlag.Name),
+		L1EthRpc:     ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		RollupRpc:    ctx.GlobalString(flags.RollupRpcFlag.Name),
+		L2OOAddress:  ctx.GlobalString(flags.L2OOAddressFlag.Name),
+		PollInterval: ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+		TxMgrConfig:  txmgr.ReadCLIConfig(ctx),
 		// Optional Flags
 		AllowNonFinalized: ctx.GlobalBool(flags.AllowNonFinalizedFlag.Name),
 		RPCConfig:         oprpc.ReadCLIConfig(ctx),
 		LogConfig:         oplog.ReadCLIConfig(ctx),
 		MetricsConfig:     opmetrics.ReadCLIConfig(ctx),
 		PprofConfig:       oppprof.ReadCLIConfig(ctx),
-		SignerConfig:      opsigner.ReadCLIConfig(ctx),
 	}
 }

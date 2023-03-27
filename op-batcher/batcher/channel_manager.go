@@ -41,6 +41,9 @@ type channelManager struct {
 	pendingTransactions map[txID]txData
 	// Set of confirmed txID -> inclusion block. For determining if the channel is timed out
 	confirmedTransactions map[txID]eth.BlockID
+
+	// if set to true, prevents production of any new channel frames
+	closed bool
 }
 
 func NewChannelManager(log log.Logger, metr metrics.Metricer, cfg ChannelConfig) *channelManager {
@@ -60,6 +63,7 @@ func (s *channelManager) Clear() {
 	s.log.Trace("clearing channel manager state")
 	s.blocks = s.blocks[:0]
 	s.tip = common.Hash{}
+	s.closed = false
 	s.clearPendingChannel()
 }
 
@@ -78,6 +82,10 @@ func (s *channelManager) TxFailed(id txID) {
 	}
 
 	s.metr.RecordBatchTxFailed()
+	if s.closed && len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+		s.log.Info("Channel has no submitted transactions, clearing for shutdown", "chID", s.pendingChannel.ID())
+		s.clearPendingChannel()
+	}
 }
 
 // TxConfirmed marks a transaction as confirmed on L1. Unfortunately even if all frames in
@@ -179,8 +187,8 @@ func (s *channelManager) TxData(l1Head eth.BlockID) (txData, error) {
 	dataPending := s.pendingChannel != nil && s.pendingChannel.HasFrame()
 	s.log.Debug("Requested tx data", "l1Head", l1Head, "data_pending", dataPending, "blocks_pending", len(s.blocks))
 
-	// Short circuit if there is a pending frame.
-	if dataPending {
+	// Short circuit if there is a pending frame or the channel manager is closed.
+	if dataPending || s.closed {
 		return s.nextTxData()
 	}
 
@@ -343,4 +351,28 @@ func l2BlockRefFromBlockAndL1Info(block *types.Block, l1info derive.L1BlockInfo)
 		L1Origin:       eth.BlockID{Hash: l1info.BlockHash, Number: l1info.Number},
 		SequenceNumber: l1info.SequenceNumber,
 	}
+}
+
+// Close closes the current pending channel, if one exists, outputs any remaining frames,
+// and prevents the creation of any new channels.
+// Any outputted frames still need to be published.
+func (s *channelManager) Close() error {
+	if s.closed {
+		return nil
+	}
+
+	s.closed = true
+
+	// Any pending state can be proactively cleared if there are no submitted transactions
+	if len(s.confirmedTransactions) == 0 && len(s.pendingTransactions) == 0 {
+		s.clearPendingChannel()
+	}
+
+	if s.pendingChannel == nil {
+		return nil
+	}
+
+	s.pendingChannel.Close()
+
+	return s.outputFrames()
 }

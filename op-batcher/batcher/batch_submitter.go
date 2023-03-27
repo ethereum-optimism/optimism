@@ -51,7 +51,7 @@ func Main(version string, cliCtx *cli.Context) error {
 			return err
 		}
 	}
-	defer batchSubmitter.StopIfRunning()
+	defer batchSubmitter.StopIfRunning(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -73,7 +73,7 @@ func Main(version string, cliCtx *cli.Context) error {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.From)
+		m.StartBalanceMetrics(ctx, l, batchSubmitter.L1Client, batchSubmitter.TxManager.From())
 	}
 
 	rpcCfg := cfg.RPCConfig

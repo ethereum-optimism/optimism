@@ -34,6 +34,15 @@ var (
 		Value:    "none",
 		EnvVar:   p2pEnv("PEER_SCORING"),
 	}
+	PeerScoreBands = cli.StringFlag{
+		Name: "p2p.score.bands",
+		Usage: "Sets the peer score bands used primarily for peer score metrics. " +
+			"Should be provided in following format: <threshold>:<label>;<threshold>:<label>;..." +
+			"For example: -40:graylist;-20:restricted;0:nopx;20:friend;",
+		Required: false,
+		Value:    "-40:graylist;-20:restricted;0:nopx;20:friend;",
+		EnvVar:   p2pEnv("SCORE_BANDS"),
+	}
 
 	// Banning Flag - whether or not we want to act on the scoring
 	Banning = cli.BoolFlag{
@@ -276,6 +285,10 @@ var p2pFlags = []cli.Flag{
 	NoDiscovery,
 	P2PPrivPath,
 	P2PPrivRaw,
+	PeerScoring,
+	PeerScoreBands,
+	Banning,
+	TopicScoring,
 	ListenIP,
 	ListenTCPPort,
 	ListenUDPPort,

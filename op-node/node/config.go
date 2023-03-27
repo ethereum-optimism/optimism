@@ -80,6 +80,9 @@ func (cfg *Config) Check() error {
 	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
 	}
+	if err := cfg.L2Sync.Check(); err != nil {
+		return fmt.Errorf("sync config error: %w", err)
+	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)
 	}

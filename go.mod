@@ -9,7 +9,7 @@ require (
 	github.com/docker/docker v20.10.21+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/ethereum-optimism/go-ethereum-hdwallet v0.1.3
-	github.com/ethereum/go-ethereum v1.11.4
+	github.com/ethereum/go-ethereum v1.11.5
 	github.com/fsnotify/fsnotify v1.6.0
 	github.com/golang/snappy v0.0.4
 	github.com/google/go-cmp v0.5.9
@@ -34,6 +34,7 @@ require (
 	golang.org/x/crypto v0.6.0
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/term v0.5.0
+	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 )
 
 require (
@@ -178,7 +179,6 @@ require (
 	golang.org/x/sync v0.1.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	golang.org/x/text v0.7.0 // indirect
-	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af // indirect
 	golang.org/x/tools v0.6.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
@@ -189,6 +189,6 @@ require (
 	nhooyr.io/websocket v1.8.7 // indirect
 )
 
-replace github.com/ethereum/go-ethereum v1.11.4 => github.com/ethereum-optimism/op-geth v1.11.2-de8c5df46.0.20230321002540-11f0554a4313
+replace github.com/ethereum/go-ethereum v1.11.5 => github.com/ethereum-optimism/op-geth v1.11.2-de8c5df46.0.20230324105532-555b76f39878
 
-//replace github.com/ethereum/go-ethereum v1.11.4 => ../go-ethereum
+//replace github.com/ethereum/go-ethereum v1.11.5 => ../go-ethereum

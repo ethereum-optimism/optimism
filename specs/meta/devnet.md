@@ -23,7 +23,7 @@ make devnet-down # stops the devnet
 make devnet-clean # removes the devnet by deleting images and persistent volumes
 ```
 
-L1 is accessible at `http://localhost:8545`, and L2 is accessible at `http://localhost:8546`.
+L1 is accessible at `http://localhost:8545`, and L2 is accessible at `http://localhost:9545`.
 Any Ethereum tool - Metamask, `seth`, etc. - can use these endpoints.
 Note that you will need to specify the L2 chain ID manually if you use Metamask. The devnet's L2 chain ID is 901.
 
@@ -43,7 +43,7 @@ You'll need a `.env` with the following contents:
 
 ```bash
 L1_PROVIDER_URL=http://localhost:8545
-L2_PROVIDER_URL=http://localhost:8546
+L2_PROVIDER_URL=http://localhost:9545
 PRIVATE_KEY=bf7604d9d3a1c7748642b1b7b05c2bd219c9faa91458b370f85e5a40f3b03af7
 ```
 
