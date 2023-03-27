@@ -29,7 +29,7 @@ import {
  *              to the recipient
  *           4) claimer chooses an address they want to receive the invite on
  *           5) claimer commits the hash of the address they want to receive the invite on and the
-                received signature [keccak256(abi.encode(addressToReceiveTo, receivedSignature))]
+ *              received signature keccak256(abi.encode(addressToReceiveTo, receivedSignature))
  *              using the commitInvite function
  *           6) claimer reveals the plaintext ClaimableInvite and the signature using the
  *              claimInvite function, receiving the "optimist.can-mint-from-invite" attestation
