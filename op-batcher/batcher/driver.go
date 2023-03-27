@@ -173,6 +173,15 @@ func (l *BatchSubmitter) Stop(ctx context.Context) error {
 	}
 	l.running = false
 
+	// go routine will call cancelKill() if the passed in ctx is ever Done
+	cancelKill := l.cancelKillCtx
+	wrapped, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		<-wrapped.Done()
+		cancelKill()
+	}()
+
 	l.cancelShutdownCtx()
 	l.wg.Wait()
 	l.cancelKillCtx()
