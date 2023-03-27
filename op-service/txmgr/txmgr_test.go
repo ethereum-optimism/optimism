@@ -18,6 +18,8 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 )
 
+type sendTransactionFunc func(ctx context.Context, tx *types.Transaction) error
+
 // testHarness houses the necessary resources to test the SimpleTxManager.
 type testHarness struct {
 	cfg       Config
@@ -31,7 +33,8 @@ type testHarness struct {
 func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
 	g := newGasPricer(3)
 	backend := newMockBackend(g)
-	mgr := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), cfg, backend)
+	cfg.Backend = backend
+	mgr := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), cfg)
 
 	return &testHarness{
 		cfg:       cfg,
@@ -100,7 +103,7 @@ func (g *gasPricer) shouldMine(gasFeeCap *big.Int) bool {
 func (g *gasPricer) feesForEpoch(epoch int64) (*big.Int, *big.Int) {
 	epochBaseFee := new(big.Int).Mul(g.baseBaseFee, big.NewInt(epoch))
 	epochGasTipCap := new(big.Int).Mul(g.baseGasTipFee, big.NewInt(epoch))
-	epochGasFeeCap := CalcGasFeeCap(epochBaseFee, epochGasTipCap)
+	epochGasFeeCap := calcGasFeeCap(epochBaseFee, epochGasTipCap)
 
 	return epochGasTipCap, epochGasFeeCap
 }
@@ -132,7 +135,7 @@ type mockBackend struct {
 	mu sync.RWMutex
 
 	g    *gasPricer
-	send SendTransactionFunc
+	send sendTransactionFunc
 
 	// blockHeight tracks the current height of the chain.
 	blockHeight uint64
@@ -149,8 +152,8 @@ func newMockBackend(g *gasPricer) *mockBackend {
 	}
 }
 
-// setTxSender sets the implementation for the SendTransactionFunction
-func (b *mockBackend) setTxSender(s SendTransactionFunc) {
+// setTxSender sets the implementation for the sendTransactionFunction
+func (b *mockBackend) setTxSender(s sendTransactionFunc) {
 	b.send = s
 }
 
@@ -201,6 +204,10 @@ func (b *mockBackend) SendTransaction(ctx context.Context, tx *types.Transaction
 }
 
 func (b *mockBackend) NonceAt(ctx context.Context, account common.Address, blockNumber *big.Int) (uint64, error) {
+	return 0, nil
+}
+
+func (b *mockBackend) PendingNonceAt(ctx context.Context, account common.Address) (uint64, error) {
 	return 0, nil
 }
 
@@ -650,6 +657,10 @@ func (b *failingBackend) NonceAt(_ context.Context, _ common.Address, _ *big.Int
 	return 0, errors.New("unimplemented")
 }
 
+func (b *failingBackend) PendingNonceAt(_ context.Context, _ common.Address) (uint64, error) {
+	return 0, errors.New("unimplemented")
+}
+
 func (b *failingBackend) ChainID(ctx context.Context) (*big.Int, error) {
 	return nil, errors.New("unimplemented")
 }
@@ -663,7 +674,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 	var borkedBackend failingBackend
 
 	mgr := &SimpleTxManager{
-		Config: Config{
+		cfg: Config{
 			ResubmissionTimeout:       time.Second,
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
@@ -694,7 +705,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 	}
 
 	mgr := &SimpleTxManager{
-		Config: Config{
+		cfg: Config{
 			ResubmissionTimeout:       time.Second,
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,
@@ -795,10 +806,10 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 		gasTip:  big.NewInt(10),
 		baseFee: big.NewInt(45),
 	}
-	feeCap := CalcGasFeeCap(borkedBackend.baseFee, borkedBackend.gasTip)
+	feeCap := calcGasFeeCap(borkedBackend.baseFee, borkedBackend.gasTip)
 
 	mgr := &SimpleTxManager{
-		Config: Config{
+		cfg: Config{
 			ResubmissionTimeout:       time.Second,
 			ReceiptQueryInterval:      50 * time.Millisecond,
 			NumConfirmations:          1,

@@ -15,7 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
@@ -23,7 +22,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-proposer/metrics"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
 	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
@@ -50,7 +48,13 @@ func Main(version string, cliCtx *cli.Context) error {
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
-	l2OutputSubmitter, err := NewL2OutputSubmitterFromCLIConfig(cfg, l, m)
+	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l)
+	if err != nil {
+		l.Error("Unable to create the L2 Output Submitter", "error", err)
+		return err
+	}
+
+	l2OutputSubmitter, err := NewL2OutputSubmitter(*proposerConfig, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
 		return err
@@ -58,7 +62,6 @@ func Main(version string, cliCtx *cli.Context) error {
 
 	l.Info("Starting L2 Output Submitter")
 	ctx, cancel := context.WithCancel(context.Background())
-
 	if err := l2OutputSubmitter.Start(); err != nil {
 		cancel()
 		l.Error("Unable to start L2 Output Submitter", "error", err)
@@ -85,7 +88,7 @@ func Main(version string, cliCtx *cli.Context) error {
 				l.Error("error starting metrics server", err)
 			}
 		}()
-		m.StartBalanceMetrics(ctx, l, l2OutputSubmitter.l1Client, l2OutputSubmitter.from)
+		m.StartBalanceMetrics(ctx, l, proposerConfig.L1Client, proposerConfig.TxManager.From())
 	}
 
 	rpcCfg := cfg.RPCConfig
@@ -122,8 +125,6 @@ type L2OutputSubmitter struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// l1Client is retained to make it easier to start the metrics balance check
-	l1Client *ethclient.Client
 	// RollupClient is used to retrieve output roots from
 	rollupClient *sources.RollupClient
 
@@ -136,23 +137,31 @@ type L2OutputSubmitter struct {
 	// is never valid on an alternative L1 chain that would produce different L2 data.
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
 	allowNonFinalized bool
-	// From is the address to send transactions from
-	from common.Address
 	// How frequently to poll L2 for new finalized outputs
 	pollInterval time.Duration
 }
 
 // NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
 func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
-	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.L2OutputHDPath, cfg.SignerConfig)
+	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l)
 	if err != nil {
 		return nil, err
 	}
+	return NewL2OutputSubmitter(*proposerConfig, l, m)
+}
 
+// NewL2OutputSubmitterConfigFromCLIConfig creates the proposer config from the CLI config.
+func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
+
+	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	if err != nil {
+		return nil, err
+	}
+	txManager := txmgr.NewSimpleTxManager("proposer", l, txManagerConfig)
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
@@ -166,47 +175,20 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 		return nil, err
 	}
 
-	chainID, err := l1Client.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	txMgrConfg := txmgr.Config{
-		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		ReceiptQueryInterval:      time.Second,
-		NumConfirmations:          cfg.NumConfirmations,
-		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
-		From:                      fromAddress,
-		ChainID:                   chainID,
-	}
-
-	proposerCfg := Config{
+	return &Config{
 		L2OutputOracleAddr: l2ooAddress,
 		PollInterval:       cfg.PollInterval,
-		TxManagerConfig:    txMgrConfg,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
-		From:               fromAddress,
-		SignerFnFactory:    signer,
-	}
+		TxManager:          txManager,
+	}, nil
 
-	return NewL2OutputSubmitter(proposerCfg, l, m)
 }
 
 // NewL2OutputSubmitter creates a new L2 Output Submitter
 func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-
-	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
-	chainID, err := cfg.L1Client.ChainID(cCtx)
-	cCancel()
-	if err != nil {
-		cancel()
-		return nil, err
-	}
-	signer := cfg.SignerFnFactory(chainID)
-	cfg.TxManagerConfig.Signer = signer
 
 	l2ooContract, err := bindings.NewL2OutputOracleCaller(cfg.L2OutputOracleAddr, cfg.L1Client)
 	if err != nil {
@@ -214,7 +196,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 		return nil, err
 	}
 
-	cCtx, cCancel = context.WithTimeout(ctx, defaultDialTimeout)
+	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cCancel()
 	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
 	if err != nil {
@@ -230,14 +212,13 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 	}
 
 	return &L2OutputSubmitter{
-		txMgr:  txmgr.NewSimpleTxManager("proposer", l, cfg.TxManagerConfig, cfg.L1Client),
+		txMgr:  cfg.TxManager,
 		done:   make(chan struct{}),
 		log:    l,
 		ctx:    ctx,
 		cancel: cancel,
 		metr:   m,
 
-		l1Client:     cfg.L1Client,
 		rollupClient: cfg.RollupClient,
 
 		l2ooContract:     l2ooContract,
@@ -245,7 +226,6 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 		l2ooABI:          parsed,
 
 		allowNonFinalized: cfg.AllowNonFinalized,
-		from:              cfg.From,
 		pollInterval:      cfg.PollInterval,
 	}, nil
 }
@@ -268,7 +248,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	cCtx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 	callOpts := &bind.CallOpts{
-		From:    l.from,
+		From:    l.txMgr.From(),
 		Context: cCtx,
 	}
 	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
@@ -354,7 +334,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		TxData:   data,
 		To:       l.l2ooContractAddr,
 		GasLimit: 0,
-		From:     l.from,
+		From:     l.txMgr.From(),
 	})
 	if err != nil {
 		return err

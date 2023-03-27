@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -27,10 +26,11 @@ type BatchSubmitter struct {
 
 	txMgr txmgr.TxManager
 	wg    sync.WaitGroup
-	done  chan struct{}
 
-	ctx    context.Context
-	cancel context.CancelFunc
+	shutdownCtx       context.Context
+	cancelShutdownCtx context.CancelFunc
+	killCtx           context.Context
+	cancelKillCtx     context.CancelFunc
 
 	mutex   sync.Mutex
 	running bool
@@ -46,11 +46,6 @@ type BatchSubmitter struct {
 // that will be needed during operation.
 func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	ctx := context.Background()
-
-	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerConfig)
-	if err != nil {
-		return nil, err
-	}
 
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
@@ -74,24 +69,19 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
-	txManagerConfig := txmgr.Config{
-		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		ReceiptQueryInterval:      time.Second,
-		NumConfirmations:          cfg.NumConfirmations,
-		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
-		From:                      fromAddress,
-		ChainID:                   rcfg.L1ChainID,
-		Signer:                    signer(rcfg.L1ChainID),
+	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	if err != nil {
+		return nil, err
 	}
+	txManager := txmgr.NewSimpleTxManager("batcher", l, txManagerConfig)
 
 	batcherCfg := Config{
-		L1Client:        l1Client,
-		L2Client:        l2Client,
-		RollupNode:      rollupClient,
-		PollInterval:    cfg.PollInterval,
-		TxManagerConfig: txManagerConfig,
-		From:            fromAddress,
-		Rollup:          rcfg,
+		L1Client:     l1Client,
+		L2Client:     l2Client,
+		RollupNode:   rollupClient,
+		PollInterval: cfg.PollInterval,
+		TxManager:    txManager,
+		Rollup:       rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -115,19 +105,19 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
-	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
+	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.TxManager.From(), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	cfg.log = l
-	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
+	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.TxManager.From(), "submitter_bal", balance)
 
 	cfg.metr = m
 
 	return &BatchSubmitter{
 		Config: cfg,
-		txMgr:  txmgr.NewSimpleTxManager("batcher", l, cfg.TxManagerConfig, cfg.L1Client),
+		txMgr:  cfg.TxManager,
 		state:  NewChannelManager(l, m, cfg.Channel),
 	}, nil
 
@@ -144,10 +134,8 @@ func (l *BatchSubmitter) Start() error {
 	}
 	l.running = true
 
-	l.done = make(chan struct{})
-	// TODO: this context only exists because the event loop doesn't reach done
-	// if the tx manager is blocking forever due to e.g. insufficient balance.
-	l.ctx, l.cancel = context.WithCancel(context.Background())
+	l.shutdownCtx, l.cancelShutdownCtx = context.WithCancel(context.Background())
+	l.killCtx, l.cancelKillCtx = context.WithCancel(context.Background())
 	l.state.Clear()
 	l.lastStoredBlock = eth.BlockID{}
 
@@ -159,11 +147,11 @@ func (l *BatchSubmitter) Start() error {
 	return nil
 }
 
-func (l *BatchSubmitter) StopIfRunning() {
-	_ = l.Stop()
+func (l *BatchSubmitter) StopIfRunning(ctx context.Context) {
+	_ = l.Stop(ctx)
 }
 
-func (l *BatchSubmitter) Stop() error {
+func (l *BatchSubmitter) Stop(ctx context.Context) error {
 	l.log.Info("Stopping Batch Submitter")
 
 	l.mutex.Lock()
@@ -174,9 +162,18 @@ func (l *BatchSubmitter) Stop() error {
 	}
 	l.running = false
 
-	l.cancel()
-	close(l.done)
+	// go routine will call cancelKill() if the passed in ctx is ever Done
+	cancelKill := l.cancelKillCtx
+	wrapped, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go func() {
+		<-wrapped.Done()
+		cancelKill()
+	}()
+
+	l.cancelShutdownCtx()
 	l.wg.Wait()
+	l.cancelKillCtx()
 
 	l.log.Info("Batch Submitter stopped")
 
@@ -292,46 +289,56 @@ func (l *BatchSubmitter) loop() {
 	for {
 		select {
 		case <-ticker.C:
-			l.loadBlocksIntoState(l.ctx)
-
-		blockLoop:
-			for {
-				l1tip, err := l.l1Tip(l.ctx)
-				if err != nil {
-					l.log.Error("Failed to query L1 tip", "error", err)
-					break
-				}
-				l.recordL1Tip(l1tip)
-
-				// Collect next transaction data
-				txdata, err := l.state.TxData(l1tip.ID())
-				if err == io.EOF {
-					l.log.Trace("no transaction data available")
-					break // local for loop
-				} else if err != nil {
-					l.log.Error("unable to get tx data", "err", err)
-					break
-				}
-
-				// Record TX Status
-				if receipt, err := l.sendTransaction(l.ctx, txdata.Bytes()); err != nil {
-					l.recordFailedTx(txdata.ID(), err)
-				} else {
-					l.recordConfirmedTx(txdata.ID(), receipt)
-				}
-
-				// hack to exit this loop. Proper fix is to do request another send tx or parallel tx sending
-				// from the channel manager rather than sending the channel in a loop. This stalls b/c if the
-				// context is cancelled while sending, it will never fully clear the pending txns.
-				select {
-				case <-l.ctx.Done():
-					break blockLoop
-				default:
-				}
-			}
-
-		case <-l.done:
+			l.loadBlocksIntoState(l.shutdownCtx)
+			l.publishStateToL1(l.killCtx)
+		case <-l.shutdownCtx.Done():
+			l.publishStateToL1(l.killCtx)
 			return
+		}
+	}
+}
+
+// publishStateToL1 loops through the block data loaded into `state` and
+// submits the associated data to the L1 in the form of channel frames.
+func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
+	for {
+		// Attempt to gracefully terminate the current channel, ensuring that no new frames will be
+		// produced. Any remaining frames must still be published to the L1 to prevent stalling.
+		select {
+		case <-ctx.Done():
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("error closing the channel manager", "err", err)
+			}
+		case <-l.shutdownCtx.Done():
+			err := l.state.Close()
+			if err != nil {
+				l.log.Error("error closing the channel manager", "err", err)
+			}
+		default:
+		}
+
+		l1tip, err := l.l1Tip(ctx)
+		if err != nil {
+			l.log.Error("Failed to query L1 tip", "error", err)
+			return
+		}
+		l.recordL1Tip(l1tip)
+
+		// Collect next transaction data
+		txdata, err := l.state.TxData(l1tip.ID())
+		if err == io.EOF {
+			l.log.Trace("no transaction data available")
+			break
+		} else if err != nil {
+			l.log.Error("unable to get tx data", "err", err)
+			break
+		}
+		// Record TX Status
+		if receipt, err := l.sendTransaction(ctx, txdata.Bytes()); err != nil {
+			l.recordFailedTx(txdata.ID(), err)
+		} else {
+			l.recordConfirmedTx(txdata.ID(), receipt)
 		}
 	}
 }
@@ -359,7 +366,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*typ
 	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
-		From:     l.From,
+		From:     l.txMgr.From(),
 		GasLimit: intrinsicGas,
 	}); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
