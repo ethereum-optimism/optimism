@@ -13,7 +13,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	opcrypto "github.com/ethereum-optimism/optimism/op-service/crypto"
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -48,11 +47,6 @@ type BatchSubmitter struct {
 func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
 	ctx := context.Background()
 
-	signer, fromAddress, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerConfig)
-	if err != nil {
-		return nil, err
-	}
-
 	// Connect to L1 and L2 providers. Perform these last since they are the
 	// most expensive.
 	l1Client, err := dialEthClientWithTimeout(ctx, cfg.L1EthRpc)
@@ -75,24 +69,19 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
-	txManagerConfig := txmgr.Config{
-		ResubmissionTimeout:       cfg.ResubmissionTimeout,
-		ReceiptQueryInterval:      time.Second,
-		NumConfirmations:          cfg.NumConfirmations,
-		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
-		From:                      fromAddress,
-		ChainID:                   rcfg.L1ChainID,
-		Signer:                    signer(rcfg.L1ChainID),
+	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	if err != nil {
+		return nil, err
 	}
+	txManager := txmgr.NewSimpleTxManager("batcher", l, txManagerConfig)
 
 	batcherCfg := Config{
-		L1Client:        l1Client,
-		L2Client:        l2Client,
-		RollupNode:      rollupClient,
-		PollInterval:    cfg.PollInterval,
-		TxManagerConfig: txManagerConfig,
-		From:            fromAddress,
-		Rollup:          rcfg,
+		L1Client:     l1Client,
+		L2Client:     l2Client,
+		RollupNode:   rollupClient,
+		PollInterval: cfg.PollInterval,
+		TxManager:    txManager,
+		Rollup:       rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -116,19 +105,19 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
-	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
+	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.TxManager.From(), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	cfg.log = l
-	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
+	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.TxManager.From(), "submitter_bal", balance)
 
 	cfg.metr = m
 
 	return &BatchSubmitter{
 		Config: cfg,
-		txMgr:  txmgr.NewSimpleTxManager("batcher", l, cfg.TxManagerConfig, cfg.L1Client),
+		txMgr:  cfg.TxManager,
 		state:  NewChannelManager(l, m, cfg.Channel),
 	}, nil
 
@@ -377,7 +366,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*typ
 	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
-		From:     l.From,
+		From:     l.txMgr.From(),
 		GasLimit: intrinsicGas,
 	}); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
