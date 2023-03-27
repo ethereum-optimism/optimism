@@ -137,8 +137,6 @@ type L2OutputSubmitter struct {
 	// is never valid on an alternative L1 chain that would produce different L2 data.
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
 	allowNonFinalized bool
-	// From is the address to send transactions from
-	from common.Address
 	// How frequently to poll L2 for new finalized outputs
 	pollInterval time.Duration
 }
@@ -250,7 +248,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 	cCtx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 	callOpts := &bind.CallOpts{
-		From:    l.from,
+		From:    l.txMgr.From(),
 		Context: cCtx,
 	}
 	nextCheckpointBlock, err := l.l2ooContract.NextBlockNumber(callOpts)
@@ -336,7 +334,7 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 		TxData:   data,
 		To:       l.l2ooContractAddr,
 		GasLimit: 0,
-		From:     l.from,
+		From:     l.txMgr.From(),
 	})
 	if err != nil {
 		return err

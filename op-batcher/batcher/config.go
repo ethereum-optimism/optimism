@@ -3,7 +3,6 @@ package batcher
 import (
 	"time"
 
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
@@ -25,10 +24,9 @@ type Config struct {
 	L1Client   *ethclient.Client
 	L2Client   *ethclient.Client
 	RollupNode *sources.RollupClient
+	TxManager  txmgr.TxManager
 
 	PollInterval time.Duration
-	From         common.Address
-	TxManager    txmgr.TxManager
 
 	// RollupConfig is queried at startup
 	Rollup *rollup.Config

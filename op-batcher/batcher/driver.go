@@ -80,7 +80,6 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		RollupNode:   rollupClient,
 		PollInterval: cfg.PollInterval,
 		TxManager:    txManager,
-		From:         txManager.From(),
 		Rollup:       rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
@@ -105,13 +104,13 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 // NewBatchSubmitter initializes the BatchSubmitter, gathering any resources
 // that will be needed during operation.
 func NewBatchSubmitter(ctx context.Context, cfg Config, l log.Logger, m metrics.Metricer) (*BatchSubmitter, error) {
-	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.From, nil)
+	balance, err := cfg.L1Client.BalanceAt(ctx, cfg.TxManager.From(), nil)
 	if err != nil {
 		return nil, err
 	}
 
 	cfg.log = l
-	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.From, "submitter_bal", balance)
+	cfg.log.Info("creating batch submitter", "submitter_addr", cfg.TxManager.From(), "submitter_bal", balance)
 
 	cfg.metr = m
 
@@ -349,7 +348,7 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*typ
 	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
-		From:     l.From,
+		From:     l.txMgr.From(),
 		GasLimit: intrinsicGas,
 	}); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
