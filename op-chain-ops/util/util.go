@@ -85,7 +85,7 @@ func NewClients(ctx *cli.Context) (*Clients, error) {
 	}, nil
 }
 
-// ClientsFlags
+// ClientsFlags represent the flags associated with creating RPC clients.
 var ClientsFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:     "l1-rpc-url",
@@ -109,9 +109,10 @@ type Addresses struct {
 	L1StandardBridge          common.Address
 	L1CrossDomainMessenger    common.Address
 	CanonicalTransactionChain common.Address
+	StateCommitmentChain      common.Address
 }
 
-// AddressesFlags
+// AddressesFlags represent the flags associated with address parsing.
 var AddressesFlags = []cli.Flag{
 	&cli.StringFlag{
 		Name:    "address-manager-address",
@@ -138,6 +139,11 @@ var AddressesFlags = []cli.Flag{
 		Usage:   "CanonicalTransactionChain address",
 		EnvVars: []string{"CANONICAL_TRANSACTION_CHAIN_ADDRESS"},
 	},
+	&cli.StringFlag{
+		Name:    "state-commitment-chain-address",
+		Usage:   "StateCommitmentChain address",
+		EnvVars: []string{"STATE_COMMITMENT_CHAIN_ADDRESS"},
+	},
 }
 
 // NewAddresses populates an Addresses struct given a [cli.Context].
@@ -163,6 +169,10 @@ func NewAddresses(ctx *cli.Context) (*Addresses, error) {
 		return nil, err
 	}
 	addresses.CanonicalTransactionChain, err = parseAddress(ctx, "canonical-transaction-chain-address")
+	if err != nil {
+		return nil, err
+	}
+	addresses.StateCommitmentChain, err = parseAddress(ctx, "state-commitment-chain-address")
 	if err != nil {
 		return nil, err
 	}
