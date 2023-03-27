@@ -3,9 +3,7 @@ pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
-import {
-    SignatureCheckerUpgradeable
-} from "@openzeppelin/contracts-upgradeable/utils/cryptography/SignatureCheckerUpgradeable.sol";
+import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
 import {
     EIP712Upgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/cryptography/draft-EIP712Upgradeable.sol";
@@ -28,16 +26,25 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     event InviteClaimed(address indexed issuer, address indexed claimer);
 
     /**
-     * @notice Version identifier, used for upgrades.
-     */
-    uint8 public constant VERSION = 1;
-
-    /**
      * @notice EIP712 typehash for the ClaimableInvite type.
      *         keccak256("ClaimableInvite(address issuer,bytes32 nonce)")
      */
-    bytes32 public immutable CLAIMABLE_INVITE_TYPEHASH =
+    bytes32 public constant CLAIMABLE_INVITE_TYPEHASH =
         0x6529fd129351e725d7bcbc468b0b0b4675477e56b58514e69ab7e66ddfd20fce;
+
+    /**
+     * @notice Attestation key for granting invites.
+     *         bytes32("optimist.can-invite")
+     */
+    bytes32 public constant CAN_INVITE_ATTESTATION_KEY =
+        0x6f7074696d6973742e63616e2d696e7669746500000000000000000000000000;
+
+    /**
+     * @notice Attestation key allowing the attested account to mint.
+     *         bytes32("optimist.can-mint-from-invite")
+     */
+    bytes32 public constant CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
+        0x6f7074696d6973742e63616e2d6d696e742d66726f6d2d696e76697465000000;
 
     /**
      * @notice Granter who can set accounts' invite counts.
@@ -90,7 +97,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      *
      * @param _name Contract name
      */
-    function initialize(string memory _name) public reinitializer(VERSION) {
+    function initialize(string memory _name) public initializer {
         __EIP712_init(_name, version());
     }
 
@@ -112,7 +119,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         for (uint256 i; i < length; ) {
             // The granted invites are stored as an attestation from this contract on the
             // AttestationStation contract. Number of invites is stored as a encoded uint256 in the
-            // data field of the attetation.
+            // data field of the attestation.
             ATTESTATION_STATION.attest(
                 _accounts[i],
                 bytes32("optimist.can-invite"),
@@ -120,7 +127,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
             );
 
             unchecked {
-                i++;
+                ++i;
             }
         }
     }
@@ -130,7 +137,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      *         This is necessary to prevent front-running when the invitee is claiming the invite.
      *
      * @param _commitment A hash of the claimer and signature concatenated.
-                          keccak256(abi.encode(_claimer, _signature))
+     *                    keccak256(abi.encode(_claimer, _signature))
      */
     function commitInvite(bytes32 _commitment) public {
         commitments[_commitment] = true;
@@ -172,20 +179,16 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         // wants to revoke a signature, they can use a smart contract wallet to issue the signature,
         // then invalidate the signature after issuing it.
         require(
-            SignatureCheckerUpgradeable.isValidSignatureNow(
-                _claimableInvite.issuer,
-                digest,
-                _signature
-            ),
+            SignatureChecker.isValidSignatureNow(_claimableInvite.issuer, digest, _signature),
             "OptimistInviter: invalid signature"
         );
 
-        // The issuer includes a pseudorandom nonce in the signature to prevent replay attacks.
+        // The issuer's signature commits to a nonce to prevent replay attacks.
         // This checks that the nonce has not been used for this issuer before. The nonces are
         // scoped to the issuer address, so the same nonce can be used by different issuers without
         // clashing.
         require(
-            !usedNonces[_claimableInvite.issuer][_claimableInvite.nonce],
+            usedNonces[_claimableInvite.issuer][_claimableInvite.nonce] == false,
             "OptimistInviter: nonce has already been used"
         );
 
@@ -196,7 +199,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         bytes memory attestation = ATTESTATION_STATION.attestations(
             address(this),
             _claimableInvite.issuer,
-            bytes32("optimist.can-invite")
+            CAN_INVITE_ATTESTATION_KEY
         );
         // Failing this check means that the issuer was never granted any invites to begin with.
         require(attestation.length > 0, "OptimistInviter: issuer has no invites");
@@ -210,16 +213,19 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         // The invite issuer is included in the data of the attestation.
         ATTESTATION_STATION.attest(
             _claimer,
-            bytes32("optimist.can-mint-from-invite"),
+            CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(_claimableInvite.issuer)
         );
 
         // Reduce the issuer's invite count by 1 by re-attesting the optimist.can-invite attestation
         // with the new count.
-        count--;
+        unchecked {
+            --count;
+        }
+
         ATTESTATION_STATION.attest(
             _claimableInvite.issuer,
-            bytes32("optimist.can-invite"),
+            CAN_INVITE_ATTESTATION_KEY,
             abi.encode(count)
         );
 
