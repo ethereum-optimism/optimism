@@ -1,4 +1,6 @@
-{
+import { DeployConfig } from '../src/deploy-config'
+
+const config: DeployConfig = {
   "finalSystemOwner": "0x9BA6e03D8B90dE867373Db8cF1A58d2F7F006b3A",
   "controller": "0x78339d822c23d943e4a2d4c3dd5408f66e6d662d",
   "portalGuardian": "0x78339d822c23d943e4a2d4c3dd5408f66e6d662d",
@@ -43,3 +45,5 @@
 
   "l2GenesisRegolithTimeOffset": "0x0"
 }
+
+export default config

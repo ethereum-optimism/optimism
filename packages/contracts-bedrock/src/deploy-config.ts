@@ -129,6 +129,26 @@ interface RequiredDeployConfig {
    * Output finalization period in seconds.
    */
   finalizationPeriodSeconds: number
+
+  /**
+   * Owner of the ProxyAdmin contract.
+   */
+  proxyAdminOwner: string
+
+  /**
+   * L1 address which receives the base fee for the L2 network.
+   */
+  baseFeeVaultRecipient: string
+
+  /**
+   * L1 address which receives data fees for the L2 network.
+   */
+  l1FeeVaultRecipient: string
+
+  /**
+   * L1 address which receives tip fees for the L2 network.
+   */
+  sequencerFeeVaultRecipient: string
 }
 
 /**
@@ -242,6 +262,18 @@ export const deployConfigSpec: {
   finalizationPeriodSeconds: {
     type: 'number',
     default: 2,
+  },
+  proxyAdminOwner: {
+    type: 'address',
+  },
+  baseFeeVaultRecipient: {
+    type: 'address',
+  },
+  l1FeeVaultRecipient: {
+    type: 'address',
+  },
+  sequencerFeeVaultRecipient: {
+    type: 'address',
   },
   cliqueSignerAddress: {
     type: 'address',
