@@ -94,6 +94,7 @@ type CLIConfig struct {
 	NumConfirmations          uint64
 	SafeAbortNonceTooLowCount uint64
 	ResubmissionTimeout       time.Duration
+	ReceiptQueryInterval      time.Duration
 }
 
 func (m CLIConfig) Check() error {
@@ -156,12 +157,17 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		return Config{}, err
 	}
 
+	receiptQueryInterval := 30 * time.Second
+	if cfg.ReceiptQueryInterval != 0 {
+		receiptQueryInterval = cfg.ReceiptQueryInterval
+	}
+
 	return Config{
 		Backend:                   l1,
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ChainID:                   chainID,
 		NetworkTimeout:            networkTimeout,
-		ReceiptQueryInterval:      30 * time.Second,
+		ReceiptQueryInterval:      receiptQueryInterval,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
 		Signer:                    signerFactory(chainID),
