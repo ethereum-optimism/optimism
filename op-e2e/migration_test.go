@@ -352,7 +352,9 @@ func TestMigration(t *testing.T) {
 	}, lgr.New("module", "batcher"), batchermetrics.NoopMetrics)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		batcher.StopIfRunning()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		batcher.StopIfRunning(ctx)
 	})
 
 	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{

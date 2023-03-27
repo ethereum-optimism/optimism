@@ -219,7 +219,9 @@ func (sys *System) Close() {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		sys.BatchSubmitter.StopIfRunning()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		sys.BatchSubmitter.StopIfRunning(ctx)
 	}
 
 	for _, node := range sys.RollupNodes {

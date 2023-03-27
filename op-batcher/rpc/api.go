@@ -6,7 +6,7 @@ import (
 
 type batcherClient interface {
 	Start() error
-	Stop() error
+	Stop(ctx context.Context) error
 }
 
 type adminAPI struct {
@@ -23,6 +23,6 @@ func (a *adminAPI) StartBatcher(_ context.Context) error {
 	return a.b.Start()
 }
 
-func (a *adminAPI) StopBatcher(_ context.Context) error {
-	return a.b.Stop()
+func (a *adminAPI) StopBatcher(ctx context.Context) error {
+	return a.b.Stop(ctx)
 }

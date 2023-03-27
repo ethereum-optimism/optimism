@@ -51,7 +51,7 @@ func Main(version string, cliCtx *cli.Context) error {
 			return err
 		}
 	}
-	defer batchSubmitter.StopIfRunning()
+	defer batchSubmitter.StopIfRunning(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
 

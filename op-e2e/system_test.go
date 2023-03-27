@@ -1449,7 +1449,7 @@ func TestStopStartBatcher(t *testing.T) {
 	require.Greater(t, newSeqStatus.SafeL2.Number, seqStatus.SafeL2.Number, "Safe chain did not advance")
 
 	// stop the batch submission
-	err = sys.BatchSubmitter.Stop()
+	err = sys.BatchSubmitter.Stop(context.Background())
 	require.Nil(t, err)
 
 	// wait for any old safe blocks being submitted / derived
