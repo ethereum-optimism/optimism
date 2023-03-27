@@ -23,10 +23,10 @@ contract OptimistInviter_Initializer is Test {
     bytes32 CLAIMABLE_INVITE_TYPEHASH;
     bytes32 EIP712_DOMAIN_TYPEHASH;
 
-    address constant alice_inviteGranter = address(128);
-    address constant sally = address(512);
-    address constant ted = address(1024);
-    address constant eve = address(2048);
+    address internal alice_inviteGranter;
+    address internal sally;
+    address internal ted;
+    address internal eve;
 
     address internal bob;
     uint256 internal bobPrivateKey;
@@ -43,6 +43,11 @@ contract OptimistInviter_Initializer is Test {
     function setUp() public {
         currentNonce = 0;
 
+        alice_inviteGranter = makeAddr("alice_inviteGranter");
+        sally = makeAddr("sally");
+        ted = makeAddr("ted");
+        eve = makeAddr("eve");
+
         bobPrivateKey = 0xB0B0B0B0;
         bob = vm.addr(bobPrivateKey);
 
@@ -55,12 +60,8 @@ contract OptimistInviter_Initializer is Test {
         vm.deal(alice_inviteGranter, 1 ether);
         vm.deal(bob, 1 ether);
         vm.deal(sally, 1 ether);
+        vm.deal(ted, 1 ether);
         vm.deal(eve, 1 ether);
-
-        vm.label(alice_inviteGranter, "alice_inviteGranter");
-        vm.label(bob, "bob");
-        vm.label(sally, "sally");
-        vm.label(carol, "carol");
 
         CLAIMABLE_INVITE_TYPEHASH = keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
         EIP712_DOMAIN_TYPEHASH = keccak256(
@@ -75,10 +76,11 @@ contract OptimistInviter_Initializer is Test {
      */
     function _initializeContracts() internal {
         attestationStation = new AttestationStation();
-        vm.expectEmit(false, false, false, false);
-        emit Initialized(1);
 
         optimistInviter = new OptimistInviter(alice_inviteGranter, attestationStation);
+
+        vm.expectEmit(true, true, true, true, address(optimistInviter));
+        emit Initialized(1);
         optimistInviter.initialize("OptimistInviter");
     }
 
@@ -450,7 +452,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         );
 
         // Should emit an event indicating that the invite was claimed
-        vm.expectEmit(true, false, false, false, address(optimistInviter));
+        vm.expectEmit(true, true, true, true, address(optimistInviter));
         emit InviteClaimed(bob, sally);
 
         vm.prank(eve);
