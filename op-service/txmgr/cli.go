@@ -28,6 +28,21 @@ const (
 	ResubmissionTimeoutFlagName       = "resubmission-timeout"
 )
 
+var (
+	SequencerHDPathFlag = cli.StringFlag{
+		Name: "sequencer-hd-path",
+		Usage: "DEPRECATED: The HD path used to derive the sequencer wallet from the " +
+			"mnemonic. The mnemonic flag must also be set.",
+		EnvVar: "OP_BATCHER_SEQUENCER_HD_PATH",
+	}
+	L2OutputHDPathFlag = cli.StringFlag{
+		Name: "l2-output-hd-path",
+		Usage: "DEPRECATED:The HD path used to derive the l2output wallet from the " +
+			"mnemonic. The mnemonic flag must also be set.",
+		EnvVar: "OP_PROPOSER_L2_OUTPUT_HD_PATH",
+	}
+)
+
 func CLIFlags(envPrefix string) []cli.Flag {
 	return append([]cli.Flag{
 		cli.StringFlag{
@@ -40,6 +55,8 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			Usage:  "The HD path used to derive the sequencer wallet from the mnemonic. The mnemonic flag must also be set.",
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "HD_PATH"),
 		},
+		SequencerHDPathFlag,
+		L2OutputHDPathFlag,
 		cli.StringFlag{
 			Name:   "private-key",
 			Usage:  "The private key to use with the service. Must not be used with mnemonic.",
@@ -69,7 +86,9 @@ func CLIFlags(envPrefix string) []cli.Flag {
 type CLIConfig struct {
 	L1RPCURL                  string
 	Mnemonic                  string
+	HDPath                    string
 	SequencerHDPath           string
+	L2OutputHDPath            string
 	PrivateKey                string
 	SignerCLIConfig           client.CLIConfig
 	NumConfirmations          uint64
@@ -91,7 +110,9 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 	return CLIConfig{
 		L1RPCURL:                  ctx.GlobalString(L1RPCFlagName),
 		Mnemonic:                  ctx.GlobalString(MnemonicFlagName),
-		SequencerHDPath:           ctx.GlobalString(HDPathFlagName),
+		HDPath:                    ctx.GlobalString(HDPathFlagName),
+		SequencerHDPath:           ctx.GlobalString(SequencerHDPathFlag.Name),
+		L2OutputHDPath:            ctx.GlobalString(L2OutputHDPathFlag.Name),
 		PrivateKey:                ctx.GlobalString(PrivateKeyFlagName),
 		SignerCLIConfig:           client.ReadCLIConfig(ctx),
 		NumConfirmations:          ctx.GlobalUint64(NumConfirmationsFlagName),
@@ -120,8 +141,14 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	hdPath := cfg.HDPath
+	if hdPath == "" && cfg.SequencerHDPath != "" {
+		hdPath = cfg.SequencerHDPath
+	} else if hdPath == "" && cfg.L2OutputHDPath != "" {
+		hdPath = cfg.L2OutputHDPath
+	}
 
-	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, cfg.SequencerHDPath, cfg.SignerCLIConfig)
+	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
 	if err != nil {
 		return Config{}, err
 	}

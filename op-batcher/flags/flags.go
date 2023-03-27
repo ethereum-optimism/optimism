@@ -15,8 +15,7 @@ import (
 const envVarPrefix = "OP_BATCHER"
 
 var (
-	/* Required flags */
-
+	// Required flags
 	L1EthRpcFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
@@ -51,8 +50,7 @@ var (
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
 
-	/* Optional flags */
-
+	// Optional flags
 	MaxChannelDurationFlag = cli.Uint64Flag{
 		Name:   "max-channel-duration",
 		Usage:  "The maximum duration of L1-blocks to keep a channel open. 0 to disable.",
@@ -88,6 +86,8 @@ var (
 		Usage:  "Initialize the batcher in a stopped state. The batcher can be started using the admin_startBatcher RPC",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "STOPPED"),
 	}
+	// Legacy Flags
+	SequencerHDPathFlag = txmgr.SequencerHDPathFlag
 )
 
 var requiredFlags = []cli.Flag{

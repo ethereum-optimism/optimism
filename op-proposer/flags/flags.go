@@ -14,7 +14,7 @@ import (
 const envVarPrefix = "OP_PROPOSER"
 
 var (
-	/* Required Flags */
+	// Required Flags
 	L1EthRpcFlag = cli.StringFlag{
 		Name:     "l1-eth-rpc",
 		Usage:    "HTTP provider URL for L1",
@@ -40,12 +40,14 @@ var (
 		Required: true,
 		EnvVar:   opservice.PrefixEnvVar(envVarPrefix, "POLL_INTERVAL"),
 	}
-	/* Optional flags */
+	// Optional flags
 	AllowNonFinalizedFlag = cli.BoolFlag{
 		Name:   "allow-non-finalized",
 		Usage:  "Allow the proposer to submit proposals for L2 blocks derived from non-finalized L1 blocks.",
 		EnvVar: opservice.PrefixEnvVar(envVarPrefix, "ALLOW_NON_FINALIZED"),
 	}
+	// Legacy Flags
+	L2OutputHDPathFlag = txmgr.L2OutputHDPathFlag
 )
 
 var requiredFlags = []cli.Flag{
