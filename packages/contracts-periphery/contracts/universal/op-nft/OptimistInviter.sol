@@ -138,12 +138,12 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
 
     /**
      * @notice Allows anyone to reveal a commitment and claim an invite.
-     *         The claimer ++ signature pair should have been previously committed using commitInvite.
-     *         Doesn't require that the claimer is calling this function.
+     *         The claimer ++ signature pair should have been previously committed using
+     *         commitInvite. Doesn't require that the claimer is calling this function.
      *
-     * @param _claimer Address that will be granted the invite. This should should be committed.
+     * @param _claimer Address that will be granted the invite.
      * @param _claimableInvite ClaimableInvite struct containing the issuer and nonce.
-     * @param _signature Signature signed over the claimable invite. This should have been committed.
+     * @param _signature Signature signed over the claimable invite.
      */
     function claimInvite(
         address _claimer,
