@@ -122,7 +122,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
             // data field of the attestation.
             ATTESTATION_STATION.attest(
                 _accounts[i],
-                bytes32("optimist.can-invite"),
+                CAN_INVITE_ATTESTATION_KEY,
                 abi.encode(_inviteCount)
             );
 
