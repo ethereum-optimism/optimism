@@ -49,7 +49,7 @@ func TestGasPriceOracleFeeUpdates(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close(context.Background())
+	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
 	l1Client := sys.Clients["l1"]
@@ -136,7 +136,7 @@ func TestL2SequencerRPCDepositTx(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, err := cfg.Start()
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close(context.Background())
+	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
 	l2Seq := sys.Clients["sequencer"]
@@ -250,7 +250,7 @@ func TestMixedDepositValidity(t *testing.T) {
 	cfg := DefaultSystemConfig(t)
 	sys, testAccounts, err := startConfigWithTestAccounts(&cfg, accountUsedToDeposit)
 	require.Nil(t, err, "Error starting up system")
-	defer sys.Close(context.Background())
+	defer sys.Close()
 
 	// Obtain our sequencer, verifier, and transactor keypair.
 	l1Client := sys.Clients["l1"]
@@ -430,7 +430,7 @@ func TestMixedWithdrawalValidity(t *testing.T) {
 			cfg.DeployConfig.FinalizationPeriodSeconds = 6
 			sys, err := cfg.Start()
 			require.NoError(t, err, "error starting up system")
-			defer sys.Close(context.Background())
+			defer sys.Close()
 
 			// Obtain our sequencer, verifier, and transactor keypair.
 			l1Client := sys.Clients["l1"]

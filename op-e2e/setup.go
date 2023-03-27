@@ -214,11 +214,13 @@ type System struct {
 	Mocknet           mocknet.Mocknet
 }
 
-func (sys *System) Close(ctx context.Context) {
+func (sys *System) Close() {
 	if sys.L2OutputSubmitter != nil {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
 		sys.BatchSubmitter.StopIfRunning(ctx)
 	}
 
