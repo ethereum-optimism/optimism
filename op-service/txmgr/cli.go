@@ -105,14 +105,16 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		return Config{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	networkTimeout := 2 * time.Second
+
+	ctx, cancel := context.WithTimeout(context.Background(), networkTimeout)
 	defer cancel()
 	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
 	if err != nil {
 		return Config{}, err
 	}
 
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel = context.WithTimeout(context.Background(), networkTimeout)
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {
@@ -128,7 +130,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		Backend:                   l1,
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ChainID:                   chainID,
-		NetworkTimeout:            2 * time.Second,
+		NetworkTimeout:            networkTimeout,
 		ReceiptQueryInterval:      30 * time.Second,
 		NumConfirmations:          cfg.NumConfirmations,
 		SafeAbortNonceTooLowCount: cfg.SafeAbortNonceTooLowCount,
