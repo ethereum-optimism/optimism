@@ -724,7 +724,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		GasTipCap: big.NewInt(txTipCap),
 		GasFeeCap: big.NewInt(txFeeCap),
 	})
-	newTx, err := mgr.IncreaseGasPrice(context.Background(), tx)
+	newTx, err := mgr.increaseGasPrice(context.Background(), tx)
 	require.NoError(t, err)
 	return tx, newTx
 }
@@ -831,7 +831,7 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
 	for i := 0; i < 20; i++ {
 		ctx := context.Background()
-		newTx, err := mgr.IncreaseGasPrice(ctx, tx)
+		newTx, err := mgr.increaseGasPrice(ctx, tx)
 		require.NoError(t, err)
 		require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
 		require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
