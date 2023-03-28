@@ -157,16 +157,6 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         ATTESTATION_STATION.attest(attestations);
     }
 
-    function attest(AttestationStation.AttestationData[] calldata _attestations) public {
-        // Only invite granter can grant invites
-        require(
-            msg.sender == INVITE_GRANTER,
-            "OptimistInviter: only invite granter can issue attestations"
-        );
-
-        ATTESTATION_STATION.attest(_attestations);
-    }
-
     /**
      * @notice Allows anyone (but likely the claimer) to commit a received signature along with the
      *         address to claim to.
