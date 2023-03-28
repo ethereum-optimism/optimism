@@ -10,7 +10,6 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
  * Simple ERC1271 wallet that can be used to test the ERC1271 signature checker.
  * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/mocks/ERC1271WalletMock.sol
  */
-
 contract TestERC1271Wallet is Ownable, IERC1271 {
     constructor(address originalOwner) {
         transferOwnership(originalOwner);
