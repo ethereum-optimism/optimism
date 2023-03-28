@@ -98,9 +98,6 @@ jobs:
             - "packages/replica-healthcheck/node_modules"
             - "packages/sdk/node_modules"
       - run:
-          name: print forge version
-          command: forge --version
-      - run:
           name: Build monorepo
           command: yarn build
       - persist_to_workspace:
