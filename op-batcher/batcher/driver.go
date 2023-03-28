@@ -76,12 +76,13 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	txManager := txmgr.NewSimpleTxManager("batcher", l, txManagerConfig)
 
 	batcherCfg := Config{
-		L1Client:     l1Client,
-		L2Client:     l2Client,
-		RollupNode:   rollupClient,
-		PollInterval: cfg.PollInterval,
-		TxManager:    txManager,
-		Rollup:       rcfg,
+		L1Client:       l1Client,
+		L2Client:       l2Client,
+		RollupNode:     rollupClient,
+		PollInterval:   cfg.PollInterval,
+		NetworkTimeout: txManagerConfig.NetworkTimeout,
+		TxManager:      txManager,
+		Rollup:         rcfg,
 		Channel: ChannelConfig{
 			SeqWindowSize:      rcfg.SeqWindowSize,
 			ChannelTimeout:     rcfg.ChannelTimeout,
@@ -223,7 +224,7 @@ func (l *BatchSubmitter) loadBlocksIntoState(ctx context.Context) {
 
 // loadBlockIntoState fetches & stores a single block into `state`. It returns the block it loaded.
 func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uint64) (*types.Block, error) {
-	ctx, cancel := context.WithTimeout(ctx, txManagerTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
 	defer cancel()
 	block, err := l.L2Client.BlockByNumber(ctx, new(big.Int).SetUint64(blockNumber))
 	if err != nil {
@@ -241,9 +242,9 @@ func (l *BatchSubmitter) loadBlockIntoState(ctx context.Context, blockNumber uin
 // calculateL2BlockRangeToStore determines the range (start,end] that should be loaded into the local state.
 // It also takes care of initializing some local state (i.e. will modify l.lastStoredBlock in certain conditions)
 func (l *BatchSubmitter) calculateL2BlockRangeToStore(ctx context.Context) (eth.BlockID, eth.BlockID, error) {
-	childCtx, cancel := context.WithTimeout(ctx, txManagerTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
 	defer cancel()
-	syncStatus, err := l.RollupNode.SyncStatus(childCtx)
+	syncStatus, err := l.RollupNode.SyncStatus(ctx)
 	// Ensure that we have the sync status
 	if err != nil {
 		return eth.BlockID{}, eth.BlockID{}, fmt.Errorf("failed to get sync status: %w", err)
@@ -343,13 +344,6 @@ func (l *BatchSubmitter) publishStateToL1(ctx context.Context) {
 	}
 }
 
-const networkTimeout = 2 * time.Second // How long a single network request can take. TODO: put in a config somewhere
-
-// fix(refcell):
-// combined with above, these config variables should also be replicated in the op-proposer
-// along with op-proposer changes to include the updated tx manager
-const txManagerTimeout = 2 * time.Minute // How long the tx manager can take to send a transaction.
-
 // sendTransaction creates & submits a transaction to the batch inbox address with the given `data`.
 // It currently uses the underlying `txmgr` to handle transaction sending & price management.
 // This is a blocking method. It should not be called concurrently.
@@ -361,8 +355,6 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*typ
 	}
 
 	// Send the transaction through the txmgr
-	ctx, cancel := context.WithTimeout(ctx, txManagerTimeout)
-	defer cancel()
 	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		To:       l.Rollup.BatchInboxAddress,
 		TxData:   data,
@@ -399,7 +391,7 @@ func (l *BatchSubmitter) recordConfirmedTx(id txID, receipt *types.Receipt) {
 // l1Tip gets the current L1 tip as a L1BlockRef. The passed context is assumed
 // to be a lifetime context, so it is internally wrapped with a network timeout.
 func (l *BatchSubmitter) l1Tip(ctx context.Context) (eth.L1BlockRef, error) {
-	tctx, cancel := context.WithTimeout(ctx, networkTimeout)
+	tctx, cancel := context.WithTimeout(ctx, l.NetworkTimeout)
 	defer cancel()
 	head, err := l.L1Client.HeaderByNumber(tctx, nil)
 	if err != nil {

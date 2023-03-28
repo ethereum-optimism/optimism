@@ -22,6 +22,7 @@ import (
 type Config struct {
 	L2OutputOracleAddr common.Address
 	PollInterval       time.Duration
+	NetworkTimeout     time.Duration
 	TxManager          txmgr.TxManager
 	L1Client           *ethclient.Client
 	RollupClient       *sources.RollupClient
