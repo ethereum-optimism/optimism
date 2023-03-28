@@ -177,11 +177,11 @@ func main() {
 
 				log.Info("Waiting for CanonicalTransactionChain")
 				wg.Add(1)
-				go waitForTotalElements(wg, ctc, clients.L2Client)
+				go waitForTotalElements(&wg, ctc, clients.L2Client)
 
 				log.Info("Waiting for StateCommitmentChain")
 				wg.Add(1)
-				go waitForTotalElements(wg, scc, clients.L2Client)
+				go waitForTotalElements(&wg, scc, clients.L2Client)
 
 				wg.Wait()
 				log.Info("All batches have been submitted")
@@ -204,21 +204,25 @@ type RollupContract interface {
 }
 
 // waitForTotalElements will poll to see
-func waitForTotalElements(wg sync.WaitGroup, contract RollupContract, client *ethclient.Client) error {
+func waitForTotalElements(wg *sync.WaitGroup, contract RollupContract, client *ethclient.Client) {
 	defer wg.Done()
 
 	for {
 		bn, err := client.BlockNumber(context.Background())
 		if err != nil {
-			return err
+			log.Error("cannot fetch blocknumber", "error", err)
+			time.Sleep(3 * time.Second)
+			continue
 		}
 		totalElements, err := contract.GetTotalElements(&bind.CallOpts{})
 		if err != nil {
-			return err
+			log.Error("cannot fetch total elements", "error", err)
+			time.Sleep(3 * time.Second)
+			continue
 		}
 
 		if totalElements.Uint64() == bn {
-			return nil
+			return
 		}
 		log.Info("Waiting for elements to be submitted", "count", totalElements.Uint64()-bn, "height", bn, "total-elements", totalElements.Uint64())
 
