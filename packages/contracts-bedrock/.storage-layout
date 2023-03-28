@@ -69,17 +69,18 @@
 ➡ contracts/L1/SystemConfig.sol:SystemConfig
 =======================
 
-| Name          | Type        | Slot | Offset | Bytes | Contract                                   |
-|---------------|-------------|------|--------|-------|--------------------------------------------|
-| _initialized  | uint8       | 0    | 0      | 1     | contracts/L1/SystemConfig.sol:SystemConfig |
-| _initializing | bool        | 0    | 1      | 1     | contracts/L1/SystemConfig.sol:SystemConfig |
-| __gap         | uint256[50] | 1    | 0      | 1600  | contracts/L1/SystemConfig.sol:SystemConfig |
-| _owner        | address     | 51   | 0      | 20    | contracts/L1/SystemConfig.sol:SystemConfig |
-| __gap         | uint256[49] | 52   | 0      | 1568  | contracts/L1/SystemConfig.sol:SystemConfig |
-| overhead      | uint256     | 101  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
-| scalar        | uint256     | 102  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
-| batcherHash   | bytes32     | 103  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
-| gasLimit      | uint64      | 104  | 0      | 8     | contracts/L1/SystemConfig.sol:SystemConfig |
+| Name            | Type                                   | Slot | Offset | Bytes | Contract                                   |
+|-----------------|----------------------------------------|------|--------|-------|--------------------------------------------|
+| _initialized    | uint8                                  | 0    | 0      | 1     | contracts/L1/SystemConfig.sol:SystemConfig |
+| _initializing   | bool                                   | 0    | 1      | 1     | contracts/L1/SystemConfig.sol:SystemConfig |
+| __gap           | uint256[50]                            | 1    | 0      | 1600  | contracts/L1/SystemConfig.sol:SystemConfig |
+| _owner          | address                                | 51   | 0      | 20    | contracts/L1/SystemConfig.sol:SystemConfig |
+| __gap           | uint256[49]                            | 52   | 0      | 1568  | contracts/L1/SystemConfig.sol:SystemConfig |
+| overhead        | uint256                                | 101  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
+| scalar          | uint256                                | 102  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
+| batcherHash     | bytes32                                | 103  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
+| gasLimit        | uint64                                 | 104  | 0      | 8     | contracts/L1/SystemConfig.sol:SystemConfig |
+| _resourceConfig | struct ResourceMetering.ResourceConfig | 105  | 0      | 32    | contracts/L1/SystemConfig.sol:SystemConfig |
 
 =======================
 ➡ contracts/legacy/DeployerWhitelist.sol:DeployerWhitelist

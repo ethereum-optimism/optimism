@@ -14,8 +14,16 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
+var ErrMaxFrameSizeTooSmall = errors.New("maxSize is too small to fit the fixed frame overhead")
 var ErrNotDepositTx = errors.New("first transaction in block is not a deposit tx")
 var ErrTooManyRLPBytes = errors.New("batch would cause RLP bytes to go over limit")
+
+// FrameV0OverHeadSize is the absolute minimum size of a frame.
+// This is the fixed overhead frame size, calculated as specified
+// in the [Frame Format] specs: 16 + 2 + 4 + 1 = 23 bytes.
+//
+// [Frame Format]: https://github.com/ethereum-optimism/optimism/blob/develop/specs/derivation.md#frame-format
+const FrameV0OverHeadSize = 23
 
 type ChannelOut struct {
 	id ChannelID
@@ -76,7 +84,7 @@ func (co *ChannelOut) AddBlock(block *types.Block) (uint64, error) {
 		return 0, errors.New("already closed")
 	}
 
-	batch, err := BlockToBatch(block)
+	batch, _, err := BlockToBatch(block)
 	if err != nil {
 		return 0, err
 	}
@@ -141,19 +149,23 @@ func (co *ChannelOut) Close() error {
 // OutputFrame writes a frame to w with a given max size and returns the frame
 // number.
 // Use `ReadyBytes`, `Flush`, and `Close` to modify the ready buffer.
-// Returns io.EOF when the channel is closed & there are no more frames
+// Returns an error if the `maxSize` < FrameV0OverHeadSize.
+// Returns io.EOF when the channel is closed & there are no more frames.
 // Returns nil if there is still more buffered data.
-// Returns and error if it ran into an error during processing.
+// Returns an error if it ran into an error during processing.
 func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, error) {
 	f := Frame{
 		ID:          co.id,
 		FrameNumber: uint16(co.frame),
 	}
 
+	// Check that the maxSize is large enough for the frame overhead size.
+	if maxSize < FrameV0OverHeadSize {
+		return 0, ErrMaxFrameSizeTooSmall
+	}
+
 	// Copy data from the local buffer into the frame data buffer
-	// Don't go past the maxSize with the fixed frame overhead.
-	// Fixed overhead: 16 + 2 + 4 + 1 = 23 bytes.
-	maxDataSize := maxSize - 23
+	maxDataSize := maxSize - FrameV0OverHeadSize
 	if maxDataSize > uint64(co.buf.Len()) {
 		maxDataSize = uint64(co.buf.Len())
 		// If we are closed & will not spill past the current frame
@@ -182,7 +194,7 @@ func (co *ChannelOut) OutputFrame(w *bytes.Buffer, maxSize uint64) (uint16, erro
 }
 
 // BlockToBatch transforms a block into a batch object that can easily be RLP encoded.
-func BlockToBatch(block *types.Block) (*BatchData, error) {
+func BlockToBatch(block *types.Block) (*BatchData, L1BlockInfo, error) {
 	opaqueTxs := make([]hexutil.Bytes, 0, len(block.Transactions()))
 	for i, tx := range block.Transactions() {
 		if tx.Type() == types.DepositTxType {
@@ -190,17 +202,17 @@ func BlockToBatch(block *types.Block) (*BatchData, error) {
 		}
 		otx, err := tx.MarshalBinary()
 		if err != nil {
-			return nil, fmt.Errorf("could not encode tx %v in block %v: %w", i, tx.Hash(), err)
+			return nil, L1BlockInfo{}, fmt.Errorf("could not encode tx %v in block %v: %w", i, tx.Hash(), err)
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
 	l1InfoTx := block.Transactions()[0]
 	if l1InfoTx.Type() != types.DepositTxType {
-		return nil, ErrNotDepositTx
+		return nil, L1BlockInfo{}, ErrNotDepositTx
 	}
 	l1Info, err := L1InfoDepositTxData(l1InfoTx.Data())
 	if err != nil {
-		return nil, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
+		return nil, l1Info, fmt.Errorf("could not parse the L1 Info deposit: %w", err)
 	}
 
 	return &BatchData{
@@ -211,7 +223,7 @@ func BlockToBatch(block *types.Block) (*BatchData, error) {
 			Timestamp:    block.Time(),
 			Transactions: opaqueTxs,
 		},
-	}, nil
+	}, l1Info, nil
 }
 
 // ForceCloseTxData generates the transaction data for a transaction which will force close

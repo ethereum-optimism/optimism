@@ -150,6 +150,7 @@ module.exports = {
           '/docs/build/getting-started.md',
           '/docs/build/conf.md',
           '/docs/build/explorer.md',
+          '/docs/build/sdk.md',
           {
             title: "OP Stack Hacks",
             collapsable: true,
@@ -165,6 +166,7 @@ module.exports = {
                 children: [
                   "/docs/build/tutorials/add-attr.md",
                   "/docs/build/tutorials/new-precomp.md",
+                  "/docs/build/tutorials/predeploys.md"
                 ]
               }  // End of tutorials
             ],
@@ -184,6 +186,7 @@ module.exports = {
         children: [
           '/docs/security/faq.md',
           '/docs/security/policy.md',
+          '/docs/security/pause.md'
         ]
       },
     ],  // end of sidebar

@@ -2,18 +2,23 @@ pragma solidity 0.8.15;
 
 import { Test } from "forge-std/Test.sol";
 import { SystemConfig } from "../../L1/SystemConfig.sol";
+import { ResourceMetering } from "../../L1/ResourceMetering.sol";
+import { Constants } from "../../libraries/Constants.sol";
 
 contract SystemConfig_GasLimitLowerBound_Invariant is Test {
     SystemConfig public config;
 
     function setUp() public {
+        ResourceMetering.ResourceConfig memory cfg = Constants.DEFAULT_RESOURCE_CONFIG();
+
         config = new SystemConfig({
             _owner: address(0xbeef),
             _overhead: 2100,
             _scalar: 1000000,
             _batcherHash: bytes32(hex"abcd"),
-            _gasLimit: 8_000_000,
-            _unsafeBlockSigner: address(1)
+            _gasLimit: 30_000_000,
+            _unsafeBlockSigner: address(1),
+            _config: cfg
         });
 
         // Set the target contract to the `config`

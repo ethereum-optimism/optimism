@@ -1,5 +1,5 @@
 ---
-title: Contribute to OP Stack
+title: Contribute to the OP Stack
 lang: en-US
 ---
 
@@ -21,7 +21,7 @@ The OP Stack needs YOU (yes you!) to help review the codebase for bugs and vulne
 
 ## Documentation help
 
-Spot a typo in these docs? See something that could be a little clearer? Head over to the Optimism Monorepo where the OP Stack docs are hosted and make a pull request. No contribution is too small! 
+Spot a typo in these docs? See something that could be a little clearer? Head over to the Optimism Monorepo where the OP Stack docs are hosted and make a pull request. No contribution is too small!
 
 ## Community contributions
 

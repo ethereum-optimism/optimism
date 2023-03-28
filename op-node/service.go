@@ -95,9 +95,12 @@ func NewConfig(ctx *cli.Context, log log.Logger) (*node.Config, error) {
 
 func NewL1EndpointConfig(ctx *cli.Context) *node.L1EndpointConfig {
 	return &node.L1EndpointConfig{
-		L1NodeAddr: ctx.GlobalString(flags.L1NodeAddr.Name),
-		L1TrustRPC: ctx.GlobalBool(flags.L1TrustRPC.Name),
-		L1RPCKind:  sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
+		L1NodeAddr:       ctx.GlobalString(flags.L1NodeAddr.Name),
+		L1TrustRPC:       ctx.GlobalBool(flags.L1TrustRPC.Name),
+		L1RPCKind:        sources.RPCProviderKind(strings.ToLower(ctx.GlobalString(flags.L1RPCProviderKind.Name))),
+		RateLimit:        ctx.GlobalFloat64(flags.L1RPCRateLimit.Name),
+		BatchSize:        ctx.GlobalInt(flags.L1RPCMaxBatchSize.Name),
+		HttpPollInterval: ctx.Duration(flags.L1HTTPPollInterval.Name),
 	}
 }
 
@@ -136,15 +139,17 @@ func NewL2EndpointConfig(ctx *cli.Context, log log.Logger) (*node.L2EndpointConf
 func NewL2SyncEndpointConfig(ctx *cli.Context) *node.L2SyncEndpointConfig {
 	return &node.L2SyncEndpointConfig{
 		L2NodeAddr: ctx.GlobalString(flags.BackupL2UnsafeSyncRPC.Name),
+		TrustRPC:   ctx.GlobalBool(flags.BackupL2UnsafeSyncRPCTrustRPC.Name),
 	}
 }
 
 func NewDriverConfig(ctx *cli.Context) *driver.Config {
 	return &driver.Config{
-		VerifierConfDepth:  ctx.GlobalUint64(flags.VerifierL1Confs.Name),
-		SequencerConfDepth: ctx.GlobalUint64(flags.SequencerL1Confs.Name),
-		SequencerEnabled:   ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
-		SequencerStopped:   ctx.GlobalBool(flags.SequencerStoppedFlag.Name),
+		VerifierConfDepth:   ctx.GlobalUint64(flags.VerifierL1Confs.Name),
+		SequencerConfDepth:  ctx.GlobalUint64(flags.SequencerL1Confs.Name),
+		SequencerEnabled:    ctx.GlobalBool(flags.SequencerEnabledFlag.Name),
+		SequencerStopped:    ctx.GlobalBool(flags.SequencerStoppedFlag.Name),
+		SequencerMaxSafeLag: ctx.GlobalUint64(flags.SequencerMaxSafeLagFlag.Name),
 	}
 }
 

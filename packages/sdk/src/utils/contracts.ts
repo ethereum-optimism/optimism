@@ -165,19 +165,19 @@ export const getBridgeAdapters = (
   }
 ): BridgeAdapters => {
   const adapterData: BridgeAdapterData = {
-    ...(CONTRACT_ADDRESSES[l2ChainId]
+    ...(CONTRACT_ADDRESSES[l2ChainId] || opts?.contracts?.l1?.L1StandardBridge
       ? {
           Standard: {
             Adapter: StandardBridgeAdapter,
             l1Bridge:
-              opts.contracts?.l1?.L1StandardBridge ||
+              opts?.contracts?.l1?.L1StandardBridge ||
               CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
             l2Bridge: predeploys.L2StandardBridge,
           },
           ETH: {
             Adapter: ETHBridgeAdapter,
             l1Bridge:
-              opts.contracts?.l1?.L1StandardBridge ||
+              opts?.contracts?.l1?.L1StandardBridge ||
               CONTRACT_ADDRESSES[l2ChainId].l1.L1StandardBridge,
             l2Bridge: predeploys.L2StandardBridge,
           },

@@ -12,10 +12,13 @@ import (
 	"time"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -268,14 +271,18 @@ func TestMigration(t *testing.T) {
 	snapLog.SetHandler(log.DiscardHandler())
 	rollupNodeConfig := &node.Config{
 		L1: &node.L1EndpointConfig{
-			L1NodeAddr: forkedL1URL,
-			L1TrustRPC: false,
-			L1RPCKind:  sources.RPCKindBasic,
+			L1NodeAddr:       forkedL1URL,
+			L1TrustRPC:       false,
+			L1RPCKind:        sources.RPCKindBasic,
+			RateLimit:        0,
+			BatchSize:        20,
+			HttpPollInterval: 12 * time.Second,
 		},
 		L2: &node.L2EndpointConfig{
 			L2EngineAddr:      gethNode.HTTPAuthEndpoint(),
 			L2EngineJWTSecret: testingJWTSecret,
 		},
+		L2Sync: &node.PreparedL2SyncEndpoint{Client: nil, TrustRPC: false},
 		Driver: driver.Config{
 			VerifierConfDepth:  0,
 			SequencerConfDepth: 0,
@@ -323,45 +330,53 @@ func TestMigration(t *testing.T) {
 	})
 
 	batcher, err := bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:                  forkedL1URL,
-		L2EthRpc:                  gethNode.WSEndpoint(),
-		RollupRpc:                 rollupNode.HTTPEndpoint(),
-		MaxChannelDuration:        1,
-		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            100_000,
-		TargetNumFrames:           1,
-		ApproxComprRatio:          0.4,
-		SubSafetyMargin:           4,
-		PollInterval:              50 * time.Millisecond,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       5 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
+		L1EthRpc:           forkedL1URL,
+		L2EthRpc:           gethNode.WSEndpoint(),
+		RollupRpc:          rollupNode.HTTPEndpoint(),
+		MaxChannelDuration: 1,
+		MaxL1TxSize:        120_000,
+		TargetL1TxSize:     100_000,
+		TargetNumFrames:    1,
+		ApproxComprRatio:   0.4,
+		SubSafetyMargin:    4,
+		PollInterval:       50 * time.Millisecond,
+		TxMgrConfig: txmgr.CLIConfig{
+			L1RPCURL:                  forkedL1URL,
+			PrivateKey:                hexPriv(secrets.Batcher),
+			NumConfirmations:          1,
+			ResubmissionTimeout:       5 * time.Second,
+			SafeAbortNonceTooLowCount: 3,
+		},
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey: hexPriv(secrets.Batcher),
-	}, lgr.New("module", "batcher"))
+	}, lgr.New("module", "batcher"), batchermetrics.NoopMetrics)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		batcher.StopIfRunning()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		batcher.StopIfRunning(ctx)
 	})
 
 	proposer, err := l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:                  forkedL1URL,
-		RollupRpc:                 rollupNode.HTTPEndpoint(),
-		L2OOAddress:               l2OS.Address.String(),
-		PollInterval:              50 * time.Millisecond,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       3 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
-		AllowNonFinalized:         true,
+		L1EthRpc:          forkedL1URL,
+		RollupRpc:         rollupNode.HTTPEndpoint(),
+		L2OOAddress:       l2OS.Address.String(),
+		PollInterval:      50 * time.Millisecond,
+		AllowNonFinalized: true,
+		TxMgrConfig: txmgr.CLIConfig{
+			L1RPCURL:                  forkedL1URL,
+			PrivateKey:                hexPriv(secrets.Proposer),
+			NumConfirmations:          1,
+			ResubmissionTimeout:       3 * time.Second,
+			SafeAbortNonceTooLowCount: 3,
+		},
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey: hexPriv(secrets.Proposer),
-	}, lgr.New("module", "proposer"))
+	}, lgr.New("module", "proposer"), proposermetrics.NoopMetrics)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		proposer.Stop()

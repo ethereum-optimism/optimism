@@ -7,16 +7,17 @@ import (
 
 	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
+	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 
 	"github.com/urfave/cli"
 )
 
 // Flags
 
-const envVarPrefix = "OP_NODE_"
+const envVarPrefix = "OP_NODE"
 
 func prefixEnvVar(name string) string {
-	return envVarPrefix + name
+	return envVarPrefix + "_" + name
 }
 
 var (
@@ -74,6 +75,24 @@ var (
 			return &out
 		}(),
 	}
+	L1RPCRateLimit = cli.Float64Flag{
+		Name:   "l1.rpc-rate-limit",
+		Usage:  "Optional self-imposed global rate-limit on L1 RPC requests, specified in requests / second. Disabled if set to 0.",
+		EnvVar: prefixEnvVar("L1_RPC_RATE_LIMIT"),
+		Value:  0,
+	}
+	L1RPCMaxBatchSize = cli.IntFlag{
+		Name:   "l1.rpc-max-batch-size",
+		Usage:  "Maximum number of RPC requests to bundle, e.g. during L1 blocks receipt fetching. The L1 RPC rate limit counts this as N items, but allows it to burst at once.",
+		EnvVar: prefixEnvVar("L1_RPC_MAX_BATCH_SIZE"),
+		Value:  20,
+	}
+	L1HTTPPollInterval = cli.DurationFlag{
+		Name:   "l1.http-poll-interval",
+		Usage:  "Polling interval for latest-block subscription when using an HTTP RPC provider. Ignored for other types of RPC endpoints.",
+		EnvVar: prefixEnvVar("L1_HTTP_POLL_INTERVAL"),
+		Value:  time.Second * 12,
+	}
 	L2EngineJWTSecret = cli.StringFlag{
 		Name:        "l2.jwt-secret",
 		Usage:       "Path to JWT secret key. Keys are 32 bytes, hex encoded in a file. A new key will be generated if left empty.",
@@ -99,6 +118,13 @@ var (
 		Usage:  "Initialize the sequencer in a stopped state. The sequencer can be started using the admin_startSequencer RPC",
 		EnvVar: prefixEnvVar("SEQUENCER_STOPPED"),
 	}
+	SequencerMaxSafeLagFlag = cli.Uint64Flag{
+		Name:     "sequencer.max-safe-lag",
+		Usage:    "Maximum number of L2 blocks for restricting the distance between L2 safe and unsafe. Disabled if 0.",
+		EnvVar:   prefixEnvVar("SEQUENCER_MAX_SAFE_LAG"),
+		Required: false,
+		Value:    0,
+	}
 	SequencerL1Confs = cli.Uint64Flag{
 		Name:     "sequencer.l1-confs",
 		Usage:    "Number of L1 blocks to keep distance from the L1 head as a sequencer for picking an L1 origin.",
@@ -112,23 +138,6 @@ var (
 		EnvVar:   prefixEnvVar("L1_EPOCH_POLL_INTERVAL"),
 		Required: false,
 		Value:    time.Second * 12 * 32,
-	}
-	LogLevelFlag = cli.StringFlag{
-		Name:   "log.level",
-		Usage:  "The lowest log level that will be output",
-		Value:  "info",
-		EnvVar: prefixEnvVar("LOG_LEVEL"),
-	}
-	LogFormatFlag = cli.StringFlag{
-		Name:   "log.format",
-		Usage:  "Format the log output. Supported formats: 'text', 'json'",
-		Value:  "text",
-		EnvVar: prefixEnvVar("LOG_FORMAT"),
-	}
-	LogColorFlag = cli.BoolFlag{
-		Name:   "log.color",
-		Usage:  "Color the log output",
-		EnvVar: prefixEnvVar("LOG_COLOR"),
 	}
 	MetricsEnabledFlag = cli.BoolFlag{
 		Name:   "metrics.enabled",
@@ -191,6 +200,13 @@ var (
 		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC"),
 		Required: false,
 	}
+	BackupL2UnsafeSyncRPCTrustRPC = cli.StringFlag{
+		Name: "l2.backup-unsafe-sync-rpc.trustrpc",
+		Usage: "Like l1.trustrpc, configure if response data from the RPC needs to be verified, e.g. blockhash computation." +
+			"This does not include checks if the blockhash is part of the canonical chain.",
+		EnvVar:   prefixEnvVar("L2_BACKUP_UNSAFE_SYNC_RPC_TRUST_RPC"),
+		Required: false,
+	}
 )
 
 var requiredFlags = []cli.Flag{
@@ -200,20 +216,21 @@ var requiredFlags = []cli.Flag{
 	RPCListenPort,
 }
 
-var optionalFlags = append([]cli.Flag{
+var optionalFlags = []cli.Flag{
 	RollupConfig,
 	Network,
 	L1TrustRPC,
 	L1RPCProviderKind,
+	L1RPCRateLimit,
+	L1RPCMaxBatchSize,
+	L1HTTPPollInterval,
 	L2EngineJWTSecret,
 	VerifierL1Confs,
 	SequencerEnabledFlag,
 	SequencerStoppedFlag,
+	SequencerMaxSafeLagFlag,
 	SequencerL1Confs,
 	L1EpochPollIntervalFlag,
-	LogLevelFlag,
-	LogFormatFlag,
-	LogColorFlag,
 	RPCEnableAdmin,
 	MetricsEnabledFlag,
 	MetricsAddrFlag,
@@ -226,10 +243,17 @@ var optionalFlags = append([]cli.Flag{
 	HeartbeatMonikerFlag,
 	HeartbeatURLFlag,
 	BackupL2UnsafeSyncRPC,
-}, p2pFlags...)
+	BackupL2UnsafeSyncRPCTrustRPC,
+}
 
 // Flags contains the list of configuration options available to the binary.
-var Flags = append(requiredFlags, optionalFlags...)
+var Flags []cli.Flag
+
+func init() {
+	optionalFlags = append(optionalFlags, p2pFlags...)
+	optionalFlags = append(optionalFlags, oplog.CLIFlags(envVarPrefix)...)
+	Flags = append(requiredFlags, optionalFlags...)
+}
 
 func CheckRequired(ctx *cli.Context) error {
 	l1NodeAddr := ctx.GlobalString(L1NodeAddr.Name)

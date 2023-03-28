@@ -39,12 +39,11 @@ This tutorial was checked on:
 | Software | Version    | Installation command(s) |
 | -------- | ---------- | - |
 | Ubuntu   | 20.04 LTS  | |
-| git      | OS default | |
-| make     | 4.2.1-1.2  | `sudo apt install -y make`
+| git, curl, and make | OS default | `sudo apt install -y git curl make` |
 | Go       | 1.20       | `sudo apt update` <br> `wget https://go.dev/dl/go1.20.linux-amd64.tar.gz` <br> `tar xvzf go1.20.linux-amd64.tar.gz` <br> `sudo cp go/bin/go /usr/bin/go` <br> `sudo mv go /usr/lib` <br> `echo export GOROOT=/usr/lib/go >> ~/.bashrc`
-| Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs`
+| Node     | 16.19.0    | `curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -` <br> `sudo apt-get install -y nodejs npm`
 | yarn     | 1.22.19    | `sudo npm install -g yarn`
-| Foundry  | 0.2.0      | `curl -L https://foundry.paradigm.xyz | bash` <br> `sudo bash` <br> `foundryup`
+| Foundry  | 0.2.0      | `curl -L https://foundry.paradigm.xyz | bash` <br> `. ~/.bashrc` <br> `foundryup`
 
 ## Build the Source Code
 
@@ -74,7 +73,8 @@ We’re going to be spinning up an EVM Rollup from the OP Stack source code.  Yo
 1. Build the various packages inside of the Optimism Monorepo.
 
     ```bash
-    make build
+    make op-node op-batcher
+    yarn build
     ```
 
 ### Build op-geth
@@ -201,7 +201,7 @@ Once you’ve built both repositories, you’ll need head back to the Optimism M
     - Replace `"BATCHER"` with the address of the Batcher account you generated earlier.
     - Replace `"SEQUENCER"` with the address of the Sequencer account you generated earlier.
     - Replace `"BLOCKHASH"` with the blockhash you got from the `cast` command.
-    - Replace `"TIMESTAMP"` with the timestamp you got from the `cast` command. Note that although all the other fields are strings, this field is a number! Don’t include the quotation marks.
+    - Replace `TIMESTAMP` with the timestamp you got from the `cast` command. Note that although all the other fields are strings, this field is a number! Don’t include the quotation marks.
 
 ## Deploy the L1 contracts
 
@@ -390,9 +390,7 @@ Head over to the `op-node` package and start the `op-node` using the following c
 	--rollup.config=./rollup.json \
 	--rpc.addr=0.0.0.0 \
 	--rpc.port=8547 \
-	--p2p.listen.ip=0.0.0.0 \
-	--p2p.listen.tcp=9003 \
-	--p2p.listen.udp=9003 \
+	--p2p.disable \
 	--rpc.enable-admin \
 	--p2p.sequencer.key=<SEQUENCERKEY> \
 	--l1=<RPC> \
@@ -400,6 +398,26 @@ Head over to the `op-node` package and start the `op-node` using the following c
 ```
 
 Once you run this command, you should start seeing the `op-node` begin to process all of the L1 information after the starting block number that you picked earlier. Once the `op-node` has enough information, it’ll begin sending Engine API payloads to `op-geth`. At that point, you’ll start to see blocks being created inside of `op-geth`. We’re live!
+
+
+::: tip Peer to peer synchronization
+
+If you use a chain ID that is also used by others, for example the default (42069), your `op-node` will try to use peer to peer to speed up synchronization.
+These attempts will fail, because they will be signed with the wrong key, but they will waste time and network resources.
+
+To avoid this , we start with peer to peer synchronization disabled (`--p2p.disable`).
+Once you have multiple nodes, it makes sense to use these command line parameters to synchronize between them without getting confused by other blockchains.
+
+```
+	--p2p.static=<nodes> \
+	--p2p.listen.ip=0.0.0.0 \
+	--p2p.listen.tcp=9003 \
+	--p2p.listen.udp=9003 \
+```
+
+:::
+
+
 
 
 ## Run op-batcher
@@ -440,20 +458,27 @@ Once you’ve connected your wallet, you’ll probably notice that you don’t h
     cd ~/optimism/packages/contracts-bedrock
     ```
 
-1. Grab the address of the `OptimismPortalProxy` contract:
+1. Grab the address of the proxy to the L1 standard bridge contract:
 
     ```bash
-    cat deployments/getting-started/OptimismPortalProxy.json | grep \"address\":
+    cat deployments/getting-started/Proxy__OVM_L1StandardBridge.json.json | grep \"address\":
     ```
 
     You should see a result like the following (**your address will be different**):
 
     ```
-    "address": "0x264B5fde6B37fb6f1C92AaC17BA144cf9e3DcFE9",
-            "address": "0x264B5fde6B37fb6f1C92AaC17BA144cf9e3DcFE9",
+    "address": "0x874f2E16D803c044F10314A978322da3c9b075c7",
+            "internalType": "address",
+            "type": "address"
+            "internalType": "address",
+            "type": "address"
+            "internalType": "address",
+            "type": "address"
+            "internalType": "address",
+            "type": "address"
     ```
 
-1. Grab the `OptimismPortalProxy` address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
+1. Grab the L1 bridge proxy contract address and, using the wallet that you want to have ETH on your Rollup, send that address a small amount of ETH on Goerli (0.1 or less is fine). It may take up to 5 minutes for that ETH to appear in your wallet on L2.
 
 ## Use your Rollup
 
@@ -509,15 +534,47 @@ To use any other development stack, see the getting started tutorial, just repla
 
 ### Stopping your Rollup
 
-To stop `op-geth` you should use Ctrl-C. 
+An orderly shutdown is done in the reverse order to the order in which components were started:
 
-If `op-geth` aborts (for example, because the computer it is running on crashes), you will get these errors on `op-node`: 
+1. Stop `op-batcher`.
+1. Stop `op-node`.
+1. Stop `op-geth`.
+
+
+### Starting your Rollup
+
+To restart the blockchain, use the same order of components you did when you initialized it.
+
+1. `op-geth`
+1. `op-node`
+1. `op-batcher`
+
+::: tip Synchronization takes time
+
+`op-batcher` might have warning messages similar to:
+
+```
+WARN [03-21|14:13:55.248] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+WARN [03-21|14:13:57.328] Error calculating L2 block range         err="failed to get sync status: Post \"http://localhost:8547\": context deadline exceeded"
+```
+
+This means that `op-node` is not yet synchronized up to the present time.
+Just wait until it is.
+
+:::
+
+
+### Errors
+
+#### Corrupt data directory
+
+If `op-geth` aborts (for example, because the computer it is running on crashes), you might get these errors on `op-node`: 
 
 ```
 WARN [02-16|21:22:02.868] Derivation process temporary error       attempts=14 err="stage 0 failed resetting: temp: failed to find the L2 Heads to start from: failed to fetch L2 block by hash 0x0000000000000000000000000000000000000000000000000000000000000000: failed to determine block-hash of hash 0x0000000000000000000000000000000000000000000000000000000000000000, could not get payload: not found"
 ```
 
-In that case, you need to remove `datadir`, reinitialize it:
+This means that the data directory is corrupt and you need to reinitialize it:
 
 ```bash
 cd ~/op-geth
@@ -529,17 +586,23 @@ echo "<SEQUENCER KEY HERE>" > datadir/block-signer-key
 ./build/bin/geth init --datadir=./datadir ./genesis.json
 ```
 
-### Starting your Rollup
 
-To restart the blockchain, use the same order of components you did when you initialized it.
+#### Batcher out of ETH
 
-1. `op-geth`
-2. `op-node`
-3. `op-batcher`
+If `op-batcher` runs out of ETH, it cannot submit write new transaction batches to L1.
+You will get error messages similar to this one:
+
+```
+INFO [03-21|14:22:32.754] publishing transaction                   service=batcher txHash=2ace6d..7eb248 nonce=2516 gasTipCap=2,340,741 gasFeeCap=172,028,434,515
+ERROR[03-21|14:22:32.844] unable to publish transaction            service=batcher txHash=2ace6d..7eb248 nonce=2516 gasTipCap=2,340,741 gasFeeCap=172,028,434,515 err="insufficient funds for gas * price + value"
+```
+
+Just send more ETH and to the batcher, and the problem will be resolved.
 
 ## Adding nodes
 
-To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node:
+To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, similar to what you did for the first node.
+You should *not* add an `op-bathcer`, there should be only one.
 
 1. Configure the OS and prerequisites as you did for the first node.
 1. Build the Optimism monorepo and `op-geth` as you did for the first node.
@@ -567,7 +630,7 @@ To add nodes to the rollup, you need to initialize `op-node` and `op-geth`, simi
     
 1. Start `op-geth` (using the same command line you used on the initial node)
 1. Start `op-node` (using the same command line you used on the initial node)
-1. Wait while the node synchronizes
+
 
 ## What’s next?
 

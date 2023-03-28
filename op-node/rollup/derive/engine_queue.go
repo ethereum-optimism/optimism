@@ -104,8 +104,10 @@ type EngineQueue struct {
 
 	finalizedL1 eth.L1BlockRef
 
-	safeAttributes *eth.PayloadAttributes
-	unsafePayloads PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps
+	// The queued-up attributes
+	safeAttributesParent eth.L2BlockRef
+	safeAttributes       *eth.PayloadAttributes
+	unsafePayloads       *PayloadsQueue // queue of unsafe payloads, ordered by ascending block number, may have gaps and duplicates
 
 	// Tracks which L2 blocks where last derived from which L1 block. At most finalityLookback large.
 	finalityData []FinalityData
@@ -125,18 +127,14 @@ var _ EngineControl = (*EngineQueue)(nil)
 // NewEngineQueue creates a new EngineQueue, which should be Reset(origin) before use.
 func NewEngineQueue(log log.Logger, cfg *rollup.Config, engine Engine, metrics Metrics, prev NextAttributesProvider, l1Fetcher L1Fetcher) *EngineQueue {
 	return &EngineQueue{
-		log:          log,
-		cfg:          cfg,
-		engine:       engine,
-		metrics:      metrics,
-		finalityData: make([]FinalityData, 0, finalityLookback),
-		unsafePayloads: PayloadsQueue{
-			MaxSize:  maxUnsafePayloadsMemory,
-			SizeFn:   payloadMemSize,
-			blockNos: make(map[uint64]bool),
-		},
-		prev:      prev,
-		l1Fetcher: l1Fetcher,
+		log:            log,
+		cfg:            cfg,
+		engine:         engine,
+		metrics:        metrics,
+		finalityData:   make([]FinalityData, 0, finalityLookback),
+		unsafePayloads: NewPayloadsQueue(maxUnsafePayloadsMemory, payloadMemSize),
+		prev:           prev,
+		l1Fetcher:      l1Fetcher,
 	}
 }
 
@@ -225,6 +223,7 @@ func (eq *EngineQueue) Step(ctx context.Context) error {
 		return err
 	} else {
 		eq.safeAttributes = next
+		eq.safeAttributesParent = eq.safeHead
 		eq.log.Debug("Adding next safe attributes", "safe_head", eq.safeHead, "next", eq.safeAttributes)
 		return NotEnoughData
 	}
@@ -427,6 +426,20 @@ func (eq *EngineQueue) tryNextUnsafePayload(ctx context.Context) error {
 }
 
 func (eq *EngineQueue) tryNextSafeAttributes(ctx context.Context) error {
+	if eq.safeAttributes == nil { // sanity check the attributes are there
+		return nil
+	}
+	// validate the safe attributes before processing them. The engine may have completed processing them through other means.
+	if eq.safeHead != eq.safeAttributesParent {
+		if eq.safeHead.ParentHash != eq.safeAttributesParent.Hash {
+			return NewResetError(fmt.Errorf("safe head changed to %s with parent %s, conflicting with queued safe attributes on top of %s",
+				eq.safeHead, eq.safeHead.ParentID(), eq.safeAttributesParent))
+		}
+		eq.log.Warn("queued safe attributes are stale, safe-head progressed",
+			"safe_head", eq.safeHead, "safe_head_parent", eq.safeHead.ParentID(), "attributes_parent", eq.safeAttributesParent)
+		eq.safeAttributes = nil
+		return nil
+	}
 	if eq.safeHead.Number < eq.unsafeHead.Number {
 		return eq.consolidateNextSafeAttributes(ctx)
 	} else if eq.safeHead.Number == eq.unsafeHead.Number {
@@ -486,14 +499,15 @@ func (eq *EngineQueue) forceNextSafeAttributes(ctx context.Context) error {
 		_, errType, err = eq.ConfirmPayload(ctx)
 	}
 	if err != nil {
-		_ = eq.CancelPayload(ctx, true)
 		switch errType {
 		case BlockInsertTemporaryErr:
 			// RPC errors are recoverable, we can retry the buffered payload attributes later.
 			return NewTemporaryError(fmt.Errorf("temporarily cannot insert new safe block: %w", err))
 		case BlockInsertPrestateErr:
+			_ = eq.CancelPayload(ctx, true)
 			return NewResetError(fmt.Errorf("need reset to resolve pre-state problem: %w", err))
 		case BlockInsertPayloadErr:
+			_ = eq.CancelPayload(ctx, true)
 			eq.log.Warn("could not process payload derived from L1 data, dropping batch", "err", err)
 			// Count the number of deposits to see if the tx list is deposit only.
 			depositCount := 0
@@ -664,7 +678,8 @@ func (eq *EngineQueue) Reset(ctx context.Context, _ eth.L1BlockRef, _ eth.System
 	return io.EOF
 }
 
-// GetUnsafeQueueGap retrieves the current [start, end] range of the gap between the tip of the unsafe priority queue and the unsafe head.
+// GetUnsafeQueueGap retrieves the current [start, end) range (incl. start, excl. end)
+// of the gap between the tip of the unsafe priority queue and the unsafe head.
 // If there is no gap, the difference between end and start will be 0.
 func (eq *EngineQueue) GetUnsafeQueueGap(expectedNumber uint64) (start uint64, end uint64) {
 	// The start of the gap is always the unsafe head + 1
@@ -673,9 +688,11 @@ func (eq *EngineQueue) GetUnsafeQueueGap(expectedNumber uint64) (start uint64, e
 	// If the priority queue is empty, the end is the first block number at the top of the priority queue
 	// Otherwise, the end is the expected block number
 	if first := eq.unsafePayloads.Peek(); first != nil {
+		// Don't include the payload we already have in the sync range
 		end = first.ID().Number
 	} else {
-		end = expectedNumber
+		// Include the expected payload in the sync range
+		end = expectedNumber + 1
 	}
 
 	return start, end

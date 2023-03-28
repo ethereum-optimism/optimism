@@ -17,6 +17,8 @@ import {
   getCastCommand,
 } from '../src/deploy-utils'
 
+const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
+
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
 
@@ -109,7 +111,7 @@ const deployFn: DeployFunction = async (hre) => {
         const owner = await AddressManager.owner()
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -149,7 +151,7 @@ const deployFn: DeployFunction = async (hre) => {
         })
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -187,7 +189,7 @@ const deployFn: DeployFunction = async (hre) => {
         })
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -254,6 +256,14 @@ const deployFn: DeployFunction = async (hre) => {
         'gasLimit',
         hre.deployConfig.l2GenesisBlockGasLimit
       )
+
+      const config = await SystemConfigProxy.resourceConfig()
+      assert(config.maxResourceLimit === 20_000_000)
+      assert(config.elasticityMultiplier === 10)
+      assert(config.baseFeeMaxChangeDenominator === 8)
+      assert(config.systemTxMaxGas === 1_000_000)
+      assert(ethers.utils.parseUnits('1', 'gwei').eq(config.minimumBaseFee))
+      assert(config.maximumBaseFee.eq(uint128Max))
     },
   })
 

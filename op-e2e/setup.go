@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	bss "github.com/ethereum-optimism/optimism/op-batcher/batcher"
+	batchermetrics "github.com/ethereum-optimism/optimism/op-batcher/metrics"
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
 	"github.com/ethereum-optimism/optimism/op-e2e/e2eutils"
@@ -36,8 +37,10 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/rollup/driver"
 	"github.com/ethereum-optimism/optimism/op-node/sources"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 var (
@@ -71,9 +74,9 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 
 		L1BlockTime:                 2,
 		L1GenesisBlockNonce:         4660,
-		CliqueSignerAddress:         addresses.CliqueSigner,
+		CliqueSignerAddress:         common.Address{}, // op-e2e used to run Clique, but now uses fake Proof of Stake.
 		L1GenesisBlockTimestamp:     hexutil.Uint64(time.Now().Unix()),
-		L1GenesisBlockGasLimit:      8_000_000,
+		L1GenesisBlockGasLimit:      30_000_000,
 		L1GenesisBlockDifficulty:    uint642big(1),
 		L1GenesisBlockMixHash:       common.Hash{},
 		L1GenesisBlockCoinbase:      common.Address{},
@@ -83,7 +86,7 @@ func DefaultSystemConfig(t *testing.T) SystemConfig {
 		L1GenesisBlockBaseFeePerGas: uint642big(7),
 
 		L2GenesisBlockNonce:         0,
-		L2GenesisBlockGasLimit:      8_000_000,
+		L2GenesisBlockGasLimit:      30_000_000,
 		L2GenesisBlockDifficulty:    uint642big(1),
 		L2GenesisBlockMixHash:       common.Hash{},
 		L2GenesisBlockNumber:        0,
@@ -192,6 +195,9 @@ type SystemConfig struct {
 
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
+
+	// Explicitly disable batcher, for tests that rely on unsafe L2 payloads
+	DisableBatcher bool
 }
 
 type System struct {
@@ -214,7 +220,9 @@ func (sys *System) Close() {
 		sys.L2OutputSubmitter.Stop()
 	}
 	if sys.BatchSubmitter != nil {
-		sys.BatchSubmitter.StopIfRunning()
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		sys.BatchSubmitter.StopIfRunning(ctx)
 	}
 
 	for _, node := range sys.RollupNodes {
@@ -376,11 +384,6 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		didErrAfterStart = true
 		return nil, err
 	}
-	err = l1Backend.StartMining(1)
-	if err != nil {
-		didErrAfterStart = true
-		return nil, err
-	}
 	for name, node := range sys.Nodes {
 		if name == "l1" {
 			continue
@@ -408,13 +411,20 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			l2EndpointConfig = sys.Nodes[name].HTTPAuthEndpoint()
 		}
 		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
-			L1NodeAddr: l1EndpointConfig,
-			L1TrustRPC: false,
-			L1RPCKind:  sources.RPCKindBasic,
+			L1NodeAddr:       l1EndpointConfig,
+			L1TrustRPC:       false,
+			L1RPCKind:        sources.RPCKindBasic,
+			RateLimit:        0,
+			BatchSize:        20,
+			HttpPollInterval: time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second / 10,
 		}
 		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
 			L2EngineAddr:      l2EndpointConfig,
 			L2EngineJWTSecret: cfg.JWTSecret,
+		}
+		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
+			Client:   nil,
+			TrustRPC: false,
 		}
 	}
 
@@ -558,20 +568,24 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
-		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:               predeploys.DevL2OutputOracleAddr.String(),
-		PollInterval:              50 * time.Millisecond,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       3 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
-		AllowNonFinalized:         cfg.NonFinalizedProposals,
+		L1EthRpc:     sys.Nodes["l1"].WSEndpoint(),
+		RollupRpc:    sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		L2OOAddress:  predeploys.DevL2OutputOracleAddr.String(),
+		PollInterval: 50 * time.Millisecond,
+		TxMgrConfig: txmgr.CLIConfig{
+			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
+			PrivateKey:                hexPriv(cfg.Secrets.Proposer),
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			ResubmissionTimeout:       3 * time.Second,
+			ReceiptQueryInterval:      50 * time.Millisecond,
+		},
+		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey: hexPriv(cfg.Secrets.Proposer),
-	}, sys.cfg.Loggers["proposer"])
+	}, sys.cfg.Loggers["proposer"], proposermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("unable to setup l2 output submitter: %w", err)
 	}
@@ -582,31 +596,38 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// Batch Submitter
 	sys.BatchSubmitter, err = bss.NewBatchSubmitterFromCLIConfig(bss.CLIConfig{
-		L1EthRpc:                  sys.Nodes["l1"].WSEndpoint(),
-		L2EthRpc:                  sys.Nodes["sequencer"].WSEndpoint(),
-		RollupRpc:                 sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		MaxChannelDuration:        1,
-		MaxL1TxSize:               120_000,
-		TargetL1TxSize:            100_000,
-		TargetNumFrames:           1,
-		ApproxComprRatio:          0.4,
-		SubSafetyMargin:           4,
-		PollInterval:              50 * time.Millisecond,
-		NumConfirmations:          1,
-		ResubmissionTimeout:       5 * time.Second,
-		SafeAbortNonceTooLowCount: 3,
+		L1EthRpc:           sys.Nodes["l1"].WSEndpoint(),
+		L2EthRpc:           sys.Nodes["sequencer"].WSEndpoint(),
+		RollupRpc:          sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		MaxChannelDuration: 1,
+		MaxL1TxSize:        120_000,
+		TargetL1TxSize:     100_000,
+		TargetNumFrames:    1,
+		ApproxComprRatio:   0.4,
+		SubSafetyMargin:    4,
+		PollInterval:       50 * time.Millisecond,
+		TxMgrConfig: txmgr.CLIConfig{
+			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
+			PrivateKey:                hexPriv(cfg.Secrets.Batcher),
+			NumConfirmations:          1,
+			SafeAbortNonceTooLowCount: 3,
+			ResubmissionTimeout:       3 * time.Second,
+			ReceiptQueryInterval:      50 * time.Millisecond,
+		},
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
 		},
-		PrivateKey: hexPriv(cfg.Secrets.Batcher),
-	}, sys.cfg.Loggers["batcher"])
+	}, sys.cfg.Loggers["batcher"], batchermetrics.NoopMetrics)
 	if err != nil {
 		return nil, fmt.Errorf("failed to setup batch submitter: %w", err)
 	}
 
-	if err := sys.BatchSubmitter.Start(); err != nil {
-		return nil, fmt.Errorf("unable to start batch submitter: %w", err)
+	// Batcher may be enabled later
+	if !sys.cfg.DisableBatcher {
+		if err := sys.BatchSubmitter.Start(); err != nil {
+			return nil, fmt.Errorf("unable to start batch submitter: %w", err)
+		}
 	}
 
 	return sys, nil
