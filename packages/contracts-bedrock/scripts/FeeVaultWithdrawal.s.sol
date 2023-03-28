@@ -12,11 +12,11 @@ import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
  * @notice A script to make it very simple to withdraw from the fee vaults.
  *         The usage is as follows:
  *         $ forge script scripts/FeeVaultWithdrawal.s.sol \
- *             --rpc-url $OPTI_GOERLI_RPC_URL --broadcast \
+ *             --rpc-url $ETH_RPC_URL --broadcast \
  *             --private-key $PRIVATE_KEY
  */
 contract FeeVaultWithdrawal is Script {
-    IMulticall3 private constant multicall = IMulticall3(0xcA11bde05977b3631167028862bE2a173976CA11);
+    IMulticall3 private constant multicall = IMulticall3(MULTICALL3_ADDRESS);
     IMulticall3.Call3[] internal calls;
 
     /**
@@ -44,13 +44,19 @@ contract FeeVaultWithdrawal is Script {
                 address recipient = FeeVault(payable(vault)).RECIPIENT();
                 uint256 balance = vault.balance;
                 log(balance, recipient, vault);
+            } else {
+                string memory logline = string.concat(
+                    vm.toString(vault),
+                    " does not have a large enough balance to withdraw."
+                );
+                console.log(logline);
             }
         }
 
         if (calls.length > 0) {
             vm.broadcast();
-            IMulticall3.Result[] memory results = multicall.aggregate3(calls);
-            console.log("Success");
+            multicall.aggregate3(calls);
+            console.log("Success.");
         }
     }
 
@@ -69,7 +75,7 @@ contract FeeVaultWithdrawal is Script {
      */
     function log(uint256 _balance, address _recipient, address _vault) internal view {
         string memory logline = string.concat(
-            "Withdrawaing ",
+            "Withdrawing ",
             vm.toString(_balance),
             " to ",
             vm.toString(_recipient),
