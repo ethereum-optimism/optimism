@@ -10,7 +10,7 @@ COPY ./batch-submitter/docker.go.work /go/go.work
 WORKDIR /go/batch-submitter
 RUN make
 
-FROM alpine:3.15
+FROM alpine:3.16
 
 RUN apk add --no-cache ca-certificates jq curl
 COPY --from=builder /go/batch-submitter/batch-submitter /usr/local/bin/
