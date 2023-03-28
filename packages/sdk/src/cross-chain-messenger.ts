@@ -1009,7 +1009,7 @@ export class CrossChainMessenger {
 
     const oracleVersion = await this.contracts.l1.L2OutputOracle.version()
     const challengePeriod = oracleVersion === '1.0.0'
-      // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECOND
+      // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
       // in OptimismPortal, so making an explicit call instead.
       ? BigNumber.from(await this.contracts.l1.OptimismPortal.provider.call({
         to: this.contracts.l1.OptimismPortal.address,
