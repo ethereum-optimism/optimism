@@ -1003,9 +1003,17 @@ export class CrossChainMessenger {
    * @returns Current challenge period in seconds.
    */
   public async getChallengePeriodSeconds(): Promise<number> {
-    const challengePeriod = this.bedrock
-      ? await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
-      : await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
+    // TODO: remove this if once bedrock launches on mainnet.
+    if (!this.bedrock) {
+      return (await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()).toNumber()
+    }
+    const oracle_version = await this.contracts.l1.L2OutputOracle.version()
+    const challengePeriod = oracle_version === '1.0.0' // oracle_version.toString() === '1.0.0'
+      ? BigNumber.from(await this.contracts.l1.OptimismPortal.provider.call({
+        to: this.contracts.l1.OptimismPortal.address,
+        data: '0xf4daa291' // FINALIZATION_PERIOD_SECOND
+      }))
+      : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
 
