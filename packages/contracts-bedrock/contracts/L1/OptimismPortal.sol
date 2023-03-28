@@ -283,6 +283,10 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
         emit WithdrawalProven(withdrawalHash, _tx.sender, _tx.target);
     }
 
+    function FINALIZATION_PERIOD_SECONDS() external view returns (uint256) {
+        return L2_ORACLE.FINALIZATION_PERIOD_SECONDS();
+    }
+
     /**
      * @notice Finalizes a withdrawal transaction.
      *
