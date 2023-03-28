@@ -72,7 +72,7 @@ contract OptimistAllowlist is Semver {
      *
      * @return Whether or not the address has a optimist.can-mint attestation from the allowlist .
      */
-    function hasAttestationFromAllowlistAttestor(address _recipient) public view returns (bool) {
+    function _hasAttestationFromAllowlistAttestor(address _recipient) internal view returns (bool) {
         // Expected attestation value is bytes32("true"), but we consider any non-zero value
         // to be truthy.
         return
@@ -86,8 +86,8 @@ contract OptimistAllowlist is Semver {
      *
      * @return Whether or not the address has a optimist.can-mint attestation from the allowlist.
      */
-    function hasAttestationFromCoinbaseQuestAttestor(address _recipient)
-        public
+    function _hasAttestationFromCoinbaseQuestAttestor(address _recipient)
+        internal
         view
         returns (bool)
     {
@@ -103,7 +103,7 @@ contract OptimistAllowlist is Semver {
                 .length > 0;
     }
 
-    function hasAttestationFromOptimistInviter(address _recipient) public view returns (bool) {
+    function _hasAttestationFromOptimistInviter(address _recipient) internal view returns (bool) {
         // Expected attestation value is the inviter's address, but we just check that it's set.
         return
             ATTESTATION_STATION
@@ -124,8 +124,8 @@ contract OptimistAllowlist is Semver {
      */
     function isAllowedToMint(address _recipient) public view returns (bool) {
         return
-            hasAttestationFromAllowlistAttestor(_recipient) ||
-            hasAttestationFromCoinbaseQuestAttestor(_recipient) ||
-            hasAttestationFromOptimistInviter(_recipient);
+            _hasAttestationFromAllowlistAttestor(_recipient) ||
+            _hasAttestationFromCoinbaseQuestAttestor(_recipient) ||
+            _hasAttestationFromOptimistInviter(_recipient);
     }
 }
