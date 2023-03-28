@@ -5,41 +5,113 @@ import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semv
 import { AttestationStation } from "./AttestationStation.sol";
 
 /**
- * @title OptimistAllowlist
- * @notice Allowlist logic for OptimistNFT
+ * @title  OptimistAllowlist
+ * @notice Checks attestations to determine whether an address is allowed to mint an Optimist NFT.
  */
 contract OptimistAllowlist is Semver {
+    /**
+     * @notice Attestation key used by the AllowlistAttestor to manually add addresses to the
+     *         allowlist.
+     */
+    bytes32 public constant OPTIMIST_CAN_MINT_ATTESTATION_KEY = bytes32("optimist.can-mint");
+
+    /**
+     * @notice Attestation key used by OptimistInviter to issue attestations for invitees.
+     */
+    bytes32 public constant OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
+        bytes32("optimist.can-mint-from-invite");
+
+    /**
+     * @notice Attestation key used by the Coinbase to issue attestations for Quest participants.
+     */
+    bytes32 public constant COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY =
+        bytes32("coinbase.quest-eligible");
+
     /**
      * @notice Address of the AttestationStation contract.
      */
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice Attestor who can manually add addresses to the allowlist through by issuing 'optimist.can-mint' attestations.
+     * @notice Attestor that issues 'optimist.can-mint' attestations.
      */
     address public immutable ALLOWLIST_ATTESTOR;
 
     /**
-     * @custom:semver 1.0.0
-     * @param _allowlistAttestor           Address of the attestor.
-     * @param _attestationStation Address of the AttestationStation contract.
+     * @notice Attestor that issues 'coinbase.quest-eligible' attestations.
      */
-    constructor(address _allowlistAttestor, AttestationStation _attestationStation)
-        Semver(1, 0, 0)
-    {
-        ALLOWLIST_ATTESTOR = _allowlistAttestor;
+    address public immutable COINBASE_QUEST_ATTESTOR;
+
+    /**
+     * @notice Address of OptimistInviter contract that issues 'optimist.can-mint-from-invite'
+     *         attestations.
+     */
+    address public immutable OPTIMIST_INVITER;
+
+    /**
+     * @custom:semver 1.0.0
+     * @param _attestationStation    Address of the AttestationStation contract.
+     * @param _allowlistAttestor     Address of the allowlist attestor.
+     * @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.
+     * @param _optimistInviter       Address of the OptimistInviter contract.
+     */
+    constructor(
+        AttestationStation _attestationStation,
+        address _allowlistAttestor,
+        address _coinbaseQuestAttestor,
+        address _optimistInviter
+    ) Semver(1, 0, 0) {
         ATTESTATION_STATION = _attestationStation;
+        ALLOWLIST_ATTESTOR = _allowlistAttestor;
+        COINBASE_QUEST_ATTESTOR = _coinbaseQuestAttestor;
+        OPTIMIST_INVITER = _optimistInviter;
     }
 
     /**
-     * @notice Checks whether a given address has an optimist.can-mint attestation from the allowlist attestor.
+     * @notice Checks whether an address has an optimist.can-mint attestation from the allowlist attestor.
      *
      * @return Whether or not the address has a optimist.can-mint attestation from the allowlist .
      */
     function hasAttestationFromAllowlistAttestor(address _recipient) public view returns (bool) {
+        // Expected attestation value is bytes32("true"), but we consider any non-zero value
+        // to be truthy.
         return
             ATTESTATION_STATION
-                .attestations(ALLOWLIST_ATTESTOR, _recipient, bytes32("optimist.can-mint"))
+                .attestations(ALLOWLIST_ATTESTOR, _recipient, OPTIMIST_CAN_MINT_ATTESTATION_KEY)
+                .length > 0;
+    }
+
+    /**
+     * @notice Checks whether an address has the correct attestation from the Coinbase.
+     *
+     * @return Whether or not the address has a optimist.can-mint attestation from the allowlist.
+     */
+    function hasAttestationFromCoinbaseQuestAttestor(address _recipient)
+        public
+        view
+        returns (bool)
+    {
+        // Expected attestation value is bytes32("true"), but we consider any non-zero value
+        // to be truthy.
+        return
+            ATTESTATION_STATION
+                .attestations(
+                    ALLOWLIST_ATTESTOR,
+                    _recipient,
+                    COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY
+                )
+                .length > 0;
+    }
+
+    function hasAttestationFromOptimistInviter(address _recipient) public view returns (bool) {
+        // Expected attestation value is the inviter's address, but we just check that it's set.
+        return
+            ATTESTATION_STATION
+                .attestations(
+                    OPTIMIST_INVITER,
+                    _recipient,
+                    OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
+                )
                 .length > 0;
     }
 
@@ -51,6 +123,9 @@ contract OptimistAllowlist is Semver {
      * @return Whether or not the address is allowed to mint yet.
      */
     function isAllowedToMint(address _recipient) public view returns (bool) {
-        return hasAttestationFromAllowlistAttestor(_recipient);
+        return
+            hasAttestationFromAllowlistAttestor(_recipient) ||
+            hasAttestationFromCoinbaseQuestAttestor(_recipient) ||
+            hasAttestationFromOptimistInviter(_recipient);
     }
 }
