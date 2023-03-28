@@ -217,15 +217,13 @@ func waitForTotalElements(wg sync.WaitGroup, contract RollupContract, client *et
 			return err
 		}
 
-		if totalElements.Cmp(bn) == 0 {
+		if totalElements.Uint64() == bn {
 			return nil
 		}
-		log.Info("Waiting for elements to be submitted", "count", totalElements.Uint64()-bn.Uint64(), "height", bn.Uint64(), "total-elements", totalElements.Uint64())
+		log.Info("Waiting for elements to be submitted", "count", totalElements.Uint64()-bn, "height", bn, "total-elements", totalElements.Uint64())
 
 		time.Sleep(3 * time.Second)
 	}
-
-	return nil
 }
 
 // legacyTransactionByHash will fetch a transaction by hash and be sure to decode

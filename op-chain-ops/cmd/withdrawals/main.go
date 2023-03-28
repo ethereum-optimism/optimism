@@ -432,7 +432,7 @@ func main() {
 }
 
 // callTrace will call `debug_traceTransaction` on a remote node
-func callTrace(c *clients, receipt *types.Receipt) (callFrame, error) {
+func callTrace(c *util.Clients, receipt *types.Receipt) (callFrame, error) {
 	var finalizationTrace callFrame
 	tracer := "callTracer"
 	traceConfig := tracers.TraceConfig{
@@ -557,7 +557,7 @@ func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1Standar
 // proveWithdrawalTransaction will build the data required for proving a
 // withdrawal and then send the transaction and make sure that it is included
 // and successful and then wait for the finalization period to elapse.
-func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
+func proveWithdrawalTransaction(c *contracts, cl *util.Clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
 	l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, c.L2OutputOracle, bn, cl)
 	if err != nil {
 		return err
@@ -613,7 +613,7 @@ func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOp
 
 func finalizeWithdrawalTransaction(
 	c *contracts,
-	cl *clients,
+	cl *util.Clients,
 	opts *bind.TransactOpts,
 	wd *crossdomain.LegacyWithdrawal,
 	withdrawal *crossdomain.Withdrawal,
@@ -787,7 +787,7 @@ func createOutput(
 	withdrawal *crossdomain.Withdrawal,
 	oracle *bindings.L2OutputOracle,
 	blockNumber *big.Int,
-	clients *clients,
+	clients *util.Clients,
 ) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
 	// compute the storage slot that the withdrawal is stored in
 	slot, err := withdrawal.StorageSlot()
