@@ -11,6 +11,10 @@ import (
 	snappy "github.com/golang/snappy"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
+	host "github.com/libp2p/go-libp2p/core/host"
+	network "github.com/libp2p/go-libp2p/core/network"
+	peer "github.com/libp2p/go-libp2p/core/peer"
+	ma "github.com/multiformats/go-multiaddr"
 
 	eth "github.com/ethereum-optimism/optimism/op-node/eth"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
@@ -18,6 +22,7 @@ import (
 
 // Malleable provides the necessary tooling for creating bad gossip messages.
 type Malleable struct {
+	h           host.Host
 	l2ChainID   *big.Int
 	blocksTopic *pubsub.Topic
 	priv        crypto.PrivKey
@@ -65,10 +70,31 @@ func NewMalleable(
 	go subscriber(context.Background(), subscription)
 
 	return &Malleable{
+		h:           h,
 		priv:        priv,
 		l2ChainID:   l2ChainID,
 		blocksTopic: blocksTopic,
 	}, nil
+}
+
+// Connect connects the internal [host.Host] to a [peer].
+func (m *Malleable) Connect(ctx context.Context, pi peer.AddrInfo) error {
+	return m.h.Connect(ctx, pi)
+}
+
+// ID returns the [peer.ID] of the internal [host.Host].
+func (m *Malleable) ID() peer.ID {
+	return m.h.ID()
+}
+
+// Addrs returns the listen addresses [ma.Multiaddr] of the internal [host.Host]
+func (m *Malleable) Addrs() []ma.Multiaddr {
+	return m.h.Addrs()
+}
+
+// Network returns the [network.Network] of the internal [host.Host]
+func (m *Malleable) Network() network.Network {
+	return m.h.Network()
 }
 
 var msgBufPool = sync.Pool{New: func() any {
