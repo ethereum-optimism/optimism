@@ -38,8 +38,8 @@ are part of later specification milestones.
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output roots, which are commitments to the L2's state,
-to the `L2OutputOracle` contract running on L1. It does this by running the [L2 output proposer](../op-proposer/),
-a service which periodically queries the rollup node's
+to the `L2OutputOracle` contract on L1 (the settlement layer). It does this by running the
+[L2 output proposer](../op-proposer/), a service which periodically queries the rollup node's
 [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
 from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
 described [below](#l2-output-commitment-construction).
@@ -56,8 +56,8 @@ account continues to submit output proposals over time to ensure that user withd
 The [L2 output proposer](../op-proposer) is expected to submit output roots on a deterministic
 interval based on the configured `SUBMISSION_INTERVAL` in the `L2OutputOracle`. The larger
 the `SUBMISSION_INTERVAL`, the less often L1 transactions need to be sent to the `L2OutputOracle`
-contract, but L2 users will need to wait a bit longer for an output root to be included in L1 that
-includes their intention to withdrawal from the system.
+contract, but L2 users will need to wait a bit longer for an output root to be included in L1 (the settlement layer)
+that includes their intention to withdrawal from the system.
 
 The honest `op-proposer` algorithm assumes a connection to the `L2OutputOracle` contract to know
 the L2 block number that corresponds to the next output proposal that must be submitted. It also
@@ -88,7 +88,7 @@ either via fault proof or by an attestation proof, then the bond can be slashed 
 payment to the users who paid for gas to remove the malicious output.
 
 The `op-proposer` can still be used to submit output proposals. A naive implementation of the
-`op-proposer` will still submit output proposals on an interval. An more ideal implementation
+`op-proposer` will still submit output proposals on an interval. A more ideal implementation
 will use heuristics such as time of last submission or number of pending withdrawals that have
 yet to be included in an output proposal.
 
