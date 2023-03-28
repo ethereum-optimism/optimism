@@ -22,10 +22,10 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-After processing one or more blocks the outputs will need to be synchronized with L1 for trustless execution of
-L2-to-L1 messaging, such as withdrawals.
-The output proposals act as the bridge's view into the L2 state.
-Proposers submit the output roots to L1 and can be contested with a fault proof,
+After processing one or more blocks the outputs will need to be synchronized with the settlement layer (L1)
+for trustless execution of L2-to-L1 messaging, such as withdrawals.
+These output proposals act as the bridge's view into the L2 state.
+[Proposers](./proposer.md) submit the output roots to the settlement layer (L1) and can be contested with a fault proof,
 with a bond at stake if the proof is wrong.
 
 _Note_: Fault proofs on Optimism are not fully specified at this time. Although fault proof
@@ -38,15 +38,8 @@ are part of later specification milestones.
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output roots, which are commitments to the L2's state,
-to the `L2OutputOracle` contract on L1 (the settlement layer). It does this by running the
-[L2 output proposer](../op-proposer/), a service which periodically queries the rollup node's
-[`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
-from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
-described [below](#l2-output-commitment-construction).
-
-An implementation may submit output commitments that correspond to unsafe (non-finalized) L2 blocks
-but this comes with risk as it will be possible to submit L2 blocks that do not correspond to the
-output commitments that have already been made available.
+to the `L2OutputOracle` contract on L1 (the settlement layer).
+The proposer is further detailed in [proposer.md](./proposer.md).
 
 ### L2OutputOracle v1.0.0
 
