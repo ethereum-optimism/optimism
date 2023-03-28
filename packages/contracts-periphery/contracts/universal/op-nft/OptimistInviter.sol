@@ -10,11 +10,11 @@ import {
 
 /**
  * @custom:upgradeable
- * @title OptimistInviter
- * @notice OptimistInviter is a contract that issues "optimist.can-invite" and
- *         "optimist.can-mint-from-invite" attestations. Accounts that have a "optimist.can-invite"
- *         attestation can issue signatures that allow other accounts to claim an invite. The
- *         invitee uses a claim and reveal flow to claim the invite to an address of their choosing.
+ * @title  OptimistInviter
+ * @notice OptimistInviter issues "optimist.can-invite" and "optimist.can-mint-from-invite"
+ *         attestations. Accounts that have a "optimist.can-invite" attestation can issue
+ *         signatures that allow other accounts to claim an invite. The invitee uses a claim
+ *         and reveal flow to claim the invite to an address of their choosing.
  *
  *         Parties involved:
  *           1) INVITE_GRANTER: trusted account that can allow accounts to issue invites
