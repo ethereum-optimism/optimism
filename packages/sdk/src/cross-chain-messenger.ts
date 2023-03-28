@@ -1007,11 +1007,13 @@ export class CrossChainMessenger {
       return (await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()).toNumber()
     }
 
-    const oracle_version = await this.contracts.l1.L2OutputOracle.version()
-    const challengePeriod = oracle_version === '1.0.0'
+    const oracleVersion = await this.contracts.l1.L2OutputOracle.version()
+    const challengePeriod = oracleVersion === '1.0.0'
+      // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECOND
+      // in OptimismPortal, so making an explicit call instead.
       ? BigNumber.from(await this.contracts.l1.OptimismPortal.provider.call({
         to: this.contracts.l1.OptimismPortal.address,
-        data: '0xf4daa291' // FINALIZATION_PERIOD_SECOND
+        data: '0xf4daa291' // FINALIZATION_PERIOD_SECONDS
       }))
       : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
