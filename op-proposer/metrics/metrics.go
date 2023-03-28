@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"math/big"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 
@@ -23,6 +24,8 @@ type Metricer interface {
 	opmetrics.RefMetricer
 
 	RecordL2BlocksProposed(l2ref eth.L2BlockRef)
+	RecordValidOutputAlreadyProposed(block *big.Int, output common.Hash)
+	RecordInvalidOutputAlreadyProposed(block *big.Int, output common.Hash)
 }
 
 type Metrics struct {
@@ -92,9 +95,29 @@ func (m *Metrics) RecordUp() {
 
 const (
 	BlockProposed = "proposed"
+	InvalidOutput = "invalid_output"
+	ValidOutput   = "valid_output"
 )
 
 // RecordL2BlocksProposed should be called when new L2 block is proposed
 func (m *Metrics) RecordL2BlocksProposed(l2ref eth.L2BlockRef) {
 	m.RecordL2Ref(BlockProposed, l2ref)
+}
+
+// RecordValidOutputAlreadyProposed should be called when the proposer
+// sees an valid output root is already proposed for the given block.
+func (m *Metrics) RecordValidOutputAlreadyProposed(block *big.Int, output common.Hash) {
+	m.RecordL2Ref(ValidOutput, eth.L2BlockRef{
+		Number: block.Uint64(),
+		Hash:   output,
+	})
+}
+
+// RecordInvalidOutputAlreadyProposed should be called when the proposer
+// sees an invalid output root is already proposed for the given block.
+func (m *Metrics) RecordInvalidOutputAlreadyProposed(block *big.Int, output common.Hash) {
+	m.RecordL2Ref(InvalidOutput, eth.L2BlockRef{
+		Number: block.Uint64(),
+		Hash:   output,
+	})
 }
