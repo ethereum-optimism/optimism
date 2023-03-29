@@ -23,6 +23,7 @@ import { Semver } from "../../contracts/universal/Semver.sol";
  *         there are `threshold - 1` approvals.
  *         Uses the "approved hashes" method of interacting with the gnosis safe. Allows
  *         for the most simple user experience when using automation and no indexer.
+ *         Run the command without the `--broadcast` flag and it will print a tenderly URL.
  */
 contract PostSherlock is Script {
     /**
@@ -149,6 +150,12 @@ contract PostSherlock is Script {
         // Send a transaction to approve the hash
         safe.approveHash(hash);
 
+        logSimulationLink({
+            _to: address(safe),
+            _from: msg.sender,
+            _data: abi.encodeCall(safe.approveHash, (hash))
+        });
+
         uint256 threshold = safe.getThreshold();
         address[] memory owners = safe.getOwners();
 
@@ -176,6 +183,26 @@ contract PostSherlock is Script {
                 signatures: signatures
             });
 
+            logSimulationLink({
+                _to: address(safe),
+                _from: msg.sender,
+                _data: abi.encodeCall(
+                    safe.execTransaction,
+                    (
+                        address(multicall),
+                        0,
+                        data,
+                        Enum.Operation.DelegateCall,
+                        0,
+                        0,
+                        0,
+                        address(0),
+                        payable(address(0)),
+                        signatures
+                    )
+                )
+            });
+
             require(success, "call not successful");
             return true;
         } else {
@@ -188,6 +215,39 @@ contract PostSherlock is Script {
         }
 
         return false;
+    }
+
+    /**
+     * @notice Log a tenderly simulation link. The TENDERLY_USERNAME and TENDERLY_PROJECT
+     *         environment variables will be used if they are present. The vm is staticcall'ed
+     *         because of a compiler issue with the higher level ABI.
+     */
+    function logSimulationLink(address _to, bytes memory _data, address _from) public view {
+        (, bytes memory projData) = VM_ADDRESS.staticcall(
+            abi.encodeWithSignature("envOr(string,string)", "TENDERLY_PROJECT", "TENDERLY_PROJECT")
+        );
+        string memory proj = abi.decode(projData, (string));
+
+        (, bytes memory userData) = VM_ADDRESS.staticcall(
+            abi.encodeWithSignature("envOr(string,string)", "TENDERLY_USERNAME", "TENDERLY_USERNAME")
+        );
+        string memory username = abi.decode(userData, (string));
+
+        string memory str = string.concat(
+            "https://dashboard.tenderly.co/",
+            username,
+            "/",
+            proj,
+            "/simulator/new?network=",
+            vm.toString(block.chainid),
+            "&contractAddress=",
+            vm.toString(_to),
+            "&rawFunctionInput=",
+            vm.toString(_data),
+            "&from=",
+            vm.toString(_from)
+        );
+        console.log(str);
     }
 
     /**
@@ -218,7 +278,7 @@ contract PostSherlock is Script {
 
     /**
      * @notice Test coverage of the logic. Should only run on goerli but other chains
-     *         could be added. Each of the owners
+     *         could be added.
      */
     function test_script_succeeds() skipWhenNotForking external {
         address safe;
