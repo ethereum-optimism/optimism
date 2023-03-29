@@ -8,9 +8,7 @@ import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
 import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { TestERC1271Wallet } from "../testing/helpers/TestERC1271Wallet.sol";
-import {
-    ClaimableInviteEIP712TypedData
-} from "../testing/helpers/ClaimableInviteEIP712TypedData.sol";
+import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
 
 contract OptimistInviter_Initializer is Test {
     event InviteClaimed(address indexed issuer, address indexed claimer);
@@ -35,16 +33,14 @@ contract OptimistInviter_Initializer is Test {
     address internal carol;
     uint256 internal carolPrivateKey;
 
-    uint256 currentNonce;
-
     TestERC1271Wallet carolERC1271Wallet;
 
     AttestationStation attestationStation;
     OptimistInviter optimistInviter;
 
-    function setUp() public {
-        currentNonce = 0;
+    OptimistInviterHelper optimistInviterHelper;
 
+    function setUp() public {
         alice_inviteGranter = makeAddr("alice_inviteGranter");
         sally = makeAddr("sally");
         ted = makeAddr("ted");
@@ -83,14 +79,8 @@ contract OptimistInviter_Initializer is Test {
         vm.expectEmit(true, true, true, true, address(optimistInviter));
         emit Initialized(1);
         optimistInviter.initialize("OptimistInviter");
-    }
 
-    /**
-     * @notice Returns a bytes32 nonce that should change everytime. In practice, people should use
-     *         pseudorandom nonces.
-     */
-    function _consumeNonce() internal returns (bytes32) {
-        return bytes32(keccak256(abi.encode(currentNonce++)));
+        optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");
     }
 
     /**
@@ -157,18 +147,14 @@ contract OptimistInviter_Initializer is Test {
         uint256 _eip712Chainid,
         address _eip712VerifyingContract
     ) internal returns (OptimistInviter.ClaimableInvite memory, bytes memory) {
-        bytes32 nonce = _consumeNonce();
         address issuer = vm.addr(_issuerPrivateKey);
-        OptimistInviter.ClaimableInvite memory claimableInvite = OptimistInviter.ClaimableInvite(
-            issuer,
-            nonce
-        );
-
+        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
+            .getClaimableInviteWithNewNonce(issuer);
         return (
             claimableInvite,
             _getSignature(
                 _issuerPrivateKey,
-                ClaimableInviteEIP712TypedData.getDigest(
+                optimistInviterHelper.getDigestWithEIP712Domain(
                     claimableInvite,
                     _eip712Name,
                     _eip712Version,
@@ -260,25 +246,6 @@ contract OptimistInviter_Initializer is Test {
         optimistInviter.setInviteCounts(addresses, 3);
 
         assertEq(_getInviteCount(_to), 3);
-    }
-
-    /**
-     * @notice Issues 3 invites to the given address. Checks that all expected events are emitted
-     *         and that state is updated correctly.
-     */
-    function _getEIP712Digest(OptimistInviter.ClaimableInvite memory _claimableInvite)
-        internal
-        view
-        returns (bytes32)
-    {
-        return
-            ClaimableInviteEIP712TypedData.getDigest(
-                _claimableInvite,
-                bytes("OptimistInviter"),
-                bytes(optimistInviter.EIP712_VERSION()),
-                block.chainid,
-                address(optimistInviter)
-            );
     }
 }
 
@@ -521,13 +488,13 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
     function test_claimInvite_usingERC1271Wallet_succeeds() external {
         _grantInvitesTo(address(carolERC1271Wallet));
 
-        bytes32 nonce = _consumeNonce();
-        OptimistInviter.ClaimableInvite memory claimableInvite = OptimistInviter.ClaimableInvite(
-            address(carolERC1271Wallet),
-            nonce
-        );
+        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
+            .getClaimableInviteWithNewNonce(address(carolERC1271Wallet));
 
-        bytes memory signature = _getSignature(carolPrivateKey, _getEIP712Digest(claimableInvite));
+        bytes memory signature = _getSignature(
+            carolPrivateKey,
+            optimistInviterHelper.getDigest(claimableInvite)
+        );
 
         // Sally tries to claim the invite
         _commitInviteAs(sally, signature);
