@@ -28,12 +28,16 @@ type Malleable struct {
 	priv        crypto.PrivKey
 }
 
+// L2PayloadCallback is a callback used by the [Malleable] node's blocks topic subscriber.
+type L2PayloadCallback func(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error
+
 // NewMalleable creates a new Malleable instance.
 func NewMalleable(
 	log log.Logger,
 	l2ChainID *big.Int,
 	topicScoreParams *pubsub.TopicScoreParams,
 	priv crypto.PrivKey,
+	callback L2PayloadCallback,
 ) (*Malleable, error) {
 	// Create a new libp2p host.
 	h, err := DefaultHost(priv)
@@ -66,7 +70,7 @@ func NewMalleable(
 	if err != nil {
 		return nil, fmt.Errorf("failed to subscribe to blocks gossip topic: %w", err)
 	}
-	subscriber := p2p.MakeSubscriber(log, p2p.BlocksHandler(OnUnsafeL2Payload))
+	subscriber := p2p.MakeSubscriber(log, p2p.BlocksHandler(callback))
 	go subscriber(context.Background(), subscription)
 
 	return &Malleable{

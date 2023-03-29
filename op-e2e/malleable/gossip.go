@@ -22,7 +22,6 @@ import (
 	ma "github.com/multiformats/go-multiaddr"
 	madns "github.com/multiformats/go-multiaddr-dns"
 
-	eth "github.com/ethereum-optimism/optimism/op-node/eth"
 	p2p "github.com/ethereum-optimism/optimism/op-node/p2p"
 )
 
@@ -66,12 +65,6 @@ func NewGossipSub(h host.Host) (*pubsub.PubSub, error) {
 // getBlockTopicName returns the topic name for the given chain ID.
 func getBlockTopicName(chainID *big.Int) string {
 	return fmt.Sprintf("/optimism/%s/0/blocks", chainID.String())
-}
-
-// OnUnsafeL2Payload is called when a new L2 payload is received from the p2p network.
-func OnUnsafeL2Payload(ctx context.Context, from peer.ID, payload *eth.ExecutionPayload) error {
-	// TODO: allow this to be configurable by downstream users?
-	return nil
 }
 
 func defaultConnManager() (connmgr.ConnManager, error) {
