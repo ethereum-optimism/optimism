@@ -52,13 +52,13 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
      * @notice Attestation key for granting invites.
      */
-    bytes32 public constant CAN_INVITE_ATTESTATION_KEY = bytes32("optimist.can-invite");
+    bytes32 public constant CAN_INVITE_ATTESTATION_KEY = keccak256("optimist.can-invite");
 
     /**
      * @notice Attestation key allowing the attested account to mint.
      */
     bytes32 public constant CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
-        bytes32("optimist.can-mint-from-invite");
+        keccak256("optimist.can-mint-from-invite");
 
     /**
      * @notice Granter who can set accounts' invite counts.
@@ -188,9 +188,9 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      *           4) the _signature issuer has not used up all of their invites
      *         This function doesn't require that the _claimer is calling this function.
      *
-     * @param _claimer Address that will be granted the invite.
+     * @param _claimer         Address that will be granted the invite.
      * @param _claimableInvite ClaimableInvite struct containing the issuer and nonce.
-     * @param _signature Signature signed over the claimable invite.
+     * @param _signature       Signature signed over the claimable invite.
      */
     function claimInvite(
         address _claimer,
@@ -249,6 +249,12 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         // Failing this check means that the issuer has used up all of their existing invites.
         require(count > 0, "OptimistInviter: issuer has no invites");
 
+        // Reduce the issuer's invite count by 1 by re-attesting the optimist.can-invite attestation
+        // with the new count. Can be unchecked because we check that the count is > 0 above.
+        unchecked {
+            --count;
+        }
+
         // Create the attestation that the claimer can mint from the issuer's invite.
         // The invite issuer is included in the data of the attestation.
         ATTESTATION_STATION.attest(
@@ -256,12 +262,6 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
             CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(_claimableInvite.issuer)
         );
-
-        // Reduce the issuer's invite count by 1 by re-attesting the optimist.can-invite attestation
-        // with the new count. Can be unchecked because we check that the count is > 0 above.
-        unchecked {
-            --count;
-        }
 
         ATTESTATION_STATION.attest(
             _claimableInvite.issuer,
