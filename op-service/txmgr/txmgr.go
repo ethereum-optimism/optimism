@@ -126,6 +126,11 @@ type TxCandidate struct {
 //
 // NOTE: Send should be called by AT MOST one caller at a time.
 func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*types.Receipt, error) {
+	if m.cfg.TxSendTimeout != 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, m.cfg.TxSendTimeout)
+		defer cancel()
+	}
 	tx, err := m.craftTx(ctx, candidate)
 	if err != nil {
 		m.l.Error("Failed to create the transaction", "err", err)
@@ -217,7 +222,9 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 		log := m.l.New("txHash", txHash, "nonce", nonce, "gasTipCap", gasTipCap, "gasFeeCap", gasFeeCap)
 		log.Info("publishing transaction")
 
-		err := m.backend.SendTransaction(ctx, tx)
+		cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+		defer cancel()
+		err := m.backend.SendTransaction(cCtx, tx)
 		sendState.ProcessSendError(err)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
@@ -232,7 +239,6 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 				log.Warn("Aborting transaction submission")
 				cancel()
 			}
-			// TODO(conner): add retry?
 			return
 		}
 
@@ -279,7 +285,7 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 			}
 
 			// Increase the gas price & submit the new transaction
-			newTx, err := m.IncreaseGasPrice(ctx, tx)
+			newTx, err := m.increaseGasPrice(ctx, tx)
 			if err != nil {
 				m.l.Error("Failed to increase the gas price for the tx", "err", err)
 				// Don't `continue` here so we resubmit the transaction with the same gas price.
@@ -311,7 +317,9 @@ func (m *SimpleTxManager) waitMined(ctx context.Context, tx *types.Transaction, 
 	txHash := tx.Hash()
 
 	for {
-		receipt, err := m.backend.TransactionReceipt(ctx, txHash)
+		cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+		receipt, err := m.backend.TransactionReceipt(cCtx, txHash)
+		cancel()
 		switch {
 		case receipt != nil:
 			if sendState != nil {
@@ -384,14 +392,14 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	return tip, head.BaseFee, nil
 }
 
-// IncreaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
+// increaseGasPrice takes the previous transaction & potentially clones then signs it with a higher tip.
 // If the tip + basefee suggested by the network are not greater than the previous values, the same transaction
 // will be returned. If they are greater, this function will ensure that they are at least greater by 15% than
 // the previous transaction's value to ensure that the price bump is large enough.
 //
 // We do not re-estimate the amount of gas used because for some stateful transactions (like output proposals) the
 // act of including the transaction renders the repeat of the transaction invalid.
-func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
+func (m *SimpleTxManager) increaseGasPrice(ctx context.Context, tx *types.Transaction) (*types.Transaction, error) {
 	tip, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
 		return nil, err
@@ -413,6 +421,8 @@ func (m *SimpleTxManager) IncreaseGasPrice(ctx context.Context, tx *types.Transa
 		Data:       tx.Data(),
 		AccessList: tx.AccessList(),
 	}
+	ctx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
+	defer cancel()
 	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 }
 
