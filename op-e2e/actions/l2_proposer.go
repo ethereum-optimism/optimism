@@ -53,6 +53,7 @@ func NewL2Proposer(t Testing, log log.Logger, cfg *ProposerCfg, l1 *ethclient.Cl
 	proposerCfg := proposer.Config{
 		L2OutputOracleAddr: cfg.OutputOracleAddr,
 		PollInterval:       time.Second,
+		NetworkTimeout:     time.Second,
 		L1Client:           l1,
 		RollupClient:       rollupCl,
 		AllowNonFinalized:  cfg.AllowNonFinalized,

@@ -28,11 +28,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
-)
+const PermissionlessL2OutputOracleVersion = "0.2.0"
 
 var supportedL2OutputVersion = eth.Bytes32{}
 
@@ -138,7 +134,8 @@ type L2OutputSubmitter struct {
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
 	allowNonFinalized bool
 	// How frequently to poll L2 for new finalized outputs
-	pollInterval time.Duration
+	pollInterval   time.Duration
+	networkTimeout time.Duration
 }
 
 // NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
@@ -178,6 +175,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger) (*Conf
 	return &Config{
 		L2OutputOracleAddr: l2ooAddress,
 		PollInterval:       cfg.PollInterval,
+		NetworkTimeout:     txManagerConfig.NetworkTimeout,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
@@ -196,7 +194,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 		return nil, err
 	}
 
-	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
+	cCtx, cCancel := context.WithTimeout(ctx, cfg.NetworkTimeout)
 	defer cCancel()
 	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
 	if err != nil {
@@ -204,6 +202,11 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 		return nil, err
 	}
 	log.Info("Connected to L2OutputOracle", "address", cfg.L2OutputOracleAddr, "version", version)
+
+	if version != PermissionlessL2OutputOracleVersion {
+		cancel()
+		return nil, fmt.Errorf("L2OutputOracle version mismatch: expected %s, got %s", PermissionlessL2OutputOracleVersion, version)
+	}
 
 	parsed, err := bindings.L2OutputOracleMetaData.GetAbi()
 	if err != nil {
@@ -227,6 +230,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 
 		allowNonFinalized: cfg.AllowNonFinalized,
 		pollInterval:      cfg.PollInterval,
+		networkTimeout:    cfg.NetworkTimeout,
 	}, nil
 }
 
@@ -245,7 +249,7 @@ func (l *L2OutputSubmitter) Stop() {
 // FetchNextOutputInfo gets the block number of the next proposal.
 // It returns: the next block number, if the proposal should be made, error
 func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, *big.Int, bool, error) {
-	cCtx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 
 	// Fetch the current L2 heads
@@ -266,7 +270,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 }
 
 func (l *L2OutputSubmitter) fetchOuput(ctx context.Context, block *big.Int) (*eth.OutputResponse, *big.Int, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 	output, err := l.rollupClient.OutputAtBlock(ctx, block.Uint64())
 	if err != nil {
