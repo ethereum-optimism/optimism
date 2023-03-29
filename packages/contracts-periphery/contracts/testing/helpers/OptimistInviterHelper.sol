@@ -42,7 +42,6 @@ contract OptimistInviterHelper {
     constructor(OptimistInviter _optimistInviter, string memory _name) {
         optimistInviter = _optimistInviter;
         name = _name;
-        currentNonce = 0;
     }
 
     /**
