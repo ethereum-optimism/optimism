@@ -43,13 +43,6 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     bytes32 public constant UNSAFE_BLOCK_SIGNER_SLOT = keccak256("systemconfig.unsafeblocksigner");
 
     /**
-     * @notice Minimum gas limit. This should not be lower than the maximum deposit gas resource
-     *         limit in the ResourceMetering contract used by OptimismPortal, to ensure the L2
-     *         block always has sufficient gas to process deposits.
-     */
-    uint64 public constant MINIMUM_GAS_LIMIT = 8_000_000;
-
-    /**
      * @notice Fixed L2 gas overhead. Used as part of the L2 fee calculation.
      */
     uint256 public overhead;
@@ -87,7 +80,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
     event ConfigUpdate(uint256 indexed version, UpdateType indexed updateType, bytes data);
 
     /**
-     * @custom:semver 1.1.0
+     * @custom:semver 1.2.0
      *
      * @param _owner             Initial owner of the contract.
      * @param _overhead          Initial overhead value.
@@ -105,7 +98,7 @@ contract SystemConfig is OwnableUpgradeable, Semver {
         uint64 _gasLimit,
         address _unsafeBlockSigner,
         ResourceMetering.ResourceConfig memory _config
-    ) Semver(1, 1, 0) {
+    ) Semver(1, 2, 0) {
         initialize({
             _owner: _owner,
             _overhead: _overhead,
