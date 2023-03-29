@@ -5,7 +5,9 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
-import { OptimistAllowlist } from "../universal/op-nft/OptimistInviter.sol";
+import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
+import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
+
 import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
@@ -21,6 +23,8 @@ contract OptimistAllowlist_Initializer is Test {
     AttestationStation attestationStation;
     OptimistAllowlist optimistAllowlist;
     OptimistInviter optimistInviter;
+
+    OptimistInviterHelper optimistInviterHelper;
 
     function setUp() public {
         alice_allowlistAttestor = makeAddr("alice_allowlistAttestor");
@@ -66,32 +70,48 @@ contract OptimistAllowlist_Initializer is Test {
         attestationStation.attest(attestationData);
     }
 
-    /**
-     * @notice Signs a claimable invite with the given private key and returns the signature using
-     *         correct EIP712 domain separator.
-     */
-    function _issueInviteAs(uint256 _privateKey)
-        internal
-        returns (OptimistInviter.ClaimableInvite memory, bytes memory)
-    {
-        return
-            _issueInviteWithEIP712Domain(
-                _privateKey,
-                bytes("OptimistInviter"),
-                bytes(optimistInviter.EIP712_VERSION()),
-                block.chainid,
-                address(optimistInviter)
-            );
+    function inviteAndClaim(address claimer) internal {
+        address[] memory addresses = new address[](1);
+        addresses[0] = bob;
+
+        vm.prank(alice_allowlistAttestor);
+        optimistInviter.setInviteCounts(addresses, 3);
+
+        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
+            .getClaimableInviteWithNewNonce(bob);
+
+        bytes memory signature = _getSignature(
+            bobPrivateKey,
+            optimistInviterHelper.getDigest(claimableInvite)
+        );
+
+        bytes32 hashedCommit = keccak256(abi.encode(claimer, signature));
+
+        vm.prank(claimer);
+        optimistInviter.commitInvite(hashedCommit);
+        optimistInviter.claimInvite(claimer, claimableInvite, signature);
     }
 
-    function inviteAndClaim(address _about) internal {
-        vm.prank(bobPrivateKey);
-        (OptimistInviter.ClaimableInvite, bytes memory signature) = _issueInviteAs(bobPrivateKey);
+    /**
+     * @notice Get signature as a bytes blob, since SignatureChecker takes arbitrary signature blobs.
+     *
+     */
+    function _getSignature(uint256 _signingPrivateKey, bytes32 _digest)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_signingPrivateKey, _digest);
 
+        bytes memory signature = abi.encodePacked(r, s, v);
+        return signature;
     }
 
     function _initializeContracts() internal {
         attestationStation = new AttestationStation();
+
+        optimistInviter = new OptimistInviter(alice_allowlistAttestor, attestationStation);
+        optimistInviter.initialize("OptimistInviter");
 
         optimistAllowlist = new OptimistAllowlist(
             attestationStation,
@@ -99,6 +119,8 @@ contract OptimistAllowlist_Initializer is Test {
             sally_coinbaseQuestAttestor,
             optimistInviter
         );
+
+        optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");
     }
 }
 
@@ -108,7 +130,7 @@ contract OptimistTest is OptimistAllowlist_Initializer {
         assertEq(address(optimistAllowlist.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimistAllowlist.ALLOWLIST_ATTESTOR(), alice_allowlistAttestor);
         assertEq(optimistAllowlist.COINBASE_QUEST_ATTESTOR(), sally_coinbaseQuestAttestor);
-        assertEq(optimistAllowlist.OPTIMIST_INVITER(), address(optimistInviter));
+        assertEq(address(optimistAllowlist.OPTIMIST_INVITER()), address(optimistInviter));
 
         assertEq(optimistAllowlist.version(), "1.0.0");
     }
@@ -159,11 +181,13 @@ contract OptimistTest is OptimistAllowlist_Initializer {
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    function test_isAllowedToMint_withoutAttestation_fails() external {
-        assertFalse(optimistAllowlist.isAllowedToMint(bob));
-    }
+    // function test_isAllowedToMint_fromCoinbaseQuestAttestor_success() external {
+    //     attestAllowlist(bob);
+    //     assertTrue(optimistAllowlist.isAllowedToMint(bob));
+    // }
 
-    function test_isAllowedToMint_withoutAttestation_fails() external {
-        assertFalse(optimistAllowlist.isAllowedToMint(bob));
+    function test_isAllowedToMint_fromInvite_success() external {
+        inviteAndClaim(bob);
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 }

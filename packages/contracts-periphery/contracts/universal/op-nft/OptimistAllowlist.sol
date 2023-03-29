@@ -54,7 +54,7 @@ contract OptimistAllowlist is Semver {
         AttestationStation _attestationStation,
         address _allowlistAttestor,
         address _coinbaseQuestAttestor,
-        address _optimistInviter
+        OptimistInviter _optimistInviter
     ) Semver(1, 0, 0) {
         ATTESTATION_STATION = _attestationStation;
         ALLOWLIST_ATTESTOR = _allowlistAttestor;
