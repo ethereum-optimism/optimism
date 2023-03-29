@@ -292,7 +292,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
 
     /**
      * @notice Alice the admin should be able to give Bob, Sally, and Carol 3 invites, and the
-     *      OptimistInviter contract should create invites as 'optimist.can-invite' attestations.
+     *      OptimistInviter contract should increment invite counts on inviteCounts and issue
+     *      'optimist.can-invite' attestations.
      */
     function test_grantInvites_adminAddingInvites_succeeds() external {
         address[] memory addresses = new address[](3);
