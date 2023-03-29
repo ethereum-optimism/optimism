@@ -139,7 +139,7 @@ contract OptimistInviter_Initializer is Test {
             _issueInviteWithEIP712Domain(
                 _privateKey,
                 bytes("OptimistInviter"),
-                bytes(optimistInviter.version()),
+                bytes(optimistInviter.EIP712_VERSION()),
                 block.chainid,
                 address(optimistInviter)
             );
@@ -275,7 +275,7 @@ contract OptimistInviter_Initializer is Test {
             ClaimableInviteEIP712TypedData.getDigest(
                 _claimableInvite,
                 bytes("OptimistInviter"),
-                bytes(optimistInviter.version()),
+                bytes(optimistInviter.EIP712_VERSION()),
                 block.chainid,
                 address(optimistInviter)
             );
@@ -452,7 +452,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         ) = _issueInviteWithEIP712Domain(
                 bobPrivateKey,
                 "OptimismInviter",
-                bytes(optimistInviter.version()),
+                bytes(optimistInviter.EIP712_VERSION()),
                 1,
                 address(optimistInviter)
             );
@@ -476,7 +476,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         ) = _issueInviteWithEIP712Domain(
                 bobPrivateKey,
                 "OptimismInviter",
-                bytes(optimistInviter.version()),
+                bytes(optimistInviter.EIP712_VERSION()),
                 block.chainid,
                 address(0xBEEF)
             );

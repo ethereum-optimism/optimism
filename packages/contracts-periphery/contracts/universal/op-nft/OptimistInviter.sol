@@ -44,6 +44,14 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     event InviteClaimed(address indexed issuer, address indexed claimer);
 
     /**
+     * @notice Version used for the EIP712 domain separator. This version is separated from the
+     *         contract semver because the EIP712 domain separator is used to sign messages, and
+     *         changing the domain separator invalidates all existing signatures. We should only
+     *         bump this version if we make a major change to the signature scheme.
+     */
+    string public constant EIP712_VERSION = "1.0.0";
+
+    /**
      * @notice EIP712 typehash for the ClaimableInvite type.
      */
     bytes32 public constant CLAIMABLE_INVITE_TYPEHASH =
@@ -114,16 +122,15 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
      * @notice Initializes this contract, setting the EIP712 context.
      *
-     *         When upgrading this contract, make sure to re-initialize and to update the version
-     *         in the EIP712 context to the up-to-date semver by calling __EIP712_init again. After
-     *         the EIP712 version is changed, any signatures that were issued off-chain but not
-     *         claimed yet, will no longer be accepted by the claimInvite function. Please make
+     *         Only update the EIP712_VERSION when there is a change to the signature scheme.
+     *         After the EIP712 version is changed, any signatures issued off-chain but not
+     *         claimed yet will no longer be accepted by the claimInvite function. Please make
      *         sure to notify the issuers that they must re-issue their invite signatures.
      *
      * @param _name Contract name
      */
     function initialize(string memory _name) public initializer {
-        __EIP712_init(_name, version());
+        __EIP712_init(_name, EIP712_VERSION);
     }
 
     /**
