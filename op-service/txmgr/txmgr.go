@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"math/big"
 	"strings"
 	"sync"
@@ -15,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 // Geth defaults the priceBump to 10
@@ -80,10 +83,11 @@ type SimpleTxManager struct {
 
 	backend ETHBackend
 	l       log.Logger
+	metr    metrics.TxMetricer
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, cfg Config) *SimpleTxManager {
+func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg Config) *SimpleTxManager {
 	if cfg.NumConfirmations == 0 {
 		panic("txmgr: NumConfirmations cannot be zero")
 	}
@@ -97,6 +101,7 @@ func NewSimpleTxManager(name string, l log.Logger, cfg Config) *SimpleTxManager 
 		cfg:     cfg,
 		backend: cfg.Backend,
 		l:       l.New("service", name),
+		metr:    m,
 	}
 }
 
@@ -281,6 +286,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 	}
 	select {
 	case receiptChan <- receipt:
+		m.metr.RecordL1GasFee(receipt)
 	default:
 	}
 }
