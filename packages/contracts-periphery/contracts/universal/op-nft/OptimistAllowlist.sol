@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
+import { OptimistInviter } from "./OptimistInviter.sol";
 
 /**
  * @title  OptimistAllowlist
@@ -11,15 +12,9 @@ import { AttestationStation } from "./AttestationStation.sol";
 contract OptimistAllowlist is Semver {
     /**
      * @notice Attestation key used by the AllowlistAttestor to manually add addresses to the
-     *         allowlist.
+     *         allowlist. Not using a hashed key because these were issued already.
      */
     bytes32 public constant OPTIMIST_CAN_MINT_ATTESTATION_KEY = bytes32("optimist.can-mint");
-
-    /**
-     * @notice Attestation key used by OptimistInviter to issue attestations for invitees.
-     */
-    bytes32 public constant OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
-        bytes32("optimist.can-mint-from-invite");
 
     /**
      * @notice Attestation key used by the Coinbase to issue attestations for Quest participants.
@@ -46,7 +41,7 @@ contract OptimistAllowlist is Semver {
      * @notice Address of OptimistInviter contract that issues 'optimist.can-mint-from-invite'
      *         attestations.
      */
-    address public immutable OPTIMIST_INVITER;
+    OptimistInviter public immutable OPTIMIST_INVITER;
 
     /**
      * @custom:semver 1.0.0
@@ -108,9 +103,9 @@ contract OptimistAllowlist is Semver {
         return
             ATTESTATION_STATION
                 .attestations(
-                    OPTIMIST_INVITER,
+                    address(OPTIMIST_INVITER),
                     _recipient,
-                    OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
+                    OPTIMIST_INVITER.CAN_MINT_FROM_INVITE_ATTESTATION_KEY()
                 )
                 .length > 0;
     }
