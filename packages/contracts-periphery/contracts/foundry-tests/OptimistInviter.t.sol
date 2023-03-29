@@ -83,6 +83,10 @@ contract OptimistInviter_Initializer is Test {
         optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");
     }
 
+    function _passMinCommitmentPeriod() internal {
+        vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
+    }
+
     /**
      * @notice Returns a user's current invite count, as stored in the AttestationStation.
      */
@@ -174,7 +178,7 @@ contract OptimistInviter_Initializer is Test {
         optimistInviter.commitInvite(hashedSignature);
 
         // Check that the commitment was stored correctly
-        assertTrue(optimistInviter.commitments(hashedSignature));
+        assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
     }
 
     /**
@@ -196,7 +200,12 @@ contract OptimistInviter_Initializer is Test {
         _commitInviteAs(_claimer, signature);
 
         // The hash(claimer ++ signature) should be committed
-        assertEq(optimistInviter.commitments(keccak256(abi.encode(_claimer, signature))), true);
+        assertEq(
+            optimistInviter.commitmentTimestamps(keccak256(abi.encode(_claimer, signature))),
+            block.timestamp
+        );
+
+        _passMinCommitmentPeriod();
 
         // OptimistInviter should issue a new attestation allowing claimer to mint
         vm.expectEmit(true, true, true, true, address(attestationStation));
@@ -324,7 +333,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         bytes32 hashedSignature = keccak256(abi.encode(sally, signature));
         optimistInviter.commitInvite(hashedSignature);
 
-        assertTrue(optimistInviter.commitments(hashedSignature));
+        assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
     }
 
     /**
@@ -338,7 +347,24 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         bytes32 hashedSignature = keccak256(abi.encode(eve, signature));
         optimistInviter.commitInvite(hashedSignature);
 
-        assertTrue(optimistInviter.commitments(hashedSignature));
+        assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
+    }
+
+    /**
+     * @notice Attempting to commit the same hash twice should revert. This prevents griefing.
+     */
+    function test_commitInvite_committingSameHashTwice_reverts() external {
+        _grantInvitesTo(bob);
+        (, bytes memory signature) = _issueInviteAs(bobPrivateKey);
+
+        vm.prank(sally);
+        bytes32 hashedSignature = keccak256(abi.encode(eve, signature));
+        optimistInviter.commitInvite(hashedSignature);
+
+        assertEq(optimistInviter.commitmentTimestamps(hashedSignature), block.timestamp);
+
+        vm.expectRevert("OptimistInviter: commitment already made");
+        optimistInviter.commitInvite(hashedSignature);
     }
 
     /**
@@ -360,10 +386,9 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             bytes memory signature
         ) = _issueInviteAs(bobPrivateKey);
 
-        _commitInviteAs(sally, signature);
-
         vm.prank(ted);
         optimistInviter.commitInvite(keccak256(abi.encode(sally, signature)));
+        _passMinCommitmentPeriod();
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(
@@ -385,6 +410,23 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         assertFalse(_hasMintAttestation(eve));
     }
 
+    function test_claimInvite_claimBeforeMinCommitmentPeriod_reverts() external {
+        _grantInvitesTo(bob);
+        (
+            OptimistInviter.ClaimableInvite memory claimableInvite,
+            bytes memory signature
+        ) = _issueInviteAs(bobPrivateKey);
+
+        _commitInviteAs(sally, signature);
+
+        // Some time passes, but not enough to meet the minimum commitment period
+        vm.warp(block.timestamp + 10);
+
+        vm.expectRevert("OptimistInviter: minimum commitment period has not elapsed yet");
+        vm.prank(sally);
+        optimistInviter.claimInvite(sally, claimableInvite, signature);
+    }
+
     /**
      * @notice Signature issued for previous versions of the contract should fail.
      */
@@ -402,6 +444,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             );
 
         _commitInviteAs(sally, signature);
+        _passMinCommitmentPeriod();
 
         vm.expectRevert("OptimistInviter: invalid signature");
         vm.prank(sally);
@@ -426,6 +469,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             );
 
         _commitInviteAs(sally, signature);
+        _passMinCommitmentPeriod();
 
         vm.expectRevert("OptimistInviter: invalid signature");
         vm.prank(sally);
@@ -450,6 +494,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             );
 
         _commitInviteAs(sally, signature);
+        _passMinCommitmentPeriod();
 
         vm.expectRevert("OptimistInviter: invalid signature");
         vm.prank(sally);
@@ -468,13 +513,14 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         ) = _issueThenClaimShouldSucceed(bobPrivateKey, sally);
 
         // Sally tries to claim the invite using the same signature
-        _commitInviteAs(sally, signature);
         vm.expectRevert("OptimistInviter: nonce has already been used");
         vm.prank(sally);
         optimistInviter.claimInvite(sally, claimableInvite, signature);
 
         // Carol tries to claim the invite using the same signature
         _commitInviteAs(carol, signature);
+        _passMinCommitmentPeriod();
+
         vm.expectRevert("OptimistInviter: nonce has already been used");
         vm.prank(carol);
         optimistInviter.claimInvite(carol, claimableInvite, signature);
@@ -498,6 +544,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
 
         // Sally tries to claim the invite
         _commitInviteAs(sally, signature);
+        _passMinCommitmentPeriod();
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
         emit AttestationCreated(
@@ -543,6 +590,8 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         _commitInviteAs(sally, bobSignature);
         _commitInviteAs(sally, carolSignature);
 
+        _passMinCommitmentPeriod();
+
         vm.expectRevert("OptimistInviter: invalid signature");
         vm.prank(sally);
         optimistInviter.claimInvite(sally, bobClaimableInvite, carolSignature);
@@ -560,6 +609,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         ) = _issueInviteAs(bobPrivateKey);
 
         _commitInviteAs(sally, signature);
+        _passMinCommitmentPeriod();
 
         vm.expectRevert("OptimistInviter: issuer has no invites");
         vm.prank(sally);
@@ -588,6 +638,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         ) = _issueInviteAs(bobPrivateKey);
 
         _commitInviteAs(eve, signature4);
+        _passMinCommitmentPeriod();
 
         vm.expectRevert("OptimistInviter: issuer has no invites");
         vm.prank(eve);

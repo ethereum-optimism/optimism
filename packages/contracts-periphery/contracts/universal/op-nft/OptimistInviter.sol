@@ -31,14 +31,15 @@ import {
  *           5) claimer commits the hash of the address they want to receive the invite on and the
  *              received signature keccak256(abi.encode(addressToReceiveTo, receivedSignature))
  *              using the commitInvite function
- *           6) claimer reveals the plaintext ClaimableInvite and the signature using the
+ *           6) claimer waits for the MIN_COMMITMENT_PERIOD to pass.
+ *           7) claimer reveals the plaintext ClaimableInvite and the signature using the
  *              claimInvite function, receiving the "optimist.can-mint-from-invite" attestation
  */
 contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
      * @notice Emitted when an invite is claimed.
      *
-     * @param issuer Address that issued the signature.
+     * @param issuer  Address that issued the signature.
      * @param claimer Address that claimed the invite.
      */
     event InviteClaimed(address indexed issuer, address indexed claimer);
@@ -79,6 +80,18 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
+     * @notice Minimum age of a commitment (in seconds) before it can be revealed using claimInvite.
+     *         Currently set to 60 seconds.
+     *
+     *         Prevents an attacker from front-running a commitment by taking the signature in the
+     *         claimInvite call and quickly committing and claiming it before the the claimer's
+     *         transaction succeeds. With this, frontrunning a commitment requires that an attacker
+     *         be able to prevent the honest claimer's claimInvite transaction from being included
+     *         for this long.
+     */
+    uint256 public constant MIN_COMMITMENT_PERIOD = 60;
+
+    /**
      * @notice Struct that represents a claimable invite that will be signed by the issuer.
      *
      * @custom:field issuer   Address that issued the signature. Reason this is explicitly included,
@@ -94,9 +107,9 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     }
 
     /**
-     * @notice Maps from hashes to whether or not they have been committed.
+     * @notice Maps from hashes to the timestamp when they were committed.
      */
-    mapping(bytes32 => bool) public commitments;
+    mapping(bytes32 => uint256) public commitmentTimestamps;
 
     /**
      * @notice Maps from addresses to nonces to whether or not they have been used.
@@ -127,7 +140,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      *         claimed yet will no longer be accepted by the claimInvite function. Please make
      *         sure to notify the issuers that they must re-issue their invite signatures.
      *
-     * @param _name Contract name
+     * @param _name Contract name.
      */
     function initialize(string memory _name) public initializer {
         __EIP712_init(_name, EIP712_VERSION);
@@ -181,12 +194,21 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      *         scheme, anyone who is watching the mempool can take the signature being submitted
      *         and front run the transaction to claim the invite to their own address.
      *
+     *         The same commitment can only be made once, and the function reverts if the
+     *         commitment has already been made. This prevents griefing where a malicious party can
+     *         prevent the original claimer from being able to claimInvite.
+     *
      *
      * @param _commitment A hash of the claimer and signature concatenated.
      *                    keccak256(abi.encode(_claimer, _signature))
      */
     function commitInvite(bytes32 _commitment) public {
-        commitments[_commitment] = true;
+        // Check that the commitment hasn't already been made. This prevents griefing where
+        // a malicious party continuously re-submits the same commitment, preventing the original
+        // claimer from claiming their invite by resetting the minimum commitment period.
+        require(commitmentTimestamps[_commitment] == 0, "OptimistInviter: commitment already made");
+
+        commitmentTimestamps[_commitment] = block.timestamp;
     }
 
     /**
@@ -196,9 +218,10 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      *         committed using commitInvite. Before issuing the "optimist.can-mint-from-invite"
      *         attestation, this function checks that
      *           1) the hash corresponding to the _claimer and the _signature was committed
-     *           2) the _signature is signed correctly by the issuer
-     *           3) the _signature hasn't already been used to claim an invite before
-     *           4) the _signature issuer has not used up all of their invites
+     *           2) MIN_COMMITMENT_PERIOD has passed since the commitment was made.
+     *           3) the _signature is signed correctly by the issuer
+     *           4) the _signature hasn't already been used to claim an invite before
+     *           5) the _signature issuer has not used up all of their invites
      *         This function doesn't require that the _claimer is calling this function.
      *
      * @param _claimer         Address that will be granted the invite.
@@ -210,10 +233,20 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         ClaimableInvite calldata _claimableInvite,
         bytes memory _signature
     ) public {
+        uint256 commitmentTimestamp = commitmentTimestamps[
+            keccak256(abi.encode(_claimer, _signature))
+        ];
+
         // Make sure the claimer and signature have been committed.
         require(
-            commitments[keccak256(abi.encode(_claimer, _signature))],
+            commitmentTimestamp > 0,
             "OptimistInviter: claimer and signature have not been committed yet"
+        );
+
+        // Check that MIN_COMMITMENT_PERIOD has passed since the commitment was made.
+        require(
+            commitmentTimestamp + MIN_COMMITMENT_PERIOD <= block.timestamp,
+            "OptimistInviter: minimum commitment period has not elapsed yet"
         );
 
         // Generate a EIP712 typed data hash to compare against the signature.
