@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"time"
 
 	log "github.com/ethereum/go-ethereum/log"
 	snappy "github.com/golang/snappy"
@@ -51,8 +52,18 @@ func NewMalleable(
 		return nil, fmt.Errorf("failed to start gossipsub router: %w", err)
 	}
 
-	// Join the blocks gossip topic.
+	// Create a minimal validator
+	val := BuildBlocksValidator(log)
 	blocksTopicName := getBlockTopicName(l2ChainID)
+	err = ps.RegisterTopicValidator(blocksTopicName,
+		val,
+		pubsub.WithValidatorTimeout(3*time.Second),
+		pubsub.WithValidatorConcurrency(4))
+	if err != nil {
+		return nil, fmt.Errorf("failed to register blocks gossip topic: %w", err)
+	}
+
+	// Join the blocks gossip topic.
 	blocksTopic, err := ps.Join(blocksTopicName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to join blocks gossip topic: %w", err)
@@ -79,6 +90,27 @@ func NewMalleable(
 		l2ChainID:   l2ChainID,
 		blocksTopic: blocksTopic,
 	}, nil
+}
+
+func BuildBlocksValidator(log log.Logger) pubsub.ValidatorEx {
+	return func(ctx context.Context, id peer.ID, message *pubsub.Message) pubsub.ValidationResult {
+		res := msgBufPool.Get().(*[]byte)
+		defer msgBufPool.Put(res)
+		data, err := snappy.Decode((*res)[:0], message.Data)
+		if err != nil {
+			log.Warn("invalid snappy compression", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
+		*res = data
+		_, payloadBytes := data[:65], data[65:]
+		var payload eth.ExecutionPayload
+		if err := payload.UnmarshalSSZ(uint32(len(payloadBytes)), bytes.NewReader(payloadBytes)); err != nil {
+			log.Warn("invalid payload", "err", err, "peer", id)
+			return pubsub.ValidationReject
+		}
+		message.ValidatorData = &payload
+		return pubsub.ValidationAccept
+	}
 }
 
 // Connect connects the internal [host.Host] to a [peer].
@@ -128,9 +160,6 @@ func (m *Malleable) PublishL2Payload(ctx context.Context, payload *eth.Execution
 	}
 	copy(data[:65], sig[:])
 
-	// compress the full message
-	// This also copies the data, freeing up the original buffer to go back into the pool
 	out := snappy.Encode(nil, data)
-
 	return m.blocksTopic.Publish(ctx, out)
 }
