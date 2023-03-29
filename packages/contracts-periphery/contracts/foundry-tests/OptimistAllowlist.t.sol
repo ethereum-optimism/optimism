@@ -66,7 +66,7 @@ contract OptimistAllowlist_Initializer is Test {
             key: optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY(),
             val: bytes("true")
         });
-        vm.prank(alice_allowlistAttestor);
+        vm.prank(sally_coinbaseQuestAttestor);
         attestationStation.attest(attestationData);
     }
 
@@ -181,10 +181,10 @@ contract OptimistTest is OptimistAllowlist_Initializer {
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
-    // function test_isAllowedToMint_fromCoinbaseQuestAttestor_success() external {
-    //     attestAllowlist(bob);
-    //     assertTrue(optimistAllowlist.isAllowedToMint(bob));
-    // }
+    function test_isAllowedToMint_fromCoinbaseQuestAttestor_success() external {
+        attestAllowlist(bob);
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
+    }
 
     function test_isAllowedToMint_fromInvite_success() external {
         inviteAndClaim(bob);

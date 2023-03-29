@@ -91,7 +91,7 @@ contract OptimistAllowlist is Semver {
         return
             ATTESTATION_STATION
                 .attestations(
-                    ALLOWLIST_ATTESTOR,
+                    COINBASE_QUEST_ATTESTOR,
                     _recipient,
                     COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY
                 )
