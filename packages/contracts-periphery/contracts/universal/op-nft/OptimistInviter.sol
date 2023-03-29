@@ -12,9 +12,9 @@ import {
  * @custom:upgradeable
  * @title  OptimistInviter
  * @notice OptimistInviter issues "optimist.can-invite" and "optimist.can-mint-from-invite"
- *         attestations. Accounts that have a "optimist.can-invite" attestation can issue
- *         signatures that allow other accounts to claim an invite. The invitee uses a claim
- *         and reveal flow to claim the invite to an address of their choosing.
+ *         attestations. Accounts that have invites can issue signatures that allow other
+ *         accounts to claim an invite. The invitee uses a claim and reveal flow to claim the
+ *         invite to an address of their choosing.
  *
  *         Parties involved:
  *           1) INVITE_GRANTER: trusted account that can allow accounts to issue invites
@@ -23,7 +23,7 @@ import {
  *
  *         Flow:
  *           1) INVITE_GRANTER calls _setInviteCount to allow an issuer to issue a certain number
- *              of invites, creating "optimist.can-invite" attestations for the issuer
+ *              of invites, and also creates a "optimist.can-invite" attestation for the issuer
  *           2) Off-chain, the issuer signs (EIP-712) a ClaimableInvite to produce a signature
  *           3) Off-chain, invite issuer sends the plaintext ClaimableInvite and the signature
  *              to the recipient
@@ -50,7 +50,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         keccak256("ClaimableInvite(address issuer,bytes32 nonce)");
 
     /**
-     * @notice Attestation key for granting invites.
+     * @notice Attestation key for that signals that an account was allowed to issue invites
      */
     bytes32 public constant CAN_INVITE_ATTESTATION_KEY = keccak256("optimist.can-invite");
 
@@ -94,6 +94,11 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      * @notice Maps from addresses to nonces to whether or not they have been used.
      */
     mapping(address => mapping(bytes32 => bool)) public usedNonces;
+
+    /**
+     * @notice Maps from addresses to number of invites they have.
+     */
+    mapping(address => uint256) public inviteCounts;
 
     /**
      * @custom:semver 1.0.0
@@ -140,13 +145,14 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
             memory attestations = new AttestationStation.AttestationData[](length);
 
         for (uint256 i; i < length; ) {
-            // The granted invites are stored as an attestation from this contract on the
-            // AttestationStation contract. Number of invites is stored as a encoded uint256 in the
-            // data field of the attestation.
+            // Set invite count for account to _inviteCount
+            inviteCounts[_accounts[i]] = _inviteCount;
+
+            // Create an attestation for posterity that the account is allowed to create invites
             attestations[i] = AttestationStation.AttestationData({
                 about: _accounts[i],
                 key: CAN_INVITE_ATTESTATION_KEY,
-                val: abi.encode(_inviteCount)
+                val: bytes("true")
             });
 
             unchecked {
@@ -235,24 +241,16 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         // Set the nonce as used for the issuer so that it cannot be replayed.
         usedNonces[_claimableInvite.issuer][_claimableInvite.nonce] = true;
 
-        // Check the AttestationStation contract to see how many invites the issuer has left.
-        bytes memory attestation = ATTESTATION_STATION.attestations(
-            address(this),
-            _claimableInvite.issuer,
-            CAN_INVITE_ATTESTATION_KEY
-        );
-        // Failing this check means that the issuer was never granted any invites to begin with.
-        require(attestation.length > 0, "OptimistInviter: issuer has no invites");
-
-        uint256 count = abi.decode(attestation, (uint256));
-
         // Failing this check means that the issuer has used up all of their existing invites.
-        require(count > 0, "OptimistInviter: issuer has no invites");
+        require(
+            inviteCounts[_claimableInvite.issuer] > 0,
+            "OptimistInviter: issuer has no invites"
+        );
 
-        // Reduce the issuer's invite count by 1 by re-attesting the optimist.can-invite attestation
-        // with the new count. Can be unchecked because we check that the count is > 0 above.
+        // Reduce the issuer's invite count by 1. Can be unchecked because we check above that
+        // count is > 0.
         unchecked {
-            --count;
+            --inviteCounts[_claimableInvite.issuer];
         }
 
         // Create the attestation that the claimer can mint from the issuer's invite.
@@ -261,12 +259,6 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
             _claimer,
             CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(_claimableInvite.issuer)
-        );
-
-        ATTESTATION_STATION.attest(
-            _claimableInvite.issuer,
-            CAN_INVITE_ATTESTATION_KEY,
-            abi.encode(count)
         );
 
         emit InviteClaimed(_claimableInvite.issuer, _claimer);

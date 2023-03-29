@@ -97,12 +97,7 @@ contract OptimistInviter_Initializer is Test {
      * @notice Returns a user's current invite count, as stored in the AttestationStation.
      */
     function _getInviteCount(address _issuer) internal view returns (uint256) {
-        bytes memory attestation = attestationStation.attestations(
-            address(optimistInviter),
-            _issuer,
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY()
-        );
-        return abi.decode(attestation, (uint256));
+        return optimistInviter.inviteCounts(_issuer);
     }
 
     /**
@@ -226,15 +221,6 @@ contract OptimistInviter_Initializer is Test {
             abi.encode(issuer)
         );
 
-        // OptimistInviter should issue a new attestation with updated invite count
-        vm.expectEmit(true, true, true, true, address(attestationStation));
-        emit AttestationCreated(
-            address(optimistInviter),
-            issuer,
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(prevInviteCount - 1)
-        );
-
         // Should emit an event indicating that the invite was claimed
         vm.expectEmit(true, false, false, false, address(optimistInviter));
         emit InviteClaimed(issuer, _claimer);
@@ -267,7 +253,7 @@ contract OptimistInviter_Initializer is Test {
             address(optimistInviter),
             _to,
             optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(3)
+            bytes("true")
         );
 
         vm.prank(alice_inviteGranter);
@@ -319,7 +305,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             address(optimistInviter),
             bob,
             optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(3)
+            bytes("true")
         );
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
@@ -327,7 +313,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             address(optimistInviter),
             sally,
             optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(3)
+            bytes("true")
         );
 
         vm.expectEmit(true, true, true, true, address(attestationStation));
@@ -335,7 +321,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             address(optimistInviter),
             address(carolERC1271Wallet),
             optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(3)
+            bytes("true")
         );
 
         vm.prank(alice_inviteGranter);
@@ -419,21 +405,14 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             abi.encode(bob)
         );
 
-        // OptimistInviter should issue a new attestation with updated invite count
-        vm.expectEmit(true, true, true, true, address(attestationStation));
-        emit AttestationCreated(
-            address(optimistInviter),
-            bob,
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(2)
-        );
-
         // Should emit an event indicating that the invite was claimed
         vm.expectEmit(true, true, true, true, address(optimistInviter));
         emit InviteClaimed(bob, sally);
 
         vm.prank(eve);
         optimistInviter.claimInvite(sally, claimableInvite, signature);
+
+        assertEq(_getInviteCount(bob), 2);
         assertTrue(_hasMintAttestation(sally));
         assertFalse(_hasMintAttestation(eve));
     }
@@ -560,17 +539,9 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             abi.encode(address(carolERC1271Wallet))
         );
 
-        // OptimistInviter should issue a new attestation with updated invite count
-        vm.expectEmit(true, true, true, true, address(attestationStation));
-        emit AttestationCreated(
-            address(optimistInviter),
-            address(carolERC1271Wallet),
-            optimistInviter.CAN_INVITE_ATTESTATION_KEY(),
-            abi.encode(2)
-        );
-
         vm.prank(sally);
         optimistInviter.claimInvite(sally, claimableInvite, signature);
+        assertEq(_getInviteCount(address(carolERC1271Wallet)), 2);
     }
 
     /**
