@@ -25,8 +25,6 @@ contract OptimistInviter_Initializer is Test {
 
     bytes32 EIP712_DOMAIN_TYPEHASH;
 
-    ClaimableInviteEIP712TypedData claimableInviteEIP712TypedData;
-
     address internal alice_inviteGranter;
     address internal sally;
     address internal ted;
@@ -85,11 +83,6 @@ contract OptimistInviter_Initializer is Test {
         vm.expectEmit(true, true, true, true, address(optimistInviter));
         emit Initialized(1);
         optimistInviter.initialize("OptimistInviter");
-
-        claimableInviteEIP712TypedData = new ClaimableInviteEIP712TypedData(
-            "OptimistInviter",
-            optimistInviter.version()
-        );
     }
 
     /**
@@ -180,7 +173,7 @@ contract OptimistInviter_Initializer is Test {
             claimableInvite,
             _getSignature(
                 _issuerPrivateKey,
-                claimableInviteEIP712TypedData.getDigestWithDomain(
+                ClaimableInviteEIP712TypedData.getDigest(
                     claimableInvite,
                     _eip712Name,
                     _eip712Version,
@@ -283,48 +276,24 @@ contract OptimistInviter_Initializer is Test {
         assertEq(_getInviteCount(_to), 3);
     }
 
-    // /**
-    //  * @notice Gets the hashed typed object for a EIP712 signature.
-    //  */
-    // function _getStructHash(OptimistInviter.ClaimableInvite memory _claimableInvite)
-    //     internal
-    //     view
-    //     returns (bytes32)
-    // {
-    //     return
-    //         keccak256(
-    //             abi.encode(
-    //                 optimistInviter.CLAIMABLE_INVITE_TYPEHASH(),
-    //                 _claimableInvite.issuer,
-    //                 _claimableInvite.nonce
-    //             )
-    //         );
-    // }
-
-    // /**
-    //  * @notice Gets the signable digest for a EIP712 signature.
-    //  */
-    // function _getEIP712Digest(
-    //     OptimistInviter.ClaimableInvite memory _claimableInvite,
-    //     bytes memory _name,
-    //     bytes memory _version,
-    //     uint256 _chainid,
-    //     address _verifyingContract
-    // ) internal view returns (bytes32) {
-    //     bytes32 domainSeparator = keccak256(
-    //         abi.encode(
-    //             EIP712_DOMAIN_TYPEHASH,
-    //             keccak256(_name),
-    //             keccak256(_version),
-    //             _chainid,
-    //             _verifyingContract
-    //         )
-    //     );
-    //     return
-    //         keccak256(
-    //             abi.encodePacked("\x19\x01", domainSeparator, _getStructHash(_claimableInvite))
-    //         );
-    // }
+    /**
+     * @notice Issues 3 invites to the given address. Checks that all expected events are emitted
+     *         and that state is updated correctly.
+     */
+    function _getEIP712Digest(OptimistInviter.ClaimableInvite memory _claimableInvite)
+        internal
+        view
+        returns (bytes32)
+    {
+        return
+            ClaimableInviteEIP712TypedData.getDigest(
+                _claimableInvite,
+                bytes("OptimistInviter"),
+                bytes(optimistInviter.version()),
+                block.chainid,
+                address(optimistInviter)
+            );
+    }
 }
 
 contract OptimistInviterTest is OptimistInviter_Initializer {
@@ -578,13 +547,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
             nonce
         );
 
-        bytes memory signature = _getSignature(
-            carolPrivateKey,
-            claimableInviteEIP712TypedData.getDigest(
-                claimableInvite,
-
-            )
-        );
+        bytes memory signature = _getSignature(carolPrivateKey, _getEIP712Digest(claimableInvite));
 
         // Sally tries to claim the invite
         _commitInviteAs(sally, signature);

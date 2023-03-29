@@ -5,7 +5,7 @@ import { ECDSA } from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import { OptimistInviter } from "../../universal/op-nft/OptimistInviter.sol";
 
 /**
- * Helper contract that generates the EIP712 digest for a ClaimableInvite.
+ * Helper library that generates the EIP712 digest for a ClaimableInvite.
  */
 library ClaimableInviteEIP712TypedData {
     bytes32 public constant CLAIMABLE_INVITE_TYPEHASH =
