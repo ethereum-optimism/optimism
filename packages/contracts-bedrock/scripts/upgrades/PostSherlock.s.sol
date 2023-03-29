@@ -33,7 +33,7 @@ contract PostSherlock is Script {
     /**
      * @notice Mainnet chain id.
      */
-    uint256 constant MAINNET = 0;
+    uint256 constant MAINNET = 1;
 
     /**
      * @notice Goerli chain id.
