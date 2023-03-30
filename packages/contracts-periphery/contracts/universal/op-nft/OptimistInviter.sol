@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.15;
 
+import { OptimistConstants } from "./libraries/OptimistConstants.sol";
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
 import { SignatureChecker } from "@openzeppelin/contracts/utils/cryptography/SignatureChecker.sol";
@@ -62,12 +63,6 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
      * @notice Attestation key for that signals that an account was allowed to issue invites
      */
     bytes32 public constant CAN_INVITE_ATTESTATION_KEY = bytes32("optimist.can-invite");
-
-    /**
-     * @notice Attestation key allowing the attested account to mint.
-     */
-    bytes32 public constant CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
-        bytes32("optimist.can-mint-from-invite");
 
     /**
      * @notice Granter who can set accounts' invite counts.
@@ -297,7 +292,7 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
         // The invite issuer is included in the data of the attestation.
         ATTESTATION_STATION.attest(
             _claimer,
-            CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
+            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(_claimableInvite.issuer)
         );
 

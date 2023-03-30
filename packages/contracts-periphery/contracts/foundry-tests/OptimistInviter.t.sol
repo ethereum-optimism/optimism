@@ -9,6 +9,7 @@ import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { TestERC1271Wallet } from "../testing/helpers/TestERC1271Wallet.sol";
 import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
+import { OptimistConstants } from "../universal/op-nft/libraries/OptimistConstants.sol";
 
 contract OptimistInviter_Initializer is Test {
     event InviteClaimed(address indexed issuer, address indexed claimer);
@@ -101,7 +102,7 @@ contract OptimistInviter_Initializer is Test {
         bytes memory attestation = attestationStation.attestations(
             address(optimistInviter),
             _claimer,
-            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY()
+            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
         );
         return attestation.length > 0;
     }
@@ -212,7 +213,7 @@ contract OptimistInviter_Initializer is Test {
         emit AttestationCreated(
             address(optimistInviter),
             _claimer,
-            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
+            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(issuer)
         );
 
@@ -394,7 +395,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             sally,
-            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
+            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(bob)
         );
 
@@ -550,7 +551,7 @@ contract OptimistInviterTest is OptimistInviter_Initializer {
         emit AttestationCreated(
             address(optimistInviter),
             sally,
-            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
+            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             abi.encode(address(carolERC1271Wallet))
         );
 
