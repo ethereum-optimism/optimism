@@ -1,12 +1,13 @@
 {
   "detectors_to_exclude": "assembly-usage,block-timestamp,naming-convention,solc-version",
-  "exclude_informational": false,
-  "exclude_low": false,
-  "exclude_medium": false,
+  "exclude_informational": true,
+  "exclude_low": true,
+  "exclude_medium": true,
   "exclude_high": false,
   "solc_disable_warnings": false,
   "hardhat_ignore_compile": false,
   "disable_color": false,
-  "exclude_dependencies": false,
-  "filter_paths": "contracts/test|lib"
+  "exclude_dependencies": true,
+  "filter_paths": "contracts/test,contracts/vendor,contracts/echidna,node_modules",
+  "foundry_out_directory": "artifacts"
 }

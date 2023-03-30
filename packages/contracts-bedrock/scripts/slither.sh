@@ -6,6 +6,7 @@ rm -rf artifacts forge-artifacts
 TEMP=$(mktemp -d)
 mv contracts/test $TEMP/test
 
-slither . --foundry-out-directory artifacts
+# See slither.config.json for slither settings
+slither .
 
 mv $TEMP/test contracts/test
