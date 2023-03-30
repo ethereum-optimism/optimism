@@ -138,7 +138,7 @@ contract OptimistAllowlist_Initializer is Test {
 }
 
 contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
-    function test_constructor_success() external {
+    function test_constructor_succeeds() external {
         // expect attestationStation to be set
         assertEq(address(optimistAllowlist.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimistAllowlist.ALLOWLIST_ATTESTOR(), alice_allowlistAttestor);
@@ -158,7 +158,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     /**
      * @notice After receiving a valid allowlist attestation, the account should be able to mint.
      */
-    function test_isAllowedToMint_fromAllowlistAttestor_success() external {
+    function test_isAllowedToMint_fromAllowlistAttestor_succeeds() external {
         attestAllowlist(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
@@ -167,7 +167,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
      * @notice After receiving a valid attestation from the Coinbase Quest attestor,
      *         the account should be able to mint.
      */
-    function test_isAllowedToMint_fromCoinbaseQuestAttestor_success() external {
+    function test_isAllowedToMint_fromCoinbaseQuestAttestor_succeeds() external {
         attestCoinbaseQuest(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
@@ -176,7 +176,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
      * @notice Account that received an attestation from the OptimistInviter contract by going
      *         through the claim invite flow should be able to mint.
      */
-    function test_isAllowedToMint_fromInvite_success() external {
+    function test_isAllowedToMint_fromInvite_succeeds() external {
         inviteAndClaim(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
@@ -226,7 +226,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     /**
      * @notice Having multiple signals, even if one is invalid, should still allow minting.
      */
-    function test_isAllowedToMint_withMultipleAttestations_success() external {
+    function test_isAllowedToMint_withMultipleAttestations_succeeds() external {
         attestAllowlist(bob);
         attestCoinbaseQuest(bob);
         inviteAndClaim(bob);
