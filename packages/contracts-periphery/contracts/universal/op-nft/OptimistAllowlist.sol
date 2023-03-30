@@ -53,6 +53,7 @@ contract OptimistAllowlist is Semver {
 
     /**
      * @custom:semver 1.0.0
+     *
      * @param _attestationStation    Address of the AttestationStation contract.
      * @param _allowlistAttestor     Address of the allowlist attestor.
      * @param _coinbaseQuestAttestor Address of the Coinbase Quest attestor.
@@ -71,25 +72,30 @@ contract OptimistAllowlist is Semver {
     }
 
     /**
-     * @notice Checks whether an address has an optimist.can-mint attestation from the allowlist attestor.
+     * @notice Checks whether an address has a valid 'optimist.can-mint' attestation from the
+     *         allowlist attestor.
      *
-     * @return Whether or not the address has a optimist.can-mint attestation from the allowlist .
+     * @param _claimer Address to check.
+     *
+     * @return Whether or not the address has a valid attestation.
      */
-    function _hasAttestationFromAllowlistAttestor(address _recipient) internal view returns (bool) {
+    function _hasAttestationFromAllowlistAttestor(address _claimer) internal view returns (bool) {
         // Expected attestation value is bytes32("true"), but we consider any non-zero value
         // to be truthy.
         return
             ATTESTATION_STATION
-                .attestations(ALLOWLIST_ATTESTOR, _recipient, OPTIMIST_CAN_MINT_ATTESTATION_KEY)
+                .attestations(ALLOWLIST_ATTESTOR, _claimer, OPTIMIST_CAN_MINT_ATTESTATION_KEY)
                 .length > 0;
     }
 
     /**
-     * @notice Checks whether an address has the correct attestation from the Coinbase.
+     * @notice Checks whether an address has a valid attestation from the Coinbase attestor.
      *
-     * @return Whether or not the address has a optimist.can-mint attestation from the allowlist.
+     * @param _claimer Address to check.
+     *
+     * @return Whether or not the address has a valid attestation.
      */
-    function _hasAttestationFromCoinbaseQuestAttestor(address _recipient)
+    function _hasAttestationFromCoinbaseQuestAttestor(address _claimer)
         internal
         view
         returns (bool)
@@ -100,19 +106,26 @@ contract OptimistAllowlist is Semver {
             ATTESTATION_STATION
                 .attestations(
                     COINBASE_QUEST_ATTESTOR,
-                    _recipient,
+                    _claimer,
                     COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY
                 )
                 .length > 0;
     }
 
-    function _hasAttestationFromOptimistInviter(address _recipient) internal view returns (bool) {
+    /**
+     * @notice Checks whether an address has a valid attestation from the OptimistInviter contract.
+     *
+     * @param _claimer Address to check.
+     *
+     * @return Whether or not the address has a valid attestation.
+     */
+    function _hasAttestationFromOptimistInviter(address _claimer) internal view returns (bool) {
         // Expected attestation value is the inviter's address, but we just check that it's set.
         return
             ATTESTATION_STATION
                 .attestations(
                     OPTIMIST_INVITER,
-                    _recipient,
+                    _claimer,
                     OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
                 )
                 .length > 0;
@@ -123,12 +136,18 @@ contract OptimistAllowlist is Semver {
      *         Optimist NFT will also be used as part of the Citizens House, mints are currently
      *         restricted. Eventually anyone will be able to mint.
      *
+     *         Currently, address is allowed to mint if it satisfies any of the following:
+     *         1) Has a valid 'optimist.can-mint' attestation from the allowlist attestor.
+     *         2) Has a valid 'coinbase.quest-eligible' attestation from Coinbase Quest attestor
+     *         3) Has a valid 'optimist.can-mint-from-invite' attestation from the OptimistInviter
+     *            contract.
+     *
      * @return Whether or not the address is allowed to mint yet.
      */
-    function isAllowedToMint(address _recipient) public view returns (bool) {
+    function isAllowedToMint(address _claimer) public view returns (bool) {
         return
-            _hasAttestationFromAllowlistAttestor(_recipient) ||
-            _hasAttestationFromCoinbaseQuestAttestor(_recipient) ||
-            _hasAttestationFromOptimistInviter(_recipient);
+            _hasAttestationFromAllowlistAttestor(_claimer) ||
+            _hasAttestationFromCoinbaseQuestAttestor(_claimer) ||
+            _hasAttestationFromOptimistInviter(_claimer);
     }
 }
