@@ -55,8 +55,8 @@ type Timestamp is uint64;
 
 /// @notice A `Claim` type represents a 32 byte hash or other unique identifier for a claim about
 ///         a certain piece of information.
-/// @dev For the `FAULT` `GameType`, this will be a MPT root representing the state of
-///      the fault proof program at the end of the state transition.
+/// @dev For the `FAULT` `GameType`, this will be a root of the merklized state of the fault proof
+///      program at the end of the state transition.
 ///      For the `ATTESTATION` `GameType`, this will be an output root.
 type Claim is bytes32;
 ```
@@ -68,9 +68,9 @@ given a `GameType` and a root `Claim`. Challenger agents will listen to the
 `DisputeGameCreated` events that are emitted by the factory in order to keep up
 with on-going disputes in the protocol.
 
-For the factory, we use a [Huff](https://huff.sh) implementation of
+For the factory, a [Huff](https://huff.sh) implementation of
 [`clones-with-immutable-args`](https://github.com/wighawag/clones-with-immutable-args/tree/master)
-by @wighawag. Each `GameType` has a corresponding implementation within the factory,
+by @wighawag is used to create Clones. Each `GameType` has a corresponding implementation within the factory,
 and when a new game is created, the factory creates a clone of the `GameType`'s
 implementation contract.
 
@@ -138,7 +138,7 @@ Clones of the `IDisputeGame`'s `initialize` functions will be called by the `Dis
 /// @notice The generic interface for a DisputeGame contract.
 interface IDisputeGame {
     /// @notice Initializes the DisputeGame contract.
-    /// @dev It is necessary that the implementations of this interface only allow this function to be called once.
+    /// @custom:invariant The `initialize` function may only be called once.
     function initialize() external;
 
     /// @notice Returns the semantic version of the DisputeGame contract
@@ -153,7 +153,7 @@ interface IDisputeGame {
     /// @notice `clones-with-immutable-args` argument #1
     /// @return _gameType The type of proof system being used.
     /// @dev The reference impl should be entirely different depending on the type (fault, validity)
-    /// i.e. The game type should indicate the security model.
+    ///      i.e. The game type should indicate the security model.
     function gameType() external view returns (GameType _gameType);
 
     /// @notice `clones-with-immutable-args` argument #2
@@ -194,8 +194,7 @@ interface IDisputeGame_OutputAttestation is IDisputeGame {
     /// @notice The amount of signatures required to successfully challenge the `rootClaim`
     ///         output proposal. Once this threshold is met by members of the `signerSet`
     ///         calling `challenge`, the game will be resolved to `CHALLENGER_WINS`.
-    /// @custom:invariant The `signatureThreshold` may never be greater than the length
-    ///                   of the `signerSet`.
+    /// @custom:invariant The `signatureThreshold` may never be greater than the length of the `signerSet`.
     function signatureThreshold() public view returns (uint16 _signatureThreshold);
 
     /// @notice Challenge the `rootClaim`.
@@ -207,7 +206,6 @@ interface IDisputeGame_OutputAttestation is IDisputeGame {
     ///      the function will call the `resolve` function to resolve the game as `CHALLENGER_WINS`.
     ///      - When the game resolves, the bond attached to the root claim will be distributed among
     ///      the signers who participated in challenging the invalid claim.
-    ///
     /// @param signature A signed message of the `rootClaim` from the attestor's EOA.
     function challenge(bytes calldata signature) external;
 }
