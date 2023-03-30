@@ -8,24 +8,27 @@ data wil result in not only the same output, but the same program execution trac
 on-chain VM as part of the dispute resolution process.
 
 ## Compiling
+
+To build op-program, from within the `op-program` directory run:
+
 ```shell
-cd op-program
 make op-program
 ```
 
+This resulting executable will be in `./bin/op-program`
+
 ## Testing
 
-Run op-node unit tests:
+To run op-program unit tests, from within the `op-program` directory run:
+
 ```shell
-cd op-program
 make test
 ```
 
 ## Lint
 
-Run the linter with:
+To run the linter, from within the `op-program` directory run:
 ```shell
-cd op-program
 make lint
 ```
 
@@ -33,8 +36,8 @@ This requires having `golangci-lint` installed.
 
 ## Running
 
-Options can be reviewed with:
+From within the `op-program` directory, options can be reviewed with:
 
 ```shell
-./bin/op-program/op-program --help
+./bin/op-program --help
 ```
