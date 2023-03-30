@@ -1124,6 +1124,9 @@ workflows:
           name: op-proposer-lint
           module: op-proposer
       - go-lint:
+          name: op-program-lint
+          module: op-program
+      - go-lint:
           name: op-service-lint
           module: op-service
       - go-lint:
@@ -1146,6 +1149,9 @@ workflows:
           name: op-proposer-tests
           module: op-proposer
       - go-test:
+          name: op-program-tests
+          module: op-program
+      - go-test:
           name: op-service-tests
           module: op-service
       - go-e2e-test:
@@ -1164,12 +1170,14 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-program-lint
             - op-service-lint
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests
