@@ -22,11 +22,11 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-After processing one or more blocks the outputs will need to be synchronized with L1 for trustless execution of
-L2-to-L1 messaging, such as withdrawals.
-The output proposals act as the bridge's view into the L2 state.
-Proposers submit the output roots to L1 and can be contested with a fault proof,
-with a bond at stake if the proof is wrong.
+After processing one or more blocks the outputs will need to be synchronized with the settlement layer (L1)
+for trustless execution of L2-to-L1 messaging, such as withdrawals.
+These output proposals act as the bridge's view into the L2 state.
+Actors called "Proposers" submit the output roots to the settlement layer (L1) and can be contested with a fault proof,
+with a bond at stake if the proof is wrong. The [op-proposer](../op-proposer/) in one such implementation of a proposer.
 
 _Note_: Fault proofs on Optimism are not fully specified at this time. Although fault proof
 construction and verification [is implemented in Cannon][cannon],
@@ -38,15 +38,10 @@ are part of later specification milestones.
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output roots, which are commitments to the L2's state,
-to the `L2OutputOracle` contract on L1 (the settlement layer). It does this by running the
-[L2 output proposer](../op-proposer/), a service which periodically queries the rollup node's
-[`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
-from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
-described [below](#l2-output-commitment-construction).
-
-An implementation may submit output commitments that correspond to unsafe (non-finalized) L2 blocks
-but this comes with risk as it will be possible to submit L2 blocks that do not correspond to the
-output commitments that have already been made available.
+to the `L2OutputOracle` contract on L1 (the settlement layer). To do this, the proposer periodically
+queries the [rollup node](./rollup-node.md) for the latest output root derived from the latest
+[finalized](rollup-node.md#finalization-guarantees) L1 block. It then takes the output root and
+submits it to the `L2OutputOracle` contract on the settlement layer (L1).
 
 ### L2OutputOracle v1.0.0
 
@@ -75,8 +70,8 @@ while True:
     time.sleep(poll_interval)
 ```
 
-A `CHALLENGER` account can delete multiple output roots by calling the `deleteL2Outputs()` function and specifying the
-index of the first output to delete, this will also delete all subsequent outputs.
+A `CHALLENGER` account can delete multiple output roots by calling the `deleteL2Outputs()` function
+and specifying the index of the first output to delete, this will also delete all subsequent outputs.
 
 ### L2OutputOracle v2.0.0
 
@@ -88,9 +83,41 @@ either via fault proof or by an attestation proof, then the bond can be slashed 
 payment to the users who paid for gas to remove the malicious output.
 
 The `op-proposer` can still be used to submit output proposals. A naive implementation of the
-`op-proposer` will still submit output proposals on an interval. A more ideal implementation
+`op-proposer` will submit output proposals on an interval. However, this is not required, and other
+proposer implementations may submit valid outputs at any time. A more ideal implementation
 will use heuristics such as time of last submission or number of pending withdrawals that have
 yet to be included in an output proposal.
+
+A single iteration of this proposer (posting one output root to L1) is depicted below:
+
+```mermaid
+sequenceDiagram
+    participant L1
+    participant Rollup Node
+    participant Proposer
+
+    L1->>L1: L1 block finalized
+    L1->>Rollup Node: L1 block finalized
+    Proposer->>Rollup Node: optimism_syncStatus
+    Rollup Node->>Proposer: sync status { finalized L1 block num }
+    Proposer->>Rollup Node: optimism_outputAtBlock
+    Rollup Node->>Proposer: output root
+    Proposer->>L1: Query L2OutputOracle for this output root
+    L1->>Proposer: output root or nil
+    Proposer->>Proposer: stop if the current output is already proposed
+    Proposer->>L1: L2OutputOracle.proposeOutputRoot
+```
+
+Since there may be multiple proposers running simultaneously when permissionless output proposals are enabled,
+the [op-proposer](../op-proposer/) will check that it's output root has not been posted for the given L2 block
+number before sending the proposal transaction. This is shown in the sequence diagram above when the `Proposer`
+queries the `L2OutputOracle` for the output root. If it receives an output root that is equal to the one it
+received from the rollup node, it will **not** send this output root in a transaction to the `L2OutputOracle`.
+
+Also note, while the [op-proposer](../op-proposer/) implementation submits outputs _only_ based on finalized
+or safe L2 blocks, other proposer implementations may submit outputs corresponding to unsafe (non-finalized)
+L2 blocks. This comes with risk as it will be possible for [batchers](./batcher.md) to submit L2 blocks that
+do not correspond to the output that have already been made available (implying those outputs are now _invalid_).
 
 Version `v2.0.0` includes breaking changes to the `L2OutputOracle` ABI.
 
