@@ -17,6 +17,7 @@ import (
 type SendState struct {
 	minedTxs map[common.Hash]struct{}
 	mu       sync.RWMutex
+	now      func() time.Time
 
 	// Config
 	nonceTooLowCount    uint64
@@ -27,9 +28,8 @@ type SendState struct {
 	safeAbortNonceTooLowCount uint64 // nonce too low error
 }
 
-// NewSendState parameterizes a new SendState from the passed
-// safeAbortNonceTooLowCount.
-func NewSendState(safeAbortNonceTooLowCount uint64, unableToSendTimeout time.Duration) *SendState {
+// NewSendStateWithNow creates a new send state with the provided clock.
+func NewSendStateWithNow(safeAbortNonceTooLowCount uint64, unableToSendTimeout time.Duration, now func() time.Time) *SendState {
 	if safeAbortNonceTooLowCount == 0 {
 		panic("txmgr: safeAbortNonceTooLowCount cannot be zero")
 	}
@@ -37,8 +37,14 @@ func NewSendState(safeAbortNonceTooLowCount uint64, unableToSendTimeout time.Dur
 	return &SendState{
 		minedTxs:                  make(map[common.Hash]struct{}),
 		safeAbortNonceTooLowCount: safeAbortNonceTooLowCount,
-		txInMempoolDeadline:       time.Now().Add(unableToSendTimeout),
+		txInMempoolDeadline:       now().Add(unableToSendTimeout),
+		now:                       now,
 	}
+}
+
+// NewSendState creates a new send state
+func NewSendState(safeAbortNonceTooLowCount uint64, unableToSendTimeout time.Duration) *SendState {
+	return NewSendStateWithNow(safeAbortNonceTooLowCount, unableToSendTimeout, time.Now)
 }
 
 // ProcessSendError should be invoked with the error returned for each
@@ -100,7 +106,7 @@ func (s *SendState) ShouldAbortImmediately() bool {
 	// If we have exceeded the nonce too low count, abort
 	if s.nonceTooLowCount >= s.safeAbortNonceTooLowCount ||
 		// If we have not published a transaction in the allotted time, abort
-		(s.successFullPublishCount == 0 && time.Now().After(s.txInMempoolDeadline)) {
+		(s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline)) {
 		return true
 	}
 

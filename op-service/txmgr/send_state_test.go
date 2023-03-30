@@ -19,11 +19,11 @@ var (
 const testSafeAbortNonceTooLowCount = 3
 
 func newSendState() *txmgr.SendState {
-	return newSendStateWithTimeout(time.Hour)
+	return newSendStateWithTimeout(time.Hour, time.Now)
 }
 
-func newSendStateWithTimeout(t time.Duration) *txmgr.SendState {
-	return txmgr.NewSendState(testSafeAbortNonceTooLowCount, t)
+func newSendStateWithTimeout(t time.Duration, now func() time.Time) *txmgr.SendState {
+	return txmgr.NewSendStateWithNow(testSafeAbortNonceTooLowCount, t, now)
 }
 
 func processNSendErrors(sendState *txmgr.SendState, err error, n int) {
@@ -166,19 +166,26 @@ func TestSendStateIsNotWaitingForConfirmationAfterTxUnmined(t *testing.T) {
 	require.False(t, sendState.IsWaitingForConfirmation())
 }
 
+func stepClock(step time.Duration) func() time.Time {
+	i := 0
+	return func() time.Time {
+		var start time.Time
+		i += 1
+		return start.Add(time.Duration(i) * step)
+	}
+}
+
 // TestSendStateTimeoutAbort ensure that this will abort if it passes the tx pool timeout
 // when no successful transactions have been recorded
 func TestSendStateTimeoutAbort(t *testing.T) {
-	sendState := newSendStateWithTimeout(10 * time.Millisecond)
-	time.Sleep(20 * time.Millisecond)
+	sendState := newSendStateWithTimeout(10*time.Millisecond, stepClock(20*time.Millisecond))
 	require.True(t, sendState.ShouldAbortImmediately(), "Should abort after timing out")
 }
 
 // TestSendStateNoTimeoutAbortIfPublishedTx ensure that this will not abort if there is
 // a successful transaction send.
 func TestSendStateNoTimeoutAbortIfPublishedTx(t *testing.T) {
-	sendState := newSendStateWithTimeout(10 * time.Millisecond)
+	sendState := newSendStateWithTimeout(10*time.Millisecond, stepClock(20*time.Millisecond))
 	sendState.ProcessSendError(nil)
-	time.Sleep(20 * time.Millisecond)
 	require.False(t, sendState.ShouldAbortImmediately(), "Should not abort if published transcation successfully")
 }
