@@ -337,7 +337,7 @@ jobs:
           name: slither
           command: |
             slither --version
-            yarn slither || exit 0
+            yarn slither
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
