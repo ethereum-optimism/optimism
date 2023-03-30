@@ -48,6 +48,7 @@ func main() {
 					return err
 				}
 
+				log.Info("Connecting to AddressManager", "address", addresses.AddressManager)
 				addressManager, err := bindings.NewAddressManager(addresses.AddressManager, clients.L1Client)
 				if err != nil {
 					return err
@@ -58,12 +59,15 @@ func main() {
 					if err != nil {
 						return err
 					}
-					if shutoffBlock.Big().Cmp(common.Big0) != 0 {
+					if num := shutoffBlock.Big(); num.Cmp(common.Big0) != 0 {
+						log.Info("DTL_SHUTOFF_BLOCK is set", "number", num.Uint64())
 						break
 					}
+					log.Info("DTL_SHUTOFF_BLOCK not set yet")
 					time.Sleep(3 * time.Second)
 				}
 
+				log.Info("Connecting to CanonicalTransactionChain", "address", addresses.CanonicalTransactionChain)
 				ctc, err := legacy_bindings.NewCanonicalTransactionChain(addresses.CanonicalTransactionChain, clients.L1Client)
 				if err != nil {
 					return err
@@ -98,11 +102,11 @@ func main() {
 					"pending", pending,
 				)
 
-				log.Info("Searching backwards for final deposit")
 				blockNumber, err := clients.L2Client.BlockNumber(context.Background())
 				if err != nil {
 					return err
 				}
+				log.Info("Searching backwards for final deposit", "start", blockNumber)
 
 				for {
 					bn := new(big.Int).SetUint64(blockNumber)
@@ -163,11 +167,13 @@ func main() {
 					return err
 				}
 
+				log.Info("Connecting to CanonicalTransactionChain", "address", addresses.CanonicalTransactionChain)
 				ctc, err := legacy_bindings.NewCanonicalTransactionChain(addresses.CanonicalTransactionChain, clients.L1Client)
 				if err != nil {
 					return err
 				}
 
+				log.Info("Connecting to StateCommitmentChain", "address", addresses.StateCommitmentChain)
 				scc, err := legacy_bindings.NewStateCommitmentChain(addresses.StateCommitmentChain, clients.L1Client)
 				if err != nil {
 					return err
@@ -239,28 +245,6 @@ func legacyTransactionByHash(client *rpc.Client, hash common.Hash) (*RPCTransact
 		return nil, err
 	}
 	return json, nil
-}
-
-// toBlockNumArg is able to handle the conversion between a big.Int and a
-// string blocktag. This function should be used in JSON RPC interactions
-// when fetching data by block number.
-func toBlockNumArg(number *big.Int) string {
-	if number == nil {
-		return "latest"
-	}
-	pending := big.NewInt(-1)
-	if number.Cmp(pending) == 0 {
-		return "pending"
-	}
-	finalized := big.NewInt(int64(rpc.FinalizedBlockNumber))
-	if number.Cmp(finalized) == 0 {
-		return "finalized"
-	}
-	safe := big.NewInt(int64(rpc.SafeBlockNumber))
-	if number.Cmp(safe) == 0 {
-		return "safe"
-	}
-	return hexutil.EncodeBig(number)
 }
 
 // RPCTransaction represents a transaction that will serialize to the RPC representation of a
