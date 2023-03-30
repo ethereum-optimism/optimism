@@ -61,13 +61,13 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
      * @notice Attestation key for that signals that an account was allowed to issue invites
      */
-    bytes32 public constant CAN_INVITE_ATTESTATION_KEY = keccak256("optimist.can-invite");
+    bytes32 public constant CAN_INVITE_ATTESTATION_KEY = bytes32("optimist.can-invite");
 
     /**
      * @notice Attestation key allowing the attested account to mint.
      */
     bytes32 public constant CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
-        keccak256("optimist.can-mint-from-invite");
+        bytes32("optimist.can-mint-from-invite");
 
     /**
      * @notice Granter who can set accounts' invite counts.
