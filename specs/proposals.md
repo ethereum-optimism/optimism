@@ -38,7 +38,10 @@ are part of later specification milestones.
 ## Proposing L2 Output Commitments
 
 The proposer's role is to construct and submit output roots, which are commitments to the L2's state,
-to the `L2OutputOracle` contract on L1 (the settlement layer).
+to the `L2OutputOracle` contract on L1 (the settlement layer). To do this, the proposer periodically
+queries the [rollup node](./rollup-node.md) for the latest output root derived from the latest
+[finalized](rollup-node.md#finalization-guarantees) L1 block. It then takes the output root and
+submits it to the `L2OutputOracle` contract on the settlement layer (L1).
 
 ### L2OutputOracle v1.0.0
 
@@ -85,14 +88,7 @@ proposer implementations may submit valid outputs at any time. A more ideal impl
 will use heuristics such as time of last submission or number of pending withdrawals that have
 yet to be included in an output proposal.
 
-In order to post outputs to the `L2OutputOracle`, the proposer needs to periodically query the
-[rollup node](./rollup-node.md)'s [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method)
-for the latest output root derived from the latest [finalized](rollup-node.md#finalization-guarantees)
-L1 block.
-
-It then takes the output root and submits it to the `L2OutputOracle` contract on the settlement layer (L1).
-
-A single iteration of the proposer (posting one output root to L1) is depicted below:
+A single iteration of this proposer (posting one output root to L1) is depicted below:
 
 ```mermaid
 sequenceDiagram
