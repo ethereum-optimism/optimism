@@ -1,8 +1,10 @@
 package main
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/ethereum-optimism/optimism/op-node/chaincfg"
 	"github.com/ethereum-optimism/optimism/op-program/config"
 	"github.com/ethereum-optimism/optimism/op-program/flags"
 	"github.com/ethereum-optimism/optimism/op-program/version"
@@ -33,14 +35,17 @@ var VersionWithMeta = func() string {
 
 func main() {
 	args := os.Args
-	err := run(args, FaultProofProgramMain)
+	err := run(args, FaultProofProgram)
 	if err != nil {
 		log.Crit("Application failed", "message", err)
 	}
 }
 
-type ConfigAction func(log log.Logger, config config.Config) error
+type ConfigAction func(log log.Logger, config *config.Config) error
 
+// run parses the supplied args to create a config.Config instance, sets up logging
+// then calls the supplied ConfigAction.
+// This allows testing the translation from CLI arguments to Config
 func run(args []string, action ConfigAction) error {
 	// Set up logger with a default INFO level in case we fail to parse flags,
 	// otherwise the final critical log won't show what the parsing error was.
@@ -53,12 +58,10 @@ func run(args []string, action ConfigAction) error {
 	app.Usage = "Optimism Fault Proof Program"
 	app.Description = "The Optimism Fault Proof Program fault proof program that runs through the rollup state-transition to verify an L2 output from L1 inputs."
 	app.Action = func(ctx *cli.Context) error {
-		logCfg := oplog.ReadCLIConfig(ctx)
-		if err := logCfg.Check(); err != nil {
-			log.Error("Unable to create the log config", "error", err)
+		logger, err := setupLogging(ctx)
+		if err != nil {
 			return err
 		}
-		logger := oplog.NewLogger(logCfg)
 		logger.Info("Starting fault proof program", "version", VersionWithMeta)
 
 		cfg, err := config.NewConfigFromCLI(ctx)
@@ -71,6 +74,17 @@ func run(args []string, action ConfigAction) error {
 	return app.Run(args)
 }
 
-func FaultProofProgramMain(log log.Logger, cfg config.Config) error {
+func setupLogging(ctx *cli.Context) (log.Logger, error) {
+	logCfg := oplog.ReadCLIConfig(ctx)
+	if err := logCfg.Check(); err != nil {
+		return nil, fmt.Errorf("log config error: %w", err)
+	}
+	logger := oplog.NewLogger(logCfg)
+	return logger, nil
+}
+
+// FaultProofProgram is the programmatic entry-point for the fault proof program
+func FaultProofProgram(log log.Logger, cfg *config.Config) error {
+	cfg.Rollup.LogDescription(log, chaincfg.L2ChainIDToNetworkName)
 	return nil
 }
