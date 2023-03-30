@@ -26,6 +26,7 @@ contract OptimistAllowlist_Initializer is Test {
     OptimistAllowlist optimistAllowlist;
     OptimistInviter optimistInviter;
 
+    // Helps with EIP-712 signature generation
     OptimistInviterHelper optimistInviterHelper;
 
     function setUp() public {
@@ -77,11 +78,15 @@ contract OptimistAllowlist_Initializer is Test {
         addresses[0] = bob;
 
         vm.prank(alice_allowlistAttestor);
+
+        // grant invites to Bob;
         optimistInviter.setInviteCounts(addresses, 3);
 
+        // issue a new invite
         OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
             .getClaimableInviteWithNewNonce(bob);
 
+        // EIP-712 sign with Bob's private key
         bytes memory signature = _getSignature(
             bobPrivateKey,
             optimistInviterHelper.getDigest(claimableInvite)
@@ -89,9 +94,14 @@ contract OptimistAllowlist_Initializer is Test {
 
         bytes32 hashedCommit = keccak256(abi.encode(claimer, signature));
 
+        // commit the invite
         vm.prank(claimer);
         optimistInviter.commitInvite(hashedCommit);
+
+        // wait minimum commitment period
         vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
+
+        // reveal and claim the invite
         optimistInviter.claimInvite(claimer, claimableInvite, signature);
     }
 
@@ -120,7 +130,7 @@ contract OptimistAllowlist_Initializer is Test {
             attestationStation,
             alice_allowlistAttestor,
             sally_coinbaseQuestAttestor,
-            optimistInviter
+            address(optimistInviter)
         );
 
         optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");
@@ -138,35 +148,42 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertEq(optimistAllowlist.version(), "1.0.0");
     }
 
-    /*
-- check falsy attestations from all attestors
-- check no attestations from all attestors
-- check wrong user making attestors
-- check correct attestors making attestor
-- multiple attestations should allow to mint
-- (In optimist contract) - having multiple attestations shouldn't allow you to mint multiple times
-
-    */
-
+    /**
+     * @notice Base case, a account without any relevant attestations should not be able to mint.
+     */
     function test_isAllowedToMint_withoutAnyAttestations_fails() external {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice After receiving a valid allowlist attestation, the account should be able to mint.
+     */
     function test_isAllowedToMint_fromAllowlistAttestor_success() external {
         attestAllowlist(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice After receiving a valid attestation from the Coinbase Quest attestor,
+     *         the account should be able to mint.
+     */
     function test_isAllowedToMint_fromCoinbaseQuestAttestor_success() external {
         attestCoinbaseQuest(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Account that received an attestation from the OptimistInviter contract by going
+     *         through the claim invite flow should be able to mint.
+     */
     function test_isAllowedToMint_fromInvite_success() external {
         inviteAndClaim(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Attestation from the wrong allowlist attestor should not allow minting.
+     */
     function test_isAllowedToMint_fromWrongAllowlistAttestor_fails() external {
         // Ted is not the allowlist attestor
         vm.prank(ted);
@@ -178,6 +195,9 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Coinbase attestation from wrong attestor should not allow minting.
+     */
     function test_isAllowedToMint_fromWrongCoinbaseQuestAttestor_fails() external {
         // Ted is not the coinbase quest attestor
         vm.prank(ted);
@@ -189,6 +209,10 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Claiming an invite on the non-official OptimistInviter contract should not allow
+     *         minting.
+     */
     function test_isAllowedToMint_fromWrongOptimistInviter_fails() external {
         vm.prank(ted);
         attestationStation.attest(
@@ -199,12 +223,17 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Having multiple signals, even if one is invalid, should still allow minting.
+     */
     function test_isAllowedToMint_withMultipleAttestations_success() external {
         attestAllowlist(bob);
         attestCoinbaseQuest(bob);
         inviteAndClaim(bob);
 
-        // A non valid attestation, as Ted is not allowlist attestor
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
+
+        // A invalid attestation, as Ted is not allowlist attestor
         vm.prank(ted);
         attestationStation.attest(
             bob,
@@ -216,6 +245,9 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Having falsy attestation value should not allow minting.
+     */
     function test_isAllowedToMint_fromAllowlistAttestorWithFalsyValue_fails() external {
         // First sends correct attestation
         attestAllowlist(bob);
@@ -231,6 +263,9 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 
+    /**
+     * @notice Having falsy attestation value from Coinbase attestor should not allow minting.
+     */
     function test_isAllowedToMint_fromCoinbaseQuestAttestorWithFalsyValue_fails() external {
         // First sends correct attestation
         attestAllowlist(bob);

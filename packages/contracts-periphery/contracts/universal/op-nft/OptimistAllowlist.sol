@@ -19,10 +19,16 @@ contract OptimistAllowlist is Semver {
     bytes32 public constant OPTIMIST_CAN_MINT_ATTESTATION_KEY = bytes32("optimist.can-mint");
 
     /**
-     * @notice Attestation key used by the Coinbase to issue attestations for Quest participants.
+     * @notice Attestation key used by Coinbase to issue attestations for Quest participants.
      */
     bytes32 public constant COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY =
         bytes32("coinbase.quest-eligible");
+
+    /**
+     * @notice Attestation key the OptimistInviter needs to issue to allow an address to mint.
+     */
+    bytes32 public constant OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
+        bytes32("optimist.can-mint-from-invite");
 
     /**
      * @notice Address of the AttestationStation contract.
@@ -43,7 +49,7 @@ contract OptimistAllowlist is Semver {
      * @notice Address of OptimistInviter contract that issues 'optimist.can-mint-from-invite'
      *         attestations.
      */
-    OptimistInviter public immutable OPTIMIST_INVITER;
+    address public immutable OPTIMIST_INVITER;
 
     /**
      * @custom:semver 1.0.0
@@ -56,7 +62,7 @@ contract OptimistAllowlist is Semver {
         AttestationStation _attestationStation,
         address _allowlistAttestor,
         address _coinbaseQuestAttestor,
-        OptimistInviter _optimistInviter
+        address _optimistInviter
     ) Semver(1, 0, 0) {
         ATTESTATION_STATION = _attestationStation;
         ALLOWLIST_ATTESTOR = _allowlistAttestor;
@@ -105,9 +111,9 @@ contract OptimistAllowlist is Semver {
         return
             ATTESTATION_STATION
                 .attestations(
-                    address(OPTIMIST_INVITER),
+                    OPTIMIST_INVITER,
                     _recipient,
-                    OPTIMIST_INVITER.CAN_MINT_FROM_INVITE_ATTESTATION_KEY()
+                    OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
                 )
                 .length > 0;
     }
