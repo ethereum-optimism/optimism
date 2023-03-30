@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 /* Testing utilities */
 import { Test, StdUtils } from "forge-std/Test.sol";
 import { L2OutputOracle } from "../L1/L2OutputOracle.sol";
+import { L2OutputOracleV2 } from "../L1/L2OutputOracleV2.sol";
 import { L2ToL1MessagePasser } from "../L2/L2ToL1MessagePasser.sol";
 import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
@@ -149,6 +150,72 @@ contract L2OutputOracle_Initializer is CommonTest {
         );
         oracle = L2OutputOracle(address(proxy));
         vm.label(address(oracle), "L2OutputOracle");
+
+        // Set the L2ToL1MessagePasser at the correct address
+        vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
+
+        vm.label(Predeploys.L2_TO_L1_MESSAGE_PASSER, "L2ToL1MessagePasser");
+    }
+}
+
+contract L2OutputOracleV2_Initializer is CommonTest {
+    L2OutputOracleV2 oracle;
+    L2OutputOracleV2 oracleImpl;
+
+    L2ToL1MessagePasser messagePasser =
+        L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
+
+    // Constructor arguments
+    address internal owner = 0x000000000000000000000000000000000000ACDC;
+    uint256 internal l2BlockTime = 2;
+    uint256 internal startingBlockNumber = 200;
+    uint256 internal startingTimestamp = 1000;
+    uint256 internal minimumProposalCost = 1 ether;
+    address guardian;
+
+    // Test data
+    uint256 initL1Time;
+
+    event OutputProposed(
+        bytes32 indexed outputRoot,
+        uint256 indexed l2OutputIndex,
+        uint256 indexed l2BlockNumber,
+        uint256 l1Timestamp
+    );
+
+    event OutputDeleted(uint256 indexed l2BlockNumber);
+
+    // Advance the evm's time to meet the L2OutputOracleV2's requirements for proposeL2Output
+    function warpToProposeTime(uint256 _nextBlockNumber) public {
+        vm.warp(oracle.computeL2Timestamp(_nextBlockNumber) + 1);
+    }
+
+    function setUp() public virtual override {
+        super.setUp();
+        guardian = makeAddr("guardian");
+
+        // By default the first block has timestamp and number zero, which will cause underflows in the
+        // tests, so we'll move forward to these block values.
+        initL1Time = startingTimestamp + 1;
+        vm.warp(initL1Time);
+        vm.roll(startingBlockNumber);
+        // Deploy the L2OutputOracleV2 and transfer owernship to the proposer
+        oracleImpl = new L2OutputOracleV2({
+            _l2BlockTime: l2BlockTime,
+            _startingBlockNumber: startingBlockNumber,
+            _startingTimestamp: startingTimestamp,
+            _challenger: owner,
+            _finalizationPeriodSeconds: 7 days,
+            _minimumOutputProposalCost: minimumProposalCost
+        });
+        Proxy proxy = new Proxy(multisig);
+        vm.prank(multisig);
+        proxy.upgradeToAndCall(
+            address(oracleImpl),
+            abi.encodeCall(L2OutputOracleV2.initialize, (startingBlockNumber, startingTimestamp))
+        );
+        oracle = L2OutputOracleV2(address(proxy));
+        vm.label(address(oracle), "L2OutputOracleV2");
 
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);
