@@ -91,7 +91,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
         uint256 _finalizationPeriodSeconds,
         uint256 _minimumOutputProposalCost
     ) Semver(2, 0, 0) {
-        require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
+        require(_l2BlockTime > 0, "L2OutputOracleV2: L2 block time must be greater than 0");
 
         L2_BLOCK_TIME = _l2BlockTime;
         CHALLENGER = _challenger;
@@ -113,7 +113,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
     {
         require(
             _startingTimestamp <= block.timestamp,
-            "L2OutputOracle: starting L2 timestamp must be less than current time"
+            "L2OutputOracleV2: starting L2 timestamp must be less than current time"
         );
 
         startingTimestamp = _startingTimestamp;
@@ -129,13 +129,13 @@ contract L2OutputOracleV2 is Initializable, Semver {
     function deleteL2Output(uint256 _l2BlockNumber) external {
         require(
             msg.sender == CHALLENGER,
-            "L2OutputOracle: only the challenger address can delete an output"
+            "L2OutputOracleV2: only the challenger address can delete an output"
         );
 
         // Do not allow deleting any outputs that have already been finalized.
         require(
             block.timestamp - l2Outputs[_l2BlockNumber].timestamp < FINALIZATION_PERIOD_SECONDS,
-            "L2OutputOracle: cannot delete outputs that have already been finalized"
+            "L2OutputOracleV2: cannot delete outputs that have already been finalized"
         );
 
         delete l2Outputs[_l2BlockNumber];
@@ -159,22 +159,22 @@ contract L2OutputOracleV2 is Initializable, Semver {
     ) external payable {
         require(
             msg.value >= MINIMUM_OUTPUT_PROPOSAL_COST,
-            "L2OutputOracle: minimum proposal cost not provided"
+            "L2OutputOracleV2: minimum proposal cost not provided"
         );
 
         require(
             l2Outputs[_l2BlockNumber].timestamp == 0,
-            "L2OutputOracle: output already proposed"
+            "L2OutputOracleV2: output already proposed"
         );
 
         require(
             computeL2Timestamp(_l2BlockNumber) < block.timestamp,
-            "L2OutputOracle: cannot propose L2 output in the future"
+            "L2OutputOracleV2: cannot propose L2 output in the future"
         );
 
         require(
             _outputRoot != bytes32(0),
-            "L2OutputOracle: L2 output proposal cannot be the zero hash"
+            "L2OutputOracleV2: L2 output proposal cannot be the zero hash"
         );
 
         if (_l1BlockHash != bytes32(0)) {
@@ -188,7 +188,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
             // finalized.
             require(
                 blockhash(_l1BlockNumber) == _l1BlockHash,
-                "L2OutputOracle: block hash does not match the hash at the expected height"
+                "L2OutputOracleV2: block hash does not match the hash at the expected height"
             );
         }
 
@@ -237,7 +237,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
     {
         require(
             _l2BlockNumber <= highestL2BlockNumber,
-            "L2OutputOracle: cannot get output for block number that has not been proposed"
+            "L2OutputOracleV2: cannot get output for block number that has not been proposed"
         );
 
         uint256 l2BlockNumber = _l2BlockNumber;
@@ -247,7 +247,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
             proposal = l2Outputs[l2BlockNumber];
             require(
                 l2BlockNumber <= highestL2BlockNumber,
-                "L2OutputOracle: cannot get output for block number that has not been proposed"
+                "L2OutputOracleV2: cannot get output for block number that has not been proposed"
             );
         }
 
