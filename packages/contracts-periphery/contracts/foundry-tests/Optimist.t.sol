@@ -175,7 +175,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev The baseURI should be set by attestation station
      * by the owner of contract alice_admin
      */
-    function test_baseURI_succeeds() external {
+    function test_baseURI_returnsCorrectBaseURI_succeeds() external {
         attestBaseuri(base_uri);
 
         bytes memory data = abi.encodeWithSelector(
@@ -195,7 +195,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev The tokenURI should return the token uri
      * for a minted token
      */
-    function test_tokenURI_succeeds() external {
+    function test_tokenURI_returnsCorrectTokenURI_succeeds() external {
         attestAllowlist(bob);
         // we are using true but it can be any non empty value
         attestBaseuri(base_uri);
@@ -214,9 +214,9 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev Should return a boolean of if the address is whitelisted
+     * @dev Should return a boolean of if the address is allowlisted
      */
-    function test_optimist_is_on_allow_list() external {
+    function test_isOnAllowlist_returnsTrueForAllowlistedAddresses_succeeds() external {
         attestAllowlist(bob);
 
         bytes memory data = abi.encodeWithSelector(
@@ -242,7 +242,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev Should return the token id of the owner
      */
-    function test_optimist_token_id_of_owner() external {
+    function test_tokenIdOfAddress_returnsOwnerID_succeeds() external {
         // whitelist bob
         uint256 willTokenId = 1024;
         address will = address(1024);
@@ -257,7 +257,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev It should revert if anybody attemps token transfer
      */
-    function test_optimist_sbt_transfer() external {
+    function test_transferFrom_reverts() external {
         attestAllowlist(bob);
 
         // mint as bob
@@ -282,7 +282,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev It should revert if anybody attemps approve
      */
-    function test_optimist_sbt_approve() external {
+    function test_approve_reverts() external {
         attestAllowlist(bob);
 
         // mint as bob
@@ -300,7 +300,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev It should be able to burn token
      */
-    function test_optimist_burn() external {
+    function test_burn_byOwner_succeeds() external {
         attestAllowlist(bob);
 
         // mint as bob
@@ -318,7 +318,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev setApprovalForAll should revert as sbt
      */
-    function test_optimist_set_approval_for_all() external {
+    function test_setApprovalForAll_reverts() external {
         attestAllowlist(bob);
 
         // mint as bob
@@ -337,7 +337,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev should support erc721 interface
      */
-    function test_optimist_supports_interface() external {
+    function test_supportsInterface_returnsCorrectInterfaceForERC721_succeeds() external {
         bytes4 iface721 = type(IERC721).interfaceId;
         // check that it supports erc721 interface
         assertEq(optimist.supportsInterface(iface721), true);
