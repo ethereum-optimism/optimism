@@ -3,7 +3,6 @@ pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
-import { OptimistInviter } from "./OptimistInviter.sol";
 
 /**
  * @title  OptimistAllowlist
