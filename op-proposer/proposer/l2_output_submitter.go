@@ -298,6 +298,7 @@ func (l *L2OutputSubmitter) AlreadyProposed(ctx context.Context, block *big.Int,
 	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
 	defer cancel()
 	callOpts := &bind.CallOpts{
+		Pending: true,
 		Context: ctx,
 	}
 	proposed, err := l.l2ooContract.GetL2Output(callOpts, block)
