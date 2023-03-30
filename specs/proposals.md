@@ -10,6 +10,8 @@
 **Table of Contents**
 
 - [Proposing L2 Output Commitments](#proposing-l2-output-commitments)
+  - [L2OutputOracle v1.0.0](#l2outputoracle-v100)
+  - [L2OutputOracle v2.0.0](#l2outputoracle-v200)
 - [L2 Output Commitment Construction](#l2-output-commitment-construction)
 - [L2 Output Oracle Smart Contract](#l2-output-oracle-smart-contract)
   - [Configuration](#configuration)
@@ -21,8 +23,8 @@
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 After processing one or more blocks the outputs will need to be synchronized with L1 for trustless execution of
-L2-to-L1 messaging, such as withdrawals. Outputs are hashed in a tree-structured form which minimizes the cost of
-proving any piece of data captured by the outputs.
+L2-to-L1 messaging, such as withdrawals.
+The output proposals act as the bridge's view into the L2 state.
 Proposers submit the output roots to L1 and can be contested with a fault proof,
 with a bond at stake if the proof is wrong.
 
@@ -35,24 +37,62 @@ are part of later specification milestones.
 
 ## Proposing L2 Output Commitments
 
-The proposer's role is to construct and submit output roots, which are commitments made on a configurable interval,
-to the `L2OutputOracle` contract running on L1. It does this by running the [L2 output proposer](../op-proposer/),
-a service which periodically queries the rollup node's
+The proposer's role is to construct and submit output roots, which are commitments to the L2's state,
+to the `L2OutputOracle` contract on L1 (the settlement layer). It does this by running the
+[L2 output proposer](../op-proposer/), a service which periodically queries the rollup node's
 [`optimism_outputAtBlock` rpc method](./rollup-node.md#l2-output-rpc-method) for the latest output root derived
 from the latest [finalized](rollup-node.md#finalization-guarantees) L1 block. The construction of this output root is
 described [below](#l2-output-commitment-construction).
 
-If there is no newly finalized output, the service continues querying until it receives one. It then submits this
-output, and the appropriate timestamp, to the [L2 Output Root](#l2-output-root-smart-contract) contract's
-`proposeL2Output()` function. The timestamp block number must correspond to the `startingBlockNumber` plus the next
-multiple of the `SUBMISSION_INTERVAL` value.
+An implementation may submit output commitments that correspond to unsafe (non-finalized) L2 blocks
+but this comes with risk as it will be possible to submit L2 blocks that do not correspond to the
+output commitments that have already been made available.
 
-The proposer may also delete multiple output roots by calling the `deleteL2Outputs()` function and specifying the
+### L2OutputOracle v1.0.0
+
+The submission of output proposals is permissioned to a single account. It is expected that this
+account continues to submit output proposals over time to ensure that user withdrawals do not halt.
+
+The [L2 output proposer](../op-proposer) is expected to submit output roots on a deterministic
+interval based on the configured `SUBMISSION_INTERVAL` in the `L2OutputOracle`. The larger
+the `SUBMISSION_INTERVAL`, the less often L1 transactions need to be sent to the `L2OutputOracle`
+contract, but L2 users will need to wait a bit longer for an output root to be included in L1 (the settlement layer)
+that includes their intention to withdrawal from the system.
+
+The honest `op-proposer` algorithm assumes a connection to the `L2OutputOracle` contract to know
+the L2 block number that corresponds to the next output proposal that must be submitted. It also
+assumes a connection to an `op-node` to be able to query the `optimism_syncStatus` RPC endpoint.
+
+```python
+import time
+
+while True:
+    next_checkpoint_block = L2OutputOracle.nextBlockNumber()
+    rollup_status = op_node_client.sync_status()
+    if rollup_status.finalized_l2.number >= next_checkpoint_block:
+        output = op_node_client.output_at_block(next_checkpoint_block)
+        tx = send_transaction(output)
+    time.sleep(poll_interval)
+```
+
+A `CHALLENGER` account can delete multiple output roots by calling the `deleteL2Outputs()` function and specifying the
 index of the first output to delete, this will also delete all subsequent outputs.
 
-> **Note regarding future work:** In the initial version of the system, the proposer will be the same entity as the
-> sequencer, which is a trusted role. In the future proposers may need to submit a bond in order to post L2 output
-> roots, and some or all of this bond may be taken in the event of a faulty proposal.
+### L2OutputOracle v2.0.0
+
+The submission of output proposals is permissionless and there is no interval at which output
+proposals must be submitted at. It is expected that users will "just in time" propose an output
+proposal to facilitate their own withdrawal. A bond must be placed with an output proposal to
+disincentivize the proposal of malicious outputs. If it can be proven that the output is malicious,
+either via fault proof or by an attestation proof, then the bond can be slashed and used as a
+payment to the users who paid for gas to remove the malicious output.
+
+The `op-proposer` can still be used to submit output proposals. A naive implementation of the
+`op-proposer` will still submit output proposals on an interval. A more ideal implementation
+will use heuristics such as time of last submission or number of pending withdrawals that have
+yet to be included in an output proposal.
+
+Version `v2.0.0` includes breaking changes to the `L2OutputOracle` ABI.
 
 ## L2 Output Commitment Construction
 
@@ -163,7 +203,7 @@ will not match that of the block with that number and the call will revert.
 
 ### Constants
 
-| Name                  | Value | Unit    |
-| --------------------- | ----- | ------- |
-| `SUBMISSION_INTERVAL` | TBD   | blocks  |
-| `L2_BLOCK_TIME`       | `2`   | seconds |
+| Name                  | Value   | Unit    |
+| --------------------- | ------- | ------- |
+| `SUBMISSION_INTERVAL` | `120`   | blocks  |
+| `L2_BLOCK_TIME`       | `2`     | seconds |
