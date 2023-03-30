@@ -12,15 +12,18 @@ contract Optimist_Initializer is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Initialized(uint8);
 
-    address constant alice_admin = address(128);
-    address constant bob = address(256);
-    address constant sally = address(512);
     string constant name = "Optimist name";
     string constant symbol = "OPTIMISTSYMBOL";
     string constant base_uri =
         "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
     AttestationStation attestationStation;
     Optimist optimist;
+
+    address internal carol_baseURIAttestor;
+    address internal alice_allowlistAttestor;
+    address internal ted_coinbaseAttestor;
+    address internal bob;
+    address internal sally;
 
     function attestBaseuri(string memory _baseUri) internal {
         AttestationStation.AttestationData[]
@@ -48,14 +51,17 @@ contract Optimist_Initializer is Test {
     }
 
     function setUp() public {
+        carol_baseURIAttestor = makeAddr("carol_baseURIAttestor");
+        alice_allowlistAttestor = makeAddr("alice_allowlistAttestor");
+        ted_coinbaseAttestor = makeAddr("ted_coinbaseAttestor");
+        bob = makeAddr("bob");
+        sally = makeAddr("sally");
+
         // Give alice and bob and sally some ETH
         vm.deal(alice_admin, 1 ether);
         vm.deal(bob, 1 ether);
         vm.deal(sally, 1 ether);
 
-        vm.label(alice_admin, "alice_admin");
-        vm.label(bob, "bob");
-        vm.label(sally, "sally");
         _initializeContracts();
     }
 
@@ -63,19 +69,21 @@ contract Optimist_Initializer is Test {
         attestationStation = new AttestationStation();
         vm.expectEmit(true, true, false, false);
         emit Initialized(1);
-        optimist = new Optimist(name, symbol, alice_admin, attestationStation);
+
+        OptimistAllowlist optimistAllowlist = new OptimistAllowlist(attestationStation, alice_admin, );
+        optimist = new Optimist(name, symbol, alice_admin, attestationStation, optimistAllowlist);
     }
 }
 
 contract OptimistTest is Optimist_Initializer {
-    function test_optimist_initialize() external {
+    function test_initialize_success() external {
         // expect name to be set
         assertEq(optimist.name(), name);
         // expect symbol to be set
         assertEq(optimist.symbol(), symbol);
         // expect attestationStation to be set
         assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
-        assertEq(optimist.ATTESTOR(), alice_admin);
+        assertEq(optimist.BASE_URI_ATTESTOR(), alice_admin);
         assertEq(optimist.version(), "1.0.0");
     }
 
@@ -83,7 +91,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev Bob should be able to mint an NFT if he is allowlisted
      * by the attestation station and has a balance of 0
      */
-    function test_optimist_mint_happy_path() external {
+    function test_mint_happyPath_success() external {
         // bob should start with 0 balance
         assertEq(optimist.balanceOf(bob), 0);
 
@@ -112,7 +120,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev Sally should be able to mint a token on behalf of bob
      */
-    function test_optimist_mint_secondary_minter() external {
+    function test_mint_secondaryMinter_succeeds() external {
         attestAllowlist(bob);
 
         bytes memory data = abi.encodeWithSelector(
@@ -139,7 +147,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev Bob should not be able to mint an NFT if he is not whitelisted
      */
-    function test_optimist_mint_no_attestation() external {
+    function test_mint_forNonAllowlistedClaimer_reverts() external {
         vm.prank(bob);
         vm.expectRevert("Optimist: address is not on allowList");
         optimist.mint(bob);
@@ -148,7 +156,7 @@ contract OptimistTest is Optimist_Initializer {
     /**
      * @dev Bob's tx should revert if he already minted
      */
-    function test_optimist_mint_already_minted() external {
+    function test_mint_forAlreadyMintedClaimer_reverts() external {
         attestAllowlist(bob);
 
         // mint initial nft with bob
@@ -167,7 +175,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev The baseURI should be set by attestation station
      * by the owner of contract alice_admin
      */
-    function test_optimist_baseURI() external {
+    function test_baseURI_succeeds() external {
         attestBaseuri(base_uri);
 
         bytes memory data = abi.encodeWithSelector(
@@ -187,7 +195,7 @@ contract OptimistTest is Optimist_Initializer {
      * @dev The tokenURI should return the token uri
      * for a minted token
      */
-    function test_optimist_token_uri() external {
+    function test_tokenURI_succeeds() external {
         attestAllowlist(bob);
         // we are using true but it can be any non empty value
         attestBaseuri(base_uri);
