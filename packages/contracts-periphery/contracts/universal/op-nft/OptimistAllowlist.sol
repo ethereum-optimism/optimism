@@ -7,12 +7,14 @@ import { OptimistInviter } from "./OptimistInviter.sol";
 
 /**
  * @title  OptimistAllowlist
- * @notice Checks attestations to determine whether an address is allowed to mint an Optimist NFT.
+ * @notice Source of truth for whether an address is able to mint an Optimist NFT.
+           isAllowedToMint function checks various signals to return boolean value for whether an
+           address is eligible or not.
  */
 contract OptimistAllowlist is Semver {
     /**
      * @notice Attestation key used by the AllowlistAttestor to manually add addresses to the
-     *         allowlist. Not using a hashed key because these were issued already.
+     *         allowlist.
      */
     bytes32 public constant OPTIMIST_CAN_MINT_ATTESTATION_KEY = bytes32("optimist.can-mint");
 

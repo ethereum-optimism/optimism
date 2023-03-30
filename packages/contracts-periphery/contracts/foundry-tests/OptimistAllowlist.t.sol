@@ -8,11 +8,13 @@ import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
 import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
 
-import { Optimist } from "../universal/op-nft/Optimist.sol";
-import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
-import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-
 contract OptimistAllowlist_Initializer is Test {
+    event AttestationCreated(
+        address indexed creator,
+        address indexed about,
+        bytes32 indexed key,
+        bytes val
+    );
     address internal alice_allowlistAttestor;
     address internal sally_coinbaseQuestAttestor;
     address internal ted;
@@ -89,6 +91,7 @@ contract OptimistAllowlist_Initializer is Test {
 
         vm.prank(claimer);
         optimistInviter.commitInvite(hashedCommit);
+        vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
         optimistInviter.claimInvite(claimer, claimableInvite, signature);
     }
 
@@ -124,7 +127,7 @@ contract OptimistAllowlist_Initializer is Test {
     }
 }
 
-contract OptimistTest is OptimistAllowlist_Initializer {
+contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     function test_constructor_success() external {
         // expect attestationStation to be set
         assertEq(address(optimistAllowlist.ATTESTATION_STATION()), address(attestationStation));
@@ -134,37 +137,6 @@ contract OptimistTest is OptimistAllowlist_Initializer {
 
         assertEq(optimistAllowlist.version(), "1.0.0");
     }
-
-    // function test_hasAttestationFromAllowlistAttestor_happyPath_success() external {
-    //     attestAllowlist(bob);
-    //     assertTrue(optimistAllowlist.hasAttestationFromAllowlistAttestor(bob));
-    // }
-
-    // function test_hasAttestationFromAllowlistAttestor_withoutRecevingAttestation_fails() external {
-    //     assertFalse(optimistAllowlist.hasAttestationFromAllowlistAttestor(bob));
-    // }
-
-    // function test_hasAttestationFromAllowlistAttestor_withWrongAttestor_fails() external {
-    //     // Ted is not the allowlist attestor
-    //     vm.prank(ted);
-    //     attestationStation.attest(
-    //         bob,
-    //         optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(),
-    //         bytes("true")
-    //     );
-    //     assertFalse(optimistAllowlist.hasAttestationFromAllowlistAttestor(bob));
-    // }
-
-    // function test_hasAttestationFromAllowlistAttestor_withFalsyAttestationValue_fails() external {
-    //     vm.prank(alice_allowlistAttestor);
-    //     attestationStation.attest(
-    //         bob,
-    //         optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(),
-    //         bytes("")
-    //     );
-    //     assertFalse(optimistAllowlist.hasAttestationFromAllowlistAttestor(bob));
-    //     assertFalse(optimistAllowlist.hasAttestationFromCoinbaseQuestAttestor(bob));
-    // }
 
     /*
 - check falsy attestations from all attestors
@@ -176,18 +148,101 @@ contract OptimistTest is OptimistAllowlist_Initializer {
 
     */
 
+    function test_isAllowedToMint_withoutAnyAttestations_fails() external {
+        assertFalse(optimistAllowlist.isAllowedToMint(bob));
+    }
+
     function test_isAllowedToMint_fromAllowlistAttestor_success() external {
         attestAllowlist(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
     function test_isAllowedToMint_fromCoinbaseQuestAttestor_success() external {
-        attestAllowlist(bob);
+        attestCoinbaseQuest(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
     }
 
     function test_isAllowedToMint_fromInvite_success() external {
         inviteAndClaim(bob);
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
+    }
+
+    function test_isAllowedToMint_fromWrongAllowlistAttestor_fails() external {
+        // Ted is not the allowlist attestor
+        vm.prank(ted);
+        attestationStation.attest(
+            bob,
+            optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(),
+            bytes("true")
+        );
+        assertFalse(optimistAllowlist.isAllowedToMint(bob));
+    }
+
+    function test_isAllowedToMint_fromWrongCoinbaseQuestAttestor_fails() external {
+        // Ted is not the coinbase quest attestor
+        vm.prank(ted);
+        attestationStation.attest(
+            bob,
+            optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY(),
+            bytes("true")
+        );
+        assertFalse(optimistAllowlist.isAllowedToMint(bob));
+    }
+
+    function test_isAllowedToMint_fromWrongOptimistInviter_fails() external {
+        vm.prank(ted);
+        attestationStation.attest(
+            bob,
+            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
+            bytes("true")
+        );
+        assertFalse(optimistAllowlist.isAllowedToMint(bob));
+    }
+
+    function test_isAllowedToMint_withMultipleAttestations_success() external {
+        attestAllowlist(bob);
+        attestCoinbaseQuest(bob);
+        inviteAndClaim(bob);
+
+        // A non valid attestation, as Ted is not allowlist attestor
+        vm.prank(ted);
+        attestationStation.attest(
+            bob,
+            optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY(),
+            bytes("true")
+        );
+
+        // Since Bob has at least one valid attestation, he should be allowed to mint
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
+    }
+
+    function test_isAllowedToMint_fromAllowlistAttestorWithFalsyValue_fails() external {
+        // First sends correct attestation
+        attestAllowlist(bob);
+
+        bytes32 key = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
+        vm.expectEmit(true, true, true, false);
+        emit AttestationCreated(alice_allowlistAttestor, bob, key, bytes("dsafsds"));
+
+        // Invalidates existing attestation
+        vm.prank(alice_allowlistAttestor);
+        attestationStation.attest(bob, key, bytes(""));
+
+        assertFalse(optimistAllowlist.isAllowedToMint(bob));
+    }
+
+    function test_isAllowedToMint_fromCoinbaseQuestAttestorWithFalsyValue_fails() external {
+        // First sends correct attestation
+        attestAllowlist(bob);
+
+        bytes32 key = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
+        vm.expectEmit(true, true, true, true);
+        emit AttestationCreated(alice_allowlistAttestor, bob, key, bytes(""));
+
+        // Invalidates existing attestation
+        vm.prank(alice_allowlistAttestor);
+        attestationStation.attest(bob, key, bytes(""));
+
+        assertFalse(optimistAllowlist.isAllowedToMint(bob));
     }
 }
