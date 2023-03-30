@@ -88,7 +88,8 @@ contract L2OutputOracleV2 is Initializable, Semver {
         uint256 _startingBlockNumber,
         uint256 _startingTimestamp,
         address _challenger,
-        uint256 _finalizationPeriodSeconds
+        uint256 _finalizationPeriodSeconds,
+        uint256 _minimumOutputProposalCost
     ) Semver(2, 0, 0) {
         require(_l2BlockTime > 0, "L2OutputOracle: L2 block time must be greater than 0");
 
@@ -133,24 +134,13 @@ contract L2OutputOracleV2 is Initializable, Semver {
 
         // Do not allow deleting any outputs that have already been finalized.
         require(
-            block.timestamp - l2Outputs[_l2OutputIndex].timestamp < FINALIZATION_PERIOD_SECONDS,
+            block.timestamp - l2Outputs[_l2BlockNumber].timestamp < FINALIZATION_PERIOD_SECONDS,
             "L2OutputOracle: cannot delete outputs that have already been finalized"
         );
 
-        uint256 prevNextL2OutputIndex = nextOutputIndex();
+        delete l2Outputs[_l2BlockNumber];
 
-        delete l2Outputs[_l2BlockNumber] = Types.OutputProposal({
-            outputRoot: bytes32(0),
-            timestamp: 0,
-            l2BlockNumber: 0
-        });
-
-        // Use assembly to delete the array elements because Solidity doesn't allow it.
-        assembly {
-            sstore(l2Outputs.slot, _l2OutputIndex)
-        }
-
-        emit OutputsDeleted(prevNextL2OutputIndex, _l2OutputIndex);
+        emit OutputDeleted(_l2BlockNumber);
     }
 
     /**
