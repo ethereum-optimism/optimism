@@ -2,6 +2,7 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+import { SafeCall } from "../libraries/SafeCall.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
 
@@ -50,9 +51,27 @@ contract L2OutputOracleV2 is Initializable, Semver {
     uint256 public highestL2BlockNumber;
 
     /**
-     * @notice Array of L2 output proposals.
+     * @notice Map of L2 output proposals.
      */
     mapping(uint256 => Types.OutputProposal) internal l2Outputs;
+
+    /**
+     * @notice Map of bonds that can be claimed once finalized.
+     * @notice If the address is address(0), the bond has been seized.
+     */
+    mapping(uint256 => address) internal bonds;
+
+    /**
+     * @notice Linked list of previous highest block numbers.
+     * @dev This maps a block number to the previous highest L2 block number.
+     */
+    mapping(uint256 => uint256) internal previousBlockNumber;
+
+    /**
+     * @notice Linked list of next highest block numbers.
+     * @dev This maps a block number to the next highest L2 block number.
+     */
+    mapping(uint256 => uint256) internal nextBlockNumber;
 
     /**
      * @notice Emitted when an output is proposed.
@@ -125,11 +144,9 @@ contract L2OutputOracleV2 is Initializable, Semver {
      * @notice Deletes an output proposal based on the given L2 block number.
      *
      * @param _l2BlockNumber The L2 block number of the output to delete.
-     * @param _setPreviousHigh The L2 block number to (potentially) update the
-     *                         highestL2BlockNumber to.
      */
     // solhint-disable-next-line ordering
-    function deleteL2Output(uint256 _l2BlockNumber, uint256 _setPreviousHigh) external {
+    function deleteL2Output(uint256 _l2BlockNumber) external {
         require(
             msg.sender == CHALLENGER,
             "L2OutputOracleV2: only the challenger address can delete an output"
@@ -141,14 +158,26 @@ contract L2OutputOracleV2 is Initializable, Semver {
             "L2OutputOracleV2: cannot delete outputs that have already been finalized"
         );
 
-        // TODO: This introduces a nasty case whereby if the challenger feeds in a
-        // TODO: bad value this could remove all outputs
-        // TODO: This might be reason to switch back to an array over a mapping
+        // Join the linked list
+        uint256 nextL2Block = nextBlockNumber[_l2BlockNumber];
+        uint256 prevL2Block = previousBlockNumber[_l2BlockNumber];
+        previousBlockNumber[nextL2Block] = prevL2Block;
+        nextBlockNumber[prevL2Block] = nextL2Block;
+        delete nextBlockNumber[_l2BlockNumber];
+        delete previousBlockNumber[_l2BlockNumber];
+
+        // Retrieve the previous high L2 block number
         if (_l2BlockNumber == highestL2BlockNumber) {
-            highestL2BlockNumber = _setPreviousHigh;
+            highestL2BlockNumber = prevL2Block;
         }
 
+        // Remove the associated output state
         delete l2Outputs[_l2BlockNumber];
+        delete bonds[_l2BlockNumber];
+
+        // Transfer the bond to the challenger
+        bool success = SafeCall.call(CHALLENGER, gasleft(), MINIMUM_OUTPUT_PROPOSAL_COST, hex"");
+        require(success, "L2OutputOracleV2: ETH bond transfer failed");
 
         emit OutputDeleted(_l2BlockNumber);
     }
@@ -202,10 +231,25 @@ contract L2OutputOracleV2 is Initializable, Semver {
             );
         }
 
+        // Walk backwards in the doubly linked list
+        uint256 prevBlockNum = highestL2BlockNumber;
+        while (prevBlockNum > _l2BlockNumber) {
+            prevBlockNum = previousBlockNumber[prevBlockNum];
+        }
+        uint256 updatePrevNext = nextBlockNumber[prevBlockNum];
+        if (updatePrevNext != 0) {
+            previousBlockNumber[updatePrevNext] = _l2BlockNumber;
+        }
+        nextBlockNumber[prevBlockNum] = _l2BlockNumber;
+        nextBlockNumber[_l2BlockNumber] = updatePrevNext;
+        previousBlockNumber[_l2BlockNumber] = prevBlockNum;
+
         // Update the highest L2 block number if necessary.
         if (_l2BlockNumber > highestL2BlockNumber) {
             highestL2BlockNumber = _l2BlockNumber;
         }
+
+        bonds[_l2BlockNumber] = msg.sender;
 
         l2Outputs[_l2BlockNumber] = Types.OutputProposal({
             outputRoot: _outputRoot,
@@ -229,6 +273,17 @@ contract L2OutputOracleV2 is Initializable, Semver {
         returns (Types.OutputProposal memory)
     {
         return l2Outputs[_l2BlockNumber];
+    }
+
+    /**
+     * @notice Returns the proposer for a given L2 block number.
+     *
+     * @param _l2BlockNumber L2 block number of the output.
+     *
+     * @return The address that proposed the given output at an L2 block number.
+     */
+    function getProposer(uint256 _l2BlockNumber) external view returns (address) {
+        return bonds[_l2BlockNumber];
     }
 
     /**
