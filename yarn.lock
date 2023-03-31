@@ -3760,9 +3760,9 @@
     "@safe-global/safe-gateway-typescript-sdk" "^3.5.3"
     ethers "^5.7.2"
 
-"@safe-global/safe-contracts@https://github.com/safe-global/safe-contracts.git#v1.3.0-libs.0":
+"@safe-global/safe-contracts@https://github.com/safe-global/safe-contracts.git#cb4b2b19b3e336b8defd3b8c9e0e6a2ae130598c":
   version "1.3.0"
-  resolved "https://github.com/safe-global/safe-contracts.git#767ef36bba88bdbc0c9fe3708a4290cabef4c376"
+  resolved "https://github.com/safe-global/safe-contracts.git#cb4b2b19b3e336b8defd3b8c9e0e6a2ae130598c"
 
 "@safe-global/safe-gateway-typescript-sdk@^3.5.3":
   version "3.7.0"
@@ -19358,7 +19358,7 @@ socks@^2.3.3, socks@^2.6.1:
     ip "^1.1.5"
     smart-buffer "^4.1.0"
 
-"solady@https://github.com/Vectorized/solady.git#v0.0.85":
+"solady@https://github.com/Vectorized/solady.git#507e0d84872f435d497e6d2ce10e7f484392db4f":
   version "0.0.85"
   resolved "https://github.com/Vectorized/solady.git#507e0d84872f435d497e6d2ce10e7f484392db4f"
 
