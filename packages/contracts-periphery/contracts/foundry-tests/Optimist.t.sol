@@ -5,12 +5,21 @@ pragma solidity 0.8.15;
 import { Test } from "forge-std/Test.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 import { Optimist } from "../universal/op-nft/Optimist.sol";
+import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
+import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
+import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
 contract Optimist_Initializer is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
     event Initialized(uint8);
+    event AttestationCreated(
+        address indexed creator,
+        address indexed about,
+        bytes32 indexed key,
+        bytes val
+    );
 
     string constant name = "Optimist name";
     string constant symbol = "OPTIMISTSYMBOL";
@@ -18,50 +27,126 @@ contract Optimist_Initializer is Test {
         "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes";
     AttestationStation attestationStation;
     Optimist optimist;
+    OptimistAllowlist optimistAllowlist;
+    OptimistInviter optimistInviter;
+
+    // Helps with EIP-712 signature generation
+    OptimistInviterHelper optimistInviterHelper;
 
     address internal carol_baseURIAttestor;
     address internal alice_allowlistAttestor;
+    address internal eve_inviteGranter;
     address internal ted_coinbaseAttestor;
     address internal bob;
     address internal sally;
 
-    function attestBaseuri(string memory _baseUri) internal {
+    function attestBaseURI(string memory _baseUri) internal {
+        bytes32 baseURIAttestationKey = optimist.BASE_URI_ATTESTATION_KEY();
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
         attestationData[0] = AttestationStation.AttestationData(
             address(optimist),
-            bytes32("optimist.base-uri"),
+            baseURIAttestationKey,
             bytes(_baseUri)
         );
-        vm.prank(alice_admin);
+
+        vm.expectEmit(true, true, true, true, address(attestationStation));
+        emit AttestationCreated(
+            carol_baseURIAttestor,
+            address(optimist),
+            baseURIAttestationKey,
+            bytes(_baseUri)
+        );
+        vm.prank(carol_baseURIAttestor);
         attestationStation.attest(attestationData);
     }
 
     function attestAllowlist(address _about) internal {
+        bytes32 attestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
         // we are using true but it can be any non empty value
         attestationData[0] = AttestationStation.AttestationData({
             about: _about,
-            key: bytes32("optimist.can-mint"),
+            key: attestationKey,
             val: bytes("true")
         });
-        vm.prank(alice_admin);
+
+        vm.expectEmit(true, true, true, true, address(attestationStation));
+        emit AttestationCreated(alice_allowlistAttestor, _about, attestationKey, bytes("true"));
+
+        vm.prank(alice_allowlistAttestor);
         attestationStation.attest(attestationData);
+
+        assertTrue(optimist.isOnAllowList(_about));
+    }
+
+    function attestCoinbaseQuest(address _about) internal {
+        bytes32 attestationKey = optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY();
+        AttestationStation.AttestationData[]
+            memory attestationData = new AttestationStation.AttestationData[](1);
+        // we are using true but it can be any non empty value
+        attestationData[0] = AttestationStation.AttestationData({
+            about: _about,
+            key: attestationKey,
+            val: bytes("true")
+        });
+
+        vm.expectEmit(true, true, true, true, address(attestationStation));
+        emit AttestationCreated(ted_coinbaseAttestor, _about, attestationKey, bytes("true"));
+
+        vm.prank(ted_coinbaseAttestor);
+        attestationStation.attest(attestationData);
+
+        assertTrue(optimist.isOnAllowList(_about));
+    }
+
+    function inviteAndClaim(address _about) internal {
+        uint256 inviterPrivateKey = 0xbeefbeef;
+        address inviter = vm.addr(inviterPrivateKey);
+
+        address[] memory addresses = new address[](1);
+        addresses[0] = inviter;
+
+        vm.prank(eve_inviteGranter);
+
+        // grant invites to Inviter;
+        optimistInviter.setInviteCounts(addresses, 3);
+
+        // issue a new invite
+        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
+            .getClaimableInviteWithNewNonce(inviter);
+
+        // EIP-712 sign with Inviter's private key
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            inviterPrivateKey,
+            optimistInviterHelper.getDigest(claimableInvite)
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        bytes32 hashedCommit = keccak256(abi.encode(_about, signature));
+
+        // commit the invite
+        vm.prank(_about);
+        optimistInviter.commitInvite(hashedCommit);
+
+        // wait minimum commitment period
+        vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
+
+        // reveal and claim the invite
+        optimistInviter.claimInvite(_about, claimableInvite, signature);
+
+        assertTrue(optimist.isOnAllowList(_about));
     }
 
     function setUp() public {
         carol_baseURIAttestor = makeAddr("carol_baseURIAttestor");
         alice_allowlistAttestor = makeAddr("alice_allowlistAttestor");
+        eve_inviteGranter = makeAddr("eve_inviteGranter");
         ted_coinbaseAttestor = makeAddr("ted_coinbaseAttestor");
         bob = makeAddr("bob");
         sally = makeAddr("sally");
-
-        // Give alice and bob and sally some ETH
-        vm.deal(alice_admin, 1 ether);
-        vm.deal(bob, 1 ether);
-        vm.deal(sally, 1 ether);
-
         _initializeContracts();
     }
 
@@ -70,8 +155,36 @@ contract Optimist_Initializer is Test {
         vm.expectEmit(true, true, false, false);
         emit Initialized(1);
 
-        OptimistAllowlist optimistAllowlist = new OptimistAllowlist(attestationStation, alice_admin, );
-        optimist = new Optimist(name, symbol, alice_admin, attestationStation, optimistAllowlist);
+        optimistInviter = new OptimistInviter({
+            _inviteGranter: eve_inviteGranter,
+            _attestationStation: attestationStation
+        });
+
+        optimistInviter.initialize("OptimistInviter");
+
+        optimistInviterHelper = new OptimistInviterHelper(optimistInviter, "OptimistInviter");
+
+        optimistAllowlist = new OptimistAllowlist({
+            _attestationStation: attestationStation,
+            _allowlistAttestor: alice_allowlistAttestor,
+            _coinbaseQuestAttestor: ted_coinbaseAttestor,
+            _optimistInviter: address(optimistInviter)
+        });
+
+        optimist = new Optimist({
+            _name: name,
+            _symbol: symbol,
+            _baseURIAttestor: carol_baseURIAttestor,
+            _attestationStation: attestationStation,
+            _optimistAllowlist: optimistAllowlist
+        });
+    }
+
+    /**
+     * @notice Returns address as uint256
+     */
+    function _getTokenId(address _owner) internal pure returns (uint256) {
+        return uint256(uint160(address(_owner)));
     }
 }
 
@@ -83,51 +196,106 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.symbol(), symbol);
         // expect attestationStation to be set
         assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
-        assertEq(optimist.BASE_URI_ATTESTOR(), alice_admin);
+        assertEq(optimist.BASE_URI_ATTESTOR(), carol_baseURIAttestor);
         assertEq(optimist.version(), "1.0.0");
     }
 
     /**
-     * @dev Bob should be able to mint an NFT if he is allowlisted
-     * by the attestation station and has a balance of 0
+     * @notice Bob should be able to mint an NFT if he is allowlisted
+     *         by the allowlistAttestor and has a balance of 0
      */
-    function test_mint_happyPath_success() external {
+    function test_mint_afterAllowlistAttestation_succeeds() external {
         // bob should start with 0 balance
         assertEq(optimist.balanceOf(bob), 0);
 
-        // whitelist bob
+        // allowlist bob
         attestAllowlist(bob);
 
-        uint256 tokenId = uint256(uint160(bob));
-        vm.expectEmit(true, true, true, true);
-        emit Transfer(address(0), bob, tokenId);
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
 
-        bytes memory data = abi.encodeWithSelector(
-            attestationStation.attestations.selector,
-            alice_admin,
-            bob,
-            bytes32("optimist.can-mint")
-        );
-        vm.expectCall(address(attestationStation), data);
-        // mint an NFT
+        // Check that the OptimistAllowlist is checked
+        bytes memory data = abi.encodeWithSelector(optimistAllowlist.isAllowedToMint.selector, bob);
+        vm.expectCall(address(optimistAllowlist), data);
+
+        // mint an NFT and expect mint transfer event to be emitted
+        vm.expectEmit(true, true, true, true);
+        emit Transfer(address(0), bob, _getTokenId(bob));
         vm.prank(bob);
         optimist.mint(bob);
+
         // expect the NFT to be owned by bob
-        assertEq(optimist.ownerOf(256), bob);
+        assertEq(optimist.ownerOf(_getTokenId(bob)), bob);
         assertEq(optimist.balanceOf(bob), 1);
     }
 
     /**
-     * @dev Sally should be able to mint a token on behalf of bob
+     * @notice Bob should be able to mint an NFT if he claimed an invite through OptimistInviter
+     *          and has a balance of 0
+     */
+    function test_mint_afterInviteClaimed_succeeds() external {
+        // bob should start with 0 balance
+        assertEq(optimist.balanceOf(bob), 0);
+
+        // bob claims an invite
+        inviteAndClaim(bob);
+
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
+
+        // Check that the OptimistAllowlist is checked
+        bytes memory data = abi.encodeWithSelector(optimistAllowlist.isAllowedToMint.selector, bob);
+        vm.expectCall(address(optimistAllowlist), data);
+
+        // mint an NFT and expect mint transfer event to be emitted
+        vm.expectEmit(true, true, true, true);
+        emit Transfer(address(0), bob, _getTokenId(bob));
+        vm.prank(bob);
+        optimist.mint(bob);
+
+        // expect the NFT to be owned by bob
+        assertEq(optimist.ownerOf(_getTokenId(bob)), bob);
+        assertEq(optimist.balanceOf(bob), 1);
+    }
+
+    /**
+     * @notice Bob should be able to mint an NFT if he claimed an invite through OptimistInviter
+     *          and has a balance of 0
+     */
+    function test_mint_afterCoinbaseQuestAttestation_succeeds() external {
+        // bob should start with 0 balance
+        assertEq(optimist.balanceOf(bob), 0);
+
+        // bob receives attestation from Coinbase Quest attestor
+        attestCoinbaseQuest(bob);
+
+        assertTrue(optimistAllowlist.isAllowedToMint(bob));
+
+        // Check that the OptimistAllowlist is checked
+        bytes memory data = abi.encodeWithSelector(optimistAllowlist.isAllowedToMint.selector, bob);
+        vm.expectCall(address(optimistAllowlist), data);
+
+        // mint an NFT and expect mint transfer event to be emitted
+        vm.expectEmit(true, true, true, true);
+        emit Transfer(address(0), bob, _getTokenId(bob));
+        vm.prank(bob);
+        optimist.mint(bob);
+
+        // expect the NFT to be owned by bob
+        assertEq(optimist.ownerOf(_getTokenId(bob)), bob);
+        assertEq(optimist.balanceOf(bob), 1);
+    }
+
+    /**
+     * @notice Sally should be able to mint a token on behalf of bob
      */
     function test_mint_secondaryMinter_succeeds() external {
+        bytes32 allowlistAttestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
         attestAllowlist(bob);
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
-            alice_admin,
+            alice_allowlistAttestor,
             bob,
-            bytes32("optimist.can-mint")
+            allowlistAttestationKey
         );
         vm.expectCall(address(attestationStation), data);
 
@@ -140,12 +308,12 @@ contract OptimistTest is Optimist_Initializer {
         optimist.mint(bob);
 
         // expect the NFT to be owned by bob
-        assertEq(optimist.ownerOf(256), bob);
+        assertEq(optimist.ownerOf(_getTokenId(bob)), bob);
         assertEq(optimist.balanceOf(bob), 1);
     }
 
     /**
-     * @dev Bob should not be able to mint an NFT if he is not whitelisted
+     * @notice Bob should not be able to mint an NFT if he is not allowlisted
      */
     function test_mint_forNonAllowlistedClaimer_reverts() external {
         vm.prank(bob);
@@ -154,7 +322,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev Bob's tx should revert if he already minted
+     * @notice Bob's tx should revert if he already minted
      */
     function test_mint_forAlreadyMintedClaimer_reverts() external {
         attestAllowlist(bob);
@@ -163,7 +331,7 @@ contract OptimistTest is Optimist_Initializer {
         vm.prank(bob);
         optimist.mint(bob);
         // expect the NFT to be owned by bob
-        assertEq(optimist.ownerOf(256), bob);
+        assertEq(optimist.ownerOf(_getTokenId(bob)), bob);
         assertEq(optimist.balanceOf(bob), 1);
 
         // attempt to mint again
@@ -172,33 +340,31 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev The baseURI should be set by attestation station
-     * by the owner of contract alice_admin
+     * @notice The baseURI should be set by attestation station by the baseURIAttestor
      */
     function test_baseURI_returnsCorrectBaseURI_succeeds() external {
-        attestBaseuri(base_uri);
+        attestBaseURI(base_uri);
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
-            alice_admin,
+            carol_baseURIAttestor,
             address(optimist),
-            bytes32("optimist.base-uri")
+            optimist.BASE_URI_ATTESTATION_KEY()
         );
         vm.expectCall(address(attestationStation), data);
-        vm.prank(alice_admin);
+        vm.prank(carol_baseURIAttestor);
 
         // assert baseURI is set
         assertEq(optimist.baseURI(), base_uri);
     }
 
     /**
-     * @dev The tokenURI should return the token uri
-     * for a minted token
+     * @notice The tokenURI should return the token uri for a minted token
      */
     function test_tokenURI_returnsCorrectTokenURI_succeeds() external {
         attestAllowlist(bob);
         // we are using true but it can be any non empty value
-        attestBaseuri(base_uri);
+        attestBaseURI(base_uri);
 
         // mint an NFT
         vm.prank(bob);
@@ -207,43 +373,44 @@ contract OptimistTest is Optimist_Initializer {
         // assert tokenURI is set
         assertEq(optimist.baseURI(), base_uri);
         assertEq(
-            optimist.tokenURI(256),
-            // solhint-disable-next-line max-line-length
-            "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes/0x0000000000000000000000000000000000000100.json"
+            optimist.tokenURI(_getTokenId(bob)),
+            "https://storageapi.fleek.co/6442819a1b05-bucket/optimist-nft/attributes/0x1d96f2f6bef1202e4ce1ff6dad0c2cb002861d3e.json"
         );
     }
 
     /**
-     * @dev Should return a boolean of if the address is allowlisted
+     * @notice Should return a boolean of if the address is allowlisted
      */
     function test_isOnAllowlist_returnsTrueForAllowlistedAddresses_succeeds() external {
         attestAllowlist(bob);
 
+        bytes32 allowlistAttestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
+
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
-            alice_admin,
+            alice_allowlistAttestor,
             bob,
-            bytes32("optimist.can-mint")
+            allowlistAttestationKey
         );
         vm.expectCall(address(attestationStation), data);
-        // assert bob is whitelisted
+        // assert bob is allowlisted
         assertEq(optimist.isOnAllowList(bob), true);
         data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
-            alice_admin,
+            alice_allowlistAttestor,
             sally,
-            bytes32("optimist.can-mint")
+            allowlistAttestationKey
         );
         vm.expectCall(address(attestationStation), data);
-        // assert sally is not whitelisted
+        // assert sally is not allowlisted
         assertEq(optimist.isOnAllowList(sally), false);
     }
 
     /**
-     * @dev Should return the token id of the owner
+     * @notice Should return the token id of the owner
      */
     function test_tokenIdOfAddress_returnsOwnerID_succeeds() external {
-        // whitelist bob
+        // allowlist bob
         uint256 willTokenId = 1024;
         address will = address(1024);
 
@@ -255,7 +422,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @dev It should revert if anybody attemps token transfer
+     * @notice It should revert if anybody attemps token transfer
      */
     function test_transferFrom_reverts() external {
         attestAllowlist(bob);
@@ -267,20 +434,20 @@ contract OptimistTest is Optimist_Initializer {
         // attempt to transfer to sally
         vm.expectRevert(bytes("Optimist: soul bound token"));
         vm.prank(bob);
-        optimist.transferFrom(bob, sally, 256);
+        optimist.transferFrom(bob, sally, _getTokenId(bob));
 
         // attempt to transfer to sally
         vm.expectRevert(bytes("Optimist: soul bound token"));
         vm.prank(bob);
-        optimist.safeTransferFrom(bob, sally, 256);
+        optimist.safeTransferFrom(bob, sally, _getTokenId(bob));
         // attempt to transfer to sally
         vm.expectRevert(bytes("Optimist: soul bound token"));
         vm.prank(bob);
-        optimist.safeTransferFrom(bob, sally, 256, bytes("0x"));
+        optimist.safeTransferFrom(bob, sally, _getTokenId(bob), bytes("0x"));
     }
 
     /**
-     * @dev It should revert if anybody attemps approve
+     * @notice It should revert if anybody attemps approve
      */
     function test_approve_reverts() external {
         attestAllowlist(bob);
@@ -292,13 +459,13 @@ contract OptimistTest is Optimist_Initializer {
         // attempt to approve sally
         vm.prank(bob);
         vm.expectRevert("Optimist: soul bound token");
-        optimist.approve(address(attestationStation), 256);
+        optimist.approve(address(attestationStation), _getTokenId(bob));
 
-        assertEq(optimist.getApproved(256), address(0));
+        assertEq(optimist.getApproved(_getTokenId(bob)), address(0));
     }
 
     /**
-     * @dev It should be able to burn token
+     * @notice It should be able to burn token
      */
     function test_burn_byOwner_succeeds() external {
         attestAllowlist(bob);
@@ -309,14 +476,14 @@ contract OptimistTest is Optimist_Initializer {
 
         // burn as bob
         vm.prank(bob);
-        optimist.burn(256);
+        optimist.burn(_getTokenId(bob));
 
         // expect bob to have no balance now
         assertEq(optimist.balanceOf(bob), 0);
     }
 
     /**
-     * @dev setApprovalForAll should revert as sbt
+     * @notice setApprovalForAll should revert as sbt
      */
     function test_setApprovalForAll_reverts() external {
         attestAllowlist(bob);
@@ -324,18 +491,21 @@ contract OptimistTest is Optimist_Initializer {
         // mint as bob
         vm.prank(bob);
         optimist.mint(bob);
-        vm.prank(alice_admin);
+        vm.prank(alice_allowlistAttestor);
         vm.expectRevert(bytes("Optimist: soul bound token"));
-        optimist.setApprovalForAll(alice_admin, true);
+        optimist.setApprovalForAll(alice_allowlistAttestor, true);
 
         // expect approval amount to stil be 0
-        assertEq(optimist.getApproved(256), address(0));
+        assertEq(optimist.getApproved(_getTokenId(bob)), address(0));
         // isApprovedForAll should return false
-        assertEq(optimist.isApprovedForAll(alice_admin, alice_admin), false);
+        assertEq(
+            optimist.isApprovedForAll(alice_allowlistAttestor, alice_allowlistAttestor),
+            false
+        );
     }
 
     /**
-     * @dev should support erc721 interface
+     * @notice should support erc721 interface
      */
     function test_supportsInterface_returnsCorrectInterfaceForERC721_succeeds() external {
         bytes4 iface721 = type(IERC721).interfaceId;
