@@ -8,9 +8,10 @@ import { Types } from "../libraries/Types.sol";
 /**
  * @custom:proxied
  * @title L2OutputOracleV2
- * @notice The L2OutputOracleV2 contains a map of L2 block numbers to their associated L2 state outputs,
- *         where each output is a commitment to the state of the L2 chain. Other contracts like the
- *         OptimismPortal use these outputs to verify information about the state of L2.
+ * @notice The L2OutputOracleV2 contains a map of L2 block numbers to their associated
+ *         L2 state outputs, where each output is a commitment to the state of the L2 chain.
+ *         Other contracts like the OptimismPortal use these outputs to verify information
+ *         about the state of L2.
  */
 contract L2OutputOracleV2 is Initializable, Semver {
     /**
@@ -51,7 +52,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
     /**
      * @notice Array of L2 output proposals.
      */
-    mapping (uint256 => Types.OutputProposal) internal l2Outputs;
+    mapping(uint256 => Types.OutputProposal) internal l2Outputs;
 
     /**
      * @notice Emitted when an output is proposed.
@@ -124,7 +125,8 @@ contract L2OutputOracleV2 is Initializable, Semver {
      * @notice Deletes an output proposal based on the given L2 block number.
      *
      * @param _l2BlockNumber The L2 block number of the output to delete.
-     * @param _setPreviousHigh The L2 block number to (potentially) update the highestL2BlockNumber to.
+     * @param _setPreviousHigh The L2 block number to (potentially) update the
+     *                         highestL2BlockNumber to.
      */
     // solhint-disable-next-line ordering
     function deleteL2Output(uint256 _l2BlockNumber, uint256 _setPreviousHigh) external {
@@ -139,7 +141,8 @@ contract L2OutputOracleV2 is Initializable, Semver {
             "L2OutputOracleV2: cannot delete outputs that have already been finalized"
         );
 
-        // TODO: This introduces a nasty case whereby if the challenger feeds in a bad value this could remove all outputs
+        // TODO: This introduces a nasty case whereby if the challenger feeds in a
+        // TODO: bad value this could remove all outputs
         // TODO: This might be reason to switch back to an array over a mapping
         if (_l2BlockNumber == highestL2BlockNumber) {
             highestL2BlockNumber = _setPreviousHigh;
@@ -204,12 +207,11 @@ contract L2OutputOracleV2 is Initializable, Semver {
             highestL2BlockNumber = _l2BlockNumber;
         }
 
-        l2Outputs[_l2BlockNumber] =
-            Types.OutputProposal({
-                outputRoot: _outputRoot,
-                timestamp: uint128(block.timestamp),
-                l2BlockNumber: uint128(_l2BlockNumber)
-            });
+        l2Outputs[_l2BlockNumber] = Types.OutputProposal({
+            outputRoot: _outputRoot,
+            timestamp: uint128(block.timestamp),
+            l2BlockNumber: uint128(_l2BlockNumber)
+        });
 
         emit OutputProposed(_outputRoot, _l2BlockNumber, block.timestamp);
     }

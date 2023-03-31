@@ -198,13 +198,8 @@
 ➡ contracts/vendor/WETH9.sol:WETH9
 =======================
 
-| Name      | Type                                            | Slot | Offset | Bytes | Contract                         |
-|-----------|-------------------------------------------------|------|--------|-------|----------------------------------|
-| name      | string                                          | 0    | 0      | 32    | contracts/vendor/WETH9.sol:WETH9 |
-| symbol    | string                                          | 1    | 0      | 32    | contracts/vendor/WETH9.sol:WETH9 |
-| decimals  | uint8                                           | 2    | 0      | 1     | contracts/vendor/WETH9.sol:WETH9 |
-| balanceOf | mapping(address => uint256)                     | 3    | 0      | 32    | contracts/vendor/WETH9.sol:WETH9 |
-| allowance | mapping(address => mapping(address => uint256)) | 4    | 0      | 32    | contracts/vendor/WETH9.sol:WETH9 |
+| Name | Type | Slot | Offset | Bytes | Contract |
+|------|------|------|--------|-------|----------|
 
 =======================
 ➡ contracts/universal/ProxyAdmin.sol:ProxyAdmin
