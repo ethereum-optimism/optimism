@@ -279,14 +279,14 @@ const deployFn: DeployFunction = async (hre) => {
       need to restart the system, run exit1() followed by finalize().
     `,
     checks: async () => {
-      assert(
-        (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
-          ethers.constants.AddressZero
+      const messenger = await AddressManager.getAddress(
+        'OVM_L1CrossDomainMessenger'
       )
+      assert(messenger === ethers.constants.AddressZero)
     },
   })
 }
 
-deployFn.tags = ['SystemDictatorSteps', 'phase1']
+deployFn.tags = ['SystemDictatorSteps', 'phase1', 'l1']
 
 export default deployFn

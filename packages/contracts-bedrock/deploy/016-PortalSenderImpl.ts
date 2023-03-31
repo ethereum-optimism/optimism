@@ -26,6 +26,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['PortalSenderImpl', 'setup']
+deployFn.tags = ['PortalSenderImpl', 'setup', 'l1']
 
 export default deployFn
