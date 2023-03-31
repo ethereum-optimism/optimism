@@ -124,9 +124,10 @@ contract L2OutputOracleV2 is Initializable, Semver {
      * @notice Deletes an output proposal based on the given L2 block number.
      *
      * @param _l2BlockNumber The L2 block number of the output to delete.
+     * @param _setPreviousHigh The L2 block number to (potentially) update the highestL2BlockNumber to.
      */
     // solhint-disable-next-line ordering
-    function deleteL2Output(uint256 _l2BlockNumber) external {
+    function deleteL2Output(uint256 _l2BlockNumber, uint256 _setPreviousHigh) external {
         require(
             msg.sender == CHALLENGER,
             "L2OutputOracleV2: only the challenger address can delete an output"
@@ -137,6 +138,12 @@ contract L2OutputOracleV2 is Initializable, Semver {
             block.timestamp - l2Outputs[_l2BlockNumber].timestamp < FINALIZATION_PERIOD_SECONDS,
             "L2OutputOracleV2: cannot delete outputs that have already been finalized"
         );
+
+        // TODO: This introduces a nasty case whereby if the challenger feeds in a bad value this could remove all outputs
+        // TODO: This might be reason to switch back to an array over a mapping
+        if (_l2BlockNumber == highestL2BlockNumber) {
+            highestL2BlockNumber = _setPreviousHigh;
+        }
 
         delete l2Outputs[_l2BlockNumber];
 
