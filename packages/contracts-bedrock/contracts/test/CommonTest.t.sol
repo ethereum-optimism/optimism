@@ -178,7 +178,6 @@ contract L2OutputOracleV2_Initializer is CommonTest {
 
     event OutputProposed(
         bytes32 indexed outputRoot,
-        uint256 indexed l2OutputIndex,
         uint256 indexed l2BlockNumber,
         uint256 l1Timestamp
     );
