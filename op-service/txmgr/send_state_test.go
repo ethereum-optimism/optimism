@@ -3,6 +3,7 @@ package txmgr_test
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -11,14 +12,18 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 )
 
-const testSafeAbortNonceTooLowCount = 3
-
 var (
 	testHash = common.HexToHash("0x01")
 )
 
+const testSafeAbortNonceTooLowCount = 3
+
 func newSendState() *txmgr.SendState {
-	return txmgr.NewSendState(testSafeAbortNonceTooLowCount)
+	return newSendStateWithTimeout(time.Hour)
+}
+
+func newSendStateWithTimeout(t time.Duration) *txmgr.SendState {
+	return txmgr.NewSendState(testSafeAbortNonceTooLowCount, t)
 }
 
 func processNSendErrors(sendState *txmgr.SendState, err error, n int) {
@@ -159,4 +164,21 @@ func TestSendStateIsNotWaitingForConfirmationAfterTxUnmined(t *testing.T) {
 	sendState.TxMined(testHash)
 	sendState.TxNotMined(testHash)
 	require.False(t, sendState.IsWaitingForConfirmation())
+}
+
+// TestSendStateTimeoutAbort ensure that this will abort if it passes the tx pool timeout
+// when no successful transactions have been recorded
+func TestSendStateTimeoutAbort(t *testing.T) {
+	sendState := newSendStateWithTimeout(10 * time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+	require.True(t, sendState.ShouldAbortImmediately(), "Should abort after timing out")
+}
+
+// TestSendStateNoTimeoutAbortIfPublishedTx ensure that this will not abort if there is
+// a successful transaction send.
+func TestSendStateNoTimeoutAbortIfPublishedTx(t *testing.T) {
+	sendState := newSendStateWithTimeout(10 * time.Millisecond)
+	sendState.ProcessSendError(nil)
+	time.Sleep(20 * time.Millisecond)
+	require.False(t, sendState.ShouldAbortImmediately(), "Should not abort if published transcation successfully")
 }
