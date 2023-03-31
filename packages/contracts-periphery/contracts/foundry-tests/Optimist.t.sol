@@ -43,7 +43,7 @@ contract Optimist_Initializer is Test {
     /**
      * @notice BaseURI attestor sets the baseURI of the Optimist NFT.
      */
-    function attestBaseURI(string memory _baseUri) internal {
+    function _attestBaseURI(string memory _baseUri) internal {
         bytes32 baseURIAttestationKey = optimist.BASE_URI_ATTESTATION_KEY();
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -67,7 +67,7 @@ contract Optimist_Initializer is Test {
     /**
      * @notice Allowlist attestor creates an attestation for an address.
      */
-    function attestAllowlist(address _about) internal {
+    function _attestAllowlist(address _about) internal {
         bytes32 attestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -90,7 +90,7 @@ contract Optimist_Initializer is Test {
     /**
      * @notice Coinbase Quest attestor creates an attestation for an address.
      */
-    function attestCoinbaseQuest(address _about) internal {
+    function _attestCoinbaseQuest(address _about) internal {
         bytes32 attestationKey = optimistAllowlist.COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY();
         AttestationStation.AttestationData[]
             memory attestationData = new AttestationStation.AttestationData[](1);
@@ -113,7 +113,7 @@ contract Optimist_Initializer is Test {
     /**
      * @notice Issues invite, then claims it using the claimer's address.
      */
-    function inviteAndClaim(address _about) internal {
+    function _inviteAndClaim(address _about) internal {
         uint256 inviterPrivateKey = 0xbeefbeef;
         address inviter = vm.addr(inviterPrivateKey);
 
@@ -150,6 +150,24 @@ contract Optimist_Initializer is Test {
         optimistInviter.claimInvite(_about, claimableInvite, signature);
 
         assertTrue(optimist.isOnAllowList(_about));
+    }
+
+    /**
+     * @notice Mocks the allowlistAttestor to always return true for a given address.
+     */
+    function _mockAllowlistTrueFor(address _claimer) internal {
+        vm.mockCall(
+            address(optimistAllowlist),
+            abi.encodeWithSelector(OptimistAllowlist.isAllowedToMint.selector, _claimer),
+            abi.encode(true)
+        );
+    }
+
+    /**
+     * @notice Returns address as uint256.
+     */
+    function _getTokenId(address _owner) internal pure returns (uint256) {
+        return uint256(uint160(address(_owner)));
     }
 
     function setUp() public {
@@ -192,13 +210,6 @@ contract Optimist_Initializer is Test {
             _optimistAllowlist: optimistAllowlist
         });
     }
-
-    /**
-     * @notice Returns address as uint256.
-     */
-    function _getTokenId(address _owner) internal pure returns (uint256) {
-        return uint256(uint160(address(_owner)));
-    }
 }
 
 contract OptimistTest is Optimist_Initializer {
@@ -222,7 +233,7 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 0);
 
         // allowlist bob
-        attestAllowlist(bob);
+        _attestAllowlist(bob);
 
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
 
@@ -250,7 +261,7 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 0);
 
         // bob claims an invite
-        inviteAndClaim(bob);
+        _inviteAndClaim(bob);
 
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
 
@@ -278,7 +289,7 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 0);
 
         // bob receives attestation from Coinbase Quest attestor
-        attestCoinbaseQuest(bob);
+        _attestCoinbaseQuest(bob);
 
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
 
@@ -305,13 +316,13 @@ contract OptimistTest is Optimist_Initializer {
         assertEq(optimist.balanceOf(bob), 0);
 
         // bob receives attestation from Coinbase Quest attestor
-        attestCoinbaseQuest(bob);
+        _attestCoinbaseQuest(bob);
 
         // allowlist bob
-        attestAllowlist(bob);
+        _attestAllowlist(bob);
 
         // bob claims an invite
-        inviteAndClaim(bob);
+        _inviteAndClaim(bob);
 
         assertTrue(optimistAllowlist.isAllowedToMint(bob));
 
@@ -334,20 +345,10 @@ contract OptimistTest is Optimist_Initializer {
      * @notice Sally should be able to mint a token on behalf of bob.
      */
     function test_mint_secondaryMinter_succeeds() external {
-        bytes32 allowlistAttestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
-        attestAllowlist(bob);
+        _mockAllowlistTrueFor(bob);
 
-        bytes memory data = abi.encodeWithSelector(
-            attestationStation.attestations.selector,
-            alice_allowlistAttestor,
-            bob,
-            allowlistAttestationKey
-        );
-        vm.expectCall(address(attestationStation), data);
-
-        uint256 tokenId = uint256(uint160(bob));
         vm.expectEmit(true, true, true, true);
-        emit Transfer(address(0), bob, tokenId);
+        emit Transfer(address(0), bob, _getTokenId(bob));
 
         // mint as sally instead of bob
         vm.prank(sally);
@@ -371,7 +372,7 @@ contract OptimistTest is Optimist_Initializer {
      * @notice Bob's tx should revert if he already minted.
      */
     function test_mint_forAlreadyMintedClaimer_reverts() external {
-        attestAllowlist(bob);
+        _attestAllowlist(bob);
 
         // mint initial nft with bob
         vm.prank(bob);
@@ -389,7 +390,7 @@ contract OptimistTest is Optimist_Initializer {
      * @notice The baseURI should be set by attestation station by the baseURIAttestor.
      */
     function test_baseURI_returnsCorrectBaseURI_succeeds() external {
-        attestBaseURI(base_uri);
+        _attestBaseURI(base_uri);
 
         bytes memory data = abi.encodeWithSelector(
             attestationStation.attestations.selector,
@@ -408,11 +409,11 @@ contract OptimistTest is Optimist_Initializer {
      * @notice The tokenURI should return the token uri for a minted token.
      */
     function test_tokenURI_returnsCorrectTokenURI_succeeds() external {
-        attestAllowlist(bob);
         // we are using true but it can be any non empty value
-        attestBaseURI(base_uri);
+        _attestBaseURI(base_uri);
 
         // mint an NFT
+        _mockAllowlistTrueFor(bob);
         vm.prank(bob);
         optimist.mint(bob);
 
@@ -425,42 +426,13 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice Should return a boolean of if the address is allowlisted.
-     */
-    function test_isOnAllowlist_returnsTrueForAllowlistedAddresses_succeeds() external {
-        attestAllowlist(bob);
-
-        bytes32 allowlistAttestationKey = optimistAllowlist.OPTIMIST_CAN_MINT_ATTESTATION_KEY();
-
-        bytes memory data = abi.encodeWithSelector(
-            attestationStation.attestations.selector,
-            alice_allowlistAttestor,
-            bob,
-            allowlistAttestationKey
-        );
-        vm.expectCall(address(attestationStation), data);
-        // assert bob is allowlisted
-        assertEq(optimist.isOnAllowList(bob), true);
-        data = abi.encodeWithSelector(
-            attestationStation.attestations.selector,
-            alice_allowlistAttestor,
-            sally,
-            allowlistAttestationKey
-        );
-        vm.expectCall(address(attestationStation), data);
-        // assert sally is not allowlisted
-        assertEq(optimist.isOnAllowList(sally), false);
-    }
-
-    /**
      * @notice Should return the token id of the owner.
      */
     function test_tokenIdOfAddress_returnsOwnerID_succeeds() external {
-        // allowlist bob
         uint256 willTokenId = 1024;
         address will = address(1024);
 
-        attestAllowlist(will);
+        _mockAllowlistTrueFor(will);
 
         optimist.mint(will);
 
@@ -471,7 +443,7 @@ contract OptimistTest is Optimist_Initializer {
      * @notice It should revert if anybody attemps token transfer.
      */
     function test_transferFrom_reverts() external {
-        attestAllowlist(bob);
+        _mockAllowlistTrueFor(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -496,7 +468,7 @@ contract OptimistTest is Optimist_Initializer {
      * @notice It should revert if anybody attemps approve.
      */
     function test_approve_reverts() external {
-        attestAllowlist(bob);
+        _mockAllowlistTrueFor(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -511,10 +483,10 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice It should be able to burn token.
+     * @notice Only Owner should be able to burn token.
      */
     function test_burn_byOwner_succeeds() external {
-        attestAllowlist(bob);
+        _mockAllowlistTrueFor(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -529,10 +501,29 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
+     * @notice Non-owner attempting to burn token should revert.
+     */
+    function test_burn_byNonOwner_reverts() external {
+        _mockAllowlistTrueFor(bob);
+
+        // mint as bob
+        vm.prank(bob);
+        optimist.mint(bob);
+
+        vm.expectRevert("ERC721: caller is not token owner nor approved");
+        // burn as Sally
+        vm.prank(sally);
+        optimist.burn(_getTokenId(bob));
+
+        // expect bob to have still have the token
+        assertEq(optimist.balanceOf(bob), 1);
+    }
+
+    /**
      * @notice setApprovalForAll should revert since Optimist is a SBT.
      */
     function test_setApprovalForAll_reverts() external {
-        attestAllowlist(bob);
+        _mockAllowlistTrueFor(bob);
 
         // mint as bob
         vm.prank(bob);
@@ -551,11 +542,11 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice should support ERC-721 interface.
+     * @notice Should support ERC-721 interface.
      */
     function test_supportsInterface_returnsCorrectInterfaceForERC721_succeeds() external {
         bytes4 iface721 = type(IERC721).interfaceId;
-        // check that it supports erc721 interface
+        // check that it supports ERC-721 interface
         assertEq(optimist.supportsInterface(iface721), true);
     }
 }
