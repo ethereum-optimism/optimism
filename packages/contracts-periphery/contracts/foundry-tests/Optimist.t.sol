@@ -411,7 +411,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice The tokenURI should return the token uri for a minted token.
+     * @notice tokenURI should return the token uri for a minted token.
      */
     function test_tokenURI_returnsCorrectTokenURI_succeeds() external {
         // we are using true but it can be any non empty value
@@ -445,7 +445,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice It should revert if anybody attemps token transfer.
+     * @notice transferFrom should revert since Optimist is a SBT.
      */
     function test_transferFrom_reverts() external {
         _mockAllowlistTrueFor(bob);
@@ -470,7 +470,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice It should revert if anybody attemps approve.
+     * @notice approve should revert since Optimist is a SBT.
      */
     function test_approve_reverts() external {
         _mockAllowlistTrueFor(bob);
@@ -510,7 +510,7 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
-     * @notice Only Owner should be able to burn token.
+     * @notice Only owner should be able to burn token.
      */
     function test_burn_byOwner_succeeds() external {
         _mockAllowlistTrueFor(bob);
