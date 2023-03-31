@@ -17,6 +17,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['AddressManager', 'setup']
+deployFn.tags = ['AddressManager', 'setup', 'l1']
 
 export default deployFn
