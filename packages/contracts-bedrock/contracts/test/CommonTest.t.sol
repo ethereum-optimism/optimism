@@ -10,6 +10,8 @@ import { L1StandardBridge } from "../L1/L1StandardBridge.sol";
 import { L2StandardBridge } from "../L2/L2StandardBridge.sol";
 import { L1ERC721Bridge } from "../L1/L1ERC721Bridge.sol";
 import { L2ERC721Bridge } from "../L2/L2ERC721Bridge.sol";
+import { IBondManager } from "../universal/IBondManager.sol";
+import { OracleBondManager } from "../universal/OracleBondManager.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { OptimismMintableERC721Factory } from "../universal/OptimismMintableERC721Factory.sol";
 import { OptimismMintableERC20 } from "../universal/OptimismMintableERC20.sol";
@@ -161,6 +163,7 @@ contract L2OutputOracle_Initializer is CommonTest {
 contract L2OutputOracleV2_Initializer is CommonTest {
     L2OutputOracleV2 oracle;
     L2OutputOracleV2 oracleImpl;
+    OracleBondManager bondManager;
 
     L2ToL1MessagePasser messagePasser =
         L2ToL1MessagePasser(payable(Predeploys.L2_TO_L1_MESSAGE_PASSER));
@@ -182,7 +185,7 @@ contract L2OutputOracleV2_Initializer is CommonTest {
         uint256 l1Timestamp
     );
 
-    event OutputDeleted(uint256 indexed l2BlockNumber);
+    event OutputsDeleted(uint256 indexed prevNextOutputNumber, uint256 indexed newNextOutputNumber);
 
     // Advance the evm's time to meet the L2OutputOracleV2's requirements for proposeL2Output
     function warpToProposeTime(uint256 _nextBlockNumber) public {
@@ -192,6 +195,8 @@ contract L2OutputOracleV2_Initializer is CommonTest {
     function setUp() public virtual override {
         super.setUp();
         guardian = makeAddr("guardian");
+
+        bondManager = new OracleBondManager(minimumProposalCost);
 
         // By default the first block has timestamp and number zero, which will cause underflows in the
         // tests, so we'll move forward to these block values.
@@ -205,7 +210,7 @@ contract L2OutputOracleV2_Initializer is CommonTest {
             _startingTimestamp: startingTimestamp,
             _challenger: owner,
             _finalizationPeriodSeconds: 7 days,
-            _minimumOutputProposalCost: minimumProposalCost
+            _bondManager: IBondManager(bondManager)
         });
         Proxy proxy = new Proxy(multisig);
         vm.prank(multisig);
@@ -215,6 +220,7 @@ contract L2OutputOracleV2_Initializer is CommonTest {
         );
         oracle = L2OutputOracleV2(address(proxy));
         vm.label(address(oracle), "L2OutputOracleV2");
+        bondManager.setOwner(address(oracle));
 
         // Set the L2ToL1MessagePasser at the correct address
         vm.etch(Predeploys.L2_TO_L1_MESSAGE_PASSER, address(new L2ToL1MessagePasser()).code);

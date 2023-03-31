@@ -2,6 +2,8 @@
 pragma solidity 0.8.15;
 
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
+
+import { IBondManager } from "../universal/IBondManager.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { Semver } from "../universal/Semver.sol";
 import { Types } from "../libraries/Types.sol";
@@ -31,9 +33,9 @@ contract L2OutputOracleV2 is Initializable, Semver {
     uint256 public immutable FINALIZATION_PERIOD_SECONDS;
 
     /**
-     * @notice Minimum cost of submitting an output proposal.
+     * @notice The Oracle Bond Manager.
      */
-    uint256 public immutable MINIMUM_OUTPUT_PROPOSAL_COST;
+    IBondManager public immutable BOND_MANAGER;
 
     /**
      * @notice The number of the first L2 block recorded in this contract.
@@ -87,11 +89,13 @@ contract L2OutputOracleV2 is Initializable, Semver {
     );
 
     /**
-     * @notice Emitted when an output are deleted.
+     * @notice Emitted when outputs are deleted.
+     * @notice This keeps backwards-compatibility with the L2OutputOracle.
      *
-     * @param l2BlockNumber Block number of the proposal that was deleted.
+     * @param prevNextOutputNumber Next L2 output block number before the deletion.
+     * @param newNextOutputNumber  Next L2 output block number after the deletion.
      */
-    event OutputDeleted(uint256 indexed l2BlockNumber);
+    event OutputsDeleted(uint256 indexed prevNextOutputNumber, uint256 indexed newNextOutputNumber);
 
     /**
      * @custom:semver 2.0.0
@@ -101,7 +105,7 @@ contract L2OutputOracleV2 is Initializable, Semver {
      * @param _startingTimestamp         The timestamp of the first L2 block.
      * @param _challenger                The address of the challenger.
      * @param _finalizationPeriodSeconds The time before an output can be finalized.
-     * @param _minimumOutputProposalCost The amount that must be paid to post an output.
+     * @param _bondManager               The bond manager.
      */
     constructor(
         uint256 _l2BlockTime,
@@ -109,14 +113,14 @@ contract L2OutputOracleV2 is Initializable, Semver {
         uint256 _startingTimestamp,
         address _challenger,
         uint256 _finalizationPeriodSeconds,
-        uint256 _minimumOutputProposalCost
+        IBondManager _bondManager
     ) Semver(2, 0, 0) {
         require(_l2BlockTime > 0, "L2OutputOracleV2: L2 block time must be greater than 0");
 
         L2_BLOCK_TIME = _l2BlockTime;
         CHALLENGER = _challenger;
         FINALIZATION_PERIOD_SECONDS = _finalizationPeriodSeconds;
-        MINIMUM_OUTPUT_PROPOSAL_COST = _minimumOutputProposalCost;
+        BOND_MANAGER = _bondManager;
 
         initialize(_startingBlockNumber, _startingTimestamp);
     }
@@ -173,13 +177,10 @@ contract L2OutputOracleV2 is Initializable, Semver {
 
         // Remove the associated output state
         delete l2Outputs[_l2BlockNumber];
+        uint256 amount = BOND_MANAGER.call(keccak256(abi.encode(_l2BlockNumber)), msg.sender);
         delete bonds[_l2BlockNumber];
 
-        // Transfer the bond to the challenger
-        bool success = SafeCall.call(CHALLENGER, gasleft(), MINIMUM_OUTPUT_PROPOSAL_COST, hex"");
-        require(success, "L2OutputOracleV2: ETH bond transfer failed");
-
-        emit OutputDeleted(_l2BlockNumber);
+        emit OutputsDeleted(nextL2Block, _l2BlockNumber);
     }
 
     /**
@@ -197,13 +198,18 @@ contract L2OutputOracleV2 is Initializable, Semver {
         uint256 _l1BlockNumber
     ) external payable {
         require(
-            msg.value >= MINIMUM_OUTPUT_PROPOSAL_COST,
+            msg.value >= BOND_MANAGER.next(),
             "L2OutputOracleV2: minimum proposal cost not provided"
         );
 
         require(
             l2Outputs[_l2BlockNumber].timestamp == 0,
             "L2OutputOracleV2: output already proposed"
+        );
+
+        require(
+            bonds[_l2BlockNumber] == address(0),
+            "L2OutputOracleV2: bond already posted for this output"
         );
 
         require(
@@ -231,11 +237,14 @@ contract L2OutputOracleV2 is Initializable, Semver {
             );
         }
 
-        // Walk backwards in the doubly linked list
+        // Get the L2 block number for which we have an output proposal just before this block
+        // Need to walk backwards in the doubly linked list
         uint256 prevBlockNum = highestL2BlockNumber;
         while (prevBlockNum > _l2BlockNumber) {
             prevBlockNum = previousBlockNumber[prevBlockNum];
         }
+
+        // Insert the block by placing in the doubly linked list
         uint256 updatePrevNext = nextBlockNumber[prevBlockNum];
         if (updatePrevNext != 0) {
             previousBlockNumber[updatePrevNext] = _l2BlockNumber;
@@ -249,8 +258,11 @@ contract L2OutputOracleV2 is Initializable, Semver {
             highestL2BlockNumber = _l2BlockNumber;
         }
 
+        // Post the bond to the bond manager
+        BOND_MANAGER.post{ value: msg.value }(keccak256(abi.encode(_l2BlockNumber)));
         bonds[_l2BlockNumber] = msg.sender;
 
+        // Set the output
         l2Outputs[_l2BlockNumber] = Types.OutputProposal({
             outputRoot: _outputRoot,
             timestamp: uint128(block.timestamp),
