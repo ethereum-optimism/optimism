@@ -30,9 +30,7 @@
       "@eth-optimism/contracts-periphery/ds-test",
       "@eth-optimism/contracts-periphery/forge-std",
       "@eth-optimism/contracts-periphery/@rari-capital/solmate",
-      "forta-agent",
-      "@eth-optimism/contracts-bedrock/@safe-global/safe-contracts",
-      "@eth-optimism/contracts-bedrock/solady"
+      "forta-agent"
     ]
   },
   "private": true,

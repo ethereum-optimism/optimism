@@ -80,8 +80,6 @@
     "forge-std": "https://github.com/foundry-rs/forge-std.git#46264e9788017fc74f9f58b7efa0bc6e1df6d410",
     "glob": "^7.1.6",
     "hardhat-deploy": "^0.11.4",
-    "@safe-global/safe-contracts": "https://github.com/safe-global/safe-contracts.git#v1.3.0-libs.0",
-    "solady": "https://github.com/Vectorized/solady.git#v0.0.85",
     "solhint": "^3.3.7",
     "solhint-plugin-prettier": "^0.0.5",
     "ts-node": "^10.9.1",

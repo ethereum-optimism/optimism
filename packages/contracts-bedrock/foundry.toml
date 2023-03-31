@@ -9,9 +9,7 @@ remappings = [
   '@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/',
   '@rari-capital/solmate/=node_modules/@rari-capital/solmate',
   'forge-std/=node_modules/forge-std/src',
-  'ds-test/=node_modules/ds-test/src',
-  '@safe-global/safe-contracts=node_modules/@safe-global/safe-contracts/',
-  'solady/=node_modules/solady/src'
+  'ds-test/=node_modules/ds-test/src'
 ]
 extra_output = ['devdoc', 'userdoc', 'metadata', 'storageLayout']
 bytecode_hash = 'none'
