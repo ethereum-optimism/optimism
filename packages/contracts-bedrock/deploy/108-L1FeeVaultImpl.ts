@@ -1,19 +1,25 @@
 import { DeployFunction } from 'hardhat-deploy/dist/types'
 import '@eth-optimism/hardhat-deploy-config'
 import '@nomiclabs/hardhat-ethers'
+import { ethers } from 'ethers'
 
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
+  const l1FeeVaultRecipient = hre.deployConfig.l1FeeVaultRecipient
+  if (l1FeeVaultRecipient === ethers.constants.AddressZero) {
+    throw new Error('L1FeeVault RECIPIENT undefined')
+  }
+
   await deploy({
     hre,
     name: 'L1FeeVault',
-    args: [hre.deployConfig.l1FeeVaultRecipient],
+    args: [l1FeeVaultRecipient],
     postDeployAction: async (contract) => {
       await assertContractVariable(
         contract,
         'RECIPIENT',
-        hre.deployConfig.l1FeeVaultRecipient
+        ethers.utils.getAddress(l1FeeVaultRecipient)
       )
     },
   })

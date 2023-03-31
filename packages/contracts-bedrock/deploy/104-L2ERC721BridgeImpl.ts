@@ -6,10 +6,10 @@ import { ethers } from 'ethers'
 import { predeploys } from '../src/constants'
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
-// TODO: should be proxy and should be companion network
-
 const deployFn: DeployFunction = async (hre) => {
-  const Artifact__L1ERC721Bridge = await hre.deployments.get('L1ERC721Bridge')
+  const Artifact__L1ERC721Bridge = await hre.companionNetworks[
+    'l1'
+  ].deployments.get('L1ERC721BridgeProxy')
 
   await deploy({
     hre,

@@ -6,9 +6,9 @@ import '@nomiclabs/hardhat-ethers'
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const Artifact__L1StandardBridge = await hre.deployments.get(
-    'L1StandardBridge'
-  )
+  const Artifact__L1StandardBridge = await hre.companionNetworks[
+    'l1'
+  ].deployments.get('L1StandardBridgeProxy')
 
   await deploy({
     hre,
