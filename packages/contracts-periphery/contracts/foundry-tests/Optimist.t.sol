@@ -161,6 +161,8 @@ contract Optimist_Initializer is Test {
             abi.encodeWithSelector(OptimistAllowlist.isAllowedToMint.selector, _claimer),
             abi.encode(true)
         );
+
+        assertTrue(optimist.isOnAllowList(_claimer));
     }
 
     /**
@@ -213,6 +215,9 @@ contract Optimist_Initializer is Test {
 }
 
 contract OptimistTest is Optimist_Initializer {
+    /**
+     * @notice Check that constructor and initializer parameters are correctly set.
+     */
     function test_initialize_success() external {
         // expect name to be set
         assertEq(optimist.name(), name);
@@ -483,6 +488,28 @@ contract OptimistTest is Optimist_Initializer {
     }
 
     /**
+     * @notice setApprovalForAll should revert since Optimist is a SBT.
+     */
+    function test_setApprovalForAll_reverts() external {
+        _mockAllowlistTrueFor(bob);
+
+        // mint as bob
+        vm.prank(bob);
+        optimist.mint(bob);
+        vm.prank(alice_allowlistAttestor);
+        vm.expectRevert(bytes("Optimist: soul bound token"));
+        optimist.setApprovalForAll(alice_allowlistAttestor, true);
+
+        // expect approval amount to stil be 0
+        assertEq(optimist.getApproved(_getTokenId(bob)), address(0));
+        // isApprovedForAll should return false
+        assertEq(
+            optimist.isApprovedForAll(alice_allowlistAttestor, alice_allowlistAttestor),
+            false
+        );
+    }
+
+    /**
      * @notice Only Owner should be able to burn token.
      */
     function test_burn_byOwner_succeeds() external {
@@ -517,28 +544,6 @@ contract OptimistTest is Optimist_Initializer {
 
         // expect bob to have still have the token
         assertEq(optimist.balanceOf(bob), 1);
-    }
-
-    /**
-     * @notice setApprovalForAll should revert since Optimist is a SBT.
-     */
-    function test_setApprovalForAll_reverts() external {
-        _mockAllowlistTrueFor(bob);
-
-        // mint as bob
-        vm.prank(bob);
-        optimist.mint(bob);
-        vm.prank(alice_allowlistAttestor);
-        vm.expectRevert(bytes("Optimist: soul bound token"));
-        optimist.setApprovalForAll(alice_allowlistAttestor, true);
-
-        // expect approval amount to stil be 0
-        assertEq(optimist.getApproved(_getTokenId(bob)), address(0));
-        // isApprovedForAll should return false
-        assertEq(
-            optimist.isApprovedForAll(alice_allowlistAttestor, alice_allowlistAttestor),
-            false
-        );
     }
 
     /**
