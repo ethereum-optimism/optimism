@@ -8,6 +8,7 @@ import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
 import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
+import { Multicall3 } from "../testing/helpers/Multicall3.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 
@@ -32,6 +33,9 @@ contract Optimist_Initializer is Test {
 
     // Helps with EIP-712 signature generation
     OptimistInviterHelper optimistInviterHelper;
+
+    // To test multicall for claiming and minting in one call
+    Multicall3 multicall3;
 
     address internal carol_baseURIAttestor;
     address internal alice_allowlistAttestor;
@@ -211,6 +215,8 @@ contract Optimist_Initializer is Test {
             _attestationStation: attestationStation,
             _optimistAllowlist: optimistAllowlist
         });
+
+        multicall3 = new Multicall3();
     }
 }
 
@@ -553,5 +559,71 @@ contract OptimistTest is Optimist_Initializer {
         bytes4 iface721 = type(IERC721).interfaceId;
         // check that it supports ERC-721 interface
         assertEq(optimist.supportsInterface(iface721), true);
+    }
+
+    /**
+     * @notice Checking that multi-call using the invite & claim flow works correctly, since the
+     *         frontend will be making multicalls to improve UX. The OptimistInviter.claimInvite
+     *         and Optimist.mint will be batched
+     */
+    function test_multicall_batchingClaimAndMint_succeeds() external {
+        uint256 inviterPrivateKey = 0xbeefbeef;
+        address inviter = vm.addr(inviterPrivateKey);
+
+        address[] memory addresses = new address[](1);
+        addresses[0] = inviter;
+
+        vm.prank(eve_inviteGranter);
+
+        // grant invites to Inviter;
+        optimistInviter.setInviteCounts(addresses, 3);
+
+        // issue a new invite
+        OptimistInviter.ClaimableInvite memory claimableInvite = optimistInviterHelper
+            .getClaimableInviteWithNewNonce(inviter);
+
+        // EIP-712 sign with Inviter's private key
+
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(
+            inviterPrivateKey,
+            optimistInviterHelper.getDigest(claimableInvite)
+        );
+        bytes memory signature = abi.encodePacked(r, s, v);
+
+        bytes32 hashedCommit = keccak256(abi.encode(bob, signature));
+
+        // commit the invite
+        vm.prank(bob);
+        optimistInviter.commitInvite(hashedCommit);
+
+        // wait minimum commitment period
+        vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
+
+        Multicall3.Call3[] memory calls = new Multicall3.Call3[](2);
+
+        // First call is to claim the invite, receiving the attestation
+        calls[0] = Multicall3.Call3({
+            target: address(optimistInviter),
+            callData: abi.encodeWithSelector(
+                optimistInviter.claimInvite.selector,
+                bob,
+                claimableInvite,
+                signature
+            ),
+            allowFailure: false
+        });
+
+        // Second call is to mint the Optimist NFT
+        calls[1] = Multicall3.Call3({
+            target: address(optimist),
+            callData: abi.encodeWithSelector(optimist.mint.selector, bob),
+            allowFailure: false
+        });
+
+        multicall3.aggregate3(calls);
+
+        assertTrue(optimist.isOnAllowList(bob));
+        assertEq(optimist.ownerOf(_getTokenId(bob)), bob);
+        assertEq(optimist.balanceOf(bob), 1);
     }
 }
