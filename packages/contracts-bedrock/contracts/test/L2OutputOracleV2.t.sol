@@ -5,6 +5,7 @@ import { stdError } from "forge-std/Test.sol";
 import { L2OutputOracleV2_Initializer, NextImpl } from "./CommonTest.t.sol";
 import { L2OutputOracleV2 } from "../L1/L2OutputOracleV2.sol";
 import { Proxy } from "../universal/Proxy.sol";
+import { IBondManager } from "../universal/IBondManager.sol";
 import { Types } from "../libraries/Types.sol";
 
 contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
@@ -18,14 +19,13 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
 
     function test_constructor_badTimestamp_reverts() external {
         vm.expectRevert("L2OutputOracleV2: starting L2 timestamp must be less than current time");
-
         new L2OutputOracleV2({
             _l2BlockTime: l2BlockTime,
             _startingBlockNumber: startingBlockNumber,
             _startingTimestamp: block.timestamp + 1,
             _challenger: owner,
             _finalizationPeriodSeconds: 7 days,
-            _minimumOutputProposalCost: 1 ether
+            _bondManager: IBondManager(bondManager)
         });
     }
 
@@ -37,7 +37,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
             _startingTimestamp: block.timestamp,
             _challenger: owner,
             _finalizationPeriodSeconds: 7 days,
-            _minimumOutputProposalCost: 1 ether
+            _bondManager: IBondManager(bondManager)
         });
     }
 
@@ -235,7 +235,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
 
         vm.prank(owner);
         vm.expectEmit(true, true, false, false);
-        emit OutputDeleted(highestL2BlockNumber);
+        emit OutputsDeleted(0, highestL2BlockNumber);
         oracle.deleteL2Output(highestL2BlockNumber);
 
         address proposer = oracle.getProposer(highestL2BlockNumber);
@@ -262,13 +262,13 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
 
         vm.startPrank(owner);
         vm.expectEmit(true, true, false, false);
-        emit OutputDeleted(highestL2BlockNumber - 3);
+        emit OutputsDeleted(highestL2BlockNumber - 2, highestL2BlockNumber - 3);
         oracle.deleteL2Output(highestL2BlockNumber - 3);
         vm.expectEmit(true, true, false, false);
-        emit OutputDeleted(highestL2BlockNumber - 2);
+        emit OutputsDeleted(highestL2BlockNumber - 1, highestL2BlockNumber - 2);
         oracle.deleteL2Output(highestL2BlockNumber - 2);
         vm.expectEmit(true, true, false, false);
-        emit OutputDeleted(highestL2BlockNumber - 1);
+        emit OutputsDeleted(highestL2BlockNumber, highestL2BlockNumber - 1);
         oracle.deleteL2Output(highestL2BlockNumber - 1);
 
         uint256 nextHighestL2BlockNumber = oracle.highestL2BlockNumber();
@@ -279,7 +279,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
 
         // Now when we delete, the highest number should be updated
         vm.expectEmit(true, true, false, false);
-        emit OutputDeleted(highestL2BlockNumber);
+        emit OutputsDeleted(0, highestL2BlockNumber);
         oracle.deleteL2Output(highestL2BlockNumber);
         assertEq(0, oracle.highestL2BlockNumber());
     }
