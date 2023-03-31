@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 /**
  * @title  OptimistConstants
- * @notice Library for storing constants related to the Optimist NFT shared in multiple contracts.
+ * @notice Library for storing Optimist related constants that are shared in multiple contracts.
  */
 
 library OptimistConstants {
