@@ -67,6 +67,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['OptimismPortalImpl', 'setup']
+deployFn.tags = ['OptimismPortalImpl', 'setup', 'l1']
 
 export default deployFn

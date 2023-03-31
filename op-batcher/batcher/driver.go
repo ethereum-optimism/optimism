@@ -73,7 +73,7 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 	if err != nil {
 		return nil, err
 	}
-	txManager := txmgr.NewSimpleTxManager("batcher", l, txManagerConfig)
+	txManager := txmgr.NewSimpleTxManager("batcher", l, m, txManagerConfig)
 
 	batcherCfg := Config{
 		L1Client:       l1Client,

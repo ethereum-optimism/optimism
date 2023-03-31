@@ -12,6 +12,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['SystemDictatorImpl', 'setup']
+deployFn.tags = ['SystemDictatorImpl', 'setup', 'l1']
 
 export default deployFn
