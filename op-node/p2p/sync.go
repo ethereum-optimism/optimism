@@ -178,7 +178,7 @@ type SyncClient struct {
 	newStreamFn     newStreamFn
 	payloadByNumber protocol.ID
 
-	sync.Mutex
+	peersLock sync.Mutex
 	// syncing worker per peer
 	peers map[peer.ID]context.CancelFunc
 
@@ -244,8 +244,8 @@ func (s *SyncClient) Start() {
 }
 
 func (s *SyncClient) AddPeer(id peer.ID) {
-	s.Lock()
-	defer s.Unlock()
+	s.peersLock.Lock()
+	defer s.peersLock.Unlock()
 	if _, ok := s.peers[id]; ok {
 		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
 		return
@@ -258,8 +258,8 @@ func (s *SyncClient) AddPeer(id peer.ID) {
 }
 
 func (s *SyncClient) RemovePeer(id peer.ID) {
-	s.Lock()
-	defer s.Unlock()
+	s.peersLock.Lock()
+	defer s.peersLock.Unlock()
 	cancel, ok := s.peers[id]
 	if !ok {
 		s.log.Warn("cannot remove peer from sync duties, peer was not registered", "peer", id)
@@ -357,6 +357,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 			s.inFlight[num] = pr.complete
 		case <-ctx.Done():
 			log.Info("did not schedule full P2P sync range", "current", num, "err", ctx.Err())
+			return
 		default: // peers may all be busy processing requests already
 			log.Info("no peers ready to handle block requests for more P2P requests for L2 block history", "current", num)
 			return
@@ -366,9 +367,7 @@ func (s *SyncClient) onRangeRequest(ctx context.Context, req rangeRequest) {
 
 func (s *SyncClient) onQuarantineEvict(key common.Hash, value syncResult) {
 	delete(s.quarantineByNum, uint64(value.payload.BlockNumber))
-	if s.metrics != nil {
-		s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
-	}
+	s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
 	if !s.trusted.Contains(key) {
 		s.log.Debug("evicting untrusted payload from quarantine", "id", value.payload.ID(), "peer", value.peer)
 		// TODO(CLI-3732): downscore peer for having provided us a bad block that never turned out to be canonical
@@ -380,7 +379,8 @@ func (s *SyncClient) onQuarantineEvict(key common.Hash, value syncResult) {
 func (s *SyncClient) tryPromote(h common.Hash) {
 	parentRes, ok := s.quarantine.Get(h)
 	if ok {
-		// Simply reschedule the result, to get it (and possibly its parents) out of quarantine without recursion
+		// Simply reschedule the result, to get it (and possibly its parents) out of quarantine without recursion.
+		// s.results is buffered, but skip the promotion if the channel is full as it would cause a deadlock.
 		select {
 		case s.results <- parentRes:
 		default:
@@ -426,9 +426,7 @@ func (s *SyncClient) onResult(ctx context.Context, res syncResult) {
 	// Always put it in quarantine first. If promotion fails because the receiver is too busy, this functions as cache.
 	s.quarantine.Add(res.payload.BlockHash, res)
 	s.quarantineByNum[uint64(res.payload.BlockNumber)] = res.payload.BlockHash
-	if s.metrics != nil {
-		s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
-	}
+	s.metrics.PayloadsQuarantineSize(s.quarantine.Len())
 	// If we know this block is canonical, then promote it
 	if s.trusted.Contains(res.payload.BlockHash) {
 		s.promote(ctx, res)
@@ -438,10 +436,10 @@ func (s *SyncClient) onResult(ctx context.Context, res syncResult) {
 // peerLoop for syncing from a single peer
 func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 	defer func() {
-		s.Lock()
+		s.peersLock.Lock()
 		delete(s.peers, id) // clean up
 		s.wg.Done()
-		s.Unlock()
+		s.peersLock.Unlock()
 		s.log.Debug("stopped syncing loop of peer", "id", id)
 	}()
 
@@ -485,17 +483,15 @@ func (s *SyncClient) peerLoop(ctx context.Context, id peer.ID) {
 			//  increase the p2p-sync part of the peer score
 			//  (don't allow the score to grow indefinitely only based on this factor though)
 
-			if s.metrics != nil {
-				resultCode := byte(0)
-				if err != nil {
-					if re, ok := err.(requestResultErr); ok {
-						resultCode = re.ResultCode()
-					} else {
-						resultCode = 1
-					}
+			resultCode := byte(0)
+			if err != nil {
+				if re, ok := err.(requestResultErr); ok {
+					resultCode = re.ResultCode()
+				} else {
+					resultCode = 1
 				}
-				s.metrics.ClientPayloadByNumberEvent(pr.num, resultCode, took)
 			}
+			s.metrics.ClientPayloadByNumberEvent(pr.num, resultCode, took)
 		case <-ctx.Done():
 			return
 		}
@@ -666,9 +662,7 @@ func (srv *ReqRespServer) HandleSyncRequest(ctx context.Context, log log.Logger,
 	} else {
 		log.Debug("successfully served sync response", "req", req)
 	}
-	if srv.metrics != nil {
-		srv.metrics.ServerPayloadByNumberEvent(req, 0, time.Since(start))
-	}
+	srv.metrics.ServerPayloadByNumberEvent(req, 0, time.Since(start))
 }
 
 var invalidRequestErr = errors.New("invalid request")
