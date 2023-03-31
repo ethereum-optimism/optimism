@@ -72,7 +72,7 @@ For the factory, a [Huff](https://huff.sh) implementation of
 [`clones-with-immutable-args`](https://github.com/wighawag/clones-with-immutable-args/tree/master)
 by @wighawag is used to create Clones. Each `GameType` has a corresponding implementation within the factory,
 and when a new game is created, the factory creates a clone of the `GameType`'s
-implementation contract.
+pre-deployed implementation contract.
 
 When the `DisputeGameFactory` creates a new `DisputeGame` contract, it calls
 `initialize()` on the clone to set up the game.
@@ -150,17 +150,20 @@ interface IDisputeGame {
     /// @notice Returns the current status of the game.
     function status() external view returns (GameStatus _status);
 
-    /// @notice `clones-with-immutable-args` argument #1
-    /// @return _gameType The type of proof system being used.
+    /// @notice Getter for the game type.
+    /// @dev `clones-with-immutable-args` argument #1
     /// @dev The reference impl should be entirely different depending on the type (fault, validity)
     ///      i.e. The game type should indicate the security model.
+    /// @return _gameType The type of proof system being used.
     function gameType() external view returns (GameType _gameType);
 
-    /// @notice `clones-with-immutable-args` argument #2
+    /// @notice Getter for the root claim.
     /// @return _rootClaim The root claim of the DisputeGame.
+    /// @dev `clones-with-immutable-args` argument #2
     function rootClaim() external view returns (Claim _rootClaim);
 
-    /// @notice `clones-with-immutable-args` argument #3
+    /// @notice Getter for the extra data.
+    /// @dev `clones-with-immutable-args` argument #3
     /// @return _extraData Any extra data supplied to the dispute game contract by the creator.
     function extraData() external view returns (bytes memory _extraData);
 
@@ -187,8 +190,8 @@ interface IDisputeGame_OutputAttestation is IDisputeGame {
     ///         or not they have authorized the `rootClaim` to be invalidated.
     function challenges(address challenger) external view returns (bool _challenged);
 
-    /// @notice Returns the list of authorized public keys that may challenge the `rootClaim`.
-    /// @return An array of authorized signers that may challenge the `rootClaim`.
+    /// @notice The signer set consists of authorized public keys that may challenge the `rootClaim`.
+    /// @return An array of authorized signers.
     function signerSet() external view returns (address[] memory _signers);
 
     /// @notice The amount of signatures required to successfully challenge the `rootClaim`
@@ -199,12 +202,12 @@ interface IDisputeGame_OutputAttestation is IDisputeGame {
 
     /// @notice Challenge the `rootClaim`.
     /// @dev - If the `ecrecover`ed address that created the signature is not a part of the
-    ///      signer set returned by `signerSet`, this function will revert.
+    ///      signer set returned by `signerSet`, this function should revert.
     ///      - If the `ecrecover`ed address that created the signature is not the msg.sender,
-    ///      this function will revert.
+    ///      this function should revert.
     ///      - If the signature provided is the signature that breaches the signature threshold,
-    ///      the function will call the `resolve` function to resolve the game as `CHALLENGER_WINS`.
-    ///      - When the game resolves, the bond attached to the root claim will be distributed among
+    ///      the function should call the `resolve` function to resolve the game as `CHALLENGER_WINS`.
+    ///      - When the game resolves, the bond attached to the root claim should be distributed among
     ///      the signers who participated in challenging the invalid claim.
     /// @param signature A signed message of the `rootClaim` from the attestor's EOA.
     function challenge(bytes calldata signature) external;
