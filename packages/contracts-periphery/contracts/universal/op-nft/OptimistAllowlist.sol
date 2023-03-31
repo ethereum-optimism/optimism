@@ -3,6 +3,7 @@ pragma solidity 0.8.15;
 
 import { Semver } from "@eth-optimism/contracts-bedrock/contracts/universal/Semver.sol";
 import { AttestationStation } from "./AttestationStation.sol";
+import { OptimistConstants } from "./libraries/OptimistConstants.sol";
 
 /**
  * @title  OptimistAllowlist
@@ -22,12 +23,6 @@ contract OptimistAllowlist is Semver {
      */
     bytes32 public constant COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY =
         bytes32("coinbase.quest-eligible");
-
-    /**
-     * @notice Attestation key the OptimistInviter needs to issue to allow an address to mint.
-     */
-    bytes32 public constant OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY =
-        bytes32("optimist.can-mint-from-invite");
 
     /**
      * @notice Address of the AttestationStation contract.
@@ -125,7 +120,7 @@ contract OptimistAllowlist is Semver {
                 .attestations(
                     OPTIMIST_INVITER,
                     _claimer,
-                    OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
+                    OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
                 )
                 .length > 0;
     }

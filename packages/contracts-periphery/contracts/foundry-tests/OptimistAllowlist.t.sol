@@ -7,6 +7,7 @@ import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
 import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
+import { OptimistConstants } from "../universal/op-nft/libraries/OptimistConstants.sol";
 
 contract OptimistAllowlist_Initializer is Test {
     event AttestationCreated(
@@ -217,7 +218,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
         vm.prank(ted);
         attestationStation.attest(
             bob,
-            optimistInviter.CAN_MINT_FROM_INVITE_ATTESTATION_KEY(),
+            OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY,
             bytes("true")
         );
         assertFalse(optimistAllowlist.isAllowedToMint(bob));
