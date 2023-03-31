@@ -3,6 +3,7 @@ package txmgr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -19,6 +20,10 @@ import (
 )
 
 type sendTransactionFunc func(ctx context.Context, tx *types.Transaction) error
+
+func testSendState() *SendState {
+	return NewSendState(100, time.Hour)
+}
 
 // testHarness houses the necessary resources to test the SimpleTxManager.
 type testHarness struct {
@@ -68,6 +73,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
+		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
 		},
@@ -530,7 +536,7 @@ func TestWaitMinedReturnsReceiptOnFirstSuccess(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.waitMined(ctx, tx, nil)
+	receipt, err := h.mgr.waitMined(ctx, tx, testSendState())
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)
@@ -549,7 +555,7 @@ func TestWaitMinedCanBeCanceled(t *testing.T) {
 	// Create an unimined tx.
 	tx := types.NewTx(&types.LegacyTx{})
 
-	receipt, err := h.mgr.waitMined(ctx, tx, nil)
+	receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 }
@@ -570,7 +576,7 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 	txHash := tx.Hash()
 	h.backend.mine(&txHash, new(big.Int))
 
-	receipt, err := h.mgr.waitMined(ctx, tx, nil)
+	receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 
@@ -579,7 +585,7 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 
 	// Mine an empty block, tx should now be confirmed.
 	h.backend.mine(nil, nil)
-	receipt, err = h.mgr.waitMined(ctx, tx, nil)
+	receipt, err = h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, txHash, receipt.TxHash)
@@ -692,7 +698,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := mgr.waitMined(ctx, tx, nil)
+	receipt, err := mgr.waitMined(ctx, tx, testSendState())
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)
@@ -724,8 +730,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		GasTipCap: big.NewInt(txTipCap),
 		GasFeeCap: big.NewInt(txFeeCap),
 	})
-	newTx, err := mgr.increaseGasPrice(context.Background(), tx)
-	require.NoError(t, err)
+	newTx := mgr.increaseGasPrice(context.Background(), tx)
 	return tx, newTx
 }
 
@@ -831,11 +836,32 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
 	for i := 0; i < 20; i++ {
 		ctx := context.Background()
-		newTx, err := mgr.increaseGasPrice(ctx, tx)
-		require.NoError(t, err)
+		newTx := mgr.increaseGasPrice(ctx, tx)
 		require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
 		require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
 		tx = newTx
 	}
 
+}
+
+func TestErrStringMatch(t *testing.T) {
+	tests := []struct {
+		err    error
+		target error
+		match  bool
+	}{
+		{err: nil, target: nil, match: true},
+		{err: errors.New("exists"), target: nil, match: false},
+		{err: nil, target: errors.New("exists"), match: false},
+		{err: errors.New("exact match"), target: errors.New("exact match"), match: true},
+		{err: errors.New("partial: match"), target: errors.New("match"), match: true},
+	}
+
+	for i, test := range tests {
+		i := i
+		test := test
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			require.Equal(t, test.match, errStringMatch(test.err, test.target))
+		})
+	}
 }

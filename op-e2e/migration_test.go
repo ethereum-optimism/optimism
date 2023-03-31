@@ -346,6 +346,7 @@ func TestMigration(t *testing.T) {
 			NumConfirmations:          1,
 			ResubmissionTimeout:       5 * time.Second,
 			SafeAbortNonceTooLowCount: 3,
+			TxNotInMempoolTimeout:     2 * time.Minute,
 		},
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
@@ -371,6 +372,7 @@ func TestMigration(t *testing.T) {
 			NumConfirmations:          1,
 			ResubmissionTimeout:       3 * time.Second,
 			SafeAbortNonceTooLowCount: 3,
+			TxNotInMempoolTimeout:     2 * time.Minute,
 		},
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
