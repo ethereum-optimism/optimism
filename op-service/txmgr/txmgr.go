@@ -152,6 +152,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get gas price info: %w", err)
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
@@ -161,8 +162,10 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	defer cancel()
 	nonce, err := m.backend.NonceAt(childCtx, candidate.From, nil)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
+	m.metr.RecordNonce(nonce)
 
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
@@ -241,6 +244,8 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 			return nil, ctx.Err()
 
 		case receipt := <-receiptChan:
+			m.metr.RecordL1GasFee(receipt)
+			m.metr.TxConfirmed()
 			return receipt, nil
 		}
 	}
@@ -257,6 +262,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 	defer cancel()
 	err := m.backend.SendTransaction(cCtx, tx)
 	sendState.ProcessSendError(err)
+	m.metr.TxPublished(err)
 
 	// Properly log & exit if there is an error
 	if err != nil {
@@ -264,6 +270,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 		case errStringMatch(err, core.ErrNonceTooLow):
 			log.Warn("nonce too low", "err", err)
 		case errStringMatch(err, context.Canceled):
+			m.metr.RPCError()
 			log.Warn("transaction send cancelled", "err", err)
 		case errStringMatch(err, txpool.ErrAlreadyKnown):
 			log.Warn("resubmitted already known transaction", "err", err)
@@ -272,6 +279,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 		case errStringMatch(err, txpool.ErrUnderpriced):
 			log.Warn("transaction is underpriced", "err", err)
 		default:
+			m.metr.RPCError()
 			log.Error("unable to publish transaction", "err", err)
 		}
 		return
@@ -318,9 +326,11 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 		m.l.Trace("Transaction not yet mined", "hash", txHash)
 		return nil
 	} else if err != nil {
+		m.metr.RPCError()
 		m.l.Info("Receipt retrieval failed", "hash", txHash, "err", err)
 		return nil
 	} else if receipt == nil {
+		m.metr.RPCError()
 		m.l.Warn("Receipt and error are both nil", "hash", txHash)
 		return nil
 	}
@@ -404,6 +414,7 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	defer cancel()
 	tip, err := m.backend.SuggestGasTipCap(cCtx)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, nil, fmt.Errorf("failed to fetch the suggested gas tip cap: %w", err)
 	} else if tip == nil {
 		return nil, nil, errors.New("the suggested tip was nil")
@@ -412,6 +423,7 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	defer cancel()
 	head, err := m.backend.HeaderByNumber(cCtx, nil)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, nil, fmt.Errorf("failed to fetch the suggested basefee: %w", err)
 	} else if head.BaseFee == nil {
 		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")

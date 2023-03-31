@@ -691,6 +691,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LvlCrit),
+		metr:    &metrics.NoopTxMetrics{},
 	}
 
 	// Don't mine the tx with the default backend. The failingBackend will
@@ -726,6 +727,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LvlCrit),
+		metr:    &metrics.NoopTxMetrics{},
 	}
 
 	tx := types.NewTx(&types.DynamicFeeTx{
@@ -829,6 +831,7 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 		name:    "TEST",
 		backend: &borkedBackend,
 		l:       testlog.Logger(t, log.LvlCrit),
+		metr:    &metrics.NoopTxMetrics{},
 	}
 	tx := types.NewTx(&types.DynamicFeeTx{
 		GasTipCap: big.NewInt(10),
