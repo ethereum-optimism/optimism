@@ -27,32 +27,42 @@ const normalizePath = (
 }
 
 export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
-  let config: any
-  try {
-    const base = `${hre.config.paths.deployConfig}/${hre.network.name}`
-    if (fs.existsSync(`${base}.ts`)) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      config = require(`${base}.ts`).default
-    } else if (fs.existsSync(`${base}.json`)) {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      config = require(`${base}.json`)
-    } else {
-      throw new Error('not found')
+  const getDeployConfig = (dir: string, network: string): any => {
+    let config: any
+    try {
+      const base = `${dir}/${network}`
+      if (fs.existsSync(`${base}.ts`)) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        config = require(`${base}.ts`).default
+      } else if (fs.existsSync(`${base}.json`)) {
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        config = require(`${base}.json`)
+      } else {
+        throw new Error('not found')
+      }
+    } catch (err) {
+      throw new Error(
+        `error while loading deploy config for network: ${hre.network.name}, ${err}`
+      )
     }
-  } catch (err) {
-    throw new Error(
-      `error while loading deploy config for network: ${hre.network.name}, ${err}`
-    )
+    return config
   }
 
-  return new Proxy(parseDeployConfig(hre, config), {
+  const paths = hre.config.paths.deployConfig
+  const conf = getDeployConfig(paths, hre.network.name)
+  const spec = parseDeployConfig(hre, conf)
+
+  spec.getDeployConfig = (network: string) => {
+    return getDeployConfig(paths, network)
+  }
+
+  return new Proxy(spec, {
     get: (target, prop) => {
       if (target.hasOwnProperty(prop)) {
         return target[prop]
       }
 
-      // Explicitly throw if the property is not found since I can't yet figure out a good way to
-      // handle the necessary typings.
+      // Explicitly throw if the property is not found
       throw new Error(
         `property does not exist in deploy config: ${String(prop)}`
       )
