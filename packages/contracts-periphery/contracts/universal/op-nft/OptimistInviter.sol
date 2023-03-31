@@ -89,12 +89,12 @@ contract OptimistInviter is Semver, EIP712Upgradeable {
     /**
      * @notice Struct that represents a claimable invite that will be signed by the issuer.
      *
-     * @custom:field issuer   Address that issued the signature. Reason this is explicitly included,
-     *                        and not implicitly assumed to be the recovered address from the
-     *                        signature is that the issuer may be using a ERC-1271 compatible
-     *                        contract wallet, where the recovered address is not the same as the
-     *                        issuer, or the signature is not an ECDSA signature at all.
-     * @custom:field nonce    Pseudorandom nonce to prevent replay attacks.
+     * @custom:field issuer Address that issued the signature. Reason this is explicitly included,
+     *                      and not implicitly assumed to be the recovered address from the
+     *                      signature is that the issuer may be using a ERC-1271 compatible
+     *                      contract wallet, where the recovered address is not the same as the
+     *                      issuer, or the signature is not an ECDSA signature at all.
+     * @custom:field nonce  Pseudorandom nonce to prevent replay attacks.
      */
     struct ClaimableInvite {
         address issuer;
