@@ -36,7 +36,7 @@ func NewDataSourceFactory(log log.Logger, cfg *rollup.Config, fetcher L1Transact
 	return &DataSourceFactory{log: log, cfg: cfg, fetcher: fetcher}
 }
 
-// OpenData returns a CalldataSourceImpl. This struct implements the `Next` function.
+// OpenData returns a DataIter. This struct implements the `Next` function.
 func (ds *DataSourceFactory) OpenData(ctx context.Context, id eth.BlockID, batcherAddr common.Address) DataIter {
 	return NewDataSource(ctx, ds.log, ds.cfg, ds.fetcher, id, batcherAddr)
 }

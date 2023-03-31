@@ -330,7 +330,8 @@ jobs:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: lint
-          command: yarn lint:check
+          command: |
+            yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: slither
@@ -342,18 +343,44 @@ jobs:
           name: gas snapshot
           command: |
             forge --version
-            yarn gas-snapshot --check
+            yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
-          command: yarn storage-snapshot && git diff --exit-code .storage-layout
+          command: |
+            yarn storage-snapshot
+            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
-          command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          command: |
+            yarn autogen:invariant-docs
+            git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
+      - run:
+          name: check statuses
+          command: |
+            if [[ "$LINT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Linting failed, see job output for details."
+            fi
+            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Gas snapshot failed, see job output for details."
+            fi
+            if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
+              echo "Storage snapshot failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
+              echo "Invariant docs failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$FAILED" -ne 0 ]]; then
+              exit 1
+            fi
 
   contracts-bedrock-validate-spaces:
     docker:
