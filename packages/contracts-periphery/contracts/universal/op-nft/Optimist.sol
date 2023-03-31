@@ -12,7 +12,7 @@ import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 /**
  * @author Optimism Collective
  * @author Gitcoin
- * @title Optimist
+ * @title  Optimist
  * @notice A Soul Bound Token for real humans only(tm).
  */
 contract Optimist is ERC721BurnableUpgradeable, Semver {
@@ -37,7 +37,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     OptimistAllowlist public immutable OPTIMIST_ALLOWLIST;
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 1.1.0
      * @param _name               Token name.
      * @param _symbol             Token symbol.
      * @param _baseURIAttestor    Address of the baseURI attestor.
@@ -50,7 +50,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         address _baseURIAttestor,
         AttestationStation _attestationStation,
         OptimistAllowlist _optimistAllowlist
-    ) Semver(1, 0, 0) {
+    ) Semver(1, 1, 0) {
         BASE_URI_ATTESTOR = _baseURIAttestor;
         ATTESTATION_STATION = _attestationStation;
         OPTIMIST_ALLOWLIST = _optimistAllowlist;
