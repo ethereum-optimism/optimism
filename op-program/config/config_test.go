@@ -24,3 +24,16 @@ func TestRollupConfig(t *testing.T) {
 		require.ErrorIs(t, err, rollup.ErrBlockTimeZero)
 	})
 }
+
+func TestFetchingEnabled(t *testing.T) {
+	t.Run("FetchingNotEnabledWhenNoFetcherUrlsSpecified", func(t *testing.T) {
+		cfg := NewConfig(&chaincfg.Beta1)
+		require.False(t, cfg.FetchingEnabled(), "Should not enable fetching when node URL not supplied")
+	})
+
+	t.Run("FetchingEnabledWhenFetcherUrlsSpecified", func(t *testing.T) {
+		cfg := NewConfig(&chaincfg.Beta1)
+		cfg.L2URL = "https://example.com:1234"
+		require.True(t, cfg.FetchingEnabled(), "Should enable fetching when node URL supplied")
+	})
+}
