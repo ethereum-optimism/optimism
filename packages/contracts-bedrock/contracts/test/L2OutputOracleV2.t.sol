@@ -53,7 +53,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
         }
         warpToProposeTime(highestL2BlockNumber);
 
-        oracle.proposeL2Output{value: 1 ether}(proposedOutput1, highestL2BlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(proposedOutput1, highestL2BlockNumber, 0, 0);
 
         Types.OutputProposal memory proposal = oracle.getL2Output(highestL2BlockNumber);
         assertEq(proposal.outputRoot, proposedOutput1);
@@ -100,14 +100,13 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
             highestL2BlockNumber = startingBlockNumber;
         }
         warpToProposeTime(highestL2BlockNumber + 1);
-        uint256 proposedNumber = oracle.highestL2BlockNumber();
 
         vm.roll(highestL2BlockNumber + 1);
 
         vm.expectEmit(true, true, true, true);
         emit OutputProposed(proposedOutput2, highestL2BlockNumber + 1, block.timestamp);
 
-        oracle.proposeL2Output{value: 1 ether}(proposedOutput2, highestL2BlockNumber + 1, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(proposedOutput2, highestL2BlockNumber + 1, 0, 0);
     }
 
     // Test: proposeL2Output succeeds when given valid input, and when a block hash and number are
@@ -122,7 +121,12 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
             highestL2BlockNumber = startingBlockNumber;
         }
         warpToProposeTime(highestL2BlockNumber);
-        oracle.proposeL2Output{value: 1 ether}(nonZeroHash, highestL2BlockNumber, prevL1BlockHash, prevL1BlockNumber);
+        oracle.proposeL2Output{ value: 1 ether }(
+            nonZeroHash,
+            highestL2BlockNumber,
+            prevL1BlockHash,
+            prevL1BlockNumber
+        );
     }
 
     /***************************
@@ -138,7 +142,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
         }
         warpToProposeTime(highestL2BlockNumber);
         vm.expectRevert("L2OutputOracleV2: L2 output proposal cannot be the zero hash");
-        oracle.proposeL2Output{value: 1 ether}(outputToPropose, highestL2BlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(outputToPropose, highestL2BlockNumber, 0, 0);
     }
 
     // Test: proposeL2Output fails if the output is already proposed.
@@ -150,9 +154,9 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
         warpToProposeTime(highestL2BlockNumber);
         vm.expectEmit(true, true, true, true);
         emit OutputProposed(nonZeroHash, highestL2BlockNumber, block.timestamp);
-        oracle.proposeL2Output{value: 1 ether}(nonZeroHash, highestL2BlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(nonZeroHash, highestL2BlockNumber, 0, 0);
         vm.expectRevert("L2OutputOracleV2: output already proposed");
-        oracle.proposeL2Output{value: 1 ether}(nonZeroHash, highestL2BlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(nonZeroHash, highestL2BlockNumber, 0, 0);
     }
 
     // Test: proposeL2Output fails if it would have a timestamp in the future.
@@ -164,7 +168,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
         uint256 nextTimestamp = oracle.computeL2Timestamp(highestL2BlockNumber);
         vm.warp(nextTimestamp);
         vm.expectRevert("L2OutputOracleV2: cannot propose L2 output in the future");
-        oracle.proposeL2Output{value: 1 ether}(nonZeroHash, highestL2BlockNumber, 0, 0);
+        oracle.proposeL2Output{ value: 1 ether }(nonZeroHash, highestL2BlockNumber, 0, 0);
     }
 
     // Test: proposeL2Output fails if a non-existent L1 block hash and number are provided for reorg
@@ -178,7 +182,7 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
         vm.expectRevert(
             "L2OutputOracleV2: block hash does not match the hash at the expected height"
         );
-        oracle.proposeL2Output{value: 1 ether}(
+        oracle.proposeL2Output{ value: 1 ether }(
             nonZeroHash,
             highestL2BlockNumber,
             bytes32(uint256(0x01)),
@@ -206,7 +210,12 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
         vm.expectRevert(
             "L2OutputOracleV2: block hash does not match the hash at the expected height"
         );
-        oracle.proposeL2Output{value: 1 ether}(nonZeroHash, highestL2BlockNumber, l1BlockHash, l1BlockNumber - 1);
+        oracle.proposeL2Output{ value: 1 ether }(
+            nonZeroHash,
+            highestL2BlockNumber,
+            l1BlockHash,
+            l1BlockNumber - 1
+        );
     }
 
     /*****************************
@@ -297,49 +306,48 @@ contract L2OutputOracleV2Test is L2OutputOracleV2_Initializer {
     }
 }
 
-// contract L2OutputOracleUpgradeable_Test is L2OutputOracle_Initializer {
-//     Proxy internal proxy;
+contract L2OutputOracleV2Upgradeable_Test is L2OutputOracleV2_Initializer {
+    Proxy internal proxy;
 
-//     function setUp() public override {
-//         super.setUp();
-//         proxy = Proxy(payable(address(oracle)));
-//     }
+    function setUp() public override {
+        super.setUp();
+        proxy = Proxy(payable(address(oracle)));
+    }
 
-//     function test_initValuesOnProxy_succeeds() external {
-//         assertEq(submissionInterval, oracleImpl.SUBMISSION_INTERVAL());
-//         assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
-//         assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
-//         assertEq(startingTimestamp, oracleImpl.startingTimestamp());
+    function test_initValuesOnProxy_succeeds() external {
+        assertEq(l2BlockTime, oracleImpl.L2_BLOCK_TIME());
+        assertEq(startingBlockNumber, oracleImpl.startingBlockNumber());
+        assertEq(startingTimestamp, oracleImpl.startingTimestamp());
 
-//         assertEq(owner, oracleImpl.CHALLENGER());
-//     }
+        assertEq(owner, oracleImpl.CHALLENGER());
+    }
 
-//     function test_initializeProxy_alreadyInitialized_reverts() external {
-//         vm.expectRevert("Initializable: contract is already initialized");
-//         L2OutputOracle(payable(proxy)).initialize(startingBlockNumber, startingTimestamp);
-//     }
+    function test_initializeProxy_alreadyInitialized_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        L2OutputOracleV2(payable(proxy)).initialize(startingBlockNumber, startingTimestamp);
+    }
 
-//     function test_initializeImpl_alreadyInitialized_reverts() external {
-//         vm.expectRevert("Initializable: contract is already initialized");
-//         L2OutputOracle(oracleImpl).initialize(startingBlockNumber, startingTimestamp);
-//     }
+    function test_initializeImpl_alreadyInitialized_reverts() external {
+        vm.expectRevert("Initializable: contract is already initialized");
+        L2OutputOracleV2(oracleImpl).initialize(startingBlockNumber, startingTimestamp);
+    }
 
-//     function test_upgrading_succeeds() external {
-//         // Check an unused slot before upgrading.
-//         bytes32 slot21Before = vm.load(address(oracle), bytes32(uint256(21)));
-//         assertEq(bytes32(0), slot21Before);
+    function test_upgrading_succeeds() external {
+        // Check an unused slot before upgrading.
+        bytes32 slot21Before = vm.load(address(oracle), bytes32(uint256(21)));
+        assertEq(bytes32(0), slot21Before);
 
-//         NextImpl nextImpl = new NextImpl();
-//         vm.startPrank(multisig);
-//         proxy.upgradeToAndCall(
-//             address(nextImpl),
-//             abi.encodeWithSelector(NextImpl.initialize.selector)
-//         );
-//         assertEq(proxy.implementation(), address(nextImpl));
+        NextImpl nextImpl = new NextImpl();
+        vm.startPrank(multisig);
+        proxy.upgradeToAndCall(
+            address(nextImpl),
+            abi.encodeWithSelector(NextImpl.initialize.selector)
+        );
+        assertEq(proxy.implementation(), address(nextImpl));
 
-//         // Verify that the NextImpl contract initialized its values according as expected
-//         bytes32 slot21After = vm.load(address(oracle), bytes32(uint256(21)));
-//         bytes32 slot21Expected = NextImpl(address(oracle)).slot21Init();
-//         assertEq(slot21Expected, slot21After);
-//     }
-// }
+        // Verify that the NextImpl contract initialized its values according as expected
+        bytes32 slot21After = vm.load(address(oracle), bytes32(uint256(21)));
+        bytes32 slot21Expected = NextImpl(address(oracle)).slot21Init();
+        assertEq(slot21Expected, slot21After);
+    }
+}
