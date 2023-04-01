@@ -50,7 +50,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
         address _baseURIAttestor,
         AttestationStation _attestationStation,
         OptimistAllowlist _optimistAllowlist
-    ) Semver(1, 1, 0) {
+    ) Semver(2, 0, 0) {
         BASE_URI_ATTESTOR = _baseURIAttestor;
         ATTESTATION_STATION = _attestationStation;
         OPTIMIST_ALLOWLIST = _optimistAllowlist;
