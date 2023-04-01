@@ -5,7 +5,7 @@ import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
 import { GnosisSafe } from "@safe-global/safe-contracts/contracts/GnosisSafe.sol";
-import { LibSort } from "solady/utils/LibSort.sol";
+import { LibSort } from "./LibSort.sol";
 import { Enum } from "@safe-global/safe-contracts/contracts/common/Enum.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 import { Constants } from "../../contracts/libraries/Constants.sol";
