@@ -232,7 +232,7 @@ contract OptimistTest is Optimist_Initializer {
         // expect attestationStation to be set
         assertEq(address(optimist.ATTESTATION_STATION()), address(attestationStation));
         assertEq(optimist.BASE_URI_ATTESTOR(), carol_baseURIAttestor);
-        assertEq(optimist.version(), "1.1.0");
+        assertEq(optimist.version(), "2.0.0");
     }
 
     /**
