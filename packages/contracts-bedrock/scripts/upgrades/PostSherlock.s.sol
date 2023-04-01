@@ -4,9 +4,9 @@ pragma solidity 0.8.15;
 import { console } from "forge-std/console.sol";
 import { Script } from "forge-std/Script.sol";
 import { IMulticall3 } from "forge-std/interfaces/IMulticall3.sol";
-import { GnosisSafe } from "@safe-global/safe-contracts/contracts/GnosisSafe.sol";
+import { IGnosisSafe } from "./IGnosisSafe.sol";
 import { LibSort } from "./LibSort.sol";
-import { Enum } from "@safe-global/safe-contracts/contracts/common/Enum.sol";
+import { Enum } from "./Enum.sol";
 import { ProxyAdmin } from "../../contracts/universal/ProxyAdmin.sol";
 import { Constants } from "../../contracts/libraries/Constants.sol";
 import { SystemConfig } from "../../contracts/L1/SystemConfig.sol";
@@ -128,7 +128,7 @@ contract PostSherlock is Script {
         require(_safe.code.length > 0, "no code at safe address");
         require(_proxyAdmin.code.length > 0, "no code at proxy admin address");
 
-        GnosisSafe safe = GnosisSafe(payable(_safe));
+        IGnosisSafe safe = IGnosisSafe(payable(_safe));
         uint256 nonce = safe.nonce();
 
         bytes memory data = buildCalldata(_proxyAdmin);
@@ -291,7 +291,7 @@ contract PostSherlock is Script {
 
         require(safe != address(0) && proxyAdmin != address(0));
 
-        address[] memory owners = GnosisSafe(payable(safe)).getOwners();
+        address[] memory owners = IGnosisSafe(payable(safe)).getOwners();
 
         for (uint256 i; i < owners.length; i++) {
             address owner = owners[i];
