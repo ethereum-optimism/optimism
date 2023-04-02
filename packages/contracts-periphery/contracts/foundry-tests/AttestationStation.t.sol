@@ -3,15 +3,14 @@ pragma solidity 0.8.15;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
-import { AssetReceiver } from "../universal/AssetReceiver.sol";
 import { AttestationStation } from "../universal/op-nft/AttestationStation.sol";
 
-contract AssetReceiver_Initializer is Test {
+contract AttestationStation_Initializer is Test {
     address alice_attestor = address(128);
     address bob = address(256);
     address sally = address(512);
 
-    function _setUp() public {
+    function setUp() public {
         // Give alice and bob some ETH
         vm.deal(alice_attestor, 1 ether);
 
@@ -21,11 +20,7 @@ contract AssetReceiver_Initializer is Test {
     }
 }
 
-contract AssetReceiverTest is AssetReceiver_Initializer {
-    function setUp() public {
-        super._setUp();
-    }
-
+contract AttestationStationTest is AttestationStation_Initializer {
     event AttestationCreated(
         address indexed creator,
         address indexed about,

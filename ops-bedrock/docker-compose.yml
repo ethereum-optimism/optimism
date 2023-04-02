@@ -17,6 +17,7 @@ services:
       dockerfile: Dockerfile.l1
     ports:
       - "8545:8545"
+      - "7060:6060"
     volumes:
       - "l1_data:/db"
       - "${PWD}/../.devnet/genesis-l1.json:/genesis.json"
@@ -28,6 +29,7 @@ services:
       dockerfile: Dockerfile.l2
     ports:
       - "9545:8545"
+      - "8060:6060"
     volumes:
       - "l2_data:/db"
       - "${PWD}/../.devnet/genesis-l2.json:/genesis.json"
@@ -59,6 +61,8 @@ services:
       --p2p.listen.ip=0.0.0.0
       --p2p.listen.tcp=9003
       --p2p.listen.udp=9003
+      --p2p.scoring.peers=light
+      --p2p.ban.peers=true
       --snapshotlog.file=/op_log/snapshot.log
       --p2p.priv.path=/config/p2p-node-key.txt
       --metrics.enabled
@@ -98,7 +102,6 @@ services:
       OP_PROPOSER_RESUBMISSION_TIMEOUT: 30s
       OP_PROPOSER_MNEMONIC: test test test test test test test test test test test junk
       OP_PROPOSER_L2_OUTPUT_HD_PATH: "m/44'/60'/0'/0/1"
-      OP_PROPOSER_LOG_TERMINAL: "true"
       OP_PROPOSER_L2OO_ADDRESS: "${L2OO_ADDRESS}"
       OP_PROPOSER_PPROF_ENABLED: "true"
       OP_PROPOSER_METRICS_ENABLED: "true"
@@ -115,23 +118,27 @@ services:
     ports:
       - "6061:6060"
       - "7301:7300"
+      - "6545:8545"
     environment:
       OP_BATCHER_L1_ETH_RPC: http://l1:8545
       OP_BATCHER_L2_ETH_RPC: http://l2:8545
       OP_BATCHER_ROLLUP_RPC: http://op-node:8545
-      OP_BATCHER_MIN_L1_TX_SIZE_BYTES: 1
+      OFFLINE_GAS_ESTIMATION: false
+      OP_BATCHER_MAX_CHANNEL_DURATION: 1
       OP_BATCHER_MAX_L1_TX_SIZE_BYTES: 120000
-      OP_BATCHER_CHANNEL_TIMEOUT: 40
+      OP_BATCHER_TARGET_L1_TX_SIZE_BYTES: 100000
+      OP_BATCHER_TARGET_NUM_FRAMES: 1
+      OP_BATCHER_APPROX_COMPR_RATIO: 0.4
+      OP_BATCHER_SUB_SAFETY_MARGIN: 4 # SWS is 15, ChannelTimeout is 40
       OP_BATCHER_POLL_INTERVAL: 1s
       OP_BATCHER_NUM_CONFIRMATIONS: 1
       OP_BATCHER_SAFE_ABORT_NONCE_TOO_LOW_COUNT: 3
       OP_BATCHER_RESUBMISSION_TIMEOUT: 30s
       OP_BATCHER_MNEMONIC: test test test test test test test test test test test junk
       OP_BATCHER_SEQUENCER_HD_PATH: "m/44'/60'/0'/0/2"
-      OP_BATCHER_SEQUENCER_BATCH_INBOX_ADDRESS: "${SEQUENCER_BATCH_INBOX_ADDRESS}"
-      OP_BATCHER_LOG_TERMINAL: "true"
       OP_BATCHER_PPROF_ENABLED: "true"
       OP_BATCHER_METRICS_ENABLED: "true"
+      OP_BATCHER_RPC_ENABLE_ADMIN: "true"
 
   stateviz:
     build:

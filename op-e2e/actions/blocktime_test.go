@@ -35,7 +35,7 @@ func TestBatchInLastPossibleBlocks(gt *testing.T) {
 			ChainID:   sd.L2Cfg.Config.ChainID,
 			Nonce:     n,
 			GasTipCap: big.NewInt(2 * params.GWei),
-			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee(), big.NewInt(2*params.GWei)),
+			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 			Gas:       params.TxGas,
 			To:        &dp.Addresses.Bob,
 			Value:     e2eutils.Ether(2),
@@ -77,7 +77,7 @@ func TestBatchInLastPossibleBlocks(gt *testing.T) {
 	}
 
 	// 8 L1 blocks with 17 L2 blocks is the unsafe state.
-	// Because wew consistently batch submitted we are one epoch behind the unsafe head with the safe head
+	// Because we consistently batch submitted we are one epoch behind the unsafe head with the safe head
 	verifyChainStateOnSequencer(8, 17, 8, 15, 7)
 
 	// Create the batch for L2 blocks 16 & 17
@@ -146,7 +146,7 @@ func TestLargeL1Gaps(gt *testing.T) {
 			ChainID:   sd.L2Cfg.Config.ChainID,
 			Nonce:     n,
 			GasTipCap: big.NewInt(2 * params.GWei),
-			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee(), big.NewInt(2*params.GWei)),
+			GasFeeCap: new(big.Int).Add(miner.l1Chain.CurrentBlock().BaseFee, big.NewInt(2*params.GWei)),
 			Gas:       params.TxGas,
 			To:        &dp.Addresses.Bob,
 			Value:     e2eutils.Ether(2),

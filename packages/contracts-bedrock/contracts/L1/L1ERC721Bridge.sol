@@ -26,7 +26,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
      * @param _otherBridge Address of the ERC721 bridge on the other network.
      */
     constructor(address _messenger, address _otherBridge)
-        Semver(1, 0, 0)
+        Semver(1, 1, 0)
         ERC721Bridge(_messenger, _otherBridge)
     {}
 
@@ -83,7 +83,7 @@ contract L1ERC721Bridge is ERC721Bridge, Semver {
         uint32 _minGasLimit,
         bytes calldata _extraData
     ) internal override {
-        require(_remoteToken != address(0), "ERC721Bridge: remote token cannot be address(0)");
+        require(_remoteToken != address(0), "L1ERC721Bridge: remote token cannot be address(0)");
 
         // Construct calldata for _l2Token.finalizeBridgeERC721(_to, _tokenId)
         bytes memory message = abi.encodeWithSelector(

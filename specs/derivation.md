@@ -146,6 +146,12 @@ The rationale is to maintain liveness in case of either a skipped slot on L1, or
 which requires longer epochs.
 Shorter epochs are then required to avoid L2 timestamps drifting further and further ahead of L1.
 
+Note that `min_l2_timestamp + l2_block_time` ensures that a new L2 batch can always be processed, even if the
+`max_sequencer_drift` is exceeded. However, when exceeding the `max_sequencer_drift`, progression to the next L1 origin
+is enforced, with an exception to ensure the minimum timestamp bound (based on this next L1 origin) can be met in the
+next L2 batch, and `len(batch.transactions) == 0` continues to be enforced while the `max_sequencer_drift` is exceeded.
+See [Batch Queue] for more details.
+
 ## Eager Block Derivation
 
 In practice, it is often not necessary to wait for a full sequencing window of L1 blocks in order to start deriving the
@@ -279,9 +285,7 @@ As for the comment on "security types", it explains the classification of blocks
 
 - [Unsafe L2 blocks][g-unsafe-l2-block]:
 - [Safe L2 blocks][g-safe-l2-block]:
-- Finalized L2 blocks: currently the same as the safe L2 block, but could be changed in the future to refer to block
-  that have been derived from [finalized][g-finalized-l2-head] L1 data, or alternatively, from L1 blacks that are older
-  than the [challenge period].
+- Finalized L2 blocks: refer to block that have been derived from [finalized][g-finalized-l2-head] L1 data.
 
 These security levels map to the `headBlockHash`, `safeBlockHash` and `finalizedBlockHash` values transmitted when
 interacting with the [execution-engine API][exec-engine].
@@ -511,12 +515,14 @@ New frames for timed-out channels are dropped instead of buffered.
 
 The channel-bank can only output data from the first opened channel.
 
-Upon reading, first all timed-out channels are dropped.
+Upon reading, while the first opened channel is timed-out, remove it from the channel-bank.
 
-After pruning timed-out channels, the first remaining channel, if any, is read if it is ready:
+Once the first opened channel, if any, is not timed-out and is ready, then it is read and removed from the channel-bank.
 
-- The channel must be closed
-- The channel must have a contiguous sequence of frames until the closing frame
+A channel is ready if:
+
+- The channel is closed
+- The channel has a contiguous sequence of frames until the closing frame
 
 If no channel is ready, the next frame is read and ingested into the channel bank.
 
@@ -527,11 +533,15 @@ a new channel is opened, tagged with the current L1 block, and appended to the c
 
 Frame insertion conditions:
 
-- New frames matching existing timed-out channels are dropped.
-- Duplicate frames (by frame number) are dropped.
-- Duplicate closes (new frame `is_last == 1`, but the channel has already seen a closing frame) are dropped.
+- New frames matching timed-out channels that have not yet been pruned from the channel-bank are dropped.
+- Duplicate frames (by frame number) for frames that have not yet been pruned from the channel-bank are dropped.
+- Duplicate closes (new frame `is_last == 1`, but the channel has already seen a closing frame and has not yet been
+    pruned from the channel-bank) are dropped.
 
 If a frame is closing (`is_last == 1`) any existing higher-numbered frames are removed from the channel.
+
+Note that while this allows channel IDs to be reused once they have been pruned from the channel-bank, it is recommended
+that batcher implementations use unique channel IDs.
 
 ### Channel Reader (Batch Decoding)
 
@@ -598,10 +608,18 @@ Rules, in validation order:
 - `batch.epoch_num > epoch.number+1` -> `drop`: i.e. the L1 origin cannot change by more than one L1 block per L2 block.
 - `batch.epoch_hash != batch_origin.hash` -> `drop`: i.e. a batch must reference a canonical L1 origin,
   to prevent batches from being replayed onto unexpected L1 chains.
-- `batch.timestamp > batch_origin.time + max_sequencer_drift` -> `drop`: i.e. a batch that does not adopt the next L1
-  within time will be dropped, in favor of an empty batch that can advance the L1 origin. This enforces the max L2
-  timestamp rule.
 - `batch.timestamp < batch_origin.time` -> `drop`: enforce the min L2 timestamp rule.
+- `batch.timestamp > batch_origin.time + max_sequencer_drift`: enforce the L2 timestamp drift rule,
+  but with exceptions to preserve above min L2 timestamp invariant:
+  - `len(batch.transactions) == 0`:
+    - `epoch.number == batch.epoch_num`:
+      this implies the batch does not already advance the L1 origin, and must thus be checked against `next_epoch`.
+      - If `next_epoch` is not known -> `undecided`:
+        without the next L1 origin we cannot yet determine if time invariant could have been kept.
+      - If `batch.timestamp >= next_epoch.time` -> `drop`:
+        the batch could have adopted the next L1 origin without breaking the `L2 time >= L1 time` invariant.
+  - `len(batch.transactions) > 0`: -> `drop`:
+    when exceeding the sequencer time drift, never allow the sequencer to include transactions.
 - `batch.transactions`: `drop` if the `batch.transactions` list contains a transaction
   that is invalid or derived by other means exclusively:
   - any transaction that is empty (zero length byte string)
@@ -615,6 +633,10 @@ then an empty batch can be derived with the following properties:
 - `timestamp = next_timestamp`
 - `transactions` is empty, i.e. no sequencer transactions. Deposited transactions may be added in the next stage.
 - If `next_timestamp < next_epoch.time`: the current L1 origin is repeated, to preserve the L2 time invariant.
+  - `epoch_num = epoch.number`
+  - `epoch_hash = epoch.hash`
+- If the batch is the first batch of the epoch, that epoch is used instead of advancing the epoch to ensure that
+there is at least one L2 block per epoch.
   - `epoch_num = epoch.number`
   - `epoch_hash = epoch.hash`
 - Otherwise,
@@ -710,6 +732,8 @@ enact the change, as linear rewinds of the tip of the chain may not be supported
 
 #### L1-sync: payload attributes processing
 
+[exec-engine-comm]: exec-engine.md#engine-api
+
 If the safe and unsafe L2 heads are identical (whether because of failed consolidation or not), we send the L2 payload
 attributes to the execution engine to be constructed into a proper L2 block.
 This L2 block will then become both the new L2 safe and unsafe head.
@@ -728,6 +752,7 @@ The payload attributes are then processed with a sequence of:
 - `engine_forkchoiceUpdatedV1` with current forkchoice state of the stage, and the attributes to start block building.
   - Non-deterministic sources, like the tx-pool, must be disabled to reconstruct the expected block.
 - `engine_getPayload` to retrieve the payload, by the payload-ID in the result of the previous step.
+- `engine_newPayload` to import the new payload into the execution engine.
 - `engine_forkchoiceUpdatedV1` to make the new payload canonical,
    now with a change of both `safe` and `unsafe` fields to refer to the payload, and no payload attributes.
 
@@ -907,10 +932,11 @@ follows:
 
 - `timestamp` is set to the batch's timestamp.
 - `random` is set to the `prev_randao` L1 block attribute.
-- `suggestedFeeRecipient` is set to an address determined by the sequencer.
+- `suggestedFeeRecipient` is set to the Sequencer Fee Vault address. See [Fee Vaults] specification.
 - `transactions` is the array of the derived transactions: deposited transactions and sequenced transactions, all
   encoded with [EIP-2718].
 - `noTxPool` is set to `true`, to use the exact above `transactions` list when constructing the block.
 - `gasLimit` is set to the current `gasLimit` value in the [system configuration][g-system-config] of this payload.
 
 [extended-attributes]: exec-engine.md#extended-payloadattributesv1
+[Fee Vaults]: exec-engine.md#fee-vaults

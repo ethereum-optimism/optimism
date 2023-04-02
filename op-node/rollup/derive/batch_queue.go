@@ -139,6 +139,7 @@ func (bq *BatchQueue) AddBatch(batch *BatchData, l2SafeHead eth.L2BlockRef) {
 	if validity == BatchDrop {
 		return // if we do drop the batch, CheckBatch will log the drop reason with WARN level.
 	}
+	bq.log.Debug("Adding batch", "batch_timestamp", batch.Timestamp, "parent_hash", batch.ParentHash, "batch_epoch", batch.Epoch(), "txs", len(batch.Transactions))
 	bq.batches[batch.Timestamp] = append(bq.batches[batch.Timestamp], &data)
 }
 
@@ -212,7 +213,7 @@ batchLoop:
 		if nextBatch.Batch.EpochNum == rollup.Epoch(epoch.Number)+1 {
 			bq.l1Blocks = bq.l1Blocks[1:]
 		}
-		bq.log.Trace("Returning found batch", "epoch", epoch, "batch_epoch", nextBatch.Batch.EpochNum, "batch_timestamp", nextBatch.Batch.Timestamp)
+		bq.log.Info("Found next batch", "epoch", epoch, "batch_epoch", nextBatch.Batch.EpochNum, "batch_timestamp", nextBatch.Batch.Timestamp)
 		return nextBatch.Batch, nil
 	}
 
@@ -220,6 +221,11 @@ batchLoop:
 	// i.e. if the sequence window expired, we create empty batches for the current epoch
 	expiryEpoch := epoch.Number + bq.config.SeqWindowSize
 	forceEmptyBatches := (expiryEpoch == bq.origin.Number && outOfData) || expiryEpoch < bq.origin.Number
+	firstOfEpoch := epoch.Number == l2SafeHead.L1Origin.Number+1
+
+	bq.log.Trace("Potentially generating an empty batch",
+		"expiryEpoch", expiryEpoch, "forceEmptyBatches", forceEmptyBatches, "nextTimestamp", nextTimestamp,
+		"epoch_time", epoch.Time, "len_l1_blocks", len(bq.l1Blocks), "firstOfEpoch", firstOfEpoch)
 
 	if !forceEmptyBatches {
 		// sequence window did not expire yet, still room to receive batches for the current epoch,
@@ -233,8 +239,10 @@ batchLoop:
 
 	nextEpoch := bq.l1Blocks[1]
 	// Fill with empty L2 blocks of the same epoch until we meet the time of the next L1 origin,
-	// to preserve that L2 time >= L1 time
-	if nextTimestamp < nextEpoch.Time {
+	// to preserve that L2 time >= L1 time. If this is the first block of the epoch, always generate a
+	// batch to ensure that we at least have one batch per epoch.
+	if nextTimestamp < nextEpoch.Time || firstOfEpoch {
+		bq.log.Info("Generating next batch", "epoch", epoch, "timestamp", nextTimestamp)
 		return &BatchData{
 			BatchV1{
 				ParentHash:   l2SafeHead.Hash,
@@ -248,6 +256,7 @@ batchLoop:
 
 	// At this point we have auto generated every batch for the current epoch
 	// that we can, so we can advance to the next epoch.
+	bq.log.Trace("Advancing internal L1 blocks", "next_timestamp", nextTimestamp, "next_epoch_time", nextEpoch.Time)
 	bq.l1Blocks = bq.l1Blocks[1:]
 	return nil, io.EOF
 }

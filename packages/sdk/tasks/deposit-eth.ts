@@ -374,7 +374,10 @@ task('deposit-eth', 'Deposits ether to L2.')
             console.log(parsed.name)
             console.log(parsed.args)
             console.log()
-            if (parsed.name !== 'ETHBridgeFinalized') {
+            if (
+              parsed.name !== 'ETHBridgeFinalized' &&
+              parsed.name !== 'ETHWithdrawalFinalized'
+            ) {
               throw new Error('Wrong event name from L1StandardBridge')
             }
             if (!parsed.args.amount.eq(withdrawAmount)) {

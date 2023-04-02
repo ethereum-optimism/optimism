@@ -13,6 +13,8 @@ import {
   jsonifyTransaction,
   isStep,
   doStep,
+  getTenderlySimulationLink,
+  getCastCommand,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -114,10 +116,8 @@ const deployFn: DeployFunction = async (hre) => {
         'BondManager',
       ]
       for (const dead of deads) {
-        assert(
-          (await AddressManager.getAddress(dead)) ===
-            ethers.constants.AddressZero
-        )
+        const addr = await AddressManager.getAddress(dead)
+        assert(addr === ethers.constants.AddressZero)
       }
     },
   })
@@ -171,46 +171,65 @@ const deployFn: DeployFunction = async (hre) => {
         deployL2StartingTimestamp = l1StartingBlock.timestamp
       }
 
-      await SystemDictator.updateL2OutputOracleDynamicConfig({
-        l2OutputOracleStartingBlockNumber:
-          hre.deployConfig.l2OutputOracleStartingBlockNumber,
-        l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
-      })
+      await SystemDictator.updateDynamicConfig(
+        {
+          l2OutputOracleStartingBlockNumber:
+            hre.deployConfig.l2OutputOracleStartingBlockNumber,
+          l2OutputOracleStartingTimestamp: deployL2StartingTimestamp,
+        },
+        false // do not pause the the OptimismPortal when initializing
+      )
     } else {
-      const tx =
-        await SystemDictator.populateTransaction.updateL2OutputOracleDynamicConfig(
+      // pause the OptimismPortal when initializing
+      const optimismPortalPaused = true
+      const tx = await SystemDictator.populateTransaction.updateDynamicConfig(
+        {
+          l2OutputOracleStartingBlockNumber:
+            hre.deployConfig.l2OutputOracleStartingBlockNumber,
+          l2OutputOracleStartingTimestamp:
+            hre.deployConfig.l2OutputOracleStartingTimestamp,
+        },
+        optimismPortalPaused
+      )
+      console.log(`Please update dynamic oracle config...`)
+      console.log(
+        JSON.stringify(
           {
             l2OutputOracleStartingBlockNumber:
               hre.deployConfig.l2OutputOracleStartingBlockNumber,
             l2OutputOracleStartingTimestamp:
               hre.deployConfig.l2OutputOracleStartingTimestamp,
-          }
+            optimismPortalPaused,
+          },
+          null,
+          2
         )
-      console.log(`Please update dynamic oracle config...`)
+      )
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     await awaitCondition(
       async () => {
         return SystemDictator.dynamicConfigSet()
       },
-      30000,
+      5000,
       1000
     )
   }
 
-  // Step 5 initializes all contracts and pauses the new L1CrossDomainMessenger.
+  // Step 5 initializes all contracts.
   await doStep({
     isLiveDeployer,
     SystemDictator,
     step: 5,
     message: `
-      Step 5 will initialize all Bedrock contracts but will leave the new L1CrossDomainMessenger
-      paused. After this step is executed, users will be able to deposit and withdraw assets via
-      the OptimismPortal but not via the L1CrossDomainMessenger. The Proposer will also be able to
-      submit L2 outputs to the L2OutputOracle.
+      Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
+      will be open for deposits but withdrawals will be paused if deploying a production network.
+      The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
     `,
     checks: async () => {
       // Check L2OutputOracle was initialized properly.
@@ -228,7 +247,7 @@ const deployFn: DeployFunction = async (hre) => {
       )
       const resourceParams = await OptimismPortal.params()
       assert(
-        resourceParams.prevBaseFee.eq(await OptimismPortal.INITIAL_BASE_FEE()),
+        resourceParams.prevBaseFee.eq(ethers.utils.parseUnits('1', 'gwei')),
         `OptimismPortal was not initialized with the correct initial base fee`
       )
       assert(
@@ -243,19 +262,19 @@ const deployFn: DeployFunction = async (hre) => {
         (await hre.ethers.provider.getBalance(L1StandardBridge.address)).eq(0)
       )
 
+      if (isLiveDeployer) {
+        await assertContractVariable(OptimismPortal, 'paused', false)
+      } else {
+        await assertContractVariable(OptimismPortal, 'paused', true)
+      }
+
       // Check L1CrossDomainMessenger was initialized properly.
-      await assertContractVariable(L1CrossDomainMessenger, 'paused', true)
       try {
         await L1CrossDomainMessenger.xDomainMessageSender()
         assert(false, `L1CrossDomainMessenger was not initialized properly`)
       } catch (err) {
         // Expected.
       }
-      await assertContractVariable(
-        L1CrossDomainMessenger,
-        'owner',
-        SystemDictator.address
-      )
 
       // Check L1StandardBridge was initialized properly.
       await assertContractVariable(
@@ -283,27 +302,43 @@ const deployFn: DeployFunction = async (hre) => {
     },
   })
 
-  // Step 6 unpauses the new L1CrossDomainMessenger.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 6,
-    message: `
-      Step 6 will unpause the new L1CrossDomainMessenger. After this step is executed, users will
-      be able to deposit and withdraw assets via the L1CrossDomainMessenger and the system will be
-      fully operational.
-    `,
-    checks: async () => {
-      await assertContractVariable(L1CrossDomainMessenger, 'paused', false)
-    },
-  })
+  // Step 6 unpauses the OptimismPortal.
+  if (await isStep(SystemDictator, 6)) {
+    console.log(`
+      Unpause the OptimismPortal. The GUARDIAN account should be used. In practice
+      this is the multisig. In test networks, the OptimismPortal is initialized
+      without being paused.
+    `)
 
-  // At the end we finalize the upgrade.
-  if (await isStep(SystemDictator, 7)) {
+    if (isLiveDeployer) {
+      console.log('WARNING: OptimismPortal configured to not be paused')
+      console.log('This should only happen for test environments')
+      await assertContractVariable(OptimismPortal, 'paused', false)
+    } else {
+      const tx = await OptimismPortal.populateTransaction.unpause()
+      console.log(`Please unpause the OptimismPortal...`)
+      console.log(`OptimismPortal address: ${OptimismPortal.address}`)
+      console.log(`JSON:`)
+      console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+    }
+
+    await awaitCondition(
+      async () => {
+        const paused = await OptimismPortal.paused()
+        return !paused
+      },
+      5000,
+      1000
+    )
+
+    await assertContractVariable(OptimismPortal, 'paused', false)
+
     console.log(`
       You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
-      transfer ownership of the ProxyAdmin and the L1CrossDomainMessenger to the final system owner
-      as specified in the deployment configuration.
+      transfer ownership of the ProxyAdmin to the final system owner as specified in the deployment
+      configuration.
     `)
 
     if (isLiveDeployer) {
@@ -315,21 +350,18 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     await awaitCondition(
       async () => {
         return SystemDictator.finalized()
       },
-      30000,
+      5000,
       1000
     )
 
-    await assertContractVariable(
-      L1CrossDomainMessenger,
-      'owner',
-      hre.deployConfig.finalSystemOwner
-    )
     await assertContractVariable(
       ProxyAdmin,
       'owner',
@@ -338,6 +370,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['SystemDictatorSteps', 'phase2']
+deployFn.tags = ['SystemDictatorSteps', 'phase2', 'l1']
 
 export default deployFn

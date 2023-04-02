@@ -25,6 +25,42 @@ var (
 		Required: false,
 		EnvVar:   p2pEnv("NO_DISCOVERY"),
 	}
+	PeerScoring = cli.StringFlag{
+		Name: "p2p.scoring.peers",
+		Usage: "Sets the peer scoring strategy for the P2P stack. " +
+			"Can be one of: none or light." +
+			"Custom scoring strategies can be defined in the config file.",
+		Required: false,
+		Value:    "none",
+		EnvVar:   p2pEnv("PEER_SCORING"),
+	}
+	PeerScoreBands = cli.StringFlag{
+		Name: "p2p.score.bands",
+		Usage: "Sets the peer score bands used primarily for peer score metrics. " +
+			"Should be provided in following format: <threshold>:<label>;<threshold>:<label>;..." +
+			"For example: -40:graylist;-20:restricted;0:nopx;20:friend;",
+		Required: false,
+		Value:    "-40:graylist;-20:restricted;0:nopx;20:friend;",
+		EnvVar:   p2pEnv("SCORE_BANDS"),
+	}
+
+	// Banning Flag - whether or not we want to act on the scoring
+	Banning = cli.BoolFlag{
+		Name:     "p2p.ban.peers",
+		Usage:    "Enables peer banning. This should ONLY be enabled once certain peer scoring is working correctly.",
+		Required: false,
+		EnvVar:   p2pEnv("PEER_BANNING"),
+	}
+
+	TopicScoring = cli.StringFlag{
+		Name: "p2p.scoring.topics",
+		Usage: "Sets the topic scoring strategy. " +
+			"Can be one of: none or light." +
+			"Custom scoring strategies can be defined in the config file.",
+		Required: false,
+		Value:    "none",
+		EnvVar:   p2pEnv("TOPIC_SCORING"),
+	}
 	P2PPrivPath = cli.StringFlag{
 		Name: "p2p.priv.path",
 		Usage: "Read the hex-encoded 32-byte private key for the peer ID from this txt file. Created if not already exists." +
@@ -249,6 +285,10 @@ var p2pFlags = []cli.Flag{
 	NoDiscovery,
 	P2PPrivPath,
 	P2PPrivRaw,
+	PeerScoring,
+	PeerScoreBands,
+	Banning,
+	TopicScoring,
 	ListenIP,
 	ListenTCPPort,
 	ListenUDPPort,

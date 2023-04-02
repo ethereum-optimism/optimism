@@ -40,20 +40,17 @@ op-proposer:
 	make -C ./op-proposer op-proposer
 .PHONY: op-proposer
 
+op-program:
+	make -C ./op-program op-program
+.PHONY: op-program
+
 mod-tidy:
 	# Below GOPRIVATE line allows mod-tidy to be run immediately after
 	# releasing new versions. This bypasses the Go modules proxy, which
 	# can take a while to index new versions.
 	#
 	# See https://proxy.golang.org/ for more info.
-	export GOPRIVATE="github.com/ethereum-optimism" && \
-	cd ./op-service && go mod tidy && cd .. && \
-	cd ./op-node && go mod tidy && cd .. && \
-	cd ./op-proposer && go mod tidy && cd ..  && \
-	cd ./op-batcher && go mod tidy && cd ..  && \
-	cd ./op-bindings && go mod tidy && cd ..  && \
-	cd ./op-chain-ops && go mod tidy && cd ..  && \
-	cd ./op-e2e && go mod tidy && cd ..
+	export GOPRIVATE="github.com/ethereum-optimism" && go mod tidy
 .PHONY: mod-tidy
 
 clean:

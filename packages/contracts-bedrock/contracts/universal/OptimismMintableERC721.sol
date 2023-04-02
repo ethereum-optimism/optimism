@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity 0.8.15;
 
 import {
     ERC721Enumerable
@@ -8,6 +8,7 @@ import { ERC721 } from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import { IERC165 } from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IOptimismMintableERC721 } from "./IOptimismMintableERC721.sol";
+import { Semver } from "../universal/Semver.sol";
 
 /**
  * @title OptimismMintableERC721
@@ -15,7 +16,7 @@ import { IOptimismMintableERC721 } from "./IOptimismMintableERC721.sol";
  *         typically an Optimism representation of an Ethereum-based token. Standard reference
  *         implementation that can be extended or modified according to your needs.
  */
-contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
+contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721, Semver {
     /**
      * @inheritdoc IOptimismMintableERC721
      */
@@ -45,6 +46,8 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
     }
 
     /**
+     * @custom:semver 1.0.0
+     *
      * @param _bridge        Address of the bridge on this network.
      * @param _remoteChainId Chain ID where the remote token is deployed.
      * @param _remoteToken   Address of the corresponding token on the other network.
@@ -57,7 +60,7 @@ contract OptimismMintableERC721 is ERC721Enumerable, IOptimismMintableERC721 {
         address _remoteToken,
         string memory _name,
         string memory _symbol
-    ) ERC721(_name, _symbol) {
+    ) ERC721(_name, _symbol) Semver(1, 0, 0) {
         require(_bridge != address(0), "OptimismMintableERC721: bridge cannot be address(0)");
         require(_remoteChainId != 0, "OptimismMintableERC721: remote chain id cannot be zero");
         require(

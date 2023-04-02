@@ -8,27 +8,22 @@ import "./CommonTest.t.sol";
 import { CrossDomainMessenger } from "../universal/CrossDomainMessenger.sol";
 import { ResourceMetering } from "../L1/ResourceMetering.sol";
 
-uint128 constant INITIAL_BASE_FEE = 1_000_000_000;
-
 // Free function for setting the prevBaseFee param in the OptimismPortal.
 function setPrevBaseFee(
     Vm _vm,
     address _op,
     uint128 _prevBaseFee
 ) {
-    _vm.store(
-        address(_op),
-        bytes32(uint256(1)),
-        bytes32(
-            abi.encode(
-                ResourceMetering.ResourceParams({
-                    prevBaseFee: _prevBaseFee,
-                    prevBoughtGas: 0,
-                    prevBlockNum: uint64(block.number)
-                })
-            )
-        )
-    );
+    _vm.store(address(_op), bytes32(uint256(1)), bytes32((block.number << 192) | _prevBaseFee));
+}
+
+contract SetPrevBaseFee_Test is Portal_Initializer {
+    function test_setPrevBaseFee_succeeds() external {
+        setPrevBaseFee(vm, address(op), 100 gwei);
+        (uint128 prevBaseFee, , uint64 prevBlockNum) = op.params();
+        assertEq(uint256(prevBaseFee), 100 gwei);
+        assertEq(uint256(prevBlockNum), block.number);
+    }
 }
 
 // Tests for obtaining pure gas cost estimates for commonly used functions.
@@ -76,7 +71,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     }
 
     // Get the system into a nice ready-to-use state.
-    function setUp() public override {
+    function setUp() public virtual override {
         // Configure the oracle to return the output root we've prepared.
         vm.warp(oracle.computeL2Timestamp(_proposedBlockNumber) + 1);
         vm.prank(oracle.PROPOSER());
@@ -85,9 +80,10 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
             oracle.getL2Output(_proposedOutputIndex).timestamp +
-                op.FINALIZATION_PERIOD_SECONDS() +
+                oracle.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
+
         // Fund the portal so that we can withdraw ETH.
         vm.deal(address(op), 0xFFFFFFFF);
     }
@@ -103,7 +99,7 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
     }
 
     function test_depositTransaction_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        setPrevBaseFee(vm, address(op), 1 gwei);
         op.depositTransaction{ value: NON_ZERO_VALUE }(
             NON_ZERO_ADDRESS,
             ZERO_VALUE,
@@ -125,17 +121,22 @@ contract GasBenchMark_OptimismPortal is Portal_Initializer {
 
 contract GasBenchMark_L1CrossDomainMessenger is Messenger_Initializer {
     function test_sendMessage_benchmark_0() external {
+        vm.pauseGasMetering();
+        setPrevBaseFee(vm, address(op), 1 gwei);
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        vm.resumeGasMetering();
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 
     function test_sendMessage_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        vm.pauseGasMetering();
+        setPrevBaseFee(vm, address(op), 10 gwei);
         // The amount of data typically sent during a bridge deposit.
         bytes
             memory data = hex"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+        vm.resumeGasMetering();
         L1Messenger.sendMessage(bob, data, uint32(100));
     }
 }
@@ -145,24 +146,47 @@ contract GasBenchMark_L1StandardBridge_Deposit is Bridge_Initializer {
         super.setUp();
         deal(address(L1Token), alice, 100000, true);
         vm.startPrank(alice, alice);
+        L1Token.approve(address(L1Bridge), type(uint256).max);
     }
 
     function test_depositETH_benchmark_0() external {
+        vm.pauseGasMetering();
+        setPrevBaseFee(vm, address(op), 1 gwei);
+        vm.resumeGasMetering();
         L1Bridge.depositETH{ value: 500 }(50000, hex"");
     }
 
     function test_depositETH_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
+        vm.pauseGasMetering();
+        setPrevBaseFee(vm, address(op), 10 gwei);
+        vm.resumeGasMetering();
         L1Bridge.depositETH{ value: 500 }(50000, hex"");
     }
 
     function test_depositERC20_benchmark_0() external {
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        vm.pauseGasMetering();
+        setPrevBaseFee(vm, address(op), 1 gwei);
+        vm.resumeGasMetering();
+        L1Bridge.bridgeERC20({
+            _localToken: address(L1Token),
+            _remoteToken: address(L2Token),
+            _amount: 100,
+            _minGasLimit: 100_000,
+            _extraData: hex""
+        });
     }
 
     function test_depositERC20_benchmark_1() external {
-        setPrevBaseFee(vm, address(op), INITIAL_BASE_FEE);
-        L1Bridge.depositETH{ value: 500 }(50000, hex"");
+        vm.pauseGasMetering();
+        setPrevBaseFee(vm, address(op), 10 gwei);
+        vm.resumeGasMetering();
+        L1Bridge.bridgeERC20({
+            _localToken: address(L1Token),
+            _remoteToken: address(L2Token),
+            _amount: 100,
+            _minGasLimit: 100_000,
+            _extraData: hex""
+        });
     }
 }
 

@@ -18,12 +18,10 @@ import {
   sleep,
   remove0x,
   toHexString,
-  fromHexString,
   toRpcHexString,
   hashCrossDomainMessage,
   encodeCrossDomainMessageV0,
   encodeCrossDomainMessageV1,
-  L2OutputOracleParameters,
   BedrockOutputData,
   BedrockCrossChainMessageProof,
   decodeVersionedNonce,
@@ -67,6 +65,7 @@ import {
   makeMerkleTreeProof,
   makeStateTrieProof,
   hashLowLevelMessage,
+  migratedWithdrawalGasLimit,
   DEPOSIT_CONFIRMATION_BLOCKS,
   CHAIN_BLOCK_TIMES,
 } from './utils'
@@ -352,12 +351,12 @@ export class CrossChainMessenger {
       }
     }
 
-    const minGasLimit = fromHexString(resolved.message).length * 16 + 200_000
+    const minGasLimit = migratedWithdrawalGasLimit(resolved.message)
 
     return {
       ...resolved,
       value,
-      minGasLimit: BigNumber.from(minGasLimit),
+      minGasLimit,
       messageNonce: encodeVersionedNonce(
         BigNumber.from(1),
         resolved.messageNonce
@@ -1004,9 +1003,24 @@ export class CrossChainMessenger {
    * @returns Current challenge period in seconds.
    */
   public async getChallengePeriodSeconds(): Promise<number> {
-    const challengePeriod = this.bedrock
-      ? await this.contracts.l1.OptimismPortal.FINALIZATION_PERIOD_SECONDS()
-      : await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
+    if (!this.bedrock) {
+      return (
+        await this.contracts.l1.StateCommitmentChain.FRAUD_PROOF_WINDOW()
+      ).toNumber()
+    }
+
+    const oracleVersion = await this.contracts.l1.L2OutputOracle.version()
+    const challengePeriod =
+      oracleVersion === '1.0.0'
+        ? // The ABI in the SDK does not contain FINALIZATION_PERIOD_SECONDS
+          // in OptimismPortal, so making an explicit call instead.
+          BigNumber.from(
+            await this.contracts.l1.OptimismPortal.provider.call({
+              to: this.contracts.l1.OptimismPortal.address,
+              data: '0xf4daa291', // FINALIZATION_PERIOD_SECONDS
+            })
+          )
+        : await this.contracts.l1.L2OutputOracle.FINALIZATION_PERIOD_SECONDS()
     return challengePeriod.toNumber()
   }
 
@@ -1014,6 +1028,7 @@ export class CrossChainMessenger {
    * Queries the OptimismPortal contract's `provenWithdrawals` mapping
    * for a ProvenWithdrawal that matches the passed withdrawalHash
    *
+   * @bedrock
    * Note: This function is bedrock-specific.
    *
    * @returns A ProvenWithdrawal object

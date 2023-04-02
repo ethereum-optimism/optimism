@@ -1,3 +1,4 @@
+
 <div align="center">
   <br />
   <br />
@@ -23,7 +24,7 @@ If you want to build Optimism, check out the [Protocol Specs](./specs/).
 
 ## Community
 
-General discussion happens most frequently on the [Optimism discord](https://discord.optimism.io).
+General discussion happens most frequently on the [Optimism discord](https://discord-gateway.optimism.io).
 Governance discussion can also be found on the [Optimism Governance Forum](https://gov.optimism.io/).
 
 ## Contributing
@@ -57,7 +58,7 @@ Refer to the Directory Structure section below to understand which packages are 
 │   ├── <a href="./packages/contracts-periphery">contracts-periphery</a>: Peripheral contracts for Optimism
 │   ├── <a href="./packages/core-utils">core-utils</a>: Low-level utilities that make building Optimism easier
 │   ├── <a href="./packages/data-transport-layer">data-transport-layer</a>: Service for indexing Optimism-related L1 data
-│   ├── <a href="./packages/drippie-mon">drippie-mon</a>: Service for monitoring Drippie instances
+│   ├── <a href="./packages/chain-mon">chain-mon</a>: Chain monitoring services
 │   ├── <a href="./packages/fault-detector">fault-detector</a>: Service for detecting Sequencer faults
 │   ├── <a href="./packages/message-relayer">message-relayer</a>: Tool for automatically relaying L1<>L2 messages in development
 │   ├── <a href="./packages/replica-healthcheck">replica-healthcheck</a>: Service for monitoring the health of a replica node
@@ -137,7 +138,7 @@ When merging commits to the `develop` branch you MUST include a changeset file i
 
 To add a changeset, run the command `yarn changeset` in the root of this monorepo.
 You will be presented with a small prompt to select the packages to be released, the scope of the release (major, minor, or patch), and the reason for the release.
-Comments with in changeset files will be automatically included in the changelog of the package.
+Comments within changeset files will be automatically included in the changelog of the package.
 
 ### Triggering Releases
 

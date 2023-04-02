@@ -3,19 +3,51 @@ package batcher
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli"
 
 	"github.com/ethereum-optimism/optimism/op-batcher/flags"
+	"github.com/ethereum-optimism/optimism/op-batcher/metrics"
+	"github.com/ethereum-optimism/optimism/op-batcher/rpc"
+	"github.com/ethereum-optimism/optimism/op-node/rollup"
+	"github.com/ethereum-optimism/optimism/op-node/sources"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
 	oppprof "github.com/ethereum-optimism/optimism/op-service/pprof"
-	oprpc "github.com/ethereum-optimism/optimism/op-service/rpc"
-	opsigner "github.com/ethereum-optimism/optimism/op-signer/client"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
 type Config struct {
-	/* Required Params */
+	log        log.Logger
+	metr       metrics.Metricer
+	L1Client   *ethclient.Client
+	L2Client   *ethclient.Client
+	RollupNode *sources.RollupClient
+	TxManager  txmgr.TxManager
 
+	NetworkTimeout time.Duration
+	PollInterval   time.Duration
+
+	// RollupConfig is queried at startup
+	Rollup *rollup.Config
+
+	// Channel builder parameters
+	Channel ChannelConfig
+}
+
+// Check ensures that the [Config] is valid.
+func (c *Config) Check() error {
+	if err := c.Rollup.Check(); err != nil {
+		return err
+	}
+	if err := c.Channel.Check(); err != nil {
+		return err
+	}
+	return nil
+}
+
+type CLIConfig struct {
 	// L1EthRpc is the HTTP provider URL for L1.
 	L1EthRpc string
 
@@ -25,64 +57,48 @@ type Config struct {
 	// RollupRpc is the HTTP provider URL for the L2 rollup node.
 	RollupRpc string
 
-	// MinL1TxSize is the minimum size of a batch tx submitted to L1.
-	MinL1TxSize uint64
+	// MaxChannelDuration is the maximum duration (in #L1-blocks) to keep a
+	// channel open. This allows to more eagerly send batcher transactions
+	// during times of low L2 transaction volume. Note that the effective
+	// L1-block distance between batcher transactions is then MaxChannelDuration
+	// + NumConfirmations because the batcher waits for NumConfirmations blocks
+	// after sending a batcher tx and only then starts a new channel.
+	//
+	// If 0, duration checks are disabled.
+	MaxChannelDuration uint64
 
-	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
-	MaxL1TxSize uint64
-
-	// ChannelTimeout is the maximum amount of time to attempt completing an opened channel,
-	// as opposed to submitting missing blocks in new channels
-	ChannelTimeout uint64
+	// The batcher tx submission safety margin (in #L1-blocks) to subtract from
+	// a channel's timeout and sequencing window, to guarantee safe inclusion of
+	// a channel on L1.
+	SubSafetyMargin uint64
 
 	// PollInterval is the delay between querying L2 for more transaction
 	// and creating a new batch.
 	PollInterval time.Duration
 
-	// NumConfirmations is the number of confirmations which we will wait after
-	// appending new batches.
-	NumConfirmations uint64
+	// MaxL1TxSize is the maximum size of a batch tx submitted to L1.
+	MaxL1TxSize uint64
 
-	// SafeAbortNonceTooLowCount is the number of ErrNonceTooLowObservations
-	// required to give up on a tx at a particular nonce without receiving
-	// confirmation.
-	SafeAbortNonceTooLowCount uint64
+	// TargetL1TxSize is the target size of a batch tx submitted to L1.
+	TargetL1TxSize uint64
 
-	// ResubmissionTimeout is time we will wait before resubmitting a
-	// transaction.
-	ResubmissionTimeout time.Duration
+	// TargetNumFrames is the target number of frames per channel.
+	TargetNumFrames int
 
-	// Mnemonic is the HD seed used to derive the wallet private keys for both
-	// the sequence and proposer. Must be used in conjunction with
-	// SequencerHDPath and ProposerHDPath.
-	Mnemonic string
+	// ApproxComprRatio is the approximate compression ratio (<= 1.0) of the used
+	// compression algorithm.
+	ApproxComprRatio float64
 
-	// SequencerHDPath is the derivation path used to obtain the private key for
-	// batched submission of sequencer transactions.
-	SequencerHDPath string
+	Stopped bool
 
-	// PrivateKey is the private key used to submit sequencer transactions.
-	PrivateKey string
-
-	// SequencerBatchInboxAddress is the address in which to send batch
-	// transactions.
-	SequencerBatchInboxAddress string
-
-	RPCConfig oprpc.CLIConfig
-
-	/* Optional Params */
-
-	LogConfig oplog.CLIConfig
-
+	TxMgrConfig   txmgr.CLIConfig
+	RPCConfig     rpc.CLIConfig
+	LogConfig     oplog.CLIConfig
 	MetricsConfig opmetrics.CLIConfig
-
-	PprofConfig oppprof.CLIConfig
-
-	// SignerConfig contains the client config for op-signer service
-	SignerConfig opsigner.CLIConfig
+	PprofConfig   oppprof.CLIConfig
 }
 
-func (c Config) Check() error {
+func (c CLIConfig) Check() error {
 	if err := c.RPCConfig.Check(); err != nil {
 		return err
 	}
@@ -95,34 +111,33 @@ func (c Config) Check() error {
 	if err := c.PprofConfig.Check(); err != nil {
 		return err
 	}
-	if err := c.SignerConfig.Check(); err != nil {
+	if err := c.TxMgrConfig.Check(); err != nil {
 		return err
 	}
 	return nil
 }
 
 // NewConfig parses the Config from the provided flags or environment variables.
-func NewConfig(ctx *cli.Context) Config {
-	return Config{
+func NewConfig(ctx *cli.Context) CLIConfig {
+	return CLIConfig{
 		/* Required Flags */
-		L1EthRpc:                   ctx.GlobalString(flags.L1EthRpcFlag.Name),
-		L2EthRpc:                   ctx.GlobalString(flags.L2EthRpcFlag.Name),
-		RollupRpc:                  ctx.GlobalString(flags.RollupRpcFlag.Name),
-		MinL1TxSize:                ctx.GlobalUint64(flags.MinL1TxSizeBytesFlag.Name),
-		MaxL1TxSize:                ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
-		ChannelTimeout:             ctx.GlobalUint64(flags.ChannelTimeoutFlag.Name),
-		PollInterval:               ctx.GlobalDuration(flags.PollIntervalFlag.Name),
-		NumConfirmations:           ctx.GlobalUint64(flags.NumConfirmationsFlag.Name),
-		SafeAbortNonceTooLowCount:  ctx.GlobalUint64(flags.SafeAbortNonceTooLowCountFlag.Name),
-		ResubmissionTimeout:        ctx.GlobalDuration(flags.ResubmissionTimeoutFlag.Name),
-		Mnemonic:                   ctx.GlobalString(flags.MnemonicFlag.Name),
-		SequencerHDPath:            ctx.GlobalString(flags.SequencerHDPathFlag.Name),
-		PrivateKey:                 ctx.GlobalString(flags.PrivateKeyFlag.Name),
-		SequencerBatchInboxAddress: ctx.GlobalString(flags.SequencerBatchInboxAddressFlag.Name),
-		RPCConfig:                  oprpc.ReadCLIConfig(ctx),
-		LogConfig:                  oplog.ReadCLIConfig(ctx),
-		MetricsConfig:              opmetrics.ReadCLIConfig(ctx),
-		PprofConfig:                oppprof.ReadCLIConfig(ctx),
-		SignerConfig:               opsigner.ReadCLIConfig(ctx),
+		L1EthRpc:        ctx.GlobalString(flags.L1EthRpcFlag.Name),
+		L2EthRpc:        ctx.GlobalString(flags.L2EthRpcFlag.Name),
+		RollupRpc:       ctx.GlobalString(flags.RollupRpcFlag.Name),
+		SubSafetyMargin: ctx.GlobalUint64(flags.SubSafetyMarginFlag.Name),
+		PollInterval:    ctx.GlobalDuration(flags.PollIntervalFlag.Name),
+
+		/* Optional Flags */
+		MaxChannelDuration: ctx.GlobalUint64(flags.MaxChannelDurationFlag.Name),
+		MaxL1TxSize:        ctx.GlobalUint64(flags.MaxL1TxSizeBytesFlag.Name),
+		TargetL1TxSize:     ctx.GlobalUint64(flags.TargetL1TxSizeBytesFlag.Name),
+		TargetNumFrames:    ctx.GlobalInt(flags.TargetNumFramesFlag.Name),
+		ApproxComprRatio:   ctx.GlobalFloat64(flags.ApproxComprRatioFlag.Name),
+		Stopped:            ctx.GlobalBool(flags.StoppedFlag.Name),
+		TxMgrConfig:        txmgr.ReadCLIConfig(ctx),
+		RPCConfig:          rpc.ReadCLIConfig(ctx),
+		LogConfig:          oplog.ReadCLIConfig(ctx),
+		MetricsConfig:      opmetrics.ReadCLIConfig(ctx),
+		PprofConfig:        oppprof.ReadCLIConfig(ctx),
 	}
 }

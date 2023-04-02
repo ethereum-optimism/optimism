@@ -14,6 +14,10 @@ that maintains 1:1 compatibility with Ethereum.
 - [L2 Output Root Proposals](proposals.md)
 - [Rollup Node](rollup-node.md)
 - [Rollup Node P2p](rollup-node-p2p.md)
+- [L2 Chain Derivation](derivation.md)
+- [Network Upgrades](network-upgrades.md)
+- [System Config](system_config.md)
+- [Batch Submitter](batcher.md)
 - [Guaranteed Gas Market](guaranteed-gas-market.md)
 - [Messengers](messengers.md)
 - [Bridges](bridges.md)
@@ -27,9 +31,10 @@ Our aim is to design a protocol specification that is:
 - **Fast:** When users send transactions, they get reliable confirmations with low-latency.
   For example when swapping on Uniswap you should see that your transaction succeed in less than 2
   seconds.
-- **Scalable:** It should be possible to handle an enormous number of transactions per second which
-  will enable us to charge low fees. V1.0 will enable us to scale up to and even past the gas limit
-  on L1. Later iterations will scale much further.
+- **Scalable:** It should be possible to handle an enormous number of transactions
+  per second which will enable the system to charge low fees.
+  V1.0 will enable Optimism to scale up to and even past the gas limit on L1.
+  Later iterations should scale much further.
 - **Modular:** Our designs will use modularity to reduce complexity and enable parallel
   contributions. Coming up with good conceptual frameworks & composable atoms of software enables us
   to build extremely complex software even when any one person cannot hold that much in their brain.
@@ -41,8 +46,9 @@ Our aim is to design a protocol specification that is:
   our software to avoid creating a system no one wants to use.
 - **Clear and Readable:** The specs we write are written to be read. So tight feedback loop with the
   systems team consuming the spec is also key!
-- **Secure:** This is self-evident. We cannot lose money and in a system where even a bit of
-  downtime can result in loss of funds this means everything we build must be incredibly secure.
-- **Decentralizable:** Everything we build must have a clear path towards decentralization. Today
-  Optimism relies on OptimismPBC to function, but eventually it will be managed by a DAO and even in
-  that decentralized future our system must thrive.
+- **Secure:** This is self-evident.
+  User’s assets are at stake. Every component of the system must be incredibly secure.
+- **Decentralizable:** Optimism must be designed to avail itself of the security and
+  censorship-resistant guarantees achieved by a decentralized system.
+  Currently centralized components of the system should have a clear path towards decentralization.
+  Already decentralized components of the system should be protected and preserved.

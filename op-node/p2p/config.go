@@ -8,8 +8,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/discover"
+	"github.com/ethereum/go-ethereum/p2p/enode"
 	ds "github.com/ipfs/go-datastore"
-	lconf "github.com/libp2p/go-libp2p/config"
+	"github.com/libp2p/go-libp2p"
+	pubsub "github.com/libp2p/go-libp2p-pubsub"
 	"github.com/libp2p/go-libp2p/core"
 	"github.com/libp2p/go-libp2p/core/connmgr"
 	"github.com/libp2p/go-libp2p/core/crypto"
@@ -18,8 +20,6 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/libp2p/go-libp2p/p2p/net/conngater"
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
-
-	"github.com/ethereum/go-ethereum/p2p/enode"
 
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 )
@@ -33,6 +33,7 @@ var DefaultBootnodes = []*enode.Node{
 // SetupP2P provides a host and discovery service for usage in the rollup node.
 type SetupP2P interface {
 	Check() error
+	Disabled() bool
 	// Host creates a libp2p host service. Returns nil, nil if p2p is disabled.
 	Host(log log.Logger, reporter metrics.Reporter) (host.Host, error)
 	// Discovery creates a disc-v5 service. Returns nil, nil, nil if discovery is disabled.
@@ -49,6 +50,16 @@ type Config struct {
 	DisableP2P  bool
 	NoDiscovery bool
 
+	// Pubsub Scoring Parameters
+	PeerScoring  pubsub.PeerScoreParams
+	TopicScoring pubsub.TopicScoreParams
+
+	// Peer Score Band Thresholds
+	BandScoreThresholds BandScoreThresholds
+
+	// Whether to ban peers based on their [PeerScoring] score.
+	BanningEnabled bool
+
 	ListenIP      net.IP
 	ListenTCPPort uint16
 
@@ -63,8 +74,8 @@ type Config struct {
 
 	StaticPeers []core.Multiaddr
 
-	HostMux             []lconf.MsMuxC
-	HostSecurity        []lconf.MsSecC
+	HostMux             []libp2p.Option
+	HostSecurity        []libp2p.Option
 	NoTransportSecurity bool
 
 	PeersLo    uint
@@ -95,6 +106,7 @@ type Config struct {
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
 }
 
+//go:generate mockery --name ConnectionGater
 type ConnectionGater interface {
 	connmgr.ConnectionGater
 
@@ -132,6 +144,26 @@ func DefaultConnManager(conf *Config) (connmgr.ConnManager, error) {
 
 func (conf *Config) TargetPeers() uint {
 	return conf.PeersLo
+}
+
+func (conf *Config) Disabled() bool {
+	return conf.DisableP2P
+}
+
+func (conf *Config) PeerScoringParams() *pubsub.PeerScoreParams {
+	return &conf.PeerScoring
+}
+
+func (conf *Config) PeerBandScorer() *BandScoreThresholds {
+	return &conf.BandScoreThresholds
+}
+
+func (conf *Config) BanPeers() bool {
+	return conf.BanningEnabled
+}
+
+func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {
+	return &conf.TopicScoring
 }
 
 const maxMeshParam = 1000

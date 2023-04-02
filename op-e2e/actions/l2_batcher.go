@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"io"
 	"math/big"
 
@@ -40,6 +41,8 @@ type BatcherCfg struct {
 	MaxL1TxSize uint64
 
 	BatcherKey *ecdsa.PrivateKey
+
+	GarbageCfg *GarbageChannelCfg
 }
 
 // L2Batcher buffers and submits L2 batches to L1.
@@ -58,7 +61,7 @@ type L2Batcher struct {
 
 	l1Signer types.Signer
 
-	l2ChannelOut     *derive.ChannelOut
+	l2ChannelOut     ChannelOutIface
 	l2Submitting     bool // when the channel out is being submitted, and not safe to write to without resetting
 	l2BufferedBlock  eth.BlockID
 	l2SubmittedBlock eth.BlockID
@@ -88,6 +91,10 @@ func (s *L2Batcher) SubmittingData() bool {
 // ActL2BatchBuffer adds the next L2 block to the batch buffer.
 // If the buffer is being submitted, the buffer is wiped.
 func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
+	require.NoError(t, s.Buffer(t), "failed to add block to channel")
+}
+
+func (s *L2Batcher) Buffer(t Testing) error {
 	if s.l2Submitting { // break ongoing submitting work if necessary
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
@@ -117,12 +124,17 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 			s.l2ChannelOut = nil
 		} else {
 			s.log.Info("nothing left to submit")
-			return
+			return nil
 		}
 	}
 	// Create channel if we don't have one yet
 	if s.l2ChannelOut == nil {
-		ch, err := derive.NewChannelOut()
+		var ch ChannelOutIface
+		if s.l2BatcherCfg.GarbageCfg != nil {
+			ch, err = NewGarbageChannelOut(s.l2BatcherCfg.GarbageCfg)
+		} else {
+			ch, err = derive.NewChannelOut()
+		}
 		require.NoError(t, err, "failed to create channel")
 		s.l2ChannelOut = ch
 	}
@@ -134,10 +146,11 @@ func (s *L2Batcher) ActL2BatchBuffer(t Testing) {
 		s.l2BufferedBlock = syncStatus.SafeL2.ID()
 		s.l2ChannelOut = nil
 	}
-	if err := s.l2ChannelOut.AddBlock(block); err != nil { // should always succeed
-		t.Fatalf("failed to add block to channel: %v", err)
+	if _, err := s.l2ChannelOut.AddBlock(block); err != nil { // should always succeed
+		return err
 	}
 	s.l2BufferedBlock = eth.ToBlockID(block)
+	return nil
 }
 
 func (s *L2Batcher) ActL2ChannelClose(t Testing) {
@@ -150,7 +163,7 @@ func (s *L2Batcher) ActL2ChannelClose(t Testing) {
 }
 
 // ActL2BatchSubmit constructs a batch tx from previous buffered L2 blocks, and submits it to L1
-func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
+func (s *L2Batcher) ActL2BatchSubmit(t Testing, txOpts ...func(tx *types.DynamicFeeTx)) {
 	// Don't run this action if there's no data to submit
 	if s.l2ChannelOut == nil {
 		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
@@ -160,7 +173,7 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 	data := new(bytes.Buffer)
 	data.WriteByte(derive.DerivationVersion0)
 	// subtract one, to account for the version byte
-	if err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
 		s.l2ChannelOut = nil
 		s.l2Submitting = false
 	} else if err != nil {
@@ -184,7 +197,93 @@ func (s *L2Batcher) ActL2BatchSubmit(t Testing) {
 		GasFeeCap: gasFeeCap,
 		Data:      data.Bytes(),
 	}
-	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true)
+	for _, opt := range txOpts {
+		opt(rawTx)
+	}
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
+	require.NoError(t, err, "need to compute intrinsic gas")
+	rawTx.Gas = gas
+
+	tx, err := types.SignNewTx(s.l2BatcherCfg.BatcherKey, s.l1Signer, rawTx)
+	require.NoError(t, err, "need to sign tx")
+
+	err = s.l1.SendTransaction(t.Ctx(), tx)
+	require.NoError(t, err, "need to send tx")
+}
+
+// ActL2BatchSubmitGarbage constructs a malformed channel frame and submits it to the
+// batch inbox. This *should* cause the batch inbox to reject the blocks
+// encoded within the frame, even if the blocks themselves are valid.
+func (s *L2Batcher) ActL2BatchSubmitGarbage(t Testing, kind GarbageKind) {
+	// Don't run this action if there's no data to submit
+	if s.l2ChannelOut == nil {
+		t.InvalidAction("need to buffer data first, cannot batch submit with empty buffer")
+		return
+	}
+
+	// Collect the output frame
+	data := new(bytes.Buffer)
+	data.WriteByte(derive.DerivationVersion0)
+
+	// subtract one, to account for the version byte
+	if _, err := s.l2ChannelOut.OutputFrame(data, s.l2BatcherCfg.MaxL1TxSize-1); err == io.EOF {
+		s.l2ChannelOut = nil
+		s.l2Submitting = false
+	} else if err != nil {
+		s.l2Submitting = false
+		t.Fatalf("failed to output channel data to frame: %v", err)
+	}
+
+	outputFrame := data.Bytes()
+
+	// Malform the output frame
+	switch kind {
+	// Strip the derivation version byte from the output frame
+	case STRIP_VERSION:
+		outputFrame = outputFrame[1:]
+	// Replace the output frame with random bytes of length [1, 512]
+	case RANDOM:
+		i, err := rand.Int(rand.Reader, big.NewInt(512))
+		require.NoError(t, err, "error generating random bytes length")
+		buf := make([]byte, i.Int64()+1)
+		_, err = rand.Read(buf)
+		require.NoError(t, err, "error generating random bytes")
+		outputFrame = buf
+	// Remove 4 bytes from the tail end of the output frame
+	case TRUNCATE_END:
+		outputFrame = outputFrame[:len(outputFrame)-4]
+	// Append 4 garbage bytes to the end of the output frame
+	case DIRTY_APPEND:
+		outputFrame = append(outputFrame, []byte{0xBA, 0xD0, 0xC0, 0xDE}...)
+	case INVALID_COMPRESSION:
+		// Do nothing post frame encoding- the `GarbageChannelOut` used for this case is modified to
+		// use gzip compression rather than zlib, which is invalid.
+		break
+	case MALFORM_RLP:
+		// Do nothing post frame encoding- the `GarbageChannelOut` used for this case is modified to
+		// write malformed RLP each time a block is added to the channel.
+		break
+	default:
+		t.Fatalf("Unexpected garbage kind: %v", kind)
+	}
+
+	nonce, err := s.l1.PendingNonceAt(t.Ctx(), s.batcherAddr)
+	require.NoError(t, err, "need batcher nonce")
+
+	gasTipCap := big.NewInt(2 * params.GWei)
+	pendingHeader, err := s.l1.HeaderByNumber(t.Ctx(), big.NewInt(-1))
+	require.NoError(t, err, "need l1 pending header for gas price estimation")
+	gasFeeCap := new(big.Int).Add(gasTipCap, new(big.Int).Mul(pendingHeader.BaseFee, big.NewInt(2)))
+
+	rawTx := &types.DynamicFeeTx{
+		ChainID:   s.rollupCfg.L1ChainID,
+		Nonce:     nonce,
+		To:        &s.rollupCfg.BatchInboxAddress,
+		GasTipCap: gasTipCap,
+		GasFeeCap: gasFeeCap,
+		Data:      outputFrame,
+	}
+	gas, err := core.IntrinsicGas(rawTx.Data, nil, false, true, true, false)
 	require.NoError(t, err, "need to compute intrinsic gas")
 	rawTx.Gas = gas
 

@@ -13,8 +13,9 @@ import (
 )
 
 type Config struct {
-	L1 L1EndpointSetup
-	L2 L2EndpointSetup
+	L1     L1EndpointSetup
+	L2     L2EndpointSetup
+	L2Sync L2SyncEndpointSetup
 
 	Driver driver.Config
 
@@ -78,6 +79,9 @@ type HeartbeatConfig struct {
 func (cfg *Config) Check() error {
 	if err := cfg.L2.Check(); err != nil {
 		return fmt.Errorf("l2 endpoint config error: %w", err)
+	}
+	if err := cfg.L2Sync.Check(); err != nil {
+		return fmt.Errorf("sync config error: %w", err)
 	}
 	if err := cfg.Rollup.Check(); err != nil {
 		return fmt.Errorf("rollup config error: %w", err)

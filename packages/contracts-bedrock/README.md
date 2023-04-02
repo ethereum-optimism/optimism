@@ -57,7 +57,7 @@ We work on this repository with a combination of [Hardhat](https://hardhat.org) 
 1. Install Foundry by following [the instructions located here](https://getfoundry.sh/).
    A specific version must be used.
    ```shell
-   foundryup -C 2ff99025abade470a795724c10648c800a41025e
+   foundryup -C da2392e58bb8a7fefeba46b40c4df1afad8ccd22
    ```
 2. Install node modules with yarn (v1) and Node.js (16+):
 
@@ -92,8 +92,10 @@ yarn echidna:aliasing
 
 #### Configuration
 
-1. Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
+1. Create or modify a file `<network-name>.ts` inside of the [`deploy-config`](./deploy-config/) folder.
 2. Fill out this file according to the `deployConfigSpec` located inside of the [`hardhat.config.ts](./hardhat.config.ts)
+3. Optionally: Run `npx hardhat generate-deploy-config --network <network-name>` to generate the associated JSON
+   file. This is required if using `op-chain-ops`.
 
 #### Execution
 
@@ -195,6 +197,11 @@ After the initial Bedrock upgrade, contracts MUST use the following versioning s
 
 We have made an exception to the `Semver` rule for the `WETH` contract to avoid making changes to a well-known, simple, and recognizable contract.
 
+### Dependencies
+
+Where basic functionality is already supported by an existing contract in the OpenZeppelin library,
+we should default to using the Upgradeable version of that contract.
+
 ### Tests
 
 Tests are written using Foundry.
@@ -207,13 +214,13 @@ These guidelines are also encoded in a script which can be run with:
 ts-node scripts/forge-test-names.ts
 ```
 
-*Note: This is a work in progress, not all test files are compliant with these guidelines.*
+_Note: This is a work in progress, not all test files are compliant with these guidelines._
 
 #### Organizing Principles
 
 - Solidity `contract`s are used to organize the test suite similar to how mocha uses describe.
 - Every non-trivial state changing function should have a separate contract for happy and sad path
-   tests. This helps to make it very obvious where there are not yet sad path tests.
+  tests. This helps to make it very obvious where there are not yet sad path tests.
 - Simpler functions like getters and setters are grouped together into test contracts.
 
 #### Test function naming convention
@@ -239,3 +246,8 @@ Test contracts should be named one of the following according to their use:
 - `TargetContract_Init` for contracts that perform basic setup to be reused in other test contracts.
 - `TargetContract_Function_Test` for contracts containing happy path tests for a given function.
 - `TargetContract_Function_TestFail` for contracts containing sad path tests for a given function.
+
+## Withdrawaing From Fee Vaults
+
+See the file `scripts/FeeVaultWithdrawal.s.sol` to withdraw from the L2 fee vaults. It includes
+instructions on how to run it. `foundry` is required.

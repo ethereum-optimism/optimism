@@ -1,0 +1,28 @@
+@require './code/index'
+
+.theme-container:not(.has-navbar)
+  {$contentClass}:not(.custom) > h1, h2, h3, h4, h5, h6
+    margin-top 1.5rem
+    padding-top 0
+
+// narrow mobile
+@media (max-width $MQMobileNarrow)
+  h1
+    font-size 1.7rem
+
+  h2
+    font-size 1.5rem
+
+  h3
+    font-size 1.3rem
+
+  {$contentClass}
+    div[class*='language-']
+      margin 0.85rem -1.5rem
+      border-radius 0
+
+.iconfont
+  font-weight normal
+
+[aria-label][data-balloon-pos]
+  cursor help

@@ -46,7 +46,7 @@
         }
       ],
       "txs": [],
-      "error": true
+      "error": false
     },
     {
       "name": "multiple-contexts-no-txs",
@@ -80,7 +80,7 @@
         }
       ],
       "txs": [],
-      "error": true
+      "error": false
     },
     {
       "name": "complex",

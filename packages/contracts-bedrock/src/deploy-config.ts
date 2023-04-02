@@ -15,6 +15,12 @@ interface RequiredDeployConfig {
   finalSystemOwner?: string
 
   /**
+   * Address that is deployed as the GUARDIAN in the OptimismPortal. Has the
+   * ability to pause withdrawals.
+   */
+  portalGuardian: string
+
+  /**
    * Address that will own the entire system on L1 during the deployment process. This address will
    * not own the system after the deployment is complete, ownership will be transferred to the
    * final system owner.
@@ -123,6 +129,26 @@ interface RequiredDeployConfig {
    * Output finalization period in seconds.
    */
   finalizationPeriodSeconds: number
+
+  /**
+   * Owner of the ProxyAdmin contract.
+   */
+  proxyAdminOwner: string
+
+  /**
+   * L1 address which receives the base fee for the L2 network.
+   */
+  baseFeeVaultRecipient: string
+
+  /**
+   * L1 address which receives data fees for the L2 network.
+   */
+  l1FeeVaultRecipient: string
+
+  /**
+   * L1 address which receives tip fees for the L2 network.
+   */
+  sequencerFeeVaultRecipient: string
 }
 
 /**
@@ -154,6 +180,10 @@ interface OptionalL2DeployConfig {
   l2GenesisBlockGasUsed: string
   l2GenesisBlockParentHash: string
   l2GenesisBlockBaseFeePerGas: string
+  l2GenesisBlockCoinbase: string
+  l2GenesisRegolithTimeOffset: string
+  eip1559Denominator: number
+  eip1559Elasticity: number
   gasPriceOracleOverhead: number
   gasPriceOracleScalar: number
 }
@@ -179,6 +209,9 @@ export const deployConfigSpec: {
     default: 1,
   },
   finalSystemOwner: {
+    type: 'address',
+  },
+  portalGuardian: {
     type: 'address',
   },
   controller: {
@@ -233,6 +266,18 @@ export const deployConfigSpec: {
   finalizationPeriodSeconds: {
     type: 'number',
     default: 2,
+  },
+  proxyAdminOwner: {
+    type: 'address',
+  },
+  baseFeeVaultRecipient: {
+    type: 'address',
+  },
+  l1FeeVaultRecipient: {
+    type: 'address',
+  },
+  sequencerFeeVaultRecipient: {
+    type: 'address',
   },
   cliqueSignerAddress: {
     type: 'address',

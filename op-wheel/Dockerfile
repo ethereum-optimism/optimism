@@ -1,11 +1,14 @@
-FROM golang:1.18.0-alpine3.15 as builder
+FROM golang:1.19.0-alpine3.15 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers
 
-COPY ./op-wheel/docker.go.work /app/go.work
-COPY ./op-node /app/op-node
-COPY ./op-service /app/op-service
 COPY ./op-wheel /app/op-wheel
+COPY ./op-node /app/op-node
+COPY ./op-chain-ops /app/op-chain-ops
+COPY ./op-service /app/op-service
+COPY ./op-bindings /app/op-bindings
+COPY ./go.mod /app/go.mod
+COPY ./go.sum /app/go.sum
 
 WORKDIR /app/op-wheel
 

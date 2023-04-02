@@ -2,6 +2,8 @@
 
 🎈 Thanks for your help improving the project! We are so happy to have you!
 
+**No contribution is too small and all contributions are valued.**
+
 There are plenty of ways to contribute, in particular we appreciate support in the following areas:
 
 - Reporting issues. For security issues see [Security policy](https://github.com/ethereum-optimism/.github/blob/master/SECURITY.md).
@@ -64,24 +66,30 @@ You'll need the following:
 * [Yarn](https://classic.yarnpkg.com/en/docs/install)
 * [Docker](https://docs.docker.com/get-docker/)
 * [Docker Compose](https://docs.docker.com/compose/install/)
+* [Go](https://go.dev/dl/)
 * [Foundry](https://getfoundry.sh)
 
 ### Setup
 
-Clone the repository, open it, and install nodejs packages with `yarn`:
+Clone the repository and open it:
 
 ```bash
 git clone git@github.com:ethereum-optimism/optimism.git
 cd optimism
-yarn install
 ```
 
 ### Install the Correct Version of NodeJS
 
-Using `nvm`, install the correct version of NodeJS.
+Install node v16.16.0 with [nvm](https://github.com/nvm-sh/nvm)
 
-```
+```bash
 nvm use
+```
+
+### Install node modules with Yarn
+
+```bash
+yarn install
 ```
 
 ### Building the TypeScript packages

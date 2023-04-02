@@ -25,17 +25,12 @@ type SyncStatus = eth.SyncStatus
 // sealingDuration defines the expected time it takes to seal the block
 const sealingDuration = time.Millisecond * 50
 
-var UninitializedL1StateErr = errors.New("the L1 Head in L1 State is not initialized yet")
-
 type Driver struct {
 	l1State L1StateIface
 
 	// The derivation pipeline is reset whenever we reorg.
 	// The derivation pipeline determines the new l2Safe.
 	derivation DerivationPipeline
-
-	// When the derivation pipeline is waiting for new data to do anything
-	idleDerivation bool
 
 	// Requests to block the event loop for synchronous execution to avoid reading an inconsistent state
 	stateReq chan chan struct{}
@@ -68,14 +63,17 @@ type Driver struct {
 	l1SafeSig      chan eth.L1BlockRef
 	l1FinalizedSig chan eth.L1BlockRef
 
+	// Interface to signal the L2 block range to sync.
+	altSync AltSync
+
 	// L2 Signals:
+
 	unsafeL2Payloads chan *eth.ExecutionPayload
 
-	l1               L1Chain
-	l2               L2Chain
-	l1OriginSelector L1OriginSelectorIface
-	sequencer        SequencerIface
-	network          Network // may be nil, network for is optional
+	l1        L1Chain
+	l2        L2Chain
+	sequencer SequencerIface
+	network   Network // may be nil, network for is optional
 
 	metrics     Metrics
 	log         log.Logger
@@ -142,75 +140,6 @@ func (s *Driver) OnUnsafeL2Payload(ctx context.Context, payload *eth.ExecutionPa
 	}
 }
 
-// startNewL2Block starts sequencing a new L2 block on top of the unsafe L2 Head.
-func (s *Driver) startNewL2Block(ctx context.Context) error {
-	l2Head := s.derivation.UnsafeL2Head()
-
-	l1Head := s.l1State.L1Head()
-	if l1Head == (eth.L1BlockRef{}) {
-		return UninitializedL1StateErr
-	}
-
-	// Figure out which L1 origin block we're going to be building on top of.
-	l1Origin, err := s.l1OriginSelector.FindL1Origin(ctx, l1Head, l2Head)
-	if err != nil {
-		s.log.Error("Error finding next L1 Origin", "err", err)
-		return err
-	}
-
-	// Rollup is configured to not start producing blocks until a specific L1 block has been
-	// reached. Don't produce any blocks until we're at that genesis block.
-	if l1Origin.Number < s.config.Genesis.L1.Number {
-		s.log.Info("Skipping block production because the next L1 Origin is behind the L1 genesis", "next", l1Origin.ID(), "genesis", s.config.Genesis.L1)
-		return fmt.Errorf("the L1 origin %s cannot be before genesis at %s", l1Origin, s.config.Genesis.L1)
-	}
-
-	// Should never happen. Sequencer will halt if we get into this situation somehow.
-	nextL2Time := l2Head.Time + s.config.BlockTime
-	if nextL2Time < l1Origin.Time {
-		s.log.Error("Cannot build L2 block for time before L1 origin",
-			"l2Unsafe", l2Head, "nextL2Time", nextL2Time, "l1Origin", l1Origin, "l1OriginTime", l1Origin.Time)
-		return fmt.Errorf("cannot build L2 block on top %s for time %d before L1 origin %s at time %d",
-			l2Head, nextL2Time, l1Origin, l1Origin.Time)
-	}
-
-	// Start creating the new block.
-	return s.sequencer.StartBuildingBlock(ctx, l1Origin)
-}
-
-// completeNewBlock completes a previously started L2 block sequencing job.
-func (s *Driver) completeNewBlock(ctx context.Context) error {
-	payload, err := s.sequencer.CompleteBuildingBlock(ctx)
-	if err != nil {
-		s.metrics.RecordSequencingError()
-		s.log.Error("Failed to seal block as sequencer", "err", err)
-		return err
-	}
-
-	// Generate an L2 block ref from the payload.
-	newUnsafeL2Head, err := derive.PayloadToBlockRef(payload, &s.config.Genesis)
-	if err != nil {
-		s.metrics.RecordSequencingError()
-		s.log.Error("Sequenced payload cannot be transformed into valid L2 block reference", "err", err)
-		return fmt.Errorf("sequenced payload cannot be transformed into valid L2 block reference: %w", err)
-	}
-
-	// Update our L2 head block based on the new unsafe block we just generated.
-	s.derivation.SetUnsafeHead(newUnsafeL2Head)
-
-	s.log.Info("Sequenced new l2 block", "l2_unsafe", newUnsafeL2Head, "l1_origin", newUnsafeL2Head.L1Origin, "txs", len(payload.Transactions), "time", newUnsafeL2Head.Time)
-	s.metrics.CountSequencedTxs(len(payload.Transactions))
-
-	if s.network != nil {
-		if err := s.network.PublishL2Payload(ctx, payload); err != nil {
-			s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
-			s.metrics.RecordPublishingError()
-			// publishing of unsafe data via p2p is optional. Errors are not severe enough to change/halt sequencing but should be logged and metered.
-		}
-	}
-	return nil
-}
-
 // the eventLoop responds to L1 changes and internal timers to produce L2 blocks.
 func (s *Driver) eventLoop() {
 	defer s.wg.Done()
@@ -259,60 +188,83 @@ func (s *Driver) eventLoop() {
 	// L1 chain that we need to handle.
 	reqStep()
 
-	blockTime := time.Duration(s.config.BlockTime) * time.Second
-
-	var sequenceErr error
-	var sequenceErrTime time.Time
 	sequencerTimer := time.NewTimer(0)
 	var sequencerCh <-chan time.Time
-	var sequencingPlannedOnto eth.BlockID
-	var sequencerSealNext bool
 	planSequencerAction := func() {
-		delay, seal, onto := s.sequencer.PlanNextSequencerAction(sequenceErr)
-		if sequenceErr != nil && time.Since(sequenceErrTime) > delay {
-			sequenceErr = nil
-		}
+		delay := s.sequencer.PlanNextSequencerAction()
 		sequencerCh = sequencerTimer.C
 		if len(sequencerCh) > 0 { // empty if not already drained before resetting
 			<-sequencerCh
 		}
 		sequencerTimer.Reset(delay)
-		sequencingPlannedOnto = onto
-		sequencerSealNext = seal
 	}
 
+	// Create a ticker to check if there is a gap in the engine queue. Whenever
+	// there is, we send requests to sync source to retrieve the missing payloads.
+	syncCheckInterval := time.Duration(s.config.BlockTime) * time.Second * 2
+	altSyncTicker := time.NewTicker(syncCheckInterval)
+	defer altSyncTicker.Stop()
+	lastUnsafeL2 := s.derivation.UnsafeL2Head()
+
 	for {
-		// If we are sequencing, update the trigger for the next sequencer action.
+		// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
 		// This may adjust at any time based on fork-choice changes or previous errors.
-		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped {
-			// update sequencer time if the head changed
-			if sequencingPlannedOnto != s.derivation.UnsafeL2Head().ID() {
+		// And avoid sequencing if the derivation pipeline indicates the engine is not ready.
+		if s.driverConfig.SequencerEnabled && !s.driverConfig.SequencerStopped &&
+			s.l1State.L1Head() != (eth.L1BlockRef{}) && s.derivation.EngineReady() {
+			if s.driverConfig.SequencerMaxSafeLag > 0 && s.derivation.SafeL2Head().Number+s.driverConfig.SequencerMaxSafeLag <= s.derivation.UnsafeL2Head().Number {
+				// If the safe head has fallen behind by a significant number of blocks, delay creating new blocks
+				// until the safe lag is below SequencerMaxSafeLag.
+				if sequencerCh != nil {
+					s.log.Warn(
+						"Delay creating new block since safe lag exceeds limit",
+						"safe_l2", s.derivation.SafeL2Head(),
+						"unsafe_l2", s.derivation.UnsafeL2Head(),
+					)
+					sequencerCh = nil
+				}
+			} else if s.sequencer.BuildingOnto().ID() != s.derivation.UnsafeL2Head().ID() {
+				// If we are sequencing, and the L1 state is ready, update the trigger for the next sequencer action.
+				// This may adjust at any time based on fork-choice changes or previous errors.
+				//
+				// update sequencer time if the head changed
 				planSequencerAction()
 			}
 		} else {
 			sequencerCh = nil
 		}
 
+		// If the engine is not ready, or if the L2 head is actively changing, then reset the alt-sync:
+		// there is no need to request L2 blocks when we are syncing already.
+		if head := s.derivation.UnsafeL2Head(); head != lastUnsafeL2 || !s.derivation.EngineReady() {
+			lastUnsafeL2 = head
+			altSyncTicker.Reset(syncCheckInterval)
+		}
+
 		select {
 		case <-sequencerCh:
-			s.log.Info("sequencing now!", "seal", sequencerSealNext, "idle_derivation", s.idleDerivation)
-			if sequencerSealNext {
-				// try to seal the current block task, and allow it to take up to 3 block times.
-				// If this fails we will simply start a new block building job.
-				ctx, cancel := context.WithTimeout(ctx, 3*blockTime)
-				sequenceErr = s.completeNewBlock(ctx)
-				cancel()
-			} else {
-				// Start the block building, don't allow the starting of sequencing to get stuck for more the time of 1 block.
-				ctx, cancel := context.WithTimeout(ctx, blockTime)
-				sequenceErr = s.startNewL2Block(ctx)
-				cancel()
+			payload, err := s.sequencer.RunNextSequencerAction(ctx)
+			if err != nil {
+				s.log.Error("Sequencer critical error", "err", err)
+				return
 			}
-			if sequenceErr != nil {
-				s.log.Error("sequencing error", "err", sequenceErr)
-				sequenceErrTime = time.Now()
+			if s.network != nil && payload != nil {
+				// Publishing of unsafe data via p2p is optional.
+				// Errors are not severe enough to change/halt sequencing but should be logged and metered.
+				if err := s.network.PublishL2Payload(ctx, payload); err != nil {
+					s.log.Warn("failed to publish newly created block", "id", payload.ID(), "err", err)
+					s.metrics.RecordPublishingError()
+				}
 			}
 			planSequencerAction() // schedule the next sequencer action to keep the sequencing looping
+		case <-altSyncTicker.C:
+			// Check if there is a gap in the current unsafe payload queue.
+			ctx, cancel := context.WithTimeout(ctx, time.Second*2)
+			err := s.checkForGapInUnsafeQueue(ctx)
+			cancel()
+			if err != nil {
+				s.log.Warn("failed to check for unsafe L2 blocks to sync", "err", err)
+			}
 		case payload := <-s.unsafeL2Payloads:
 			s.snapshot("New unsafe payload")
 			s.log.Info("Optimistically queueing unsafe L2 execution payload", "id", payload.ID())
@@ -335,13 +287,11 @@ func (s *Driver) eventLoop() {
 			step()
 		case <-stepReqCh:
 			s.metrics.SetDerivationIdle(false)
-			s.idleDerivation = false
 			s.log.Debug("Derivation process step", "onto_origin", s.derivation.Origin(), "attempts", stepAttempts)
 			err := s.derivation.Step(context.Background())
 			stepAttempts += 1 // count as attempt by default. We reset to 0 if we are making healthy progress.
 			if err == io.EOF {
 				s.log.Debug("Derivation process went idle", "progress", s.derivation.Origin())
-				s.idleDerivation = true
 				stepAttempts = 0
 				s.metrics.SetDerivationIdle(true)
 				continue
@@ -386,8 +336,8 @@ func (s *Driver) eventLoop() {
 			} else {
 				s.log.Info("Sequencer has been started")
 				s.driverConfig.SequencerStopped = false
-				sequencingPlannedOnto = eth.BlockID{}
 				close(resp.err)
+				planSequencerAction() // resume sequencing
 			}
 		case respCh := <-s.stopSequencer:
 			if s.driverConfig.SequencerStopped {
@@ -533,4 +483,31 @@ type hashAndError struct {
 type hashAndErrorChannel struct {
 	hash common.Hash
 	err  chan error
+}
+
+// checkForGapInUnsafeQueue checks if there is a gap in the unsafe queue and attempts to retrieve the missing payloads from an alt-sync method.
+// WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
+// Results are received through OnUnsafeL2Payload.
+func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
+	// subtract genesis time from wall clock to get the time elapsed since genesis, and then divide that
+	// difference by the block time to get the expected L2 block number at the current time. If the
+	// unsafe head does not have this block number, then there is a gap in the queue.
+	wallClock := uint64(time.Now().Unix())
+	genesisTimestamp := s.config.Genesis.L2Time
+	if wallClock < genesisTimestamp {
+		s.log.Debug("nothing to sync, did not reach genesis L2 time yet", "genesis", genesisTimestamp)
+		return nil
+	}
+	wallClockGenesisDiff := wallClock - genesisTimestamp
+	// Note: round down, we should not request blocks into the future.
+	blocksSinceGenesis := wallClockGenesisDiff / s.config.BlockTime
+	expectedL2Block := s.config.Genesis.L2.Number + blocksSinceGenesis
+
+	start, end := s.derivation.GetUnsafeQueueGap(expectedL2Block)
+	// Check if there is a gap between the unsafe head and the expected L2 block number at the current time.
+	if end > start {
+		s.log.Debug("requesting missing unsafe L2 block range", "start", start, "end", end, "size", end-start)
+		return s.altSync.RequestL2Range(ctx, start, end)
+	}
+	return nil
 }

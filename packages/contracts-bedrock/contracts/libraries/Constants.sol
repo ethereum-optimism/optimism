@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
+
 /**
  * @title Constants
  * @notice Constants is a library for storing constants. Simple! Don't put everything in here, just
@@ -24,4 +26,24 @@ library Constants {
      *         non-zero to reduce the gas cost of message passing transactions.
      */
     address internal constant DEFAULT_L2_SENDER = 0x000000000000000000000000000000000000dEaD;
+
+    /**
+     * @notice Returns the default values for the ResourceConfig. These are the recommended values
+     *         for a production network.
+     */
+    function DEFAULT_RESOURCE_CONFIG()
+        internal
+        pure
+        returns (ResourceMetering.ResourceConfig memory)
+    {
+        ResourceMetering.ResourceConfig memory config = ResourceMetering.ResourceConfig({
+            maxResourceLimit: 20_000_000,
+            elasticityMultiplier: 10,
+            baseFeeMaxChangeDenominator: 8,
+            minimumBaseFee: 1 gwei,
+            systemTxMaxGas: 1_000_000,
+            maximumBaseFee: type(uint128).max
+        });
+        return config;
+    }
 }

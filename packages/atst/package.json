@@ -1,0 +1,73 @@
+{
+  "name": "@eth-optimism/atst",
+  "version": "0.2.0",
+  "type": "module",
+  "main": "dist/index.cjs",
+  "types": "src/index.ts",
+  "module": "dist/index.js",
+  "license": "MIT",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    },
+    "./react": {
+      "types": "./src/react.ts",
+      "default": "./dist/react.js",
+      "import": "./dist/react.js",
+      "require": "./dist/react.cjs"
+    }
+  },
+  "bin": {
+    "atst": "./dist/cli.js"
+  },
+  "scripts": {
+    "dev": "tsx src/cli.ts",
+    "clean": "rm -rf ./node_modules && rm -rf ./dist && rm -rf ./coverage",
+    "build": "yarn tsup",
+    "generate": "wagmi generate",
+    "lint": "yarn lint:fix && yarn lint:check",
+    "lint:check": "eslint . --max-warnings=0",
+    "lint:fix": "yarn lint:check --fix",
+    "test": "vitest",
+    "typecheck": "yarn tsc --noEmit"
+  },
+  "dependencies": {
+    "cac": "^6.7.14",
+    "picocolors": "^1.0.0",
+    "ora": "^6.1.2",
+    "zod": "^3.11.6"
+  },
+  "peerDependencies": {
+    "@wagmi/core": ">0.9.0",
+    "wagmi": ">0.11.0",
+    "ethers": "^5.0.0"
+  },
+  "devDependencies": {
+    "@testing-library/react-hooks": "^8.0.1",
+    "ethers": "^5.7.0",
+    "jsdom": "^21.1.0",
+    "react-dom": "^18.2.0",
+    "react": "^18.2.0",
+    "execa": "^1.0.0",
+    "vitest": "^0.28.3",
+    "tsup": "^6.5.0",
+    "tsx": "^3.12.2",
+    "typescript": "^4.9.3",
+    "@wagmi/core": "^0.9.2",
+    "@wagmi/cli": "~0.1.5",
+    "wagmi": "~0.11.0"
+  },
+  "keywords": [
+    "react",
+    "hooks",
+    "eth",
+    "ethereum",
+    "dapps",
+    "web3",
+    "optimism",
+    "attestation"
+  ]
+}

@@ -9,7 +9,6 @@
       "batch-submitter",
       "bss-core",
       "gas-oracle",
-      "indexer",
       "integration-tests",
       "l2geth-exporter",
       "l2geth",
@@ -19,7 +18,6 @@
       "ops/docker/js-builder",
       "ops/docker/ci-builder",
       "ops/docker/foundry",
-      "proxyd",
       "endpoint-monitor"
     ],
     "nohoist": [

@@ -13,7 +13,11 @@ import {
   getDeploymentAddress,
   doStep,
   jsonifyTransaction,
+  getTenderlySimulationLink,
+  getCastCommand,
 } from '../src/deploy-utils'
+
+const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
 
 const deployFn: DeployFunction = async (hre) => {
   const { deployer } = await hre.getNamedAccounts()
@@ -23,7 +27,6 @@ const deployFn: DeployFunction = async (hre) => {
     SystemDictator,
     ProxyAdmin,
     AddressManager,
-    L1CrossDomainMessenger,
     L1StandardBridgeProxy,
     L1StandardBridgeProxyWithSigner,
     L1ERC721BridgeProxy,
@@ -41,11 +44,6 @@ const deployFn: DeployFunction = async (hre) => {
     },
     {
       name: 'Lib_AddressManager',
-      signerOrProvider: deployer,
-    },
-    {
-      name: 'Proxy__OVM_L1CrossDomainMessenger',
-      iface: 'L1CrossDomainMessenger',
       signerOrProvider: deployer,
     },
     {
@@ -103,6 +101,8 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -111,46 +111,11 @@ const deployFn: DeployFunction = async (hre) => {
         const owner = await AddressManager.owner()
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
     console.log(`AddressManager already owned by the SystemDictator`)
-  }
-
-  // Transfer ownership of the L1CrossDomainMessenger to SystemDictator.
-  if (
-    needsProxyTransfer &&
-    (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) !==
-      ethers.constants.AddressZero &&
-    (await L1CrossDomainMessenger.owner()) !== SystemDictator.address
-  ) {
-    if (isLiveDeployer) {
-      console.log(`Setting L1CrossDomainMessenger owner to MSD`)
-      await L1CrossDomainMessenger.transferOwnership(SystemDictator.address)
-    } else {
-      const tx =
-        await L1CrossDomainMessenger.populateTransaction.transferOwnership(
-          SystemDictator.address
-        )
-      console.log(`Please transfer L1CrossDomainMessenger owner to MSD`)
-      console.log(`L1XDM address: ${L1CrossDomainMessenger.address}`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-    }
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await L1CrossDomainMessenger.owner()
-        return owner === SystemDictator.address
-      },
-      30000,
-      1000
-    )
-  } else {
-    console.log(`L1CrossDomainMessenger already owned by MSD`)
   }
 
   // Transfer ownership of the L1StandardBridge (proxy) to SystemDictator.
@@ -174,6 +139,8 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -184,7 +151,7 @@ const deployFn: DeployFunction = async (hre) => {
         })
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -210,6 +177,8 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
+      console.log(getCastCommand(tx))
+      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
     }
 
     // Wait for the ownership transfer to complete.
@@ -220,7 +189,7 @@ const deployFn: DeployFunction = async (hre) => {
         })
         return owner === SystemDictator.address
       },
-      30000,
+      5000,
       1000
     )
   } else {
@@ -287,6 +256,14 @@ const deployFn: DeployFunction = async (hre) => {
         'gasLimit',
         hre.deployConfig.l2GenesisBlockGasLimit
       )
+
+      const config = await SystemConfigProxy.resourceConfig()
+      assert(config.maxResourceLimit === 20_000_000)
+      assert(config.elasticityMultiplier === 10)
+      assert(config.baseFeeMaxChangeDenominator === 8)
+      assert(config.systemTxMaxGas === 1_000_000)
+      assert(ethers.utils.parseUnits('1', 'gwei').eq(config.minimumBaseFee))
+      assert(config.maximumBaseFee.eq(uint128Max))
     },
   })
 
@@ -302,14 +279,14 @@ const deployFn: DeployFunction = async (hre) => {
       need to restart the system, run exit1() followed by finalize().
     `,
     checks: async () => {
-      assert(
-        (await AddressManager.getAddress('OVM_L1CrossDomainMessenger')) ===
-          ethers.constants.AddressZero
+      const messenger = await AddressManager.getAddress(
+        'OVM_L1CrossDomainMessenger'
       )
+      assert(messenger === ethers.constants.AddressZero)
     },
   })
 }
 
-deployFn.tags = ['SystemDictatorSteps', 'phase1']
+deployFn.tags = ['SystemDictatorSteps', 'phase1', 'l1']
 
 export default deployFn

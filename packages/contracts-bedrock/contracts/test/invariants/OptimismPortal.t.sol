@@ -1,10 +1,9 @@
 pragma solidity 0.8.15;
 
-import { InvariantTest } from "forge-std/InvariantTest.sol";
 import { Portal_Initializer } from "../CommonTest.t.sol";
 import { Types } from "../../libraries/Types.sol";
 
-contract OptimismPortal_Invariant_Harness is Portal_Initializer, InvariantTest {
+contract OptimismPortal_Invariant_Harness is Portal_Initializer {
     // Reusable default values for a test withdrawal
     Types.WithdrawalTransaction _defaultTx;
 
@@ -50,7 +49,7 @@ contract OptimismPortal_Invariant_Harness is Portal_Initializer, InvariantTest {
         // Warp beyond the finalization period for the block we've proposed.
         vm.warp(
             oracle.getL2Output(_proposedOutputIndex).timestamp +
-                op.FINALIZATION_PERIOD_SECONDS() +
+                oracle.FINALIZATION_PERIOD_SECONDS() +
                 1
         );
         // Fund the portal so that we can withdraw ETH.
@@ -102,7 +101,7 @@ contract OptimismPortal_CannotFinalizeTwice is OptimismPortal_Invariant_Harness 
         );
 
         // Warp past the finalization period.
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Finalize the withdrawal transaction.
         op.finalizeWithdrawalTransaction(_defaultTx);
@@ -139,7 +138,7 @@ contract OptimismPortal_CanAlwaysFinalizeAfterWindow is OptimismPortal_Invariant
         );
 
         // Warp past the finalization period.
-        vm.warp(block.timestamp + op.FINALIZATION_PERIOD_SECONDS() + 1);
+        vm.warp(block.timestamp + oracle.FINALIZATION_PERIOD_SECONDS() + 1);
 
         // Set the target contract to the portal proxy
         targetContract(address(op));

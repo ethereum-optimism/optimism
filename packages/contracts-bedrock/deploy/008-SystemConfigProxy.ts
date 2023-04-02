@@ -20,6 +20,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['SystemConfigProxy', 'setup']
+deployFn.tags = ['SystemConfigProxy', 'setup', 'l1']
 
 export default deployFn

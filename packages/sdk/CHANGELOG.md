@@ -1,5 +1,50 @@
 # @eth-optimism/sdk
 
+## 2.0.1
+
+### Patch Changes
+
+- 66cafc00a: Update migrated withdrawal gaslimit calculation
+- Updated dependencies [22c3885f5]
+- Updated dependencies [f52c07529]
+  - @eth-optimism/contracts-bedrock@0.13.1
+
+## 2.0.0
+
+### Major Changes
+
+- cb19e2f9c: Moves `FINALIZATION_PERIOD_SECONDS` from the `OptimismPortal` to the `L2OutputOracle` & ensures the `CHALLENGER` key cannot delete finalized outputs.
+
+### Patch Changes
+
+- Updated dependencies [cb19e2f9c]
+  - @eth-optimism/contracts-bedrock@0.13.0
+
+## 1.10.4
+
+### Patch Changes
+
+- Updated dependencies [80f2271f5]
+  - @eth-optimism/contracts-bedrock@0.12.1
+
+## 1.10.3
+
+### Patch Changes
+
+- Updated dependencies [7c0a2cc37]
+- Updated dependencies [2865dd9b4]
+- Updated dependencies [efc98d261]
+- Updated dependencies [388f2c25a]
+  - @eth-optimism/contracts-bedrock@0.12.0
+
+## 1.10.2
+
+### Patch Changes
+
+- 5372c9f5b: Remove assert node builtin from sdk
+- Updated dependencies [3c22333b8]
+  - @eth-optimism/contracts-bedrock@0.11.4
+
 ## 1.10.1
 
 ### Patch Changes

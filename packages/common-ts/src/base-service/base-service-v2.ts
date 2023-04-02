@@ -124,6 +124,7 @@ export abstract class BaseServiceV2<
       metricsSpec: MetricsSpec<TMetrics>
       options?: Partial<TOptions & StandardOptions>
       loop?: boolean
+      bodyParserParams?: bodyParser.OptionsJson
     }
   ) {
     this.loop = params.loop !== undefined ? params.loop : true
@@ -210,8 +211,15 @@ export abstract class BaseServiceV2<
     // Since BCFG turns everything into lower case, we're required to turn all of the input option
     // names into lower case for the validation step. We'll turn the names back into their original
     // names when we're done.
+    const lowerCaseOptions = Object.entries(params.options).reduce(
+      (acc, [key, val]) => {
+        acc[key.toLowerCase()] = val
+        return acc
+      },
+      {}
+    )
     const cleaned = cleanEnv<TOptions>(
-      { ...config.env, ...config.args, ...(params.options || {}) },
+      { ...config.env, ...config.args, ...(lowerCaseOptions || {}) },
       Object.entries(params.optionsSpec || {}).reduce((acc, [key, val]) => {
         acc[key.toLowerCase()] = val.validator({
           desc: val.desc,
@@ -330,6 +338,7 @@ export abstract class BaseServiceV2<
           verify: (req, res, buf, encoding) => {
             ;(req as any).rawBody = buf?.toString(encoding || 'utf8') || ''
           },
+          ...(this.params.bodyParserParams ?? {}),
         })
       )
 
