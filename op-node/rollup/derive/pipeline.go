@@ -51,7 +51,7 @@ type EngineQueueStage interface {
 
 	Finalize(l1Origin eth.L1BlockRef)
 	AddUnsafePayload(payload *eth.ExecutionPayload)
-	GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64)
+	UnsafeL2SyncTarget() eth.L2BlockRef
 	Step(context.Context) error
 }
 
@@ -167,10 +167,9 @@ func (dp *DerivationPipeline) AddUnsafePayload(payload *eth.ExecutionPayload) {
 	dp.eng.AddUnsafePayload(payload)
 }
 
-// GetUnsafeQueueGap retrieves the current [start, end] range of the gap between the tip of the unsafe priority queue and the unsafe head.
-// If there is no gap, the start and end will be 0.
-func (dp *DerivationPipeline) GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64) {
-	return dp.eng.GetUnsafeQueueGap(expectedNumber)
+// UnsafeL2SyncTarget retrieves the first queued-up L2 unsafe payload, or a zeroed reference if there is none.
+func (dp *DerivationPipeline) UnsafeL2SyncTarget() eth.L2BlockRef {
+	return dp.eng.UnsafeL2SyncTarget()
 }
 
 // Step tries to progress the buffer.

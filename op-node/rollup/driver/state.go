@@ -422,6 +422,7 @@ func (s *Driver) syncStatus() *eth.SyncStatus {
 		UnsafeL2:           s.derivation.UnsafeL2Head(),
 		SafeL2:             s.derivation.SafeL2Head(),
 		FinalizedL2:        s.derivation.Finalized(),
+		UnsafeL2SyncTarget: s.derivation.UnsafeL2SyncTarget(),
 	}
 }
 
@@ -489,24 +490,14 @@ type hashAndErrorChannel struct {
 // WARNING: This is only an outgoing signal, the blocks are not guaranteed to be retrieved.
 // Results are received through OnUnsafeL2Payload.
 func (s *Driver) checkForGapInUnsafeQueue(ctx context.Context) error {
-	// subtract genesis time from wall clock to get the time elapsed since genesis, and then divide that
-	// difference by the block time to get the expected L2 block number at the current time. If the
-	// unsafe head does not have this block number, then there is a gap in the queue.
-	wallClock := uint64(time.Now().Unix())
-	genesisTimestamp := s.config.Genesis.L2Time
-	if wallClock < genesisTimestamp {
-		s.log.Debug("nothing to sync, did not reach genesis L2 time yet", "genesis", genesisTimestamp)
-		return nil
-	}
-	wallClockGenesisDiff := wallClock - genesisTimestamp
-	// Note: round down, we should not request blocks into the future.
-	blocksSinceGenesis := wallClockGenesisDiff / s.config.BlockTime
-	expectedL2Block := s.config.Genesis.L2.Number + blocksSinceGenesis
-
-	start, end := s.derivation.GetUnsafeQueueGap(expectedL2Block)
-	// Check if there is a gap between the unsafe head and the expected L2 block number at the current time.
-	if end > start {
-		s.log.Debug("requesting missing unsafe L2 block range", "start", start, "end", end, "size", end-start)
+	start := s.derivation.UnsafeL2Head()
+	end := s.derivation.UnsafeL2SyncTarget()
+	// Check if we have missing blocks between the start and end. Request them if we do.
+	if end == (eth.L2BlockRef{}) {
+		s.log.Debug("requesting sync with open-end range", "start", start)
+		return s.altSync.RequestL2Range(ctx, start, eth.L2BlockRef{})
+	} else if end.Number > start.Number+1 {
+		s.log.Debug("requesting missing unsafe L2 block range", "start", start, "end", end, "size", end.Number-start.Number)
 		return s.altSync.RequestL2Range(ctx, start, end)
 	}
 	return nil
