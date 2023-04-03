@@ -92,8 +92,10 @@ yarn echidna:aliasing
 
 #### Configuration
 
-1. Create or modify a file `<network-name>.json` inside of the [`deploy-config`](./deploy-config/) folder.
+1. Create or modify a file `<network-name>.ts` inside of the [`deploy-config`](./deploy-config/) folder.
 2. Fill out this file according to the `deployConfigSpec` located inside of the [`hardhat.config.ts](./hardhat.config.ts)
+3. Optionally: Run `npx hardhat generate-deploy-config --network <network-name>` to generate the associated JSON
+   file. This is required if using `op-chain-ops`.
 
 #### Execution
 

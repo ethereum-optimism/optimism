@@ -29,6 +29,7 @@
 /op-node        @ethereum-optimism/go-reviewers
 /op-node/rollup @protolambda @trianglesphere
 /op-proposer    @ethereum-optimism/go-reviewers
+/op-program     @ethereum-optimism/go-reviewers
 /op-service     @ethereum-optimism/go-reviewers
 
 # Ops

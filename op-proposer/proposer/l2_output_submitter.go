@@ -28,12 +28,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 )
 
-const (
-	// defaultDialTimeout is default duration the service will wait on
-	// startup to make a connection to either the L1 or L2 backends.
-	defaultDialTimeout = 5 * time.Second
-)
-
 var supportedL2OutputVersion = eth.Bytes32{}
 
 // Main is the entrypoint into the L2 Output Submitter. This method executes the
@@ -48,7 +42,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
-	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l)
+	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
 		return err
@@ -138,12 +132,13 @@ type L2OutputSubmitter struct {
 	// This option is not necessary when higher proposal latency is acceptable and L1 is healthy.
 	allowNonFinalized bool
 	// How frequently to poll L2 for new finalized outputs
-	pollInterval time.Duration
+	pollInterval   time.Duration
+	networkTimeout time.Duration
 }
 
 // NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
 func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
-	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l)
+	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l, m)
 	if err != nil {
 		return nil, err
 	}
@@ -151,17 +146,16 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 }
 
 // NewL2OutputSubmitterConfigFromCLIConfig creates the proposer config from the CLI config.
-func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
+func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}
-	txManager := txmgr.NewSimpleTxManager("proposer", l, txManagerConfig)
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
@@ -178,6 +172,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger) (*Conf
 	return &Config{
 		L2OutputOracleAddr: l2ooAddress,
 		PollInterval:       cfg.PollInterval,
+		NetworkTimeout:     cfg.TxMgrConfig.NetworkTimeout,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
@@ -196,7 +191,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 		return nil, err
 	}
 
-	cCtx, cCancel := context.WithTimeout(ctx, defaultDialTimeout)
+	cCtx, cCancel := context.WithTimeout(ctx, cfg.NetworkTimeout)
 	defer cCancel()
 	version, err := l2ooContract.Version(&bind.CallOpts{Context: cCtx})
 	if err != nil {
@@ -227,6 +222,7 @@ func NewL2OutputSubmitter(cfg Config, l log.Logger, m metrics.Metricer) (*L2Outp
 
 		allowNonFinalized: cfg.AllowNonFinalized,
 		pollInterval:      cfg.PollInterval,
+		networkTimeout:    cfg.NetworkTimeout,
 	}, nil
 }
 
@@ -245,7 +241,7 @@ func (l *L2OutputSubmitter) Stop() {
 // FetchNextOutputInfo gets the block number of the next proposal.
 // It returns: the next block number, if the proposal should be made, error
 func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.OutputResponse, bool, error) {
-	cCtx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	cCtx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 	callOpts := &bind.CallOpts{
 		From:    l.txMgr.From(),
@@ -257,7 +253,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 		return nil, false, err
 	}
 	// Fetch the current L2 heads
-	cCtx, cancel = context.WithTimeout(ctx, defaultDialTimeout)
+	cCtx, cancel = context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 	status, err := l.rollupClient.SyncStatus(cCtx)
 	if err != nil {
@@ -281,7 +277,7 @@ func (l *L2OutputSubmitter) FetchNextOutputInfo(ctx context.Context) (*eth.Outpu
 }
 
 func (l *L2OutputSubmitter) fetchOuput(ctx context.Context, block *big.Int) (*eth.OutputResponse, bool, error) {
-	ctx, cancel := context.WithTimeout(ctx, defaultDialTimeout)
+	ctx, cancel := context.WithTimeout(ctx, l.networkTimeout)
 	defer cancel()
 	output, err := l.rollupClient.OutputAtBlock(ctx, block.Uint64())
 	if err != nil {
@@ -332,9 +328,8 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	}
 	receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		TxData:   data,
-		To:       l.l2ooContractAddr,
+		To:       &l.l2ooContractAddr,
 		GasLimit: 0,
-		From:     l.txMgr.From(),
 	})
 	if err != nil {
 		return err

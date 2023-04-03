@@ -116,10 +116,8 @@ const deployFn: DeployFunction = async (hre) => {
         'BondManager',
       ]
       for (const dead of deads) {
-        assert(
-          (await AddressManager.getAddress(dead)) ===
-            ethers.constants.AddressZero
-        )
+        const addr = await AddressManager.getAddress(dead)
+        assert(addr === ethers.constants.AddressZero)
       }
     },
   })
@@ -372,6 +370,6 @@ const deployFn: DeployFunction = async (hre) => {
   }
 }
 
-deployFn.tags = ['SystemDictatorSteps', 'phase2']
+deployFn.tags = ['SystemDictatorSteps', 'phase2', 'l1']
 
 export default deployFn

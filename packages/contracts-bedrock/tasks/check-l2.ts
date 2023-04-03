@@ -351,7 +351,7 @@ const check = {
       signer
     )
 
-    await assertSemver(SequencerFeeVault, 'SequencerFeeVault')
+    await assertSemver(SequencerFeeVault, 'SequencerFeeVault', '1.1.0')
 
     const RECIPIENT = await SequencerFeeVault.RECIPIENT()
     assert(RECIPIENT !== hre.ethers.constants.AddressZero)
@@ -594,7 +594,7 @@ const check = {
       signer
     )
 
-    await assertSemver(BaseFeeVault, 'BaseFeeVault')
+    await assertSemver(BaseFeeVault, 'BaseFeeVault', '1.1.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await BaseFeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
@@ -617,7 +617,7 @@ const check = {
       signer
     )
 
-    await assertSemver(L1FeeVault, 'L1FeeVault')
+    await assertSemver(L1FeeVault, 'L1FeeVault', '1.1.0')
 
     const MIN_WITHDRAWAL_AMOUNT = await L1FeeVault.MIN_WITHDRAWAL_AMOUNT()
     console.log(`  - MIN_WITHDRAWAL_AMOUNT: ${MIN_WITHDRAWAL_AMOUNT}`)
