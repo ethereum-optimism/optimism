@@ -43,6 +43,11 @@ contract PostSherlockL2 is Script {
     uint256 constant OP_GOERLI = 420;
 
     /**
+     * @notice The proxy admin predeploy on L2.
+     */
+    ProxyAdmin constant PROXY_ADMIN = ProxyAdmin(0x4200000000000000000000000000000000000018);
+
+    /**
      * @notice Represents a set of L2 predepploy contracts. Used to represent a set of
      *         implementations and also a set of proxies.
      */
@@ -283,6 +288,20 @@ contract PostSherlockL2 is Script {
         require(_versionHash(prox.SequencerFeeVault) == keccak256(bytes(SequencerFeeVault_Version)));
         require(_versionHash(prox.OptimismMintableERC20Factory) == keccak256(bytes(OptimismMintableERC20Factory_Version)));
         require(_versionHash(prox.OptimismMintableERC721Factory) == keccak256(bytes(OptimismMintableERC721Factory_Version)));
+
+        // Check that the codehashes of all implementations match the proxies set implementations.
+        ContractSet memory impl = getImplementations();
+        require(PROXY_ADMIN.getProxyImplementation(prox.BaseFeeVault).codehash == impl.BaseFeeVault.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.GasPriceOracle).codehash == impl.GasPriceOracle.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.L1Block).codehash == impl.L1Block.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.L1FeeVault).codehash == impl.L1FeeVault.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.L2CrossDomainMessenger).codehash == impl.L2CrossDomainMessenger.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.L2ERC721Bridge).codehash == impl.L2ERC721Bridge.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.L2StandardBridge).codehash == impl.L2StandardBridge.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.L2ToL1MessagePasser).codehash == impl.L2ToL1MessagePasser.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.SequencerFeeVault).codehash == impl.SequencerFeeVault.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.OptimismMintableERC20Factory).codehash == impl.OptimismMintableERC20Factory.codehash);
+        require(PROXY_ADMIN.getProxyImplementation(prox.OptimismMintableERC721Factory).codehash == impl.OptimismMintableERC721Factory.codehash);
     }
 
     /**
