@@ -94,7 +94,6 @@ contract PostSherlockL2 is Script {
      * @notice Place the contract addresses in storage so they can be used when building calldata.
      */
     function setUp() external {
-        // TODO: Set goerli implementations once they're deployed.
         implementations[OP_GOERLI] = ContractSet({
             BaseFeeVault: 0xEcBb01757B6b7799465a422aD0fC7Fd5F5179F0a,
             GasPriceOracle: 0x79f09f735B2d1a42fF864C014d3bD4aA5FAA6A5E,
