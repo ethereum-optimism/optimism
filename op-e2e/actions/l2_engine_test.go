@@ -4,6 +4,8 @@ import (
 	"math/big"
 	"testing"
 
+	"github.com/ethereum-optimism/optimism/op-program/l2/engineapi"
+	"github.com/ethereum-optimism/optimism/op-program/l2/engineapi/test"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
@@ -186,4 +188,16 @@ func TestL2EngineAPIFail(gt *testing.T) {
 	head, err := l2Cl.InfoByLabel(t.Ctx(), eth.Unsafe)
 	require.NoError(t, err)
 	require.Equal(gt, sd.L2Cfg.ToBlock().Hash(), head.Hash(), "expecting engine to start at genesis")
+}
+
+func TestEngineAPITests(t *testing.T) {
+	test.RunEngineAPITests(t, func() engineapi.EngineBackend {
+		jwtPath := e2eutils.WriteDefaultJWT(t)
+		dp := e2eutils.MakeDeployParams(t, defaultRollupTestParams)
+		sd := e2eutils.Setup(t, dp, defaultAlloc)
+		n, _, apiBackend := newBackend(t, sd.L2Cfg, jwtPath, nil)
+		err := n.Start()
+		require.NoError(t, err)
+		return apiBackend
+	})
 }
