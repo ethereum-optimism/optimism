@@ -6,7 +6,10 @@ import { ethers } from 'ethers'
 import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
-  const l1FeeVaultRecipient = hre.deployConfig.l1FeeVaultRecipient
+  const l1 = hre.network.companionNetworks['l1']
+  const deployConfig = hre.deployConfig.getDeployConfig(l1)
+
+  const l1FeeVaultRecipient = deployConfig.l1FeeVaultRecipient
   if (l1FeeVaultRecipient === ethers.constants.AddressZero) {
     throw new Error('L1FeeVault RECIPIENT undefined')
   }
