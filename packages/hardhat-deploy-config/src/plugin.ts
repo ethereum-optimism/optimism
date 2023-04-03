@@ -7,7 +7,7 @@ import {
   HardhatRuntimeEnvironment,
   HardhatUserConfig,
 } from 'hardhat/types'
-import { lazyObject } from 'hardhat/plugins'
+import { lazyObject, lazyFunction } from 'hardhat/plugins'
 import { ethers } from 'ethers'
 
 // From: https://github.com/wighawag/hardhat-deploy/blob/master/src/index.ts#L63-L76
@@ -26,35 +26,34 @@ const normalizePath = (
   return userPath
 }
 
-export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
-  const getDeployConfig = (dir: string, network: string): any => {
-    let config: any
-    try {
-      const base = `${dir}/${network}`
-      if (fs.existsSync(`${base}.ts`)) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        config = require(`${base}.ts`).default
-      } else if (fs.existsSync(`${base}.json`)) {
-        // eslint-disable-next-line @typescript-eslint/no-var-requires
-        config = require(`${base}.json`)
-      } else {
-        throw new Error('not found')
-      }
-    } catch (err) {
-      throw new Error(
-        `error while loading deploy config for network: ${hre.network.name}, ${err}`
-      )
+const getDeployConfig = (
+  dir: string,
+  network: string
+): { [key: string]: any } => {
+  let config: any
+  try {
+    const base = `${dir}/${network}`
+    if (fs.existsSync(`${base}.ts`)) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      config = require(`${base}.ts`).default
+    } else if (fs.existsSync(`${base}.json`)) {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      config = require(`${base}.json`)
+    } else {
+      throw new Error('not found')
     }
-    return config
+  } catch (err) {
+    throw new Error(
+      `error while loading deploy config for network: ${network}, ${err}`
+    )
   }
+  return config
+}
 
+export const loadDeployConfig = (hre: HardhatRuntimeEnvironment): any => {
   const paths = hre.config.paths.deployConfig
   const conf = getDeployConfig(paths, hre.network.name)
   const spec = parseDeployConfig(hre, conf)
-
-  spec.getDeployConfig = (network: string) => {
-    return getDeployConfig(paths, network)
-  }
 
   return new Proxy(spec, {
     get: (target, prop) => {
@@ -124,4 +123,8 @@ extendConfig(
 
 extendEnvironment((hre) => {
   hre.deployConfig = lazyObject(() => loadDeployConfig(hre))
+  hre.getDeployConfig = lazyFunction(() => {
+    const paths = hre.config.paths.deployConfig
+    return (network: string) => getDeployConfig(paths, network)
+  })
 })

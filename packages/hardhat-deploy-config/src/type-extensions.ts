@@ -25,7 +25,7 @@ declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
     deployConfig: {
       [key: string]: any
-      getDeployConfig(arg0: string): { [key: string]: any }
     }
+    getDeployConfig(network: string): { [key: string]: any }
   }
 }
