@@ -128,44 +128,43 @@ export const asAdvancedContract = (opts: {
   // Now reset Object.defineProperty
   Object.defineProperty = def
 
-  // Override each function call to also `.wait()` so as to simplify the deploy scripts' syntax.
   for (const fnName of Object.keys(contract.functions)) {
     const fn = contract[fnName].bind(contract)
-      ; (contract as any)[fnName] = async (...args: any) => {
-        // We want to use the configured gas price but we need to set the gas price to zero if we're
-        // triggering a static function.
-        let gasPrice = opts.gasPrice
-        if (contract.interface.getFunction(fnName).constant) {
-          gasPrice = 0
-        }
+    ;(contract as any)[fnName] = async (...args: any) => {
+      // We want to use the configured gas price but we need to set the gas price to zero if we're
+      // triggering a static function.
+      let gasPrice = opts.gasPrice
+      if (contract.interface.getFunction(fnName).constant) {
+        gasPrice = 0
+      }
 
-        // Now actually trigger the transaction (or call).
-        const tx = await fn(...args, {
-          gasPrice,
-        })
+      // Now actually trigger the transaction (or call).
+      const tx = await fn(...args, {
+        gasPrice,
+      })
 
-        // Meant for static calls, we don't need to wait for anything, we get the result right away.
-        if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
+      // Meant for static calls, we don't need to wait for anything, we get the result right away.
+      if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
+        return tx
+      }
+
+      // Wait for the transaction to be included in a block and wait for the specified number of
+      // deployment confirmations.
+      const maxTimeout = 120
+      let timeout = 0
+      while (true) {
+        await sleep(1000)
+        const receipt = await contract.provider.getTransactionReceipt(tx.hash)
+        if (receipt === null) {
+          timeout++
+          if (timeout > maxTimeout) {
+            throw new Error('timeout exceeded waiting for txn to be mined')
+          }
+        } else if (receipt.confirmations >= (opts.confirmations || 0)) {
           return tx
         }
-
-        // Wait for the transaction to be included in a block and wait for the specified number of
-        // deployment confirmations.
-        const maxTimeout = 120
-        let timeout = 0
-        while (true) {
-          await sleep(1000)
-          const receipt = await contract.provider.getTransactionReceipt(tx.hash)
-          if (receipt === null) {
-            timeout++
-            if (timeout > maxTimeout) {
-              throw new Error('timeout exceeded waiting for txn to be mined')
-            }
-          } else if (receipt.confirmations >= (opts.confirmations || 0)) {
-            return tx
-          }
-        }
       }
+    }
   }
 
   return contract
