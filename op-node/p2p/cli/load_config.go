@@ -73,6 +73,8 @@ func NewConfig(ctx *cli.Context, blockTime uint64) (*p2p.Config, error) {
 	conf.ConnGater = p2p.DefaultConnGater
 	conf.ConnMngr = p2p.DefaultConnManager
 
+	conf.EnableReqRespSync = ctx.GlobalBool(flags.SyncReqRespFlag.Name)
+
 	return conf, nil
 }
 

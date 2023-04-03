@@ -7,7 +7,7 @@ if [ ! -d "$OUTDIR" ]; then
     exit 1
 fi
 
-CONTRACTS=("CanonicalTransactionChain")
+CONTRACTS=("CanonicalTransactionChain" "StateCommitmentChain")
 PKG=legacy_bindings
 
 for contract in ${CONTRACTS[@]}; do

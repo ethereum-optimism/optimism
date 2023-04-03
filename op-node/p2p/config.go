@@ -40,6 +40,7 @@ type SetupP2P interface {
 	Discovery(log log.Logger, rollupCfg *rollup.Config, tcpPort uint16) (*enode.LocalNode, *discover.UDPv5, error)
 	TargetPeers() uint
 	GossipSetupConfigurables
+	ReqRespSyncEnabled() bool
 }
 
 // Config sets up a p2p host and discv5 service from configuration.
@@ -49,6 +50,9 @@ type Config struct {
 
 	DisableP2P  bool
 	NoDiscovery bool
+
+	// Enable P2P-based alt-syncing method (req-resp protocol, not gossip)
+	AltSync bool
 
 	// Pubsub Scoring Parameters
 	PeerScoring  pubsub.PeerScoreParams
@@ -104,6 +108,8 @@ type Config struct {
 
 	ConnGater func(conf *Config) (connmgr.ConnectionGater, error)
 	ConnMngr  func(conf *Config) (connmgr.ConnManager, error)
+
+	EnableReqRespSync bool
 }
 
 //go:generate mockery --name ConnectionGater
@@ -164,6 +170,10 @@ func (conf *Config) BanPeers() bool {
 
 func (conf *Config) TopicScoringParams() *pubsub.TopicScoreParams {
 	return &conf.TopicScoring
+}
+
+func (conf *Config) ReqRespSyncEnabled() bool {
+	return conf.EnableReqRespSync
 }
 
 const maxMeshParam = 1000
