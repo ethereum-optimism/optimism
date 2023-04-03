@@ -285,9 +285,7 @@ As for the comment on "security types", it explains the classification of blocks
 
 - [Unsafe L2 blocks][g-unsafe-l2-block]:
 - [Safe L2 blocks][g-safe-l2-block]:
-- Finalized L2 blocks: currently the same as the safe L2 block, but could be changed in the future to refer to block
-  that have been derived from [finalized][g-finalized-l2-head] L1 data, or alternatively, from L1 blacks that are older
-  than the [challenge period].
+- Finalized L2 blocks: refer to block that have been derived from [finalized][g-finalized-l2-head] L1 data.
 
 These security levels map to the `headBlockHash`, `safeBlockHash` and `finalizedBlockHash` values transmitted when
 interacting with the [execution-engine API][exec-engine].

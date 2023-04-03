@@ -67,6 +67,7 @@ jobs:
         uses: changesets/action@v1
         id: changesets
         with:
+          createGithubReleases: false
           publish: yarn release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
