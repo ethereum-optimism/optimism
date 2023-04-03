@@ -329,6 +329,8 @@ export const isStartOfPhase = async (
   dictator: ethers.Contract,
   phase: number
 ): Promise<boolean> => {
+  // These values map the phase to the first step in that phase.
+  // There is no phase 3, but we use it to check if we phase 2 is complete.
   const phaseToStep = {
     1: 1,
     2: 3,

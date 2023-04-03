@@ -86,7 +86,6 @@ const deployFn: DeployFunction = async (hre) => {
   const isLiveDeployer =
     deployer.toLowerCase() === hre.deployConfig.controller.toLowerCase()
 
-
   // Make sure the dynamic system configuration has been set.
   if (
     (await isStartOfPhase(SystemDictator, 2)) &&
@@ -166,7 +165,6 @@ const deployFn: DeployFunction = async (hre) => {
       1000
     )
   }
-
 
   await doPhase({
     isLiveDeployer,
@@ -288,6 +286,8 @@ const deployFn: DeployFunction = async (hre) => {
         'messenger',
         L1CrossDomainMessenger.address
       )
+
+      await assertContractVariable(SystemDictator, 'finalized', true)
     },
   })
 
@@ -323,33 +323,6 @@ const deployFn: DeployFunction = async (hre) => {
     )
 
     await assertContractVariable(OptimismPortal, 'paused', false)
-
-    console.log(`
-      You must now finalize the upgrade by calling finalize() on the SystemDictator. This will
-      transfer ownership of the ProxyAdmin to the final system owner as specified in the deployment
-      configuration.
-    `)
-
-    if (isLiveDeployer) {
-      console.log(`Finalizing deployment...`)
-      await SystemDictator.finalize()
-    } else {
-      const tx = await SystemDictator.populateTransaction.finalize()
-      console.log(`Please finalize deployment...`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
-    }
-
-    await awaitCondition(
-      async () => {
-        return SystemDictator.finalized()
-      },
-      5000,
-      1000
-    )
 
     await assertContractVariable(
       ProxyAdmin,
