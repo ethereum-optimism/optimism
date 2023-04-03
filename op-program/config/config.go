@@ -15,6 +15,7 @@ var (
 
 type Config struct {
 	Rollup *rollup.Config
+	L2URL  string
 }
 
 func (c *Config) Check() error {
@@ -25,6 +26,10 @@ func (c *Config) Check() error {
 		return err
 	}
 	return nil
+}
+
+func (c *Config) FetchingEnabled() bool {
+	return c.L2URL != ""
 }
 
 // NewConfig creates a Config with all optional values set to the CLI default value
@@ -44,5 +49,6 @@ func NewConfigFromCLI(ctx *cli.Context) (*Config, error) {
 	}
 	return &Config{
 		Rollup: rollupCfg,
+		L2URL:  ctx.GlobalString(flags.L2NodeAddr.Name),
 	}, nil
 }
