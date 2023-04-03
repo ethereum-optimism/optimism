@@ -379,6 +379,7 @@ jobs:
   contracts-bedrock-slither:
     docker:
       - image: ethereumoptimism/ci-builder:latest
+    resource_class: xlarge
     steps:
       - checkout
       - attach_workspace: { at: "." }
