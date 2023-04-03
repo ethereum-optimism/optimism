@@ -24,8 +24,8 @@ declare module 'hardhat/types/config' {
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
     deployConfig: {
-      // TODO: Is there any good way to type this?
       [key: string]: any
     }
+    getDeployConfig(network: string): { [key: string]: any }
   }
 }
