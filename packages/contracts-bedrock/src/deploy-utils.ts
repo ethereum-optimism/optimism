@@ -400,13 +400,14 @@ export const getTenderlySimulationLink = async (
   tx: ethers.PopulatedTransaction
 ): Promise<string> => {
   if (process.env.TENDERLY_PROJECT && process.env.TENDERLY_USERNAME) {
-    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${process.env.TENDERLY_USERNAME
-      }/simulator/new?${new URLSearchParams({
-        network: (await provider.getNetwork()).chainId.toString(),
-        contractAddress: tx.to,
-        rawFunctionInput: tx.data,
-        from: tx.from,
-      }).toString()}`
+    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
+      process.env.TENDERLY_USERNAME
+    }/simulator/new?${new URLSearchParams({
+      network: (await provider.getNetwork()).chainId.toString(),
+      contractAddress: tx.to,
+      rawFunctionInput: tx.data,
+      from: tx.from,
+    }).toString()}`
   }
 }
 
