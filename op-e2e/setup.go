@@ -47,6 +47,19 @@ var (
 	testingJWTSecret = [32]byte{123}
 )
 
+func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
+	return txmgr.CLIConfig{
+		L1RPCURL:                  l1Addr,
+		PrivateKey:                hexPriv(privKey),
+		NumConfirmations:          1,
+		SafeAbortNonceTooLowCount: 3,
+		ResubmissionTimeout:       3 * time.Second,
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NetworkTimeout:            2 * time.Second,
+		TxNotInMempoolTimeout:     2 * time.Minute,
+	}
+}
+
 func DefaultSystemConfig(t *testing.T) SystemConfig {
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
@@ -568,20 +581,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:     sys.Nodes["l1"].WSEndpoint(),
-		RollupRpc:    sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:  predeploys.DevL2OutputOracleAddr.String(),
-		PollInterval: 50 * time.Millisecond,
-		TxMgrConfig: txmgr.CLIConfig{
-			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
-			PrivateKey:                hexPriv(cfg.Secrets.Proposer),
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			ResubmissionTimeout:       3 * time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NetworkTimeout:            2 * time.Second,
-			TxNotInMempoolTimeout:     2 * time.Minute,
-		},
+		L1EthRpc:          sys.Nodes["l1"].WSEndpoint(),
+		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		L2OOAddress:       predeploys.DevL2OutputOracleAddr.String(),
+		PollInterval:      50 * time.Millisecond,
+		TxMgrConfig:       newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
@@ -608,16 +612,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		ApproxComprRatio:   0.4,
 		SubSafetyMargin:    4,
 		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig: txmgr.CLIConfig{
-			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
-			PrivateKey:                hexPriv(cfg.Secrets.Batcher),
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			ResubmissionTimeout:       3 * time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NetworkTimeout:            2 * time.Second,
-			TxNotInMempoolTimeout:     2 * time.Minute,
-		},
+		TxMgrConfig:        newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",

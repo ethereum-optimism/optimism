@@ -69,18 +69,17 @@ func NewBatchSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metri
 		return nil, fmt.Errorf("querying rollup config: %w", err)
 	}
 
-	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	txManager, err := txmgr.NewSimpleTxManager("batcher", l, m, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}
-	txManager := txmgr.NewSimpleTxManager("batcher", l, m, txManagerConfig)
 
 	batcherCfg := Config{
 		L1Client:       l1Client,
 		L2Client:       l2Client,
 		RollupNode:     rollupClient,
 		PollInterval:   cfg.PollInterval,
-		NetworkTimeout: txManagerConfig.NetworkTimeout,
+		NetworkTimeout: cfg.TxMgrConfig.NetworkTimeout,
 		TxManager:      txManager,
 		Rollup:         rcfg,
 		Channel: ChannelConfig{
@@ -356,9 +355,8 @@ func (l *BatchSubmitter) sendTransaction(ctx context.Context, data []byte) (*typ
 
 	// Send the transaction through the txmgr
 	if receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
-		To:       l.Rollup.BatchInboxAddress,
+		To:       &l.Rollup.BatchInboxAddress,
 		TxData:   data,
-		From:     l.txMgr.From(),
 		GasLimit: intrinsicGas,
 	}); err != nil {
 		l.log.Warn("unable to publish tx", "err", err, "data_size", len(data))
