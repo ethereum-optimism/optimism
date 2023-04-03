@@ -12,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -39,7 +41,14 @@ func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
 	g := newGasPricer(3)
 	backend := newMockBackend(g)
 	cfg.Backend = backend
-	mgr := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), cfg)
+	mgr := &SimpleTxManager{
+		chainID: cfg.ChainID,
+		name:    "TEST",
+		cfg:     cfg,
+		backend: cfg.Backend,
+		l:       testlog.Logger(t, log.LvlCrit),
+		metr:    &metrics.NoopTxMetrics{},
+	}
 
 	return &testHarness{
 		cfg:       cfg,
@@ -58,11 +67,9 @@ func newTestHarness(t *testing.T) *testHarness {
 // createTxCandidate creates a mock [TxCandidate].
 func (h testHarness) createTxCandidate() TxCandidate {
 	inbox := common.HexToAddress("0x42000000000000000000000000000000000000ff")
-	sender := common.HexToAddress("0xdeadbeef")
 	return TxCandidate{
-		To:       inbox,
+		To:       &inbox,
 		TxData:   []byte{0x00, 0x01, 0x02},
-		From:     sender,
 		GasLimit: uint64(1337),
 	}
 }
@@ -591,18 +598,13 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 	require.Equal(t, txHash, receipt.TxHash)
 }
 
-// TestManagerPanicOnZeroConfs ensures that the NewSimpleTxManager will panic
+// TestManagerErrsOnZeroConfs ensures that the NewSimpleTxManager will error
 // when attempting to configure with NumConfirmations set to zero.
-func TestManagerPanicOnZeroConfs(t *testing.T) {
+func TestManagerErrsOnZeroConfs(t *testing.T) {
 	t.Parallel()
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("NewSimpleTxManager should panic when using zero conf")
-		}
-	}()
-
-	_ = newTestHarnessWithConfig(t, configWithNumConfs(0))
+	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	require.Error(t, err)
 }
 
 // failingBackend implements ReceiptSource, returning a failure on the

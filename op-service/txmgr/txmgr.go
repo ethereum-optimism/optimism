@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"math/big"
 	"strings"
 	"sync"
@@ -15,6 +16,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 // Geth defaults the priceBump to 10
@@ -80,24 +83,24 @@ type SimpleTxManager struct {
 
 	backend ETHBackend
 	l       log.Logger
+	metr    metrics.TxMetricer
 }
 
 // NewSimpleTxManager initializes a new SimpleTxManager with the passed Config.
-func NewSimpleTxManager(name string, l log.Logger, cfg Config) *SimpleTxManager {
-	if cfg.NumConfirmations == 0 {
-		panic("txmgr: NumConfirmations cannot be zero")
-	}
-	if cfg.NetworkTimeout == 0 {
-		cfg.NetworkTimeout = 2 * time.Second
+func NewSimpleTxManager(name string, l log.Logger, m metrics.TxMetricer, cfg CLIConfig) (*SimpleTxManager, error) {
+	conf, err := NewConfig(cfg, l)
+	if err != nil {
+		return nil, err
 	}
 
 	return &SimpleTxManager{
-		chainID: cfg.ChainID,
+		chainID: conf.ChainID,
 		name:    name,
-		cfg:     cfg,
-		backend: cfg.Backend,
+		cfg:     conf,
+		backend: conf.Backend,
 		l:       l.New("service", name),
-	}
+		metr:    m,
+	}, nil
 }
 
 func (m *SimpleTxManager) From() common.Address {
@@ -109,12 +112,10 @@ func (m *SimpleTxManager) From() common.Address {
 type TxCandidate struct {
 	// TxData is the transaction data to be used in the constructed tx.
 	TxData []byte
-	// To is the recipient of the constructed tx.
-	To common.Address
+	// To is the recipient of the constructed tx. Nil means contract creation.
+	To *common.Address
 	// GasLimit is the gas limit to be used in the constructed tx.
 	GasLimit uint64
-	// From is the sender (or `from`) of the constructed tx.
-	From common.Address
 }
 
 // Send is used to publish a transaction with incrementally higher gas prices
@@ -154,7 +155,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	// Fetch the sender's nonce from the latest known block (nil `blockNumber`)
 	childCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	nonce, err := m.backend.NonceAt(childCtx, candidate.From, nil)
+	nonce, err := m.backend.NonceAt(childCtx, m.cfg.From, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
@@ -162,13 +163,13 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
 		Nonce:     nonce,
-		To:        &candidate.To,
+		To:        candidate.To,
 		GasTipCap: gasTipCap,
 		GasFeeCap: gasFeeCap,
 		Data:      candidate.TxData,
 	}
 
-	m.l.Info("creating tx", "to", rawTx.To, "from", candidate.From)
+	m.l.Info("creating tx", "to", rawTx.To, "from", m.cfg.From)
 
 	// If the gas limit is set, we can use that as the gas
 	if candidate.GasLimit != 0 {
@@ -176,8 +177,8 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	} else {
 		// Calculate the intrinsic gas for the transaction
 		gas, err := m.backend.EstimateGas(ctx, ethereum.CallMsg{
-			From:      candidate.From,
-			To:        &candidate.To,
+			From:      m.cfg.From,
+			To:        candidate.To,
 			GasFeeCap: gasFeeCap,
 			GasTipCap: gasTipCap,
 			Data:      rawTx.Data,
@@ -190,7 +191,7 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 
 	ctx, cancel = context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
-	return m.cfg.Signer(ctx, candidate.From, types.NewTx(rawTx))
+	return m.cfg.Signer(ctx, m.cfg.From, types.NewTx(rawTx))
 }
 
 // send submits the same transaction several times with increasing gas prices as necessary.
@@ -281,6 +282,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 	}
 	select {
 	case receiptChan <- receipt:
+		m.metr.RecordL1GasFee(receipt)
 	default:
 	}
 }

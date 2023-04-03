@@ -1,0 +1,360 @@
+{
+  "address": "0xd5F2B9f6Ee80065b2Ce18bF1e629c5aC1C98c7F6",
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [],
+      "name": "DEPOSITOR_ACCOUNT",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "basefee",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "batcherHash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "hash",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "l1FeeOverhead",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "l1FeeScalar",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "number",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "sequenceNumber",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint64",
+          "name": "_number",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_timestamp",
+          "type": "uint64"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_basefee",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_hash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint64",
+          "name": "_sequenceNumber",
+          "type": "uint64"
+        },
+        {
+          "internalType": "bytes32",
+          "name": "_batcherHash",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l1FeeOverhead",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "_l1FeeScalar",
+          "type": "uint256"
+        }
+      ],
+      "name": "setL1BlockValues",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "timestamp",
+      "outputs": [
+        {
+          "internalType": "uint64",
+          "name": "",
+          "type": "uint64"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "version",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "transactionHash": "0x9c0c03247064e467b956218ff1e329a3153c76451d108164bf16089c24f56958",
+  "receipt": {
+    "to": null,
+    "from": "0x18394B52d3Cb931dfA76F63251919D051953413d",
+    "contractAddress": "0xd5F2B9f6Ee80065b2Ce18bF1e629c5aC1C98c7F6",
+    "transactionIndex": 1,
+    "gasUsed": "483065",
+    "logsBloom": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+    "blockHash": "0xb3604955762ffa9a75bad264ca479fa99894a6693d470a99e3c41fa87d2da3a4",
+    "transactionHash": "0x9c0c03247064e467b956218ff1e329a3153c76451d108164bf16089c24f56958",
+    "logs": [],
+    "blockNumber": 7422489,
+    "cumulativeGasUsed": "529978",
+    "status": 1,
+    "byzantium": true
+  },
+  "args": [],
+  "numDeployments": 1,
+  "solcInputHash": "4eff12bc9de58190fbafded200df8851",
+  "metadata": "{\"compiler\":{\"version\":\"0.8.15+commit.e14f2714\"},\"language\":\"Solidity\",\"output\":{\"abi\":[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"inputs\":[],\"name\":\"DEPOSITOR_ACCOUNT\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"basefee\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"batcherHash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"hash\",\"outputs\":[{\"internalType\":\"bytes32\",\"name\":\"\",\"type\":\"bytes32\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l1FeeOverhead\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"l1FeeScalar\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"number\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"sequenceNumber\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint64\",\"name\":\"_number\",\"type\":\"uint64\"},{\"internalType\":\"uint64\",\"name\":\"_timestamp\",\"type\":\"uint64\"},{\"internalType\":\"uint256\",\"name\":\"_basefee\",\"type\":\"uint256\"},{\"internalType\":\"bytes32\",\"name\":\"_hash\",\"type\":\"bytes32\"},{\"internalType\":\"uint64\",\"name\":\"_sequenceNumber\",\"type\":\"uint64\"},{\"internalType\":\"bytes32\",\"name\":\"_batcherHash\",\"type\":\"bytes32\"},{\"internalType\":\"uint256\",\"name\":\"_l1FeeOverhead\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_l1FeeScalar\",\"type\":\"uint256\"}],\"name\":\"setL1BlockValues\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"timestamp\",\"outputs\":[{\"internalType\":\"uint64\",\"name\":\"\",\"type\":\"uint64\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"version\",\"outputs\":[{\"internalType\":\"string\",\"name\":\"\",\"type\":\"string\"}],\"stateMutability\":\"view\",\"type\":\"function\"}],\"devdoc\":{\"custom:proxied\":\"@custom:predeploy 0x4200000000000000000000000000000000000015\",\"kind\":\"dev\",\"methods\":{\"constructor\":{\"custom:semver\":\"1.0.0\"},\"setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)\":{\"params\":{\"_basefee\":\"L1 basefee.\",\"_batcherHash\":\"Versioned hash to authenticate batcher by.\",\"_hash\":\"L1 blockhash.\",\"_l1FeeOverhead\":\"L1 fee overhead.\",\"_l1FeeScalar\":\"L1 fee scalar.\",\"_number\":\"L1 blocknumber.\",\"_sequenceNumber\":\"Number of L2 blocks since epoch start.\",\"_timestamp\":\"L1 timestamp.\"}},\"version()\":{\"returns\":{\"_0\":\"Semver contract version as a string.\"}}},\"title\":\"L1Block\",\"version\":1},\"userdoc\":{\"kind\":\"user\",\"methods\":{\"DEPOSITOR_ACCOUNT()\":{\"notice\":\"Address of the special depositor account.\"},\"basefee()\":{\"notice\":\"The latest L1 basefee.\"},\"batcherHash()\":{\"notice\":\"The versioned hash to authenticate the batcher by.\"},\"hash()\":{\"notice\":\"The latest L1 blockhash.\"},\"l1FeeOverhead()\":{\"notice\":\"The overhead value applied to the L1 portion of the transaction         fee.\"},\"l1FeeScalar()\":{\"notice\":\"The scalar value applied to the L1 portion of the transaction fee.\"},\"number()\":{\"notice\":\"The latest L1 block number known by the L2 system.\"},\"sequenceNumber()\":{\"notice\":\"The number of L2 blocks in the same epoch.\"},\"setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)\":{\"notice\":\"Updates the L1 block values.\"},\"timestamp()\":{\"notice\":\"The latest L1 timestamp known by the L2 system.\"},\"version()\":{\"notice\":\"Returns the full semver contract version.\"}},\"notice\":\"The L1Block predeploy gives users access to information about the last known L1 block.         Values within this contract are updated once per epoch (every L1 block) and can only be         set by the \\\"depositor\\\" account, a special system address. Depositor account transactions         are created by the protocol whenever we move to a new epoch.\",\"version\":1}},\"settings\":{\"compilationTarget\":{\"contracts/L2/L1Block.sol\":\"L1Block\"},\"evmVersion\":\"london\",\"libraries\":{},\"metadata\":{\"bytecodeHash\":\"none\"},\"optimizer\":{\"enabled\":true,\"runs\":999999},\"remappings\":[\":@openzeppelin/=node_modules/@openzeppelin/\",\":@openzeppelin/contracts-upgradeable/=node_modules/@openzeppelin/contracts-upgradeable/\",\":@openzeppelin/contracts/=node_modules/@openzeppelin/contracts/\",\":@rari-capital/=node_modules/@rari-capital/\",\":@rari-capital/solmate/=node_modules/@rari-capital/solmate/\",\":@safe-global/safe-contracts/=node_modules/@safe-global/safe-contracts/\",\":ds-test/=node_modules/ds-test/src/\",\":forge-std/=node_modules/forge-std/src/\",\":solady/=node_modules/solady/src/\"]},\"sources\":{\"contracts/L2/L1Block.sol\":{\"keccak256\":\"0xbd2284eeedcdfbb44aeb010c37e109a28a202b6cee62b7091c9a9afb1f461836\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://e8afce8fb5023f16e56f9458b3e9ce998740073ef7668d6aade1c0de0512f870\",\"dweb:/ipfs/QmWQ1FNhqJWraS14qq6wYsPngYv6NghHUwgtmvt9PVzhLo\"]},\"contracts/universal/Semver.sol\":{\"keccak256\":\"0x400059d3edb9efc9c23e6fbc18de6710f9235a4ffba4ab23bdb9f825273f093b\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://9baf7797439c0ae6512f4639dfc6a1934dbd4e4d7cbb8e63e99264ff47682c9e\",\"dweb:/ipfs/QmawAuhppPyeoZH3rC1uh87xDELa9Lyfw5pYsBqE8myE1m\"]},\"node_modules/@openzeppelin/contracts/utils/Strings.sol\":{\"keccak256\":\"0xaf159a8b1923ad2a26d516089bceca9bdeaeacd04be50983ea00ba63070f08a3\",\"license\":\"MIT\",\"urls\":[\"bzz-raw://6f2cf1c531122bc7ca96b8c8db6a60deae60441e5223065e792553d4849b5638\",\"dweb:/ipfs/QmPBdJmBBABMDCfyDjCbdxgiqRavgiSL88SYPGibgbPas9\"]}},\"version\":1}",
+  "bytecode": "0x60e060405234801561001057600080fd5b5060016080819052600060a081905260c0819052806107d661004a82396000610371015260006103480152600061031f01526107d66000f3fe608060405234801561001057600080fd5b50600436106100c95760003560e01c80638381f58a11610081578063b80777ea1161005b578063b80777ea14610170578063e591b28214610190578063e81b2c6d146101d057600080fd5b80638381f58a1461014a5780638b239f731461015e5780639e8c49661461016757600080fd5b806354fd4d50116100b257806354fd4d50146100ff5780635cf249691461011457806364ca23ef1461011d57600080fd5b8063015d8eb9146100ce57806309bd5a60146100e3575b600080fd5b6100e16100dc366004610515565b6101d9565b005b6100ec60025481565b6040519081526020015b60405180910390f35b610107610318565b6040516100f691906105b7565b6100ec60015481565b6003546101319067ffffffffffffffff1681565b60405167ffffffffffffffff90911681526020016100f6565b6000546101319067ffffffffffffffff1681565b6100ec60055481565b6100ec60065481565b6000546101319068010000000000000000900467ffffffffffffffff1681565b6101ab73deaddeaddeaddeaddeaddeaddeaddeaddead000181565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100f6565b6100ec60045481565b3373deaddeaddeaddeaddeaddeaddeaddeaddead000114610280576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603b60248201527f4c31426c6f636b3a206f6e6c7920746865206465706f7369746f72206163636f60448201527f756e742063616e20736574204c3120626c6f636b2076616c7565730000000000606482015260840160405180910390fd5b6000805467ffffffffffffffff98891668010000000000000000027fffffffffffffffffffffffffffffffff00000000000000000000000000000000909116998916999099179890981790975560019490945560029290925560038054919094167fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009190911617909255600491909155600555600655565b60606103437f00000000000000000000000000000000000000000000000000000000000000006103bb565b61036c7f00000000000000000000000000000000000000000000000000000000000000006103bb565b6103957f00000000000000000000000000000000000000000000000000000000000000006103bb565b6040516020016103a793929190610608565b604051602081830303815290604052905090565b6060816000036103fe57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b81156104285780610412816106ad565b91506104219050600a83610714565b9150610402565b60008167ffffffffffffffff81111561044357610443610728565b6040519080825280601f01601f19166020018201604052801561046d576020820181803683370190505b5090505b84156104f057610482600183610757565b915061048f600a8661076e565b61049a906030610782565b60f81b8183815181106104af576104af61079a565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506104e9600a86610714565b9450610471565b949350505050565b803567ffffffffffffffff8116811461051057600080fd5b919050565b600080600080600080600080610100898b03121561053257600080fd5b61053b896104f8565b975061054960208a016104f8565b9650604089013595506060890135945061056560808a016104f8565b979a969950949793969560a0850135955060c08501359460e001359350915050565b60005b838110156105a257818101518382015260200161058a565b838111156105b1576000848401525b50505050565b60208152600082518060208401526105d6816040850160208701610587565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b6000845161061a818460208901610587565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610656816001850160208a01610587565b60019201918201528351610671816002840160208801610587565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036106de576106de61067e565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610723576107236106e5565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156107695761076961067e565b500390565b60008261077d5761077d6106e5565b500690565b600082198211156107955761079561067e565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+  "deployedBytecode": "0x608060405234801561001057600080fd5b50600436106100c95760003560e01c80638381f58a11610081578063b80777ea1161005b578063b80777ea14610170578063e591b28214610190578063e81b2c6d146101d057600080fd5b80638381f58a1461014a5780638b239f731461015e5780639e8c49661461016757600080fd5b806354fd4d50116100b257806354fd4d50146100ff5780635cf249691461011457806364ca23ef1461011d57600080fd5b8063015d8eb9146100ce57806309bd5a60146100e3575b600080fd5b6100e16100dc366004610515565b6101d9565b005b6100ec60025481565b6040519081526020015b60405180910390f35b610107610318565b6040516100f691906105b7565b6100ec60015481565b6003546101319067ffffffffffffffff1681565b60405167ffffffffffffffff90911681526020016100f6565b6000546101319067ffffffffffffffff1681565b6100ec60055481565b6100ec60065481565b6000546101319068010000000000000000900467ffffffffffffffff1681565b6101ab73deaddeaddeaddeaddeaddeaddeaddeaddead000181565b60405173ffffffffffffffffffffffffffffffffffffffff90911681526020016100f6565b6100ec60045481565b3373deaddeaddeaddeaddeaddeaddeaddeaddead000114610280576040517f08c379a000000000000000000000000000000000000000000000000000000000815260206004820152603b60248201527f4c31426c6f636b3a206f6e6c7920746865206465706f7369746f72206163636f60448201527f756e742063616e20736574204c3120626c6f636b2076616c7565730000000000606482015260840160405180910390fd5b6000805467ffffffffffffffff98891668010000000000000000027fffffffffffffffffffffffffffffffff00000000000000000000000000000000909116998916999099179890981790975560019490945560029290925560038054919094167fffffffffffffffffffffffffffffffffffffffffffffffff00000000000000009190911617909255600491909155600555600655565b60606103437f00000000000000000000000000000000000000000000000000000000000000006103bb565b61036c7f00000000000000000000000000000000000000000000000000000000000000006103bb565b6103957f00000000000000000000000000000000000000000000000000000000000000006103bb565b6040516020016103a793929190610608565b604051602081830303815290604052905090565b6060816000036103fe57505060408051808201909152600181527f3000000000000000000000000000000000000000000000000000000000000000602082015290565b8160005b81156104285780610412816106ad565b91506104219050600a83610714565b9150610402565b60008167ffffffffffffffff81111561044357610443610728565b6040519080825280601f01601f19166020018201604052801561046d576020820181803683370190505b5090505b84156104f057610482600183610757565b915061048f600a8661076e565b61049a906030610782565b60f81b8183815181106104af576104af61079a565b60200101907effffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff1916908160001a9053506104e9600a86610714565b9450610471565b949350505050565b803567ffffffffffffffff8116811461051057600080fd5b919050565b600080600080600080600080610100898b03121561053257600080fd5b61053b896104f8565b975061054960208a016104f8565b9650604089013595506060890135945061056560808a016104f8565b979a969950949793969560a0850135955060c08501359460e001359350915050565b60005b838110156105a257818101518382015260200161058a565b838111156105b1576000848401525b50505050565b60208152600082518060208401526105d6816040850160208701610587565b601f017fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffe0169190910160400192915050565b6000845161061a818460208901610587565b80830190507f2e000000000000000000000000000000000000000000000000000000000000008082528551610656816001850160208a01610587565b60019201918201528351610671816002840160208801610587565b0160020195945050505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b60007fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82036106de576106de61067e565b5060010190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b600082610723576107236106e5565b500490565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6000828210156107695761076961067e565b500390565b60008261077d5761077d6106e5565b500690565b600082198211156107955761079561067e565b500190565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea164736f6c634300080f000a",
+  "devdoc": {
+    "version": 1,
+    "kind": "dev",
+    "methods": {
+      "constructor": {},
+      "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)": {
+        "params": {
+          "_basefee": "L1 basefee.",
+          "_batcherHash": "Versioned hash to authenticate batcher by.",
+          "_hash": "L1 blockhash.",
+          "_l1FeeOverhead": "L1 fee overhead.",
+          "_l1FeeScalar": "L1 fee scalar.",
+          "_number": "L1 blocknumber.",
+          "_sequenceNumber": "Number of L2 blocks since epoch start.",
+          "_timestamp": "L1 timestamp."
+        }
+      },
+      "version()": {
+        "returns": {
+          "_0": "Semver contract version as a string."
+        }
+      }
+    },
+    "title": "L1Block"
+  },
+  "userdoc": {
+    "version": 1,
+    "kind": "user",
+    "methods": {
+      "DEPOSITOR_ACCOUNT()": {
+        "notice": "Address of the special depositor account."
+      },
+      "basefee()": {
+        "notice": "The latest L1 basefee."
+      },
+      "batcherHash()": {
+        "notice": "The versioned hash to authenticate the batcher by."
+      },
+      "hash()": {
+        "notice": "The latest L1 blockhash."
+      },
+      "l1FeeOverhead()": {
+        "notice": "The overhead value applied to the L1 portion of the transaction         fee."
+      },
+      "l1FeeScalar()": {
+        "notice": "The scalar value applied to the L1 portion of the transaction fee."
+      },
+      "number()": {
+        "notice": "The latest L1 block number known by the L2 system."
+      },
+      "sequenceNumber()": {
+        "notice": "The number of L2 blocks in the same epoch."
+      },
+      "setL1BlockValues(uint64,uint64,uint256,bytes32,uint64,bytes32,uint256,uint256)": {
+        "notice": "Updates the L1 block values."
+      },
+      "timestamp()": {
+        "notice": "The latest L1 timestamp known by the L2 system."
+      },
+      "version()": {
+        "notice": "Returns the full semver contract version."
+      }
+    },
+    "notice": "The L1Block predeploy gives users access to information about the last known L1 block.         Values within this contract are updated once per epoch (every L1 block) and can only be         set by the \"depositor\" account, a special system address. Depositor account transactions         are created by the protocol whenever we move to a new epoch."
+  },
+  "storageLayout": {
+    "storage": [
+      {
+        "astId": 3073,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "number",
+        "offset": 0,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 3076,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "timestamp",
+        "offset": 8,
+        "slot": "0",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 3079,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "basefee",
+        "offset": 0,
+        "slot": "1",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 3082,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "hash",
+        "offset": 0,
+        "slot": "2",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 3085,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "sequenceNumber",
+        "offset": 0,
+        "slot": "3",
+        "type": "t_uint64"
+      },
+      {
+        "astId": 3088,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "batcherHash",
+        "offset": 0,
+        "slot": "4",
+        "type": "t_bytes32"
+      },
+      {
+        "astId": 3091,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "l1FeeOverhead",
+        "offset": 0,
+        "slot": "5",
+        "type": "t_uint256"
+      },
+      {
+        "astId": 3094,
+        "contract": "contracts/L2/L1Block.sol:L1Block",
+        "label": "l1FeeScalar",
+        "offset": 0,
+        "slot": "6",
+        "type": "t_uint256"
+      }
+    ],
+    "types": {
+      "t_bytes32": {
+        "encoding": "inplace",
+        "label": "bytes32",
+        "numberOfBytes": "32"
+      },
+      "t_uint256": {
+        "encoding": "inplace",
+        "label": "uint256",
+        "numberOfBytes": "32"
+      },
+      "t_uint64": {
+        "encoding": "inplace",
+        "label": "uint64",
+        "numberOfBytes": "8"
+      }
+    }
+  }
+}
