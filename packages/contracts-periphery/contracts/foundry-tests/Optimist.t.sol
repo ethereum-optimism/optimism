@@ -1,5 +1,5 @@
 //SPDX-License-Identifier: MIT
-pragma solidity 0.8.15;
+pragma solidity >=0.6.2 <0.9.0;
 
 /* Testing utilities */
 import { Test } from "forge-std/Test.sol";
@@ -8,9 +8,26 @@ import { Optimist } from "../universal/op-nft/Optimist.sol";
 import { OptimistAllowlist } from "../universal/op-nft/OptimistAllowlist.sol";
 import { OptimistInviter } from "../universal/op-nft/OptimistInviter.sol";
 import { OptimistInviterHelper } from "../testing/helpers/OptimistInviterHelper.sol";
-import { Multicall3 } from "../testing/helpers/Multicall3.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 import { IERC721 } from "@openzeppelin/contracts/token/ERC721/IERC721.sol";
+
+interface IMulticall3 {
+    struct Call3 {
+        address target;
+        bool allowFailure;
+        bytes callData;
+    }
+
+    struct Result {
+        bool success;
+        bytes returnData;
+    }
+
+    function aggregate3(Call3[] calldata calls)
+        external
+        payable
+        returns (Result[] memory returnData);
+}
 
 contract Optimist_Initializer is Test {
     event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
@@ -35,7 +52,7 @@ contract Optimist_Initializer is Test {
     OptimistInviterHelper optimistInviterHelper;
 
     // To test multicall for claiming and minting in one call
-    Multicall3 multicall3;
+    IMulticall3 multicall3;
 
     address internal carol_baseURIAttestor;
     address internal alice_allowlistAttestor;
@@ -216,7 +233,8 @@ contract Optimist_Initializer is Test {
             _optimistAllowlist: optimistAllowlist
         });
 
-        multicall3 = new Multicall3();
+        // address test = deployCode("Multicall3.sol");
+        multicall3 = IMulticall3(deployCode("Multicall3.sol"));
     }
 }
 
@@ -599,10 +617,10 @@ contract OptimistTest is Optimist_Initializer {
         // wait minimum commitment period
         vm.warp(optimistInviter.MIN_COMMITMENT_PERIOD() + block.timestamp);
 
-        Multicall3.Call3[] memory calls = new Multicall3.Call3[](2);
+        IMulticall3.Call3[] memory calls = new IMulticall3.Call3[](2);
 
         // First call is to claim the invite, receiving the attestation
-        calls[0] = Multicall3.Call3({
+        calls[0] = IMulticall3.Call3({
             target: address(optimistInviter),
             callData: abi.encodeWithSelector(
                 optimistInviter.claimInvite.selector,
@@ -614,7 +632,7 @@ contract OptimistTest is Optimist_Initializer {
         });
 
         // Second call is to mint the Optimist NFT
-        calls[1] = Multicall3.Call3({
+        calls[1] = IMulticall3.Call3({
             target: address(optimist),
             callData: abi.encodeWithSelector(optimist.mint.selector, bob),
             allowFailure: false
