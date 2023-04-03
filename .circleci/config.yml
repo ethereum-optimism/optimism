@@ -653,7 +653,7 @@ jobs:
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
             # Note: -parallel must be set to match the number of cores in the resource class
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
-            --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
+            --format=standard-quiet --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
             -- -timeout=20m -parallel=16 ./...
           working_directory: <<parameters.module>>
       - store_test_results:
