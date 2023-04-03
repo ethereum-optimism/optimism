@@ -638,7 +638,7 @@ jobs:
         type: string
     docker:
       - image: ethereumoptimism/ci-builder:latest
-    resource_class: xlarge
+    resource_class: 2xlarge
     steps:
       - checkout
       - check-changed:
@@ -654,7 +654,7 @@ jobs:
             # Note: -parallel must be set to match the number of cores in the resource class
             OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            -- -timeout=20m -parallel=8 ./...
+            -- -timeout=20m -parallel=16 ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
