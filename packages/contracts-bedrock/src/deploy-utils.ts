@@ -44,6 +44,15 @@ export const deploy = async ({
   // external deployments when doing this check. By doing the check ourselves, we also get to
   // consider external deployments. If we already have the deployment, return early.
   let result: Deployment | DeployResult = await hre.deployments.getOrNull(name)
+
+  // Wrap in a try/catch in case there is not a deployConfig for the current network.
+  let numDeployConfirmations: number
+  try {
+    numDeployConfirmations = hre.deployConfig.numDeployConfirmations
+  } catch (e) {
+    numDeployConfirmations = 1
+  }
+
   if (result) {
     console.log(`skipping ${name}, using existing at ${result.address}`)
   } else {
@@ -52,7 +61,7 @@ export const deploy = async ({
       from: deployer,
       args,
       log: true,
-      waitConfirmations: hre.deployConfig.numDeployConfirmations,
+      waitConfirmations: numDeployConfirmations,
     })
     console.log(`Deployed ${name} at ${result.address}`)
     // Only wait for the transaction if it was recently deployed in case the
@@ -68,7 +77,7 @@ export const deploy = async ({
 
   // Create the contract object to return.
   const created = asAdvancedContract({
-    confirmations: hre.deployConfig.numDeployConfirmations,
+    confirmations: numDeployConfirmations,
     contract: new Contract(
       result.address,
       iface !== undefined
@@ -122,41 +131,41 @@ export const asAdvancedContract = (opts: {
   // Override each function call to also `.wait()` so as to simplify the deploy scripts' syntax.
   for (const fnName of Object.keys(contract.functions)) {
     const fn = contract[fnName].bind(contract)
-    ;(contract as any)[fnName] = async (...args: any) => {
-      // We want to use the configured gas price but we need to set the gas price to zero if we're
-      // triggering a static function.
-      let gasPrice = opts.gasPrice
-      if (contract.interface.getFunction(fnName).constant) {
-        gasPrice = 0
-      }
+      ; (contract as any)[fnName] = async (...args: any) => {
+        // We want to use the configured gas price but we need to set the gas price to zero if we're
+        // triggering a static function.
+        let gasPrice = opts.gasPrice
+        if (contract.interface.getFunction(fnName).constant) {
+          gasPrice = 0
+        }
 
-      // Now actually trigger the transaction (or call).
-      const tx = await fn(...args, {
-        gasPrice,
-      })
+        // Now actually trigger the transaction (or call).
+        const tx = await fn(...args, {
+          gasPrice,
+        })
 
-      // Meant for static calls, we don't need to wait for anything, we get the result right away.
-      if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
-        return tx
-      }
-
-      // Wait for the transaction to be included in a block and wait for the specified number of
-      // deployment confirmations.
-      const maxTimeout = 120
-      let timeout = 0
-      while (true) {
-        await sleep(1000)
-        const receipt = await contract.provider.getTransactionReceipt(tx.hash)
-        if (receipt === null) {
-          timeout++
-          if (timeout > maxTimeout) {
-            throw new Error('timeout exceeded waiting for txn to be mined')
-          }
-        } else if (receipt.confirmations >= (opts.confirmations || 0)) {
+        // Meant for static calls, we don't need to wait for anything, we get the result right away.
+        if (typeof tx !== 'object' || typeof tx.wait !== 'function') {
           return tx
         }
+
+        // Wait for the transaction to be included in a block and wait for the specified number of
+        // deployment confirmations.
+        const maxTimeout = 120
+        let timeout = 0
+        while (true) {
+          await sleep(1000)
+          const receipt = await contract.provider.getTransactionReceipt(tx.hash)
+          if (receipt === null) {
+            timeout++
+            if (timeout > maxTimeout) {
+              throw new Error('timeout exceeded waiting for txn to be mined')
+            }
+          } else if (receipt.confirmations >= (opts.confirmations || 0)) {
+            return tx
+          }
+        }
       }
-    }
   }
 
   return contract
@@ -199,8 +208,15 @@ export const getContractFromArtifact = async (
     }
   }
 
+  let numDeployConfirmations: number
+  try {
+    numDeployConfirmations = hre.deployConfig.numDeployConfirmations
+  } catch (e) {
+    numDeployConfirmations = 1
+  }
+
   return asAdvancedContract({
-    confirmations: hre.deployConfig.numDeployConfirmations,
+    confirmations: numDeployConfirmations,
     contract: new hre.ethers.Contract(
       artifact.address,
       iface,
@@ -385,14 +401,13 @@ export const getTenderlySimulationLink = async (
   tx: ethers.PopulatedTransaction
 ): Promise<string> => {
   if (process.env.TENDERLY_PROJECT && process.env.TENDERLY_USERNAME) {
-    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
-      process.env.TENDERLY_USERNAME
-    }/simulator/new?${new URLSearchParams({
-      network: (await provider.getNetwork()).chainId.toString(),
-      contractAddress: tx.to,
-      rawFunctionInput: tx.data,
-      from: tx.from,
-    }).toString()}`
+    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${process.env.TENDERLY_USERNAME
+      }/simulator/new?${new URLSearchParams({
+        network: (await provider.getNetwork()).chainId.toString(),
+        contractAddress: tx.to,
+        rawFunctionInput: tx.data,
+        from: tx.from,
+      }).toString()}`
   }
 }
 

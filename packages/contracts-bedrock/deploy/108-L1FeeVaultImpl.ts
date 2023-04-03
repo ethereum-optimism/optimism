@@ -7,7 +7,7 @@ import { assertContractVariable, deploy } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
   const l1 = hre.network.companionNetworks['l1']
-  const deployConfig = hre.deployConfig.getDeployConfig(l1)
+  const deployConfig = hre.getDeployConfig(l1)
 
   const l1FeeVaultRecipient = deployConfig.l1FeeVaultRecipient
   if (l1FeeVaultRecipient === ethers.constants.AddressZero) {
