@@ -75,6 +75,7 @@ jobs:
         uses: changesets/action@v1
         id: changesets
         with:
+          createGithubReleases: false
           publish: yarn changeset publish --tag canary
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
