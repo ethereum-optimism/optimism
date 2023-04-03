@@ -78,15 +78,15 @@ contract PostSherlockL2 is Script {
     /**
      * @notice The expected versions for the contracts to be upgraded to.
      */
-    string constant internal BaseFeeVault_Version = "1.0.0";
+    string constant internal BaseFeeVault_Version = "1.1.0";
     string constant internal GasPriceOracle_Version = "1.0.0";
     string constant internal L1Block_Version = "1.0.0";
-    string constant internal L1FeeVault_Version = "1.0.0";
+    string constant internal L1FeeVault_Version = "1.1.0";
     string constant internal L2CrossDomainMessenger_Version = "1.1.0";
     string constant internal L2ERC721Bridge_Version = "1.1.0";
     string constant internal L2StandardBridge_Version = "1.1.0";
     string constant internal L2ToL1MessagePasser_Version = "1.0.0";
-    string constant internal SequencerFeeVault_Version = "1.0.0";
+    string constant internal SequencerFeeVault_Version = "1.1.0";
     string constant internal OptimismMintableERC20Factory_Version = "1.1.0";
     string constant internal OptimismMintableERC721Factory_Version = "1.1.0";
 
