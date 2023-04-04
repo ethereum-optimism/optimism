@@ -110,7 +110,7 @@ func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
 
 	require.NotEqual(t, blocks[1].Root(), newBlock.Root(), "block should have modified world state")
 
-	db, err = chain.StateAt(newBlock.Root())
+	_, err = chain.StateAt(newBlock.Root())
 	require.Error(t, err, "state from non-imported block should not be available")
 
 	err = chain.InsertBlockWithoutSetHead(newBlock)
@@ -152,6 +152,7 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	require.NoError(t, err)
 	l2Genesis, err := genesis.NewL2Genesis(deployConfig, l1Genesis.ToBlock())
+	require.NoError(t, err)
 
 	l2Genesis.Alloc[fundedAddress] = core.GenesisAccount{
 		Balance: big.NewInt(1_000_000_000_000_000_000),
