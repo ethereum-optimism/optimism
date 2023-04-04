@@ -197,7 +197,7 @@ contract OptimistAllowlistTest is OptimistAllowlist_Initializer {
     }
 
     /**
-     * @notice Coinbase attestation from wrong attestor should not allow minting.
+     * @notice Coinbase quest attestation from wrong attestor should not allow minting.
      */
     function test_isAllowedToMint_fromWrongCoinbaseQuestAttestor_fails() external {
         // Ted is not the coinbase quest attestor
