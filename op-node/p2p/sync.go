@@ -202,11 +202,18 @@ type SyncClient struct {
 
 	results chan syncResult
 
+	receivePayload receivePayloadFn
+
+	// resource context: all peers and mainLoop tasks inherit this, and start shutting down once resCancel() is called.
 	resCtx    context.Context
 	resCancel context.CancelFunc
 
-	receivePayload receivePayloadFn
-	wg             sync.WaitGroup
+	// wait group: wait for the resources to close. Adding to this is only safe if the peersLock is held.
+	wg sync.WaitGroup
+
+	// Don't allow anything to be added to the wait-group while, or after, we are shutting down.
+	// This is protected by peersLock.
+	closingPeers bool
 }
 
 func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rcv receivePayloadFn, metrics SyncClientMetrics) *SyncClient {
@@ -239,7 +246,9 @@ func NewSyncClient(log log.Logger, cfg *rollup.Config, newStream newStreamFn, rc
 }
 
 func (s *SyncClient) Start() {
+	s.peersLock.Lock()
 	s.wg.Add(1)
+	s.peersLock.Unlock()
 	go s.mainLoop()
 }
 
@@ -248,6 +257,9 @@ func (s *SyncClient) AddPeer(id peer.ID) {
 	defer s.peersLock.Unlock()
 	if _, ok := s.peers[id]; ok {
 		s.log.Warn("cannot register peer for sync duties, peer was already registered", "peer", id)
+		return
+	}
+	if s.closingPeers {
 		return
 	}
 	s.wg.Add(1)
@@ -269,7 +281,12 @@ func (s *SyncClient) RemovePeer(id peer.ID) {
 	delete(s.peers, id)
 }
 
+// Close will shut down the sync client and all attached work, and block until shutdown is complete.
+// This will block if the Start() has not created the main background loop.
 func (s *SyncClient) Close() error {
+	s.peersLock.Lock()
+	s.closingPeers = true
+	s.peersLock.Unlock()
 	s.resCancel()
 	s.wg.Wait()
 	return nil
