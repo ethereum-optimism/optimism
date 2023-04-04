@@ -48,9 +48,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     Deployment__OptimistProxy.address
   )
 
-  const implementation = await Proxy.callStatic.implementation({
-    from: ethers.constants.AddressZero,
-  })
+  const implementation = await Proxy.connect(
+    ethers.constants.AddressZero
+  ).callStatic.implementation()
   console.log(`implementation set to ${implementation}`)
   if (getAddress(implementation) !== getAddress(Deployment__Optimist.address)) {
     console.log('implementation not set to Optimist contract')
@@ -75,9 +75,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   }
 
   const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
-  const admin = await Proxy.callStatic.admin({
-    from: ethers.constants.AddressZero,
-  })
+  const admin = await Proxy.connect(
+    ethers.constants.AddressZero
+  ).callStatic.admin()
   console.log(`admin set to ${admin}`)
   if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
     console.log('detected admin is not set')
@@ -96,7 +96,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   await assertContractVariable(Proxy, 'admin', l2ProxyOwnerAddress)
   await assertContractVariable(Optimist, 'name', deployConfig.optimistName)
-  await assertContractVariable(Optimist, 'verson', '1.0.0')
+  await assertContractVariable(Optimist, 'version', '1.0.0')
   await assertContractVariable(Optimist, 'symbol', deployConfig.optimistSymbol)
   await assertContractVariable(
     Optimist,

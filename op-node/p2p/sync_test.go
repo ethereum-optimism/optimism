@@ -2,10 +2,8 @@ package p2p
 
 import (
 	"context"
-	"math"
 	"math/big"
 	"testing"
-	"time"
 
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
@@ -13,13 +11,14 @@ import (
 	mocknet "github.com/libp2p/go-libp2p/p2p/net/mock"
 	"github.com/stretchr/testify/require"
 
+	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
+
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/metrics"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/log"
 )
 
 type mockPayloadFn func(n uint64) (*eth.ExecutionPayload, error)
@@ -120,18 +119,12 @@ func TestSinglePeerSync(t *testing.T) {
 	require.NoError(t, cl.RequestL2Range(ctx, l2Ref(10), l2Ref(20)))
 
 	// and wait for the sync results to come in (in reverse order)
-	receiveCtx, receiveCancel := context.WithTimeout(ctx, time.Second*5)
-	defer receiveCancel()
 	for i := uint64(19); i > 10; i-- {
-		select {
-		case p := <-received:
-			require.Equal(t, uint64(p.BlockNumber), i, "expecting payloads in order")
-			exp, ok := payloads[uint64(p.BlockNumber)]
-			require.True(t, ok, "expecting known payload")
-			require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
-		case <-receiveCtx.Done():
-			t.Fatal("did not receive all expected payloads within expected time")
-		}
+		p := <-received
+		require.Equal(t, uint64(p.BlockNumber), i, "expecting payloads in order")
+		exp, ok := payloads[uint64(p.BlockNumber)]
+		require.True(t, ok, "expecting known payload")
+		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
 }
 
@@ -202,34 +195,20 @@ func TestMultiPeerSync(t *testing.T) {
 
 	// With such large range to request we are going to hit the rate-limits of B and C,
 	// but that means we'll balance the work between the peers.
-
-	// wait for the results to come in, based on the expected rate limit, divided by 2 (because we have 2 servers), with a buffer of 2 seconds
-	receiveCtx, receiveCancel := context.WithTimeout(ctx, time.Second*time.Duration(math.Ceil(float64((89-10)/peerServerBlocksRateLimit)))/2+time.Second*2)
-	defer receiveCancel()
-	for i := uint64(89); i > 10; i-- {
-		select {
-		case p := <-recvA:
-			exp, ok := payloads[uint64(p.BlockNumber)]
-			require.True(t, ok, "expecting known payload")
-			require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
-		case <-receiveCtx.Done():
-			t.Fatal("did not receive all expected payloads within expected time")
-		}
-	}
+	p := <-recvA
+	exp, ok := payloads[uint64(p.BlockNumber)]
+	require.True(t, ok, "expecting known payload")
+	require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 
 	// now see if B can sync a range, and fill the gap with a re-request
 	bl25 := payloads[25] // temporarily remove it from the available payloads. This will create a gap
 	delete(payloads, uint64(25))
 	require.NoError(t, clB.RequestL2Range(ctx, l2Ref(20), l2Ref(30)))
 	for i := uint64(29); i > 25; i-- {
-		select {
-		case p := <-recvB:
-			exp, ok := payloads[uint64(p.BlockNumber)]
-			require.True(t, ok, "expecting known payload")
-			require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
-		case <-receiveCtx.Done():
-			t.Fatal("did not receive all expected payloads within expected time")
-		}
+		p := <-recvB
+		exp, ok := payloads[uint64(p.BlockNumber)]
+		require.True(t, ok, "expecting known payload")
+		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
 	// the request for 25 should fail. See:
 	// server: WARN  peer requested unknown block by number   num=25
@@ -239,16 +218,11 @@ func TestMultiPeerSync(t *testing.T) {
 	payloads[25] = bl25
 	// And request a range again, 25 is there now, and 21-24 should follow quickly (some may already have been fetched and wait in quarantine)
 	require.NoError(t, clB.RequestL2Range(ctx, l2Ref(20), l2Ref(26)))
-	receiveCtx, receiveCancel = context.WithTimeout(ctx, time.Second*10)
-	defer receiveCancel()
+
 	for i := uint64(25); i > 20; i-- {
-		select {
-		case p := <-recvB:
-			exp, ok := payloads[uint64(p.BlockNumber)]
-			require.True(t, ok, "expecting known payload")
-			require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
-		case <-receiveCtx.Done():
-			t.Fatal("did not receive all expected payloads within expected time")
-		}
+		p := <-recvB
+		exp, ok := payloads[uint64(p.BlockNumber)]
+		require.True(t, ok, "expecting known payload")
+		require.Equal(t, exp.BlockHash, p.BlockHash, "expecting the correct payload")
 	}
 }

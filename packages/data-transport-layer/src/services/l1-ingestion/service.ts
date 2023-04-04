@@ -277,6 +277,12 @@ export class L1IngestionService extends BaseService<L1IngestionServiceOptions> {
             depositTargetL1Block,
             handleEventsTransactionEnqueued
           )
+        } else {
+          this.logger.info('Deposit shutoff reached', {
+            depositTargetL1Block,
+            highestSyncedL1Block,
+            depositShutoffBlock,
+          })
         }
 
         await this._syncEvents(
