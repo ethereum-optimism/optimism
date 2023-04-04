@@ -36,6 +36,11 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 		api.assert.Equal(block.BlockHash, api.headHash(), "should create and import new block")
 		imported := api.backend.GetBlockByHash(block.BlockHash)
 		api.assert.Len(imported.Transactions(), 1, "should include transaction")
+
+		api.assert.NotEqual(genesis.Root, block.StateRoot)
+		newState, err := api.backend.StateAt(common.Hash(block.StateRoot))
+		require.NoError(t, err, "imported block state should be available")
+		require.NotNil(t, newState)
 	})
 
 	t.Run("IgnoreUpdateHeadToOlderBlock", func(t *testing.T) {

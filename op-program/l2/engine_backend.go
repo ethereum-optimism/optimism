@@ -8,13 +8,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 type Oracle interface {
@@ -35,6 +37,7 @@ type OracleBackedL2Chain struct {
 
 	// Inserted blocks
 	blocks map[common.Hash]*types.Block
+	db     ethdb.KeyValueStore
 }
 
 var _ engineapi.EngineBackend = (*OracleBackedL2Chain)(nil)
@@ -56,6 +59,7 @@ func NewOracleBackedL2Chain(ctx context.Context, logger log.Logger, oracle Oracl
 		safe:      head.Header(),
 		finalized: head.Header(),
 		blocks:    make(map[common.Hash]*types.Block),
+		db:        NewOracleBackedDB(oracle),
 	}, nil
 }
 
@@ -145,14 +149,63 @@ func (o *OracleBackedL2Chain) Engine() consensus.Engine {
 }
 
 func (o *OracleBackedL2Chain) StateAt(root common.Hash) (*state.StateDB, error) {
-	// TODO implement me
-	// TODO: Will require an oracle backed db
-	return state.New(root, state.NewDatabase(rawdb.NewDatabase(memorydb.New())), nil)
+	return state.New(root, state.NewDatabase(rawdb.NewDatabase(o.db)), nil)
 }
 
 func (o *OracleBackedL2Chain) InsertBlockWithoutSetHead(block *types.Block) error {
-	// TODO: Need to actually apply the block here so the state is available
+	var usedGas = uint64(0)
+	gp := new(core.GasPool).AddGas(block.GasLimit())
+	parent := o.GetBlockByHash(block.ParentHash())
+	statedb, err := o.StateAt(parent.Root())
+	if err != nil {
+		return err
+	}
+	var receipts types.Receipts
+	for i, tx := range block.Transactions() {
+		statedb.SetTxContext(tx.Hash(), i)
+		receipt, err := core.ApplyTransaction(o.chainCfg, o, &block.Header().Coinbase, gp, statedb, block.Header(), tx, &usedGas, o.vmCfg)
+		if err != nil {
+			return err
+		}
+		receipts = append(receipts, receipt)
+	}
+	// TODO: Ideally would call engine.Finalize but currently it only applies beacon chain withdrawals which we don't use
+	//o.engine.Finalize(o, block.Header(), statedb, block.Transactions(), block.Uncles(), block.Withdrawals())
+	err = validateState(o.chainCfg, block, statedb, receipts, usedGas)
+	if err != nil {
+		return fmt.Errorf("invalid block: %w", err)
+	}
+	root, err := statedb.Commit(o.chainCfg.IsEIP158(block.Header().Number))
+	if err != nil {
+		panic(fmt.Sprintf("state write error: %v", err))
+	}
+	if err := statedb.Database().TrieDB().Commit(root, false); err != nil {
+		panic(fmt.Sprintf("trie write error: %v", err))
+	}
 	o.blocks[block.Hash()] = block
+	return nil
+}
+func validateState(config *params.ChainConfig, block *types.Block, statedb *state.StateDB, receipts types.Receipts, usedGas uint64) error {
+	header := block.Header()
+	if block.GasUsed() != usedGas {
+		return fmt.Errorf("invalid gas used (remote: %d local: %d)", block.GasUsed(), usedGas)
+	}
+	// Validate the received block's bloom with the one derived from the generated receipts.
+	// For valid blocks this should always validate to true.
+	rbloom := types.CreateBloom(receipts)
+	if rbloom != header.Bloom {
+		return fmt.Errorf("invalid bloom (remote: %x  local: %x)", header.Bloom, rbloom)
+	}
+	// Tre receipt Trie's root (R = (Tr [[H1, R1], ... [Hn, Rn]]))
+	receiptSha := types.DeriveSha(receipts, trie.NewStackTrie(nil))
+	if receiptSha != header.ReceiptHash {
+		return fmt.Errorf("invalid receipt root hash (remote: %x local: %x)", header.ReceiptHash, receiptSha)
+	}
+	// Validate the state root against the received state root and throw
+	// an error if they don't match.
+	if root := statedb.IntermediateRoot(config.IsEIP158(header.Number)); header.Root != root {
+		return fmt.Errorf("invalid merkle root (remote: %x local: %x)", header.Root, root)
+	}
 	return nil
 }
 

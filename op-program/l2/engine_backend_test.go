@@ -14,11 +14,16 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
+
+var fundedKey, _ = crypto.GenerateKey()
+var fundedAddress = crypto.PubkeyToAddress(fundedKey.PublicKey)
+var targetAddress = common.HexToAddress("0x001122334455")
 
 func TestInitialState(t *testing.T) {
 	blocks, chain := setupOracleBackedChain(t, 5)
@@ -95,18 +100,25 @@ func TestSetSafe(t *testing.T) {
 }
 
 func TestUpdateStateDatabaseWhenImportingBlock(t *testing.T) {
-	blocks, chain := setupOracleBackedChainWithLowerHead(t, 4, 3)
-	newBlock := blocks[4]
+	blocks, chain := setupOracleBackedChain(t, 3)
+	newBlock := createBlock(t, chain)
 
-	state, err := chain.StateAt(blocks[0].Root())
+	db, err := chain.StateAt(blocks[1].Root())
 	require.NoError(t, err)
-	balance := state.GetBalance(genesis.DevAccounts[0])
-	require.NotEqual(t, balance, big.NewInt(0), "should have balance at imported block")
+	balance := db.GetBalance(fundedAddress)
+	require.NotEqual(t, big.NewInt(0), balance, "should have balance at imported block")
 
-	state, err = chain.StateAt(newBlock.Root())
+	require.NotEqual(t, blocks[1].Root(), newBlock.Root(), "block should have modified world state")
+
+	db, err = chain.StateAt(newBlock.Root())
+	require.Error(t, err, "state from non-imported block should not be available")
+
+	err = chain.InsertBlockWithoutSetHead(newBlock)
 	require.NoError(t, err)
-	balance = state.GetBalance(genesis.DevAccounts[0])
-	require.Equal(t, balance, big.NewInt(0), "should not have balance from not-yet-imported block")
+	db, err = chain.StateAt(newBlock.Root())
+	require.NoError(t, err, "state should be available after importing")
+	balance = db.GetBalance(fundedAddress)
+	require.NotEqual(t, big.NewInt(0), balance, "should have balance from imported block")
 }
 
 func assertBlockDataAvailable(t *testing.T, chain *OracleBackedL2Chain, block *types.Block, blockNumber uint64) {
@@ -140,6 +152,11 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	l1Genesis, err := genesis.NewL1Genesis(deployConfig)
 	require.NoError(t, err)
 	l2Genesis, err := genesis.NewL2Genesis(deployConfig, l1Genesis.ToBlock())
+
+	l2Genesis.Alloc[fundedAddress] = core.GenesisAccount{
+		Balance: big.NewInt(1_000_000_000_000_000_000),
+		Nonce:   0,
+	}
 	chainCfg := l2Genesis.Config
 	consensus := beacon.New(nil)
 	db := rawdb.NewMemoryDatabase()
@@ -150,6 +167,29 @@ func setupOracle(t *testing.T, blockCount int, headBlockNumber int) (*params.Cha
 	blocks = append([]*types.Block{genesisBlock}, blocks...)
 	oracle := newStubOracle(blocks[:headBlockNumber+1], db)
 	return chainCfg, blocks, oracle
+}
+
+func createBlock(t *testing.T, chain *OracleBackedL2Chain) *types.Block {
+	parent := chain.GetBlockByHash(chain.CurrentBlock().Hash())
+	parentDB, err := chain.StateAt(parent.Root())
+	require.NoError(t, err)
+	nonce := parentDB.GetNonce(fundedAddress)
+	config := chain.Config()
+	db := NewOracleBackedDB(chain.oracle)
+	blocks, _ := core.GenerateChain(config, parent, chain.Engine(), db, 1, func(i int, gen *core.BlockGen) {
+		rawTx := &types.DynamicFeeTx{
+			ChainID:   config.ChainID,
+			Nonce:     nonce,
+			To:        &targetAddress,
+			GasTipCap: big.NewInt(0),
+			GasFeeCap: parent.BaseFee(),
+			Gas:       21_000,
+			Value:     big.NewInt(1),
+		}
+		tx := types.MustSignNewTx(fundedKey, types.NewLondonSigner(config.ChainID), rawTx)
+		gen.AddTx(tx)
+	})
+	return blocks[0]
 }
 
 type stubOracle struct {
@@ -169,6 +209,7 @@ func newStubOracle(chain []*types.Block, db ethdb.Database) *stubOracle {
 }
 
 func (o stubOracle) NodeByHash(ctx context.Context, nodeHash common.Hash) ([]byte, error) {
+	println("Get node", nodeHash.Hex())
 	return o.db.Get(nodeHash[:])
 }
 
