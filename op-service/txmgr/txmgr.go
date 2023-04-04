@@ -216,6 +216,7 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
 
+	bumpCounter := 0
 	for {
 		select {
 		case <-ticker.C:
@@ -231,12 +232,14 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 			// Increase the gas price & submit the new transaction
 			tx = m.increaseGasPrice(ctx, tx)
 			wg.Add(1)
+			bumpCounter += 1
 			go sendTxAsync(tx)
 
 		case <-ctx.Done():
 			return nil, ctx.Err()
 
 		case receipt := <-receiptChan:
+			m.metr.RecordGasBumpCount(bumpCounter)
 			return receipt, nil
 		}
 	}
@@ -251,6 +254,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
+	t := time.Now()
 	err := m.backend.SendTransaction(cCtx, tx)
 	sendState.ProcessSendError(err)
 
@@ -282,6 +286,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 	}
 	select {
 	case receiptChan <- receipt:
+		m.metr.RecordTxConfirmationLatency(time.Since(t).Milliseconds())
 		m.metr.RecordL1GasFee(receipt)
 	default:
 	}
