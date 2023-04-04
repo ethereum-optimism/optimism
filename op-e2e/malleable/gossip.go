@@ -15,7 +15,6 @@ import (
 	crypto "github.com/libp2p/go-libp2p/core/crypto"
 	host "github.com/libp2p/go-libp2p/core/host"
 	peer "github.com/libp2p/go-libp2p/core/peer"
-	insecure "github.com/libp2p/go-libp2p/core/sec/insecure"
 	pstoreds "github.com/libp2p/go-libp2p/p2p/host/peerstore/pstoreds"
 	cmgr "github.com/libp2p/go-libp2p/p2p/net/connmgr"
 	tcp "github.com/libp2p/go-libp2p/p2p/transport/tcp"
@@ -135,7 +134,7 @@ func DefaultHost(priv crypto.PrivKey) (host.Host, error) {
 		return nil, fmt.Errorf("failed to create TCP transport: %w", err)
 	}
 
-	timeoutDial := time.Second * 2
+	timeoutDial := time.Second * 5
 	userAgent := "optimism-testing"
 	hostMux := []libp2p.Option{p2p.YamuxC(), p2p.MplexC()}
 	opts := []libp2p.Option{
@@ -153,7 +152,6 @@ func DefaultHost(priv crypto.PrivKey) (host.Host, error) {
 		libp2p.AutoNATServiceRateLimit(10, 5, time.Second*60),
 	}
 	opts = append(opts, hostMux...)
-	opts = append(opts, libp2p.Security(insecure.ID, insecure.NewWithIdentity))
 	h, err := libp2p.New(opts...)
 	if err != nil {
 		return nil, err

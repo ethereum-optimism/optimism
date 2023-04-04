@@ -36,30 +36,8 @@ func TestMalleable_PeerScoreUpdated(t *testing.T) {
 	require.Nil(t, err, "Error starting up system")
 	defer sys.Close()
 
-	// Give time for the system to start up
-	fmt.Println()
-	fmt.Println()
-	fmt.Println("Waiting for system to start up...")
-	fmt.Println()
-	fmt.Println()
-	time.Sleep(10 * time.Second)
-	fmt.Println()
-	fmt.Println()
-	fmt.Printf("sys rollup nodes: %v\n", sys.RollupNodes)
-	fmt.Println()
-	fmt.Println()
-	fmt.Printf("sys verifier node: %v\n", sys.RollupNodes["verifier"])
-	fmt.Println()
-	fmt.Println()
-	fmt.Printf("sys verifier node p2p: %v\n", sys.RollupNodes["verifier"].P2P())
-	fmt.Println()
-	fmt.Println()
-	fmt.Printf("sys verifier node p2p host: %v\n", sys.RollupNodes["verifier"].P2P().Host())
-	fmt.Println()
-	fmt.Println()
 	honestNodeId := sys.RollupNodes["verifier"].P2P().Host().ID()
 	honestNodeAddrs := sys.RollupNodes["verifier"].P2P().Host().Addrs()
-	fmt.Printf("Honest Rollup Node ID: %v\n", honestNodeId)
 
 	// Grab the chain id from the system config
 	cid := cfg.DeployConfig.L2ChainID
