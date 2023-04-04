@@ -120,7 +120,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
 
     /**
      * @notice Checks OptimistAllowlist to determine whether a given address is allowed to mint
-     *         the Optimist NFT yet. Since the Optimist NFT will also be used as part of the
+     *         the Optimist NFT. Since the Optimist NFT will also be used as part of the
      *         Citizens House, mints are currently restricted. Eventually anyone will be able
      *         to mint.
      *
