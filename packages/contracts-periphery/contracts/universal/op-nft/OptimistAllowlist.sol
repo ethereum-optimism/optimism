@@ -66,66 +66,6 @@ contract OptimistAllowlist is Semver {
     }
 
     /**
-     * @notice Checks whether an address has a valid 'optimist.can-mint' attestation from the
-     *         allowlist attestor.
-     *
-     * @param _claimer Address to check.
-     *
-     * @return Whether or not the address has a valid attestation.
-     */
-    function _hasAttestationFromAllowlistAttestor(address _claimer) internal view returns (bool) {
-        // Expected attestation value is bytes32("true"), but we consider any non-zero value
-        // to be truthy.
-        return
-            ATTESTATION_STATION
-                .attestations(ALLOWLIST_ATTESTOR, _claimer, OPTIMIST_CAN_MINT_ATTESTATION_KEY)
-                .length > 0;
-    }
-
-    /**
-     * @notice Checks whether an address has a valid attestation from the Coinbase attestor.
-     *
-     * @param _claimer Address to check.
-     *
-     * @return Whether or not the address has a valid attestation.
-     */
-    function _hasAttestationFromCoinbaseQuestAttestor(address _claimer)
-        internal
-        view
-        returns (bool)
-    {
-        // Expected attestation value is bytes32("true"), but we consider any non-zero value
-        // to be truthy.
-        return
-            ATTESTATION_STATION
-                .attestations(
-                    COINBASE_QUEST_ATTESTOR,
-                    _claimer,
-                    COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY
-                )
-                .length > 0;
-    }
-
-    /**
-     * @notice Checks whether an address has a valid attestation from the OptimistInviter contract.
-     *
-     * @param _claimer Address to check.
-     *
-     * @return Whether or not the address has a valid attestation.
-     */
-    function _hasAttestationFromOptimistInviter(address _claimer) internal view returns (bool) {
-        // Expected attestation value is the inviter's address, but we just check that it's set.
-        return
-            ATTESTATION_STATION
-                .attestations(
-                    OPTIMIST_INVITER,
-                    _claimer,
-                    OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
-                )
-                .length > 0;
-    }
-
-    /**
      * @notice Checks whether a given address is allowed to mint the Optimist NFT yet. Since the
      *         Optimist NFT will also be used as part of the Citizens House, mints are currently
      *         restricted. Eventually anyone will be able to mint.
@@ -143,5 +83,75 @@ contract OptimistAllowlist is Semver {
             _hasAttestationFromAllowlistAttestor(_claimer) ||
             _hasAttestationFromCoinbaseQuestAttestor(_claimer) ||
             _hasAttestationFromOptimistInviter(_claimer);
+    }
+
+    /**
+     * @notice Checks whether an address has a valid 'optimist.can-mint' attestation from the
+     *         allowlist attestor.
+     *
+     * @param _claimer Address to check.
+     *
+     * @return Whether or not the address has a valid attestation.
+     */
+    function _hasAttestationFromAllowlistAttestor(address _claimer) internal view returns (bool) {
+        // Expected attestation value is bytes32("true")
+        return
+            _hasValidAttestation(ALLOWLIST_ATTESTOR, _claimer, OPTIMIST_CAN_MINT_ATTESTATION_KEY);
+    }
+
+    /**
+     * @notice Checks whether an address has a valid attestation from the Coinbase attestor.
+     *
+     * @param _claimer Address to check.
+     *
+     * @return Whether or not the address has a valid attestation.
+     */
+    function _hasAttestationFromCoinbaseQuestAttestor(address _claimer)
+        internal
+        view
+        returns (bool)
+    {
+        // Expected attestation value is bytes32("true")
+        return
+            _hasValidAttestation(
+                COINBASE_QUEST_ATTESTOR,
+                _claimer,
+                COINBASE_QUEST_ELIGIBLE_ATTESTATION_KEY
+            );
+    }
+
+    /**
+     * @notice Checks whether an address has a valid attestation from the OptimistInviter contract.
+     *
+     * @param _claimer Address to check.
+     *
+     * @return Whether or not the address has a valid attestation.
+     */
+    function _hasAttestationFromOptimistInviter(address _claimer) internal view returns (bool) {
+        // Expected attestation value is the inviter's address
+        return
+            _hasValidAttestation(
+                OPTIMIST_INVITER,
+                _claimer,
+                OptimistConstants.OPTIMIST_CAN_MINT_FROM_INVITE_ATTESTATION_KEY
+            );
+    }
+
+    /**
+     * @notice Checks whether an address has a valid truthy attestation.
+     *         Any attestation val other than bytes32("") is considered truthy.
+     *
+     * @param _creator Address that made the attestation.
+     * @param _about   Address attestation is about.
+     * @param _key     Key of the attestation.
+     *
+     * @return Whether or not the address has a valid truthy attestation.
+     */
+    function _hasValidAttestation(
+        address _creator,
+        address _about,
+        bytes32 _key
+    ) internal view returns (bool) {
+        return ATTESTATION_STATION.attestations(_creator, _about, _key).length > 0;
     }
 }
