@@ -29,9 +29,19 @@ export interface DeployConfig {
   optimistSymbol: string
 
   /**
-   * Address of the priviledged attestor for the Optimist contract.
+   * Address of the privileged attestor for the Optimist contract.
    */
   attestorAddress: string
+
+  /**
+   * Address of the privileged account for the OptimistInviter contract that can grant invites.
+   */
+  optimistInviterInviteGranter: string
+
+  /**
+   * Name of OptimistInviter contract, used for the EIP712 domain separator.
+   */
+  optimistInviterName: string
 
   /**
    * Address of the owner of the proxies on L2. There will be a ProxyAdmin deployed as a predeploy
@@ -62,6 +72,12 @@ export const configSpec: DeployConfigSpec<DeployConfig> = {
   },
   attestorAddress: {
     type: 'address',
+  },
+  optimistInviterInviteGranter: {
+    type: 'address',
+  },
+  optimistInviterName: {
+    type: 'string',
   },
   l2ProxyOwnerAddress: {
     type: 'address',
