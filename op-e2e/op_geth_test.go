@@ -78,6 +78,7 @@ func TestInvalidDepositInFCU(t *testing.T) {
 }
 
 func TestPreregolith(t *testing.T) {
+	parallel(t)
 	futureTimestamp := hexutil.Uint64(4)
 	tests := []struct {
 		name         string
@@ -89,7 +90,6 @@ func TestPreregolith(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run("GasUsed_"+test.name, func(t *testing.T) {
-			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -138,7 +138,6 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("DepositNonce_"+test.name, func(t *testing.T) {
-			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -197,7 +196,6 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("UnusedGasConsumed_"+test.name, func(t *testing.T) {
-			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 
@@ -239,7 +237,6 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("AllowSystemTx_"+test.name, func(t *testing.T) {
-			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 
@@ -261,6 +258,7 @@ func TestPreregolith(t *testing.T) {
 }
 
 func TestRegolith(t *testing.T) {
+	parallel(t)
 	tests := []struct {
 		name             string
 		regolithTime     hexutil.Uint64
@@ -275,7 +273,6 @@ func TestRegolith(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run("GasUsedIsAccurate_"+test.name, func(t *testing.T) {
-			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -327,7 +324,6 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("DepositNonceCorrect_"+test.name, func(t *testing.T) {
-			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -389,7 +385,6 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("ReturnUnusedGasToPool_"+test.name, func(t *testing.T) {
-			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
 
@@ -432,7 +427,6 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("RejectSystemTx_"+test.name, func(t *testing.T) {
-			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
 
@@ -454,7 +448,6 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("IncludeGasRefunds_"+test.name, func(t *testing.T) {
-			parallel(t)
 			// Simple constructor that is prefixed to the actual contract code
 			// Results in the contract code being returned as the code for the new contract
 			deployPrefixSize := byte(16)
