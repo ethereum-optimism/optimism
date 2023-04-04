@@ -3,6 +3,7 @@ package txmgr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -28,6 +29,7 @@ const (
 	ResubmissionTimeoutFlagName       = "resubmission-timeout"
 	NetworkTimeoutFlagName            = "network-timeout"
 	TxSendTimeoutFlagName             = "txmgr.send-timeout"
+	TxNotInMempoolTimeoutFlagName     = "txmgr.not-in-mempool-timeout"
 	ReceiptQueryIntervalFlagName      = "txmgr.receipt-query-interval"
 )
 
@@ -80,7 +82,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		cli.DurationFlag{
 			Name:   ResubmissionTimeoutFlagName,
 			Usage:  "Duration we will wait before resubmitting a transaction to L1",
-			Value:  30 * time.Second,
+			Value:  48 * time.Second,
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "RESUBMISSION_TIMEOUT"),
 		},
 		cli.DurationFlag{
@@ -96,9 +98,15 @@ func CLIFlags(envPrefix string) []cli.Flag {
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "TXMGR_TX_SEND_TIMEOUT"),
 		},
 		cli.DurationFlag{
+			Name:   TxNotInMempoolTimeoutFlagName,
+			Usage:  "Timeout for aborting a tx send if the tx does not make it to the mempool.",
+			Value:  2 * time.Minute,
+			EnvVar: opservice.PrefixEnvVar(envPrefix, "TXMGR_TX_NOT_IN_MEMPOOL_TIMEOUT"),
+		},
+		cli.DurationFlag{
 			Name:   ReceiptQueryIntervalFlagName,
 			Usage:  "Frequency to poll for receipts",
-			Value:  30 * time.Second,
+			Value:  12 * time.Second,
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
 	}, client.CLIFlags(envPrefix)...)
@@ -118,6 +126,7 @@ type CLIConfig struct {
 	ReceiptQueryInterval      time.Duration
 	NetworkTimeout            time.Duration
 	TxSendTimeout             time.Duration
+	TxNotInMempoolTimeout     time.Duration
 }
 
 func (m CLIConfig) Check() error {
@@ -125,16 +134,22 @@ func (m CLIConfig) Check() error {
 		return errors.New("must provide a L1 RPC url")
 	}
 	if m.NumConfirmations == 0 {
-		return errors.New("num confirmations must not be 0")
+		return errors.New("NumConfirmations must not be 0")
 	}
 	if m.NetworkTimeout == 0 {
-		return errors.New("must provide a network timeout")
+		return errors.New("must provide NetworkTimeout")
 	}
 	if m.ResubmissionTimeout == 0 {
-		return errors.New("must provide a resumbission interval")
+		return errors.New("must provide ResubmissionTimeout")
 	}
 	if m.ReceiptQueryInterval == 0 {
-		return errors.New("must provide a receipt query interval")
+		return errors.New("must provide ReceiptQueryInterval")
+	}
+	if m.TxNotInMempoolTimeout == 0 {
+		return errors.New("must provide TxNotInMempoolTimeout")
+	}
+	if m.SafeAbortNonceTooLowCount == 0 {
+		return errors.New("SafeAbortNonceTooLowCount must not be 0")
 	}
 	if err := m.SignerCLIConfig.Check(); err != nil {
 		return err
@@ -157,26 +172,27 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 		ReceiptQueryInterval:      ctx.GlobalDuration(ReceiptQueryIntervalFlagName),
 		NetworkTimeout:            ctx.GlobalDuration(NetworkTimeoutFlagName),
 		TxSendTimeout:             ctx.GlobalDuration(TxSendTimeoutFlagName),
+		TxNotInMempoolTimeout:     ctx.GlobalDuration(TxNotInMempoolTimeoutFlagName),
 	}
 }
 
 func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 	if err := cfg.Check(); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("could not dial eth client: %w", err)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
 	}
 
 	// Allow backwards compatible ways of specifying the HD path
@@ -189,7 +205,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 
 	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("could not init signer: %w", err)
 	}
 
 	return Config{
@@ -197,6 +213,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 		ResubmissionTimeout:       cfg.ResubmissionTimeout,
 		ChainID:                   chainID,
 		TxSendTimeout:             cfg.TxSendTimeout,
+		TxNotInMempoolTimeout:     cfg.TxNotInMempoolTimeout,
 		NetworkTimeout:            cfg.NetworkTimeout,
 		ReceiptQueryInterval:      cfg.ReceiptQueryInterval,
 		NumConfirmations:          cfg.NumConfirmations,
@@ -221,6 +238,10 @@ type Config struct {
 	// TxSendTimeout is how long to wait for sending a transaction.
 	// By default it is unbounded. If set, this is recommended to be at least 20 minutes.
 	TxSendTimeout time.Duration
+
+	// TxNotInMempoolTimeout is how long to wait before aborting a transaction send if the transaction does not
+	// make it to the mempool. If the tx is in the mempool, TxSendTimeout is used instead.
+	TxNotInMempoolTimeout time.Duration
 
 	// NetworkTimeout is the allowed duration for a single network request.
 	// This is intended to be used for network requests that can be replayed.

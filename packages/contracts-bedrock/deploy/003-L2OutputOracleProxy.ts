@@ -20,6 +20,6 @@ const deployFn: DeployFunction = async (hre) => {
   })
 }
 
-deployFn.tags = ['L2OutputOracleProxy', 'setup']
+deployFn.tags = ['L2OutputOracleProxy', 'setup', 'l1']
 
 export default deployFn

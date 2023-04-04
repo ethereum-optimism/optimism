@@ -116,6 +116,20 @@ func (cfg *Config) ValidateL2Config(ctx context.Context, client L2Client) error 
 	return nil
 }
 
+func (cfg *Config) TargetBlockNumber(timestamp uint64) (num uint64, err error) {
+	// subtract genesis time from timestamp to get the time elapsed since genesis, and then divide that
+	// difference by the block time to get the expected L2 block number at the current time. If the
+	// unsafe head does not have this block number, then there is a gap in the queue.
+	genesisTimestamp := cfg.Genesis.L2Time
+	if timestamp < genesisTimestamp {
+		return 0, fmt.Errorf("did not reach genesis time (%d) yet", genesisTimestamp)
+	}
+	wallClockGenesisDiff := timestamp - genesisTimestamp
+	// Note: round down, we should not request blocks into the future.
+	blocksSinceGenesis := wallClockGenesisDiff / cfg.BlockTime
+	return cfg.Genesis.L2.Number + blocksSinceGenesis, nil
+}
+
 type L1Client interface {
 	ChainID(context.Context) (*big.Int, error)
 	L1BlockRefByNumber(context.Context, uint64) (eth.L1BlockRef, error)

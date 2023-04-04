@@ -61,9 +61,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     addr
   )
 
-  const implementation = await Proxy.callStatic.implementation({
-    from: ethers.constants.AddressZero,
-  })
+  const implementation = await Proxy.connect(
+    ethers.constants.AddressZero
+  ).callStatic.implementation()
   console.log(`implementation is set to ${implementation}`)
   if (
     getAddress(implementation) !==
@@ -82,9 +82,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   }
 
   const l2ProxyOwnerAddress = deployConfig.l2ProxyOwnerAddress
-  const admin = await Proxy.callStatic.admin({
-    from: ethers.constants.AddressZero,
-  })
+  const admin = await Proxy.connect(
+    ethers.constants.AddressZero
+  ).callStatic.admin()
   console.log(`admin is set to ${admin}`)
   if (getAddress(admin) !== getAddress(l2ProxyOwnerAddress)) {
     console.log('admin not set correctly')
@@ -99,7 +99,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   console.log('Contract deployment complete')
 
   await assertContractVariable(Proxy, 'admin', l2ProxyOwnerAddress)
-  await assertContractVariable(AttestationStation, 'version', '1.0.0')
+  await assertContractVariable(AttestationStation, 'version', '1.1.0')
 }
 
 deployFn.tags = ['AttestationStationProxy', 'OptimistEnvironment']

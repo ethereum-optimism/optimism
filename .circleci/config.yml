@@ -330,29 +330,70 @@ jobs:
           patterns: contracts-bedrock,hardhat-deploy-config
       - run:
           name: lint
-          command: yarn lint:check
-          working_directory: packages/contracts-bedrock
-      - run:
-          name: slither
           command: |
-            slither --version
-            yarn slither || exit 0
+            yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: gas snapshot
           command: |
             forge --version
-            yarn gas-snapshot --check
+            yarn gas-snapshot --check || echo "export GAS_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           environment:
             FOUNDRY_PROFILE: ci
           working_directory: packages/contracts-bedrock
       - run:
           name: storage snapshot
-          command: yarn storage-snapshot && git diff --exit-code .storage-layout
+          command: |
+            yarn storage-snapshot
+            git diff --exit-code .storage-layout || echo "export STORAGE_SNAPSHOT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
           name: invariant docs
-          command: yarn autogen:invariant-docs && git diff --exit-code ./invariant-docs/*.md
+          command: |
+            yarn autogen:invariant-docs
+            git diff --exit-code ./invariant-docs/*.md || echo "export INVARIANT_DOCS_STATUS=1" >> "$BASH_ENV"
+          working_directory: packages/contracts-bedrock
+      - run:
+          name: check statuses
+          command: |
+            if [[ "$LINT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Linting failed, see job output for details."
+            fi
+            if [[ "$GAS_SNAPSHOT_STATUS" -ne 0 ]]; then
+              FAILED=1
+              echo "Gas snapshot failed, see job output for details."
+            fi
+            if [[ "$STORAGE_SNAPSHOT_STATUS" -ne 0 ]]; then
+              echo "Storage snapshot failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$INVARIANT_DOCS_STATUS" -ne 0 ]]; then
+              echo "Invariant docs failed, see job output for details."
+              FAILED=1
+            fi
+            if [[ "$FAILED" -ne 0 ]]; then
+              exit 1
+            fi
+
+  contracts-bedrock-slither:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: slither
+          command: |
+            slither --version
+            yarn slither
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
@@ -968,6 +1009,9 @@ workflows:
       - contracts-bedrock-checks:
           requires:
             - yarn-monorepo
+      - contracts-bedrock-slither:
+          requires:
+            - yarn-monorepo
       - contracts-bedrock-validate-spaces:
           requires:
             - yarn-monorepo
@@ -1097,6 +1141,9 @@ workflows:
           name: op-proposer-lint
           module: op-proposer
       - go-lint:
+          name: op-program-lint
+          module: op-program
+      - go-lint:
           name: op-service-lint
           module: op-service
       - go-lint:
@@ -1119,6 +1166,9 @@ workflows:
           name: op-proposer-tests
           module: op-proposer
       - go-test:
+          name: op-program-tests
+          module: op-program
+      - go-test:
           name: op-service-tests
           module: op-service
       - go-e2e-test:
@@ -1137,12 +1187,14 @@ workflows:
             - op-e2e-lint
             - op-node-lint
             - op-proposer-lint
+            - op-program-lint
             - op-service-lint
             - op-batcher-tests
             - op-bindings-tests
             - op-chain-ops-tests
             - op-node-tests
             - op-proposer-tests
+            - op-program-tests
             - op-service-tests
             - op-e2e-WS-tests
             - op-e2e-HTTP-tests

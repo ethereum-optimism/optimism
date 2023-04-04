@@ -42,7 +42,7 @@ func Main(version string, cliCtx *cli.Context) error {
 	m := metrics.NewMetrics("default")
 	l.Info("Initializing L2 Output Submitter")
 
-	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l)
+	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l, m)
 	if err != nil {
 		l.Error("Unable to create the L2 Output Submitter", "error", err)
 		return err
@@ -138,7 +138,7 @@ type L2OutputSubmitter struct {
 
 // NewL2OutputSubmitterFromCLIConfig creates a new L2 Output Submitter given the CLI Config
 func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*L2OutputSubmitter, error) {
-	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l)
+	proposerConfig, err := NewL2OutputSubmitterConfigFromCLIConfig(cfg, l, m)
 	if err != nil {
 		return nil, err
 	}
@@ -146,17 +146,16 @@ func NewL2OutputSubmitterFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Me
 }
 
 // NewL2OutputSubmitterConfigFromCLIConfig creates the proposer config from the CLI config.
-func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger) (*Config, error) {
+func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metrics.Metricer) (*Config, error) {
 	l2ooAddress, err := parseAddress(cfg.L2OOAddress)
 	if err != nil {
 		return nil, err
 	}
 
-	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}
-	txManager := txmgr.NewSimpleTxManager("proposer", l, txManagerConfig)
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
@@ -173,7 +172,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger) (*Conf
 	return &Config{
 		L2OutputOracleAddr: l2ooAddress,
 		PollInterval:       cfg.PollInterval,
-		NetworkTimeout:     txManagerConfig.NetworkTimeout,
+		NetworkTimeout:     cfg.TxMgrConfig.NetworkTimeout,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
@@ -329,9 +328,8 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	}
 	receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		TxData:   data,
-		To:       l.l2ooContractAddr,
+		To:       &l.l2ooContractAddr,
 		GasLimit: 0,
-		From:     l.txMgr.From(),
 	})
 	if err != nil {
 		return err

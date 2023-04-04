@@ -22,8 +22,10 @@ const config: HardhatUserConfig = {
     hardhat: {
       live: false,
     },
+    // NOTE: The 'mainnet' network is currently being used for mainnet rehearsals.
     mainnet: {
-      url: process.env.L1_RPC || 'http://localhost:8545',
+      url: process.env.L1_RPC || 'https://mainnet-l1-rehearsal.optimism.io',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
     },
     devnetL1: {
       live: false,
@@ -48,6 +50,17 @@ const config: HardhatUserConfig = {
       chainId: 5,
       url: process.env.L1_RPC || '',
       accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      companionNetworks: {
+        l2: 'optimism-goerli',
+      },
+    },
+    'optimism-goerli': {
+      chainId: 420,
+      url: process.env.L2_RPC || '',
+      accounts: [process.env.PRIVATE_KEY_DEPLOYER || ethers.constants.HashZero],
+      companionNetworks: {
+        l1: 'goerli',
+      },
     },
     'alpha-1': {
       chainId: 5,

@@ -3,6 +3,7 @@ package txmgr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"testing"
@@ -11,6 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/testlog"
+	"github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -19,6 +22,10 @@ import (
 )
 
 type sendTransactionFunc func(ctx context.Context, tx *types.Transaction) error
+
+func testSendState() *SendState {
+	return NewSendState(100, time.Hour)
+}
 
 // testHarness houses the necessary resources to test the SimpleTxManager.
 type testHarness struct {
@@ -34,7 +41,14 @@ func newTestHarnessWithConfig(t *testing.T, cfg Config) *testHarness {
 	g := newGasPricer(3)
 	backend := newMockBackend(g)
 	cfg.Backend = backend
-	mgr := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), cfg)
+	mgr := &SimpleTxManager{
+		chainID: cfg.ChainID,
+		name:    "TEST",
+		cfg:     cfg,
+		backend: cfg.Backend,
+		l:       testlog.Logger(t, log.LvlCrit),
+		metr:    &metrics.NoopTxMetrics{},
+	}
 
 	return &testHarness{
 		cfg:       cfg,
@@ -53,11 +67,9 @@ func newTestHarness(t *testing.T) *testHarness {
 // createTxCandidate creates a mock [TxCandidate].
 func (h testHarness) createTxCandidate() TxCandidate {
 	inbox := common.HexToAddress("0x42000000000000000000000000000000000000ff")
-	sender := common.HexToAddress("0xdeadbeef")
 	return TxCandidate{
-		To:       inbox,
+		To:       &inbox,
 		TxData:   []byte{0x00, 0x01, 0x02},
-		From:     sender,
 		GasLimit: uint64(1337),
 	}
 }
@@ -68,6 +80,7 @@ func configWithNumConfs(numConfirmations uint64) Config {
 		ReceiptQueryInterval:      50 * time.Millisecond,
 		NumConfirmations:          numConfirmations,
 		SafeAbortNonceTooLowCount: 3,
+		TxNotInMempoolTimeout:     1 * time.Hour,
 		Signer: func(ctx context.Context, from common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return tx, nil
 		},
@@ -530,7 +543,7 @@ func TestWaitMinedReturnsReceiptOnFirstSuccess(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	receipt, err := h.mgr.waitMined(ctx, tx, nil)
+	receipt, err := h.mgr.waitMined(ctx, tx, testSendState())
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)
@@ -549,7 +562,7 @@ func TestWaitMinedCanBeCanceled(t *testing.T) {
 	// Create an unimined tx.
 	tx := types.NewTx(&types.LegacyTx{})
 
-	receipt, err := h.mgr.waitMined(ctx, tx, nil)
+	receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 }
@@ -570,7 +583,7 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 	txHash := tx.Hash()
 	h.backend.mine(&txHash, new(big.Int))
 
-	receipt, err := h.mgr.waitMined(ctx, tx, nil)
+	receipt, err := h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
 	require.Equal(t, err, context.DeadlineExceeded)
 	require.Nil(t, receipt)
 
@@ -579,24 +592,19 @@ func TestWaitMinedMultipleConfs(t *testing.T) {
 
 	// Mine an empty block, tx should now be confirmed.
 	h.backend.mine(nil, nil)
-	receipt, err = h.mgr.waitMined(ctx, tx, nil)
+	receipt, err = h.mgr.waitMined(ctx, tx, NewSendState(10, time.Hour))
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, txHash, receipt.TxHash)
 }
 
-// TestManagerPanicOnZeroConfs ensures that the NewSimpleTxManager will panic
+// TestManagerErrsOnZeroConfs ensures that the NewSimpleTxManager will error
 // when attempting to configure with NumConfirmations set to zero.
-func TestManagerPanicOnZeroConfs(t *testing.T) {
+func TestManagerErrsOnZeroConfs(t *testing.T) {
 	t.Parallel()
 
-	defer func() {
-		if r := recover(); r == nil {
-			t.Fatal("NewSimpleTxManager should panic when using zero conf")
-		}
-	}()
-
-	_ = newTestHarnessWithConfig(t, configWithNumConfs(0))
+	_, err := NewSimpleTxManager("TEST", testlog.Logger(t, log.LvlCrit), &metrics.NoopTxMetrics{}, CLIConfig{})
+	require.Error(t, err)
 }
 
 // failingBackend implements ReceiptSource, returning a failure on the
@@ -692,7 +700,7 @@ func TestWaitMinedReturnsReceiptAfterFailure(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	receipt, err := mgr.waitMined(ctx, tx, nil)
+	receipt, err := mgr.waitMined(ctx, tx, testSendState())
 	require.Nil(t, err)
 	require.NotNil(t, receipt)
 	require.Equal(t, receipt.TxHash, txHash)
@@ -724,8 +732,7 @@ func doGasPriceIncrease(t *testing.T, txTipCap, txFeeCap, newTip, newBaseFee int
 		GasTipCap: big.NewInt(txTipCap),
 		GasFeeCap: big.NewInt(txFeeCap),
 	})
-	newTx, err := mgr.increaseGasPrice(context.Background(), tx)
-	require.NoError(t, err)
+	newTx := mgr.increaseGasPrice(context.Background(), tx)
 	return tx, newTx
 }
 
@@ -831,11 +838,32 @@ func TestIncreaseGasPriceNotExponential(t *testing.T) {
 	// Run IncreaseGasPrice a bunch of times in a row to simulate a very fast resubmit loop.
 	for i := 0; i < 20; i++ {
 		ctx := context.Background()
-		newTx, err := mgr.increaseGasPrice(ctx, tx)
-		require.NoError(t, err)
+		newTx := mgr.increaseGasPrice(ctx, tx)
 		require.True(t, newTx.GasFeeCap().Cmp(feeCap) == 0, "new tx fee cap must be equal L1")
 		require.True(t, newTx.GasTipCap().Cmp(borkedBackend.gasTip) == 0, "new tx tip must be equal L1")
 		tx = newTx
 	}
 
+}
+
+func TestErrStringMatch(t *testing.T) {
+	tests := []struct {
+		err    error
+		target error
+		match  bool
+	}{
+		{err: nil, target: nil, match: true},
+		{err: errors.New("exists"), target: nil, match: false},
+		{err: nil, target: errors.New("exists"), match: false},
+		{err: errors.New("exact match"), target: errors.New("exact match"), match: true},
+		{err: errors.New("partial: match"), target: errors.New("match"), match: true},
+	}
+
+	for i, test := range tests {
+		i := i
+		test := test
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			require.Equal(t, test.match, errStringMatch(test.err, test.target))
+		})
+	}
 }

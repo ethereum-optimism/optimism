@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
 	opmetrics "github.com/ethereum-optimism/optimism/op-service/metrics"
+	txmetrics "github.com/ethereum-optimism/optimism/op-service/txmgr/metrics"
 )
 
 const Namespace = "op_batcher"
@@ -21,6 +22,9 @@ type Metricer interface {
 
 	// Records all L1 and L2 block events
 	opmetrics.RefMetricer
+
+	// Record Tx metrics
+	txmetrics.TxMetricer
 
 	RecordLatestL1Block(l1ref eth.L1BlockRef)
 	RecordL2BlocksLoaded(l2ref eth.L2BlockRef)
@@ -43,6 +47,7 @@ type Metrics struct {
 	factory  opmetrics.Factory
 
 	opmetrics.RefMetrics
+	txmetrics.TxMetrics
 
 	Info prometheus.GaugeVec
 	Up   prometheus.Gauge
@@ -80,6 +85,7 @@ func NewMetrics(procName string) *Metrics {
 		factory:  factory,
 
 		RefMetrics: opmetrics.MakeRefMetrics(ns, factory),
+		TxMetrics:  txmetrics.MakeTxMetrics(ns, factory),
 
 		Info: *factory.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: ns,
