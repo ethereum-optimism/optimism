@@ -66,6 +66,19 @@ func TestNetwork(t *testing.T) {
 	}
 }
 
+func TestL2(t *testing.T) {
+	expected := "https://example.com:8545"
+	cfg := configForArgs(t, addRequiredArgs("--l2", expected))
+	require.Equal(t, expected, cfg.L2URL)
+}
+
+// Offline support will be added later, but for now it just bails out with an error
+func TestOfflineModeNotSupported(t *testing.T) {
+	logger := log.New()
+	err := FaultProofProgram(logger, config.NewConfig(&chaincfg.Goerli))
+	require.ErrorContains(t, err, "offline mode not supported")
+}
+
 func verifyArgsInvalid(t *testing.T, messageContains string, cliArgs []string) {
 	_, _, err := runWithArgs(cliArgs)
 	require.ErrorContains(t, err, messageContains)

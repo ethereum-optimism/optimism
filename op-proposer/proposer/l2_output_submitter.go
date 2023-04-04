@@ -152,11 +152,10 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 		return nil, err
 	}
 
-	txManagerConfig, err := txmgr.NewConfig(cfg.TxMgrConfig, l)
+	txManager, err := txmgr.NewSimpleTxManager("proposer", l, m, cfg.TxMgrConfig)
 	if err != nil {
 		return nil, err
 	}
-	txManager := txmgr.NewSimpleTxManager("proposer", l, m, txManagerConfig)
 
 	// Connect to L1 and L2 providers. Perform these last since they are the most expensive.
 	ctx := context.Background()
@@ -173,7 +172,7 @@ func NewL2OutputSubmitterConfigFromCLIConfig(cfg CLIConfig, l log.Logger, m metr
 	return &Config{
 		L2OutputOracleAddr: l2ooAddress,
 		PollInterval:       cfg.PollInterval,
-		NetworkTimeout:     txManagerConfig.NetworkTimeout,
+		NetworkTimeout:     cfg.TxMgrConfig.NetworkTimeout,
 		L1Client:           l1Client,
 		RollupClient:       rollupClient,
 		AllowNonFinalized:  cfg.AllowNonFinalized,
@@ -329,9 +328,8 @@ func (l *L2OutputSubmitter) sendTransaction(ctx context.Context, output *eth.Out
 	}
 	receipt, err := l.txMgr.Send(ctx, txmgr.TxCandidate{
 		TxData:   data,
-		To:       l.l2ooContractAddr,
+		To:       &l.l2ooContractAddr,
 		GasLimit: 0,
-		From:     l.txMgr.From(),
 	})
 	if err != nil {
 		return err

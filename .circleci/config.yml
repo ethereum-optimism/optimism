@@ -334,12 +334,6 @@ jobs:
             yarn lint:check || echo "export LINT_STATUS=1" >> "$BASH_ENV"
           working_directory: packages/contracts-bedrock
       - run:
-          name: slither
-          command: |
-            slither --version
-            yarn slither || exit 0
-          working_directory: packages/contracts-bedrock
-      - run:
           name: gas snapshot
           command: |
             forge --version
@@ -381,6 +375,26 @@ jobs:
             if [[ "$FAILED" -ne 0 ]]; then
               exit 1
             fi
+
+  contracts-bedrock-slither:
+    docker:
+      - image: ethereumoptimism/ci-builder:latest
+    resource_class: xlarge
+    steps:
+      - checkout
+      - attach_workspace: { at: "." }
+      - restore_cache:
+          name: Restore Yarn Package Cache
+          keys:
+            - yarn-packages-v2-{{ checksum "yarn.lock" }}
+      - check-changed:
+          patterns: contracts-bedrock,hardhat-deploy-config
+      - run:
+          name: slither
+          command: |
+            slither --version
+            yarn slither
+          working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
     docker:
@@ -993,6 +1007,9 @@ workflows:
           requires:
             - yarn-monorepo
       - contracts-bedrock-checks:
+          requires:
+            - yarn-monorepo
+      - contracts-bedrock-slither:
           requires:
             - yarn-monorepo
       - contracts-bedrock-validate-spaces:

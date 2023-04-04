@@ -3,6 +3,7 @@ package txmgr
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
@@ -81,7 +82,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		cli.DurationFlag{
 			Name:   ResubmissionTimeoutFlagName,
 			Usage:  "Duration we will wait before resubmitting a transaction to L1",
-			Value:  30 * time.Second,
+			Value:  48 * time.Second,
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "RESUBMISSION_TIMEOUT"),
 		},
 		cli.DurationFlag{
@@ -105,7 +106,7 @@ func CLIFlags(envPrefix string) []cli.Flag {
 		cli.DurationFlag{
 			Name:   ReceiptQueryIntervalFlagName,
 			Usage:  "Frequency to poll for receipts",
-			Value:  30 * time.Second,
+			Value:  12 * time.Second,
 			EnvVar: opservice.PrefixEnvVar(envPrefix, "TXMGR_RECEIPT_QUERY_INTERVAL"),
 		},
 	}, client.CLIFlags(envPrefix)...)
@@ -177,21 +178,21 @@ func ReadCLIConfig(ctx *cli.Context) CLIConfig {
 
 func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 	if err := cfg.Check(); err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("invalid config: %w", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	l1, err := ethclient.DialContext(ctx, cfg.L1RPCURL)
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("could not dial eth client: %w", err)
 	}
 
 	ctx, cancel = context.WithTimeout(context.Background(), cfg.NetworkTimeout)
 	defer cancel()
 	chainID, err := l1.ChainID(ctx)
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("could not dial fetch L1 chain ID: %w", err)
 	}
 
 	// Allow backwards compatible ways of specifying the HD path
@@ -204,7 +205,7 @@ func NewConfig(cfg CLIConfig, l log.Logger) (Config, error) {
 
 	signerFactory, from, err := opcrypto.SignerFactoryFromConfig(l, cfg.PrivateKey, cfg.Mnemonic, hdPath, cfg.SignerCLIConfig)
 	if err != nil {
-		return Config{}, err
+		return Config{}, fmt.Errorf("could not init signer: %w", err)
 	}
 
 	return Config{

@@ -23,6 +23,11 @@ var (
 		Usage:  fmt.Sprintf("Predefined network selection. Available networks: %s", strings.Join(chaincfg.AvailableNetworks(), ", ")),
 		EnvVar: service.PrefixEnvVar(envVarPrefix, "NETWORK"),
 	}
+	L2NodeAddr = cli.StringFlag{
+		Name:   "l2",
+		Usage:  "Address of L2 JSON-RPC endpoint to use (eth and debug namespace required)",
+		EnvVar: service.PrefixEnvVar(envVarPrefix, "L2_RPC"),
+	}
 )
 
 // Flags contains the list of configuration options available to the binary.
@@ -31,6 +36,7 @@ var Flags []cli.Flag
 var programFlags = []cli.Flag{
 	RollupConfig,
 	Network,
+	L2NodeAddr,
 }
 
 func init() {

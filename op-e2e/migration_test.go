@@ -18,7 +18,6 @@ import (
 	proposermetrics "github.com/ethereum-optimism/optimism/op-proposer/metrics"
 	l2os "github.com/ethereum-optimism/optimism/op-proposer/proposer"
 	oplog "github.com/ethereum-optimism/optimism/op-service/log"
-	"github.com/ethereum-optimism/optimism/op-service/txmgr"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/container"
@@ -340,14 +339,7 @@ func TestMigration(t *testing.T) {
 		ApproxComprRatio:   0.4,
 		SubSafetyMargin:    4,
 		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig: txmgr.CLIConfig{
-			L1RPCURL:                  forkedL1URL,
-			PrivateKey:                hexPriv(secrets.Batcher),
-			NumConfirmations:          1,
-			ResubmissionTimeout:       5 * time.Second,
-			SafeAbortNonceTooLowCount: 3,
-			TxNotInMempoolTimeout:     2 * time.Minute,
-		},
+		TxMgrConfig:        newTxMgrConfig(forkedL1URL, secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
@@ -366,14 +358,7 @@ func TestMigration(t *testing.T) {
 		L2OOAddress:       l2OS.Address.String(),
 		PollInterval:      50 * time.Millisecond,
 		AllowNonFinalized: true,
-		TxMgrConfig: txmgr.CLIConfig{
-			L1RPCURL:                  forkedL1URL,
-			PrivateKey:                hexPriv(secrets.Proposer),
-			NumConfirmations:          1,
-			ResubmissionTimeout:       3 * time.Second,
-			SafeAbortNonceTooLowCount: 3,
-			TxNotInMempoolTimeout:     2 * time.Minute,
-		},
+		TxMgrConfig:       newTxMgrConfig(forkedL1URL, secrets.Proposer),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",

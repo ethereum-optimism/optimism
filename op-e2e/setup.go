@@ -47,6 +47,19 @@ var (
 	testingJWTSecret = [32]byte{123}
 )
 
+func newTxMgrConfig(l1Addr string, privKey *ecdsa.PrivateKey) txmgr.CLIConfig {
+	return txmgr.CLIConfig{
+		L1RPCURL:                  l1Addr,
+		PrivateKey:                hexPriv(privKey),
+		NumConfirmations:          1,
+		SafeAbortNonceTooLowCount: 3,
+		ResubmissionTimeout:       3 * time.Second,
+		ReceiptQueryInterval:      50 * time.Millisecond,
+		NetworkTimeout:            2 * time.Second,
+		TxNotInMempoolTimeout:     2 * time.Minute,
+	}
+}
+
 func DefaultSystemConfig(t *testing.T) SystemConfig {
 	secrets, err := e2eutils.DefaultMnemonicConfig.Secrets()
 	require.NoError(t, err)
@@ -193,6 +206,9 @@ type SystemConfig struct {
 	// Any node name not in the topology will not have p2p enabled.
 	P2PTopology map[string][]string
 
+	// Enables req-resp sync in the P2P nodes
+	P2PReqRespSync bool
+
 	// If the proposer can make proposals for L2 blocks derived from L1 blocks which are not finalized on L1 yet.
 	NonFinalizedProposals bool
 
@@ -204,6 +220,8 @@ type System struct {
 	cfg SystemConfig
 
 	RollupConfig *rollup.Config
+
+	L2GenesisCfg *core.Genesis
 
 	// Connections to running nodes
 	Nodes             map[string]*node.Node
@@ -316,6 +334,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	if err != nil {
 		return nil, err
 	}
+	sys.L2GenesisCfg = l2Genesis
 	for addr, amount := range cfg.Premine {
 		if existing, ok := l2Genesis.Alloc[addr]; ok {
 			l2Genesis.Alloc[addr] = core.GenesisAccount{
@@ -398,30 +417,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	// Configure connections to L1 and L2 for rollup nodes.
 	// TODO: refactor testing to use in-process rpc connections instead of websockets.
 
-	l1EndpointConfig := l1Node.WSEndpoint()
-	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
-	if useHTTP {
-		log.Info("using HTTP client")
-		l1EndpointConfig = l1Node.HTTPEndpoint()
-	}
-
 	for name, rollupCfg := range cfg.Nodes {
-		l2EndpointConfig := sys.Nodes[name].WSAuthEndpoint()
-		if useHTTP {
-			l2EndpointConfig = sys.Nodes[name].HTTPAuthEndpoint()
-		}
-		rollupCfg.L1 = &rollupNode.L1EndpointConfig{
-			L1NodeAddr:       l1EndpointConfig,
-			L1TrustRPC:       false,
-			L1RPCKind:        sources.RPCKindBasic,
-			RateLimit:        0,
-			BatchSize:        20,
-			HttpPollInterval: time.Duration(cfg.DeployConfig.L1BlockTime) * time.Second / 10,
-		}
-		rollupCfg.L2 = &rollupNode.L2EndpointConfig{
-			L2EngineAddr:      l2EndpointConfig,
-			L2EngineJWTSecret: cfg.JWTSecret,
-		}
+		configureL1(rollupCfg, l1Node)
+		configureL2(rollupCfg, sys.Nodes[name], cfg.JWTSecret)
+
 		rollupCfg.L2Sync = &rollupNode.PreparedL2SyncEndpoint{
 			Client:   nil,
 			TrustRPC: false,
@@ -473,9 +472,10 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 			// TODO we can enable discv5 in the testnodes to test discovery of new peers.
 			// Would need to mock though, and the discv5 implementation does not provide nice mocks here.
 			p := &p2p.Prepared{
-				HostP2P:   h,
-				LocalNode: nil,
-				UDPv5:     nil,
+				HostP2P:           h,
+				LocalNode:         nil,
+				UDPv5:             nil,
+				EnableReqRespSync: cfg.P2PReqRespSync,
 			}
 			p2pNodes[name] = p
 			return p, nil
@@ -568,20 +568,11 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 
 	// L2Output Submitter
 	sys.L2OutputSubmitter, err = l2os.NewL2OutputSubmitterFromCLIConfig(l2os.CLIConfig{
-		L1EthRpc:     sys.Nodes["l1"].WSEndpoint(),
-		RollupRpc:    sys.RollupNodes["sequencer"].HTTPEndpoint(),
-		L2OOAddress:  predeploys.DevL2OutputOracleAddr.String(),
-		PollInterval: 50 * time.Millisecond,
-		TxMgrConfig: txmgr.CLIConfig{
-			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
-			PrivateKey:                hexPriv(cfg.Secrets.Proposer),
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			ResubmissionTimeout:       3 * time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NetworkTimeout:            2 * time.Second,
-			TxNotInMempoolTimeout:     2 * time.Minute,
-		},
+		L1EthRpc:          sys.Nodes["l1"].WSEndpoint(),
+		RollupRpc:         sys.RollupNodes["sequencer"].HTTPEndpoint(),
+		L2OOAddress:       predeploys.DevL2OutputOracleAddr.String(),
+		PollInterval:      50 * time.Millisecond,
+		TxMgrConfig:       newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Proposer),
 		AllowNonFinalized: cfg.NonFinalizedProposals,
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
@@ -608,16 +599,7 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 		ApproxComprRatio:   0.4,
 		SubSafetyMargin:    4,
 		PollInterval:       50 * time.Millisecond,
-		TxMgrConfig: txmgr.CLIConfig{
-			L1RPCURL:                  sys.Nodes["l1"].WSEndpoint(),
-			PrivateKey:                hexPriv(cfg.Secrets.Batcher),
-			NumConfirmations:          1,
-			SafeAbortNonceTooLowCount: 3,
-			ResubmissionTimeout:       3 * time.Second,
-			ReceiptQueryInterval:      50 * time.Millisecond,
-			NetworkTimeout:            2 * time.Second,
-			TxNotInMempoolTimeout:     2 * time.Minute,
-		},
+		TxMgrConfig:        newTxMgrConfig(sys.Nodes["l1"].WSEndpoint(), cfg.Secrets.Batcher),
 		LogConfig: oplog.CLIConfig{
 			Level:  "info",
 			Format: "text",
@@ -635,6 +617,35 @@ func (cfg SystemConfig) Start(_opts ...SystemConfigOption) (*System, error) {
 	}
 
 	return sys, nil
+}
+
+func configureL1(rollupNodeCfg *rollupNode.Config, l1Node *node.Node) {
+	l1EndpointConfig := l1Node.WSEndpoint()
+	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
+	if useHTTP {
+		log.Info("using HTTP client")
+		l1EndpointConfig = l1Node.HTTPEndpoint()
+	}
+	rollupNodeCfg.L1 = &rollupNode.L1EndpointConfig{
+		L1NodeAddr:       l1EndpointConfig,
+		L1TrustRPC:       false,
+		L1RPCKind:        sources.RPCKindBasic,
+		RateLimit:        0,
+		BatchSize:        20,
+		HttpPollInterval: time.Millisecond * 100,
+	}
+}
+func configureL2(rollupNodeCfg *rollupNode.Config, l2Node *node.Node, jwtSecret [32]byte) {
+	useHTTP := os.Getenv("OP_E2E_USE_HTTP") == "true"
+	l2EndpointConfig := l2Node.WSAuthEndpoint()
+	if useHTTP {
+		l2EndpointConfig = l2Node.HTTPAuthEndpoint()
+	}
+
+	rollupNodeCfg.L2 = &rollupNode.L2EndpointConfig{
+		L2EngineAddr:      l2EndpointConfig,
+		L2EngineJWTSecret: jwtSecret,
+	}
 }
 
 func (cfg SystemConfig) L1ChainIDBig() *big.Int {
