@@ -3,6 +3,7 @@ package txmgr
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -12,48 +13,53 @@ import (
 // this context, a txn may correspond to multiple different txn hashes due to
 // varying gas prices, though we treat them all as the same logical txn. This
 // struct is primarily used to determine whether or not the txmgr should abort a
-// given txn and retry with a higher nonce.
+// given txn.
 type SendState struct {
-	minedTxs         map[common.Hash]struct{}
-	nonceTooLowCount uint64
-	mu               sync.RWMutex
+	minedTxs map[common.Hash]struct{}
+	mu       sync.RWMutex
+	now      func() time.Time
 
-	safeAbortNonceTooLowCount uint64
+	// Config
+	nonceTooLowCount    uint64
+	txInMempoolDeadline time.Time // deadline to abort at if no transactions are in the mempool
+
+	// Counts of the different types of errors
+	successFullPublishCount   uint64 // nil error => tx made it to the mempool
+	safeAbortNonceTooLowCount uint64 // nonce too low error
 }
 
-// NewSendState parameterizes a new SendState from the passed
-// safeAbortNonceTooLowCount.
-func NewSendState(safeAbortNonceTooLowCount uint64) *SendState {
+// NewSendStateWithNow creates a new send state with the provided clock.
+func NewSendStateWithNow(safeAbortNonceTooLowCount uint64, unableToSendTimeout time.Duration, now func() time.Time) *SendState {
 	if safeAbortNonceTooLowCount == 0 {
 		panic("txmgr: safeAbortNonceTooLowCount cannot be zero")
 	}
 
 	return &SendState{
 		minedTxs:                  make(map[common.Hash]struct{}),
-		nonceTooLowCount:          0,
 		safeAbortNonceTooLowCount: safeAbortNonceTooLowCount,
+		txInMempoolDeadline:       now().Add(unableToSendTimeout),
+		now:                       now,
 	}
+}
+
+// NewSendState creates a new send state
+func NewSendState(safeAbortNonceTooLowCount uint64, unableToSendTimeout time.Duration) *SendState {
+	return NewSendStateWithNow(safeAbortNonceTooLowCount, unableToSendTimeout, time.Now)
 }
 
 // ProcessSendError should be invoked with the error returned for each
 // publication. It is safe to call this method with nil or arbitrary errors.
-// Currently it only acts on errors containing the ErrNonceTooLow message.
 func (s *SendState) ProcessSendError(err error) {
-	// Nothing to do.
-	if err == nil {
-		return
-	}
-
-	// Only concerned with ErrNonceTooLow.
-	if !strings.Contains(err.Error(), core.ErrNonceTooLow.Error()) {
-		return
-	}
-
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Record this nonce too low observation.
-	s.nonceTooLowCount++
+	// Record the type of error
+	switch {
+	case err == nil:
+		s.successFullPublishCount++
+	case strings.Contains(err.Error(), core.ErrNonceTooLow.Error()):
+		s.nonceTooLowCount++
+	}
 }
 
 // TxMined records that the txn with txnHash has been mined and is await
@@ -85,8 +91,9 @@ func (s *SendState) TxNotMined(txHash common.Hash) {
 }
 
 // ShouldAbortImmediately returns true if the txmgr should give up on trying a
-// given txn with the target nonce. For now, this only happens if we see an
-// extended period of getting ErrNonceTooLow without having a txn mined.
+// given txn with the target nonce.
+// This occurs when the set of errors recorded indicates that no further progress can be made
+// on this transaction.
 func (s *SendState) ShouldAbortImmediately() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -96,9 +103,14 @@ func (s *SendState) ShouldAbortImmediately() bool {
 		return false
 	}
 
-	// Only abort if we've observed enough ErrNonceTooLow to meet our safe abort
-	// threshold.
-	return s.nonceTooLowCount >= s.safeAbortNonceTooLowCount
+	// If we have exceeded the nonce too low count, abort
+	if s.nonceTooLowCount >= s.safeAbortNonceTooLowCount ||
+		// If we have not published a transaction in the allotted time, abort
+		(s.successFullPublishCount == 0 && s.now().After(s.txInMempoolDeadline)) {
+		return true
+	}
+
+	return false
 }
 
 // IsWaitingForConfirmation returns true if we have at least one confirmation on

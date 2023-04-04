@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum-optimism/optimism/op-bindings/predeploys"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/crossdomain"
 	"github.com/ethereum-optimism/optimism/op-chain-ops/genesis"
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -25,9 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
 	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/ethereum/go-ethereum/ethclient/gethclient"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // abiTrue represents the storage representation of the boolean
@@ -115,7 +114,7 @@ func main() {
 			},
 		},
 		Action: func(ctx *cli.Context) error {
-			clients, err := newClients(ctx)
+			clients, err := util.NewClients(ctx)
 			if err != nil {
 				return err
 			}
@@ -433,7 +432,7 @@ func main() {
 }
 
 // callTrace will call `debug_traceTransaction` on a remote node
-func callTrace(c *clients, receipt *types.Receipt) (callFrame, error) {
+func callTrace(c *util.Clients, receipt *types.Receipt) (callFrame, error) {
 	var finalizationTrace callFrame
 	tracer := "callTracer"
 	traceConfig := tracers.TraceConfig{
@@ -558,7 +557,7 @@ func handleFinalizeERC20Withdrawal(args []any, receipt *types.Receipt, l1Standar
 // proveWithdrawalTransaction will build the data required for proving a
 // withdrawal and then send the transaction and make sure that it is included
 // and successful and then wait for the finalization period to elapse.
-func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
+func proveWithdrawalTransaction(c *contracts, cl *util.Clients, opts *bind.TransactOpts, withdrawal *crossdomain.Withdrawal, bn, finalizationPeriod *big.Int) error {
 	l2OutputIndex, outputRootProof, trieNodes, err := createOutput(withdrawal, c.L2OutputOracle, bn, cl)
 	if err != nil {
 		return err
@@ -614,7 +613,7 @@ func proveWithdrawalTransaction(c *contracts, cl *clients, opts *bind.TransactOp
 
 func finalizeWithdrawalTransaction(
 	c *contracts,
-	cl *clients,
+	cl *util.Clients,
 	opts *bind.TransactOpts,
 	wd *crossdomain.LegacyWithdrawal,
 	withdrawal *crossdomain.Withdrawal,
@@ -696,67 +695,6 @@ func newContracts(ctx *cli.Context, l1Backend, l2Backend bind.ContractBackend) (
 		OptimismPortal:         portal,
 		L1CrossDomainMessenger: l1CrossDomainMessenger,
 		L2OutputOracle:         oracle,
-	}, nil
-}
-
-// clients represents a set of initialized RPC clients
-type clients struct {
-	L1Client     *ethclient.Client
-	L2Client     *ethclient.Client
-	L1RpcClient  *rpc.Client
-	L2RpcClient  *rpc.Client
-	L1GethClient *gethclient.Client
-	L2GethClient *gethclient.Client
-}
-
-// newClients will create new RPC clients
-func newClients(ctx *cli.Context) (*clients, error) {
-	l1RpcURL := ctx.String("l1-rpc-url")
-	l1Client, err := ethclient.Dial(l1RpcURL)
-	if err != nil {
-		return nil, err
-	}
-	l1ChainID, err := l1Client.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	l2RpcURL := ctx.String("l2-rpc-url")
-	l2Client, err := ethclient.Dial(l2RpcURL)
-	if err != nil {
-		return nil, err
-	}
-	l2ChainID, err := l2Client.ChainID(context.Background())
-	if err != nil {
-		return nil, err
-	}
-
-	l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)
-	if err != nil {
-		return nil, err
-	}
-
-	l2RpcClient, err := rpc.DialContext(context.Background(), l2RpcURL)
-	if err != nil {
-		return nil, err
-	}
-
-	l1GethClient := gethclient.New(l1RpcClient)
-	l2GethClient := gethclient.New(l2RpcClient)
-
-	log.Info(
-		"Set up RPC clients",
-		"l1-chain-id", l1ChainID,
-		"l2-chain-id", l2ChainID,
-	)
-
-	return &clients{
-		L1Client:     l1Client,
-		L2Client:     l2Client,
-		L1RpcClient:  l1RpcClient,
-		L2RpcClient:  l2RpcClient,
-		L1GethClient: l1GethClient,
-		L2GethClient: l2GethClient,
 	}, nil
 }
 
@@ -849,7 +787,7 @@ func createOutput(
 	withdrawal *crossdomain.Withdrawal,
 	oracle *bindings.L2OutputOracle,
 	blockNumber *big.Int,
-	clients *clients,
+	clients *util.Clients,
 ) (*big.Int, bindings.TypesOutputRootProof, [][]byte, error) {
 	// compute the storage slot that the withdrawal is stored in
 	slot, err := withdrawal.StorageSlot()

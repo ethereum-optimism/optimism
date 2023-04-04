@@ -166,6 +166,7 @@ func randomSyncStatus(rng *rand.Rand) *eth.SyncStatus {
 		UnsafeL2:           testutils.RandomL2BlockRef(rng),
 		SafeL2:             testutils.RandomL2BlockRef(rng),
 		FinalizedL2:        testutils.RandomL2BlockRef(rng),
+		UnsafeL2SyncTarget: testutils.RandomL2BlockRef(rng),
 	}
 }
 
