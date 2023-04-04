@@ -39,21 +39,21 @@ func NewClients(ctx *cli.Context) (*Clients, error) {
 	l1RpcURL := ctx.String("l1-rpc-url")
 	l1Client, err := ethclient.Dial(l1RpcURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot dial L1: %w", err)
 	}
 	l1ChainID, err := l1Client.ChainID(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot fetch L1 chainid: %w", err)
 	}
 
 	l2RpcURL := ctx.String("l2-rpc-url")
 	l2Client, err := ethclient.Dial(l2RpcURL)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot dial L2: %w", err)
 	}
 	l2ChainID, err := l2Client.ChainID(context.Background())
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot fetch L2 chainid: %w", err)
 	}
 
 	l1RpcClient, err := rpc.DialContext(context.Background(), l1RpcURL)

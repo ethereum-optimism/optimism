@@ -9,21 +9,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/mattn/go-isatty"
+	"github.com/urfave/cli/v2"
+
+	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 
 	"github.com/ethereum-optimism/optimism/op-bindings/bindings"
 	legacy_bindings "github.com/ethereum-optimism/optimism/op-bindings/legacy-bindings"
-	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/ethereum-optimism/optimism/op-chain-ops/util"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/urfave/cli/v2"
 )
 
 func main() {
+	log.Root().SetHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(isatty.IsTerminal(os.Stderr.Fd()))))
+
 	app := cli.NewApp()
 	app.Name = "rollover"
 	app.Usage = "Commands for assisting in the rollover of the system"
@@ -149,6 +153,9 @@ func main() {
 					return err
 				}
 				log.Info("Remaining deposits that must be submitted", "count", finalPending)
+				if finalPending.Cmp(common.Big0) == 0 {
+					log.Info("All deposits have been batch submitted")
+				}
 				return nil
 			},
 		},
@@ -183,11 +190,11 @@ func main() {
 
 				log.Info("Waiting for CanonicalTransactionChain")
 				wg.Add(1)
-				go waitForTotalElements(&wg, ctc, clients.L2Client)
+				go waitForTotalElements(&wg, ctc, clients.L2Client, "CanonicalTransactionChain")
 
 				log.Info("Waiting for StateCommitmentChain")
 				wg.Add(1)
-				go waitForTotalElements(&wg, scc, clients.L2Client)
+				go waitForTotalElements(&wg, scc, clients.L2Client, "StateCommitmentChain")
 
 				wg.Wait()
 				log.Info("All batches have been submitted")
@@ -210,7 +217,7 @@ type RollupContract interface {
 }
 
 // waitForTotalElements will poll to see
-func waitForTotalElements(wg *sync.WaitGroup, contract RollupContract, client *ethclient.Client) {
+func waitForTotalElements(wg *sync.WaitGroup, contract RollupContract, client *ethclient.Client, name string) {
 	defer wg.Done()
 
 	for {
@@ -228,9 +235,16 @@ func waitForTotalElements(wg *sync.WaitGroup, contract RollupContract, client *e
 		}
 
 		if totalElements.Uint64() == bn {
+			log.Info("Total elements matches block number", "name", name, "count", bn)
 			return
 		}
-		log.Info("Waiting for elements to be submitted", "count", totalElements.Uint64()-bn, "height", bn, "total-elements", totalElements.Uint64())
+		log.Info(
+			"Waiting for elements to be submitted",
+			"name", name,
+			"count", totalElements.Uint64()-bn,
+			"height", bn,
+			"total-elements", totalElements.Uint64(),
+		)
 
 		time.Sleep(3 * time.Second)
 	}
