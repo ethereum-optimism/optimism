@@ -16,10 +16,11 @@ const { getAddress } = utils
 
 // Required conditions before deploying - Specified in `deployFn.dependencies`
 // - AttestationStationProxy is deployed and points to the correct implementation
-// - OptimistInviterImpl is deployed
+// - OptimistInviterProxy is deployed and points to the correct implementation
+// - OptimistAllowlistImpl is deployed
 //
 // Steps
-// 1. Deploy OptimistInviterProxy
+// 1. Deploy OptimistAllowlistProxy
 // 2. Point the newly deployed proxy to the implementation, if it hasn't been done already
 // 3. Update the admin of the proxy to the l2ProxyOwnerAddress, if it hasn't been done already
 // 4. Basic sanity checks for contract variables
@@ -45,20 +46,20 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     throw new Error('Must deploy with the ddd')
   }
 
-  // Get the up to date deployment of the OptimistInviter contract
-  const Deployment__OptimistInviterImpl = await hre.deployments.get(
-    'OptimistInviter'
+  // Get the up to date deployment of the OptimistAllowlist contract
+  const Deployment__OptimistAllowlistImpl = await hre.deployments.get(
+    'OptimistAllowlist'
   )
 
-  console.log(`Deploying OptimistInviterProxy with ${deployer}`)
+  console.log(`Deploying OptimistAllowlistProxy with ${deployer}`)
 
   // Deploys the Proxy.sol contract with the `_admin` constructor param set to the ddd (=== deployer).
   const { deploy } = await hre.deployments.deterministic(
-    'OptimistInviterProxy',
+    'OptimistAllowlistProxy',
     {
       salt: hre.ethers.utils.solidityKeccak256(
         ['string'],
-        ['OptimistInviterProxy']
+        ['OptimistAllowlistProxy']
       ),
       contract: 'Proxy',
       from: deployer,
@@ -70,30 +71,23 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   // Deploy the Proxy contract
   await deploy()
 
-  const Deployment__OptimistInviterProxy = await hre.deployments.get(
-    'OptimistInviterProxy'
+  const Deployment__OptimistAllowlistProxy = await hre.deployments.get(
+    'OptimistAllowlistProxy'
   )
   console.log(
-    `OptimistInviterProxy deployed to ${Deployment__OptimistInviterProxy.address}`
+    `OptimistAllowlistProxy deployed to ${Deployment__OptimistAllowlistProxy.address}`
   )
 
   // Deployed Proxy.sol contract
   const Proxy = await hre.ethers.getContractAt(
     'Proxy',
-    Deployment__OptimistInviterProxy.address
+    Deployment__OptimistAllowlistProxy.address
   )
 
-  // Deployed Proxy.sol contract with the OptimistInviter interface
-  const OptimistInviter = await hre.ethers.getContractAt(
-    'OptimistInviter',
-    Deployment__OptimistInviterProxy.address
-  )
-
-  const name = deployConfig.optimistInviterName
-  // Create the calldata for the call to `initialize()`
-  const initializeCalldata = OptimistInviter.interface.encodeFunctionData(
-    'initialize',
-    [name]
+  // Deployed Proxy.sol contract with the OptimistAllowlist interface
+  const OptimistAllowlist = await hre.ethers.getContractAt(
+    'OptimistAllowlist',
+    Deployment__OptimistAllowlistProxy.address
   )
 
   // ethers.Signer for the ddd. Should be the current owner of the Proxy.
@@ -104,13 +98,16 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   // setup the Proxy contract with correct implementation and admin
   await setupProxyContract(Proxy, dddSigner, {
-    targetImplAddress: Deployment__OptimistInviterImpl.address,
+    targetImplAddress: Deployment__OptimistAllowlistImpl.address,
     targetProxyOwnerAddress: l2ProxyOwnerAddress,
-    postUpgradeCallCalldata: initializeCalldata,
   })
 
-  const Deployment__AttestationStation = await hre.deployments.get(
+  const Deployment__AttestationStationProxy = await hre.deployments.get(
     'AttestationStationProxy'
+  )
+
+  const Deployment__OptimistInviter = await hre.deployments.get(
+    'OptimistInviterProxy'
   )
 
   await assert(
@@ -119,24 +116,38 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     ) === getAddress(l2ProxyOwnerAddress)
   )
 
-  await assertContractVariable(OptimistInviter, 'version', '1.0.0')
+  await assertContractVariable(OptimistAllowlist, 'version', '1.0.0')
 
   await assertContractVariable(
-    OptimistInviter,
-    'INVITE_GRANTER',
-    deployConfig.optimistInviterInviteGranter
-  )
-
-  await assertContractVariable(
-    OptimistInviter,
+    OptimistAllowlist,
     'ATTESTATION_STATION',
-    Deployment__AttestationStation.address
+    Deployment__AttestationStationProxy.address
   )
 
-  await assertContractVariable(OptimistInviter, 'EIP712_VERSION', '1.0.0')
+  await assertContractVariable(
+    OptimistAllowlist,
+    'ALLOWLIST_ATTESTOR',
+    deployConfig.optimistAllowlistAllowlistAttestor
+  )
+
+  await assertContractVariable(
+    OptimistAllowlist,
+    'COINBASE_QUEST_ATTESTOR',
+    deployConfig.optimistAllowlistCoinbaseQuestAttestor
+  )
+
+  await assertContractVariable(
+    OptimistAllowlist,
+    'OPTIMIST_INVITER',
+    Deployment__OptimistInviter.address
+  )
 }
 
-deployFn.tags = ['OptimistInviterProxy', 'OptimistEnvironment']
-deployFn.dependencies = ['AttestationStationProxy', 'OptimistInviterImpl']
+deployFn.tags = ['OptimistAllowlistProxy', 'OptimistEnvironment']
+deployFn.dependencies = [
+  'AttestationStationProxy',
+  'OptimistInviterProxy',
+  'OptimistAllowlistImpl',
+]
 
 export default deployFn
