@@ -76,6 +76,8 @@ contract OptimistAllowlist is Semver {
      *         3) Has a valid 'optimist.can-mint-from-invite' attestation from the OptimistInviter
      *            contract.
      *
+     * @param _claimer Address to check.
+     *
      * @return Whether or not the address is allowed to mint yet.
      */
     function isAllowedToMint(address _claimer) public view returns (bool) {
