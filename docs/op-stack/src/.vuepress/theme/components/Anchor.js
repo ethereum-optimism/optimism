@@ -57,7 +57,7 @@ export default Vue.extend({
                             "Support"
                         ]),
                         h("div", { class: "anchor-support-links" }, [
-                            h("a", { attrs: { href: "https://discord.optimism.io", target: "_blank" } }, [
+                            h("a", { attrs: { href: "https://discord.gg/optimism", target: "_blank" } }, [
                                 h("div", [
                                     h("i", { attrs: { class: "fab fa-discord" } }),
                                     " Discord community "

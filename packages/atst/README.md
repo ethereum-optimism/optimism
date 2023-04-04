@@ -63,7 +63,7 @@ Also some more hooks exported by the cli but these are likely the only ones you 
 
 Please see our [contributing.md](https://github.com/ethereum-optimism/optimism/blob/develop/CONTRIBUTING.md). No contribution is too small.
 
-Having your contribution denied feels bad. 
+Having your contribution denied feels bad.
 Please consider [opening an issue](https://github.com/ethereum-optimism/optimism/issues) before adding any new features or apis.
 
 
@@ -73,5 +73,5 @@ If you have any problems, these resources could help you:
 
 - [sdk documentation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/sdk.md)
 - [cli documentation](https://github.com/ethereum-optimism/optimism/blob/develop/packages/atst/docs/cli.md)
-- [Optimism Discord](https://discord-gateway.optimism.io/)
-- [Telegram group](https://t.me/+zwpJ8Ohqgl8yNjNh) 
+- [Optimism Discord](https://discord.gg/optimism)
+- [Telegram group](https://t.me/+zwpJ8Ohqgl8yNjNh)
