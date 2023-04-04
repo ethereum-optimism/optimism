@@ -20,6 +20,7 @@ import (
 
 // TestMissingGasLimit tests that op-geth cannot build a block without gas limit while optimism is active in the chain config.
 func TestMissingGasLimit(t *testing.T) {
+	parallel(t)
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -42,6 +43,7 @@ func TestMissingGasLimit(t *testing.T) {
 // TestInvalidDepositInFCU runs an invalid deposit through a FCU/GetPayload/NewPayload/FCU set of calls.
 // This tests that deposits must always allow the block to be built even if they are invalid.
 func TestInvalidDepositInFCU(t *testing.T) {
+	parallel(t)
 	cfg := DefaultSystemConfig(t)
 	cfg.DeployConfig.FundDevAccounts = false
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -87,6 +89,7 @@ func TestPreregolith(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run("GasUsed_"+test.name, func(t *testing.T) {
+			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -135,6 +138,7 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("DepositNonce_"+test.name, func(t *testing.T) {
+			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -193,6 +197,7 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("UnusedGasConsumed_"+test.name, func(t *testing.T) {
+			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 
@@ -234,6 +239,7 @@ func TestPreregolith(t *testing.T) {
 		})
 
 		t.Run("AllowSystemTx_"+test.name, func(t *testing.T) {
+			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = test.regolithTime
 
@@ -269,6 +275,7 @@ func TestRegolith(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run("GasUsedIsAccurate_"+test.name, func(t *testing.T) {
+			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -320,6 +327,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("DepositNonceCorrect_"+test.name, func(t *testing.T) {
+			parallel(t)
 			// Setup an L2 EE and create a client connection to the engine.
 			// We also need to setup a L1 Genesis to create the rollup genesis.
 			cfg := DefaultSystemConfig(t)
@@ -381,6 +389,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("ReturnUnusedGasToPool_"+test.name, func(t *testing.T) {
+			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
 
@@ -423,6 +432,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("RejectSystemTx_"+test.name, func(t *testing.T) {
+			parallel(t)
 			cfg := DefaultSystemConfig(t)
 			cfg.DeployConfig.L2GenesisRegolithTimeOffset = &test.regolithTime
 
@@ -444,6 +454,7 @@ func TestRegolith(t *testing.T) {
 		})
 
 		t.Run("IncludeGasRefunds_"+test.name, func(t *testing.T) {
+			parallel(t)
 			// Simple constructor that is prefixed to the actual contract code
 			// Results in the contract code being returned as the code for the new contract
 			deployPrefixSize := byte(16)
