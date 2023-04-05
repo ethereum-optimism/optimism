@@ -98,7 +98,7 @@ func TestL2Sequencer_SequencerDrift(gt *testing.T) {
 	// We passed the sequencer drift: we can still keep the old origin, but can't include any txs
 	sequencer.ActL2KeepL1Origin(t)
 	sequencer.ActL2StartBlock(t)
-	require.True(t, engine.l2ForceEmpty, "engine should not be allowed to include anything after sequencer drift is surpassed")
+	require.True(t, engine.engineApi.ForcedEmpty(), "engine should not be allowed to include anything after sequencer drift is surpassed")
 }
 
 // TestL2Sequencer_SequencerOnlyReorg regression-tests a Goerli halt where the sequencer
