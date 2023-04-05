@@ -193,4 +193,3 @@ The easiest way to withdraw ETH is to send it to the bridge, or the cross domain
 
 Your L1 balance doesn't increase by the entire `transferAmt` because of the cost of `crossChainMessenger.finalizeMessage`, which submits a transaction.
 
-:::
