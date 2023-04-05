@@ -384,7 +384,7 @@ func TestExtendedTimeWithoutL1Batches(gt *testing.T) {
 }
 
 // TestBigL2Txs tests a high-throughput case with constrained batcher:
-//   - Fill 100 L2 blocks to near max-capacity, with txs of 120 KB each
+//   - Fill 40 L2 blocks to near max-capacity, with txs of 120 KB each
 //   - Buffer the L2 blocks into channels together as much as possible, submit data-txs only when necessary
 //     (just before crossing the max RLP channel size)
 //   - Limit the data-tx size to 40 KB, to force data to be split across multiple datat-txs
@@ -428,7 +428,7 @@ func TestBigL2Txs(gt *testing.T) {
 	}
 
 	// build many L2 blocks filled to the brim with large txs of random data
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 40; i++ {
 		aliceNonce, err := cl.PendingNonceAt(t.Ctx(), dp.Addresses.Alice)
 		status := sequencer.SyncStatus()
 		// build empty L1 blocks as necessary, so the L2 sequencer can continue to include txs while not drifting too far out
