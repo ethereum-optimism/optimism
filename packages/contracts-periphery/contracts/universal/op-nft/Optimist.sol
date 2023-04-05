@@ -6,40 +6,54 @@ import {
     ERC721BurnableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721BurnableUpgradeable.sol";
 import { AttestationStation } from "./AttestationStation.sol";
+import { OptimistAllowlist } from "./OptimistAllowlist.sol";
 import { Strings } from "@openzeppelin/contracts/utils/Strings.sol";
 
 /**
  * @author Optimism Collective
  * @author Gitcoin
- * @title Optimist
+ * @title  Optimist
  * @notice A Soul Bound Token for real humans only(tm).
  */
 contract Optimist is ERC721BurnableUpgradeable, Semver {
+    /**
+     * @notice Attestation key used by the attestor to attest the baseURI.
+     */
+    bytes32 public constant BASE_URI_ATTESTATION_KEY = bytes32("optimist.base-uri");
+
+    /**
+     * @notice Attestor who attests to baseURI.
+     */
+    address public immutable BASE_URI_ATTESTOR;
+
     /**
      * @notice Address of the AttestationStation contract.
      */
     AttestationStation public immutable ATTESTATION_STATION;
 
     /**
-     * @notice Attestor who attests to baseURI and allowlist.
+     * @notice Address of the OptimistAllowlist contract.
      */
-    address public immutable ATTESTOR;
+    OptimistAllowlist public immutable OPTIMIST_ALLOWLIST;
 
     /**
-     * @custom:semver 1.0.0
+     * @custom:semver 2.0.0
      * @param _name               Token name.
      * @param _symbol             Token symbol.
-     * @param _attestor           Address of the attestor.
+     * @param _baseURIAttestor    Address of the baseURI attestor.
      * @param _attestationStation Address of the AttestationStation contract.
+     * @param _optimistAllowlist  Address of the OptimistAllowlist contract
      */
     constructor(
         string memory _name,
         string memory _symbol,
-        address _attestor,
-        AttestationStation _attestationStation
-    ) Semver(1, 0, 0) {
-        ATTESTOR = _attestor;
+        address _baseURIAttestor,
+        AttestationStation _attestationStation,
+        OptimistAllowlist _optimistAllowlist
+    ) Semver(2, 0, 0) {
+        BASE_URI_ATTESTOR = _baseURIAttestor;
         ATTESTATION_STATION = _attestationStation;
+        OPTIMIST_ALLOWLIST = _optimistAllowlist;
         initialize(_name, _symbol);
     }
 
@@ -76,7 +90,7 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
             string(
                 abi.encodePacked(
                     ATTESTATION_STATION.attestations(
-                        ATTESTOR,
+                        BASE_URI_ATTESTOR,
                         address(this),
                         bytes32("optimist.base-uri")
                     )
@@ -105,17 +119,15 @@ contract Optimist is ERC721BurnableUpgradeable, Semver {
     }
 
     /**
-     * @notice Checks whether a given address is allowed to mint the Optimist NFT yet. Since the
-     *         Optimist NFT will also be used as part of the Citizens House, mints are currently
-     *         restricted. Eventually anyone will be able to mint.
+     * @notice Checks OptimistAllowlist to determine whether a given address is allowed to mint
+     *         the Optimist NFT. Since the Optimist NFT will also be used as part of the
+     *         Citizens House, mints are currently restricted. Eventually anyone will be able
+     *         to mint.
      *
      * @return Whether or not the address is allowed to mint yet.
      */
     function isOnAllowList(address _recipient) public view returns (bool) {
-        return
-            ATTESTATION_STATION
-                .attestations(ATTESTOR, _recipient, bytes32("optimist.can-mint"))
-                .length > 0;
+        return OPTIMIST_ALLOWLIST.isAllowedToMint(_recipient);
     }
 
     /**
