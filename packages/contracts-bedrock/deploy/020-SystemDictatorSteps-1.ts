@@ -13,8 +13,8 @@ import {
   getDeploymentAddress,
   doPhase,
   jsonifyTransaction,
-  getTenderlySimulationLink,
-  getCastCommand,
+  printTenderlySimulationLink,
+  printCastCommand,
 } from '../src/deploy-utils'
 
 const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
@@ -101,8 +101,8 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+      printCastCommand(tx)
+      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     // Wait for the ownership transfer to complete.
@@ -139,8 +139,8 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+      printCastCommand(tx)
+      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     // Wait for the ownership transfer to complete.
@@ -177,8 +177,8 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`MSD address: ${SystemDictator.address}`)
       console.log(`JSON:`)
       console.log(jsonifyTransaction(tx))
-      console.log(getCastCommand(tx))
-      console.log(await getTenderlySimulationLink(SystemDictator.provider, tx))
+      printCastCommand(tx)
+      await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
 
     // Wait for the ownership transfer to complete.

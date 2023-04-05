@@ -391,7 +391,7 @@ export const doStep = async (opts: {
     console.log(`JSON:`)
     console.log(jsonifyTransaction(tx))
     console.log(
-      await getTenderlySimulationLink(opts.SystemDictator.provider, tx)
+      await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
     )
   }
 
@@ -447,7 +447,7 @@ export const doPhase = async (opts: {
     console.log(`JSON:`)
     console.log(jsonifyTransaction(tx))
     console.log(
-      await getTenderlySimulationLink(opts.SystemDictator.provider, tx)
+      await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
     )
   }
 
@@ -465,36 +465,36 @@ export const doPhase = async (opts: {
 }
 
 /**
- * Returns a direct link to a Tenderly simulation.
+ * Prints a direct link to a Tenderly simulation.
  *
  * @param provider Ethers Provider.
  * @param tx Ethers transaction object.
- * @returns the url of the tenderly simulation.
  */
-export const getTenderlySimulationLink = async (
+export const printTenderlySimulationLink = async (
   provider: ethers.providers.Provider,
   tx: ethers.PopulatedTransaction
-): Promise<string> => {
+): Promise<void> => {
   if (process.env.TENDERLY_PROJECT && process.env.TENDERLY_USERNAME) {
-    return `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
-      process.env.TENDERLY_USERNAME
-    }/simulator/new?${new URLSearchParams({
-      network: (await provider.getNetwork()).chainId.toString(),
-      contractAddress: tx.to,
-      rawFunctionInput: tx.data,
-      from: tx.from,
-    }).toString()}`
+    console.log(
+      `https://dashboard.tenderly.co/${process.env.TENDERLY_PROJECT}/${
+        process.env.TENDERLY_USERNAME
+      }/simulator/new?${new URLSearchParams({
+        network: (await provider.getNetwork()).chainId.toString(),
+        contractAddress: tx.to,
+        rawFunctionInput: tx.data,
+        from: tx.from,
+      }).toString()}`
+    )
   }
 }
 
 /**
- * Returns a cast commmand for submitting a given transaction.
+ * Prints a cast commmand for submitting a given transaction.
  *
  * @param tx Ethers transaction object.
- * @returns the cast command
  */
-export const getCastCommand = (tx: ethers.PopulatedTransaction): string => {
+export const printCastCommand = (tx: ethers.PopulatedTransaction): void => {
   if (process.env.CAST_COMMANDS) {
-    return `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+    console.log(`cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`)
   }
 }
