@@ -620,7 +620,7 @@ jobs:
           name: run tests
           command: |
             gotestsum --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>.xml \
-            -- -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
+            -- -parallel=8 -coverpkg=github.com/ethereum-optimism/optimism/... -coverprofile=coverage.out ./...
           working_directory: <<parameters.module>>
       - run:
           name: upload coverage
@@ -651,9 +651,10 @@ jobs:
           command: |
             # Note: We don't use circle CI test splits because we need to split by test name, not by package. There is an additional
             # constraint that gotestsum does not currently (nor likely will) accept files from different pacakges when building.
-            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=true OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
+            # Note: -parallel must be set to match the number of cores in the resource class
+            OP_TESTLOG_DISABLE_COLOR=true OP_E2E_DISABLE_PARALLEL=false OP_E2E_USE_HTTP=<<parameters.use_http>>  gotestsum \
             --format=standard-verbose --junitfile=/tmp/test-results/<<parameters.module>>_http_<<parameters.use_http>>.xml \
-            -- -timeout=20m ./...
+            -- -timeout=20m -parallel=8 ./...
           working_directory: <<parameters.module>>
       - store_test_results:
           path: /tmp/test-results
