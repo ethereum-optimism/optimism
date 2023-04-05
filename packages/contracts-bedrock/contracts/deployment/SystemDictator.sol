@@ -215,7 +215,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Configures the ProxyAdmin contract.
      */
-    function step1() external onlyOwner step(1) {
+    function step1() public onlyOwner step(1) {
         // Set the AddressManager in the ProxyAdmin.
         config.globalConfig.proxyAdmin.setAddressManager(config.globalConfig.addressManager);
 
@@ -260,7 +260,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Pauses the system by shutting down the L1CrossDomainMessenger and setting the
      *         deposit halt flag to tell the Sequencer's DTL to stop accepting deposits.
      */
-    function step2() external onlyOwner step(2) {
+    function step2() public onlyOwner step(2) {
         // Store the address of the old L1CrossDomainMessenger implementation. We will need this
         // address in the case that we have to exit early.
         oldL1CrossDomainMessenger = config.globalConfig.addressManager.getAddress(
@@ -408,6 +408,14 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
+    }
+
+    /**
+     * @notice Calls the first 2 steps of the migration process.
+     */
+    function phase1() external onlyOwner {
+        step1();
+        step2();
     }
 
     /**
