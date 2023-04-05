@@ -78,16 +78,6 @@ const deployFn: DeployFunction = async (hre) => {
       transferFunc: 'transferOwnership',
       dictator: SystemDictator,
     })
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await ProxyAdmin.owner()
-        return owner === SystemDictator.address
-      },
-      5000,
-      1000
-    )
   }
 
   // We don't need to transfer proxy addresses if we're already beyond the proxy transfer step.
@@ -107,16 +97,6 @@ const deployFn: DeployFunction = async (hre) => {
       transferFunc: 'transferOwnership',
       dictator: SystemDictator,
     })
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await AddressManager.owner()
-        return owner === SystemDictator.address
-      },
-      5000,
-      1000
-    )
   } else {
     console.log(`AddressManager already owned by the SystemDictator`)
   }
@@ -135,18 +115,6 @@ const deployFn: DeployFunction = async (hre) => {
       transferFunc: 'setOwner',
       dictator: SystemDictator,
     })
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await L1StandardBridgeProxy.callStatic.getOwner({
-          from: ethers.constants.AddressZero,
-        })
-        return owner === SystemDictator.address
-      },
-      5000,
-      1000
-    )
   } else {
     console.log(`L1StandardBridge already owned by MSD`)
   }
@@ -165,21 +133,33 @@ const deployFn: DeployFunction = async (hre) => {
       transferFunc: 'changeAdmin',
       dictator: SystemDictator,
     })
-
-    // Wait for the ownership transfer to complete.
-    await awaitCondition(
-      async () => {
-        const owner = await L1ERC721BridgeProxy.callStatic.admin({
-          from: ethers.constants.AddressZero,
-        })
-        return owner === SystemDictator.address
-      },
-      5000,
-      1000
-    )
   } else {
     console.log(`L1ERC721Bridge already owned by MSD`)
   }
+
+  // Wait for the ownership transfers to complete before continuing.
+  await awaitCondition(
+    async (): Promise<boolean> => {
+      const proxyAdminOwner = await ProxyAdmin.owner()
+      const addressManagerOwner = await AddressManager.owner()
+      const l1StandardBridgeOwner =
+        await L1StandardBridgeProxy.callStatic.getOwner({
+          from: ethers.constants.AddressZero,
+        })
+      const l1Erc721BridgeOwner = await L1ERC721BridgeProxy.callStatic.admin({
+        from: ethers.constants.AddressZero,
+      })
+
+      return (
+        proxyAdminOwner === SystemDictator.address &&
+        addressManagerOwner === SystemDictator.address &&
+        l1StandardBridgeOwner === SystemDictator.address &&
+        l1Erc721BridgeOwner === SystemDictator.address
+      )
+    },
+    5000,
+    1000
+  )
 
   await doPhase({
     isLiveDeployer,

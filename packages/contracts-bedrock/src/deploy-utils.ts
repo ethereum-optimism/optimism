@@ -338,6 +338,7 @@ export const doOwnershipTransfer = async (opts: {
   dictator: ethers.Contract
 }): Promise<void> => {
   if (opts.isLiveDeployer) {
+    console.log(`Setting ${opts.name} owner to MSD`)
     await opts.proxy[opts.transferFunc](opts.dictator.address)
   } else {
     const tx = await opts.proxy.populateTransaction[opts.transferFunc](
