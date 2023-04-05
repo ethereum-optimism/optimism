@@ -12,10 +12,14 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/testutils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/stretchr/testify/require"
 )
+
+// Require the fetching oracle to implement StateOracle
+var _ StateOracle = (*FetchingL2Oracle)(nil)
 
 type callContextRequest struct {
 	ctx    context.Context
@@ -50,7 +54,6 @@ func (c *stubCallContext) CallContext(ctx context.Context, result any, method st
 func TestNodeByHash(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	hash := testutils.RandomHash(rng)
-	ctx := context.Background()
 
 	t.Run("Error", func(t *testing.T) {
 		stub := &stubCallContext{
@@ -58,7 +61,7 @@ func TestNodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		node, err := fetcher.NodeByHash(ctx, hash)
+		node, err := fetcher.NodeByHash(hash)
 		require.ErrorIs(t, err, stub.nextErr)
 		require.Nil(t, node)
 	})
@@ -70,7 +73,7 @@ func TestNodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		node, err := fetcher.NodeByHash(ctx, hash)
+		node, err := fetcher.NodeByHash(hash)
 		require.NoError(t, err)
 		require.EqualValues(t, expected, node)
 	})
@@ -81,11 +84,72 @@ func TestNodeByHash(t *testing.T) {
 		}
 		fetcher := newFetcher(nil, stub)
 
-		_, _ = fetcher.NodeByHash(ctx, hash)
+		_, _ = fetcher.NodeByHash(hash)
 		require.Len(t, stub.requests, 1, "should make single request")
 		req := stub.requests[0]
 		require.Equal(t, "debug_dbGet", req.method)
 		require.Equal(t, []interface{}{hash.Hex()}, req.args)
+	})
+}
+
+func TestCodeByHash(t *testing.T) {
+	rng := rand.New(rand.NewSource(1234))
+	hash := testutils.RandomHash(rng)
+
+	t.Run("Error", func(t *testing.T) {
+		stub := &stubCallContext{
+			nextErr: errors.New("oops"),
+		}
+		fetcher := newFetcher(nil, stub)
+
+		node, err := fetcher.CodeByHash(hash)
+		require.ErrorIs(t, err, stub.nextErr)
+		require.Nil(t, node)
+	})
+
+	t.Run("Success", func(t *testing.T) {
+		expected := (hexutil.Bytes)([]byte{12, 34})
+		stub := &stubCallContext{
+			nextResult: expected,
+		}
+		fetcher := newFetcher(nil, stub)
+
+		node, err := fetcher.CodeByHash(hash)
+		require.NoError(t, err)
+		require.EqualValues(t, expected, node)
+	})
+
+	t.Run("RequestArgs", func(t *testing.T) {
+		stub := &stubCallContext{
+			nextResult: (hexutil.Bytes)([]byte{12, 34}),
+		}
+		fetcher := newFetcher(nil, stub)
+
+		_, _ = fetcher.CodeByHash(hash)
+		require.Len(t, stub.requests, 1, "should make single request")
+		req := stub.requests[0]
+		require.Equal(t, "debug_dbGet", req.method)
+		codeDbKey := append(rawdb.CodePrefix, hash.Bytes()...)
+		require.Equal(t, []interface{}{hexutil.Encode(codeDbKey)}, req.args)
+	})
+
+	t.Run("FallbackToUnprefixed", func(t *testing.T) {
+		stub := &stubCallContext{
+			nextErr: errors.New("not found"),
+		}
+		fetcher := newFetcher(nil, stub)
+
+		_, _ = fetcher.CodeByHash(hash)
+		require.Len(t, stub.requests, 2, "should request with and without prefix")
+		req := stub.requests[0]
+		require.Equal(t, "debug_dbGet", req.method)
+		codeDbKey := append(rawdb.CodePrefix, hash.Bytes()...)
+		require.Equal(t, []interface{}{hexutil.Encode(codeDbKey)}, req.args)
+
+		req = stub.requests[1]
+		require.Equal(t, "debug_dbGet", req.method)
+		codeDbKey = hash.Bytes()
+		require.Equal(t, []interface{}{hexutil.Encode(codeDbKey)}, req.args)
 	})
 }
 
@@ -111,14 +175,13 @@ func (s *stubBlockSource) BlockByHash(ctx context.Context, blockHash common.Hash
 func TestBlockByHash(t *testing.T) {
 	rng := rand.New(rand.NewSource(1234))
 	hash := testutils.RandomHash(rng)
-	ctx := context.Background()
 
 	t.Run("Success", func(t *testing.T) {
 		block, _ := testutils.RandomBlock(rng, 1)
 		stub := &stubBlockSource{nextResult: block}
 		fetcher := newFetcher(stub, nil)
 
-		res, err := fetcher.BlockByHash(ctx, hash)
+		res, err := fetcher.BlockByHash(hash)
 		require.NoError(t, err)
 		require.Same(t, block, res)
 	})
@@ -127,7 +190,7 @@ func TestBlockByHash(t *testing.T) {
 		stub := &stubBlockSource{nextErr: errors.New("boom")}
 		fetcher := newFetcher(stub, nil)
 
-		res, err := fetcher.BlockByHash(ctx, hash)
+		res, err := fetcher.BlockByHash(hash)
 		require.ErrorIs(t, err, stub.nextErr)
 		require.Nil(t, res)
 	})
@@ -136,7 +199,7 @@ func TestBlockByHash(t *testing.T) {
 		stub := &stubBlockSource{}
 		fetcher := newFetcher(stub, nil)
 
-		_, _ = fetcher.BlockByHash(ctx, hash)
+		_, _ = fetcher.BlockByHash(hash)
 
 		require.Len(t, stub.requests, 1, "should make single request")
 		req := stub.requests[0]

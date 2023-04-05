@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -92,8 +93,9 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 		return errors.New("offline mode not supported")
 	}
 
+	ctx := context.Background()
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	_, err := l2.NewFetchingL2Oracle(logger, cfg.L2URL)
+	_, err := l2.NewFetchingL2Oracle(ctx, logger, cfg.L2URL)
 	if err != nil {
 		return fmt.Errorf("connect l2 oracle: %w", err)
 	}
