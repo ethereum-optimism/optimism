@@ -305,17 +305,20 @@ export const getDeploymentAddress = async (
  * @param tx Ethers transaction object.
  * @returns JSON-ified transaction object.
  */
-export const jsonifyTransaction = (tx: ethers.PopulatedTransaction): string => {
-  return JSON.stringify(
-    {
-      from: tx.from,
-      to: tx.to,
-      data: tx.data,
-      value: tx.value,
-      chainId: tx.chainId,
-    },
-    null,
-    2
+export const printJsonTransaction = (tx: ethers.PopulatedTransaction): void => {
+  console.log(
+    'JSON transaction parameters:\n' +
+      JSON.stringify(
+        {
+          from: tx.from,
+          to: tx.to,
+          data: tx.data,
+          value: tx.value,
+          chainId: tx.chainId,
+        },
+        null,
+        2
+      )
   )
 }
 
@@ -388,11 +391,8 @@ export const doStep = async (opts: {
     ]()
     console.log(`Please execute step ${opts.step}...`)
     console.log(`MSD address: ${opts.SystemDictator.address}`)
-    console.log(`JSON:`)
-    console.log(jsonifyTransaction(tx))
-    console.log(
-      await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
-    )
+    printJsonTransaction(tx)
+    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
   }
 
   // Wait for the step to complete.
@@ -444,11 +444,8 @@ export const doPhase = async (opts: {
     ]()
     console.log(`Please execute phase ${opts.phase}...`)
     console.log(`MSD address: ${opts.SystemDictator.address}`)
-    console.log(`JSON:`)
-    console.log(jsonifyTransaction(tx))
-    console.log(
-      await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
-    )
+    printJsonTransaction(tx)
+    await printTenderlySimulationLink(opts.SystemDictator.provider, tx)
   }
 
   // Wait for the step to complete.
@@ -495,6 +492,8 @@ export const printTenderlySimulationLink = async (
  */
 export const printCastCommand = (tx: ethers.PopulatedTransaction): void => {
   if (process.env.CAST_COMMANDS) {
-    console.log(`cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`)
+    console.log(
+      `cast send ${tx.to} ${tx.data} --from ${tx.from} --value ${tx.value}`
+    )
   }
 }

@@ -12,7 +12,7 @@ import {
   getContractsFromArtifacts,
   getDeploymentAddress,
   doPhase,
-  jsonifyTransaction,
+  printJsonTransaction,
   printTenderlySimulationLink,
   printCastCommand,
 } from '../src/deploy-utils'
@@ -99,8 +99,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Please transfer AddressManager owner to MSD`)
       console.log(`AddressManager address: ${AddressManager.address}`)
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
+      printJsonTransaction(tx)
       printCastCommand(tx)
       await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
@@ -137,8 +136,7 @@ const deployFn: DeployFunction = async (hre) => {
         `L1StandardBridgeProxy address: ${L1StandardBridgeProxy.address}`
       )
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
+      printJsonTransaction(tx)
       printCastCommand(tx)
       await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
@@ -175,8 +173,7 @@ const deployFn: DeployFunction = async (hre) => {
       console.log(`Please transfer L1ERC721Bridge (proxy) owner to MSD`)
       console.log(`L1ERC721BridgeProxy address: ${L1ERC721BridgeProxy.address}`)
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
+      printJsonTransaction(tx)
       printCastCommand(tx)
       await printTenderlySimulationLink(SystemDictator.provider, tx)
     }

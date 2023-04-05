@@ -10,7 +10,7 @@ import '@nomiclabs/hardhat-ethers'
 import {
   assertContractVariable,
   getContractsFromArtifacts,
-  jsonifyTransaction,
+  printJsonTransaction,
   isStep,
   doStep,
   printTenderlySimulationLink,
@@ -206,8 +206,7 @@ const deployFn: DeployFunction = async (hre) => {
         )
       )
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
+      printJsonTransaction(tx)
       printCastCommand(tx)
       await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
@@ -318,8 +317,7 @@ const deployFn: DeployFunction = async (hre) => {
       const tx = await OptimismPortal.populateTransaction.unpause()
       console.log(`Please unpause the OptimismPortal...`)
       console.log(`OptimismPortal address: ${OptimismPortal.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
+      printJsonTransaction(tx)
       printCastCommand(tx)
       await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
@@ -348,8 +346,7 @@ const deployFn: DeployFunction = async (hre) => {
       const tx = await SystemDictator.populateTransaction.finalize()
       console.log(`Please finalize deployment...`)
       console.log(`MSD address: ${SystemDictator.address}`)
-      console.log(`JSON:`)
-      console.log(jsonifyTransaction(tx))
+      printJsonTransaction(tx)
       printCastCommand(tx)
       await printTenderlySimulationLink(SystemDictator.provider, tx)
     }
