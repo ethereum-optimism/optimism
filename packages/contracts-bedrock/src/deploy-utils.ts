@@ -323,6 +323,38 @@ export const printJsonTransaction = (tx: ethers.PopulatedTransaction): void => {
 }
 
 /**
+ * Mini helper for transferring a Proxy to the MSD
+ *
+ * @param opts Options for executing the step.
+ * @param opts.isLiveDeployer True if the deployer is live.
+ * @param opts.proxy proxy contract.
+ * @param opts.dictator dictator contract.
+ */
+export const doOwnershipTransfer = async (opts: {
+  isLiveDeployer?: boolean
+  proxy: ethers.Contract
+  name: string
+  transferFunc: string
+  dictator: ethers.Contract
+}): Promise<void> => {
+  if (opts.isLiveDeployer) {
+    await opts.proxy[opts.transferFunc](opts.dictator.address)
+  } else {
+    const tx = await opts.proxy.populateTransaction[opts.transferFunc](
+      opts.dictator.address
+    )
+    console.log(`
+    Please transfer ${opts.name} (proxy) owner to MSD
+      - ${opts.name} address: ${opts.proxy.address}
+      - MSD address: ${opts.dictator.address}
+    `)
+    printJsonTransaction(tx)
+    printCastCommand(tx)
+    await printTenderlySimulationLink(opts.dictator.provider, tx)
+  }
+}
+
+/**
  * Mini helper for checking if the current step is a target step.
  *
  * @param dictator SystemDictator contract.

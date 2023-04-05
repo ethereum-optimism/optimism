@@ -11,10 +11,8 @@ import {
   assertContractVariable,
   getContractsFromArtifacts,
   getDeploymentAddress,
+  doOwnershipTransfer,
   doPhase,
-  printJsonTransaction,
-  printTenderlySimulationLink,
-  printCastCommand,
 } from '../src/deploy-utils'
 
 const uint128Max = ethers.BigNumber.from('0xffffffffffffffffffffffffffffffff')
@@ -73,10 +71,23 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Transfer ownership of the ProxyAdmin to the SystemDictator.
   if ((await ProxyAdmin.owner()) !== SystemDictator.address) {
-    console.log(`Setting ProxyAdmin owner to MSD`)
-    await ProxyAdmin.transferOwnership(SystemDictator.address)
-  } else {
-    console.log(`Proxy admin already owned by MSD`)
+    await doOwnershipTransfer({
+      isLiveDeployer,
+      proxy: ProxyAdmin,
+      name: 'ProxyAdmin',
+      transferFunc: 'transferOwnership',
+      dictator: SystemDictator,
+    })
+
+    // Wait for the ownership transfer to complete.
+    await awaitCondition(
+      async () => {
+        const owner = await ProxyAdmin.owner()
+        return owner === SystemDictator.address
+      },
+      5000,
+      1000
+    )
   }
 
   // We don't need to transfer proxy addresses if we're already beyond the proxy transfer step.
@@ -89,20 +100,13 @@ const deployFn: DeployFunction = async (hre) => {
     needsProxyTransfer &&
     (await AddressManager.owner()) !== SystemDictator.address
   ) {
-    if (isLiveDeployer) {
-      console.log(`Setting AddressManager owner to MSD`)
-      await AddressManager.transferOwnership(SystemDictator.address)
-    } else {
-      const tx = await AddressManager.populateTransaction.transferOwnership(
-        SystemDictator.address
-      )
-      console.log(`Please transfer AddressManager owner to MSD`)
-      console.log(`AddressManager address: ${AddressManager.address}`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      printJsonTransaction(tx)
-      printCastCommand(tx)
-      await printTenderlySimulationLink(SystemDictator.provider, tx)
-    }
+    await doOwnershipTransfer({
+      isLiveDeployer,
+      proxy: AddressManager,
+      name: 'AddressManager',
+      transferFunc: 'transferOwnership',
+      dictator: SystemDictator,
+    })
 
     // Wait for the ownership transfer to complete.
     await awaitCondition(
@@ -124,22 +128,13 @@ const deployFn: DeployFunction = async (hre) => {
       from: ethers.constants.AddressZero,
     })) !== SystemDictator.address
   ) {
-    if (isLiveDeployer) {
-      console.log(`Setting L1StandardBridge owner to MSD`)
-      await L1StandardBridgeProxyWithSigner.setOwner(SystemDictator.address)
-    } else {
-      const tx = await L1StandardBridgeProxy.populateTransaction.setOwner(
-        SystemDictator.address
-      )
-      console.log(`Please transfer L1StandardBridge (proxy) owner to MSD`)
-      console.log(
-        `L1StandardBridgeProxy address: ${L1StandardBridgeProxy.address}`
-      )
-      console.log(`MSD address: ${SystemDictator.address}`)
-      printJsonTransaction(tx)
-      printCastCommand(tx)
-      await printTenderlySimulationLink(SystemDictator.provider, tx)
-    }
+    await doOwnershipTransfer({
+      isLiveDeployer,
+      proxy: L1StandardBridgeProxyWithSigner,
+      name: 'L1StandardBridgeProxy',
+      transferFunc: 'setOwner',
+      dictator: SystemDictator,
+    })
 
     // Wait for the ownership transfer to complete.
     await awaitCondition(
@@ -163,20 +158,13 @@ const deployFn: DeployFunction = async (hre) => {
       from: ethers.constants.AddressZero,
     })) !== SystemDictator.address
   ) {
-    if (isLiveDeployer) {
-      console.log(`Setting L1ERC721Bridge owner to MSD`)
-      await L1ERC721BridgeProxyWithSigner.changeAdmin(SystemDictator.address)
-    } else {
-      const tx = await L1ERC721BridgeProxy.populateTransaction.changeAdmin(
-        SystemDictator.address
-      )
-      console.log(`Please transfer L1ERC721Bridge (proxy) owner to MSD`)
-      console.log(`L1ERC721BridgeProxy address: ${L1ERC721BridgeProxy.address}`)
-      console.log(`MSD address: ${SystemDictator.address}`)
-      printJsonTransaction(tx)
-      printCastCommand(tx)
-      await printTenderlySimulationLink(SystemDictator.provider, tx)
-    }
+    await doOwnershipTransfer({
+      isLiveDeployer,
+      proxy: L1ERC721BridgeProxyWithSigner,
+      name: 'L1ERC721BridgeProxy',
+      transferFunc: 'changeAdmin',
+      dictator: SystemDictator,
+    })
 
     // Wait for the ownership transfer to complete.
     await awaitCondition(
