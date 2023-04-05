@@ -30,4 +30,4 @@ If you’re looking for other ways to get involved, here are a few options:
 - Grab an idea from the [project ideas list](https://github.com/ethereum-optimism/optimism-project-ideas) to and building
 - Suggest a new idea for the [project ideas list](https://github.com/ethereum-optimism/optimism-project-ideas)
 - Improve the [Optimism Community Hub](https://community.optimism.io/) [documentation](https://github.com/ethereum-optimism/community-hub) or [tutorials](https://github.com/ethereum-optimism/optimism-tutorial)
-- Become an Optimism Ambassador, Support Nerd, and more in the [Optimism Discord](https://discord-gateway.optimism.io/)
+- Become an Optimism Ambassador, Support Nerd, and more in the [Optimism Discord](https://discord.gg/optimism)

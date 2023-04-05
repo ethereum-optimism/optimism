@@ -3,7 +3,11 @@
 rm -rf artifacts forge-artifacts
 
 # See slither.config.json for slither settings
-if [ -n "$TRIAGE_MODE" ]; then
+if [[ -z "$TRIAGE_MODE" ]]; then
+  echo "Running slither"
+  slither .
+else
+  echo "Running slither in triage mode"
   # Slither's triage mode will run an 'interview' in the terminal, allowing you to review each of
   # its findings, and specify which should be ignored in future runs of slither. This will update
   # (or create) the slither.db.json file. This DB is a cleaner alternative to adding slither-disable
@@ -20,6 +24,4 @@ if [ -n "$TRIAGE_MODE" ]; then
   mv $DB $TEMP_DB
   jq 'walk(if type == "object" then del(.filename_absolute) else . end)' $TEMP_DB > $DB
   rm -f $TEMP_DB
-else
-  slither .
 fi

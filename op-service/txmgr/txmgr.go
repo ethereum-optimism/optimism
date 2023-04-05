@@ -148,6 +148,7 @@ func (m *SimpleTxManager) Send(ctx context.Context, candidate TxCandidate) (*typ
 func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*types.Transaction, error) {
 	gasTipCap, basefee, err := m.suggestGasPriceCaps(ctx)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get gas price info: %w", err)
 	}
 	gasFeeCap := calcGasFeeCap(basefee, gasTipCap)
@@ -157,8 +158,10 @@ func (m *SimpleTxManager) craftTx(ctx context.Context, candidate TxCandidate) (*
 	defer cancel()
 	nonce, err := m.backend.NonceAt(childCtx, m.cfg.From, nil)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, fmt.Errorf("failed to get nonce: %w", err)
 	}
+	m.metr.RecordNonce(nonce)
 
 	rawTx := &types.DynamicFeeTx{
 		ChainID:   m.chainID,
@@ -216,6 +219,7 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 	ticker := time.NewTicker(m.cfg.ResubmissionTimeout)
 	defer ticker.Stop()
 
+	bumpCounter := 0
 	for {
 		select {
 		case <-ticker.C:
@@ -231,12 +235,15 @@ func (m *SimpleTxManager) send(ctx context.Context, tx *types.Transaction) (*typ
 			// Increase the gas price & submit the new transaction
 			tx = m.increaseGasPrice(ctx, tx)
 			wg.Add(1)
+			bumpCounter += 1
 			go sendTxAsync(tx)
 
 		case <-ctx.Done():
 			return nil, ctx.Err()
 
 		case receipt := <-receiptChan:
+			m.metr.RecordGasBumpCount(bumpCounter)
+			m.metr.TxConfirmed(receipt)
 			return receipt, nil
 		}
 	}
@@ -251,6 +258,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 
 	cCtx, cancel := context.WithTimeout(ctx, m.cfg.NetworkTimeout)
 	defer cancel()
+	t := time.Now()
 	err := m.backend.SendTransaction(cCtx, tx)
 	sendState.ProcessSendError(err)
 
@@ -259,19 +267,28 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 		switch {
 		case errStringMatch(err, core.ErrNonceTooLow):
 			log.Warn("nonce too low", "err", err)
+			m.metr.TxPublished("nonce_to_low")
 		case errStringMatch(err, context.Canceled):
+			m.metr.RPCError()
 			log.Warn("transaction send cancelled", "err", err)
+			m.metr.TxPublished("context_cancelled")
 		case errStringMatch(err, txpool.ErrAlreadyKnown):
 			log.Warn("resubmitted already known transaction", "err", err)
+			m.metr.TxPublished("tx_already_known")
 		case errStringMatch(err, txpool.ErrReplaceUnderpriced):
 			log.Warn("transaction replacement is underpriced", "err", err)
+			m.metr.TxPublished("tx_replacement_underpriced")
 		case errStringMatch(err, txpool.ErrUnderpriced):
 			log.Warn("transaction is underpriced", "err", err)
+			m.metr.TxPublished("tx_underpriced")
 		default:
+			m.metr.RPCError()
 			log.Error("unable to publish transaction", "err", err)
+			m.metr.TxPublished("unknown_error")
 		}
 		return
 	}
+	m.metr.TxPublished("")
 
 	log.Info("Transaction successfully published")
 	// Poll for the transaction to be ready & then send the result to receiptChan
@@ -282,7 +299,7 @@ func (m *SimpleTxManager) publishAndWaitForTx(ctx context.Context, tx *types.Tra
 	}
 	select {
 	case receiptChan <- receipt:
-		m.metr.RecordL1GasFee(receipt)
+		m.metr.RecordTxConfirmationLatency(time.Since(t).Milliseconds())
 	default:
 	}
 }
@@ -314,9 +331,11 @@ func (m *SimpleTxManager) queryReceipt(ctx context.Context, txHash common.Hash, 
 		m.l.Trace("Transaction not yet mined", "hash", txHash)
 		return nil
 	} else if err != nil {
+		m.metr.RPCError()
 		m.l.Info("Receipt retrieval failed", "hash", txHash, "err", err)
 		return nil
 	} else if receipt == nil {
+		m.metr.RPCError()
 		m.l.Warn("Receipt and error are both nil", "hash", txHash)
 		return nil
 	}
@@ -400,6 +419,7 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	defer cancel()
 	tip, err := m.backend.SuggestGasTipCap(cCtx)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, nil, fmt.Errorf("failed to fetch the suggested gas tip cap: %w", err)
 	} else if tip == nil {
 		return nil, nil, errors.New("the suggested tip was nil")
@@ -408,6 +428,7 @@ func (m *SimpleTxManager) suggestGasPriceCaps(ctx context.Context) (*big.Int, *b
 	defer cancel()
 	head, err := m.backend.HeaderByNumber(cCtx, nil)
 	if err != nil {
+		m.metr.RPCError()
 		return nil, nil, fmt.Errorf("failed to fetch the suggested basefee: %w", err)
 	} else if head.BaseFee == nil {
 		return nil, nil, errors.New("txmgr does not support pre-london blocks that do not have a basefee")

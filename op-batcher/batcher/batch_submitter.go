@@ -51,9 +51,10 @@ func Main(version string, cliCtx *cli.Context) error {
 			return err
 		}
 	}
-	defer batchSubmitter.StopIfRunning(context.Background())
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Stop pprof and metrics only after main loop returns
+	defer batchSubmitter.StopIfRunning(context.Background())
 
 	pprofConfig := cfg.PprofConfig
 	if pprofConfig.Enabled {
@@ -106,7 +107,8 @@ func Main(version string, cliCtx *cli.Context) error {
 		syscall.SIGQUIT,
 	}...)
 	<-interruptChannel
-	cancel()
-	_ = server.Stop()
+	if err := server.Stop(); err != nil {
+		l.Error("Error shutting down http server: %w", err)
+	}
 	return nil
 }

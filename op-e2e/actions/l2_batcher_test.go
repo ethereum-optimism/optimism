@@ -447,7 +447,7 @@ func TestBigL2Txs(gt *testing.T) {
 			require.NoError(t, err)
 			gas, err := core.IntrinsicGas(data, nil, false, true, true, false)
 			require.NoError(t, err)
-			if gas > engine.l2GasPool.Gas() {
+			if gas > engine.engineApi.RemainingBlockGas() {
 				break
 			}
 			tx := types.MustSignNewTx(dp.Secrets.Alice, signer, &types.DynamicFeeTx{

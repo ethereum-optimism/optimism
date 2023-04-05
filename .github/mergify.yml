@@ -29,6 +29,7 @@ pull_request_rules:
       queue:
         name: default
         method: merge
+        merge_bot_account: OptimismBot
   - name: Add merge train label
     conditions:
       - "queue-position >= 0"
