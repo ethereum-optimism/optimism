@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum-optimism/optimism/op-node/eth"
 	"github.com/ethereum-optimism/optimism/op-node/rollup"
 	"github.com/ethereum-optimism/optimism/op-node/rollup/derive"
-	"github.com/ethereum-optimism/optimism/op-node/sources"
 )
 
 type Metrics interface {
@@ -49,13 +48,14 @@ type DerivationPipeline interface {
 	Reset()
 	Step(ctx context.Context) error
 	AddUnsafePayload(payload *eth.ExecutionPayload)
-	GetUnsafeQueueGap(expectedNumber uint64) (uint64, uint64)
+	UnsafeL2SyncTarget() eth.L2BlockRef
 	Finalize(ref eth.L1BlockRef)
 	FinalizedL1() eth.L1BlockRef
 	Finalized() eth.L2BlockRef
 	SafeL2Head() eth.L2BlockRef
 	UnsafeL2Head() eth.L2BlockRef
 	Origin() eth.L1BlockRef
+	EngineReady() bool
 }
 
 type L1StateIface interface {
@@ -81,8 +81,27 @@ type Network interface {
 	PublishL2Payload(ctx context.Context, payload *eth.ExecutionPayload) error
 }
 
+type AltSync interface {
+	// RequestL2Range informs the sync source that the given range of L2 blocks is missing,
+	// and should be retrieved from any available alternative syncing source.
+	// The start and end of the range are exclusive:
+	// the start is the head we already have, the end is the first thing we have queued up.
+	// It's the task of the alt-sync mechanism to use this hint to fetch the right payloads.
+	// Note that the end and start may not be consistent: in this case the sync method should fetch older history
+	//
+	// If the end value is zeroed, then the sync-method may determine the end free of choice,
+	// e.g. sync till the chain head meets the wallclock time. This functionality is optional:
+	// a fixed target to sync towards may be determined by picking up payloads through P2P gossip or other sources.
+	//
+	// The sync results should be returned back to the driver via the OnUnsafeL2Payload(ctx, payload) method.
+	// The latest requested range should always take priority over previous requests.
+	// There may be overlaps in requested ranges.
+	// An error may be returned if the scheduling fails immediately, e.g. a context timeout.
+	RequestL2Range(ctx context.Context, start, end eth.L2BlockRef) error
+}
+
 // NewDriver composes an events handler that tracks L1 state, triggers L2 derivation, and optionally sequences new L2 blocks.
-func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, syncClient *sources.SyncClient, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
+func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, altSync AltSync, network Network, log log.Logger, snapshotLog log.Logger, metrics Metrics) *Driver {
 	l1State := NewL1State(log, metrics)
 	sequencerConfDepth := NewConfDepth(driverCfg.SequencerConfDepth, l1State.L1Head, l1)
 	findL1Origin := NewL1OriginSelector(log, cfg, sequencerConfDepth)
@@ -114,6 +133,6 @@ func NewDriver(driverCfg *Config, cfg *rollup.Config, l2 L2Chain, l1 L1Chain, sy
 		l1SafeSig:        make(chan eth.L1BlockRef, 10),
 		l1FinalizedSig:   make(chan eth.L1BlockRef, 10),
 		unsafeL2Payloads: make(chan *eth.ExecutionPayload, 10),
-		L2SyncCl:         syncClient,
+		altSync:          altSync,
 	}
 }

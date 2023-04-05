@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum-optimism/optimism/op-node/eth"
@@ -74,20 +75,17 @@ func TestPayloadMemSize(t *testing.T) {
 }
 
 func TestPayloadsQueue(t *testing.T) {
-	pq := PayloadsQueue{
-		MaxSize:  payloadMemFixedCost * 3,
-		SizeFn:   payloadMemSize,
-		blockNos: make(map[uint64]bool),
-	}
+	pq := NewPayloadsQueue(payloadMemFixedCost*3, payloadMemSize)
 	require.Equal(t, 0, pq.Len())
 	require.Equal(t, (*eth.ExecutionPayload)(nil), pq.Peek())
 	require.Equal(t, (*eth.ExecutionPayload)(nil), pq.Pop())
 
-	a := &eth.ExecutionPayload{BlockNumber: 3}
-	b := &eth.ExecutionPayload{BlockNumber: 4}
-	c := &eth.ExecutionPayload{BlockNumber: 5}
-	d := &eth.ExecutionPayload{BlockNumber: 6}
-	bAlt := &eth.ExecutionPayload{BlockNumber: 4}
+	a := &eth.ExecutionPayload{BlockNumber: 3, BlockHash: common.Hash{3}}
+	b := &eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}}
+	c := &eth.ExecutionPayload{BlockNumber: 5, BlockHash: common.Hash{5}}
+	d := &eth.ExecutionPayload{BlockNumber: 6, BlockHash: common.Hash{6}}
+	bAlt := &eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{0xff}}
+	bDup := &eth.ExecutionPayload{BlockNumber: 4, BlockHash: common.Hash{4}}
 	require.NoError(t, pq.Push(b))
 	require.Equal(t, pq.Len(), 1)
 	require.Equal(t, pq.Peek(), b)
@@ -130,7 +128,9 @@ func TestPayloadsQueue(t *testing.T) {
 	require.Equal(t, pq.Peek(), a)
 
 	// No duplicates allowed
-	require.Error(t, pq.Push(bAlt))
+	require.Error(t, pq.Push(bDup))
+	// But reorg data allowed
+	require.NoError(t, pq.Push(bAlt))
 
 	require.NoError(t, pq.Push(d))
 	require.Equal(t, pq.Len(), 3)

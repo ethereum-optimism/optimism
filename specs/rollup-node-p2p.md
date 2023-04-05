@@ -57,6 +57,8 @@ and are adopted by several other blockchains, most notably the [L1 consensus lay
     - [Block validation](#block-validation)
       - [Block processing](#block-processing)
       - [Block topic scoring parameters](#block-topic-scoring-parameters)
+- [Req-Resp](#req-resp)
+  - [`payload_by_number`](#payload_by_number)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
@@ -305,12 +307,97 @@ A node may apply the block to their local engine ahead of L1 availability, if it
 
 TODO: GossipSub per-topic scoring to fine-tune incentives for ideal propagation delay and bandwidth usage.
 
+## Req-Resp
+
+The op-node implements a similar request-response encoding for its sync protocols as the L1 ethereum Beacon-Chain.
+See [L1 P2P-interface req-resp specification][eth2-p2p-reqresp] and [Altair P2P update][eth2-p2p-altair-reqresp].
+
+However, the protocol is simplified, to avoid several issues seen in L1:
+
+- Error strings in responses, if there is any alternative response,
+  should not need to be compressed or have an artificial global length limit.
+- Payload lengths should be fixed-length: byte-by-byte uvarint reading from the underlying stream is undesired.
+- `<context-bytes>` are relaxed to encode a `uint32`, rather than a beacon-chain `ForkDigest`.
+- Payload-encoding may change per hardfork, so is not part of the protocol-ID.
+- Usage of response-chunks is specific to the req-resp method: most basic req-resp does not need chunked responses.
+- Compression is encouraged to be part of the payload-encoding, specific to the req-resp method, where necessary:
+  pings and such do not need streaming frame compression etc.
+
+And the protocol ID format follows the same scheme as L1,
+except the trailing encoding schema part, which is now message-specific:
+
+```text
+/ProtocolPrefix/MessageName/SchemaVersion/
+```
+
+The req-resp protocols served by the op-node all have `/ProtocolPrefix` set to `/opstack/req`.
+
+Individual methods may include the chain ID as part of the `/MessageName` segment,
+so it's immediately clear which chain the method applies to, if the communication is chain-specific.
+Other methods may include chain-information in the request and/or response data,
+such as the `ForkDigest` `<context-bytes>` in L1 beacon chain req-resp protocols.
+
+Each segment starts with a `/`, and may contain multiple `/`, and the final protocol ID is suffixed with a `/`.
+
+### `payload_by_number`
+
+This is an optional chain syncing method, to request/serve execution payloads by number.
+This serves as a method to fill gaps upon missed gossip, and sync short to medium ranges of unsafe L2 blocks.
+
+Protocol ID: `/opstack/req/payload_by_number/<chain-id>/0/`
+
+- `/MessageName` is `/block_by_number/<chain-id>` where `<chain-id>` is set to the op-node L2 chain ID.
+- `/SchemaVersion` is `/0`
+
+Request format: `<num>`: a little-endian `uint64` - the block number to request.
+
+Response format: `<response> = <res><version><payload>`
+
+- `<res>` is a byte code describing the result.
+  - `0` on success, `<version><payload>` should follow.
+  - `1` if valid request, but unavailable payload.
+  - `2` if invalid request
+  - `3+` if other error
+  - The `>= 128` range is reserved for future use.
+- `<version>` is a little-endian `uint32`, identifying the type of `ExecutionPayload` (fork-specific)
+- `<payload>` is an encoded block, read till stream EOF.
+
+The input of `<response>` should be limited, as well as any generated decompressed output,
+to avoid unexpected resource usage or zip-bomb type attacks.
+A 10 MB limit is recommended, to ensure all blocks may be synced.
+Implementations may opt for a different limit, since this sync method is optional.
+
+`<version>` list:
+
+- `0`: SSZ-encoded `ExecutionPayload`, with Snappy framing compression,
+  matching the `ExecutionPayload` SSZ definition of the L1 Merge, L2 Bedrock and L2 Regolith versions.
+- Other versions may be listed here with future network upgrades, such as the L1 Shanghai upgrade.
+
+The request is by block-number, enabling parallel fetching of a chain across many peers.
+
+A `res = 0` response should be verified to:
+
+- Have a block-number matching the requested block number.
+- Have a consistent `blockhash` w.r.t. the other block contents.
+- Build towards a known canonical block.
+  - This can be verified by checking if the parent-hash of a previous trusted canonical block matches
+    that of the verified hash of the retrieved block.
+  - For unsafe blocks this may be relaxed to verification against the parent-hash of any previously trusted block:
+    - The gossip validation process limits the amount of blocks that may be trusted to sync towards.
+    - The unsafe blocks should be queued for processing, the latest received L2 unsafe blocks should always
+      override any previous chain, until the final L2 chain can be reproduced from L1 data.
+
+A `res > 0` response code should not be accepted. The result code is helpful for debugging,
+but the client should regard any error like any any other unanswered request, as the responding peer cannot be trusted.
+
 ----
 
 [libp2p]: https://libp2p.io/
 [discv5]: https://github.com/ethereum/devp2p/blob/master/discv5/discv5.md
 [discv5-random-nodes]: https://pkg.go.dev/github.com/ethereum/go-ethereum@v1.10.12/p2p/discover#UDPv5.RandomNodes
 [eth2-p2p]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md
+[eth2-p2p-reqresp]: https://github.com/ethereum/consensus-specs/blob/dev/specs/phase0/p2p-interface.md#the-reqresp-domain
+[eth2-p2p-altair-reqresp]: https://github.com/ethereum/consensus-specs/blob/dev/specs/altair/p2p-interface.md#the-reqresp-domain
 [libp2p-noise]: https://github.com/libp2p/specs/tree/master/noise
 [multistream-select]: https://github.com/multiformats/multistream-select/
 [mplex]: https://github.com/libp2p/specs/tree/master/mplex

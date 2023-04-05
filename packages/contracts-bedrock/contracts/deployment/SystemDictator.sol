@@ -16,6 +16,8 @@ import { ProxyAdmin } from "../universal/ProxyAdmin.sol";
 import { OptimismMintableERC20Factory } from "../universal/OptimismMintableERC20Factory.sol";
 import { PortalSender } from "./PortalSender.sol";
 import { SystemConfig } from "../L1/SystemConfig.sol";
+import { ResourceMetering } from "../L1/ResourceMetering.sol";
+import { Constants } from "../libraries/Constants.sol";
 
 /**
  * @title SystemDictator
@@ -79,6 +81,7 @@ contract SystemDictator is OwnableUpgradeable {
         bytes32 batcherHash;
         uint64 gasLimit;
         address unsafeBlockSigner;
+        ResourceMetering.ResourceConfig resourceConfig;
     }
 
     /**
@@ -156,6 +159,35 @@ contract SystemDictator is OwnableUpgradeable {
     }
 
     /**
+     * @notice Constructor required to ensure that the implementation of the SystemDictator is
+     *         initialized upon deployment.
+     */
+    constructor() {
+        ResourceMetering.ResourceConfig memory rcfg = Constants.DEFAULT_RESOURCE_CONFIG();
+
+        // Using this shorter variable as an alias for address(0) just prevents us from having to
+        // to use a new line for every single parameter.
+        address zero = address(0);
+        initialize(
+            DeployConfig(
+                GlobalConfig(AddressManager(zero), ProxyAdmin(zero), zero, zero),
+                ProxyAddressConfig(zero, zero, zero, zero, zero, zero, zero),
+                ImplementationAddressConfig(
+                    L2OutputOracle(zero),
+                    OptimismPortal(payable(zero)),
+                    L1CrossDomainMessenger(zero),
+                    L1StandardBridge(payable(zero)),
+                    OptimismMintableERC20Factory(zero),
+                    L1ERC721Bridge(zero),
+                    PortalSender(zero),
+                    SystemConfig(zero)
+                ),
+                SystemConfigConfig(zero, 0, 0, bytes32(0), 0, zero, rcfg)
+            )
+        );
+    }
+
+    /**
      * @param _config System configuration.
      */
     function initialize(DeployConfig memory _config) public initializer {
@@ -183,7 +215,7 @@ contract SystemDictator is OwnableUpgradeable {
     /**
      * @notice Configures the ProxyAdmin contract.
      */
-    function step1() external onlyOwner step(1) {
+    function step1() public onlyOwner step(1) {
         // Set the AddressManager in the ProxyAdmin.
         config.globalConfig.proxyAdmin.setAddressManager(config.globalConfig.addressManager);
 
@@ -217,7 +249,8 @@ contract SystemDictator is OwnableUpgradeable {
                     config.systemConfigConfig.scalar,
                     config.systemConfigConfig.batcherHash,
                     config.systemConfigConfig.gasLimit,
-                    config.systemConfigConfig.unsafeBlockSigner
+                    config.systemConfigConfig.unsafeBlockSigner,
+                    config.systemConfigConfig.resourceConfig
                 )
             )
         );
@@ -227,7 +260,7 @@ contract SystemDictator is OwnableUpgradeable {
      * @notice Pauses the system by shutting down the L1CrossDomainMessenger and setting the
      *         deposit halt flag to tell the Sequencer's DTL to stop accepting deposits.
      */
-    function step2() external onlyOwner step(2) {
+    function step2() public onlyOwner step(2) {
         // Store the address of the old L1CrossDomainMessenger implementation. We will need this
         // address in the case that we have to exit early.
         oldL1CrossDomainMessenger = config.globalConfig.addressManager.getAddress(
@@ -375,6 +408,14 @@ contract SystemDictator is OwnableUpgradeable {
             payable(config.proxyAddressConfig.l1ERC721BridgeProxy),
             address(config.implementationAddressConfig.l1ERC721BridgeImpl)
         );
+    }
+
+    /**
+     * @notice Calls the first 2 steps of the migration process.
+     */
+    function phase1() external onlyOwner {
+        step1();
+        step2();
     }
 
     /**

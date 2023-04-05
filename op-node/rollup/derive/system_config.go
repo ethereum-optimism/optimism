@@ -70,13 +70,13 @@ func ProcessSystemConfigUpdateLogEvent(destSysCfg *eth.SystemConfig, ev *types.L
 		return fmt.Errorf("expected 3 event topics (event identity, indexed version, indexed updateType), got %d", len(ev.Topics))
 	}
 	if ev.Topics[0] != ConfigUpdateEventABIHash {
-		return fmt.Errorf("invalid deposit event selector: %s, expected %s", ev.Topics[0], DepositEventABIHash)
+		return fmt.Errorf("invalid SystemConfig update event: %s, expected %s", ev.Topics[0], ConfigUpdateEventABIHash)
 	}
 
 	// indexed 0
 	version := ev.Topics[1]
 	if version != ConfigUpdateEventVersion0 {
-		return fmt.Errorf("unrecognized L1 sysCfg update event version: %s", version)
+		return fmt.Errorf("unrecognized SystemConfig update event version: %s", version)
 	}
 	// indexed 1
 	updateType := ev.Topics[2]

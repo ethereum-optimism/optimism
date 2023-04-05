@@ -6,6 +6,8 @@ const config: DeployConfig = {
   optimistName: 'Optimist',
   optimistSymbol: 'OPTIMIST',
   attestorAddress: '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
+  optimistInviterInviteGranter: '0x60c5C9c98bcBd0b0F2fD89B24c16e533BaA8CdA3',
+  optimistInviterName: 'OptimistInviter',
 }
 
 export default config

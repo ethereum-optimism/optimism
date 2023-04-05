@@ -4,6 +4,7 @@ pragma solidity 0.8.15;
 import { Initializable } from "@openzeppelin/contracts/proxy/utils/Initializable.sol";
 import { SafeCall } from "../libraries/SafeCall.sol";
 import { L2OutputOracle } from "./L2OutputOracle.sol";
+import { SystemConfig } from "./SystemConfig.sol";
 import { Constants } from "../libraries/Constants.sol";
 import { Types } from "../libraries/Types.sol";
 import { Hashing } from "../libraries/Hashing.sol";
@@ -44,12 +45,17 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     uint64 internal constant RECEIVE_DEFAULT_GAS_LIMIT = 100_000;
 
     /**
-     * @notice Address of the L2OutputOracle.
+     * @notice Address of the L2OutputOracle contract.
      */
     L2OutputOracle public immutable L2_ORACLE;
 
     /**
-     * @notice Address that has the ability to pause and unpause deposits and withdrawals.
+     * @notice Address of the SystemConfig contract.
+     */
+    SystemConfig public immutable SYSTEM_CONFIG;
+
+    /**
+     * @notice Address that has the ability to pause and unpause withdrawals.
      */
     address public immutable GUARDIAN;
 
@@ -135,19 +141,22 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
     }
 
     /**
-     * @custom:semver 1.2.0
+     * @custom:semver 1.3.0
      *
      * @param _l2Oracle                  Address of the L2OutputOracle contract.
      * @param _guardian                  Address that can pause deposits and withdrawals.
      * @param _paused                    Sets the contract's pausability state.
+     * @param _config                    Address of the SystemConfig contract.
      */
     constructor(
         L2OutputOracle _l2Oracle,
         address _guardian,
-        bool _paused
-    ) Semver(1, 2, 0) {
+        bool _paused,
+        SystemConfig _config
+    ) Semver(1, 3, 0) {
         L2_ORACLE = _l2Oracle;
         GUARDIAN = _guardian;
+        SYSTEM_CONFIG = _config;
         initialize(_paused);
     }
 
@@ -195,6 +204,21 @@ contract OptimismPortal is Initializable, ResourceMetering, Semver {
      */
     function donateETH() external payable {
         // Intentionally empty.
+    }
+
+    /**
+     * @notice Getter for the resource config. Used internally by the ResourceMetering
+     *         contract. The SystemConfig is the source of truth for the resource config.
+     *
+     * @return ResourceMetering.ResourceConfig
+     */
+    function _resourceConfig()
+        internal
+        view
+        override
+        returns (ResourceMetering.ResourceConfig memory)
+    {
+        return SYSTEM_CONFIG.resourceConfig();
     }
 
     /**
