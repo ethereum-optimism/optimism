@@ -18,7 +18,7 @@ type ProxyConfig = {
 
 const setupProxyContract = async (
   proxyContract: ethers.Contract,
-  proxyOwnerSigner: ethers.Signer,
+  signer: ethers.Signer,
   {
     targetImplAddress,
     targetProxyOwnerAddress,
@@ -29,13 +29,7 @@ const setupProxyContract = async (
     .connect(ethers.constants.AddressZero)
     .callStatic.admin()
 
-  // The proxy owner signer needs to be the current admin, otherwise we don't have permission
-  // to update the implmentation or admin
-  const proxyOwnerSignerAddress = await proxyOwnerSigner.getAddress()
-  assert(
-    proxyOwnerSignerAddress === currentAdmin,
-    'proxyOwnerSigner is not the admin'
-  )
+  const signerAddress = await signer.getAddress()
 
   // Gets the current implementation address the proxy is pointing to.
   // callStatic is used since the `Proxy.implementation()` is not a view function and ethers will
@@ -54,15 +48,20 @@ const setupProxyContract = async (
     console.log('implementation not set to correct contract')
     console.log(`Setting implementation to ${targetImplAddress}`)
 
+    // The signer needs to be the current admin, otherwise we don't have permission
+    // to update the implmentation or admin
+    assert(
+      signerAddress === currentAdmin,
+      'the passed signer is not the admin, cannot update implementation'
+    )
+
     let tx: ethers.providers.TransactionResponse
     if (!postUpgradeCallCalldata) {
       console.log(
         'postUpgradeCallCalldata is not provided. Using Proxy.upgrade()'
       )
       // Point the proxy to the target implementation
-      tx = await proxyContract
-        .connect(proxyOwnerSigner)
-        .upgradeTo(targetImplAddress)
+      tx = await proxyContract.connect(signer).upgradeTo(targetImplAddress)
     } else {
       console.log(
         'postUpgradeCallCalldata is provided. Using Proxy.upgradeAndCall()'
@@ -70,7 +69,7 @@ const setupProxyContract = async (
       // Point the proxy to the target implementation,
       // and call function in the proxy's context
       tx = await proxyContract
-        .connect(proxyOwnerSigner)
+        .connect(signer)
         .upgradeToAndCall(targetImplAddress, postUpgradeCallCalldata)
     }
 
@@ -89,9 +88,16 @@ const setupProxyContract = async (
     console.log('detected admin is not set correctly')
     console.log(`Setting admin to ${targetProxyOwnerAddress}`)
 
+    // The signer needs to be the current admin, otherwise we don't have permission
+    // to update the implmentation or admin
+    assert(
+      signerAddress === currentAdmin,
+      'proxyOwnerSigner is not the admin, cannot update admin'
+    )
+
     // change admin to the l2ProxyOwnerAddress
     const tx = await proxyContract
-      .connect(proxyOwnerSigner)
+      .connect(signer)
       .changeAdmin(targetProxyOwnerAddress)
 
     const receipt = await tx.wait()
