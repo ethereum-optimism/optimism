@@ -95,13 +95,22 @@ func updateForkchoice(ctx context.Context, client client.RPC, head, safe, finali
 }
 
 type BlockBuildingSettings struct {
-	BlockTime    uint64
+	BlockTime uint64
+	// skip a block; timestamps will still increase in multiples of BlockTime like L1, but there may be gaps.
+	AllowGaps    bool
 	Random       common.Hash
 	FeeRecipient common.Address
 	BuildTime    time.Duration
 }
 
 func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, settings *BlockBuildingSettings) (*engine.ExecutableData, error) {
+	timestamp := status.Head.Time + settings.BlockTime
+	if settings.AllowGaps {
+		now := uint64(time.Now().Unix())
+		if now > timestamp {
+			timestamp = now - ((now - timestamp) % settings.BlockTime)
+		}
+	}
 	var pre engine.ForkChoiceResponse
 	if err := client.CallContext(ctx, &pre, "engine_forkchoiceUpdatedV1",
 		engine.ForkchoiceStateV1{
@@ -109,7 +118,7 @@ func BuildBlock(ctx context.Context, client client.RPC, status *StatusData, sett
 			SafeBlockHash:      status.Safe.Hash,
 			FinalizedBlockHash: status.Finalized.Hash,
 		}, engine.PayloadAttributes{
-			Timestamp:             status.Head.Time + settings.BlockTime,
+			Timestamp:             timestamp,
 			Random:                settings.Random,
 			SuggestedFeeRecipient: settings.FeeRecipient,
 			// TODO: maybe use the L2 fields to hack in tx embedding CLI option?
@@ -210,6 +219,7 @@ func Auto(ctx context.Context, metrics Metricer, client client.RPC, log log.Logg
 
 				payload, err := BuildBlock(ctx, client, status, &BlockBuildingSettings{
 					BlockTime:    settings.BlockTime,
+					AllowGaps:    settings.AllowGaps,
 					Random:       settings.Random,
 					FeeRecipient: settings.FeeRecipient,
 					BuildTime:    buildTime,
