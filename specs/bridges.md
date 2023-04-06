@@ -35,7 +35,7 @@ interface StandardBridge {
     function finalizeBridgeERC20(address _localToken, address _remoteToken, address _from, address _to, uint256 _amount, bytes memory _extraData) external;
     function finalizeBridgeETH(address _from, address _to, uint256 _amount, bytes memory _extraData) payable external;
     function messenger() view external returns (address);
-    function otherBridge() view external returns (address);
+    function OTHER_BRIDGE() view external returns (address);
 }
 ```
 

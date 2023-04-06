@@ -15,7 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-const defaultL2GasLimit = 15_000_000
+// defaultL2GasLimit represents the default gas limit for an L2 block.
+const defaultL2GasLimit = 30_000_000
 
 // NewL2Genesis will create a new L2 genesis
 func NewL2Genesis(config *DeployConfig, block *types.Block) (*core.Genesis, error) {
