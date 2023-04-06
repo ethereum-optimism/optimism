@@ -12,10 +12,11 @@ import {
   getContractsFromArtifacts,
   printJsonTransaction,
   isStep,
-  doStep,
   printTenderlySimulationLink,
   printCastCommand,
   liveDeployer,
+  doPhase,
+  isStartOfPhase,
 } from '../src/deploy-utils'
 
 const deployFn: DeployFunction = async (hre) => {
@@ -92,7 +93,7 @@ const deployFn: DeployFunction = async (hre) => {
 
   // Make sure the dynamic system configuration has been set.
   if (
-    (await isStep(SystemDictator, 5)) &&
+    (await isStartOfPhase(SystemDictator, 2)) &&
     !(await SystemDictator.dynamicConfigSet())
   ) {
     console.log(`
@@ -169,17 +170,25 @@ const deployFn: DeployFunction = async (hre) => {
     )
   }
 
-  // Step 3 clears out some state from the AddressManager.
-  await doStep({
+  await doPhase({
     isLiveDeployer,
     SystemDictator,
-    step: 3,
+    phase: 2,
     message: `
+      Phase 2 includes the following steps:
+
       Step 3 will clear out some legacy state from the AddressManager. Once you execute this step,
       you WILL NOT BE ABLE TO RESTART THE SYSTEM using exit1(). You should confirm that the L2
       system is entirely operational before executing this step.
+
+      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
+
+      Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
+      will be open for deposits but withdrawals will be paused if deploying a production network.
+      The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
     `,
     checks: async () => {
+      // Step 3 checks
       const deads = [
         'OVM_CanonicalTransactionChain',
         'OVM_L2CrossDomainMessenger',
@@ -203,18 +212,8 @@ const deployFn: DeployFunction = async (hre) => {
         const addr = await AddressManager.getAddress(dead)
         assert(addr === ethers.constants.AddressZero)
       }
-    },
-  })
 
-  // Step 4 transfers ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 4,
-    message: `
-      Step 4 will transfer ownership of the AddressManager and L1StandardBridge to the ProxyAdmin.
-    `,
-    checks: async () => {
+      // Step 4 checks
       await assertContractVariable(AddressManager, 'owner', ProxyAdmin.address)
 
       assert(
@@ -222,20 +221,8 @@ const deployFn: DeployFunction = async (hre) => {
           from: ethers.constants.AddressZero,
         })) === ProxyAdmin.address
       )
-    },
-  })
 
-  // Step 5 initializes all contracts.
-  await doStep({
-    isLiveDeployer,
-    SystemDictator,
-    step: 5,
-    message: `
-      Step 5 will initialize all Bedrock contracts. After this step is executed, the OptimismPortal
-      will be open for deposits but withdrawals will be paused if deploying a production network.
-      The Proposer will also be able to submit L2 outputs to the L2OutputOracle.
-    `,
-    checks: async () => {
+      // Step 5 checks
       // Check L2OutputOracle was initialized properly.
       await assertContractVariable(
         L2OutputOracle,
