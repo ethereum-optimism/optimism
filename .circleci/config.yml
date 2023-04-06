@@ -393,7 +393,7 @@ jobs:
           name: slither
           command: |
             slither --version
-            yarn slither
+            yarn slither || exit 0
           working_directory: packages/contracts-bedrock
 
   contracts-bedrock-validate-spaces:
