@@ -11,6 +11,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,6 +37,38 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 		api.assert.Equal(block.BlockHash, api.headHash(), "should create and import new block")
 		imported := api.backend.GetBlockByHash(block.BlockHash)
 		api.assert.Len(imported.Transactions(), 1, "should include transaction")
+
+		api.assert.NotEqual(genesis.Root, block.StateRoot)
+		newState, err := api.backend.StateAt(common.Hash(block.StateRoot))
+		require.NoError(t, err, "imported block state should be available")
+		require.NotNil(t, newState)
+	})
+
+	t.Run("RejectCreatingBlockWithInvalidRequiredTransaction", func(t *testing.T) {
+		api := newTestHelper(t, createBackend)
+		genesis := api.backend.CurrentBlock()
+
+		txData, err := derive.L1InfoDeposit(1, eth.HeaderBlockInfo(genesis), eth.SystemConfig{}, true)
+		api.assert.NoError(err)
+		txData.Gas = uint64(gasLimit + 1)
+		tx := types.NewTx(txData)
+		txRlp, err := tx.MarshalBinary()
+		api.assert.NoError(err)
+
+		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+			HeadBlockHash:      genesis.Hash(),
+			SafeBlockHash:      genesis.Hash(),
+			FinalizedBlockHash: genesis.Hash(),
+		}, &eth.PayloadAttributes{
+			Timestamp:             eth.Uint64Quantity(genesis.Time + 1),
+			PrevRandao:            eth.Bytes32(genesis.MixDigest),
+			SuggestedFeeRecipient: feeRecipient,
+			Transactions:          []eth.Data{txRlp},
+			NoTxPool:              true,
+			GasLimit:              &gasLimit,
+		})
+		api.assert.Error(err)
+		api.assert.Equal(eth.ExecutionInvalid, result.PayloadStatus.Status)
 	})
 
 	t.Run("IgnoreUpdateHeadToOlderBlock", func(t *testing.T) {
@@ -98,8 +131,13 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentBlock()
 
-		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time))
+		// Start with a valid time
+		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+1))
 		newBlock := api.getPayload(payloadID)
+
+		// Then make it invalid to check NewPayload rejects it
+		newBlock.Timestamp = eth.Uint64Quantity(genesis.Time)
+		updateBlockHash(newBlock)
 
 		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
 		api.assert.NoError(err)
@@ -110,12 +148,79 @@ func RunEngineAPITests(t *testing.T, createBackend func() engineapi.EngineBacken
 		api := newTestHelper(t, createBackend)
 		genesis := api.backend.CurrentBlock()
 
-		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time-1))
+		// Start with a valid time
+		payloadID := api.startBlockBuilding(genesis, eth.Uint64Quantity(genesis.Time+1))
 		newBlock := api.getPayload(payloadID)
+
+		// Then make it invalid to check NewPayload rejects it
+		newBlock.Timestamp = eth.Uint64Quantity(genesis.Time - 1)
+		updateBlockHash(newBlock)
 
 		r, err := api.engine.NewPayloadV1(api.ctx, newBlock)
 		api.assert.NoError(err)
 		api.assert.Equal(eth.ExecutionInvalid, r.Status)
+	})
+
+	t.Run("RejectCreateBlockWithSameTimeAsParent", func(t *testing.T) {
+		api := newTestHelper(t, createBackend)
+		genesis := api.backend.CurrentBlock()
+
+		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+			HeadBlockHash:      genesis.Hash(),
+			SafeBlockHash:      genesis.Hash(),
+			FinalizedBlockHash: genesis.Hash(),
+		}, &eth.PayloadAttributes{
+			Timestamp:             eth.Uint64Quantity(genesis.Time),
+			PrevRandao:            eth.Bytes32(genesis.MixDigest),
+			SuggestedFeeRecipient: feeRecipient,
+			Transactions:          nil,
+			NoTxPool:              true,
+			GasLimit:              &gasLimit,
+		})
+		api.assert.Error(err)
+		api.assert.Equal(eth.ExecutionInvalid, result.PayloadStatus.Status)
+	})
+
+	t.Run("RejectCreateBlockWithTimeBeforeParent", func(t *testing.T) {
+		api := newTestHelper(t, createBackend)
+		genesis := api.backend.CurrentBlock()
+
+		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+			HeadBlockHash:      genesis.Hash(),
+			SafeBlockHash:      genesis.Hash(),
+			FinalizedBlockHash: genesis.Hash(),
+		}, &eth.PayloadAttributes{
+			Timestamp:             eth.Uint64Quantity(genesis.Time - 1),
+			PrevRandao:            eth.Bytes32(genesis.MixDigest),
+			SuggestedFeeRecipient: feeRecipient,
+			Transactions:          nil,
+			NoTxPool:              true,
+			GasLimit:              &gasLimit,
+		})
+		api.assert.Error(err)
+		api.assert.Equal(eth.ExecutionInvalid, result.PayloadStatus.Status)
+	})
+
+	t.Run("RejectCreateBlockWithGasLimitAboveMax", func(t *testing.T) {
+		api := newTestHelper(t, createBackend)
+		genesis := api.backend.CurrentBlock()
+
+		gasLimit := eth.Uint64Quantity(params.MaxGasLimit + 1)
+
+		result, err := api.engine.ForkchoiceUpdatedV1(api.ctx, &eth.ForkchoiceState{
+			HeadBlockHash:      genesis.Hash(),
+			SafeBlockHash:      genesis.Hash(),
+			FinalizedBlockHash: genesis.Hash(),
+		}, &eth.PayloadAttributes{
+			Timestamp:             eth.Uint64Quantity(genesis.Time + 1),
+			PrevRandao:            eth.Bytes32(genesis.MixDigest),
+			SuggestedFeeRecipient: feeRecipient,
+			Transactions:          nil,
+			NoTxPool:              true,
+			GasLimit:              &gasLimit,
+		})
+		api.assert.Error(err)
+		api.assert.Equal(eth.ExecutionInvalid, result.PayloadStatus.Status)
 	})
 
 	t.Run("UpdateSafeAndFinalizedHead", func(t *testing.T) {
