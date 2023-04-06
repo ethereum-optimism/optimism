@@ -95,7 +95,7 @@ func FaultProofProgram(logger log.Logger, cfg *config.Config) error {
 
 	ctx := context.Background()
 	logger.Info("Connecting to L2 node", "l2", cfg.L2URL)
-	_, err := l2.NewFetchingL2Oracle(ctx, logger, cfg.L2URL)
+	_, err := l2.NewFetchingEngine(ctx, logger, cfg)
 	if err != nil {
 		return fmt.Errorf("connect l2 oracle: %w", err)
 	}
