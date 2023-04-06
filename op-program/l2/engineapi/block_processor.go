@@ -54,7 +54,7 @@ func NewBlockProcessorFromPayloadAttributes(provider BlockDataProvider, parent c
 }
 
 func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*BlockProcessor, error) {
-	header := *h // Copy to avoid mutating the original header
+	header := types.CopyHeader(h) // Copy to avoid mutating the original header
 
 	if header.GasLimit > params.MaxGasLimit {
 		return nil, fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, params.MaxGasLimit)
@@ -72,7 +72,7 @@ func NewBlockProcessorFromHeader(provider BlockDataProvider, h *types.Header) (*
 	header.GasUsed = 0
 	gasPool := new(core.GasPool).AddGas(header.GasLimit)
 	return &BlockProcessor{
-		header:       &header,
+		header:       header,
 		state:        statedb,
 		gasPool:      gasPool,
 		dataProvider: provider,
