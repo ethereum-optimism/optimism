@@ -493,3 +493,18 @@ func (m *MarshalableRPCBlockNumberOrHash) UnmarshalJSON(b []byte) error {
 	*m = asMarshalable
 	return nil
 }
+
+// Number wraps the rpc.BlockNumberOrHash Number method.
+func (m *MarshalableRPCBlockNumberOrHash) Number() (rpc.BlockNumber, bool) {
+	return (*rpc.BlockNumberOrHash)(m).Number()
+}
+
+// Hash wraps the rpc.BlockNumberOrHash Hash method.
+func (m *MarshalableRPCBlockNumberOrHash) Hash() (common.Hash, bool) {
+	return (*rpc.BlockNumberOrHash)(m).Hash()
+}
+
+// String wraps the rpc.BlockNumberOrHash String method.
+func (m *MarshalableRPCBlockNumberOrHash) String() string {
+	return (*rpc.BlockNumberOrHash)(m).String()
+}
