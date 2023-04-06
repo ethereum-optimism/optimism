@@ -14,13 +14,19 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
 
   console.log(`Deploying Optimist implementation with ${deployer}`)
 
-  const Deployment__AttestationStation = await hre.deployments.get(
+  const Deployment__AttestationStationProxy = await hre.deployments.get(
     'AttestationStationProxy'
   )
-  const attestationStationAddress = Deployment__AttestationStation.address
+  const attestationStationAddress = Deployment__AttestationStationProxy.address
+  console.log(`Using ${attestationStationAddress} as the ATTESTATION_STATION`)
+  console.log(
+    `Using ${deployConfig.optimistBaseUriAttestorAddress} as BASE_URI_ATTESTOR`
+  )
 
-  console.log(`Using ${attestationStationAddress} as the AttestationStation`)
-  console.log(`Using ${deployConfig.attestorAddress} as ATTESTOR`)
+  const Deployment__OptimistAllowlistProxy = await hre.deployments.get(
+    'OptimistAllowlistProxy'
+  )
+  const optimistAllowlistAddress = Deployment__OptimistAllowlistProxy.address
 
   const { deploy } = await hre.deployments.deterministic('Optimist', {
     salt: hre.ethers.utils.solidityKeccak256(['string'], ['Optimist']),
@@ -28,8 +34,9 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
     args: [
       deployConfig.optimistName,
       deployConfig.optimistSymbol,
-      deployConfig.attestorAddress,
+      deployConfig.optimistBaseUriAttestorAddress,
       attestationStationAddress,
+      optimistAllowlistAddress,
     ],
     log: true,
   })
@@ -37,6 +44,7 @@ const deployFn: DeployFunction = async (hre: HardhatRuntimeEnvironment) => {
   await deploy()
 }
 
-deployFn.tags = ['Optimist', 'OptimistEnvironment']
+deployFn.tags = ['OptimistImpl', 'OptimistEnvironment']
+deployFn.dependencies = ['AttestationStationProxy', 'OptimistAllowlistProxy']
 
 export default deployFn

@@ -206,6 +206,9 @@ func BlockToBatch(block *types.Block) (*BatchData, L1BlockInfo, error) {
 		}
 		opaqueTxs = append(opaqueTxs, otx)
 	}
+	if len(block.Transactions()) == 0 {
+		return nil, L1BlockInfo{}, fmt.Errorf("block %v has no transactions", block.Hash())
+	}
 	l1InfoTx := block.Transactions()[0]
 	if l1InfoTx.Type() != types.DepositTxType {
 		return nil, L1BlockInfo{}, ErrNotDepositTx
