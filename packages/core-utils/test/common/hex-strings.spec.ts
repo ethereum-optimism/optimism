@@ -1,7 +1,7 @@
 import { BigNumber } from '@ethersproject/bignumber'
 
 /* Imports: Internal */
-import { expect } from './setup'
+import { expect } from '../setup'
 import {
   toRpcHexString,
   remove0x,
@@ -12,7 +12,7 @@ import {
   encodeHex,
   hexStringEquals,
   bytes32ify,
-} from '../src'
+} from '../../src'
 
 describe('remove0x', () => {
   it('should return undefined', () => {
@@ -62,6 +62,7 @@ describe('toHexString', () => {
       'The first argument must be of type string or an instance of Buffer, ArrayBuffer, or Array or an Array-like Object. Received null'
     )
   })
+
   it('should return with a hex string', () => {
     const cases = [
       { input: 0, output: '0x00' },
@@ -104,6 +105,7 @@ describe('padHexString', () => {
     expect(padHexString('abcd', 1)).to.deep.equal('abcd')
     expect(padHexString('abcdefgh', 3).length).to.deep.equal(8)
   })
+
   it('should return a string padded with 0x and zeros', () => {
     expect(padHexString('0xabcd', 3)).to.deep.equal('0x00abcd')
   })

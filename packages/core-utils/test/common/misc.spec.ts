@@ -1,6 +1,6 @@
 /* Imports: Internal */
-import { expect } from './setup'
-import { sleep, clone, reqenv, getenv } from '../src'
+import { expect } from '../setup'
+import { sleep, clone, reqenv, getenv } from '../../src'
 
 describe('sleep', async () => {
   it('should return wait input amount of ms', async () => {
@@ -21,7 +21,7 @@ describe('clone', async () => {
 })
 
 describe('reqenv', async () => {
-  let cachedEnvironment
+  let cachedEnvironment: NodeJS.ProcessEnv
   const temporaryEnvironmentKey = 'testVariable'
   const temporaryEnvironment = {
     [temporaryEnvironmentKey]: 'This is an environment variable',
@@ -51,7 +51,7 @@ describe('reqenv', async () => {
 })
 
 describe('getenv', async () => {
-  let cachedEnvironment
+  let cachedEnvironment: NodeJS.ProcessEnv
   const temporaryEnvironmentKey = 'testVariable'
   const temporaryEnvironment = {
     [temporaryEnvironmentKey]: 'This is an environment variable',
